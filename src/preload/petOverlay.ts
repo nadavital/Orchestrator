@@ -51,6 +51,8 @@ const petApi = {
     setPointerInteractive: (v: boolean): void => ipcRenderer.send('pet:pointer', v),
     setTrayCount: (count: number): void => ipcRenderer.send('pet:trayCount', count),
     setTrayHeight: (h: number): void => ipcRenderer.send('pet:trayHeight', h),
+    setTraySize: (size: { width: number; height: number }): void => ipcRenderer.send('pet:traySize', size),
+    setMascotSize: (size: { width: number; height: number }): void => ipcRenderer.send('pet:mascotSize', size),
     onConfigUpdated: (cb: (update: { selectedPetId?: string }) => void): (() => void) => {
       const handler = (_: Electron.IpcRendererEvent, update: { selectedPetId?: string }): void => cb(update)
       ipcRenderer.on('pet:configUpdated', handler)

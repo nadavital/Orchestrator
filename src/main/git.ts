@@ -16,10 +16,10 @@ export const gitManager = {
   },
 
   async createWorktree(repoRoot: string, sessionId: string): Promise<string> {
-    const worktreesDir = join(repoRoot, '.claude-worktrees')
+    const worktreesDir = join(repoRoot, '.orchestrator-worktrees')
     mkdirSync(worktreesDir, { recursive: true })
     const worktreePath = join(worktreesDir, sessionId)
-    const branchName = `claude/${sessionId.slice(0, 8)}`
+    const branchName = `orchestrator/${sessionId.slice(0, 8)}`
     const git = simpleGit(repoRoot)
     await git.raw(['worktree', 'add', worktreePath, '-b', branchName])
     return worktreePath

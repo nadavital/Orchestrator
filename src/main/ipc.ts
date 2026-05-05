@@ -70,7 +70,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     settingsStore.set(key as keyof typeof settingsStore.store, value as never)
   })
 
-  // File system (for CLAUDE.md / Skills)
+  // File system (for provider instructions and skills)
   ipcMain.handle('fs:resolveHome', () => app.getPath('home'))
   ipcMain.handle('fs:readFile', (_, filePath: string): string | null => {
     try { return readFileSync(filePath, 'utf-8') } catch { return null }
@@ -83,7 +83,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     try { return readdirSync(dirPath) } catch { return null }
   })
 
-  // User shell terminal (separate from Claude's PTY)
+  // User shell terminal (separate from provider PTYs)
   ipcMain.handle('terminal:spawn', (_, sessionId: string, workDir: string) =>
     terminalManager.spawn(sessionId, workDir)
   )
@@ -113,6 +113,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('pet:getConfig', () => petOverlayManager.getConfig())
   ipcMain.handle('pet:selectPet', (_, id: string) => petOverlayManager.selectPet(id))
   ipcMain.handle('pet:import', () => petOverlayManager.importPet())
+  ipcMain.handle('pet:importCodexPets', () => petOverlayManager.importCodexPets())
   ipcMain.handle('pet:setOpen', (_, v: boolean) => petOverlayManager.setOpen(v))
   ipcMain.handle('pet:close', () => petOverlayManager.setOpen(false))
   ipcMain.handle('pet:focusMain', (_, sessionId?: string) => petOverlayManager.focusMain(sessionId))
@@ -125,4 +126,6 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.on('pet:pointer', (_, v: boolean) => petOverlayManager.setPointerInteractive(v))
   ipcMain.on('pet:trayCount', (_, count: number) => petOverlayManager.setTrayCount(count))
   ipcMain.on('pet:trayHeight', (_, h: number) => petOverlayManager.setTrayHeight(h))
+  ipcMain.on('pet:traySize', (_, size: { width: number; height: number }) => petOverlayManager.setTraySize(size))
+  ipcMain.on('pet:mascotSize', (_, size: { width: number; height: number }) => petOverlayManager.setMascotSize(size))
 }

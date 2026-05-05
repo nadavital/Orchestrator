@@ -12,11 +12,34 @@
     --color-modal-border: #404040;
     --color-text: #e5e5e5;
     --color-text-muted: #737373;
-    --color-accent: #f97316;
-    --color-accent-dim: #78350f;
+    --color-accent: #38bdf8;
+    --color-accent-dim: #0c4a6e;
     --color-green: #22c55e;
     --color-red: #ef4444;
     --color-yellow: #eab308;
+    color-scheme: dark;
+  }
+
+  :root[data-theme='light'] {
+    --color-bg: #f6f7f9;
+    --color-surface: #ffffff;
+    --color-surface2: #eef2f6;
+    --color-border: #d9e0e8;
+    --color-modal: #ffffff;
+    --color-modal-header: #f1f5f9;
+    --color-modal-border: #d9e0e8;
+    --color-text: #172033;
+    --color-text-muted: #65758b;
+    --color-accent: #0284c7;
+    --color-accent-dim: #dbeafe;
+    --color-green: #16a34a;
+    --color-red: #dc2626;
+    --color-yellow: #ca8a04;
+    color-scheme: light;
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
   }
 
   * {
@@ -58,7 +81,7 @@
     background: var(--color-border);
     border-radius: 3px;
   }
-  ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-surface2); }
 
   @keyframes statusPulse {
     0%, 100% { opacity: 1; transform: scale(1); }

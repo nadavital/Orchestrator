@@ -105,6 +105,7 @@ const api = {
     getConfig: (): Promise<unknown> => ipcRenderer.invoke('pet:getConfig'),
     selectPet: (id: string): Promise<void> => ipcRenderer.invoke('pet:selectPet', id),
     importPet: (): Promise<unknown> => ipcRenderer.invoke('pet:import'),
+    importCodexPets: (): Promise<unknown> => ipcRenderer.invoke('pet:importCodexPets'),
     setOpen: (v: boolean): Promise<void> => ipcRenderer.invoke('pet:setOpen', v),
     onNavigate: (cb: (sessionId: string) => void): (() => void) => {
       const handler = (_: Electron.IpcRendererEvent, id: string): void => cb(id)

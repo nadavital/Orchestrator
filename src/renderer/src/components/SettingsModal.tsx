@@ -11,6 +11,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { PROVIDER_DEFS, getVisibleModels, type ProviderCapability, type ProviderRuntimeInfo } from '../types'
 import { useSessionStore } from '../store/sessions'
 import ProviderIcon from './shared/ProviderIcon'
+import { applyAppearance, type Appearance } from '../theme'
 
 type NavSection = 'general' | 'providers' | 'pets'
 
@@ -26,14 +27,16 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
   const [defaultEfforts, setDefaultEfforts] = useState<Record<string, string>>({})
   const [providerModels, setProviderModels] = useState<Record<string, string[]>>({})
   const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
+  const [appearance, setAppearance] = useState<Appearance>('system')
 
   useEffect(() => {
     window.api.settings.get().then((s) => {
-      const rec = s as Record<string, unknown>
+      const rec = s as unknown as Record<string, unknown>
       setDefaultProvider((rec.defaultProvider as string) ?? 'claude')
       setDefaultModels((rec.defaultModels as Record<string, string>) ?? {})
       setDefaultEfforts((rec.defaultEfforts as Record<string, string>) ?? {})
       setProviderModels((rec.providerModels as Record<string, string[]>) ?? {})
+      setAppearance((rec.appearance as Appearance) ?? 'system')
     })
     window.api.providers.getRuntimeInfo().then(setProviderRuntime)
   }, [])
@@ -60,6 +63,12 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
     setProviderModels(next)
     storeSetProviderModels(next)
     window.api.settings.set('providerModels', next)
+  }
+
+  const saveAppearance = (value: Appearance): void => {
+    setAppearance(value)
+    applyAppearance(value)
+    window.api.settings.set('appearance', value)
   }
 
   return (
@@ -112,7 +121,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {activeSection === 'general' && <GeneralSection />}
+          {activeSection === 'general' && <GeneralSection appearance={appearance} onSetAppearance={saveAppearance} />}
           {activeSection === 'pets' && <PetsSection />}
           {activeSection === 'providers' && (
             <ProvidersSection
@@ -159,13 +168,47 @@ function NavItem({ active, onClick, children }: {
 
 // ─── General section (app-wide) ───────────────────────────────────────────────
 
-function GeneralSection(): JSX.Element {
+function GeneralSection({
+  appearance,
+  onSetAppearance,
+}: {
+  appearance: Appearance
+  onSetAppearance: (value: Appearance) => void
+}): JSX.Element {
+  const options: Array<{ id: Appearance; label: string }> = [
+    { id: 'system', label: 'System' },
+    { id: 'dark', label: 'Dark' },
+    { id: 'light', label: 'Light' },
+  ]
+
   return (
     <div style={{ padding: '32px 40px', maxWidth: 640 }}>
       <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', marginBottom: 24 }}>General</h2>
-      <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-        App-wide settings (theming, shortcuts, etc.) coming soon.
-      </div>
+      <SettingGroup title="Appearance" description="Choose how Orchestrator should look.">
+        <div style={{ display: 'flex', gap: 8 }}>
+          {options.map((option) => {
+            const active = appearance === option.id
+            return (
+              <button
+                key={option.id}
+                onClick={() => onSetAppearance(option.id)}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                  background: active ? 'var(--color-accent-dim)' : 'var(--color-surface)',
+                  color: active ? 'var(--color-accent)' : 'var(--color-text)',
+                  fontSize: 12,
+                  fontWeight: active ? 600 : 500,
+                  cursor: 'pointer',
+                }}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      </SettingGroup>
     </div>
   )
 }
@@ -736,6 +779,7 @@ function PetsSection(): JSX.Element {
   const [selectedPetId, setSelectedPetId] = useState('ditto')
   const [isOpen, setIsOpen] = useState(true)
   const [importing, setImporting] = useState(false)
+  const [importingCodex, setImportingCodex] = useState(false)
 
   useEffect(() => {
     window.api.pet.getConfig().then((cfg) => {
@@ -768,6 +812,18 @@ function PetsSection(): JSX.Element {
       }
     } finally {
       setImporting(false)
+    }
+  }
+
+  const handleImportCodexPets = async (): Promise<void> => {
+    setImportingCodex(true)
+    try {
+      await window.api.pet.importCodexPets()
+      const cfg = await window.api.pet.getConfig()
+      const c = cfg as { pets: PetEntry[]; selectedPetId: string; isOpen: boolean }
+      setPets(c.pets ?? [])
+    } finally {
+      setImportingCodex(false)
     }
   }
 
@@ -824,8 +880,8 @@ function PetsSection(): JSX.Element {
                     width: 96,
                     height: 104,
                     backgroundImage: `url(${pet.spritesheetDataUrl})`,
-                    backgroundSize: '768px 936px',
-                    backgroundPosition: '0px 0px',
+                    backgroundSize: '800% 900%',
+                    backgroundPosition: '0% 0%',
                     backgroundRepeat: 'no-repeat',
                     imageRendering: 'pixelated',
                   }}
@@ -845,18 +901,31 @@ function PetsSection(): JSX.Element {
       </SettingGroup>
 
       {/* Import */}
-      <SettingGroup title="Import custom pet" description="Add a pet from a .zip bundle containing pet.json and a spritesheet.webp.">
-        <button
-          onClick={handleImport}
-          disabled={importing}
-          style={{
-            padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-            color: importing ? 'var(--color-text-muted)' : 'var(--color-text)',
-          }}
-        >
-          {importing ? 'Importing…' : 'Import from .zip'}
-        </button>
+      <SettingGroup title="Import pets" description="Add pets from a local bundle or copy presets and custom pets from Codex.">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <button
+            onClick={handleImportCodexPets}
+            disabled={importingCodex}
+            style={{
+              padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer',
+              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              color: importingCodex ? 'var(--color-text-muted)' : 'var(--color-text)',
+            }}
+          >
+            {importingCodex ? 'Importing…' : 'Import from Codex'}
+          </button>
+          <button
+            onClick={handleImport}
+            disabled={importing}
+            style={{
+              padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer',
+              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              color: importing ? 'var(--color-text-muted)' : 'var(--color-text)',
+            }}
+          >
+            {importing ? 'Importing…' : 'Import from .zip'}
+          </button>
+        </div>
       </SettingGroup>
     </div>
   )

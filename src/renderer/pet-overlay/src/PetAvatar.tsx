@@ -15,8 +15,6 @@ const DISPLAY_W = 96
 const DISPLAY_H = 104
 const SHEET_COLS = 8  // k
 const SHEET_ROWS = 9  // A
-const BG_W = SHEET_COLS * DISPLAY_W   // 768
-const BG_H = SHEET_ROWS * DISPLAY_H   // 936
 
 const IDLE_MULTIPLIER = 6  // j — idle frames run 6× slower
 
@@ -171,7 +169,7 @@ export default function PetAvatar({
         width: DISPLAY_W,
         height: DISPLAY_H,
         backgroundImage: `url(${spritesheetSrc})`,
-        backgroundSize: `${BG_W}px ${BG_H}px`,
+        backgroundSize: `${SHEET_COLS * 100}% ${SHEET_ROWS * 100}%`,
         backgroundPosition: bgPos(0, initialRow),
         backgroundRepeat: 'no-repeat',
         imageRendering: 'pixelated',

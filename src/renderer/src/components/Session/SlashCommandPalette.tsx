@@ -5,24 +5,24 @@ export interface SlashCommand {
   desc: string
 }
 
-// Commands available for Claude Code CLI
+// Commands available for CLIs with slash-command support.
 export const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: '/clear', desc: 'Clear conversation history' },
   { cmd: '/compact', desc: 'Compact conversation to save context' },
   { cmd: '/cost', desc: 'View token usage and estimated cost' },
   { cmd: '/diff', desc: 'Show git diff of current changes' },
   { cmd: '/help', desc: 'Show available commands' },
-  { cmd: '/init', desc: 'Initialize Claude Code in this project' },
-  { cmd: '/memory', desc: 'Edit CLAUDE.md memory file' },
+  { cmd: '/init', desc: 'Initialize agent config in this project' },
+  { cmd: '/memory', desc: 'Edit provider memory file' },
   { cmd: '/model', desc: 'Switch model for this session' },
   { cmd: '/permissions', desc: 'View and manage tool permissions' },
   { cmd: '/pr-comments', desc: 'Load PR comments for review' },
   { cmd: '/review', desc: 'Review staged or uncommitted changes' },
   { cmd: '/status', desc: 'Show account and system status' },
   { cmd: '/vim', desc: 'Toggle vim keybindings' },
-  { cmd: '/bug', desc: 'Report a Claude Code bug' },
-  { cmd: '/login', desc: 'Sign in to Claude' },
-  { cmd: '/logout', desc: 'Sign out of Claude' },
+  { cmd: '/bug', desc: 'Report a CLI bug' },
+  { cmd: '/login', desc: 'Sign in to the active provider' },
+  { cmd: '/logout', desc: 'Sign out of the active provider' },
 ]
 
 interface Props {

@@ -13,12 +13,16 @@ export default function TerminalView({ terminalId, workDir }: Props): JSX.Elemen
   const termRef = useRef<Terminal | null>(null)
 
   useEffect(() => {
+    const vars = getComputedStyle(document.documentElement)
+    const bg = vars.getPropertyValue('--color-bg').trim() || '#0f0f0f'
+    const fg = vars.getPropertyValue('--color-text').trim() || '#e5e5e5'
+    const accent = vars.getPropertyValue('--color-accent').trim() || '#38bdf8'
     const term = new Terminal({
       theme: {
-        background: '#0f0f0f',
-        foreground: '#e5e5e5',
-        cursor: '#f97316',
-        selectionBackground: 'rgba(249,115,22,0.3)'
+        background: bg,
+        foreground: fg,
+        cursor: accent,
+        selectionBackground: 'rgba(56,189,248,0.3)'
       },
       fontFamily: "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace",
       fontSize: 12,

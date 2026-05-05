@@ -6,6 +6,7 @@ import SessionPane from './components/Session/SessionPane'
 import EmptyState from './components/shared/EmptyState'
 import Titlebar from './components/Titlebar'
 import SettingsPage from './components/SettingsModal'
+import { applyAppearance, type Appearance } from './theme'
 
 export default function App(): JSX.Element {
   const { setProjects, addSessionToProject, removeSessionFromProject } = useProjectStore()
@@ -31,9 +32,16 @@ export default function App(): JSX.Element {
   useEffect(() => {
     window.api.sessions.checkProviders().then(setProviderAvailability)
     window.api.settings.get().then((s) => {
-      const pm = (s as Record<string, unknown>).providerModels
+      applyAppearance(s.appearance ?? 'system')
+      const pm = (s as unknown as Record<string, unknown>).providerModels
       if (pm && typeof pm === 'object') setProviderModels(pm as Record<string, string[]>)
     })
+
+    const media = window.matchMedia('(prefers-color-scheme: light)')
+    const onSystemThemeChanged = (): void => {
+      window.api.settings.get().then((s) => applyAppearance((s.appearance ?? 'system') as Appearance))
+    }
+    media.addEventListener('change', onSystemThemeChanged)
 
     Promise.all([window.api.projects.list(), window.api.sessions.list()]).then(
       async ([projects, sessions]) => {
@@ -125,7 +133,7 @@ export default function App(): JSX.Element {
       }
     })
 
-    return () => { unsub(); unsubNav() }
+    return () => { unsub(); unsubNav(); media.removeEventListener('change', onSystemThemeChanged) }
   }, [])
 
   if (showSettings) {

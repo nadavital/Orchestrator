@@ -10,10 +10,13 @@ import { gitManager } from './git'
 import { getProvider, PROVIDERS } from './providers'
 import { eventsToMessages } from './runEvents'
 import { settingsStore } from './settings'
+import { migrateLegacyUserData } from './userDataMigration'
 
 interface SessionStore {
   sessions: Session[]
 }
+
+migrateLegacyUserData()
 
 const store = new Store<SessionStore>({ defaults: { sessions: [] } })
 

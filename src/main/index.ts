@@ -42,7 +42,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.claude.orchestrator')
+  electronApp.setAppUserModelId('com.orchestrator.app')
 
   registerIpcHandlers(ipcMain)
   setCreateMainWindowCallback(createWindow)

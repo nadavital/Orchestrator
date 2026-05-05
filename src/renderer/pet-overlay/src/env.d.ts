@@ -23,8 +23,11 @@ export interface PetEntry extends PetManifest {
 }
 
 export interface PetLayout {
+  mascotLeft: number
   mascotTop: number
+  trayLeft: number
   trayTop: number
+  placement: 'top-start' | 'top-end' | 'bottom-start' | 'bottom-end'
 }
 
 export interface PetConfig {
@@ -52,6 +55,8 @@ declare global {
         setPointerInteractive: (v: boolean) => void
         setTrayCount: (count: number) => void
         setTrayHeight: (h: number) => void
+        setTraySize: (size: { width: number; height: number }) => void
+        setMascotSize: (size: { width: number; height: number }) => void
         onConfigUpdated: (cb: (update: { selectedPetId?: string }) => void) => () => void
         onLayout: (cb: (layout: PetLayout) => void) => () => void
       }

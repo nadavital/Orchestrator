@@ -45,6 +45,8 @@ interface SessionState {
   lastToolName: string | null
   lastToolInput: Record<string, unknown>
   lastAssistantText: string
+  activitySeq: number
+  lastActivityAt: number
 }
 
 function getStatus(s: SessionState): PetStatus {
@@ -55,26 +57,65 @@ function getStatus(s: SessionState): PetStatus {
   return 'idle'
 }
 
+const NOTIFICATION_TTL_MS: Record<PetStatus, number> = {
+  running: 180_000,
+  error: 3_600_000,
+  waiting: 86_400_000,
+  review: 604_800_000,
+  idle: 0,
+}
+
+function compactPath(value: unknown): string | null {
+  if (typeof value !== 'string' || value.trim() === '') return null
+  const parts = value.trim().split(/[\\/]/).filter(Boolean)
+  return parts.slice(-2).join('/')
+}
+
+function firstString(input: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = input[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return null
+}
+
+function classifyToolActivity(toolName: string, input: Record<string, unknown>): string {
+  const normalizedName = toolName.toLowerCase().replace(/[_\s.-]+/g, '')
+  const command = firstString(input, ['command', 'cmd', 'script', 'description'])
+  if (command && /(bash|shell|terminal|command|exec|run)/i.test(toolName)) {
+    return `$ ${command.slice(0, 48)}`
+  }
+
+  const filePath = compactPath(
+    firstString(input, ['file_path', 'path', 'target_file', 'targetFile', 'absolutePath', 'relativePath']) ??
+    (Array.isArray(input.files) ? input.files[0] : null)
+  )
+  if (filePath) {
+    if (normalizedName.includes('read')) return `Reading ${filePath}`
+    if (normalizedName.includes('write') || normalizedName.includes('edit') || normalizedName.includes('patch')) {
+      return `Editing ${filePath}`
+    }
+    return filePath
+  }
+
+  const query = firstString(input, ['query', 'pattern', 'search', 'searchTerm'])
+  if (query) return `Search: ${query.slice(0, 44)}`
+
+  const url = firstString(input, ['url', 'uri'])
+  if (url) return `Fetch: ${url.slice(0, 44)}`
+
+  if (normalizedName.includes('todo')) return 'Updating task list'
+  if (normalizedName.includes('agent') || normalizedName.includes('subtask')) {
+    const description = firstString(input, ['description', 'prompt', 'task'])
+    return description ? `Agent: ${description.slice(0, 44)}` : 'Running agent'
+  }
+
+  return toolName === 'unknown' || toolName === 'tool' ? 'Using tool' : `Using ${toolName}`
+}
+
 function formatActivity(s: SessionState, status: PetStatus): string | null {
   if (status === 'running' && s.lastToolName) {
-    const name = s.lastToolName
-    const inp = s.lastToolInput
-    if (name === 'Bash') {
-      const cmd = String(inp.command ?? inp.description ?? '').trim()
-      return cmd ? `$ ${cmd.slice(0, 48)}` : 'Running command'
-    }
-    if (name === 'Edit' || name === 'Write' || name === 'Read') {
-      const fp = String(inp.file_path ?? '').trim()
-      if (fp) {
-        const parts = fp.split('/')
-        return parts.slice(-2).join('/')
-      }
-    }
-    if (name === 'WebSearch') return `Search: ${String(inp.query ?? '').slice(0, 44)}`
-    if (name === 'WebFetch') return `Fetch: ${String(inp.url ?? '').slice(0, 44)}`
-    if (name === 'Agent') return `Agent: ${String(inp.description ?? '').slice(0, 44)}`
-    if (name === 'TodoWrite') return 'Updating task list'
-    return name
+    return classifyToolActivity(s.lastToolName, s.lastToolInput)
   }
   if ((status === 'review' || status === 'error') && s.lastAssistantText) {
     return s.lastAssistantText.replace(/\s+/g, ' ').trim().slice(0, 72)
@@ -87,21 +128,36 @@ function extractMessages(msgs: ChatMessage[], prev: SessionState): Partial<Sessi
   let lastToolInput = prev.lastToolInput
   let lastAssistantText = prev.lastAssistantText
   let hasUnread = prev.hasUnread
+  let changed = false
 
   for (const m of msgs) {
     if (m.type === 'tool_use') {
       lastToolName = m.toolName
       lastToolInput = m.toolInput
+      changed = true
     }
     if (m.type === 'text' && m.role === 'assistant') {
       lastAssistantText = m.content
       hasUnread = true
+      changed = true
     }
     if (m.type === 'result') {
       lastAssistantText = m.content
+      changed = true
     }
   }
-  return { lastToolName, lastToolInput, lastAssistantText, hasUnread }
+  return {
+    lastToolName,
+    lastToolInput,
+    lastAssistantText,
+    hasUnread,
+    activitySeq: changed ? prev.activitySeq + 1 : prev.activitySeq,
+    lastActivityAt: changed ? Date.now() : prev.lastActivityAt,
+  }
+}
+
+function notificationKey(s: SessionState, status: PetStatus): string {
+  return `${s.id}:${status}:${s.activitySeq}`
 }
 
 // Minimum pointer movement before we commit to a drag (matches Codex Ge=4)
@@ -111,13 +167,22 @@ export default function PetOverlay(): JSX.Element | null {
   const [config, setConfig] = useState<PetConfig | null>(null)
   const [sessions, setSessions] = useState<Record<string, SessionState>>({})
   const [isHovering, setIsHovering] = useState(false)
-  const [layout, setLayout] = useState<PetLayout>({ mascotTop: 8, trayTop: 120 })
+  const [layout, setLayout] = useState<PetLayout>({
+    mascotLeft: 176,
+    mascotTop: 8,
+    trayLeft: 8,
+    trayTop: 120,
+    placement: 'bottom-end',
+  })
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(() => new Set())
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const isDragging = useRef(false)
   const dragStartPos = useRef<{ clientX: number; clientY: number } | null>(null)
   const hasMoved = useRef(false)
   const dragSamples = useRef<Array<{ screenX: number; screenY: number; timeMs: number }>>([])
   const [dragAnimState, setDragAnimState] = useState<AnimState | null>(null)
   const trayRef = useRef<HTMLDivElement>(null)
+  const mascotRef = useRef<HTMLDivElement>(null)
 
   // Load initial config + sessions, then always run canvas detection for all pets
   useEffect(() => {
@@ -136,6 +201,8 @@ export default function PetOverlay(): JSX.Element | null {
           lastToolName: null,
           lastToolInput: {},
           lastAssistantText: '',
+          activitySeq: 0,
+          lastActivityAt: Date.now(),
         }
       }
       setSessions(initial)
@@ -181,6 +248,7 @@ export default function PetOverlay(): JSX.Element | null {
   useEffect(() => {
     return window.petApi.onSessionEvent((event) => {
       setSessions((prev) => {
+        const now = Date.now()
         if (event.type === 'created') {
           return {
             ...prev,
@@ -194,6 +262,8 @@ export default function PetOverlay(): JSX.Element | null {
               lastToolName: null,
               lastToolInput: {},
               lastAssistantText: '',
+              activitySeq: 0,
+              lastActivityAt: now,
             }
           }
         }
@@ -207,6 +277,8 @@ export default function PetOverlay(): JSX.Element | null {
               status: event.status,
               needsInput: event.status === 'running' ? false : s.needsInput,
               lastToolName: event.status !== 'running' ? null : s.lastToolName,
+              activitySeq: event.status !== s.status ? s.activitySeq + 1 : s.activitySeq,
+              lastActivityAt: event.status !== s.status ? now : s.lastActivityAt,
             }
           }
         }
@@ -217,11 +289,16 @@ export default function PetOverlay(): JSX.Element | null {
           return { ...prev, [event.id]: { ...s, name: event.name } }
         }
         if (event.type === 'needsInput') {
-          return { ...prev, [event.id]: { ...s, needsInput: true } }
+          return { ...prev, [event.id]: { ...s, needsInput: true, activitySeq: s.activitySeq + 1, lastActivityAt: now } }
         }
         return prev
       })
     })
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 15_000)
+    return () => window.clearInterval(timer)
   }, [])
 
   // Mouse passthrough
@@ -240,12 +317,28 @@ export default function PetOverlay(): JSX.Element | null {
     return () => window.removeEventListener('mousemove', onMove)
   }, [])
 
-  // Report actual tray height to main via ResizeObserver for accurate window sizing
+  // Report actual element sizes to main so it can place the floating window.
   useEffect(() => {
     const el = trayRef.current
     if (!el) return
     const ro = new ResizeObserver(([entry]) => {
-      window.petApi.pet.setTrayHeight(Math.ceil(entry.contentRect.height))
+      window.petApi.pet.setTraySize({
+        width: Math.ceil(entry.contentRect.width),
+        height: Math.ceil(entry.contentRect.height),
+      })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const el = mascotRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      window.petApi.pet.setMascotSize({
+        width: Math.ceil(entry.contentRect.width),
+        height: Math.ceil(entry.contentRect.height),
+      })
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -256,6 +349,11 @@ export default function PetOverlay(): JSX.Element | null {
   const active = sessionList
     .map((s) => ({ session: s, status: getStatus(s) }))
     .filter(({ status }) => status !== 'idle')
+    .filter(({ session, status }) => {
+      const ttl = NOTIFICATION_TTL_MS[status]
+      if (ttl > 0 && nowMs - session.lastActivityAt > ttl) return false
+      return !dismissedKeys.has(notificationKey(session, status))
+    })
     .sort((a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status])
 
   const topStatus = active[0]?.status ?? 'idle'
@@ -376,7 +474,7 @@ export default function PetOverlay(): JSX.Element | null {
         data-interactive="true"
         style={{
           position: 'absolute',
-          left: 8,
+          left: layout.trayLeft,
           top: layout.trayTop,
           width: 264,
           display: 'flex',
@@ -404,6 +502,8 @@ export default function PetOverlay(): JSX.Element | null {
                   }))
                 }}
                 onDismiss={() => {
+                  const key = notificationKey(session, status)
+                  setDismissedKeys((prev) => new Set(prev).add(key))
                   setSessions((prev) => ({
                     ...prev,
                     [session.id]: { ...prev[session.id], hasUnread: false }
@@ -417,6 +517,7 @@ export default function PetOverlay(): JSX.Element | null {
 
       {/* Mascot */}
       <div
+        ref={mascotRef}
         data-interactive="true"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -424,7 +525,7 @@ export default function PetOverlay(): JSX.Element | null {
         onContextMenu={() => window.petApi.pet.close()}
         style={{
           position: 'absolute',
-          right: 8,
+          left: layout.mascotLeft,
           top: layout.mascotTop,
           cursor: isDragging.current ? 'grabbing' : 'grab',
         }}

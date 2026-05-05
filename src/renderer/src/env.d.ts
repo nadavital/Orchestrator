@@ -5,6 +5,9 @@ import type { Project, Session, ChatMessage, FileChange, ProviderRuntimeInfo } f
 export interface AppSettings {
   defaultProvider: string
   defaultModels: Record<string, string>
+  defaultEfforts: Record<string, string>
+  providerModels: Record<string, string[]>
+  appearance: 'system' | 'dark' | 'light'
 }
 
 export type SessionEvent =
@@ -80,6 +83,7 @@ declare global {
         getConfig: () => Promise<unknown>
         selectPet: (id: string) => Promise<void>
         importPet: () => Promise<unknown>
+        importCodexPets: () => Promise<unknown>
         setOpen: (v: boolean) => Promise<void>
         onNavigate: (cb: (sessionId: string) => void) => () => void
       }

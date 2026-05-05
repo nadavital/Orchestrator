@@ -1,10 +1,13 @@
 import Store from 'electron-store'
 import type { Project } from '../types'
 import { v4 as uuidv4 } from 'uuid'
+import { migrateLegacyUserData } from './userDataMigration'
 
 interface StoreSchema {
   projects: Project[]
 }
+
+migrateLegacyUserData()
 
 const store = new Store<StoreSchema>({
   defaults: { projects: [] }
