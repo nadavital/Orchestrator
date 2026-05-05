@@ -1,0 +1,84 @@
+import { useState } from 'react'
+import type { ToolUseMessage } from '../../types'
+
+const toolIcons: Record<string, string> = {
+  Bash: '⚡',
+  Read: '📖',
+  Write: '✏️',
+  Edit: '✏️',
+  Glob: '🔍',
+  Grep: '🔍',
+  WebFetch: '🌐',
+  WebSearch: '🌐',
+  Agent: '🤖',
+  TodoWrite: '📋',
+  Task: '📋'
+}
+
+interface Props {
+  msg: ToolUseMessage
+}
+
+export default function ToolCallCard({ msg }: Props): JSX.Element {
+  const [expanded, setExpanded] = useState(false)
+  const icon = toolIcons[msg.toolName] ?? '🔧'
+
+  const inputPreview = (() => {
+    const entries = Object.entries(msg.toolInput)
+    if (entries.length === 0) return ''
+    const [key, val] = entries[0]
+    const strVal = typeof val === 'string' ? val : JSON.stringify(val)
+    return `${key}: ${strVal.slice(0, 60)}${strVal.length > 60 ? '…' : ''}`
+  })()
+
+  return (
+    <div className="flex justify-start pl-8">
+      <div
+        className="rounded-xl overflow-hidden text-xs"
+        style={{
+          background: 'var(--color-surface2)',
+          border: '1px solid var(--color-border)',
+          maxWidth: '80%'
+        }}
+      >
+        <button
+          className="flex items-center gap-2 px-3 py-2 w-full text-left"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <span>{icon}</span>
+          <span className="font-semibold" style={{ color: 'var(--color-text)' }}>
+            {msg.toolName}
+          </span>
+          {!expanded && inputPreview && (
+            <span className="truncate flex-1" style={{ color: 'var(--color-text-muted)' }}>
+              {inputPreview}
+            </span>
+          )}
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="currentColor"
+            className="shrink-0 ml-auto transition-transform"
+            style={{
+              color: 'var(--color-text-muted)',
+              transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)'
+            }}
+          >
+            <path d="M5 7 L1 3 L9 3 Z" />
+          </svg>
+        </button>
+        {expanded && (
+          <div
+            className="px-3 pb-3 font-mono overflow-auto"
+            style={{ borderTop: '1px solid var(--color-border)', maxHeight: 300, color: 'var(--color-text-muted)' }}
+          >
+            <pre className="whitespace-pre-wrap break-all mt-2 text-xs">
+              {JSON.stringify(msg.toolInput, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

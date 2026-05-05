@@ -1,0 +1,67 @@
+@import "tailwindcss";
+@import "highlight.js/styles/github-dark.css";
+
+@layer base {
+  :root {
+    --color-bg: #0f0f0f;
+    --color-surface: #1a1a1a;
+    --color-surface2: #242424;
+    --color-border: #2a2a2a;
+    --color-modal: #2e2e2e;
+    --color-modal-header: #3a3a3a;
+    --color-modal-border: #404040;
+    --color-text: #e5e5e5;
+    --color-text-muted: #737373;
+    --color-accent: #f97316;
+    --color-accent-dim: #78350f;
+    --color-green: #22c55e;
+    --color-red: #ef4444;
+    --color-yellow: #eab308;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    user-select: none;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #root {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+  }
+
+  pre, code {
+    font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+    font-size: 12px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+
+  @keyframes statusPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+}

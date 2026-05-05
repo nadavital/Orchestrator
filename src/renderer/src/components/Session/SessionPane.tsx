@@ -1,0 +1,240 @@
+import { useState, useRef, useCallback, useEffect, type MutableRefObject } from 'react'
+import { useSessionStore } from '../../store/sessions'
+import { useProjectStore } from '../../store/projects'
+import type { Session } from '../../types'
+import ChatView from './ChatView'
+import TerminalView from './TerminalView'
+import DiffPanel from './DiffPanel'
+import SkillsPanel from './SkillsPanel'
+import InputBar from './InputBar'
+
+const MIN_TERMINAL_HEIGHT = 120
+const MAX_TERMINAL_HEIGHT = 600
+const DEFAULT_TERMINAL_HEIGHT = 260
+
+export default function SessionPane(): JSX.Element | null {
+  const { sessions, activeSessionId, uiState, setShowSkills, setShowTerminal } = useSessionStore()
+  const { projects } = useProjectStore()
+  const session = sessions.find((s) => s.id === activeSessionId)
+  const [promptInjectorRef] = useState<MutableRefObject<((text: string) => void) | null>>({ current: null })
+  const [terminalHeight, setTerminalHeight] = useState(DEFAULT_TERMINAL_HEIGHT)
+  const dragStartRef = useRef<{ y: number; h: number } | null>(null)
+
+  // Tab state: array of tab indices, active tab index
+  const [tabs, setTabs] = useState<number[]>([0])
+  const [activeTab, setActiveTab] = useState(0)
+  const nextTabId = useRef(1)
+
+  // Reset tabs when session changes
+  const sessionIdRef = useRef(session?.id)
+  useEffect(() => {
+    if (session?.id !== sessionIdRef.current) {
+      sessionIdRef.current = session?.id
+      setTabs([0])
+      setActiveTab(0)
+      nextTabId.current = 1
+    }
+  }, [session?.id])
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    dragStartRef.current = { y: e.clientY, h: terminalHeight }
+
+    const onMove = (me: MouseEvent): void => {
+      if (!dragStartRef.current) return
+      const delta = dragStartRef.current.y - me.clientY
+      const next = Math.max(MIN_TERMINAL_HEIGHT, Math.min(MAX_TERMINAL_HEIGHT, dragStartRef.current.h + delta))
+      setTerminalHeight(next)
+    }
+    const onUp = (): void => {
+      dragStartRef.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [terminalHeight])
+
+  if (!session) return null
+
+  const isNew = session.messages.length === 0 && session.status !== 'running'
+  const project = projects.find((p) => p.id === session.projectId)
+  const ui = uiState[session.id] ?? { showDiff: false, showTerminal: false, showSkills: false }
+
+  const terminalId = (tab: number): string => `${session.id}-${tab}`
+
+  const addTab = (): void => {
+    const id = nextTabId.current++
+    setTabs((prev) => [...prev, id])
+    setActiveTab(id)
+  }
+
+  const closeTab = (tabId: number): void => {
+    window.api.terminal.kill(terminalId(tabId))
+    const remaining = tabs.filter((t) => t !== tabId)
+    if (remaining.length === 0) {
+      setShowTerminal(session.id, false)
+      setTabs([0])
+      setActiveTab(0)
+      nextTabId.current = 1
+    } else {
+      setTabs(remaining)
+      if (activeTab === tabId) setActiveTab(remaining[remaining.length - 1])
+    }
+  }
+
+  const handleSuggestedPrompt = (text: string): void => {
+    promptInjectorRef.current?.(text)
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Project label shown when new */}
+      {isNew && project && (
+        <div
+          className="flex items-center gap-2 px-6 pt-6 shrink-0"
+          style={{ color: 'var(--color-text-muted)' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style={{ color: 'var(--color-accent)' }}>
+            <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
+          </svg>
+          <span className="text-xs">{project.name}</span>
+        </div>
+      )}
+
+      {/* Main content row: chat + optional side panels */}
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <ChatView session={session} projectName={project?.name} onSuggestedPrompt={handleSuggestedPrompt} />
+          </div>
+          <InputBarWithInjector session={session} isNew={isNew} injectorRef={promptInjectorRef} />
+        </div>
+
+        {ui.showSkills && <SkillsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} onClose={() => setShowSkills(session.id, false)} />}
+        {ui.showDiff && <DiffPanel sessionId={session.id} />}
+      </div>
+
+      {/* Terminal bottom panel */}
+      {ui.showTerminal && (
+        <>
+          {/* Drag handle */}
+          <div
+            onMouseDown={handleResizeStart}
+            style={{
+              height: 5,
+              background: 'var(--color-border)',
+              cursor: 'ns-resize',
+              flexShrink: 0,
+              transition: 'background 0.1s'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-border)')}
+          />
+
+          {/* Tab bar */}
+          <div
+            className="flex items-center shrink-0"
+            style={{
+              height: 30,
+              background: 'var(--color-surface)',
+              borderBottom: '1px solid var(--color-border)',
+              borderTop: '1px solid var(--color-border)'
+            }}
+          >
+            {/* Tabs */}
+            <div className="flex items-stretch flex-1 overflow-x-auto h-full">
+              {tabs.map((tabId, idx) => {
+                const active = tabId === activeTab
+                return (
+                  <div
+                    key={tabId}
+                    className="flex items-center shrink-0"
+                    style={{
+                      borderRight: '1px solid var(--color-border)',
+                      background: active ? 'var(--color-bg)' : 'transparent'
+                    }}
+                  >
+                    <button
+                      onClick={() => setActiveTab(tabId)}
+                      className="flex items-center gap-1.5 px-3 h-full text-xs"
+                      style={{ color: active ? 'var(--color-text)' : 'var(--color-text-muted)' }}
+                    >
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.6 }}>
+                        <path d="M0 2.75C0 1.784.784 1 1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25ZM4.28 5.22a.75.75 0 0 0-1.06 1.06L5.44 8.5 3.22 10.72a.75.75 0 1 0 1.06 1.06l2.75-2.75a.75.75 0 0 0 0-1.06Zm3.47 5.28a.75.75 0 0 1 0-1.5h3a.75.75 0 0 1 0 1.5Z" />
+                      </svg>
+                      Shell {idx + 1}
+                    </button>
+                    {tabs.length > 1 && (
+                      <button
+                        onClick={() => closeTab(tabId)}
+                        className="px-1.5 h-full flex items-center"
+                        style={{ color: 'var(--color-text-muted)' }}
+                        title="Close terminal"
+                        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+                      >
+                        <svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Right-side actions */}
+            <div className="flex items-center gap-0.5 px-2 shrink-0">
+              <button
+                onClick={() => window.api.terminal.clear(terminalId(activeTab))}
+                title="Clear"
+                className="rounded px-2 py-0.5 text-xs"
+                style={{ color: 'var(--color-text-muted)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+              >
+                Clear
+              </button>
+              <button
+                onClick={addTab}
+                title="New terminal"
+                className="rounded px-1.5 py-0.5 text-xs"
+                style={{ color: 'var(--color-text-muted)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div style={{ height: terminalHeight, flexShrink: 0, overflow: 'hidden' }}>
+            <TerminalView terminalId={terminalId(activeTab)} workDir={session.workDir} />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function InputBarWithInjector({
+  session,
+  isNew,
+  injectorRef
+}: {
+  session: Session
+  isNew: boolean
+  injectorRef: MutableRefObject<((text: string) => void) | null>
+}): JSX.Element {
+  const [injectedText, setInjectedText] = useState('')
+  injectorRef.current = setInjectedText
+  return (
+    <InputBar
+      session={session}
+      isNew={isNew}
+      injectedText={injectedText}
+      onInjectedConsumed={() => setInjectedText('')}
+    />
+  )
+}

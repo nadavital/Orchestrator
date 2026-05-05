@@ -1,0 +1,7 @@
+{
+  "id": "ditto",
+  "displayName": "Ditto",
+  "description": "A tiny purple shapeshifting blob pet inspired by Ditto, cheerful and squishy.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "creature"
+}
