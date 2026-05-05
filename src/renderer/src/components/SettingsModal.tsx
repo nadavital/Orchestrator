@@ -8,7 +8,7 @@ import {
   verticalListSortingStrategy, arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { PROVIDER_DEFS, getVisibleModels } from '../types'
+import { PROVIDER_DEFS, getVisibleModels, type ProviderCapability, type ProviderRuntimeInfo } from '../types'
 import { useSessionStore } from '../store/sessions'
 import ProviderIcon from './shared/ProviderIcon'
 
@@ -25,6 +25,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
   const [defaultEfforts, setDefaultEfforts] = useState<Record<string, string>>({})
   const [providerModels, setProviderModels] = useState<Record<string, string[]>>({})
+  const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
 
   useEffect(() => {
     window.api.settings.get().then((s) => {
@@ -34,6 +35,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
       setDefaultEfforts((rec.defaultEfforts as Record<string, string>) ?? {})
       setProviderModels((rec.providerModels as Record<string, string[]>) ?? {})
     })
+    window.api.providers.getRuntimeInfo().then(setProviderRuntime)
   }, [])
 
   const saveDefaultProvider = (id: string): void => {
@@ -118,6 +120,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
               defaultModels={defaultModels}
               defaultEfforts={defaultEfforts}
               providerModels={providerModels}
+              providerRuntime={providerRuntime}
               providerAvailability={providerAvailability}
               onSetDefaultProvider={saveDefaultProvider}
               onSetDefaultModel={saveDefaultModel}
@@ -171,12 +174,13 @@ function GeneralSection(): JSX.Element {
 
 function ProvidersSection({
   defaultProvider, defaultModels, defaultEfforts, providerModels,
-  providerAvailability, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetProviderModels
+  providerRuntime, providerAvailability, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetProviderModels
 }: {
   defaultProvider: string
   defaultModels: Record<string, string>
   defaultEfforts: Record<string, string>
   providerModels: Record<string, string[]>
+  providerRuntime: Record<string, ProviderRuntimeInfo>
   providerAvailability: Record<string, boolean>
   onSetDefaultProvider: (id: string) => void
   onSetDefaultModel: (providerId: string, modelId: string) => void
@@ -191,6 +195,7 @@ function ProvidersSection({
   const currentEffort = defaultEfforts[selectedId] ?? providerDef.effortLevels[0]?.id ?? ''
   const visibleModels = getVisibleModels(providerDef, providerModels)
   const visibleIds = visibleModels.map((m) => m.id)
+  const runtime = providerRuntime[selectedId]
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: 700 }}>
@@ -247,6 +252,12 @@ function ProvidersSection({
       {providerDef.id === 'claude' && (
         <SettingGroup title="API Endpoint" description="Override the default Anthropic API endpoint.">
           <ClaudeEndpointField color={providerDef.color} />
+        </SettingGroup>
+      )}
+
+      {runtime && (
+        <SettingGroup title="Capabilities" description="What Orchestrator can currently abstract for this CLI.">
+          <ProviderCapabilityChips capabilities={runtime.abstractCapabilities} color={providerDef.color} />
         </SettingGroup>
       )}
 
@@ -396,6 +407,63 @@ function DefaultModelPicker({
           </svg>
         )}
       </div>
+    </div>
+  )
+}
+
+function ProviderCapabilityChips({
+  capabilities,
+  color
+}: {
+  capabilities: ProviderCapability[]
+  color: string
+}): JSX.Element {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {capabilities.map((capability) => {
+        const isSupported = capability.support === 'supported'
+        const isForced = capability.support === 'forced'
+        const isPartial = capability.support === 'partial'
+        const border = isSupported
+          ? color
+          : isForced || isPartial
+            ? 'var(--color-yellow)'
+            : 'var(--color-border)'
+        const text = isSupported
+          ? color
+          : isForced || isPartial
+            ? 'var(--color-yellow)'
+            : 'var(--color-text-muted)'
+        return (
+          <span
+            key={capability.key}
+            title={capability.note ?? `${capability.label} · ${capability.source}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '4px 8px',
+              borderRadius: 6,
+              border: `1px solid ${border}`,
+              color: text,
+              background: isSupported ? 'var(--color-surface2)' : 'var(--color-surface)',
+              fontSize: 11,
+              opacity: capability.support === 'unsupported' ? 0.55 : 1
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: text,
+                opacity: capability.support === 'unsupported' ? 0.5 : 1
+              }}
+            />
+            {capability.label}
+          </span>
+        )
+      })}
     </div>
   )
 }

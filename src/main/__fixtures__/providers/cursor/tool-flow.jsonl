@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","session_id":"cursor-session-123"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I will read the README."}]}}
+{"type":"tool_call","subtype":"started","call_id":"tool-1","tool_call":{"readToolCall":{"args":{"path":"README.md"}}}}
+{"type":"tool_call","subtype":"completed","call_id":"tool-1","tool_call":{"readToolCall":{"result":{"success":"README contents"}}}}

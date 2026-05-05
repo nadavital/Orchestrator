@@ -112,8 +112,8 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     ],
     supportsResume: true,
     permissionModes: [
-      { id: 'default', label: 'Default', desc: 'Ask for permission' },
-      { id: 'allowEdits', label: 'Allow Edits', desc: 'Auto-allow file writes' },
+      { id: 'default', label: 'Programmatic', desc: 'Auto-allow all tools for prompt mode' },
+      { id: 'allowEdits', label: 'Auto Tools', desc: 'Also auto-allows tools in prompt mode' },
       { id: 'yolo', label: 'Auto', desc: 'Allow all tools' }
     ]
   },
@@ -310,7 +310,7 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     supportsResume: true,
     permissionModes: [
       { id: 'default', label: 'Default', desc: 'Apply changes (--force)' },
-      { id: 'sandbox', label: 'Sandbox', desc: 'Propose changes only' },
+      { id: 'sandbox', label: 'Sandbox', desc: 'Request Cursor sandbox mode' },
       { id: 'yolo', label: 'Auto', desc: 'Bypass all approvals' }
     ]
   }
@@ -331,6 +331,78 @@ export function getVisibleModels(
 
 export type SessionEffort = string
 export type SessionPermissionMode = string
+export type ProviderId = 'claude' | 'copilot' | 'codex' | 'cursor' | string
+export type ExecutionPolicy = SessionPermissionMode
+
+export interface ProviderCommand {
+  binary: string
+  args: string[]
+}
+
+export interface ProviderCapabilities {
+  resume: boolean
+  streamingJson: boolean
+  interactivePermissions: boolean
+  allowedTools: boolean
+  workspaceSandbox: boolean
+  fullAccessMode: boolean
+  forcedAllTools?: boolean
+}
+
+export type ProviderCapabilityKey =
+  | 'resume'
+  | 'structuredOutput'
+  | 'streamEvents'
+  | 'interactivePermissions'
+  | 'toolAllowlist'
+  | 'workspaceSandbox'
+  | 'fullAccess'
+  | 'bypassAll'
+
+export interface ProviderCapability {
+  key: ProviderCapabilityKey
+  label: string
+  support: 'supported' | 'partial' | 'unsupported' | 'forced'
+  source: 'docs' | 'adapter' | 'fixture' | 'runtime'
+  note?: string
+}
+
+export interface ResolvedExecutionPolicy {
+  policy: ExecutionPolicy
+  support: 'exact' | 'approximate' | 'unsupported' | 'forced'
+  args: string[]
+  label: string
+  description: string
+  warning?: string
+}
+
+export interface ProviderRuntimeInfo {
+  id: string
+  capabilities: ProviderCapabilities
+  abstractCapabilities: ProviderCapability[]
+  policies: Record<string, ResolvedExecutionPolicy>
+}
+
+export interface RunRequest {
+  prompt: string
+  cwd: string
+  model: string
+  effort: SessionEffort
+  providerSessionId: string | null
+  executionPolicy: ExecutionPolicy
+  allowedTools: string[]
+  useThinking?: boolean
+  useFast?: boolean
+}
+
+export type RunEvent =
+  | { type: 'session.started'; providerSessionId: string }
+  | { type: 'assistant.text'; content: string }
+  | { type: 'tool.started'; id: string; toolName: string; toolInput: Record<string, unknown> }
+  | { type: 'tool.completed'; id: string; toolUseId: string; content: string; isError: boolean }
+  | { type: 'permission.requested'; denials: PermissionDenial[]; content?: string }
+  | { type: 'run.completed'; content?: string }
+  | { type: 'run.failed'; content?: string }
 
 export interface Session {
   id: string
@@ -339,7 +411,8 @@ export interface Session {
   workDir: string
   useWorktree: boolean
   repoRoot?: string
-  claudeSessionId: string | null
+  providerSessionId: string | null
+  claudeSessionId?: string | null
   status: 'idle' | 'running' | 'error'
   messages: ChatMessage[]
   createdAt: number

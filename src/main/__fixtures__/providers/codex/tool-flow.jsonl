@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"codex-thread-123"}
+{"type":"agent_message","message":"I will inspect the repo."}
+{"type":"item.started","item":{"id":"item-1","type":"command_execution","command":"bash -lc ls","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item-1","type":"command_execution","command":"bash -lc ls","status":"completed","output":"README.md\nsrc"}}
+{"type":"turn.completed"}

@@ -1,0 +1,3 @@
+{"type":"assistant.message","data":{"content":"I will inspect the repo.","toolRequests":[{"toolCallId":"tool-1","name":"shell","arguments":{"command":"ls"}}]}}
+{"type":"tool.execution_complete","data":{"toolCallId":"tool-1","success":true,"result":{"detailedContent":"README.md\nsrc"}}}
+{"type":"result","sessionId":"copilot-session-123","exitCode":0}

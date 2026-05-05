@@ -4,10 +4,11 @@ import Store from 'electron-store'
 import { BrowserWindow } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import { execSync } from 'child_process'
-import type { Session, ChatMessage } from '../types'
+import type { Session, ChatMessage, RunEvent, RunRequest } from '../types'
 import { PROVIDER_DEFS } from '../types'
 import { gitManager } from './git'
 import { getProvider, PROVIDERS } from './providers'
+import { eventsToMessages } from './runEvents'
 import { settingsStore } from './settings'
 
 interface SessionStore {
@@ -18,19 +19,41 @@ const store = new Store<SessionStore>({ defaults: { sessions: [] } })
 
 const activePtys = new Map<string, IPty>()
 
+function normalizeSession(session: Session): Session {
+  return {
+    ...session,
+    providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null
+  }
+}
+
 function send(channel: string, ...args: unknown[]): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send(channel, ...args)
   }
 }
 
+function requestFromSession(session: Session, prompt: string): RunRequest {
+  return {
+    prompt,
+    cwd: session.workDir,
+    model: session.model,
+    effort: session.effort,
+    providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
+    executionPolicy: session.permissionMode ?? 'default',
+    allowedTools: session.allowedTools ?? [],
+    useThinking: session.useThinking,
+    useFast: session.useFast
+  }
+}
+
 export const sessionManager = {
   list(): Session[] {
-    return store.get('sessions', [])
+    return store.get('sessions', []).map(normalizeSession)
   },
 
   get(id: string): Session | undefined {
-    return store.get('sessions', []).find((s) => s.id === id)
+    const session = store.get('sessions', []).find((s) => s.id === id)
+    return session ? normalizeSession(session) : undefined
   },
 
   save(session: Session): void {
@@ -88,7 +111,7 @@ export const sessionManager = {
       workDir,
       useWorktree: opts.useWorktree,
       repoRoot: opts.repoRoot,
-      claudeSessionId: null,
+      providerSessionId: null,
       status: 'idle',
       messages: [],
       createdAt: Date.now(),
@@ -157,8 +180,9 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const provider = getProvider(currentSession.provider ?? 'claude')
-    const args = provider.buildArgs(currentSession, prompt)
-    const pty = spawn(provider.binary, args, {
+    const runRequest = requestFromSession(currentSession, prompt)
+    const command = provider.buildStartCommand(runRequest)
+    const pty = spawn(command.binary, command.args, {
       name: 'xterm-color',
       cwd: currentSession.workDir,
       env: { ...process.env, TERM: 'xterm-256color' },
@@ -181,27 +205,31 @@ export const sessionManager = {
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
 
-      for (const line of lines) {
-        const parsed = provider.parseLine(line)
-        if (!parsed) continue
-
-        if (parsed.capturedSessionId) {
-          const sessions = store.get('sessions', [])
-          const s = sessions.find((s) => s.id === sessionId)
-          if (s) {
-            s.claudeSessionId = parsed.capturedSessionId
-            store.set('sessions', sessions)
-          }
-        }
-
-        if (parsed.messages.length > 0) this.appendMessage(sessionId, parsed.messages)
-      }
+      for (const line of lines) this.applyRunEvents(sessionId, provider.parseOutputLine(line))
     })
 
     pty.onExit(() => {
       activePtys.delete(sessionId)
       this.updateStatus(sessionId, 'idle')
     })
+  },
+
+  applyRunEvents(sessionId: string, events: RunEvent[]): void {
+    if (events.length === 0) return
+
+    const sessionStarted = events.find((event) => event.type === 'session.started')
+    if (sessionStarted?.type === 'session.started') {
+      const sessions = store.get('sessions', [])
+      const s = sessions.find((s) => s.id === sessionId)
+      if (s) {
+        s.providerSessionId = sessionStarted.providerSessionId
+        s.claudeSessionId = sessionStarted.providerSessionId
+        store.set('sessions', sessions)
+      }
+    }
+
+    const messages = eventsToMessages(events)
+    if (messages.length > 0) this.appendMessage(sessionId, messages)
   },
 
   updateSettings(id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }): void {
@@ -225,7 +253,7 @@ export const sessionManager = {
 
   async grantAndResume(sessionId: string, toolNames: string[]): Promise<void> {
     const session = this.get(sessionId)
-    if (!session || !session.claudeSessionId) return
+    if (!session || !session.providerSessionId) return
     if (activePtys.has(sessionId)) return
 
     // Persist newly granted tools on the session
@@ -238,13 +266,13 @@ export const sessionManager = {
 
     this.updateStatus(sessionId, 'running')
 
-    // Re-read session so buildArgs picks up updated allowedTools
+    // Re-read session so the run request picks up updated allowedTools
     const currentSession = this.get(sessionId)!
     const resumeProvider = getProvider(currentSession.provider ?? 'claude')
-    const resumeArgs = resumeProvider.buildResumeArgs?.(currentSession)
-      ?? resumeProvider.buildArgs(currentSession, 'Permission granted. Please continue.')
+    const runRequest = requestFromSession(currentSession, 'Permission granted. Please continue.')
+    const command = resumeProvider.buildResumeCommand(runRequest)
 
-    const pty = spawn(resumeProvider.binary, resumeArgs, {
+    const pty = spawn(command.binary, command.args, {
       name: 'xterm-color',
       cwd: currentSession.workDir,
       env: { ...process.env, TERM: 'xterm-256color' },
@@ -260,11 +288,7 @@ export const sessionManager = {
       buffer += data
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
-      for (const line of lines) {
-        const parsed = resumeProvider.parseLine(line)
-        if (!parsed) continue
-        if (parsed.messages.length > 0) this.appendMessage(sessionId, parsed.messages)
-      }
+      for (const line of lines) this.applyRunEvents(sessionId, resumeProvider.parseOutputLine(line))
     })
 
     pty.onExit(() => {

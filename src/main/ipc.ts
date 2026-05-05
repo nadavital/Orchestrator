@@ -8,6 +8,7 @@ import { gitManager } from './git'
 import { settingsStore } from './settings'
 import { terminalManager } from './terminal'
 import { petOverlayManager } from './petOverlay'
+import { getProviderRuntimeInfo } from './providers'
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   // Projects
@@ -56,6 +57,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:grantAndResume', (_, sessionId: string, toolNames: string[]) =>
     sessionManager.grantAndResume(sessionId, toolNames)
   )
+
+  // Providers
+  ipcMain.handle('providers:getRuntimeInfo', () => getProviderRuntimeInfo())
 
   // Git
   ipcMain.handle('git:isGitRepo', (_, dir: string) => gitManager.isGitRepo(dir))
@@ -122,4 +126,3 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.on('pet:trayCount', (_, count: number) => petOverlayManager.setTrayCount(count))
   ipcMain.on('pet:trayHeight', (_, h: number) => petOverlayManager.setTrayHeight(h))
 }
-

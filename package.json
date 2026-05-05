@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "test:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node --test out-test/src/main/__tests__/*.test.js",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "echo 'Run npm run rebuild to build native modules'"

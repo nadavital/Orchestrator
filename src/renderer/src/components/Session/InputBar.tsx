@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import type { Session } from '../../types'
+import type { ProviderRuntimeInfo, ResolvedExecutionPolicy, Session } from '../../types'
 import { PROVIDER_DEFS, getVisibleModels } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
@@ -21,6 +21,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const [showAgentMenu, setShowAgentMenu] = useState(false)
   const [showPermMenu, setShowPermMenu] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
+  const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const modeMenuRef = useRef<HTMLDivElement>(null)
   const agentMenuRef = useRef<HTMLDivElement>(null)
@@ -29,6 +30,10 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   useEffect(() => {
     window.api.git.isGitRepo(session.workDir).then(setIsGitRepo)
   }, [session.workDir])
+
+  useEffect(() => {
+    window.api.providers.getRuntimeInfo().then(setRuntimeInfo)
+  }, [])
 
   useEffect(() => {
     if (injectedText) {
@@ -59,10 +64,21 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
   const permissionMode = session.permissionMode ?? provider.permissionModes[0]?.id ?? 'default'
   const effectiveMode = isNew ? useWorktree : session.useWorktree
+  const providerRuntime = runtimeInfo[provider.id]
+  const resolvedPermission = providerRuntime?.policies[permissionMode] ?? (providerRuntime
+    ? {
+        policy: permissionMode,
+        support: 'unsupported' as const,
+        args: [],
+        label: permissionMode,
+        description: `${provider.name} does not support this permission mode.`
+      }
+    : undefined)
 
   const modelLabel = provider.models.find((m) => m.id === model)?.label ?? model
   const effortLabel = provider.effortLevels.find((e) => e.id === effort)?.label ?? ''
   const permLabel = provider.permissionModes.find((p) => p.id === permissionMode)?.label ?? 'Default'
+  const canUsePermission = resolvedPermission?.support !== 'unsupported'
 
   // Cursor per-model effort/thinking/fast config
   const cursorCfg = provider.id === 'cursor'
@@ -104,7 +120,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     })
   }
 
-  const canSend = text.trim().length > 0 && session.status !== 'running'
+  const canSend = text.trim().length > 0 && session.status !== 'running' && canUsePermission
 
   const send = async (): Promise<void> => {
     if (!canSend) return
@@ -359,24 +375,40 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           <div className="relative" ref={permMenuRef}>
             <ToolbarBtn active={permissionMode !== 'default'} onClick={() => setShowPermMenu((v) => !v)}>
               {permLabel}
+              {resolvedPermission && resolvedPermission.support !== 'exact' && (
+                <PolicyBadge policy={resolvedPermission} compact />
+              )}
               <Chevron />
             </ToolbarBtn>
             {showPermMenu && (
-              <DropdownPanel style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 180 }}>
-                {provider.permissionModes.map((opt) => (
-                  <DropdownRow
-                    key={opt.id}
-                    active={permissionMode === opt.id}
-                    onClick={() => { update({ permissionMode: opt.id }); setShowPermMenu(false) }}
-                  >
-                    <div className="text-xs" style={{ color: permissionMode === opt.id ? 'var(--color-accent)' : 'var(--color-text)' }}>
-                      {opt.label}
-                    </div>
-                    <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-                      {opt.desc}
-                    </div>
-                  </DropdownRow>
-                ))}
+              <DropdownPanel style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 250 }}>
+                {provider.permissionModes.map((opt) => {
+                  const resolved = providerRuntime?.policies[opt.id]
+                  const unsupported = resolved?.support === 'unsupported'
+                  return (
+                    <DropdownRow
+                      key={opt.id}
+                      active={permissionMode === opt.id}
+                      disabled={unsupported}
+                      onClick={() => { update({ permissionMode: opt.id }); setShowPermMenu(false) }}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <div className="text-xs" style={{ color: permissionMode === opt.id ? 'var(--color-accent)' : 'var(--color-text)' }}>
+                          {opt.label}
+                        </div>
+                        {resolved && resolved.support !== 'exact' && <PolicyBadge policy={resolved} />}
+                      </div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1.35 }}>
+                        {resolved?.description ?? opt.desc}
+                      </div>
+                      {resolved?.warning && (
+                        <div className="text-xs mt-1" style={{ color: 'var(--color-yellow)', fontSize: 10, lineHeight: 1.35 }}>
+                          {resolved.warning}
+                        </div>
+                      )}
+                    </DropdownRow>
+                  )
+                })}
               </DropdownPanel>
             )}
           </div>
@@ -488,19 +520,25 @@ function DropdownPanel({
 }
 
 function DropdownRow({
-  children, active, onClick
+  children, active, onClick, disabled
 }: {
   children: React.ReactNode
   active: boolean
   onClick: () => void
+  disabled?: boolean
 }): JSX.Element {
   return (
     <button
+      disabled={disabled}
       className="w-full flex items-start gap-2 px-3 py-2 text-left"
-      style={{ background: active ? 'var(--color-surface2)' : 'transparent' }}
-      onClick={onClick}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--color-surface2)' }}
-      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
+      style={{
+        background: active ? 'var(--color-surface2)' : 'transparent',
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? 'default' : 'pointer'
+      }}
+      onClick={() => { if (!disabled) onClick() }}
+      onMouseEnter={(e) => { if (!active && !disabled) e.currentTarget.style.background = 'var(--color-surface2)' }}
+      onMouseLeave={(e) => { if (!active && !disabled) e.currentTarget.style.background = 'transparent' }}
     >
       <div className="flex-1">
         {children}
@@ -511,6 +549,41 @@ function DropdownRow({
         </svg>
       )}
     </button>
+  )
+}
+
+function PolicyBadge({
+  policy,
+  compact
+}: {
+  policy: ResolvedExecutionPolicy
+  compact?: boolean
+}): JSX.Element {
+  const color =
+    policy.support === 'unsupported'
+      ? 'var(--color-red)'
+      : policy.support === 'forced'
+        ? 'var(--color-yellow)'
+        : 'var(--color-text-muted)'
+  const label =
+    policy.support === 'unsupported'
+      ? 'Unsupported'
+      : policy.support === 'forced'
+        ? 'Forced'
+        : 'Approx'
+
+  return (
+    <span
+      className="rounded px-1 py-0.5 text-xs font-medium"
+      style={{
+        color,
+        border: `1px solid ${color}`,
+        fontSize: compact ? 9 : 10,
+        lineHeight: 1
+      }}
+    >
+      {compact ? '!' : label}
+    </span>
   )
 }
 

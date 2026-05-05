@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Project, Session, ChatMessage, FileChange } from '../../types'
+import type { Project, Session, ChatMessage, FileChange, ProviderRuntimeInfo } from '../../types'
 
 export interface AppSettings {
   defaultProvider: string
@@ -38,7 +38,7 @@ declare global {
         }) => Promise<Session>
         sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean) => Promise<void>
         updateName: (id: string, name: string) => Promise<void>
-        updateSettings: (id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string }) => Promise<void>
+        updateSettings: (id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }) => Promise<void>
         checkProviders: () => Promise<Record<string, boolean>>
         stop: (sessionId: string) => Promise<void>
         remove: (sessionId: string) => Promise<void>
@@ -50,6 +50,9 @@ declare global {
       }
       git: {
         isGitRepo: (dir: string) => Promise<boolean>
+      }
+      providers: {
+        getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>
       }
       settings: {
         get: () => Promise<AppSettings>

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Project, Session, ChatMessage, FileChange } from '../types'
+import type { Project, Session, ChatMessage, FileChange, ProviderRuntimeInfo } from '../types'
 
 export type SessionEvent =
   | { type: 'created'; session: Session }
@@ -56,6 +56,11 @@ const api = {
 
   git: {
     isGitRepo: (dir: string): Promise<boolean> => ipcRenderer.invoke('git:isGitRepo', dir)
+  },
+
+  providers: {
+    getRuntimeInfo: (): Promise<Record<string, ProviderRuntimeInfo>> =>
+      ipcRenderer.invoke('providers:getRuntimeInfo')
   },
 
   settings: {
