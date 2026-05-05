@@ -36,7 +36,7 @@ const api = {
       ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt, useWorktree),
     updateName: (id: string, name: string): Promise<void> =>
       ipcRenderer.invoke('sessions:updateName', id, name),
-    updateSettings: (id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string }): Promise<void> =>
+    updateSettings: (id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }): Promise<void> =>
       ipcRenderer.invoke('sessions:updateSettings', id, patch),
     checkProviders: (): Promise<Record<string, boolean>> =>
       ipcRenderer.invoke('sessions:checkProviders'),

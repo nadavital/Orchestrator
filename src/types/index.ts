@@ -6,12 +6,26 @@ export interface Project {
 }
 
 // Provider display info — shared between main and renderer
+export interface CursorEffortLevel {
+  id: string
+  label: string
+  modelId: string
+  thinkingModelId?: string
+  fastModelId?: string
+}
+
+export interface CursorModelConfig {
+  defaultEffort?: string
+  effortLevels?: CursorEffortLevel[]
+  supportsThinking?: boolean
+  thinkingModelId?: string
+  fastModelId?: string
+}
+
 export interface ProviderModelDef {
   id: string
   label: string
-  // For providers where thinking changes the model ID rather than a CLI flag (Cursor only).
-  // When effort === 'thinking', buildArgs substitutes this ID instead of `id`.
-  thinkingId?: string
+  cursorConfig?: CursorModelConfig
 }
 
 export interface ProviderDef {
@@ -141,70 +155,143 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     models: [
       // ── Default 5 ─────────────────────────────────────────────────────
       { id: 'auto', label: 'Auto' },
-      { id: 'composer-2', label: 'Composer 2' },
-      { id: 'claude-opus-4-7-thinking-high', label: 'Claude Opus 4.7 Thinking' },
-      { id: 'gpt-5.5-high', label: 'GPT-5.5 High' },
-      { id: 'claude-4.6-sonnet-medium', label: 'Claude Sonnet 4.6' },
+      { id: 'composer-2', label: 'Composer 2',
+        cursorConfig: { fastModelId: 'composer-2-fast' } },
+      { id: 'claude-opus-4-7', label: 'Claude Opus 4.7',
+        cursorConfig: {
+          defaultEffort: 'high', supportsThinking: true,
+          effortLevels: [
+            { id: 'low',    label: 'Low',   modelId: 'claude-opus-4-7-low',    thinkingModelId: 'claude-opus-4-7-thinking-low' },
+            { id: 'medium', label: 'Med',   modelId: 'claude-opus-4-7-medium', thinkingModelId: 'claude-opus-4-7-thinking-medium' },
+            { id: 'high',   label: 'High',  modelId: 'claude-opus-4-7-high',   thinkingModelId: 'claude-opus-4-7-thinking-high' },
+            { id: 'xhigh',  label: 'XHigh', modelId: 'claude-opus-4-7-xhigh',  thinkingModelId: 'claude-opus-4-7-thinking-xhigh' },
+            { id: 'max',    label: 'Max',   modelId: 'claude-opus-4-7-max',    thinkingModelId: 'claude-opus-4-7-thinking-max' },
+          ]
+        } },
+      { id: 'gpt-5.4', label: 'GPT-5.4',
+        cursorConfig: {
+          defaultEffort: 'high',
+          effortLevels: [
+            { id: 'low',    label: 'Low',   modelId: 'gpt-5.4-low' },
+            { id: 'medium', label: 'Med',   modelId: 'gpt-5.4-medium', fastModelId: 'gpt-5.4-medium-fast' },
+            { id: 'high',   label: 'High',  modelId: 'gpt-5.4-high',   fastModelId: 'gpt-5.4-high-fast' },
+            { id: 'xhigh',  label: 'XHigh', modelId: 'gpt-5.4-xhigh',  fastModelId: 'gpt-5.4-xhigh-fast' },
+          ]
+        } },
+      { id: 'claude-sonnet-4.6', label: 'Claude Sonnet 4.6',
+        cursorConfig: {
+          defaultEffort: 'medium', supportsThinking: true,
+          effortLevels: [
+            { id: 'medium', label: 'Med', modelId: 'claude-4.6-sonnet-medium', thinkingModelId: 'claude-4.6-sonnet-medium-thinking' },
+          ]
+        } },
       // ── Cursor-native ─────────────────────────────────────────────────
-      { id: 'composer-2-fast', label: 'Composer 2 Fast' },
       { id: 'composer-1.5', label: 'Composer 1.5' },
-      // ── Claude Opus 4.7 ───────────────────────────────────────────────
-      { id: 'claude-opus-4-7-thinking-xhigh', label: 'Claude Opus 4.7 Thinking XHigh' },
-      { id: 'claude-opus-4-7-thinking-max', label: 'Claude Opus 4.7 Thinking Max' },
-      { id: 'claude-opus-4-7-thinking-medium', label: 'Claude Opus 4.7 Thinking Med' },
-      { id: 'claude-opus-4-7-thinking-low', label: 'Claude Opus 4.7 Thinking Low' },
-      { id: 'claude-opus-4-7-xhigh', label: 'Claude Opus 4.7 XHigh' },
-      { id: 'claude-opus-4-7-high', label: 'Claude Opus 4.7 High' },
-      { id: 'claude-opus-4-7-medium', label: 'Claude Opus 4.7 Medium' },
-      { id: 'claude-opus-4-7-max', label: 'Claude Opus 4.7 Max' },
       // ── Claude 4.6 ───────────────────────────────────────────────────
-      { id: 'claude-4.6-sonnet-medium-thinking', label: 'Claude Sonnet 4.6 Thinking' },
-      { id: 'claude-4.6-opus-max-thinking', label: 'Claude Opus 4.6 Max Thinking' },
-      { id: 'claude-4.6-opus-high-thinking', label: 'Claude Opus 4.6 High Thinking' },
-      { id: 'claude-4.6-opus-max', label: 'Claude Opus 4.6 Max' },
-      { id: 'claude-4.6-opus-high', label: 'Claude Opus 4.6 High' },
+      { id: 'claude-opus-4.6', label: 'Claude Opus 4.6',
+        cursorConfig: {
+          defaultEffort: 'high', supportsThinking: true,
+          effortLevels: [
+            { id: 'high', label: 'High', modelId: 'claude-4.6-opus-high', thinkingModelId: 'claude-4.6-opus-high-thinking' },
+            { id: 'max',  label: 'Max',  modelId: 'claude-4.6-opus-max',  thinkingModelId: 'claude-4.6-opus-max-thinking' },
+          ]
+        } },
       // ── Claude 4.5 ───────────────────────────────────────────────────
-      { id: 'claude-4.5-opus-high-thinking', label: 'Claude Opus 4.5 Thinking' },
-      { id: 'claude-4.5-opus-high', label: 'Claude Opus 4.5 High' },
-      { id: 'claude-4.5-sonnet-thinking', label: 'Claude Sonnet 4.5 Thinking' },
-      { id: 'claude-4.5-sonnet', label: 'Claude Sonnet 4.5' },
-      { id: 'claude-4.5-haiku-thinking', label: 'Claude Haiku 4.5 Thinking' },
-      { id: 'claude-4.5-haiku', label: 'Claude Haiku 4.5' },
+      { id: 'claude-opus-4.5', label: 'Claude Opus 4.5',
+        cursorConfig: {
+          defaultEffort: 'high', supportsThinking: true,
+          effortLevels: [
+            { id: 'high', label: 'High', modelId: 'claude-4.5-opus-high', thinkingModelId: 'claude-4.5-opus-high-thinking' },
+          ]
+        } },
+      { id: 'claude-4.5-sonnet', label: 'Claude Sonnet 4.5',
+        cursorConfig: { supportsThinking: true, thinkingModelId: 'claude-4.5-sonnet-thinking' } },
+      { id: 'claude-4.5-haiku', label: 'Claude Haiku 4.5',
+        cursorConfig: { supportsThinking: true, thinkingModelId: 'claude-4.5-haiku-thinking' } },
       // ── Claude 4 ─────────────────────────────────────────────────────
-      { id: 'claude-4-sonnet-thinking', label: 'Claude Sonnet 4 Thinking' },
-      { id: 'claude-4-sonnet', label: 'Claude Sonnet 4' },
+      { id: 'claude-4-sonnet', label: 'Claude Sonnet 4',
+        cursorConfig: { supportsThinking: true, thinkingModelId: 'claude-4-sonnet-thinking' } },
       // ── GPT-5.5 ──────────────────────────────────────────────────────
-      { id: 'gpt-5.5-extra-high', label: 'GPT-5.5 XHigh' },
-      { id: 'gpt-5.5-medium', label: 'GPT-5.5 Medium' },
-      // ── GPT-5.4 ──────────────────────────────────────────────────────
-      { id: 'gpt-5.4-xhigh', label: 'GPT-5.4 XHigh' },
-      { id: 'gpt-5.4-xhigh-fast', label: 'GPT-5.4 XHigh Fast' },
-      { id: 'gpt-5.4-high', label: 'GPT-5.4 High' },
-      { id: 'gpt-5.4-high-fast', label: 'GPT-5.4 High Fast' },
-      { id: 'gpt-5.4-medium', label: 'GPT-5.4 Medium' },
-      { id: 'gpt-5.4-low', label: 'GPT-5.4 Low' },
-      { id: 'gpt-5.4-mini-xhigh', label: 'GPT-5.4 Mini XHigh' },
-      { id: 'gpt-5.4-mini-high', label: 'GPT-5.4 Mini High' },
-      { id: 'gpt-5.4-mini-medium', label: 'GPT-5.4 Mini Medium' },
-      { id: 'gpt-5.4-nano-high', label: 'GPT-5.4 Nano High' },
-      { id: 'gpt-5.4-nano-medium', label: 'GPT-5.4 Nano Medium' },
+      { id: 'gpt-5.5', label: 'GPT-5.5',
+        cursorConfig: {
+          defaultEffort: 'high',
+          effortLevels: [
+            { id: 'medium',     label: 'Med',   modelId: 'gpt-5.5-medium' },
+            { id: 'high',       label: 'High',  modelId: 'gpt-5.5-high' },
+            { id: 'extra-high', label: 'XHigh', modelId: 'gpt-5.5-extra-high' },
+          ]
+        } },
+      // ── GPT-5.4 Mini / Nano ───────────────────────────────────────────
+      { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini',
+        cursorConfig: {
+          defaultEffort: 'medium',
+          effortLevels: [
+            { id: 'medium', label: 'Med',   modelId: 'gpt-5.4-mini-medium' },
+            { id: 'high',   label: 'High',  modelId: 'gpt-5.4-mini-high' },
+            { id: 'xhigh',  label: 'XHigh', modelId: 'gpt-5.4-mini-xhigh' },
+          ]
+        } },
+      { id: 'gpt-5.4-nano', label: 'GPT-5.4 Nano',
+        cursorConfig: {
+          defaultEffort: 'medium',
+          effortLevels: [
+            { id: 'medium', label: 'Med',  modelId: 'gpt-5.4-nano-medium' },
+            { id: 'high',   label: 'High', modelId: 'gpt-5.4-nano-high' },
+          ]
+        } },
       // ── GPT-5.3 Codex ────────────────────────────────────────────────
-      { id: 'gpt-5.3-codex-xhigh', label: 'GPT-5.3 Codex XHigh' },
-      { id: 'gpt-5.3-codex-high', label: 'GPT-5.3 Codex High' },
-      { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex' },
+      { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex',
+        cursorConfig: {
+          defaultEffort: 'standard',
+          effortLevels: [
+            { id: 'standard', label: 'Standard', modelId: 'gpt-5.3-codex' },
+            { id: 'high',     label: 'High',     modelId: 'gpt-5.3-codex-high' },
+            { id: 'xhigh',    label: 'XHigh',    modelId: 'gpt-5.3-codex-xhigh' },
+          ]
+        } },
       // ── GPT-5.2 ──────────────────────────────────────────────────────
-      { id: 'gpt-5.2-xhigh', label: 'GPT-5.2 XHigh' },
-      { id: 'gpt-5.2-high', label: 'GPT-5.2 High' },
-      { id: 'gpt-5.2', label: 'GPT-5.2' },
-      { id: 'gpt-5.2-codex-high', label: 'GPT-5.2 Codex High' },
-      { id: 'gpt-5.2-codex', label: 'GPT-5.2 Codex' },
+      { id: 'gpt-5.2', label: 'GPT-5.2',
+        cursorConfig: {
+          defaultEffort: 'standard',
+          effortLevels: [
+            { id: 'standard', label: 'Standard', modelId: 'gpt-5.2' },
+            { id: 'high',     label: 'High',     modelId: 'gpt-5.2-high' },
+            { id: 'xhigh',    label: 'XHigh',    modelId: 'gpt-5.2-xhigh' },
+          ]
+        } },
+      { id: 'gpt-5.2-codex', label: 'GPT-5.2 Codex',
+        cursorConfig: {
+          defaultEffort: 'standard',
+          effortLevels: [
+            { id: 'standard', label: 'Standard', modelId: 'gpt-5.2-codex' },
+            { id: 'high',     label: 'High',     modelId: 'gpt-5.2-codex-high' },
+          ]
+        } },
       // ── GPT-5.1 ──────────────────────────────────────────────────────
-      { id: 'gpt-5.1-codex-max-xhigh', label: 'GPT-5.1 Codex Max XHigh' },
-      { id: 'gpt-5.1-codex-max-high', label: 'GPT-5.1 Codex Max High' },
-      { id: 'gpt-5.1-high', label: 'GPT-5.1 High' },
-      { id: 'gpt-5.1', label: 'GPT-5.1' },
-      { id: 'gpt-5.1-codex-mini-high', label: 'GPT-5.1 Codex Mini High' },
-      { id: 'gpt-5.1-codex-mini', label: 'GPT-5.1 Codex Mini' },
+      { id: 'gpt-5.1', label: 'GPT-5.1',
+        cursorConfig: {
+          defaultEffort: 'standard',
+          effortLevels: [
+            { id: 'standard', label: 'Standard', modelId: 'gpt-5.1' },
+            { id: 'high',     label: 'High',     modelId: 'gpt-5.1-high' },
+          ]
+        } },
+      { id: 'gpt-5.1-codex-mini', label: 'GPT-5.1 Codex Mini',
+        cursorConfig: {
+          defaultEffort: 'standard',
+          effortLevels: [
+            { id: 'standard', label: 'Standard', modelId: 'gpt-5.1-codex-mini' },
+            { id: 'high',     label: 'High',     modelId: 'gpt-5.1-codex-mini-high' },
+          ]
+        } },
+      { id: 'gpt-5.1-codex-max', label: 'GPT-5.1 Codex Max',
+        cursorConfig: {
+          defaultEffort: 'high',
+          effortLevels: [
+            { id: 'high',  label: 'High',  modelId: 'gpt-5.1-codex-max-high' },
+            { id: 'xhigh', label: 'XHigh', modelId: 'gpt-5.1-codex-max-xhigh' },
+          ]
+        } },
       // ── GPT-5 ────────────────────────────────────────────────────────
       { id: 'gpt-5-mini', label: 'GPT-5 Mini' },
       // ── Gemini ───────────────────────────────────────────────────────
@@ -212,8 +299,8 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
       { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash' },
       { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
       // ── xAI ──────────────────────────────────────────────────────────
-      { id: 'grok-4-20-thinking', label: 'Grok 4.20 Thinking' },
-      { id: 'grok-4-20', label: 'Grok 4.20' },
+      { id: 'grok-4-20', label: 'Grok 4.20',
+        cursorConfig: { supportsThinking: true, thinkingModelId: 'grok-4-20-thinking' } },
       { id: 'grok-4.3', label: 'Grok 4.3' },
       // ── Moonshot / Kimi ───────────────────────────────────────────────
       { id: 'accounts/fireworks/models/kimi-k2p5', label: 'Kimi K2.5' }
@@ -261,6 +348,8 @@ export interface Session {
   effort: SessionEffort
   permissionMode: SessionPermissionMode
   allowedTools: string[]
+  useThinking?: boolean
+  useFast?: boolean
 }
 
 export interface FileChange {

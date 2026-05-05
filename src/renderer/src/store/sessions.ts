@@ -23,7 +23,7 @@ interface SessionState {
   updateStatus: (id: string, status: Session['status']) => void
   updateName: (id: string, name: string) => void
   updateSession: (id: string, patch: Partial<Session>) => void
-  updateSettings: (id: string, patch: { provider?: string; model?: string; effort?: SessionEffort; permissionMode?: SessionPermissionMode }) => void
+  updateSettings: (id: string, patch: { provider?: string; model?: string; effort?: SessionEffort; permissionMode?: SessionPermissionMode; useThinking?: boolean; useFast?: boolean }) => void
   setShowDiff: (id: string, v: boolean) => void
   setShowTerminal: (id: string, v: boolean) => void
   setShowSkills: (id: string, v: boolean) => void

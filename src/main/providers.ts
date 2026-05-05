@@ -238,10 +238,29 @@ const cursorProvider: Provider = {
 
   buildArgs(session, prompt) {
     const modelDef = PROVIDER_DEFS.cursor?.models.find((m) => m.id === session.model)
-    const effectiveModel =
-      session.effort === 'thinking' && modelDef?.thinkingId
-        ? modelDef.thinkingId
-        : (session.model || 'auto')
+    const cfg = modelDef?.cursorConfig
+    let effectiveModel = session.model || 'auto'
+
+    if (cfg) {
+      if (cfg.effortLevels && cfg.effortLevels.length > 0) {
+        const effortId = session.effort || cfg.defaultEffort || cfg.effortLevels[0].id
+        const level = cfg.effortLevels.find((l) => l.id === effortId) ?? cfg.effortLevels[0]
+        if (session.useThinking && level.thinkingModelId) {
+          effectiveModel = level.thinkingModelId
+        } else if (session.useFast && level.fastModelId) {
+          effectiveModel = level.fastModelId
+        } else {
+          effectiveModel = level.modelId
+        }
+      } else {
+        if (session.useThinking && cfg.thinkingModelId) {
+          effectiveModel = cfg.thinkingModelId
+        } else if (session.useFast && cfg.fastModelId) {
+          effectiveModel = cfg.fastModelId
+        }
+      }
+    }
+
     const args = ['--print', '--output-format', 'stream-json', '--force', '--trust']
     if (session.claudeSessionId) args.push('--resume', session.claudeSessionId)
     args.push('--model', effectiveModel)

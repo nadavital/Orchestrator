@@ -64,7 +64,19 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const effortLabel = provider.effortLevels.find((e) => e.id === effort)?.label ?? ''
   const permLabel = provider.permissionModes.find((p) => p.id === permissionMode)?.label ?? 'Default'
 
-  const update = (patch: { provider?: string; model?: string; effort?: string; permissionMode?: string }): void => {
+  // Cursor per-model effort/thinking/fast config
+  const cursorCfg = provider.id === 'cursor'
+    ? PROVIDER_DEFS.cursor.models.find((m) => m.id === model)?.cursorConfig
+    : undefined
+  const cursorEffortLevels = cursorCfg?.effortLevels ?? []
+  const cursorEffort = session.effort || cursorCfg?.defaultEffort || cursorEffortLevels[0]?.id || ''
+  const cursorEfLevel = cursorEffortLevels.find((l) => l.id === cursorEffort)
+  const hasFast = !!(cursorEfLevel?.fastModelId || (cursorCfg && cursorEffortLevels.length === 0 && cursorCfg.fastModelId))
+  const hasThinking = !!cursorCfg?.supportsThinking
+  const useThinking = session.useThinking ?? false
+  const useFast = session.useFast ?? false
+
+  const update = (patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }): void => {
     window.api.sessions.updateSettings(session.id, patch)
   }
 
@@ -75,7 +87,20 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       provider: providerId,
       model: newDef.models[0]?.id ?? '',
       effort: newDef.effortLevels[0]?.id ?? '',
-      permissionMode: newDef.permissionModes[0]?.id ?? 'default'
+      permissionMode: newDef.permissionModes[0]?.id ?? 'default',
+      useThinking: false,
+      useFast: false
+    })
+  }
+
+  const switchCursorModel = (modelId: string): void => {
+    const def = PROVIDER_DEFS.cursor.models.find((m) => m.id === modelId)
+    const cfg = def?.cursorConfig
+    update({
+      model: modelId,
+      effort: cfg?.defaultEffort ?? cfg?.effortLevels?.[0]?.id ?? '',
+      useThinking: false,
+      useFast: false
     })
   }
 
@@ -114,11 +139,14 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     textareaRef.current?.focus()
   }
 
-  // Combined agent pill label: "Provider · Model · Effort"
+  // Combined agent pill label: "Provider · Model · Effort [· Thinking] [· Fast]"
   const agentLabel = [
     provider.name,
     modelLabel,
-    provider.supportsEffort && effortLabel ? effortLabel : null
+    provider.supportsEffort && effortLabel ? effortLabel : null,
+    provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
+    provider.id === 'cursor' && useThinking ? 'Thinking' : null,
+    provider.id === 'cursor' && useFast ? 'Fast' : null,
   ].filter(Boolean).join(' · ')
 
   return (
@@ -267,7 +295,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                       <Chip
                         key={opt.id}
                         active={model === opt.id}
-                        onClick={() => update({ model: opt.id })}
+                        onClick={() => provider.id === 'cursor' ? switchCursorModel(opt.id) : update({ model: opt.id })}
                         activeColor={provider.color}
                       >
                         {opt.label}
@@ -275,7 +303,39 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                     ))}
                   </TieredRow>
 
-                  {/* Thinking row — only if provider supports it */}
+                  {/* Cursor: per-model effort row */}
+                  {provider.id === 'cursor' && cursorEffortLevels.length > 0 && (
+                    <TieredRow label="Effort">
+                      {cursorEffortLevels.map((level) => (
+                        <Chip
+                          key={level.id}
+                          active={cursorEffort === level.id}
+                          onClick={() => update({ effort: level.id, useFast: false })}
+                          activeColor={provider.color}
+                        >
+                          {level.label}
+                        </Chip>
+                      ))}
+                    </TieredRow>
+                  )}
+
+                  {/* Cursor: thinking toggle */}
+                  {provider.id === 'cursor' && hasThinking && (
+                    <TieredRow label="Thinking">
+                      <Chip active={!useThinking} onClick={() => update({ useThinking: false })} activeColor={provider.color}>Off</Chip>
+                      <Chip active={useThinking}  onClick={() => update({ useThinking: true  })} activeColor={provider.color}>On</Chip>
+                    </TieredRow>
+                  )}
+
+                  {/* Cursor: speed toggle */}
+                  {provider.id === 'cursor' && hasFast && (
+                    <TieredRow label="Speed">
+                      <Chip active={!useFast} onClick={() => update({ useFast: false })} activeColor={provider.color}>Standard</Chip>
+                      <Chip active={useFast}  onClick={() => update({ useFast: true  })} activeColor={provider.color}>Fast</Chip>
+                    </TieredRow>
+                  )}
+
+                  {/* Thinking row — only if provider supports it (Claude/Codex) */}
                   {provider.supportsEffort && provider.effortLevels.length > 0 && (
                     <TieredRow label="Thinking">
                       {provider.effortLevels.map((opt) => (

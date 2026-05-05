@@ -33,7 +33,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:updateName', (_, id: string, name: string) =>
     sessionManager.updateName(id, name)
   )
-  ipcMain.handle('sessions:updateSettings', (_, id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string }) =>
+  ipcMain.handle('sessions:updateSettings', (_, id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }) =>
     sessionManager.updateSettings(id, patch)
   )
   ipcMain.handle('sessions:checkProviders', () => sessionManager.checkProviders())

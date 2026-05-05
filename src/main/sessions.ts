@@ -204,7 +204,7 @@ export const sessionManager = {
     })
   },
 
-  updateSettings(id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string }): void {
+  updateSettings(id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }): void {
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === id)
     if (s) {
