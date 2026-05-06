@@ -55,7 +55,7 @@ export interface CodexPetImportResult {
 }
 
 // ── Layout constants ──────────────────────────────────────────────────────────
-const FALLBACK_MASCOT: Size = { width: 96, height: 104 }
+const FALLBACK_MASCOT: Size = { width: 113, height: 122 }
 const FALLBACK_TRAY: Size = { width: 264, height: 0 }
 const TRAY_W = 264
 const WINDOW_PAD = 8

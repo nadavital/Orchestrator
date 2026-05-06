@@ -11,8 +11,7 @@ export type AnimState =
   | 'review'
   | 'failed'
 
-const DISPLAY_W = 96
-const DISPLAY_H = 104
+const DISPLAY_W_REM = 7.04
 const SHEET_COLS = 8  // k
 const SHEET_ROWS = 9  // A
 
@@ -96,6 +95,7 @@ interface Props {
   animState: AnimState
   spritesheetSrc: string
   frameOverrides?: Partial<Record<string, number>>
+  isAnimationEnabled?: boolean
   onHoverEnter?: () => void
   onHoverLeave?: () => void
 }
@@ -104,58 +104,52 @@ export default function PetAvatar({
   animState,
   spritesheetSrc,
   frameOverrides,
+  isAnimationEnabled = true,
   onHoverEnter,
   onHoverLeave,
 }: Props): JSX.Element {
   const divRef = useRef<HTMLDivElement>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const seqRef = useRef<FrameSeq>({ frames: [], loopStartIndex: 0 })
-  const idxRef = useRef(0)
-  const reducedMotion = useRef(
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  )
+  const prefersReducedMotion = usePrefersReducedMotion()
 
   useEffect(() => {
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-
-    seqRef.current = buildSequence(animState, frameOverrides, reducedMotion.current)
-    idxRef.current = 0
-
-    const { frames, loopStartIndex } = seqRef.current
+    const el = divRef.current
+    if (!el) return
+    const sequence = buildSequence(animState, frameOverrides, prefersReducedMotion || !isAnimationEnabled)
+    const { frames, loopStartIndex } = sequence
     if (frames.length === 0) return
 
-    if (divRef.current) {
-      divRef.current.style.backgroundPosition = bgPos(frames[0].col, frames[0].row)
-    }
+    let frameIndex = 0
+    let timeout: ReturnType<typeof window.setTimeout> | null = null
+    el.style.backgroundPosition = bgPos(frames[frameIndex].col, frames[frameIndex].row)
 
-    // Single static frame — no timer needed
     if (frames.length === 1 && loopStartIndex === null) return
 
-    const tick = (): void => {
-      idxRef.current++
-      if (idxRef.current >= seqRef.current.frames.length) {
-        if (seqRef.current.loopStartIndex === null) return
-        idxRef.current = seqRef.current.loopStartIndex
-      }
-      const f = seqRef.current.frames[idxRef.current]
-      if (divRef.current) {
-        divRef.current.style.backgroundPosition = bgPos(f.col, f.row)
-      }
-      timerRef.current = setTimeout(tick, f.durationMs)
+    const scheduleNext = (): void => {
+      timeout = window.setTimeout(() => {
+        const nextIndex = frameIndex + 1
+        if (nextIndex >= frames.length) {
+          if (loopStartIndex == null) {
+            timeout = null
+            return
+          }
+          frameIndex = loopStartIndex
+        } else {
+          frameIndex = nextIndex
+        }
+        const frame = frames[frameIndex]
+        el.style.backgroundPosition = bgPos(frame.col, frame.row)
+        scheduleNext()
+      }, frames[frameIndex].durationMs)
     }
 
-    timerRef.current = setTimeout(tick, frames[0].durationMs)
+    scheduleNext()
 
     return () => {
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current)
-        timerRef.current = null
+      if (timeout !== null) {
+        window.clearTimeout(timeout)
       }
     }
-  }, [animState, frameOverrides])
+  }, [animState, frameOverrides, isAnimationEnabled, prefersReducedMotion])
 
   const initialRow = ANIM_ROW[animState]
 
@@ -165,9 +159,10 @@ export default function PetAvatar({
       data-interactive="true"
       onMouseEnter={onHoverEnter}
       onMouseLeave={onHoverLeave}
+      data-avatar-state={animState}
       style={{
-        width: DISPLAY_W,
-        height: DISPLAY_H,
+        width: `${DISPLAY_W_REM}rem`,
+        aspectRatio: '192 / 208',
         backgroundImage: `url(${spritesheetSrc})`,
         backgroundSize: `${SHEET_COLS * 100}% ${SHEET_ROWS * 100}%`,
         backgroundPosition: bgPos(0, initialRow),
@@ -178,4 +173,11 @@ export default function PetAvatar({
       }}
     />
   )
+}
+
+function usePrefersReducedMotion(): boolean {
+  const prefersReducedMotion = useRef(
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+  return prefersReducedMotion.current
 }
