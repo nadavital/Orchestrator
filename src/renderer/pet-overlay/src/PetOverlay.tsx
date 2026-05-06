@@ -22,14 +22,25 @@ const STATUS_TO_ANIM: Record<PetNotificationStatus, AnimState> = {
 const STATUS_COLOR: Record<PetNotificationStatus, string> = {
   waiting: '#FBBF24',
   failed: '#F87171',
-  review: '#60A5FA',
+  review: '#22C55E',
   running: '#34D399',
   idle: '#9CA3AF',
+}
+
+const BADGE_COLOR: Record<PetNotificationStatus, { background: string; foreground: string }> = {
+  waiting: { background: '#FBBF24', foreground: '#111827' },
+  failed: { background: '#F87171', foreground: '#111827' },
+  review: { background: '#22C55E', foreground: '#111827' },
+  running: { background: '#3B82F6', foreground: '#FFFFFF' },
+  idle: { background: 'rgba(18,18,18,0.82)', foreground: '#FFFFFF' },
 }
 
 const DISMISSED_STORAGE_KEY = 'orchestrator.pet.dismissedNotifications.v1'
 const MAX_DISMISSED_KEYS = 300
 const VISIBLE_COUNT = 2
+const DRAG_SAMPLE_WINDOW_MS = 100
+const MAX_THROW_SPEED = 1600
+const MIN_THROW_SPEED = 320
 
 interface SessionState {
   id: string
@@ -104,6 +115,15 @@ function statusIcon(status: PetNotificationStatus): string {
 // Minimum pointer movement before we commit to a drag (matches Codex Ge=4)
 const DRAG_THRESHOLD = 4
 
+interface DragState {
+  pointerId: number
+  startedOnMascot: boolean
+  hasMoved: boolean
+  screenX: number
+  screenY: number
+  samples: Array<{ screenX: number; screenY: number; timeMs: number }>
+}
+
 export default function PetOverlay(): JSX.Element | null {
   const [config, setConfig] = useState<PetConfig | null>(null)
   const [sessions, setSessions] = useState<Record<string, SessionState>>({})
@@ -121,9 +141,8 @@ export default function PetOverlay(): JSX.Element | null {
   const [page, setPage] = useState(0)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const isDragging = useRef(false)
-  const dragStartPos = useRef<{ clientX: number; clientY: number } | null>(null)
-  const hasMoved = useRef(false)
-  const dragSamples = useRef<Array<{ screenX: number; screenY: number; timeMs: number }>>([])
+  const [isDraggingVisual, setIsDraggingVisual] = useState(false)
+  const dragState = useRef<DragState | null>(null)
   const [dragAnimState, setDragAnimState] = useState<AnimState | null>(null)
   const trayRef = useRef<HTMLDivElement>(null)
   const mascotRef = useRef<HTMLDivElement>(null)
@@ -240,6 +259,21 @@ export default function PetOverlay(): JSX.Element | null {
   }, [])
 
   useEffect(() => {
+    const onPointerUp = (e: PointerEvent): void => {
+      finishDrag(e.pointerId, { screenX: e.screenX, screenY: e.screenY, timeMs: e.timeStamp }, true)
+    }
+    const onPointerCancel = (e: PointerEvent): void => {
+      finishDrag(e.pointerId, null, false)
+    }
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerCancel)
+    return () => {
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerCancel)
+    }
+  }, [])
+
+  useEffect(() => {
     storeDismissedKeys(dismissedKeys)
   }, [dismissedKeys])
 
@@ -295,9 +329,10 @@ export default function PetOverlay(): JSX.Element | null {
     .sort((a, b) => a.priority - b.priority || b.timestamp - a.timestamp)
 
   const topStatus = notifications[0]?.status ?? 'idle'
+  const topBadgeColor = BADGE_COLOR[topStatus]
   let animState: AnimState
   if (dragAnimState !== null) animState = dragAnimState
-  else if (isHovering) animState = 'jumping'
+  else if (isHovering && !isDragging.current) animState = 'jumping'
   else animState = STATUS_TO_ANIM[topStatus]
 
   const selectedPet: PetEntry | undefined =
@@ -319,83 +354,92 @@ export default function PetOverlay(): JSX.Element | null {
     window.petApi.pet.setTrayCount(hasTray && !trayCollapsed ? visible.length : 0)
   }, [hasTray, trayCollapsed, visible.length])
 
-  // Drag handlers — 4px threshold before committing (matches Codex Ge=4)
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
+  const finishDrag = (
+    pointerId: number,
+    releaseSample: { screenX: number; screenY: number; timeMs: number } | null,
+    shouldOpenMainWindow: boolean
+  ): void => {
+    const state = dragState.current
+    if (!state || state.pointerId !== pointerId) return
+
+    dragState.current = null
+    isDragging.current = false
+    setIsDraggingVisual(false)
+    setDragAnimState(null)
+
+    if (shouldOpenMainWindow && state.startedOnMascot && !state.hasMoved) {
+      window.petApi.pet.focusMain()
+    }
+
+    window.petApi.pet.dragEnd()
+
+    if (releaseSample && state.hasMoved) {
+      const samples = [...state.samples, releaseSample]
+      const recent = samples.filter((sample) => releaseSample.timeMs - sample.timeMs <= DRAG_SAMPLE_WINDOW_MS)
+      if (recent.length >= 2) {
+        const first = recent[0]
+        const last = recent.at(-1)!
+        const dt = (last.timeMs - first.timeMs) / 1000
+        if (dt > 0) {
+          const rawVx = (last.screenX - first.screenX) / dt
+          const rawVy = (last.screenY - first.screenY) / dt
+          const speed = Math.hypot(rawVx, rawVy)
+          if (speed > MIN_THROW_SPEED) {
+            const cap = Math.min(speed, MAX_THROW_SPEED)
+            window.petApi.pet.dragRelease(rawVx * (cap / speed), rawVy * (cap / speed))
+            return
+          }
+        }
+      }
+    }
+  }
+
+  // Drag handlers: 4px threshold before committing (matches Codex Ge=4).
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>): void => {
     if (e.button !== 0) return
-    e.currentTarget.setPointerCapture(e.pointerId)
-    dragStartPos.current = { clientX: e.clientX, clientY: e.clientY }
-    hasMoved.current = false
-    dragSamples.current = [{ screenX: e.screenX, screenY: e.screenY, timeMs: Date.now() }]
+    const target = e.target instanceof Element ? e.target : null
+    if (target?.closest('.no-drag')) return
+
+    e.preventDefault()
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    dragState.current = {
+      pointerId: e.pointerId,
+      startedOnMascot: !!target?.closest('[data-avatar-mascot="true"]'),
+      hasMoved: false,
+      screenX: e.screenX,
+      screenY: e.screenY,
+      samples: [{ screenX: e.screenX, screenY: e.screenY, timeMs: e.timeStamp }],
+    }
+    isDragging.current = true
+    setIsDraggingVisual(true)
+    setDragAnimState(null)
+    window.petApi.pet.dragStart(e.clientX, e.clientY)
   }
 
   const handlePointerMove = (e: React.PointerEvent): void => {
-    if (!dragStartPos.current) return
+    const state = dragState.current
+    if (!state || state.pointerId !== e.pointerId) return
 
-    const now = Date.now()
-    dragSamples.current = [
-      ...dragSamples.current.filter((s) => now - s.timeMs < 100),
-      { screenX: e.screenX, screenY: e.screenY, timeMs: now }
-    ]
+    const sample = { screenX: e.screenX, screenY: e.screenY, timeMs: e.timeStamp }
+    state.samples = [...state.samples, sample].filter((s) => sample.timeMs - s.timeMs <= DRAG_SAMPLE_WINDOW_MS)
 
-    if (!hasMoved.current) {
-      const dx = e.clientX - dragStartPos.current.clientX
-      const dy = e.clientY - dragStartPos.current.clientY
-      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
-      // Threshold crossed — commit to drag
-      hasMoved.current = true
-      isDragging.current = true
-      setDragAnimState('idle')
-      window.petApi.pet.dragStart(dragStartPos.current.clientX, dragStartPos.current.clientY)
-    }
+    const dx = sample.screenX - state.screenX
+    const dy = sample.screenY - state.screenY
+    if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return
 
-    if (dragSamples.current.length >= 2) {
-      const last = dragSamples.current.at(-1)!
-      const second = dragSamples.current.at(-2)!
-      const dx = last.screenX - second.screenX
-      if (Math.abs(dx) > 2) {
-        const dir: AnimState = dx < 0 ? 'running-left' : 'running-right'
-        setDragAnimState((prev) => (prev === dir ? prev : dir))
-      }
-    }
+    state.hasMoved = true
+    state.screenX = sample.screenX
+    state.screenY = sample.screenY
+    setDragAnimState((current) => {
+      if (dx >= DRAG_THRESHOLD) return 'running-right'
+      if (dx <= -DRAG_THRESHOLD) return 'running-left'
+      return current
+    })
     window.petApi.pet.dragMove()
   }
 
   const handlePointerUp = (e: React.PointerEvent): void => {
-    if (!dragStartPos.current) return
-    dragStartPos.current = null
-
-    if (!hasMoved.current) {
-      // Pure click — focus main window (matches Codex open-current-main-window)
-      window.petApi.pet.focusMain()
-      return
-    }
-
-    isDragging.current = false
-    setDragAnimState(null)
-
-    const samples = dragSamples.current
-    const now = Date.now()
-    const recent = samples.filter((s) => now - s.timeMs < 100)
-
-    if (recent.length >= 2) {
-      const first = recent[0]
-      const last = recent.at(-1)!
-      const dt = (last.timeMs - first.timeMs) / 1000
-      if (dt > 0) {
-        const rawVx = (last.screenX - first.screenX) / dt
-        const rawVy = (last.screenY - first.screenY) / dt
-        const speed = Math.hypot(rawVx, rawVy)
-        if (speed > 320) {
-          const cap = Math.min(speed, 1600)
-          window.petApi.pet.dragRelease(rawVx * (cap / speed), rawVy * (cap / speed))
-          const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-          window.petApi.pet.setPointerInteractive(!!el?.closest('[data-interactive]'))
-          return
-        }
-      }
-    }
-
-    window.petApi.pet.dragEnd()
+    finishDrag(e.pointerId, { screenX: e.screenX, screenY: e.screenY, timeMs: e.timeStamp }, true)
     const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
     window.petApi.pet.setPointerInteractive(!!el?.closest('[data-interactive]'))
   }
@@ -406,6 +450,11 @@ export default function PetOverlay(): JSX.Element | null {
 
   return (
     <div
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={(e) => finishDrag(e.pointerId, null, false)}
+      onLostPointerCapture={(e) => finishDrag(e.pointerId, null, false)}
       style={{
         width: '100vw',
         height: '100vh',
@@ -413,12 +462,14 @@ export default function PetOverlay(): JSX.Element | null {
         overflow: 'hidden',
         userSelect: 'none',
         fontFamily: 'system-ui, -apple-system, sans-serif',
+        cursor: isDraggingVisual ? 'grabbing' : 'grab',
       }}
     >
       {/* Notification tray — always rendered so ResizeObserver can track height */}
       <div
         ref={trayRef}
         data-interactive="true"
+        className="no-drag"
         style={{
           position: 'absolute',
           left: layout.trayLeft,
@@ -455,11 +506,6 @@ export default function PetOverlay(): JSX.Element | null {
                   onClick={() => setPage(0)}
                 />
               )}
-              <TrayButton
-                label="–"
-                title="Collapse notifications"
-                onClick={() => setTrayCollapsed(true)}
-              />
             </div>
             {!trayCollapsed && visible.map((notification) => (
               <NotificationCard
@@ -513,17 +559,18 @@ export default function PetOverlay(): JSX.Element | null {
       {/* Mascot */}
       <div
         ref={mascotRef}
+        data-avatar-mascot="true"
         data-interactive="true"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
         onContextMenu={() => window.petApi.pet.close()}
         style={{
           position: 'absolute',
           left: layout.mascotLeft,
           top: layout.mascotTop,
-          cursor: isDragging.current ? 'grabbing' : 'grab',
+          cursor: isDraggingVisual ? 'grabbing' : 'grab',
           zIndex: 2,
+          transform: isDraggingVisual ? 'scale(0.95)' : 'scale(1)',
+          transformOrigin: 'center',
+          transition: isDraggingVisual ? 'transform 160ms ease-out' : 'none',
         }}
       >
         <PetAvatar
@@ -533,36 +580,39 @@ export default function PetOverlay(): JSX.Element | null {
           onHoverEnter={() => setIsHovering(true)}
           onHoverLeave={() => setIsHovering(false)}
         />
-        {trayCollapsed && notifications.length > 0 && (
+        {notifications.length > 0 && (
           <button
             data-interactive="true"
-            aria-label="Show notifications"
-            title="Show notifications"
+            className="no-drag"
+            aria-label={trayCollapsed ? `Show ${notifications.length} notifications` : 'Collapse notifications'}
+            title={trayCollapsed ? 'Show notifications' : 'Collapse notifications'}
             onPointerDown={(ev) => ev.stopPropagation()}
             onClick={(ev) => {
               ev.stopPropagation()
-              setTrayCollapsed(false)
+              setTrayCollapsed((open) => !open)
             }}
             style={{
               position: 'absolute',
               top: 2,
               right: 4,
-              minWidth: 24,
-              height: 22,
-              padding: '0 7px',
+              minWidth: trayCollapsed ? 26 : 28,
+              width: trayCollapsed ? undefined : 28,
+              height: 28,
+              padding: trayCollapsed ? '0 8px' : 0,
               borderRadius: 999,
               border: '1px solid rgba(255,255,255,0.22)',
-              background: 'rgba(18,18,18,0.82)',
-              color: '#fff',
+              background: trayCollapsed ? topBadgeColor.background : 'rgba(18,18,18,0.82)',
+              color: trayCollapsed ? topBadgeColor.foreground : 'rgba(255,255,255,0.72)',
               boxShadow: '0 8px 22px rgba(0,0,0,0.28)',
               backdropFilter: 'blur(10px)',
-              fontSize: 11,
+              fontSize: trayCollapsed ? 11 : 15,
               fontWeight: 700,
-              lineHeight: '20px',
+              lineHeight: '26px',
               cursor: 'pointer',
+              transform: 'translate(6px, -4px)',
             }}
           >
-            {notifications.length}
+            {trayCollapsed ? notifications.length : '⌄'}
           </button>
         )}
       </div>
