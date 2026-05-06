@@ -2,6 +2,195 @@
 
 Date: 2026-05-06
 
+## 2026-05-06 Local CLI Spike Addendum
+
+This pass used local CLI discovery only. No model prompts were sent, so this did not spend provider quota.
+
+Commands sampled:
+
+- `which claude`, `claude --help`, `claude --version`, `claude agents --help`, `claude mcp --help`, `claude plugin --help`, `claude ultrareview --help`
+- `which codex`, `codex --help`, `codex --version`, `codex exec --help`, `codex review --help`, `codex mcp --help`, `codex plugin --help`, `codex sandbox --help`, `codex features list`
+- `which cursor-agent`, `cursor-agent --help`, `cursor-agent --version`, `cursor-agent mcp --help`, `cursor-agent create-chat --help`, `cursor-agent models`, `cursor-agent status`, `cursor-agent about`
+- `which copilot`, `copilot --help`, `copilot --version`, plus static inspection of the installed `@github/copilot` package because the CLI failed before printing help.
+
+Current local binaries:
+
+| Provider | Binary | Version / spike status | Immediate implication |
+| --- | --- | --- | --- |
+| Claude Code | `/Users/navital/.local/bin/claude` | `2.1.129 (Claude Code)` | Richest directly discoverable CLI surface. |
+| Codex CLI | `/Users/navital/.local/bin/codex` | `codex-cli 0.128.0` | Strong structured automation surface plus app/plugin/MCP/sandbox surfaces. |
+| Cursor Agent | `/Users/navital/.local/bin/cursor-agent` | `2026.05.05-84a231c` | Help works; model/auth/status commands currently hit keychain error in this shell. |
+| GitHub Copilot CLI | `/Users/navital/.local/bin/copilot` | CLI help/version currently fails with `SecItemCopyMatching failed -50` | Installed, but health must distinguish keychain/auth failure from missing binary. Static package inspection still shows rich SDK capabilities. |
+
+### Cross-Provider Capabilities We Should Model
+
+| Capability | Claude | Codex | Copilot | Cursor | Current Orchestrator gap |
+| --- | --- | --- | --- | --- | --- |
+| Structured non-interactive output | `--output-format stream-json` | `exec --json` | `--output-format json` in current adapter | `--print --output-format stream-json` | We parse basics, but not partials, progress, subagents, commands, background tasks, or rich permissions. |
+| Interactive / TUI runtime | Default CLI mode | Default CLI mode | Default CLI mode | Default CLI mode | We mostly use headless prompt mode; need a second runtime class for interactive/PTY or structured app-server protocols. |
+| Permission modes | `default`, `acceptEdits`, `auto`, `bypassPermissions`, `dontAsk`, `plan`; `--allowedTools`, `--disallowedTools`, `--tools` | sandbox: `read-only`, `workspace-write`, `danger-full-access`; interactive approval: `untrusted`, `on-request`, `never`; bypass flag | SDK exposes shell/write/read/MCP/url/memory/custom-tool/hook permission schemas; CLI previously documented tool/path/url allow/deny | `ask`, `plan`, `force/yolo`, `sandbox enabled/disabled`, trust, MCP approval | Need a provider-specific permission request model with allow once/session, deny, diff preview, path/url scope, and "forced headless" honesty. |
+| User questions / elicitation | `AskUserQuestion`, `--brief`, `SendUserMessage` | feature flags include `tool_call_mcp_elicitation`; app supports request_user_input in Codex host | SDK exposes interactive elicitation capability and command/user input events | Not proven from help; likely textual/interactive path | We have Claude question cards; need canonical `user_input.requested` across providers. |
+| Slash commands | CLI has slash-command/skills controls: `--disable-slash-commands`, skills resolve as `/skill-name` | Interactive commands plus plugins/skills; exact slash list not exposed by `--help` | SDK exposes `command.queued`, `command.execute`, `commands.changed`, `CommandDefinition`; skills can be slash commands | Interactive CLI likely has slash commands, not exposed by top-level help | Need a provider command registry and composer autocomplete. Some commands are app-owned, some provider-owned, some extension-owned. |
+| MCP | `claude mcp add/list/get/remove/serve`, `--mcp-config`, strict MCP config | `codex mcp list/get/add/remove/login/logout`, `mcp-server` | SDK has MCP permission kind and MCP config; static package exposes tool permissions | `cursor-agent mcp list/list-tools/login/enable/disable` | Need MCP server status, tool listing, OAuth/login, and per-tool permission UI. |
+| Plugins / skills | `claude plugin install/list/enable/disable/update/validate`, `--plugin-dir`, `--plugin-url` | `codex plugin marketplace`, features show plugins stable | Copilot package has built-in skills and SDK extension model | Cursor has `~/.cursor/plugins` and MCP integrations | Need provider-specific extension settings and command/tool surfacing. |
+| Agents / subagents / multi-agent | `--agent`, `--agents <json>`, `claude agents`, `ultrareview` cloud multi-agent review | Feature flags show `multi_agent` stable, `multi_agent_v2` under development | SDK event types include `subagent.started/completed/failed/selected/deselected`; built-in agents: code-review, configure-copilot, explore, research, rubber-duck, task | Worktrees/chat/rules; no structured subagent event proven from help | Need agent activity tree: parent, child agents, status, transcript/tool stream, permissions, pet notifications. |
+| Worktrees | `--worktree`, `--tmux` | `--cd`, `--add-dir`; interactive has app/cloud workflows | Not verified from current help due keychain failure | `--worktree`, `--worktree-base`, `--skip-worktree-setup` | Need a workspace/worktree launch surface and session provenance. |
+| Review mode | `ultrareview [--json]` | `codex review`, `codex exec review` | Built-in `code-review.agent.yaml`; prior docs mention review commands | No dedicated review command in top help | Review should be a first-class task type, not only a prompt. |
+| Local/OSS providers | Not from help sampled | `--oss`, `--local-provider lmstudio|ollama` | Not sampled | Bedrock config command exists | Need provider backend variants under one provider, separate from model list. |
+| Images / file attachments | `--file file_id:path`; Chrome integration | `--image <FILE>...` | Package includes computer/image dependencies, but not verified in CLI help due keychain failure | Not from top help | Composer should expose attachment support only when runtime supports it. |
+| Usage / model listing | Model aliases in help; account-specific list not found | `models_cache.json` exists; model arg is arbitrary | Help blocked by keychain | `models` / `--list-models`, but local command hit keychain error | Need cached last-known working model, invalid-model suppression, and opt-in model probes. |
+
+### Provider-Specific Notes
+
+#### Claude Code
+
+Newly verified CLI details:
+
+- Agents: `--agent`, `--agents <json>`, and `claude agents`.
+- Multi-agent review: `claude ultrareview [target] --json --timeout <minutes>`.
+- Plugins: install/list/enable/disable/update/validate/marketplace/prune/tag.
+- MCP: add HTTP/stdio servers, add JSON, import from Claude Desktop, get/list/remove/reset project choices, serve.
+- Runtime toggles: `--bare`, `--chrome`, `--ide`, `--worktree`, `--tmux`, `--fork-session`, `--from-pr`, `--session-id`, `--json-schema`, `--include-partial-messages`, `--input-format stream-json`, `--replay-user-messages`.
+- Permission surface is richer than our UI: allow/disallow specific tools, add directories, choose built-in tool set, and multiple permission modes.
+
+UI implications:
+
+- Add a Claude "Agents" subsection: selected agent, custom agents JSON, and cloud review task.
+- Add a plugin/MCP subsection with installed/listed state and tool exposure.
+- Extend parser support for partial messages and hook lifecycle events when enabled.
+- Treat worktree sessions as separate workspaces with visible origin/base.
+
+#### Codex CLI
+
+Newly verified CLI details:
+
+- `codex exec` has nested `resume` and `review`.
+- `codex review` supports `--uncommitted`, `--base`, `--commit`, and custom title/instructions.
+- `codex sandbox` has platform-specific subcommands: macOS Seatbelt, Linux sandbox, Windows restricted token.
+- `codex features list` shows useful enabled features on this machine: `apps`, `browser_use`, `computer_use`, `multi_agent`, `plugins`, `tool_call_mcp_elicitation`, `tool_search`, `tool_suggest`, `shell_tool`, `guardian_approval`, and more.
+- Interactive CLI supports images, web search, OSS/local providers, profiles, approval policies, and remote app server connection.
+- `codex app-server`, `exec-server`, `mcp-server`, `cloud`, `resume`, and `fork` are worth treating as separate integration spikes.
+
+UI implications:
+
+- Keep `codex exec` as the deterministic headless lane.
+- Add a Codex "interactive/app server" spike before trying to fake approval prompts through `exec`.
+- Add review task creation UI.
+- Add feature flag diagnostics, but keep it tucked away from normal users.
+- Add local/OSS provider support as a provider backend variant.
+
+#### GitHub Copilot CLI / SDK
+
+This run could not get `copilot --help` or `copilot --version` because both failed with:
+
+```text
+ERROR: SecItemCopyMatching failed -50
+```
+
+Static package inspection still reveals important capabilities:
+
+- SDK event union includes `subagent.started`, `subagent.completed`, `subagent.failed`, `subagent.selected`, `subagent.deselected`.
+- SDK event union includes `command.queued`, `command.execute`, `command.completed`, and `commands.changed`.
+- SDK permission schema includes shell, write, read, MCP, URL, memory, custom-tool, and hook permission requests.
+- SDK supports user input, elicitation, sampling, MCP OAuth, background tasks, loaded skills, custom agents, MCP server status, and tools updated events.
+- Built-in agent definitions found locally: `code-review`, `configure-copilot`, `explore`, `research`, `rubber-duck`, and `task`.
+
+UI implications:
+
+- Our current Copilot adapter is too shallow. We should strongly consider using the SDK/session event protocol rather than only the CLI prompt mode.
+- Copilot is the strongest evidence for a normalized subagent tree and slash-command registry.
+- Health should say "installed but keychain/auth unavailable" instead of only ready/missing.
+- Permission UI should be richer than Allow/Deny: shell command details, write diff, URL, MCP tool, memory, and custom tool prompt shapes.
+
+#### Cursor Agent
+
+Newly verified CLI details:
+
+- Modes: `--mode plan`, `--mode ask`, `--plan`; print mode has full tools unless configured.
+- Model listing exists via `models` / `--list-models`, but local model/status/about calls hit the same keychain error in this shell.
+- Worktree support: `--worktree`, `--worktree-base`, `--skip-worktree-setup`.
+- MCP commands: `login`, `list`, `list-tools`, `enable`, `disable`.
+- Session controls: `create-chat`, `ls`, `resume`, `--resume`, `--continue`.
+- Other setup: shell integration install/uninstall, Bedrock config, rule generation.
+- Network config remains important for this environment: `network.useHttp1ForAgent`.
+
+UI implications:
+
+- Make Cursor "Plan", "Ask", "Sandbox", and "Auto" look like Cursor-native modes, not generic paragraphs.
+- Add model list probing with failure states.
+- Add MCP list-tools UI.
+- Add worktree launch controls.
+- Add "Generate Rule" and Bedrock config entry points only in advanced/provider-specific settings.
+
+### Slash Command Product Shape
+
+Slash commands should be provider-aware and runtime-aware:
+
+1. **App-owned commands**: things Orchestrator implements itself, such as `/new`, `/settings`, `/diff`, `/terminal`, `/providers`, `/model`, `/permission`.
+2. **Provider-owned commands**: commands the provider CLI understands in interactive mode.
+3. **Extension-owned commands**: commands registered by plugins, skills, MCP bridges, or SDK integrations.
+
+Canonical shape:
+
+```ts
+interface ProviderSlashCommand {
+  id: string
+  name: string
+  description?: string
+  providerId: string
+  source: 'app' | 'provider' | 'plugin' | 'mcp' | 'skill' | 'sdk'
+  runtime: 'headless' | 'interactive' | 'app-server' | 'sdk'
+  arguments?: Array<{ name: string; optional?: boolean; description?: string }>
+  handler: 'send-to-provider' | 'app-action' | 'sdk-command'
+}
+```
+
+Composer behavior:
+
+- Typing `/` opens a provider-filtered command palette.
+- Commands unavailable in the current runtime are hidden by default.
+- Extension commands refresh on `commands.changed` / plugin load / skills loaded / MCP tools loaded events when providers expose those.
+- For headless runtimes, only app-owned or adapter-emulated commands should appear.
+
+### Multi-Agent Product Shape
+
+The GUI should not special-case "Copilot fleet" vs "Claude agents" vs "Codex multi_agent". It should normalize this:
+
+```ts
+interface AgentNode {
+  id: string
+  providerId: string
+  sessionId: string
+  parentAgentId?: string
+  name?: string
+  role?: string
+  status: 'queued' | 'running' | 'waiting' | 'blocked' | 'completed' | 'failed' | 'cancelled'
+  model?: string
+  startedAt?: number
+  completedAt?: number
+  summary?: string
+}
+```
+
+UI surfaces:
+
+- Main transcript groups messages by agent when subagents exist.
+- A compact side rail shows active agents and statuses.
+- Permissions/questions include the agent name and parent session context.
+- Pet notifications can represent root session or child agent state.
+- The session list title should summarize root task, while agent cards show delegated work.
+
+### Next Implementation Slices
+
+1. Add `ProviderCapabilityRegistry` generated from static adapter metadata plus optional probes.
+2. Add health states: `missing`, `installed`, `auth-ok`, `auth-error`, `model-error`, `keychain-error`, `smoke-passed`.
+3. Add slash command registry and composer autocomplete for app-owned commands first.
+4. Add provider probe commands that are no-quota by default: help/version/features/MCP list/models list where safe.
+5. Add fixture types for command events, subagent events, elicitation, rich permissions, partial messages, and MCP events.
+6. Add Copilot SDK spike separately from CLI prompt mode.
+7. Add Codex interactive/app-server spike separately from `exec`.
+8. Add provider-specific settings tabs: Models, Modes, Commands, Agents, MCP/Plugins, Advanced.
+
 ## Product Goal
 
 Orchestrator should be one consistent GUI for multiple coding agents, not just a terminal wrapper. The user should be able to pick the provider that fits their current limits, model preference, or feature need, while the app preserves the real behavior and unique capabilities of each provider.
