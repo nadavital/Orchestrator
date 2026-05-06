@@ -17,6 +17,7 @@ import type {
   ProviderProbeDefinition,
   ProviderProbeResult,
   ProviderRuntimeInfo,
+  ProviderSlashCommand,
   ResolvedExecutionPolicy,
   RunEvent,
   RunRequest,
@@ -247,6 +248,32 @@ function probe(
   return { id, label, args, category, quota: 'none', safeByDefault }
 }
 
+function slashCommand(
+  name: string,
+  description: string,
+  source: ProviderSlashCommand['source'],
+  runtime: ProviderSlashCommand['runtime'],
+  handler: ProviderSlashCommand['handler'],
+  patch: Partial<ProviderSlashCommand> = {}
+): ProviderSlashCommand {
+  return {
+    id: patch.id ?? name.slice(1),
+    name,
+    description,
+    providerId: patch.providerId ?? '',
+    source,
+    runtime,
+    handler,
+    featureId: patch.featureId,
+    prompt: patch.prompt,
+    arguments: patch.arguments
+  }
+}
+
+function withProviderId(providerId: string, command: ProviderSlashCommand): ProviderSlashCommand {
+  return { ...command, providerId }
+}
+
 const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
   claude: {
     providerId: 'claude',
@@ -269,6 +296,15 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('mcp-help', 'MCP', ['mcp', '--help'], 'mcp'),
       probe('plugin-help', 'Plugins', ['plugin', '--help'], 'extensions'),
       probe('ultrareview-help', 'Ultrareview', ['ultrareview', '--help'], 'features')
+    ],
+    slashCommands: [
+      slashCommand('/review', 'Run Claude ultrareview against the current changes', 'provider', 'headless', 'insert-prompt', {
+        featureId: 'ultrareview',
+        prompt: 'Review the current changes with Claude ultrareview-style depth. Focus on correctness, regressions, and missing tests.'
+      }),
+      slashCommand('/agents', 'Work with Claude agents', 'provider', 'interactive', 'send-to-provider', { featureId: 'agents' }),
+      slashCommand('/mcp', 'Open Claude MCP command flow', 'provider', 'interactive', 'send-to-provider', { featureId: 'mcp' }),
+      slashCommand('/plugins', 'Open Claude plugin command flow', 'provider', 'interactive', 'send-to-provider', { featureId: 'plugins' })
     ]
   },
   copilot: {
@@ -286,6 +322,11 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
     probes: [
       probe('version', 'Version', ['--version'], 'version'),
       probe('help', 'Help', ['--help'], 'help')
+    ],
+    slashCommands: [
+      slashCommand('/review', 'Start a Copilot code review task', 'sdk', 'sdk', 'sdk-command', { featureId: 'code-review' }),
+      slashCommand('/agents', 'Show Copilot agents', 'sdk', 'sdk', 'sdk-command', { featureId: 'subagents' }),
+      slashCommand('/commands', 'Refresh Copilot commands', 'sdk', 'sdk', 'sdk-command', { featureId: 'slash-commands' })
     ]
   },
   codex: {
@@ -312,6 +353,15 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('plugin-help', 'Plugins', ['plugin', '--help'], 'extensions'),
       probe('sandbox-help', 'Sandbox', ['sandbox', '--help'], 'features'),
       probe('features-list', 'Features', ['features', 'list'], 'features')
+    ],
+    slashCommands: [
+      slashCommand('/review', 'Review uncommitted changes with Codex', 'provider', 'headless', 'insert-prompt', {
+        featureId: 'review',
+        prompt: 'Review the current uncommitted changes. Prioritize bugs, regressions, and missing tests.'
+      }),
+      slashCommand('/mcp', 'Open Codex MCP command flow', 'provider', 'interactive', 'send-to-provider', { featureId: 'mcp' }),
+      slashCommand('/plugins', 'Open Codex plugin command flow', 'provider', 'interactive', 'send-to-provider', { featureId: 'plugins' }),
+      slashCommand('/agents', 'Show Codex multi-agent activity', 'provider', 'app-server', 'send-to-provider', { featureId: 'multi-agent' })
     ]
   },
   cursor: {
@@ -334,15 +384,31 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('mcp-help', 'MCP', ['mcp', '--help'], 'mcp'),
       probe('create-chat-help', 'Create chat', ['create-chat', '--help'], 'features'),
       probe('models', 'Models', ['models'], 'models')
+    ],
+    slashCommands: [
+      slashCommand('/plan', 'Switch the task into Cursor plan mode', 'provider', 'headless', 'insert-prompt', {
+        featureId: 'plan-mode',
+        prompt: 'Plan the requested change first. Do not edit files until I confirm the plan.'
+      }),
+      slashCommand('/mcp', 'Open Cursor MCP command flow', 'provider', 'interactive', 'send-to-provider', { featureId: 'mcp' }),
+      slashCommand('/rules', 'Generate or update Cursor rules', 'provider', 'headless', 'insert-prompt', {
+        featureId: 'rules',
+        prompt: 'Generate or update project rules for Cursor based on this repository.'
+      })
     ]
   }
 }
 
 function providerCapabilityRegistry(providerId: string): ProviderCapabilityRegistry {
-  return providerRegistries[providerId] ?? {
+  const registry = providerRegistries[providerId] ?? {
     providerId,
     features: [],
-    probes: [probe('version', 'Version', ['--version'], 'version')]
+    probes: [probe('version', 'Version', ['--version'], 'version')],
+    slashCommands: []
+  }
+  return {
+    ...registry,
+    slashCommands: registry.slashCommands.map((command) => withProviderId(providerId, command))
   }
 }
 

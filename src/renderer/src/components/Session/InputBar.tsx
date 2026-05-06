@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { ProviderRuntimeInfo, ResolvedExecutionPolicy, Session } from '../../types'
 import { PROVIDER_DEFS, getVisibleModels } from '../../types'
 import { useSessionStore } from '../../store/sessions'
-import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
+import SlashCommandPalette, { getSlashQuery, type SlashPaletteCommand } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 
 interface Props {
@@ -13,7 +13,16 @@ interface Props {
 }
 
 export default function InputBar({ session, isNew, injectedText, onInjectedConsumed }: Props): JSX.Element {
-  const { providerAvailability, providerModels } = useSessionStore()
+  const {
+    providerAvailability,
+    providerModels,
+    uiState,
+    setShowDiff,
+    setShowEvents,
+    setShowSettings,
+    setShowSkills,
+    setShowTerminal
+  } = useSessionStore()
   const [text, setText] = useState('')
   const [useWorktree, setUseWorktree] = useState(false)
   const [isGitRepo, setIsGitRepo] = useState(false)
@@ -65,6 +74,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const permissionMode = session.permissionMode ?? provider.permissionModes[0]?.id ?? 'default'
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
+  const currentUi = uiState[session.id] ?? { showDiff: false, showEvents: false, showTerminal: false, showSkills: false, hasUnread: false }
   const resolvedPermission = providerRuntime?.policies[permissionMode] ?? (providerRuntime
     ? {
         policy: permissionMode,
@@ -149,10 +159,41 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
   }
 
-  const applySlashCommand = (cmd: string): void => {
-    setText(cmd + ' ')
+  const setTextareaText = (next: string): void => {
+    setText(next)
     setSlashIndex(0)
     textareaRef.current?.focus()
+    window.setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'
+      }
+    }, 0)
+  }
+
+  const applySlashCommand = (command: SlashPaletteCommand): void => {
+    if (command.handler === 'app-action') {
+      setText('')
+      setSlashIndex(0)
+      if (command.id === 'settings') setShowSettings(true)
+      if (command.id === 'diff') setShowDiff(session.id, !currentUi.showDiff)
+      if (command.id === 'events') setShowEvents(session.id, !currentUi.showEvents)
+      if (command.id === 'skills') setShowSkills(session.id, !currentUi.showSkills)
+      if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)
+      if (command.id === 'model') {
+        if (isNew) setShowAgentMenu(true)
+        else setTextareaText('/model ')
+      }
+      if (command.id === 'permissions') setShowPermMenu(true)
+      return
+    }
+
+    if (command.handler === 'insert-prompt' && command.prompt) {
+      setTextareaText(command.prompt)
+      return
+    }
+
+    setTextareaText(`${command.name} `)
   }
 
   // Compact agent pill label: "Provider · Model [· Effort]"
@@ -185,6 +226,8 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
         {showSlash && (
           <SlashCommandPalette
             query={slashQuery!}
+            providerRuntime={providerRuntime}
+            runtime="headless"
             onSelect={applySlashCommand}
             onDismiss={() => setText('')}
             selectedIndex={slashIndex}

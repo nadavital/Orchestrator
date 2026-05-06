@@ -412,10 +412,26 @@ export interface ProviderProbeResult extends ProviderProbeDefinition {
   output: string
 }
 
+export type ProviderSlashCommandSource = 'app' | 'provider' | 'plugin' | 'mcp' | 'skill' | 'sdk'
+
+export interface ProviderSlashCommand {
+  id: string
+  name: string
+  description?: string
+  providerId: string
+  source: ProviderSlashCommandSource
+  runtime: ProviderRuntimeKind
+  handler: 'app-action' | 'send-to-provider' | 'insert-prompt' | 'sdk-command'
+  arguments?: Array<{ name: string; optional?: boolean; description?: string }>
+  featureId?: string
+  prompt?: string
+}
+
 export interface ProviderCapabilityRegistry {
   providerId: string
   features: ProviderFeature[]
   probes: ProviderProbeDefinition[]
+  slashCommands: ProviderSlashCommand[]
 }
 
 export interface ResolvedExecutionPolicy {

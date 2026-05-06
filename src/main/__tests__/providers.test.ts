@@ -101,10 +101,17 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
     assert.equal(registry.providerId, providerId)
     assert.ok(registry.features.length > 0, `${providerId} should expose feature metadata`)
     assert.ok(registry.probes.length > 0, `${providerId} should expose probe metadata`)
+    assert.ok(Array.isArray(registry.slashCommands), `${providerId} should expose slash command metadata`)
 
     for (const probe of registry.probes) {
       assert.equal(probe.quota, 'none', `${providerId}/${probe.id} should not spend model quota`)
       assert.equal(probe.safeByDefault, true, `${providerId}/${probe.id} should be safe to run from settings`)
+    }
+
+    for (const command of registry.slashCommands) {
+      assert.equal(command.providerId, providerId)
+      assert.match(command.name, /^\//)
+      assert.ok(['app-action', 'send-to-provider', 'insert-prompt', 'sdk-command'].includes(command.handler))
     }
   }
 
@@ -112,6 +119,8 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
   assert.ok(runtimeInfo.codex.registry.features.some((feature) => feature.id === 'multi-agent'))
   assert.ok(runtimeInfo.copilot.registry.features.some((feature) => feature.id === 'subagents'))
   assert.ok(runtimeInfo.cursor.registry.features.some((feature) => feature.id === 'worktrees'))
+  assert.ok(runtimeInfo.codex.registry.slashCommands.some((command) => command.name === '/review' && command.runtime === 'headless'))
+  assert.ok(runtimeInfo.cursor.registry.slashCommands.some((command) => command.name === '/plan' && command.prompt))
 })
 
 test('provider diagnostics expose local readiness without claiming unavailable usage', () => {

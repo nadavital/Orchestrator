@@ -1,33 +1,101 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import type { ProviderRuntimeInfo, ProviderRuntimeKind, ProviderSlashCommand } from '../../types'
 
-export interface SlashCommand {
-  cmd: string
-  desc: string
+export type SlashPaletteCommand = ProviderSlashCommand & {
+  group: 'App' | 'Provider'
 }
 
-// Commands available for CLIs with slash-command support.
-export const SLASH_COMMANDS: SlashCommand[] = [
-  { cmd: '/clear', desc: 'Clear conversation history' },
-  { cmd: '/compact', desc: 'Compact conversation to save context' },
-  { cmd: '/cost', desc: 'View token usage and estimated cost' },
-  { cmd: '/diff', desc: 'Show git diff of current changes' },
-  { cmd: '/help', desc: 'Show available commands' },
-  { cmd: '/init', desc: 'Initialize agent config in this project' },
-  { cmd: '/memory', desc: 'Edit provider memory file' },
-  { cmd: '/model', desc: 'Switch model for this session' },
-  { cmd: '/permissions', desc: 'View and manage tool permissions' },
-  { cmd: '/pr-comments', desc: 'Load PR comments for review' },
-  { cmd: '/review', desc: 'Review staged or uncommitted changes' },
-  { cmd: '/status', desc: 'Show account and system status' },
-  { cmd: '/vim', desc: 'Toggle vim keybindings' },
-  { cmd: '/bug', desc: 'Report a CLI bug' },
-  { cmd: '/login', desc: 'Sign in to the active provider' },
-  { cmd: '/logout', desc: 'Sign out of the active provider' },
+const APP_COMMANDS: ProviderSlashCommand[] = [
+  {
+    id: 'settings',
+    name: '/settings',
+    description: 'Open settings',
+    providerId: 'app',
+    source: 'app',
+    runtime: 'headless',
+    handler: 'app-action'
+  },
+  {
+    id: 'diff',
+    name: '/diff',
+    description: 'Toggle diff',
+    providerId: 'app',
+    source: 'app',
+    runtime: 'headless',
+    handler: 'app-action'
+  },
+  {
+    id: 'terminal',
+    name: '/terminal',
+    description: 'Toggle terminal',
+    providerId: 'app',
+    source: 'app',
+    runtime: 'headless',
+    handler: 'app-action'
+  },
+  {
+    id: 'skills',
+    name: '/skills',
+    description: 'Toggle skills',
+    providerId: 'app',
+    source: 'app',
+    runtime: 'headless',
+    handler: 'app-action'
+  },
+  {
+    id: 'events',
+    name: '/events',
+    description: 'Toggle events',
+    providerId: 'app',
+    source: 'app',
+    runtime: 'headless',
+    handler: 'app-action'
+  },
+  {
+    id: 'model',
+    name: '/model',
+    description: 'Choose provider or model',
+    providerId: 'app',
+    source: 'app',
+    runtime: 'headless',
+    handler: 'app-action'
+  },
+  {
+    id: 'permissions',
+    name: '/permissions',
+    description: 'Choose permission mode',
+    providerId: 'app',
+    source: 'app',
+    runtime: 'headless',
+    handler: 'app-action'
+  }
 ]
+
+export function availableSlashCommands(
+  providerRuntime: ProviderRuntimeInfo | undefined,
+  runtime: ProviderRuntimeKind
+): SlashPaletteCommand[] {
+  const featureSupport = new Map(
+    providerRuntime?.registry.features.map((feature) => [feature.id, feature.support]) ?? []
+  )
+  const providerCommands = providerRuntime?.registry.slashCommands.filter((command) => {
+    if (command.runtime !== runtime) return false
+    if (!command.featureId) return true
+    const support = featureSupport.get(command.featureId)
+    return support === 'supported' || support === 'partial'
+  }) ?? []
+
+  return [
+    ...APP_COMMANDS.map((command) => ({ ...command, group: 'App' as const })),
+    ...providerCommands.map((command) => ({ ...command, group: 'Provider' as const }))
+  ]
+}
 
 interface Props {
   query: string
-  onSelect: (cmd: string) => void
+  providerRuntime?: ProviderRuntimeInfo
+  runtime: ProviderRuntimeKind
+  onSelect: (command: SlashPaletteCommand) => void
   onDismiss: () => void
   selectedIndex: number
   onSelectedIndexChange: (i: number) => void
@@ -35,18 +103,23 @@ interface Props {
 
 export default function SlashCommandPalette({
   query,
+  providerRuntime,
+  runtime,
   onSelect,
   onDismiss,
   selectedIndex,
   onSelectedIndexChange
 }: Props): JSX.Element | null {
-  const matches = SLASH_COMMANDS.filter((c) =>
-    c.cmd.startsWith(query.length > 0 ? query : '/')
+  const commands = useMemo(
+    () => availableSlashCommands(providerRuntime, runtime),
+    [providerRuntime, runtime]
+  )
+  const matches = commands.filter((command) =>
+    command.name.startsWith(query.length > 0 ? query : '/')
   )
 
   const listRef = useRef<HTMLDivElement>(null)
 
-  // Scroll selected item into view
   useEffect(() => {
     const el = listRef.current?.children[selectedIndex] as HTMLElement | undefined
     el?.scrollIntoView({ block: 'nearest' })
@@ -65,7 +138,7 @@ export default function SlashCommandPalette({
       }
       if (e.key === 'Tab' || e.key === 'Enter') {
         e.preventDefault()
-        if (matches[selectedIndex]) onSelect(matches[selectedIndex].cmd)
+        if (matches[selectedIndex]) onSelect(matches[selectedIndex])
       }
     }
     window.addEventListener('keydown', handler, { capture: true })
@@ -86,24 +159,33 @@ export default function SlashCommandPalette({
       }}
     >
       <div ref={listRef}>
-        {matches.map((c, i) => (
+        {matches.map((command, i) => (
           <button
-            key={c.cmd}
-            className="w-full flex items-baseline gap-3 px-3 py-2 text-left"
+            key={`${command.group}-${command.id}`}
+            className="w-full flex items-center gap-3 px-3 py-2 text-left"
             style={{
               background: i === selectedIndex ? 'var(--color-surface2)' : 'transparent'
             }}
             onMouseEnter={() => onSelectedIndexChange(i)}
-            onClick={() => onSelect(c.cmd)}
+            onClick={() => onSelect(command)}
           >
             <span
               className="text-xs font-mono shrink-0"
-              style={{ color: 'var(--color-accent)', minWidth: 120 }}
+              style={{ color: 'var(--color-accent)', minWidth: 108 }}
             >
-              {c.cmd}
+              {command.name}
             </span>
-            <span className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
-              {c.desc}
+            <span className="text-xs truncate flex-1" style={{ color: 'var(--color-text-muted)' }}>
+              {command.description}
+            </span>
+            <span
+              className="text-xs shrink-0"
+              style={{
+                color: command.group === 'App' ? 'var(--color-text-muted)' : 'var(--color-accent)',
+                fontSize: 10
+              }}
+            >
+              {command.group}
             </span>
           </button>
         ))}
