@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from 'uuid'
 import { accessSync, constants } from 'fs'
 import { execFileSync } from 'child_process'
+import { delimiter, join } from 'path'
+import { homedir } from 'os'
 import type {
   PermissionDenial,
   ProviderCapability,
@@ -27,6 +29,43 @@ function isExecutablePath(path: string): boolean {
   }
 }
 
+function commonCliDirs(): string[] {
+  const home = homedir()
+  return [
+    join(home, '.local/bin'),
+    join(home, 'bin'),
+    '/opt/homebrew/bin',
+    '/opt/homebrew/sbin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin'
+  ]
+}
+
+function providerSearchPath(): string {
+  const existing = (process.env.PATH ?? '').split(delimiter).filter(Boolean)
+  return [...new Set([...existing, ...commonCliDirs()])].join(delimiter)
+}
+
+function resolveNamedBinary(candidate: string): string | null {
+  const pathEnv = providerSearchPath()
+  try {
+    const resolved = execFileSync('which', [candidate], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: pathEnv }
+    }).trim()
+    return resolved || null
+  } catch {
+    for (const dir of commonCliDirs()) {
+      const absolute = join(dir, candidate)
+      if (isExecutablePath(absolute)) return absolute
+    }
+    return null
+  }
+}
+
 export function resolveProviderBinary(provider: ProviderAdapter): string | null {
   const candidates = provider.binaryCandidates ?? [provider.binary]
   for (const candidate of candidates) {
@@ -34,11 +73,8 @@ export function resolveProviderBinary(provider: ProviderAdapter): string | null 
       if (isExecutablePath(candidate)) return candidate
       continue
     }
-    try {
-      return execFileSync('which', [candidate], { encoding: 'utf8' }).trim()
-    } catch {
-      // Try the next known binary candidate.
-    }
+    const resolved = resolveNamedBinary(candidate)
+    if (resolved) return resolved
   }
   return null
 }
@@ -495,6 +531,10 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
 const claudeProvider: ProviderAdapter = {
   id: 'claude',
   binary: 'claude',
+  binaryCandidates: [
+    'claude',
+    join(homedir(), '.local/bin/claude')
+  ],
   capabilities: {
     resume: true,
     streamingJson: true,
@@ -748,6 +788,7 @@ const codexProvider: ProviderAdapter = {
   binary: 'codex',
   binaryCandidates: [
     'codex',
+    join(homedir(), '.local/bin/codex'),
     '/Users/navital/.nvm/versions/node/v22.12.0/bin/codex',
     '/Applications/Codex.app/Contents/Resources/codex'
   ],
@@ -888,6 +929,11 @@ function cursorToolName(toolCall: Record<string, unknown>): string {
 const cursorProvider: ProviderAdapter = {
   id: 'cursor',
   binary: 'agent',
+  binaryCandidates: [
+    'cursor-agent',
+    'agent',
+    join(homedir(), '.local/bin/cursor-agent')
+  ],
   capabilities: {
     resume: true,
     streamingJson: true,

@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { PROVIDER_DEFS } from '../../types'
-import { getProviderDiagnostics, getProviderRuntimeInfo, PROVIDERS } from '../providers'
+import { getProviderDiagnostics, getProviderRuntimeInfo, PROVIDERS, resolveProviderBinary } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -104,6 +105,27 @@ test('provider diagnostics expose local readiness without claiming unavailable u
     assert.ok(['configured', 'available', 'empty', 'unknown'].includes(diagnostic.models.status))
     assert.equal(diagnostic.usage.status, 'unavailable')
     assert.equal(diagnostic.liveSmoke.status, 'not-run')
+  }
+})
+
+test('provider binary detection searches common desktop CLI locations beyond inherited PATH', () => {
+  const originalPath = process.env.PATH
+  const originalHome = process.env.HOME
+  const tmpRoot = join(tmpdir(), `orchestrator-provider-path-${Date.now()}`)
+  const binDir = join(tmpRoot, '.local/bin')
+  mkdirSync(binDir, { recursive: true })
+  const fakeClaude = join(binDir, 'claude')
+  writeFileSync(fakeClaude, '#!/bin/sh\necho fake claude\n')
+  chmodSync(fakeClaude, 0o755)
+
+  try {
+    process.env.HOME = tmpRoot
+    process.env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
+    assert.equal(resolveProviderBinary(PROVIDERS.claude), fakeClaude)
+  } finally {
+    process.env.PATH = originalPath
+    process.env.HOME = originalHome
+    rmSync(tmpRoot, { recursive: true, force: true })
   }
 })
 
