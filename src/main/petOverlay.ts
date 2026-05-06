@@ -94,7 +94,7 @@ let pointerInteractive = false
 let mainWindowRef: BrowserWindow | null = null
 let createMainWindowFn: (() => void) | null = null
 let lastLayout: (PetLayout & { windowBounds: Rect }) | null = null
-let placement: PetPlacement = 'bottom-end'
+let placement: PetPlacement = 'top-end'
 let displayListenersAttached = false
 
 // ── Pet loading ───────────────────────────────────────────────────────────────
@@ -310,11 +310,10 @@ function clampRect(rect: Rect, workArea: Rect): Rect {
 }
 
 function preferredPlacements(a: { x: number; y: number }, workArea: Rect): PetPlacement[] {
-  const vertical = a.y < workArea.y + workArea.height / 2 ? 'bottom' : 'top'
   const horizontal = a.x < workArea.x + workArea.width / 2 ? 'start' : 'end'
-  const primary = `${vertical}-${horizontal}` as PetPlacement
-  const secondary = `${vertical}-${horizontal === 'start' ? 'end' : 'start'}` as PetPlacement
-  const tertiary = `${vertical === 'top' ? 'bottom' : 'top'}-${horizontal}` as PetPlacement
+  const primary = `top-${horizontal}` as PetPlacement
+  const secondary = `top-${horizontal === 'start' ? 'end' : 'start'}` as PetPlacement
+  const tertiary = `bottom-${horizontal}` as PetPlacement
   const rest = (['top-start', 'top-end', 'bottom-start', 'bottom-end'] as PetPlacement[])
     .filter((p) => p !== primary && p !== secondary && p !== tertiary)
   return [primary, secondary, tertiary, ...rest]
@@ -461,7 +460,7 @@ export function createPetOverlayWindow(mainWin: BrowserWindow): void {
   mainWindowRef = mainWin
   const isOpen = settingsStore.get('petOpen', true) as boolean
   const saved = settingsStore.get('petPosition', null) as { x: number; y: number } | null
-  placement = settingsStore.get('petPlacement', 'bottom-end') as PetPlacement
+  placement = settingsStore.get('petPlacement', 'top-end') as PetPlacement
   anchor = clampAnchor(saved || defaultAnchor())
   attachDisplayListeners()
 

@@ -309,14 +309,15 @@ export default function PetOverlay(): JSX.Element | null {
   const visible = trayCollapsed ? [] : notifications.slice(pageStart, pageStart + VISIBLE_COUNT)
   const hasOlder = safePage < maxPage
   const hasLatest = safePage > 0
+  const hasTray = notifications.length > 0
 
   useEffect(() => {
     if (page > maxPage) setPage(maxPage)
   }, [maxPage, page])
 
   useEffect(() => {
-    window.petApi.pet.setTrayCount(visible.length)
-  }, [visible.length])
+    window.petApi.pet.setTrayCount(hasTray && !trayCollapsed ? visible.length : 0)
+  }, [hasTray, trayCollapsed, visible.length])
 
   // Drag handlers — 4px threshold before committing (matches Codex Ge=4)
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
@@ -426,9 +427,10 @@ export default function PetOverlay(): JSX.Element | null {
           display: 'flex',
           flexDirection: 'column',
           gap: 5,
+          zIndex: 1,
         }}
       >
-        {notifications.length > 0 && (
+        {notifications.length > 0 && !trayCollapsed && (
           <>
             <div
               style={{
@@ -439,35 +441,25 @@ export default function PetOverlay(): JSX.Element | null {
                 alignItems: 'center',
               }}
             >
-              {trayCollapsed ? (
+              {hasOlder && (
                 <TrayButton
-                  label={`${notifications.length}`}
-                  title="Show notifications"
-                  onClick={() => setTrayCollapsed(false)}
+                  label={`+${notifications.length - pageStart - VISIBLE_COUNT}`}
+                  title="Show older notifications"
+                  onClick={() => setPage((current) => Math.min(maxPage, current + 1))}
                 />
-              ) : (
-                <>
-                  {hasOlder && (
-                    <TrayButton
-                      label={`+${notifications.length - pageStart - VISIBLE_COUNT}`}
-                      title="Show older notifications"
-                      onClick={() => setPage((current) => Math.min(maxPage, current + 1))}
-                    />
-                  )}
-                  {hasLatest && (
-                    <TrayButton
-                      label="Latest"
-                      title="Show latest notifications"
-                      onClick={() => setPage(0)}
-                    />
-                  )}
-                  <TrayButton
-                    label="–"
-                    title="Collapse notifications"
-                    onClick={() => setTrayCollapsed(true)}
-                  />
-                </>
               )}
+              {hasLatest && (
+                <TrayButton
+                  label="Latest"
+                  title="Show latest notifications"
+                  onClick={() => setPage(0)}
+                />
+              )}
+              <TrayButton
+                label="–"
+                title="Collapse notifications"
+                onClick={() => setTrayCollapsed(true)}
+              />
             </div>
             {!trayCollapsed && visible.map((notification) => (
               <NotificationCard
@@ -531,6 +523,7 @@ export default function PetOverlay(): JSX.Element | null {
           left: layout.mascotLeft,
           top: layout.mascotTop,
           cursor: isDragging.current ? 'grabbing' : 'grab',
+          zIndex: 2,
         }}
       >
         <PetAvatar
@@ -540,6 +533,38 @@ export default function PetOverlay(): JSX.Element | null {
           onHoverEnter={() => setIsHovering(true)}
           onHoverLeave={() => setIsHovering(false)}
         />
+        {trayCollapsed && notifications.length > 0 && (
+          <button
+            data-interactive="true"
+            aria-label="Show notifications"
+            title="Show notifications"
+            onPointerDown={(ev) => ev.stopPropagation()}
+            onClick={(ev) => {
+              ev.stopPropagation()
+              setTrayCollapsed(false)
+            }}
+            style={{
+              position: 'absolute',
+              top: 2,
+              right: 4,
+              minWidth: 24,
+              height: 22,
+              padding: '0 7px',
+              borderRadius: 999,
+              border: '1px solid rgba(255,255,255,0.22)',
+              background: 'rgba(18,18,18,0.82)',
+              color: '#fff',
+              boxShadow: '0 8px 22px rgba(0,0,0,0.28)',
+              backdropFilter: 'blur(10px)',
+              fontSize: 11,
+              fontWeight: 700,
+              lineHeight: '20px',
+              cursor: 'pointer',
+            }}
+          >
+            {notifications.length}
+          </button>
+        )}
       </div>
     </div>
   )
