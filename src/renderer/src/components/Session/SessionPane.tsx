@@ -114,7 +114,7 @@ export default function SessionPane(): JSX.Element | null {
 
         {ui.showSkills && <SkillsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} onClose={() => setShowSkills(session.id, false)} />}
         {ui.showDiff && <DiffPanel sessionId={session.id} />}
-        {ui.showEvents && <EventInspectorPanel sessionId={session.id} />}
+        {ui.showEvents && <EventInspectorPanel session={session} />}
       </div>
 
       {/* Terminal bottom panel */}

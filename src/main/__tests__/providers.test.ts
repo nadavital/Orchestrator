@@ -491,6 +491,30 @@ test('copilot fixture normalizes assistant, tool, session, and completion events
   assert.ok(events.some((event) => event.type === 'run.completed'))
 })
 
+test('copilot subagent events normalize into agent activity nodes', () => {
+  const events = [
+    PROVIDERS.copilot.parseOutputLine(JSON.stringify({
+      type: 'subagent.started',
+      sessionId: 'copilot-session-123',
+      data: { id: 'agent-1', name: 'Research', role: 'explore repo', model: 'gpt-5.5' }
+    })),
+    PROVIDERS.copilot.parseOutputLine(JSON.stringify({
+      type: 'subagent.completed',
+      sessionId: 'copilot-session-123',
+      data: { id: 'agent-1', name: 'Research', summary: 'Found the parser path.' }
+    }))
+  ].flat()
+  const started = firstEvent(events, 'agent.started')
+  const completed = firstEvent(events, 'agent.completed')
+
+  assert.equal(started.agent.id, 'agent-1')
+  assert.equal(started.agent.providerId, 'copilot')
+  assert.equal(started.agent.sessionId, 'copilot-session-123')
+  assert.equal(started.agent.status, 'running')
+  assert.equal(completed.agent.status, 'completed')
+  assert.equal(completed.agent.summary, 'Found the parser path.')
+})
+
 test('codex permission modes map to sandbox arguments', () => {
   const workspaceCommand = PROVIDERS.codex.buildStartCommand(
     request({ model: 'gpt-5.4', executionPolicy: 'default' })

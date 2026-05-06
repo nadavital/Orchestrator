@@ -52,6 +52,15 @@ const APP_COMMANDS: ProviderSlashCommand[] = [
     handler: 'app-action'
   },
   {
+    id: 'agents',
+    name: '/agents',
+    description: 'Toggle agent activity',
+    providerId: 'app',
+    source: 'app',
+    runtime: 'headless',
+    handler: 'app-action'
+  },
+  {
     id: 'model',
     name: '/model',
     description: 'Choose provider or model',

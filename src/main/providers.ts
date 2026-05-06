@@ -4,6 +4,7 @@ import { execFileSync } from 'child_process'
 import { delimiter, join } from 'path'
 import { homedir } from 'os'
 import type {
+  AgentStatus,
   PermissionDenial,
   ProviderCapability,
   ProviderCapabilities,
@@ -173,6 +174,20 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
+function stringValue(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value
+  }
+  return undefined
+}
+
+function numberValue(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+  return undefined
+}
+
 function textFromContentBlocks(content: unknown): string[] {
   if (!Array.isArray(content)) return []
   return content.flatMap((block) => {
@@ -185,6 +200,66 @@ function stringifyContent(value: unknown): string {
   if (typeof value === 'string') return value
   if (value == null) return ''
   return JSON.stringify(value, null, 2)
+}
+
+function agentEventFromProviderPayload(
+  providerId: string,
+  sessionId: string | null | undefined,
+  type: string,
+  payload: Record<string, unknown> | undefined,
+  fallbackId: string
+): RunEvent | null {
+  const agentRecord = asRecord(payload?.agent) ?? payload ?? {}
+  const id = stringValue(agentRecord.id, agentRecord.agentId, agentRecord.agent_id, agentRecord.name, fallbackId) ?? fallbackId
+  const parentAgentId = stringValue(agentRecord.parentAgentId, agentRecord.parent_agent_id, agentRecord.parentId)
+  const name = stringValue(agentRecord.name, agentRecord.label, agentRecord.title, agentRecord.agentName)
+  const role = stringValue(agentRecord.role, agentRecord.description, agentRecord.kind)
+  const model = stringValue(agentRecord.model, agentRecord.modelId)
+  const summary = stringValue(agentRecord.summary, agentRecord.result, agentRecord.error, payload?.summary, payload?.error)
+  const startedAt = numberValue(agentRecord.startedAt, agentRecord.started_at, payload?.startedAt)
+  const completedAt = numberValue(agentRecord.completedAt, agentRecord.completed_at, payload?.completedAt)
+  const status: AgentStatus = type === 'subagent.started' || type === 'agent.started'
+    ? 'running'
+    : type === 'subagent.completed' || type === 'agent.completed'
+      ? 'completed'
+      : type === 'subagent.failed' || type === 'agent.failed'
+        ? 'failed'
+        : normalizeAgentStatus(stringValue(agentRecord.status, payload?.status))
+  const eventType = status === 'completed'
+    ? 'agent.completed'
+    : status === 'failed'
+      ? 'agent.failed'
+      : type === 'subagent.started' || type === 'agent.started'
+        ? 'agent.started'
+        : 'agent.updated'
+
+  return {
+    type: eventType,
+    agent: {
+      id,
+      providerId,
+      sessionId: sessionId ?? '',
+      parentAgentId,
+      name,
+      role,
+      status,
+      model,
+      startedAt,
+      completedAt,
+      summary
+    }
+  } as RunEvent
+}
+
+function normalizeAgentStatus(value: string | undefined): AgentStatus {
+  if (value === 'queued') return 'queued'
+  if (value === 'running') return 'running'
+  if (value === 'waiting') return 'waiting'
+  if (value === 'blocked') return 'blocked'
+  if (value === 'completed') return 'completed'
+  if (value === 'failed') return 'failed'
+  if (value === 'cancelled' || value === 'canceled') return 'cancelled'
+  return 'running'
 }
 
 function parseStructuredUserInputRequest(value: unknown): { content: string; questions: UserInputQuestion[] } | null {
@@ -943,6 +1018,17 @@ const copilotProvider: ProviderAdapter = {
       })
     }
 
+    if (type?.startsWith('subagent.') || type?.startsWith('agent.')) {
+      const agentEvent = agentEventFromProviderPayload(
+        'copilot',
+        stringValue(obj.sessionId, obj.session_id),
+        type,
+        data ?? obj,
+        typeof obj.id === 'string' ? obj.id : uuidv4()
+      )
+      if (agentEvent) events.push(agentEvent)
+    }
+
     return events
   }
 }
@@ -1121,6 +1207,17 @@ const codexProvider: ProviderAdapter = {
     if (type === 'item.started' || type === 'item.completed') {
       const item = asRecord(obj.item)
       if (item) events.push(...parseCodexItem(item))
+    }
+
+    if (type?.startsWith('agent.') || type?.startsWith('subagent.')) {
+      const agentEvent = agentEventFromProviderPayload(
+        'codex',
+        stringValue(obj.thread_id, obj.sessionId, obj.session_id),
+        type,
+        asRecord(obj.agent) ?? obj,
+        typeof obj.id === 'string' ? obj.id : uuidv4()
+      )
+      if (agentEvent) events.push(agentEvent)
     }
 
     if (type === 'turn.completed') events.push({ type: 'run.completed' })

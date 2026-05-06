@@ -341,6 +341,29 @@ export type SessionPermissionMode = string
 export type ProviderId = 'claude' | 'copilot' | 'codex' | 'cursor' | string
 export type ExecutionPolicy = SessionPermissionMode
 
+export type AgentStatus =
+  | 'queued'
+  | 'running'
+  | 'waiting'
+  | 'blocked'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export interface AgentNode {
+  id: string
+  providerId: string
+  sessionId: string
+  parentAgentId?: string
+  name?: string
+  role?: string
+  status: AgentStatus
+  model?: string
+  startedAt?: number
+  completedAt?: number
+  summary?: string
+}
+
 export interface ProviderCommand {
   binary: string
   args: string[]
@@ -526,6 +549,10 @@ export type RunEvent =
   | { type: 'assistant.text'; content: string }
   | { type: 'tool.started'; id: string; toolName: string; toolInput: Record<string, unknown> }
   | { type: 'tool.completed'; id: string; toolUseId: string; content: string; isError: boolean }
+  | { type: 'agent.started'; agent: AgentNode }
+  | { type: 'agent.updated'; agent: AgentNode }
+  | { type: 'agent.completed'; agent: AgentNode }
+  | { type: 'agent.failed'; agent: AgentNode }
   | { type: 'permission.requested'; denials: PermissionDenial[]; content?: string }
   | { type: 'user_input.requested'; content: string; questions?: UserInputQuestion[] }
   | { type: 'connection.reconnecting'; attempt?: number; content?: string }
