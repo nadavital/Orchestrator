@@ -280,6 +280,7 @@ test('claude AskUserQuestion tool result becomes a structured user-input request
   assert.equal(userInput.content, 'What should the branch name be?')
   assert.equal(userInput.questions?.[0]?.header, 'Branch name')
   assert.equal(userInput.questions?.[0]?.options?.[0]?.label, 'example/review-provider-output')
+  assert.equal(events.some((event) => event.type === 'tool.started'), false)
   assert.equal(events.some((event) => event.type === 'tool.completed'), false)
 
   const resultMessage = messages.find((message) => message.type === 'result')
@@ -288,6 +289,30 @@ test('claude AskUserQuestion tool result becomes a structured user-input request
     assert.equal(resultMessage.subtype, 'waiting_for_user')
     assert.equal(resultMessage.userInputQuestions?.[0]?.options?.length, 3)
   }
+})
+
+test('claude AskUserQuestion permission denial becomes user input, not permission UI', () => {
+  const events = PROVIDERS.claude.parseOutputLine(JSON.stringify({
+    type: 'result',
+    subtype: 'error_during_execution',
+    result: 'Permission denied',
+    permission_denials: [{
+      tool_name: 'AskUserQuestion',
+      tool_use_id: 'tool-question-1',
+      tool_input: {
+        questions: [{
+          question: 'Which branch name should I use?',
+          header: 'Branch name',
+          options: [{ label: 'example/branch' }]
+        }]
+      }
+    }]
+  }))
+  const userInput = firstEvent(events, 'user_input.requested')
+
+  assert.equal(userInput.content, 'Which branch name should I use?')
+  assert.equal(userInput.questions?.[0]?.options?.[0]?.label, 'example/branch')
+  assert.equal(events.some((event) => event.type === 'permission.requested'), false)
 })
 
 test('claude auth retry output fails fast instead of spinning through retries', () => {
@@ -325,7 +350,7 @@ test('provider fixtures expose expected normalized event contracts', () => {
     {
       providerId: 'claude',
       fixture: 'ask-user-question.jsonl',
-      types: ['session.started', 'assistant.text', 'tool.started', 'user_input.requested']
+      types: ['session.started', 'assistant.text', 'user_input.requested']
     },
     {
       providerId: 'copilot',

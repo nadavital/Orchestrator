@@ -211,6 +211,12 @@ function parseStructuredUserInputRequest(value: unknown): { content: string; que
   }
 }
 
+function userInputFromAskUserQuestionTool(input: unknown): { content: string; questions: UserInputQuestion[] } | null {
+  const rec = asRecord(input)
+  if (!rec) return null
+  return parseStructuredUserInputRequest({ questions: rec.questions ?? [rec] })
+}
+
 const PROVIDER_PROBE_TIMEOUT_MS = 2_000
 
 function probeCommand(binary: string, args: string[], timeout = PROVIDER_PROBE_TIMEOUT_MS): { ok: boolean; output: string } {
@@ -503,6 +509,13 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
     for (const block of content) {
       const rec = asRecord(block)
       if (rec?.type === 'tool_use') {
+        if (rec.name === 'AskUserQuestion') {
+          const userInputRequest = userInputFromAskUserQuestionTool(rec.input)
+          if (userInputRequest) {
+            events.push({ type: 'user_input.requested', ...userInputRequest })
+            continue
+          }
+        }
         events.push({
           type: 'tool.started',
           id: typeof rec.id === 'string' ? rec.id : uuidv4(),
@@ -540,6 +553,14 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
       ? event.permission_denials as PermissionDenial[]
       : []
     if (denials.length > 0) {
+      const askUserDenial = denials.find((denial) => denial.tool_name === 'AskUserQuestion')
+      const userInputRequest = askUserDenial
+        ? userInputFromAskUserQuestionTool(askUserDenial.tool_input)
+        : null
+      if (userInputRequest) {
+        events.push({ type: 'user_input.requested', ...userInputRequest })
+        return events
+      }
       events.push({
         type: 'permission.requested',
         content: typeof event.result === 'string' ? event.result : undefined,
