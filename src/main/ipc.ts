@@ -126,7 +126,8 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('pet:focusMain', (_, sessionId?: string) => petOverlayManager.focusMain(sessionId))
   ipcMain.on('pet:drag:start', (_, clientX: number, clientY: number) =>
     petOverlayManager.dragStart(clientX, clientY))
-  ipcMain.on('pet:drag:move', () => petOverlayManager.dragMove())
+  ipcMain.on('pet:drag:move', (_, screenX: number, screenY: number) =>
+    petOverlayManager.dragMove(screenX, screenY))
   ipcMain.on('pet:drag:end', () => petOverlayManager.dragEnd())
   ipcMain.on('pet:drag:release', (_, vx: number, vy: number) =>
     petOverlayManager.dragRelease(vx, vy))

@@ -41,6 +41,8 @@ const VISIBLE_COUNT = 2
 const DRAG_SAMPLE_WINDOW_MS = 100
 const MAX_THROW_SPEED = 1600
 const MIN_THROW_SPEED = 320
+const CHEVRON_RIGHT = 'M8.5 4.5 13.5 10 8.5 15.5'
+const CHEVRON_DOWN = 'M4.5 8.5 10 13.5 15.5 8.5'
 
 interface SessionState {
   id: string
@@ -143,6 +145,7 @@ export default function PetOverlay(): JSX.Element | null {
   const isDragging = useRef(false)
   const [isDraggingVisual, setIsDraggingVisual] = useState(false)
   const dragState = useRef<DragState | null>(null)
+  const dragAnimStateRef = useRef<AnimState | null>(null)
   const [dragAnimState, setDragAnimState] = useState<AnimState | null>(null)
   const trayRef = useRef<HTMLDivElement>(null)
   const mascotRef = useRef<HTMLDivElement>(null)
@@ -297,14 +300,21 @@ export default function PetOverlay(): JSX.Element | null {
   useEffect(() => {
     const el = trayRef.current
     if (!el) return
+    let frame: number | null = null
     const ro = new ResizeObserver(([entry]) => {
-      window.petApi.pet.setTraySize({
-        width: Math.ceil(entry.contentRect.width),
-        height: Math.ceil(entry.contentRect.height),
+      const width = Math.ceil(entry.contentRect.width)
+      const height = Math.ceil(entry.contentRect.height)
+      if (frame !== null) window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        frame = null
+        window.petApi.pet.setTraySize({ width, height })
       })
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame)
+      ro.disconnect()
+    }
   }, [])
 
   useEffect(() => {
@@ -365,6 +375,7 @@ export default function PetOverlay(): JSX.Element | null {
     dragState.current = null
     isDragging.current = false
     setIsDraggingVisual(false)
+    dragAnimStateRef.current = null
     setDragAnimState(null)
 
     if (shouldOpenMainWindow && state.startedOnMascot && !state.hasMoved) {
@@ -412,6 +423,7 @@ export default function PetOverlay(): JSX.Element | null {
     }
     isDragging.current = true
     setIsDraggingVisual(true)
+    dragAnimStateRef.current = null
     setDragAnimState(null)
     window.petApi.pet.dragStart(e.clientX, e.clientY)
   }
@@ -430,12 +442,16 @@ export default function PetOverlay(): JSX.Element | null {
     state.hasMoved = true
     state.screenX = sample.screenX
     state.screenY = sample.screenY
-    setDragAnimState((current) => {
-      if (dx >= DRAG_THRESHOLD) return 'running-right'
-      if (dx <= -DRAG_THRESHOLD) return 'running-left'
-      return current
-    })
-    window.petApi.pet.dragMove()
+    const nextAnimState = dx >= DRAG_THRESHOLD
+      ? 'running-right'
+      : dx <= -DRAG_THRESHOLD
+        ? 'running-left'
+        : dragAnimStateRef.current
+    if (nextAnimState !== dragAnimStateRef.current) {
+      dragAnimStateRef.current = nextAnimState
+      setDragAnimState(nextAnimState)
+    }
+    window.petApi.pet.dragMove(e.screenX, e.screenY)
   }
 
   const handlePointerUp = (e: React.PointerEvent): void => {
@@ -474,11 +490,12 @@ export default function PetOverlay(): JSX.Element | null {
           position: 'absolute',
           left: layout.trayLeft,
           top: layout.trayTop,
-          width: 264,
+          width: 276,
           display: 'flex',
           flexDirection: 'column',
           gap: 5,
-          zIndex: 1,
+          zIndex: 3,
+          pointerEvents: trayCollapsed ? 'none' : 'auto',
         }}
       >
         {notifications.length > 0 && !trayCollapsed && (
@@ -610,9 +627,16 @@ export default function PetOverlay(): JSX.Element | null {
               lineHeight: '26px',
               cursor: 'pointer',
               transform: 'translate(6px, -4px)',
+              display: 'grid',
+              placeItems: 'center',
+              transition: 'transform 160ms ease-out, background-color 160ms ease-out, color 160ms ease-out',
             }}
           >
-            {trayCollapsed ? notifications.length : '⌄'}
+            {trayCollapsed ? (
+              notifications.length
+            ) : (
+              <ChevronIcon path={CHEVRON_DOWN} />
+            )}
           </button>
         )}
       </div>
@@ -713,15 +737,20 @@ function NotificationCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: 'rgba(20, 20, 22, 0.9)',
-        backdropFilter: 'blur(18px)',
-        border: '1px solid rgba(255,255,255,0.12)',
-        boxShadow: '0 14px 34px rgba(0,0,0,0.26)',
-        borderRadius: 18,
-        padding: '9px 10px 9px 11px',
+        background: 'linear-gradient(180deg, rgba(252,252,249,0.96), rgba(232,231,222,0.96))',
+        backgroundImage: 'linear-gradient(180deg, rgba(252,252,249,0.96), rgba(232,231,222,0.96)), linear-gradient(90deg, rgba(0,0,0,0.035) 1px, transparent 1px), linear-gradient(180deg, rgba(0,0,0,0.035) 1px, transparent 1px)',
+        backgroundSize: 'auto, 4px 4px, 4px 4px',
+        border: '1px solid rgba(28,28,24,0.22)',
+        boxShadow: hovered
+          ? '0 11px 0 -7px rgba(0,0,0,0.34), 0 19px 30px rgba(0,0,0,0.22)'
+          : '0 10px 0 -7px rgba(0,0,0,0.32), 0 18px 28px rgba(0,0,0,0.2)',
+        borderRadius: 8,
+        padding: '8px 9px 8px 10px',
         cursor: 'pointer',
         position: 'relative',
-        color: 'white',
+        color: '#1f1f1b',
+        transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
+        transition: 'transform 140ms ease-out, box-shadow 140ms ease-out, border-color 140ms ease-out',
       }}
     >
       <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
@@ -742,7 +771,7 @@ function NotificationCard({
               style={{
                 fontSize: 11,
                 fontWeight: 650,
-                color: 'rgba(255,255,255,0.92)',
+                color: '#1f1f1b',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -761,7 +790,7 @@ function NotificationCard({
                 display: 'grid',
                 placeItems: 'center',
                 color: STATUS_COLOR[notification.status],
-                background: `${STATUS_COLOR[notification.status]}1c`,
+                background: `${STATUS_COLOR[notification.status]}24`,
                 fontSize: notification.status === 'running' ? 8 : 11,
                 fontWeight: 700,
                 flexShrink: 0,
@@ -777,15 +806,16 @@ function NotificationCard({
             <div
               style={{
                 fontSize: 10.5,
-                color: 'rgba(255,255,255,0.58)',
+                color: 'rgba(31,31,27,0.66)',
                 marginTop: 4,
                 overflow: 'hidden',
                 display: '-webkit-box',
-                WebkitLineClamp: expanded ? 10 : 2,
+                WebkitLineClamp: expanded ? 16 : 2,
                 WebkitBoxOrient: 'vertical',
                 lineHeight: '14px',
-                maxHeight: expanded ? 140 : 28,
+                maxHeight: expanded ? 224 : 28,
                 fontFamily: notification.body.startsWith('$') ? 'ui-monospace, SFMono-Regular, monospace' : 'inherit',
+                transition: 'max-height 180ms ease-out',
               }}
             >
               {notification.body}
@@ -814,7 +844,12 @@ function NotificationCard({
             <ActionButton label={replyOpen ? 'Hide' : 'Reply'} busy={busy} onClick={() => setReplyOpen((v) => !v)} />
           )}
           {longBody && (
-            <ActionButton label={expanded ? 'Less' : 'More'} busy={false} onClick={onToggleExpanded} />
+            <IconActionButton
+              title={expanded ? 'Collapse' : 'Expand'}
+              busy={false}
+              onClick={onToggleExpanded}
+              rotate={expanded ? 90 : 0}
+            />
           )}
         </div>
       )}
@@ -839,9 +874,9 @@ function NotificationCard({
               flex: 1,
               height: 26,
               borderRadius: 9,
-              border: '1px solid rgba(255,255,255,0.12)',
-              background: 'rgba(255,255,255,0.08)',
-              color: 'rgba(255,255,255,0.92)',
+              border: '1px solid rgba(28,28,24,0.2)',
+              background: 'rgba(255,255,255,0.72)',
+              color: '#1f1f1b',
               padding: '0 8px',
               fontSize: 11,
               outline: 'none',
@@ -856,7 +891,7 @@ function NotificationCard({
               width: 28,
               height: 26,
               borderRadius: 9,
-              border: '1px solid rgba(255,255,255,0.14)',
+              border: '1px solid rgba(28,28,24,0.18)',
               background: providerColor,
               color: '#fff',
               cursor: busy || !replyText.trim() ? 'default' : 'pointer',
@@ -882,9 +917,9 @@ function NotificationCard({
             width: 18,
             height: 18,
             borderRadius: '50%',
-            background: 'rgba(255,255,255,0.08)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            color: 'rgba(255,255,255,0.52)',
+            background: 'rgba(255,255,255,0.72)',
+            border: '1px solid rgba(28,28,24,0.14)',
+            color: 'rgba(31,31,27,0.52)',
             cursor: 'pointer',
             fontSize: 13,
             lineHeight: '16px',
@@ -919,10 +954,10 @@ function ActionButton({
       style={{
         height: 22,
         padding: '0 8px',
-        borderRadius: 8,
-        border: tone === 'primary' ? '1px solid rgba(255,255,255,0.16)' : '1px solid rgba(255,255,255,0.12)',
-        background: tone === 'primary' ? 'rgba(96,165,250,0.84)' : 'rgba(255,255,255,0.08)',
-        color: 'rgba(255,255,255,0.9)',
+        borderRadius: 6,
+        border: tone === 'primary' ? '1px solid rgba(28,28,24,0.18)' : '1px solid rgba(28,28,24,0.14)',
+        background: tone === 'primary' ? 'rgba(59,130,246,0.86)' : 'rgba(255,255,255,0.72)',
+        color: tone === 'primary' ? '#fff' : 'rgba(31,31,27,0.82)',
         cursor: busy ? 'default' : 'pointer',
         opacity: busy ? 0.6 : 1,
         fontSize: 10.5,
@@ -931,5 +966,61 @@ function ActionButton({
     >
       {label}
     </button>
+  )
+}
+
+function IconActionButton({
+  title,
+  busy,
+  rotate,
+  onClick,
+}: {
+  title: string
+  busy: boolean
+  rotate: number
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <button
+      disabled={busy}
+      title={title}
+      aria-label={title}
+      onClick={(ev) => {
+        ev.stopPropagation()
+        onClick()
+      }}
+      style={{
+        width: 22,
+        height: 22,
+        display: 'grid',
+        placeItems: 'center',
+        padding: 0,
+        borderRadius: 6,
+        border: '1px solid rgba(28,28,24,0.14)',
+        background: 'rgba(255,255,255,0.72)',
+        color: 'rgba(31,31,27,0.74)',
+        cursor: busy ? 'default' : 'pointer',
+        opacity: busy ? 0.6 : 1,
+      }}
+    >
+      <span style={{ transform: `rotate(${rotate}deg)`, transition: 'transform 120ms ease-out' }}>
+        <ChevronIcon path={CHEVRON_RIGHT} />
+      </span>
+    </button>
+  )
+}
+
+function ChevronIcon({ path }: { path: string }): JSX.Element {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path
+        d={path}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }

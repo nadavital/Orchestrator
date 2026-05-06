@@ -198,7 +198,9 @@ function parseStructuredUserInputRequest(value: unknown): { content: string; que
   }
 }
 
-function probeCommand(binary: string, args: string[], timeout = 10_000): { ok: boolean; output: string } {
+const PROVIDER_PROBE_TIMEOUT_MS = 2_000
+
+function probeCommand(binary: string, args: string[], timeout = PROVIDER_PROBE_TIMEOUT_MS): { ok: boolean; output: string } {
   const result = probeCommandFull(binary, args, timeout)
   return {
     ok: result.ok,
@@ -206,7 +208,7 @@ function probeCommand(binary: string, args: string[], timeout = 10_000): { ok: b
   }
 }
 
-function probeCommandFull(binary: string, args: string[], timeout = 10_000): { ok: boolean; output: string } {
+function probeCommandFull(binary: string, args: string[], timeout = PROVIDER_PROBE_TIMEOUT_MS): { ok: boolean; output: string } {
   try {
     const output = execFileSync(binary, args, {
       encoding: 'utf8',
@@ -456,13 +458,26 @@ function claudePolicy(policyId: string): ResolvedExecutionPolicy {
 
 function parseAnthropicStyleLine(line: string): RunEvent[] {
   const event = parseJsonLine(line)
-  if (!event) return []
+  if (!event) {
+    if (/apiKeyHelper failed|authentication_failed/i.test(line)) {
+      return [{ type: 'run.failed', content: line.trim() }]
+    }
+    return []
+  }
 
   const events: RunEvent[] = []
   const type = event.type as string | undefined
 
   if (type === 'system' && event.subtype === 'init' && typeof event.session_id === 'string') {
     events.push({ type: 'session.started', providerSessionId: event.session_id })
+  }
+
+  if (type === 'system' && event.subtype === 'api_retry' && event.error === 'authentication_failed') {
+    const attempt = typeof event.attempt === 'number' ? `attempt ${event.attempt}` : 'retry'
+    events.push({
+      type: 'run.failed',
+      content: `Claude authentication failed during ${attempt}. Check the configured apiKeyHelper or Claude auth.`
+    })
   }
 
   if (type === 'assistant') {

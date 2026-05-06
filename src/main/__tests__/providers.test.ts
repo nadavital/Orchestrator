@@ -271,6 +271,21 @@ test('claude AskUserQuestion tool result becomes a structured user-input request
   }
 })
 
+test('claude auth retry output fails fast instead of spinning through retries', () => {
+  const helperEvents = PROVIDERS.claude.parseOutputLine(
+    'apiKeyHelper failed: exited 1: npm error code E404'
+  )
+  const retryEvents = PROVIDERS.claude.parseOutputLine(
+    '{"type":"system","subtype":"api_retry","attempt":1,"error_status":401,"error":"authentication_failed"}'
+  )
+
+  const helperFailure = firstEvent(helperEvents, 'run.failed')
+  const retryFailure = firstEvent(retryEvents, 'run.failed')
+
+  assert.match(helperFailure.content ?? '', /apiKeyHelper failed/)
+  assert.match(retryFailure.content ?? '', /authentication failed/i)
+})
+
 test('provider fixtures expose expected normalized event contracts', () => {
   const cases: Array<{
     providerId: string

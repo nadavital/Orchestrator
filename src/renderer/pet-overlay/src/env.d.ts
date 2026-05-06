@@ -56,7 +56,7 @@ declare global {
         close: () => Promise<void>
         focusMain: (sessionId?: string) => Promise<void>
         dragStart: (clientX: number, clientY: number) => void
-        dragMove: () => void
+        dragMove: (screenX: number, screenY: number) => void
         dragEnd: () => void
         dragRelease: (vx: number, vy: number) => void
         setPointerInteractive: (v: boolean) => void

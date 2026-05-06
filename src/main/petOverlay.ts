@@ -56,8 +56,8 @@ export interface CodexPetImportResult {
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 const FALLBACK_MASCOT: Size = { width: 113, height: 122 }
-const FALLBACK_TRAY: Size = { width: 264, height: 0 }
-const TRAY_W = 264
+const FALLBACK_TRAY: Size = { width: 276, height: 0 }
+const TRAY_W = 276
 const WINDOW_PAD = 8
 const TRAY_GAP = 8
 
@@ -635,9 +635,11 @@ export const petOverlayManager = {
     pointerAnchorY = clientY - layout.mascotTop
   },
 
-  dragMove(): void {
+  dragMove(screenX?: number, screenY?: number): void {
     if (!petWin) return
-    const cursor = screen.getCursorScreenPoint()
+    const cursor = typeof screenX === 'number' && typeof screenY === 'number'
+      ? { x: screenX, y: screenY }
+      : screen.getCursorScreenPoint()
     anchor = clampAnchor({
       x: cursor.x - pointerAnchorX,
       y: cursor.y - pointerAnchorY,

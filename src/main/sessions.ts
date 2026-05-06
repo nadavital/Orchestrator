@@ -49,7 +49,7 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
 }
 
 function classifyFailure(content?: string): SessionStatus {
-  if (/authentication required|not logged in|login|api key|unauthorized|keychain|SecItemCopyMatching/i.test(content ?? '')) {
+  if (/authentication required|authentication_failed|not logged in|login|api key|apiKeyHelper|unauthorized|keychain|SecItemCopyMatching/i.test(content ?? '')) {
     return 'auth_error'
   }
   if (/model .*unavailable|model unavailable|unknown model|invalid model|no models available/i.test(content ?? '')) {
@@ -316,6 +316,11 @@ export const sessionManager = {
       const completed = [...events].reverse().find((event) => event.type === 'run.completed')
       if (failed?.type === 'run.failed') {
         if (currentSession?.status === 'waiting_for_user') return
+        const pty = activePtys.get(sessionId)
+        if (pty) {
+          pty.kill()
+          activePtys.delete(sessionId)
+        }
         this.updateStatus(sessionId, classifyFailure(failed.content))
       } else if (completed?.type === 'run.completed') {
         this.updateStatus(sessionId, 'idle')

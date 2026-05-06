@@ -60,7 +60,7 @@ const petApi = {
     focusMain: (sessionId?: string): Promise<void> => ipcRenderer.invoke('pet:focusMain', sessionId),
     dragStart: (clientX: number, clientY: number): void =>
       ipcRenderer.send('pet:drag:start', clientX, clientY),
-    dragMove: (): void => ipcRenderer.send('pet:drag:move'),
+    dragMove: (screenX: number, screenY: number): void => ipcRenderer.send('pet:drag:move', screenX, screenY),
     dragEnd: (): void => ipcRenderer.send('pet:drag:end'),
     dragRelease: (vx: number, vy: number): void =>
       ipcRenderer.send('pet:drag:release', vx, vy),
