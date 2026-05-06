@@ -2,6 +2,90 @@
 
 Date: 2026-05-06
 
+## 2026-05-06 SDK Runtime Spike Addendum
+
+This pass inspected current public SDK surfaces and did local no-prompt import/status probes. No agent prompts were sent, so this did not spend model quota.
+
+Sources checked:
+
+- Cursor SDK announcement and examples: https://cursor.com/blog/typescript-sdk
+- GitHub Copilot SDK custom agents/subagents docs: https://docs.github.com/en/copilot/how-tos/copilot-sdk/use-copilot-sdk/custom-agents
+- GitHub Copilot SDK streaming events docs: https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/copilot-sdk/use-copilot-sdk/streaming-events
+- Harness unified CLI docs: https://www.harness.lol/docs
+- Cockpit Claude Code Agent SDK GUI: https://cocking.cc/en/
+- Crest terminal-orchestration GUI: https://www.crestai.dev/
+
+Local package probes:
+
+| SDK | Version checked | Local import/status result | Packaging notes | Immediate implication |
+| --- | --- | --- | --- | --- |
+| `@cursor/sdk` | `1.0.12` | Temp install under `/tmp` imports cleanly. `Cursor.models.list()` fails without `CURSOR_API_KEY`. | Installed dependency tree is about 47 MB and includes `sqlite3`, `@connectrpc/*`, protobuf, Statsig, and Zod. | Good candidate for an optional Cursor SDK runtime, but account/model probes need API-key-based auth, not just desktop login. |
+| `@github/copilot` | `1.0.43` | SDK imports cleanly. `CopilotClient.start()`, `getStatus()`, `getAuthStatus()`, and `listModels()` work without sending a prompt. | Package is large, about 179 MB unpacked, with native/prebuilt modules and SDK docs/types bundled. | Strongest SDK candidate. SDK status/auth/model-list works even while plain `copilot --version` still fails with `SecItemCopyMatching failed -50`. |
+
+Cursor SDK facts from package/types and official docs:
+
+- Public API exports `Agent`, `Cursor`, `Run`, streaming `SDKMessage` types, model listing, local/cloud agent options, MCP server config, artifacts, conversation history, and run event storage/notifiers.
+- Minimal local pattern is `Agent.create({ apiKey, model, local: { cwd } })`, `agent.send(...)`, then `for await (const event of run.stream())`.
+- The SDK explicitly shares Cursor's runtime/harness/models across desktop, CLI, web, local, self-hosted, and cloud.
+- It advertises MCP, skills, hooks, and subagents. Subagents are spawned through an `Agent` tool and can have their own prompts/models.
+- Local/cloud model listing wants `CURSOR_API_KEY`; in this spike, no API key was present, so SDK account calls returned a configuration error before any network/model usage.
+
+Copilot SDK facts from package/types and official docs:
+
+- Public API exports `CopilotClient`, `CopilotSession`, tools, command definitions, permission handlers, user-input handlers, elicitation handlers, MCP configs, custom agents, skills, session FS, and event handlers.
+- No-prompt SDK status probe succeeded:
+  - version `1.0.43`
+  - protocol version `3`
+  - auth OK via `gh-cli`
+  - model list returned account-enabled models and capability metadata.
+- Event schemas include assistant deltas/messages, tool start/progress/complete, usage, session context, permissions, user input, elicitation, MCP OAuth, external tools, command events, background tasks, skills, custom agents, MCP server status, extensions, and subagent lifecycle events.
+- Permission requests are structured by kind: shell, write, read, MCP, URL, memory, and custom-tool.
+- Subagent events include selected/started/completed/failed/deselected and include fields like tool call ID, agent display name, description, model, duration, token totals, and error.
+
+Open-source comparison:
+
+- Harness is closest to our existing adapter direction: one subprocess wrapper, one NDJSON event stream, supported backends for Claude Code, Codex, OpenCode, and Cursor.
+- Cockpit is evidence that a GUI can be SDK-native when the SDK is good enough: it is a Claude Code GUI built on the Claude Agent SDK, while still assuming the local CLI config works.
+- Crest is evidence for terminal-overlay orchestration: it keeps Claude Code and Codex running in real terminals, then layers supervision, prompt answering, approvals, and orchestration on top.
+
+Evaluation:
+
+| Runtime path | Difficulty | Value | Main risk | Recommendation |
+| --- | --- | --- | --- | --- |
+| Current headless JSON CLIs | Low | Stable baseline for prompt/result, tools, diffs, permissions where emitted | Provider-specific gaps remain; weaker for rich subagents/commands | Keep as universal fallback. |
+| PTY/terminal overlay | Medium | Preserves native provider behavior and interactive commands | Harder to parse reliably; permission states can become text-scraping | Use for providers/features without SDK/app-server support. |
+| Cursor SDK runtime | Medium | Local/cloud runs, stream events, artifacts, MCP, skills, hooks, subagents | Requires `CURSOR_API_KEY` for account/cloud calls; adds native-ish dependency tree | Spike behind optional runtime flag after runtime abstraction exists. |
+| Copilot SDK runtime | Medium-high | Best structured event surface; solves current CLI keychain failure for status/auth/models; rich permissions/subagents/commands | Large dependency/package footprint; protocol is preview and may shift | Prioritize after runtime abstraction. This is likely better than CLI prompt mode for Copilot. |
+| Codex app-server/runtime | Medium-high | Potentially Codex.app-like approvals/events/features | Protocol discovery still needed | Spike separately after SDK adapter interface exists. |
+
+Implementation proposal:
+
+1. Add `ProviderRuntimeAdapter` as the layer below provider adapters:
+
+```ts
+interface ProviderRuntimeAdapter {
+  id: string
+  providerId: string
+  kind: 'headless-json' | 'pty-overlay' | 'sdk' | 'app-server'
+  available(): Promise<RuntimeHealth>
+  start(request: RunRequest, emit: (event: RunEvent) => void): Promise<RuntimeHandle>
+  resume(request: RunRequest, emit: (event: RunEvent) => void): Promise<RuntimeHandle>
+}
+```
+
+2. Keep current adapters as `*-headless-json` implementations.
+3. Add a `copilot-sdk` adapter first because the no-prompt status/auth/model probe already works locally and the event model maps cleanly to `RunEvent`, `AgentNode`, permissions, user input, and slash commands.
+4. Add `cursor-sdk` second, gated behind explicit auth/API-key settings and a hidden runtime choice until we verify a cheap local run.
+5. Add `codex-app-server` third.
+6. Make runtime selection explicit in provider settings but default to "Auto": prefer SDK/app-server only after a no-quota health check passes; otherwise fall back to headless CLI.
+
+Hardness estimate:
+
+- Runtime abstraction plus migration of current providers: 1-2 focused slices.
+- Copilot SDK MVP: 2-3 slices. Start/status/model health, then send/stream parser, then permissions/user input.
+- Cursor SDK MVP: 2-3 slices after auth config. Health/API key, local run stream parser, then model/MCP/artifact surfaces.
+- UI polish for runtime choice/health: 1 slice.
+
 ## 2026-05-06 Local CLI Spike Addendum
 
 This pass used local CLI discovery only. No model prompts were sent, so this did not spend provider quota.
