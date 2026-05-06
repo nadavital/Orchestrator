@@ -11,7 +11,11 @@ import type {
   PermissionIntent,
   PermissionInteraction,
   PermissionRuntimeControl,
+  ProviderCapabilityRegistry,
   ProviderDiagnosticInfo,
+  ProviderFeature,
+  ProviderProbeDefinition,
+  ProviderProbeResult,
   ProviderRuntimeInfo,
   ResolvedExecutionPolicy,
   RunEvent,
@@ -221,6 +225,127 @@ const anthropicUserQuestionToolIds = new Set<string>()
 
 const PROVIDER_PROBE_TIMEOUT_MS = 2_000
 
+function feature(
+  id: string,
+  label: string,
+  area: ProviderFeature['area'],
+  support: ProviderFeature['support'],
+  source: ProviderFeature['source'],
+  runtimes: ProviderFeature['runtimes'],
+  note?: string
+): ProviderFeature {
+  return { id, label, area, support, source, runtimes, note }
+}
+
+function probe(
+  id: string,
+  label: string,
+  args: string[],
+  category: ProviderProbeDefinition['category'],
+  safeByDefault = true
+): ProviderProbeDefinition {
+  return { id, label, args, category, quota: 'none', safeByDefault }
+}
+
+const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
+  claude: {
+    providerId: 'claude',
+    features: [
+      feature('stream-json', 'Stream JSON', 'runtime', 'supported', 'adapter', ['headless']),
+      feature('ask-user-question', 'Ask user', 'permissions', 'supported', 'adapter', ['headless'], 'AskUserQuestion is normalized as user input.'),
+      feature('tool-permissions', 'Tool grants', 'permissions', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('slash-commands', 'Slash commands', 'commands', 'partial', 'local-cli', ['interactive'], 'Provider commands exist, but command listing is not normalized yet.'),
+      feature('agents', 'Agents', 'agents', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('ultrareview', 'Ultrareview', 'review', 'supported', 'local-cli', ['headless']),
+      feature('mcp', 'MCP', 'mcp', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('plugins', 'Plugins', 'extensions', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('worktrees', 'Worktrees', 'workspace', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('attachments', 'Files', 'attachments', 'partial', 'local-cli', ['headless', 'interactive'])
+    ],
+    probes: [
+      probe('version', 'Version', ['--version'], 'version'),
+      probe('help', 'Help', ['--help'], 'help'),
+      probe('agents-help', 'Agents', ['agents', '--help'], 'help'),
+      probe('mcp-help', 'MCP', ['mcp', '--help'], 'mcp'),
+      probe('plugin-help', 'Plugins', ['plugin', '--help'], 'extensions'),
+      probe('ultrareview-help', 'Ultrareview', ['ultrareview', '--help'], 'features')
+    ]
+  },
+  copilot: {
+    providerId: 'copilot',
+    features: [
+      feature('json-output', 'JSON output', 'runtime', 'partial', 'adapter', ['headless']),
+      feature('sdk-session', 'SDK session', 'runtime', 'planned', 'sdk', ['sdk'], 'Needed for the richer Copilot event model.'),
+      feature('slash-commands', 'Commands', 'commands', 'supported', 'sdk', ['sdk']),
+      feature('subagents', 'Subagents', 'agents', 'supported', 'sdk', ['sdk']),
+      feature('rich-permissions', 'Rich permissions', 'permissions', 'supported', 'sdk', ['sdk']),
+      feature('mcp', 'MCP', 'mcp', 'supported', 'sdk', ['sdk']),
+      feature('skills', 'Skills', 'extensions', 'supported', 'sdk', ['sdk']),
+      feature('code-review', 'Review', 'review', 'supported', 'sdk', ['sdk'])
+    ],
+    probes: [
+      probe('version', 'Version', ['--version'], 'version'),
+      probe('help', 'Help', ['--help'], 'help')
+    ]
+  },
+  codex: {
+    providerId: 'codex',
+    features: [
+      feature('exec-json', 'Exec JSON', 'runtime', 'supported', 'adapter', ['headless']),
+      feature('interactive', 'Interactive', 'runtime', 'planned', 'local-cli', ['interactive']),
+      feature('app-server', 'App server', 'runtime', 'planned', 'local-cli', ['app-server']),
+      feature('mcp-elicitation', 'Elicitation', 'permissions', 'partial', 'local-cli', ['interactive', 'app-server']),
+      feature('sandbox', 'Sandbox', 'permissions', 'supported', 'adapter', ['headless', 'interactive']),
+      feature('slash-commands', 'Commands', 'commands', 'partial', 'local-cli', ['interactive']),
+      feature('multi-agent', 'Multi-agent', 'agents', 'supported', 'local-cli', ['interactive', 'app-server']),
+      feature('mcp', 'MCP', 'mcp', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('plugins', 'Plugins', 'extensions', 'supported', 'local-cli', ['interactive']),
+      feature('review', 'Review', 'review', 'supported', 'local-cli', ['headless']),
+      feature('local-providers', 'Local models', 'runtime', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('images', 'Images', 'attachments', 'supported', 'local-cli', ['interactive'])
+    ],
+    probes: [
+      probe('version', 'Version', ['--version'], 'version'),
+      probe('exec-help', 'Exec', ['exec', '--help'], 'help'),
+      probe('review-help', 'Review', ['review', '--help'], 'features'),
+      probe('mcp-help', 'MCP', ['mcp', '--help'], 'mcp'),
+      probe('plugin-help', 'Plugins', ['plugin', '--help'], 'extensions'),
+      probe('sandbox-help', 'Sandbox', ['sandbox', '--help'], 'features'),
+      probe('features-list', 'Features', ['features', 'list'], 'features')
+    ]
+  },
+  cursor: {
+    providerId: 'cursor',
+    features: [
+      feature('stream-json', 'Stream JSON', 'runtime', 'supported', 'adapter', ['headless']),
+      feature('ask-mode', 'Ask mode', 'permissions', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('plan-mode', 'Plan mode', 'permissions', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('sandbox', 'Sandbox', 'permissions', 'supported', 'adapter', ['headless']),
+      feature('mcp', 'MCP', 'mcp', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('worktrees', 'Worktrees', 'workspace', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('sessions', 'Chats', 'runtime', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('rules', 'Rules', 'extensions', 'supported', 'local-cli', ['headless']),
+      feature('bedrock', 'Bedrock', 'runtime', 'supported', 'local-cli', ['headless', 'interactive']),
+      feature('model-list', 'Models', 'usage', 'partial', 'local-cli', ['headless'], 'Local command can fail when keychain is unavailable.')
+    ],
+    probes: [
+      probe('version', 'Version', ['--version'], 'version'),
+      probe('help', 'Help', ['--help'], 'help'),
+      probe('mcp-help', 'MCP', ['mcp', '--help'], 'mcp'),
+      probe('create-chat-help', 'Create chat', ['create-chat', '--help'], 'features'),
+      probe('models', 'Models', ['models'], 'models')
+    ]
+  }
+}
+
+function providerCapabilityRegistry(providerId: string): ProviderCapabilityRegistry {
+  return providerRegistries[providerId] ?? {
+    providerId,
+    features: [],
+    probes: [probe('version', 'Version', ['--version'], 'version')]
+  }
+}
+
 function probeCommand(binary: string, args: string[], timeout = PROVIDER_PROBE_TIMEOUT_MS): { ok: boolean; output: string } {
   const result = probeCommandFull(binary, args, timeout)
   return {
@@ -254,6 +379,22 @@ function probeCommandFull(binary: string, args: string[], timeout = PROVIDER_PRO
 
 function versionArgs(providerId: string): string[] {
   return providerId === 'cursor' ? ['--version'] : ['--version']
+}
+
+function runProbeDefinitions(binary: string | null, definitions: ProviderProbeDefinition[]): ProviderProbeResult[] {
+  return definitions
+    .filter((definition) => definition.safeByDefault && definition.quota === 'none')
+    .map((definition) => {
+      if (!binary) {
+        return { ...definition, status: 'missing', output: 'CLI binary was not found.' }
+      }
+      const result = probeCommand(binary, definition.args)
+      return {
+        ...definition,
+        status: result.ok ? 'ok' : 'error',
+        output: result.output
+      }
+    })
 }
 
 function authStatusFromProbe(providerId: string, probe: { ok: boolean; output: string }): ProviderDiagnosticInfo['auth'] {
@@ -1089,12 +1230,14 @@ export function getProviderRuntimeInfo(): Record<string, ProviderRuntimeInfo> {
     Object.entries(PROVIDERS).map(([id, provider]) => {
       const providerDef = PROVIDER_DEFS[id]
       const policyIds = providerDef?.permissionModes.map((mode) => mode.id) ?? ['default']
+      const registry = providerCapabilityRegistry(id)
       return [
         id,
         {
           id,
           capabilities: provider.capabilities,
           abstractCapabilities: baseCapabilities(provider),
+          registry,
           policies: Object.fromEntries(
             policyIds.map((policyId) => [policyId, provider.resolveExecutionPolicy(policyId)])
           )
@@ -1108,6 +1251,7 @@ export function getProviderDiagnostics(): Record<string, ProviderDiagnosticInfo>
   return Object.fromEntries(
     Object.entries(PROVIDERS).map(([id, provider]) => {
       const providerDef = PROVIDER_DEFS[id]
+      const registry = providerCapabilityRegistry(id)
       const binary = resolveProviderBinary(provider)
       const versionProbe = binary
         ? probeCommand(binary, versionArgs(id))
@@ -1141,7 +1285,8 @@ export function getProviderDiagnostics(): Record<string, ProviderDiagnosticInfo>
           liveSmoke: {
             status: 'not-run',
             message: 'Run opt-in live smoke with cheap models to verify auth, model access, and parser behavior.'
-          }
+          },
+          probes: runProbeDefinitions(binary, registry.probes)
         } satisfies ProviderDiagnosticInfo
       ]
     })

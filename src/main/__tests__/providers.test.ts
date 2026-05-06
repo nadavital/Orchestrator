@@ -92,6 +92,28 @@ test('runtime info exposes the same abstract capability matrix for every provide
   }
 })
 
+test('runtime info exposes provider-specific capability registry and no-quota probes', () => {
+  const runtimeInfo = getProviderRuntimeInfo()
+
+  for (const providerId of Object.keys(PROVIDER_DEFS)) {
+    const registry = runtimeInfo[providerId]?.registry
+    assert.ok(registry, `Missing ${providerId} registry`)
+    assert.equal(registry.providerId, providerId)
+    assert.ok(registry.features.length > 0, `${providerId} should expose feature metadata`)
+    assert.ok(registry.probes.length > 0, `${providerId} should expose probe metadata`)
+
+    for (const probe of registry.probes) {
+      assert.equal(probe.quota, 'none', `${providerId}/${probe.id} should not spend model quota`)
+      assert.equal(probe.safeByDefault, true, `${providerId}/${probe.id} should be safe to run from settings`)
+    }
+  }
+
+  assert.ok(runtimeInfo.claude.registry.features.some((feature) => feature.id === 'agents'))
+  assert.ok(runtimeInfo.codex.registry.features.some((feature) => feature.id === 'multi-agent'))
+  assert.ok(runtimeInfo.copilot.registry.features.some((feature) => feature.id === 'subagents'))
+  assert.ok(runtimeInfo.cursor.registry.features.some((feature) => feature.id === 'worktrees'))
+})
+
 test('provider diagnostics expose local readiness without claiming unavailable usage', () => {
   const diagnostics = getProviderDiagnostics()
 
@@ -105,6 +127,11 @@ test('provider diagnostics expose local readiness without claiming unavailable u
     assert.ok(['configured', 'available', 'empty', 'unknown'].includes(diagnostic.models.status))
     assert.equal(diagnostic.usage.status, 'unavailable')
     assert.equal(diagnostic.liveSmoke.status, 'not-run')
+    assert.ok(diagnostic.probes.length > 0, `${providerId} should include no-quota probe results`)
+    for (const probe of diagnostic.probes) {
+      assert.equal(probe.quota, 'none')
+      assert.ok(['ok', 'error', 'missing', 'skipped'].includes(probe.status))
+    }
   }
 })
 

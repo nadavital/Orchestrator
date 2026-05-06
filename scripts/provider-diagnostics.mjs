@@ -12,7 +12,7 @@ if (!existsSync(providersModulePath)) {
   process.exit(1)
 }
 
-const { PROVIDERS, getProviderRuntimeInfo, resolveProviderBinary } = await import(providersModulePath)
+const { PROVIDERS, getProviderDiagnostics, getProviderRuntimeInfo, resolveProviderBinary } = await import(providersModulePath)
 
 const versionArgs = {
   claude: ['--version'],
@@ -54,6 +54,7 @@ function policySummary(runtime) {
 }
 
 const runtimeInfo = getProviderRuntimeInfo()
+const diagnostics = getProviderDiagnostics()
 const failures = []
 
 console.log('Provider diagnostics\n')
@@ -82,6 +83,10 @@ for (const [providerId, provider] of Object.entries(PROVIDERS)) {
   }
 
   console.log(`  capabilities: ${runtime.abstractCapabilities.map((cap) => `${cap.key}=${cap.support}`).join(', ')}`)
+  console.log(`  registry: ${runtime.registry.features.length} features, ${runtime.registry.probes.length} no-quota probes`)
+  if (diagnostics[providerId]?.probes?.length > 0) {
+    console.log(`  probes: ${diagnostics[providerId].probes.map((p) => `${p.id}=${p.status}`).join(', ')}`)
+  }
   console.log('  policies:')
   for (const policy of policySummary(runtime)) {
     console.log(`    - ${policy.id}: ${policy.support}; ${policy.intent}; ${policy.interaction}; controls=${policy.controls}`)

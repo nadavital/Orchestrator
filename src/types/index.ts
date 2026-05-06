@@ -374,6 +374,50 @@ export interface ProviderCapability {
   note?: string
 }
 
+export type ProviderRuntimeKind = 'headless' | 'interactive' | 'app-server' | 'sdk'
+
+export type ProviderFeatureArea =
+  | 'runtime'
+  | 'permissions'
+  | 'commands'
+  | 'agents'
+  | 'mcp'
+  | 'extensions'
+  | 'review'
+  | 'workspace'
+  | 'attachments'
+  | 'usage'
+
+export interface ProviderFeature {
+  id: string
+  label: string
+  area: ProviderFeatureArea
+  support: 'supported' | 'partial' | 'planned' | 'unsupported' | 'blocked'
+  source: 'adapter' | 'local-cli' | 'sdk' | 'docs'
+  runtimes: ProviderRuntimeKind[]
+  note?: string
+}
+
+export interface ProviderProbeDefinition {
+  id: string
+  label: string
+  args: string[]
+  quota: 'none' | 'may-use-quota'
+  safeByDefault: boolean
+  category: 'version' | 'help' | 'features' | 'models' | 'auth' | 'mcp' | 'extensions'
+}
+
+export interface ProviderProbeResult extends ProviderProbeDefinition {
+  status: 'ok' | 'error' | 'missing' | 'skipped'
+  output: string
+}
+
+export interface ProviderCapabilityRegistry {
+  providerId: string
+  features: ProviderFeature[]
+  probes: ProviderProbeDefinition[]
+}
+
 export interface ResolvedExecutionPolicy {
   policy: ExecutionPolicy
   support: 'exact' | 'approximate' | 'unsupported' | 'forced'
@@ -414,6 +458,7 @@ export interface ProviderRuntimeInfo {
   id: string
   capabilities: ProviderCapabilities
   abstractCapabilities: ProviderCapability[]
+  registry: ProviderCapabilityRegistry
   policies: Record<string, ResolvedExecutionPolicy>
 }
 
@@ -445,6 +490,7 @@ export interface ProviderDiagnosticInfo {
     status: 'not-run' | 'passed' | 'failed'
     message: string
   }
+  probes: ProviderProbeResult[]
 }
 
 export interface RunRequest {

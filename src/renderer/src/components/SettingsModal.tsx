@@ -8,7 +8,14 @@ import {
   verticalListSortingStrategy, arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { PROVIDER_DEFS, getVisibleModels, type ProviderCapability, type ProviderDiagnosticInfo, type ProviderRuntimeInfo } from '../types'
+import {
+  PROVIDER_DEFS,
+  getVisibleModels,
+  type ProviderFeature,
+  type ProviderFeatureArea,
+  type ProviderDiagnosticInfo,
+  type ProviderRuntimeInfo
+} from '../types'
 import { useSessionStore } from '../store/sessions'
 import ProviderIcon from './shared/ProviderIcon'
 import { applyAppearance, type Appearance } from '../theme'
@@ -242,6 +249,7 @@ function ProvidersSection({
   const currentEffort = defaultEfforts[selectedId] ?? providerDef.effortLevels[0]?.id ?? ''
   const visibleModels = getVisibleModels(providerDef, providerModels)
   const visibleIds = visibleModels.map((m) => m.id)
+  const runtime = providerRuntime[selectedId]
   const diagnostics = providerDiagnostics[selectedId]
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const modelForPicker = visibleIds.includes(currentModel)
@@ -283,6 +291,13 @@ function ProvidersSection({
           installCmd={providerDef.installCmd}
           onSetDefault={() => onSetDefaultProvider(selectedId)}
         />
+
+        {runtime && (
+          <ProviderCapabilitySummary
+            features={runtime.registry.features}
+            color={providerDef.color}
+          />
+        )}
 
         <SettingsPanel>
           <CompactSetting title="Models">
@@ -351,6 +366,11 @@ function ProvidersSection({
             {diagnostics && (
               <CompactSetting title="Status">
                 <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
+              </CompactSetting>
+            )}
+            {diagnostics && diagnostics.probes.length > 0 && (
+              <CompactSetting title="Probes">
+                <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
               </CompactSetting>
             )}
           </SettingsPanel>
@@ -518,6 +538,131 @@ function ProviderHeaderCard({
         </button>
       )}
     </div>
+  )
+}
+
+const FEATURE_AREAS: Array<{ id: ProviderFeatureArea; label: string }> = [
+  { id: 'runtime', label: 'Runtime' },
+  { id: 'permissions', label: 'Modes' },
+  { id: 'commands', label: 'Commands' },
+  { id: 'agents', label: 'Agents' },
+  { id: 'mcp', label: 'MCP' },
+  { id: 'extensions', label: 'Plugins' },
+  { id: 'review', label: 'Review' },
+  { id: 'workspace', label: 'Workspace' },
+]
+
+function ProviderCapabilitySummary({
+  features,
+  color
+}: {
+  features: ProviderFeature[]
+  color: string
+}): JSX.Element {
+  const [activeArea, setActiveArea] = useState<ProviderFeatureArea>('runtime')
+  const areaCounts = new Map<ProviderFeatureArea, number>()
+  for (const feature of features) {
+    if (feature.support !== 'unsupported') {
+      areaCounts.set(feature.area, (areaCounts.get(feature.area) ?? 0) + 1)
+    }
+  }
+  const availableAreas = FEATURE_AREAS.filter((area) => areaCounts.has(area.id))
+  const selectedArea = availableAreas.some((area) => area.id === activeArea)
+    ? activeArea
+    : availableAreas[0]?.id ?? 'runtime'
+  const visibleFeatures = features.filter((feature) => feature.area === selectedArea && feature.support !== 'unsupported')
+
+  useEffect(() => {
+    if (!availableAreas.some((area) => area.id === activeArea) && availableAreas[0]) {
+      setActiveArea(availableAreas[0].id)
+    }
+  }, [activeArea, availableAreas])
+
+  if (availableAreas.length === 0) return <></>
+
+  return (
+    <SettingsPanel>
+      <CompactSetting title="Capabilities">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {availableAreas.map((area) => {
+              const active = selectedArea === area.id
+              return (
+                <button
+                  key={area.id}
+                  onClick={() => setActiveArea(area.id)}
+                  style={{
+                    padding: '5px 9px',
+                    borderRadius: 7,
+                    border: `1px solid ${active ? color : 'var(--color-border)'}`,
+                    background: active ? `${color}12` : 'var(--color-surface)',
+                    color: active ? color : 'var(--color-text-muted)',
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    fontWeight: active ? 650 : 500,
+                  }}
+                >
+                  {area.label}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {visibleFeatures.map((feature) => (
+              <FeatureChip key={feature.id} feature={feature} color={color} />
+            ))}
+          </div>
+        </div>
+      </CompactSetting>
+    </SettingsPanel>
+  )
+}
+
+function FeatureChip({ feature, color }: { feature: ProviderFeature; color: string }): JSX.Element {
+  const isSupported = feature.support === 'supported'
+  const isPlanned = feature.support === 'planned'
+  const isBlocked = feature.support === 'blocked'
+  const chipColor = isSupported
+    ? color
+    : isPlanned
+      ? 'var(--color-text-muted)'
+      : isBlocked
+        ? '#F87171'
+        : 'var(--color-yellow)'
+  const label = feature.support === 'supported'
+    ? feature.label
+    : `${feature.label} · ${feature.support}`
+
+  return (
+    <span
+      title={feature.note ?? `${feature.source} · ${feature.runtimes.join(', ')}`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        maxWidth: 220,
+        padding: '5px 8px',
+        borderRadius: 7,
+        border: `1px solid ${chipColor}`,
+        color: chipColor,
+        background: 'var(--color-surface)',
+        fontSize: 11,
+        fontWeight: 600,
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: chipColor,
+          flexShrink: 0,
+        }}
+      />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {label}
+      </span>
+    </span>
   )
 }
 
@@ -815,63 +960,6 @@ function DefaultModelPicker({
   )
 }
 
-function ProviderCapabilityChips({
-  capabilities,
-  color
-}: {
-  capabilities: ProviderCapability[]
-  color: string
-}): JSX.Element {
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-      {capabilities.filter((capability) => capability.support !== 'unsupported').map((capability) => {
-        const isSupported = capability.support === 'supported'
-        const isForced = capability.support === 'forced'
-        const isPartial = capability.support === 'partial'
-        const border = isSupported
-          ? color
-          : isForced || isPartial
-            ? 'var(--color-yellow)'
-            : 'var(--color-border)'
-        const text = isSupported
-          ? color
-          : isForced || isPartial
-            ? 'var(--color-yellow)'
-            : 'var(--color-text-muted)'
-        return (
-          <span
-            key={capability.key}
-            title={capability.note ?? `${capability.label} · ${capability.source}`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '4px 8px',
-              borderRadius: 6,
-              border: `1px solid ${border}`,
-              color: text,
-              background: isSupported ? 'var(--color-surface2)' : 'var(--color-surface)',
-              fontSize: 11,
-              opacity: 1
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: text,
-                opacity: 1
-              }}
-            />
-            {capability.label}
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
 function ProviderDiagnosticsCard({
   diagnostics,
   color
@@ -937,6 +1025,51 @@ function ProviderDiagnosticsCard({
   )
 }
 
+function ProviderProbeGrid({
+  diagnostics,
+  color
+}: {
+  diagnostics: ProviderDiagnosticInfo
+  color: string
+}): JSX.Element {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+      {diagnostics.probes.map((probe) => (
+        <div
+          key={probe.id}
+          title={`${probe.args.join(' ')}\n${probe.output}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            minWidth: 0,
+            padding: '8px 10px',
+            borderRadius: 8,
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)'
+          }}
+        >
+          <div
+            style={{
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--color-text)'
+            }}
+          >
+            {probe.label}
+          </div>
+          <DiagnosticPill status={probe.status} color={color} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function DiagnosticPill({ status, color }: { status: string; color: string }): JSX.Element {
   const normalized = status.toLowerCase()
   const isGood = ['found', 'ok', 'available', 'configured', 'passed'].includes(normalized)
@@ -952,6 +1085,7 @@ function DiagnosticPill({ status, color }: { status: string; color: string }): J
     error: 'Error',
     empty: 'Empty',
     failed: 'Failed',
+    skipped: 'Skip',
     unavailable: 'N/A',
     unknown: 'Unknown',
     'not-run': 'Off'
