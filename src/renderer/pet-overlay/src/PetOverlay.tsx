@@ -706,6 +706,7 @@ function NotificationCard({
   const [busy, setBusy] = useState(false)
   const providerColor = PROVIDER_DEFS[notification.provider]?.color ?? '#9CA3AF'
   const longBody = notification.body.length > 90
+  const displayBody = notification.body.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '').trim()
 
   const submitReply = async (): Promise<void> => {
     const text = replyText.trim()
@@ -814,11 +815,11 @@ function NotificationCard({
                 WebkitBoxOrient: 'vertical',
                 lineHeight: '14px',
                 maxHeight: expanded ? 224 : 28,
-                fontFamily: notification.body.startsWith('$') ? 'ui-monospace, SFMono-Regular, monospace' : 'inherit',
+                fontFamily: displayBody.startsWith('$') ? 'ui-monospace, SFMono-Regular, monospace' : 'inherit',
                 transition: 'max-height 180ms ease-out',
               }}
             >
-              {notification.body}
+              {displayBody}
             </div>
           )}
         </div>
@@ -903,31 +904,6 @@ function NotificationCard({
             ↵
           </button>
         </form>
-      )}
-
-      {hovered && notification.canDismiss && (
-        <button
-          aria-label="Dismiss notification"
-          title="Dismiss"
-          onClick={(ev) => { ev.stopPropagation(); onDismiss() }}
-          style={{
-            position: 'absolute',
-            top: 7,
-            right: 7,
-            width: 18,
-            height: 18,
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.72)',
-            border: '1px solid rgba(28,28,24,0.14)',
-            color: 'rgba(31,31,27,0.52)',
-            cursor: 'pointer',
-            fontSize: 13,
-            lineHeight: '16px',
-            padding: 0,
-          }}
-        >
-          ×
-        </button>
       )}
     </div>
   )

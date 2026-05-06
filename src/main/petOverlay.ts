@@ -59,9 +59,9 @@ const FALLBACK_MASCOT: Size = { width: 113, height: 122 }
 const FALLBACK_TRAY: Size = { width: 276, height: 0 }
 const TRAY_W = 276
 const WINDOW_PAD = 8
-const TRAY_GAP = 8
+const TRAY_GAP = 16
 
-const TRAY_ITEM_H = 36   // height per notification card
+const TRAY_ITEM_H = 132  // conservative first layout before renderer reports card height
 const TRAY_CARD_GAP = 5  // gap between cards
 
 const THROW_TICK_MS = 16

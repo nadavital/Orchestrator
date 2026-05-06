@@ -34,6 +34,7 @@ function commonCliDirs(): string[] {
   return [
     join(home, '.local/bin'),
     join(home, 'bin'),
+    join(home, '.npm-global/bin'),
     '/opt/homebrew/bin',
     '/opt/homebrew/sbin',
     '/usr/local/bin',
@@ -44,9 +45,21 @@ function commonCliDirs(): string[] {
   ]
 }
 
-function providerSearchPath(): string {
+export function providerSearchPath(): string {
   const existing = (process.env.PATH ?? '').split(delimiter).filter(Boolean)
   return [...new Set([...existing, ...commonCliDirs()])].join(delimiter)
+}
+
+export function providerSpawnEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PATH: providerSearchPath(),
+    TERM: 'xterm-256color'
+  }
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '')
 }
 
 function resolveNamedBinary(candidate: string): string | null {
@@ -457,10 +470,11 @@ function claudePolicy(policyId: string): ResolvedExecutionPolicy {
 }
 
 function parseAnthropicStyleLine(line: string): RunEvent[] {
-  const event = parseJsonLine(line)
+  const cleanLine = stripAnsi(line).trim()
+  const event = parseJsonLine(cleanLine)
   if (!event) {
-    if (/apiKeyHelper failed|authentication_failed/i.test(line)) {
-      return [{ type: 'run.failed', content: line.trim() }]
+    if (/apiKeyHelper failed|authentication_failed/i.test(cleanLine)) {
+      return [{ type: 'run.failed', content: cleanLine }]
     }
     return []
   }

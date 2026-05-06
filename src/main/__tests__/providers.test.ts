@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { PROVIDER_DEFS } from '../../types'
-import { getProviderDiagnostics, getProviderRuntimeInfo, PROVIDERS, resolveProviderBinary } from '../providers'
+import { getProviderDiagnostics, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -122,6 +122,25 @@ test('provider binary detection searches common desktop CLI locations beyond inh
     process.env.HOME = tmpRoot
     process.env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
     assert.equal(resolveProviderBinary(PROVIDERS.claude), fakeClaude)
+  } finally {
+    process.env.PATH = originalPath
+    process.env.HOME = originalHome
+    rmSync(tmpRoot, { recursive: true, force: true })
+  }
+})
+
+test('provider spawn env keeps desktop CLI directories available to provider helpers', () => {
+  const originalPath = process.env.PATH
+  const originalHome = process.env.HOME
+  const tmpRoot = join(tmpdir(), `orchestrator-provider-env-${Date.now()}`)
+
+  try {
+    process.env.HOME = tmpRoot
+    process.env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
+    const pathEntries = (providerSpawnEnv().PATH ?? '').split(':')
+    assert.ok(pathEntries.includes(join(tmpRoot, '.local/bin')))
+    assert.ok(pathEntries.includes('/opt/homebrew/bin'))
+    assert.equal(providerSpawnEnv().TERM, 'xterm-256color')
   } finally {
     process.env.PATH = originalPath
     process.env.HOME = originalHome
@@ -273,7 +292,7 @@ test('claude AskUserQuestion tool result becomes a structured user-input request
 
 test('claude auth retry output fails fast instead of spinning through retries', () => {
   const helperEvents = PROVIDERS.claude.parseOutputLine(
-    'apiKeyHelper failed: exited 1: npm error code E404'
+    '\u001B[0m\u001B[31mapiKeyHelper failed: exited 127: /bin/sh: npx: command not found\u001B[0m'
   )
   const retryEvents = PROVIDERS.claude.parseOutputLine(
     '{"type":"system","subtype":"api_retry","attempt":1,"error_status":401,"error":"authentication_failed"}'
@@ -283,6 +302,7 @@ test('claude auth retry output fails fast instead of spinning through retries', 
   const retryFailure = firstEvent(retryEvents, 'run.failed')
 
   assert.match(helperFailure.content ?? '', /apiKeyHelper failed/)
+  assert.doesNotMatch(helperFailure.content ?? '', /\u001B/)
   assert.match(retryFailure.content ?? '', /authentication failed/i)
 })
 

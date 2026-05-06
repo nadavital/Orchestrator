@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Session, ChatMessage, RunEvent, RunRequest, SessionStatus } from '../types'
 import { PROVIDER_DEFS } from '../types'
 import { gitManager } from './git'
-import { getProvider, PROVIDERS, resolveProviderBinary, resolveProviderCommand } from './providers'
+import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand } from './providers'
 import { eventsToMessages } from './runEvents'
 import { settingsStore } from './settings'
 import { migrateLegacyUserData } from './userDataMigration'
@@ -221,7 +221,7 @@ export const sessionManager = {
     const pty = spawn(command.binary, command.args, {
       name: 'xterm-color',
       cwd: currentSession.workDir,
-      env: { ...process.env, TERM: 'xterm-256color' },
+      env: providerSpawnEnv(),
       cols: 220,
       rows: 50
     })
@@ -386,7 +386,7 @@ export const sessionManager = {
     const pty = spawn(command.binary, command.args, {
       name: 'xterm-color',
       cwd: currentSession.workDir,
-      env: { ...process.env, TERM: 'xterm-256color' },
+      env: providerSpawnEnv(),
       cols: 220,
       rows: 50
     })
@@ -457,7 +457,7 @@ export const sessionManager = {
     const pty = spawn(command.binary, command.args, {
       name: 'xterm-color',
       cwd: currentSession.workDir,
-      env: { ...process.env, TERM: 'xterm-256color' },
+      env: providerSpawnEnv(),
       cols: 220,
       rows: 50
     })
