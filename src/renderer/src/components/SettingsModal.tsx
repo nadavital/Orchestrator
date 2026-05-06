@@ -242,48 +242,38 @@ function ProvidersSection({
   const currentEffort = defaultEfforts[selectedId] ?? providerDef.effortLevels[0]?.id ?? ''
   const visibleModels = getVisibleModels(providerDef, providerModels)
   const visibleIds = visibleModels.map((m) => m.id)
-  const runtime = providerRuntime[selectedId]
   const diagnostics = providerDiagnostics[selectedId]
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const modelForPicker = visibleIds.includes(currentModel)
+    ? currentModel
+    : visibleModels[0]?.id ?? currentModel
+
+  const handleVisibleModelsChange = (ids: string[]): void => {
+    onSetProviderModels(selectedId, ids)
+    if (ids.length > 0 && !ids.includes(currentModel)) onSetDefaultModel(selectedId, ids[0])
+  }
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: 820 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
+    <div style={{ padding: '28px 36px', maxWidth: 980 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
           <h2 style={{ fontSize: 15, fontWeight: 650, color: 'var(--color-text)', margin: 0 }}>Providers</h2>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
-            Pick defaults, keep local CLI config separate.
+            Pick a provider, choose models, and keep local CLI config separate.
           </div>
         </div>
       </div>
 
-      {/* Provider tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
-        {providerList.map((p) => {
-          const ok = providerAvailability[p.id] !== false
-          const active = selectedId === p.id
-          return (
-            <button
-              key={p.id}
-              onClick={() => setSelectedId(p.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '7px 12px', borderRadius: 8, fontSize: 12,
-                background: active ? 'var(--color-surface2)' : 'var(--color-surface)',
-                border: `1px solid ${active ? p.color : 'var(--color-border)'}`,
-                color: ok ? (active ? p.color : 'var(--color-text)') : 'var(--color-text-muted)',
-                cursor: 'pointer', opacity: ok ? 1 : 0.5
-              }}
-            >
-              <ProviderIcon providerId={p.id} size={12} color={ok ? p.color : 'var(--color-text-muted)'} />
-              {p.name}
-            </button>
-          )
-        })}
-      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '190px minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
+        <ProviderSidePicker
+          providers={providerList}
+          selectedId={selectedId}
+          availability={providerAvailability}
+          onSelect={setSelectedId}
+        />
 
-      {/* Per-provider content — key forces clean remount on provider switch, stopping DnD jitter */}
-      <div key={selectedId}>
+        {/* Per-provider content — key forces clean remount on provider switch, stopping DnD jitter */}
+        <div key={selectedId}>
         <ProviderHeaderCard
           providerId={selectedId}
           providerName={providerDef.name}
@@ -295,10 +285,21 @@ function ProvidersSection({
         />
 
         <SettingsPanel>
-          <CompactSetting title="Model">
+          <CompactSetting title="Models">
+            <ModelListManager
+              providerDef={providerDef}
+              visibleIds={visibleIds}
+              onChange={handleVisibleModelsChange}
+            />
+          </CompactSetting>
+        </SettingsPanel>
+
+        <SettingsPanel>
+          <CompactSetting title="Default">
             <DefaultModelPicker
               providerDef={providerDef}
-              currentModel={currentModel}
+              models={visibleModels}
+              currentModel={modelForPicker}
               onSetModel={(id) => onSetDefaultModel(selectedId, id)}
             />
           </CompactSetting>
@@ -314,21 +315,6 @@ function ProvidersSection({
             </CompactSetting>
           )}
         </SettingsPanel>
-
-        {(runtime || diagnostics) && (
-          <SettingsPanel>
-            {diagnostics && (
-              <CompactSetting title="Health">
-                <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
-              </CompactSetting>
-            )}
-            {runtime && (
-              <CompactSetting title="Runtime">
-                <ProviderCapabilityChips capabilities={runtime.abstractCapabilities} color={providerDef.color} />
-              </CompactSetting>
-            )}
-          </SettingsPanel>
-        )}
 
         <button
           onClick={() => setAdvancedOpen((open) => !open)}
@@ -362,15 +348,95 @@ function ProvidersSection({
             <CompactSetting title="Config file">
               <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
             </CompactSetting>
-            <CompactSetting title="Visible models">
-              <ModelListManager
-                providerDef={providerDef}
-                visibleIds={visibleIds}
-                onChange={(ids) => onSetProviderModels(selectedId, ids)}
-              />
-            </CompactSetting>
+            {diagnostics && (
+              <CompactSetting title="Status">
+                <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
+              </CompactSetting>
+            )}
           </SettingsPanel>
         )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProviderSidePicker({
+  providers,
+  selectedId,
+  availability,
+  onSelect,
+}: {
+  providers: Array<typeof PROVIDER_DEFS[string]>
+  selectedId: string
+  availability: Record<string, boolean>
+  onSelect: (id: string) => void
+}): JSX.Element {
+  return (
+    <div
+      style={{
+        position: 'sticky',
+        top: 0,
+        padding: 10,
+        borderRadius: 10,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
+      }}
+    >
+      <select
+        value={selectedId}
+        onChange={(event) => onSelect(event.target.value)}
+        style={{
+          width: '100%',
+          height: 32,
+          marginBottom: 8,
+          borderRadius: 7,
+          border: '1px solid var(--color-border)',
+          background: 'var(--color-surface2)',
+          color: 'var(--color-text)',
+          fontSize: 12,
+          fontWeight: 600,
+          padding: '0 8px',
+          outline: 'none',
+        }}
+      >
+        {providers.map((provider) => (
+          <option key={provider.id} value={provider.id}>{provider.name}</option>
+        ))}
+      </select>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {providers.map((provider) => {
+          const ok = availability[provider.id] !== false
+          const active = selectedId === provider.id
+          return (
+            <button
+              key={provider.id}
+              onClick={() => onSelect(provider.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '8px 9px',
+                borderRadius: 7,
+                border: `1px solid ${active ? provider.color : 'transparent'}`,
+                background: active ? `${provider.color}12` : 'transparent',
+                color: ok ? (active ? provider.color : 'var(--color-text)') : 'var(--color-text-muted)',
+                cursor: 'pointer',
+                opacity: ok ? 1 : 0.55,
+                textAlign: 'left',
+                fontSize: 12,
+                fontWeight: active ? 650 : 500,
+              }}
+            >
+              <ProviderIcon providerId={provider.id} size={13} color={ok ? provider.color : 'var(--color-text-muted)'} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {provider.name}
+              </span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
@@ -669,18 +735,19 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
 // ─── Default model picker ─────────────────────────────────────────────────────
 
 function DefaultModelPicker({
-  providerDef, currentModel, onSetModel
+  providerDef, models, currentModel, onSetModel
 }: {
   providerDef: typeof PROVIDER_DEFS[string]
+  models: typeof PROVIDER_DEFS[string]['models']
   currentModel: string
   onSetModel: (id: string) => void
 }): JSX.Element {
-  const isPreset = providerDef.models.some((m) => m.id === currentModel)
+  const isPreset = models.some((m) => m.id === currentModel)
   const [customInput, setCustomInput] = useState(isPreset ? '' : currentModel)
 
   useEffect(() => {
-    setCustomInput(providerDef.models.some((m) => m.id === currentModel) ? '' : currentModel)
-  }, [providerDef.id])
+    setCustomInput(models.some((m) => m.id === currentModel) ? '' : currentModel)
+  }, [providerDef.id, currentModel, models])
 
   const applyCustom = (): void => {
     const trimmed = customInput.trim()
@@ -690,7 +757,7 @@ function DefaultModelPicker({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {providerDef.models.map((m) => {
+        {models.map((m) => {
           const active = currentModel === m.id
           return (
             <button
