@@ -631,7 +631,7 @@ const copilotProvider: ProviderAdapter = {
   binary: 'copilot',
   binaryCandidates: [
     'copilot',
-    '/Users/navital/.nvm/versions/node/v22.12.0/bin/copilot'
+    join(homedir(), '.local/bin/copilot')
   ],
   capabilities: {
     resume: true,
@@ -818,7 +818,6 @@ const codexProvider: ProviderAdapter = {
   binaryCandidates: [
     'codex',
     join(homedir(), '.local/bin/codex'),
-    '/Users/navital/.nvm/versions/node/v22.12.0/bin/codex',
     '/Applications/Codex.app/Contents/Resources/codex'
   ],
   capabilities: {

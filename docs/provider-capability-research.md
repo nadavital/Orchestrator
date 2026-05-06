@@ -18,10 +18,10 @@ Verified locally on 2026-05-05:
 
 | Provider | Binary | Version / status | Notes |
 | --- | --- | --- | --- |
-| Claude Code | `/Users/navital/.local/bin/claude` | `2.1.128` | Full help available in sandbox. |
-| Codex CLI | `/Users/navital/.local/bin/codex` | `codex-cli 0.128.0` | Symlinked from NVM install; desktop bundle also exists. |
-| GitHub Copilot CLI | `/Users/navital/.local/bin/copilot` | `1.0.39` | Needs non-sandbox process for Keychain access. |
-| Cursor Agent | `/Users/navital/.local/bin/agent` | `2026.05.05-84a231c` | Live smoke passes after setting `network.useHttp1ForAgent` for the eBay network path. |
+| Claude Code | `claude` | `2.1.128` | Full help available in sandbox. |
+| Codex CLI | `codex` | `codex-cli 0.128.0` | PATH lookup plus desktop bundle fallback. |
+| GitHub Copilot CLI | `copilot` | `1.0.39` | Needs non-sandbox process for Keychain access. |
+| Cursor Agent | `agent` / `cursor-agent` | `2026.05.05-84a231c` | Live smoke passes after enabling the HTTP/1 compatibility option in one enterprise proxy environment. |
 
 Important diagnostic lesson: `installed` is not enough. We need states for `missing`, `installed`, `auth-ok`, `auth-error`, `models-available`, `models-empty`, and `runtime-smoke-passed`.
 
@@ -145,7 +145,7 @@ The current adapter uses `agent --print --output-format stream-json`. Default mo
 - Or drive interactive Cursor Agent where prompts can be surfaced directly.
 - Treat `--mode plan` / `--mode ask` as first-class GUI modes, not just permission choices.
 
-Network note: on the eBay network, Cursor Agent repeatedly reconnected until the Cursor config included:
+Network note: in one enterprise proxy environment, Cursor Agent repeatedly reconnected until the Cursor config included:
 
 ```json
 {

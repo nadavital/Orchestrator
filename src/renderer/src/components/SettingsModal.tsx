@@ -244,13 +244,21 @@ function ProvidersSection({
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
   const diagnostics = providerDiagnostics[selectedId]
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 700 }}>
-      <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', marginBottom: 20 }}>Providers</h2>
+    <div style={{ padding: '28px 36px', maxWidth: 820 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div>
+          <h2 style={{ fontSize: 15, fontWeight: 650, color: 'var(--color-text)', margin: 0 }}>Providers</h2>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+            Pick defaults, keep local CLI config separate.
+          </div>
+        </div>
+      </div>
 
       {/* Provider tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 28, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' }}>
         {providerList.map((p) => {
           const ok = providerAvailability[p.id] !== false
           const active = selectedId === p.id
@@ -260,7 +268,7 @@ function ProvidersSection({
               onClick={() => setSelectedId(p.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
-                padding: '6px 14px', borderRadius: 8, fontSize: 12,
+                padding: '7px 12px', borderRadius: 8, fontSize: 12,
                 background: active ? 'var(--color-surface2)' : 'var(--color-surface)',
                 border: `1px solid ${active ? p.color : 'var(--color-border)'}`,
                 color: ok ? (active ? p.color : 'var(--color-text)') : 'var(--color-text-muted)',
@@ -276,103 +284,384 @@ function ProvidersSection({
 
       {/* Per-provider content — key forces clean remount on provider switch, stopping DnD jitter */}
       <div key={selectedId}>
+        <ProviderHeaderCard
+          providerId={selectedId}
+          providerName={providerDef.name}
+          color={providerDef.color}
+          installed={installed}
+          isDefault={defaultProvider === selectedId}
+          installCmd={providerDef.installCmd}
+          onSetDefault={() => onSetDefaultProvider(selectedId)}
+        />
 
-      {/* Install status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <span
-          style={{
-            fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 99,
-            background: installed ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-            color: installed ? 'var(--color-green)' : '#F87171'
-          }}
-        >
-          {installed ? 'Installed' : 'Not found'}
-        </span>
-        {!installed && <InstallCommand cmd={providerDef.installCmd} />}
-      </div>
+        <SettingsPanel>
+          <CompactSetting title="Model">
+            <DefaultModelPicker
+              providerDef={providerDef}
+              currentModel={currentModel}
+              onSetModel={(id) => onSetDefaultModel(selectedId, id)}
+            />
+          </CompactSetting>
 
-      {/* Claude endpoint */}
-      {providerDef.id === 'claude' && (
-        <SettingGroup title="API Endpoint">
-          <ClaudeEndpointField color={providerDef.color} />
-        </SettingGroup>
-      )}
+          {providerDef.supportsEffort && providerDef.effortLevels.length > 0 && (
+            <CompactSetting title="Thinking">
+              <SegmentedControl
+                items={providerDef.effortLevels}
+                value={currentEffort}
+                color={providerDef.color}
+                onChange={(id) => onSetDefaultEffort(selectedId, id)}
+              />
+            </CompactSetting>
+          )}
+        </SettingsPanel>
 
-      {runtime && (
-        <SettingGroup title="Capabilities">
-          <ProviderCapabilityChips capabilities={runtime.abstractCapabilities} color={providerDef.color} />
-        </SettingGroup>
-      )}
+        {(runtime || diagnostics) && (
+          <SettingsPanel>
+            {diagnostics && (
+              <CompactSetting title="Health">
+                <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
+              </CompactSetting>
+            )}
+            {runtime && (
+              <CompactSetting title="Runtime">
+                <ProviderCapabilityChips capabilities={runtime.abstractCapabilities} color={providerDef.color} />
+              </CompactSetting>
+            )}
+          </SettingsPanel>
+        )}
 
-      {diagnostics && (
-        <SettingGroup title="Diagnostics">
-          <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
-        </SettingGroup>
-      )}
-
-      {/* Default provider toggle */}
-      <SettingGroup title="Default provider">
         <button
-          onClick={() => onSetDefaultProvider(selectedId)}
+          onClick={() => setAdvancedOpen((open) => !open)}
           style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '6px 14px', borderRadius: 8, fontSize: 12,
-            background: defaultProvider === selectedId ? 'var(--color-surface2)' : 'var(--color-surface)',
-            border: `1px solid ${defaultProvider === selectedId ? providerDef.color : 'var(--color-border)'}`,
-            color: defaultProvider === selectedId ? providerDef.color : 'var(--color-text)',
-            cursor: installed ? 'pointer' : 'default', opacity: installed ? 1 : 0.5
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            marginTop: 14,
+            padding: '10px 12px',
+            borderRadius: 8,
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+            color: 'var(--color-text)',
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 600,
           }}
         >
-          {defaultProvider === selectedId ? 'Currently default' : `Set ${providerDef.name} as default`}
+          Advanced
+          <span style={{ color: 'var(--color-text-muted)' }}>{advancedOpen ? 'Hide' : 'Show'}</span>
         </button>
-      </SettingGroup>
 
-      {/* Default model */}
-      <SettingGroup title={`Default model · ${providerShortName(providerDef.id)}`}>
-        <DefaultModelPicker
-          providerDef={providerDef}
-          currentModel={currentModel}
-          onSetModel={(id) => onSetDefaultModel(selectedId, id)}
-        />
-      </SettingGroup>
+        {advancedOpen && (
+          <SettingsPanel>
+            {providerDef.id === 'claude' && (
+              <CompactSetting title="Endpoint">
+                <ClaudeEndpointField color={providerDef.color} />
+              </CompactSetting>
+            )}
+            <CompactSetting title="Config file">
+              <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
+            </CompactSetting>
+            <CompactSetting title="Visible models">
+              <ModelListManager
+                providerDef={providerDef}
+                visibleIds={visibleIds}
+                onChange={(ids) => onSetProviderModels(selectedId, ids)}
+              />
+            </CompactSetting>
+          </SettingsPanel>
+        )}
+      </div>
+    </div>
+  )
+}
 
-      {/* Default effort */}
-      {providerDef.supportsEffort && providerDef.effortLevels.length > 0 && (
-        <SettingGroup title={`Default thinking · ${providerShortName(providerDef.id)}`}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {providerDef.effortLevels.map((e) => {
-              const active = currentEffort === e.id
-              return (
-                <button
-                  key={e.id}
-                  onClick={() => onSetDefaultEffort(selectedId, e.id)}
-                  style={{
-                    padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 500,
-                    background: active ? 'var(--color-surface2)' : 'var(--color-surface)',
-                    border: `1px solid ${active ? providerDef.color : 'var(--color-border)'}`,
-                    color: active ? providerDef.color : 'var(--color-text)', cursor: 'pointer'
-                  }}
-                >
-                  {e.label}
-                </button>
-              )
-            })}
-          </div>
-        </SettingGroup>
-      )}
-
-      {/* Visible model list manager */}
-      <SettingGroup
-        title={`Visible models · ${providerShortName(providerDef.id)}`}
+function ProviderHeaderCard({
+  providerId,
+  providerName,
+  color,
+  installed,
+  isDefault,
+  installCmd,
+  onSetDefault,
+}: {
+  providerId: string
+  providerName: string
+  color: string
+  installed: boolean
+  isDefault: boolean
+  installCmd: string
+  onSetDefault: () => void
+}): JSX.Element {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        padding: 16,
+        borderRadius: 10,
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 8,
+          display: 'grid',
+          placeItems: 'center',
+          background: `${color}18`,
+          color,
+          flexShrink: 0,
+        }}
       >
-        <ModelListManager
-          providerDef={providerDef}
-          visibleIds={visibleIds}
-          onChange={(ids) => onSetProviderModels(selectedId, ids)}
-        />
-      </SettingGroup>
+        <ProviderIcon providerId={providerId} size={18} color={color} />
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--color-text)' }}>{providerName}</div>
+          <StatusPill label={installed ? 'Ready' : 'Missing'} color={installed ? 'var(--color-green)' : '#F87171'} />
+          {isDefault && <StatusPill label="Default" color={color} />}
+        </div>
+        {!installed && (
+          <div style={{ marginTop: 8, maxWidth: 420 }}>
+            <InstallCommand cmd={installCmd} />
+          </div>
+        )}
+      </div>
+      {!isDefault && (
+        <button
+          onClick={onSetDefault}
+          disabled={!installed}
+          style={{
+            padding: '7px 12px',
+            borderRadius: 7,
+            border: `1px solid ${installed ? color : 'var(--color-border)'}`,
+            background: installed ? `${color}12` : 'var(--color-surface2)',
+            color: installed ? color : 'var(--color-text-muted)',
+            cursor: installed ? 'pointer' : 'default',
+            fontSize: 12,
+            fontWeight: 600,
+            flexShrink: 0,
+          }}
+        >
+          Set default
+        </button>
+      )}
+    </div>
+  )
+}
 
-      </div> {/* end key={selectedId} wrapper */}
+function SettingsPanel({ children }: { children: React.ReactNode }): JSX.Element {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+        padding: 16,
+        borderRadius: 10,
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        marginTop: 14,
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function CompactSetting({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
+      <div style={{ fontSize: 12, fontWeight: 650, color: 'var(--color-text)', paddingTop: 7 }}>{title}</div>
+      <div style={{ minWidth: 0 }}>{children}</div>
+    </div>
+  )
+}
+
+function SegmentedControl({
+  items,
+  value,
+  color,
+  onChange,
+}: {
+  items: Array<{ id: string; label: string }>
+  value: string
+  color: string
+  onChange: (id: string) => void
+}): JSX.Element {
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        padding: 3,
+        gap: 2,
+        borderRadius: 8,
+        background: 'var(--color-surface2)',
+        border: '1px solid var(--color-border)',
+      }}
+    >
+      {items.map((item) => {
+        const active = value === item.id
+        return (
+          <button
+            key={item.id}
+            onClick={() => onChange(item.id)}
+            style={{
+              padding: '5px 11px',
+              borderRadius: 6,
+              border: 'none',
+              background: active ? color : 'transparent',
+              color: active ? '#fff' : 'var(--color-text-muted)',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: active ? 650 : 500,
+            }}
+          >
+            {item.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function StatusPill({ label, color }: { label: string; color: string }): JSX.Element {
+  return (
+    <span
+      style={{
+        padding: '2px 7px',
+        borderRadius: 999,
+        border: `1px solid ${color}`,
+        color,
+        fontSize: 10,
+        fontWeight: 650,
+        lineHeight: 1.2,
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function configPathForProvider(providerId: string, home: string): string {
+  const paths: Record<string, string> = {
+    claude: `${home}/.claude/settings.json`,
+    cursor: `${home}/.cursor/cli-config.json`,
+    codex: `${home}/.codex/config.toml`,
+    copilot: `${home}/.config/github-copilot/config.json`,
+  }
+  return paths[providerId] ?? `${home}/.${providerId}/config.json`
+}
+
+function ProviderConfigEditor({ providerId, color }: { providerId: string; color: string }): JSX.Element {
+  const [path, setPath] = useState('')
+  const [content, setContent] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const load = async (): Promise<void> => {
+      const home = await window.api.fs.resolveHome()
+      const nextPath = configPathForProvider(providerId, home)
+      const file = await window.api.fs.readFile(nextPath)
+      setPath(nextPath)
+      setContent(file ?? '')
+      setDirty(false)
+      setSaved(false)
+      setError('')
+    }
+    void load()
+  }, [providerId])
+
+  const save = async (): Promise<void> => {
+    if (!path || saving) return
+    const trimmed = content.trim()
+    if (path.endsWith('.json') && trimmed) {
+      try {
+        JSON.parse(trimmed)
+      } catch {
+        setError('Invalid JSON')
+        return
+      }
+    }
+    setSaving(true)
+    setError('')
+    await window.api.fs.writeFile(path, content)
+    setSaving(false)
+    setDirty(false)
+    setSaved(true)
+    window.setTimeout(() => setSaved(false), 1800)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div
+        title={path}
+        style={{
+          fontSize: 10.5,
+          fontFamily: 'monospace',
+          color: 'var(--color-text-muted)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {path || 'Loading...'}
+      </div>
+      <textarea
+        value={content}
+        onChange={(e) => {
+          setContent(e.target.value)
+          setDirty(true)
+          setSaved(false)
+          setError('')
+        }}
+        spellCheck={false}
+        placeholder={providerId === 'cursor' ? '{\n  "network": {\n    "useHttp1ForAgent": true\n  }\n}' : ''}
+        style={{
+          width: '100%',
+          minHeight: 120,
+          resize: 'vertical',
+          padding: 10,
+          borderRadius: 8,
+          border: `1px solid ${error ? '#F87171' : dirty ? color : 'var(--color-border)'}`,
+          background: 'var(--color-surface2)',
+          color: 'var(--color-text)',
+          outline: 'none',
+          fontSize: 11,
+          lineHeight: '16px',
+          fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+          boxSizing: 'border-box',
+        }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <div style={{ fontSize: 11, color: error ? '#F87171' : 'var(--color-text-muted)' }}>
+          {error || (saved ? 'Saved' : 'Local file override')}
+        </div>
+        <button
+          onClick={save}
+          disabled={!dirty || saving}
+          style={{
+            padding: '6px 12px',
+            borderRadius: 7,
+            border: `1px solid ${dirty ? color : 'var(--color-border)'}`,
+            background: dirty ? color : 'var(--color-surface2)',
+            color: dirty ? '#fff' : 'var(--color-text-muted)',
+            cursor: dirty ? 'pointer' : 'default',
+            fontSize: 11,
+            fontWeight: 650,
+          }}
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -1045,16 +1334,6 @@ function SettingGroup({ title, description, children }: {
       {children}
     </div>
   )
-}
-
-function providerShortName(providerId: string): string {
-  const names: Record<string, string> = {
-    claude: 'Claude',
-    codex: 'Codex',
-    copilot: 'Copilot',
-    cursor: 'Cursor'
-  }
-  return names[providerId] ?? providerId
 }
 
 function InstallCommand({ cmd }: { cmd: string }): JSX.Element {

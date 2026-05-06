@@ -279,7 +279,7 @@ test('claude AskUserQuestion tool result becomes a structured user-input request
 
   assert.equal(userInput.content, 'What should the branch name be?')
   assert.equal(userInput.questions?.[0]?.header, 'Branch name')
-  assert.equal(userInput.questions?.[0]?.options?.[0]?.label, 'navital/cbcc-cobranded-card-detection')
+  assert.equal(userInput.questions?.[0]?.options?.[0]?.label, 'example/review-provider-output')
   assert.equal(events.some((event) => event.type === 'tool.completed'), false)
 
   const resultMessage = messages.find((message) => message.type === 'result')
