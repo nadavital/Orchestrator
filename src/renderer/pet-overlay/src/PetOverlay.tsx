@@ -743,8 +743,8 @@ function NotificationCard({
         backgroundSize: 'auto, 4px 4px, 4px 4px',
         border: '1px solid rgba(28,28,24,0.22)',
         boxShadow: hovered
-          ? '0 11px 0 -7px rgba(0,0,0,0.34), 0 19px 30px rgba(0,0,0,0.22)'
-          : '0 10px 0 -7px rgba(0,0,0,0.32), 0 18px 28px rgba(0,0,0,0.2)',
+          ? '0 14px 24px rgba(0,0,0,0.22)'
+          : '0 12px 22px rgba(0,0,0,0.18)',
         borderRadius: 8,
         padding: '8px 9px 8px 10px',
         cursor: 'pointer',

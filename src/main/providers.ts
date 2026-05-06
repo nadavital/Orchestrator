@@ -217,6 +217,8 @@ function userInputFromAskUserQuestionTool(input: unknown): { content: string; qu
   return parseStructuredUserInputRequest({ questions: rec.questions ?? [rec] })
 }
 
+const anthropicUserQuestionToolIds = new Set<string>()
+
 const PROVIDER_PROBE_TIMEOUT_MS = 2_000
 
 function probeCommand(binary: string, args: string[], timeout = PROVIDER_PROBE_TIMEOUT_MS): { ok: boolean; output: string } {
@@ -512,6 +514,7 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
         if (rec.name === 'AskUserQuestion') {
           const userInputRequest = userInputFromAskUserQuestionTool(rec.input)
           if (userInputRequest) {
+            if (typeof rec.id === 'string') anthropicUserQuestionToolIds.add(rec.id)
             events.push({ type: 'user_input.requested', ...userInputRequest })
             continue
           }
@@ -532,6 +535,11 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
     for (const block of content) {
       const rec = asRecord(block)
       if (rec?.type === 'tool_result') {
+        const toolUseId = typeof rec.tool_use_id === 'string' ? rec.tool_use_id : ''
+        if (toolUseId && anthropicUserQuestionToolIds.has(toolUseId)) {
+          anthropicUserQuestionToolIds.delete(toolUseId)
+          continue
+        }
         const userInputRequest = parseStructuredUserInputRequest(rec.content)
         if (userInputRequest) {
           events.push({ type: 'user_input.requested', ...userInputRequest })
@@ -540,7 +548,7 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
         events.push({
           type: 'tool.completed',
           id: uuidv4(),
-          toolUseId: typeof rec.tool_use_id === 'string' ? rec.tool_use_id : '',
+          toolUseId,
           content: stringifyContent(rec.content),
           isError: rec.is_error === true
         })
@@ -558,6 +566,7 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
         ? userInputFromAskUserQuestionTool(askUserDenial.tool_input)
         : null
       if (userInputRequest) {
+        if (typeof askUserDenial?.tool_use_id === 'string') anthropicUserQuestionToolIds.add(askUserDenial.tool_use_id)
         events.push({ type: 'user_input.requested', ...userInputRequest })
         return events
       }
