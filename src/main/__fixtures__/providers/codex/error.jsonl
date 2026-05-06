@@ -1,0 +1,2 @@
+{"type":"thread.started","thread_id":"codex-thread-error"}
+{"type":"turn.failed","error":{"message":"model unavailable"}}

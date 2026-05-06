@@ -1,0 +1,157 @@
+import { useMemo, useState } from 'react'
+import { useSessionStore } from '../../store/sessions'
+import type { SessionRunEventRecord } from '../../types'
+
+interface Props {
+  sessionId: string
+}
+
+type InspectorTab = 'events' | 'raw'
+
+export default function EventInspectorPanel({ sessionId }: Props): JSX.Element {
+  const { rawBuffers, eventBuffers } = useSessionStore()
+  const [tab, setTab] = useState<InspectorTab>('events')
+  const events = eventBuffers[sessionId] ?? []
+  const raw = rawBuffers[sessionId] ?? ''
+  const rawLines = useMemo(() => raw.split('\n').filter((line) => line.trim()).slice(-200), [raw])
+  const counts = useMemo(() => eventCounts(events), [events])
+
+  return (
+    <aside
+      className="w-[420px] shrink-0 flex flex-col"
+      style={{
+        background: 'var(--color-surface)',
+        borderLeft: '1px solid var(--color-border)'
+      }}
+    >
+      <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+              Provider Events
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+              {events.length} parsed · {rawLines.length} raw lines
+            </div>
+          </div>
+          <div className="flex gap-1">
+            <TabButton active={tab === 'events'} onClick={() => setTab('events')}>Events</TabButton>
+            <TabButton active={tab === 'raw'} onClick={() => setTab('raw')}>Raw</TabButton>
+          </div>
+        </div>
+        {Object.keys(counts).length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {Object.entries(counts).map(([type, count]) => (
+              <span
+                key={type}
+                className="rounded px-1.5 py-0.5 text-xs"
+                style={{
+                  color: 'var(--color-text-muted)',
+                  background: 'var(--color-surface2)',
+                  border: '1px solid var(--color-border)',
+                  fontSize: 10
+                }}
+              >
+                {type} {count}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-auto p-2">
+        {tab === 'events' ? (
+          events.length === 0 ? (
+            <EmptyText>No parsed events yet.</EmptyText>
+          ) : (
+            <div className="space-y-2">
+              {events.map((record) => <EventCard key={record.id} record={record} />)}
+            </div>
+          )
+        ) : rawLines.length === 0 ? (
+          <EmptyText>No raw output yet.</EmptyText>
+        ) : (
+          <pre
+            className="text-xs whitespace-pre-wrap break-words"
+            style={{ color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1.45 }}
+          >
+            {rawLines.join('\n')}
+          </pre>
+        )}
+      </div>
+    </aside>
+  )
+}
+
+function EventCard({ record }: { record: SessionRunEventRecord }): JSX.Element {
+  return (
+    <div
+      className="rounded-lg p-2"
+      style={{
+        background: 'var(--color-surface2)',
+        border: '1px solid var(--color-border)'
+      }}
+    >
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className="text-xs font-medium" style={{ color: eventColor(record.event.type) }}>
+          {record.event.type}
+        </span>
+        <span className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+          {new Date(record.timestamp).toLocaleTimeString()}
+        </span>
+      </div>
+      <pre
+        className="text-xs whitespace-pre-wrap break-words"
+        style={{ color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1.45 }}
+      >
+        {JSON.stringify(record.event, null, 2)}
+      </pre>
+    </div>
+  )
+}
+
+function TabButton({
+  children,
+  active,
+  onClick
+}: {
+  children: React.ReactNode
+  active: boolean
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded px-2 py-1 text-xs"
+      style={{
+        color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
+        background: active ? 'var(--color-accent-dim)' : 'var(--color-surface2)',
+        border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function EmptyText({ children }: { children: React.ReactNode }): JSX.Element {
+  return (
+    <div className="text-xs p-2" style={{ color: 'var(--color-text-muted)' }}>
+      {children}
+    </div>
+  )
+}
+
+function eventCounts(events: SessionRunEventRecord[]): Record<string, number> {
+  return events.reduce<Record<string, number>>((acc, record) => {
+    acc[record.event.type] = (acc[record.event.type] ?? 0) + 1
+    return acc
+  }, {})
+}
+
+function eventColor(type: string): string {
+  if (type.startsWith('run.failed') || type.startsWith('permission')) return 'var(--color-yellow)'
+  if (type.startsWith('tool')) return 'var(--color-accent)'
+  if (type.startsWith('run.completed')) return 'var(--color-green)'
+  return 'var(--color-text)'
+}

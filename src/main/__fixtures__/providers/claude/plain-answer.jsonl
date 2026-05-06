@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","session_id":"claude-session-plain"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"ORCHESTRATOR_LIVE_OK"}]}}
+{"type":"result","subtype":"success","result":"done"}

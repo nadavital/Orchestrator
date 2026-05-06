@@ -3,161 +3,102 @@ import PetAvatar, { type AnimState } from './PetAvatar'
 import { detectAnimFrames } from './detectAnimFrames'
 import { PROVIDER_DEFS } from '../../../types'
 import type { PetConfig, PetEntry, PetLayout } from './env'
-import type { ChatMessage } from '../../../types'
+import type { ChatMessage, SessionRunEventRecord } from '../../../types'
+import {
+  buildPetNotification,
+  isPetNotificationExpired,
+  type PetNotification,
+  type PetNotificationStatus,
+} from '../../../types/petNotifications'
 
-type PetStatus = 'waiting' | 'error' | 'review' | 'running' | 'idle'
-
-const STATUS_PRIORITY: Record<PetStatus, number> = {
-  waiting: 0, error: 1, review: 2, running: 3, idle: 4
-}
-
-const STATUS_TO_ANIM: Record<PetStatus, AnimState> = {
+const STATUS_TO_ANIM: Record<PetNotificationStatus, AnimState> = {
   waiting: 'waiting',
-  error: 'failed',
+  failed: 'failed',
   review: 'review',
   running: 'running',
   idle: 'idle',
 }
 
-const STATUS_LABEL: Record<PetStatus, string> = {
-  waiting: 'Waiting for input',
-  error: 'Error',
-  review: 'Unread response',
-  running: 'Running…',
-  idle: '',
-}
-
-const STATUS_COLOR: Record<PetStatus, string> = {
+const STATUS_COLOR: Record<PetNotificationStatus, string> = {
   waiting: '#FBBF24',
-  error: '#F87171',
+  failed: '#F87171',
   review: '#60A5FA',
   running: '#34D399',
   idle: '#9CA3AF',
 }
 
+const DISMISSED_STORAGE_KEY = 'orchestrator.pet.dismissedNotifications.v1'
+const MAX_DISMISSED_KEYS = 300
+const VISIBLE_COUNT = 2
+
 interface SessionState {
   id: string
   name: string
   provider: string
-  status: 'idle' | 'running' | 'error'
+  status: PetConfig['sessions'][number]['status']
+  messages: ChatMessage[]
+  events: SessionRunEventRecord[]
   hasUnread: boolean
-  needsInput: boolean
-  lastToolName: string | null
-  lastToolInput: Record<string, unknown>
-  lastAssistantText: string
   activitySeq: number
   lastActivityAt: number
 }
 
-function getStatus(s: SessionState): PetStatus {
-  if (s.needsInput) return 'waiting'
-  if (s.status === 'error') return 'error'
-  if (s.hasUnread) return 'review'
-  if (s.status === 'running') return 'running'
-  return 'idle'
-}
-
-const NOTIFICATION_TTL_MS: Record<PetStatus, number> = {
-  running: 180_000,
-  error: 3_600_000,
-  waiting: 86_400_000,
-  review: 604_800_000,
-  idle: 0,
-}
-
-function compactPath(value: unknown): string | null {
-  if (typeof value !== 'string' || value.trim() === '') return null
-  const parts = value.trim().split(/[\\/]/).filter(Boolean)
-  return parts.slice(-2).join('/')
-}
-
-function firstString(input: Record<string, unknown>, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = input[key]
-    if (typeof value === 'string' && value.trim()) return value.trim()
-  }
-  return null
-}
-
-function classifyToolActivity(toolName: string, input: Record<string, unknown>): string {
-  const normalizedName = toolName.toLowerCase().replace(/[_\s.-]+/g, '')
-  const command = firstString(input, ['command', 'cmd', 'script', 'description'])
-  if (command && /(bash|shell|terminal|command|exec|run)/i.test(toolName)) {
-    return `$ ${command.slice(0, 48)}`
-  }
-
-  const filePath = compactPath(
-    firstString(input, ['file_path', 'path', 'target_file', 'targetFile', 'absolutePath', 'relativePath']) ??
-    (Array.isArray(input.files) ? input.files[0] : null)
-  )
-  if (filePath) {
-    if (normalizedName.includes('read')) return `Reading ${filePath}`
-    if (normalizedName.includes('write') || normalizedName.includes('edit') || normalizedName.includes('patch')) {
-      return `Editing ${filePath}`
-    }
-    return filePath
-  }
-
-  const query = firstString(input, ['query', 'pattern', 'search', 'searchTerm'])
-  if (query) return `Search: ${query.slice(0, 44)}`
-
-  const url = firstString(input, ['url', 'uri'])
-  if (url) return `Fetch: ${url.slice(0, 44)}`
-
-  if (normalizedName.includes('todo')) return 'Updating task list'
-  if (normalizedName.includes('agent') || normalizedName.includes('subtask')) {
-    const description = firstString(input, ['description', 'prompt', 'task'])
-    return description ? `Agent: ${description.slice(0, 44)}` : 'Running agent'
-  }
-
-  return toolName === 'unknown' || toolName === 'tool' ? 'Using tool' : `Using ${toolName}`
-}
-
-function formatActivity(s: SessionState, status: PetStatus): string | null {
-  if (status === 'running' && s.lastToolName) {
-    return classifyToolActivity(s.lastToolName, s.lastToolInput)
-  }
-  if ((status === 'review' || status === 'error') && s.lastAssistantText) {
-    return s.lastAssistantText.replace(/\s+/g, ' ').trim().slice(0, 72)
-  }
-  return null
-}
-
 function extractMessages(msgs: ChatMessage[], prev: SessionState): Partial<SessionState> {
-  let lastToolName = prev.lastToolName
-  let lastToolInput = prev.lastToolInput
-  let lastAssistantText = prev.lastAssistantText
   let hasUnread = prev.hasUnread
   let changed = false
 
   for (const m of msgs) {
-    if (m.type === 'tool_use') {
-      lastToolName = m.toolName
-      lastToolInput = m.toolInput
-      changed = true
-    }
     if (m.type === 'text' && m.role === 'assistant') {
-      lastAssistantText = m.content
       hasUnread = true
       changed = true
     }
     if (m.type === 'result') {
-      lastAssistantText = m.content
       changed = true
     }
   }
   return {
-    lastToolName,
-    lastToolInput,
-    lastAssistantText,
+    messages: [...prev.messages, ...msgs].slice(-100),
     hasUnread,
     activitySeq: changed ? prev.activitySeq + 1 : prev.activitySeq,
     lastActivityAt: changed ? Date.now() : prev.lastActivityAt,
   }
 }
 
-function notificationKey(s: SessionState, status: PetStatus): string {
-  return `${s.id}:${status}:${s.activitySeq}`
+function sessionFromConfig(s: PetConfig['sessions'][number], now = Date.now()): SessionState {
+  return {
+    id: s.id,
+    name: s.name,
+    provider: s.provider,
+    status: s.status,
+    messages: s.messages ?? [],
+    events: [],
+    hasUnread: false,
+    activitySeq: 0,
+    lastActivityAt: now,
+  }
+}
+
+function loadDismissedKeys(): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(DISMISSED_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return new Set(Array.isArray(parsed) ? parsed.filter((key) => typeof key === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function storeDismissedKeys(keys: Set<string>): void {
+  const entries = [...keys].slice(-MAX_DISMISSED_KEYS)
+  window.localStorage.setItem(DISMISSED_STORAGE_KEY, JSON.stringify(entries))
+}
+
+function statusIcon(status: PetNotificationStatus): string {
+  if (status === 'running') return '●'
+  if (status === 'waiting') return '!'
+  if (status === 'failed') return '×'
+  if (status === 'review') return '✓'
+  return ''
 }
 
 // Minimum pointer movement before we commit to a drag (matches Codex Ge=4)
@@ -174,7 +115,10 @@ export default function PetOverlay(): JSX.Element | null {
     trayTop: 120,
     placement: 'bottom-end',
   })
-  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(() => new Set())
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(() => loadDismissedKeys())
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set())
+  const [trayCollapsed, setTrayCollapsed] = useState(false)
+  const [page, setPage] = useState(0)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const isDragging = useRef(false)
   const dragStartPos = useRef<{ clientX: number; clientY: number } | null>(null)
@@ -191,19 +135,7 @@ export default function PetOverlay(): JSX.Element | null {
       setLayout(cfg.initialLayout)
       const initial: Record<string, SessionState> = {}
       for (const s of cfg.sessions) {
-        initial[s.id] = {
-          id: s.id,
-          name: s.name,
-          provider: s.provider,
-          status: s.status,
-          hasUnread: false,
-          needsInput: false,
-          lastToolName: null,
-          lastToolInput: {},
-          lastAssistantText: '',
-          activitySeq: 0,
-          lastActivityAt: Date.now(),
-        }
+        initial[s.id] = sessionFromConfig(s)
       }
       setSessions(initial)
 
@@ -252,19 +184,7 @@ export default function PetOverlay(): JSX.Element | null {
         if (event.type === 'created') {
           return {
             ...prev,
-            [event.session.id]: {
-              id: event.session.id,
-              name: event.session.name,
-              provider: event.session.provider,
-              status: event.session.status,
-              hasUnread: false,
-              needsInput: false,
-              lastToolName: null,
-              lastToolInput: {},
-              lastAssistantText: '',
-              activitySeq: 0,
-              lastActivityAt: now,
-            }
+            [event.session.id]: sessionFromConfig(event.session, now)
           }
         }
         const s = prev[event.id]
@@ -275,8 +195,6 @@ export default function PetOverlay(): JSX.Element | null {
             [event.id]: {
               ...s,
               status: event.status,
-              needsInput: event.status === 'running' ? false : s.needsInput,
-              lastToolName: event.status !== 'running' ? null : s.lastToolName,
               activitySeq: event.status !== s.status ? s.activitySeq + 1 : s.activitySeq,
               lastActivityAt: event.status !== s.status ? now : s.lastActivityAt,
             }
@@ -285,11 +203,31 @@ export default function PetOverlay(): JSX.Element | null {
         if (event.type === 'messages') {
           return { ...prev, [event.id]: { ...s, ...extractMessages(event.messages, s) } }
         }
+        if (event.type === 'events') {
+          const eventTime = event.events.at(-1)?.timestamp ?? now
+          return {
+            ...prev,
+            [event.id]: {
+              ...s,
+              events: [...s.events, ...event.events].slice(-100),
+              activitySeq: s.activitySeq + event.events.length,
+              lastActivityAt: eventTime,
+            }
+          }
+        }
         if (event.type === 'renamed') {
           return { ...prev, [event.id]: { ...s, name: event.name } }
         }
         if (event.type === 'needsInput') {
-          return { ...prev, [event.id]: { ...s, needsInput: true, activitySeq: s.activitySeq + 1, lastActivityAt: now } }
+          return {
+            ...prev,
+            [event.id]: {
+              ...s,
+              status: 'waiting_for_user',
+              activitySeq: s.activitySeq + 1,
+              lastActivityAt: now
+            }
+          }
         }
         return prev
       })
@@ -300,6 +238,10 @@ export default function PetOverlay(): JSX.Element | null {
     const timer = window.setInterval(() => setNowMs(Date.now()), 15_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    storeDismissedKeys(dismissedKeys)
+  }, [dismissedKeys])
 
   // Mouse passthrough
   useEffect(() => {
@@ -345,18 +287,14 @@ export default function PetOverlay(): JSX.Element | null {
   }, [])
 
   // Compute aggregate state
-  const sessionList = Object.values(sessions)
-  const active = sessionList
-    .map((s) => ({ session: s, status: getStatus(s) }))
-    .filter(({ status }) => status !== 'idle')
-    .filter(({ session, status }) => {
-      const ttl = NOTIFICATION_TTL_MS[status]
-      if (ttl > 0 && nowMs - session.lastActivityAt > ttl) return false
-      return !dismissedKeys.has(notificationKey(session, status))
-    })
-    .sort((a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status])
+  const notifications = Object.values(sessions)
+    .map((session) => buildPetNotification(session))
+    .filter((notification): notification is PetNotification => Boolean(notification))
+    .filter((notification) => !isPetNotificationExpired(notification, nowMs))
+    .filter((notification) => !dismissedKeys.has(notification.dismissKey))
+    .sort((a, b) => a.priority - b.priority || b.timestamp - a.timestamp)
 
-  const topStatus = active[0]?.status ?? 'idle'
+  const topStatus = notifications[0]?.status ?? 'idle'
   let animState: AnimState
   if (dragAnimState !== null) animState = dragAnimState
   else if (isHovering) animState = 'jumping'
@@ -365,9 +303,17 @@ export default function PetOverlay(): JSX.Element | null {
   const selectedPet: PetEntry | undefined =
     config?.pets.find((p) => p.id === config.selectedPetId) ?? config?.pets[0]
 
-  // Cap at 2 visible cards (matches Codex fe=2), report count to main
-  const visible = active.slice(0, 2)
-  const moreCount = active.length - 2
+  const maxPage = Math.max(0, Math.ceil(notifications.length / VISIBLE_COUNT) - 1)
+  const safePage = Math.min(page, maxPage)
+  const pageStart = safePage * VISIBLE_COUNT
+  const visible = trayCollapsed ? [] : notifications.slice(pageStart, pageStart + VISIBLE_COUNT)
+  const hasOlder = safePage < maxPage
+  const hasLatest = safePage > 0
+
+  useEffect(() => {
+    if (page > maxPage) setPage(maxPage)
+  }, [maxPage, page])
+
   useEffect(() => {
     window.petApi.pet.setTrayCount(visible.length)
   }, [visible.length])
@@ -482,32 +428,89 @@ export default function PetOverlay(): JSX.Element | null {
           gap: 5,
         }}
       >
-        {visible.length > 0 && (
+        {notifications.length > 0 && (
           <>
-            {moreCount > 0 && (
-              <div style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,0.45)', marginBottom: 2 }}>
-                +{moreCount} more
-              </div>
-            )}
-            {visible.map(({ session, status }) => (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: 6,
+                minHeight: 18,
+                alignItems: 'center',
+              }}
+            >
+              {trayCollapsed ? (
+                <TrayButton
+                  label={`${notifications.length}`}
+                  title="Show notifications"
+                  onClick={() => setTrayCollapsed(false)}
+                />
+              ) : (
+                <>
+                  {hasOlder && (
+                    <TrayButton
+                      label={`+${notifications.length - pageStart - VISIBLE_COUNT}`}
+                      title="Show older notifications"
+                      onClick={() => setPage((current) => Math.min(maxPage, current + 1))}
+                    />
+                  )}
+                  {hasLatest && (
+                    <TrayButton
+                      label="Latest"
+                      title="Show latest notifications"
+                      onClick={() => setPage(0)}
+                    />
+                  )}
+                  <TrayButton
+                    label="–"
+                    title="Collapse notifications"
+                    onClick={() => setTrayCollapsed(true)}
+                  />
+                </>
+              )}
+            </div>
+            {!trayCollapsed && visible.map((notification) => (
               <NotificationCard
-                key={session.id}
-                session={session}
-                status={status}
+                key={notification.key}
+                notification={notification}
+                expanded={expandedKeys.has(notification.key)}
+                onToggleExpanded={() => {
+                  setExpandedKeys((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(notification.key)) next.delete(notification.key)
+                    else next.add(notification.key)
+                    return next
+                  })
+                }}
                 onClick={() => {
-                  window.petApi.pet.focusMain(session.id)
+                  window.petApi.pet.focusMain(notification.sessionId)
                   setSessions((prev) => ({
                     ...prev,
-                    [session.id]: { ...prev[session.id], hasUnread: false }
+                    ...(prev[notification.sessionId]
+                      ? { [notification.sessionId]: { ...prev[notification.sessionId], hasUnread: false } }
+                      : {})
                   }))
                 }}
                 onDismiss={() => {
-                  const key = notificationKey(session, status)
-                  setDismissedKeys((prev) => new Set(prev).add(key))
+                  setDismissedKeys((prev) => new Set(prev).add(notification.dismissKey))
                   setSessions((prev) => ({
                     ...prev,
-                    [session.id]: { ...prev[session.id], hasUnread: false }
+                    ...(prev[notification.sessionId]
+                      ? { [notification.sessionId]: { ...prev[notification.sessionId], hasUnread: false } }
+                      : {})
                   }))
+                }}
+                onReply={async (text) => {
+                  await window.petApi.sessions.answerUserInput(notification.sessionId, text)
+                }}
+                onAllow={async () => {
+                  if (!notification.permissionAction) return
+                  await window.petApi.sessions.grantAndResume(notification.sessionId, notification.permissionAction.toolNames)
+                  setDismissedKeys((prev) => new Set(prev).add(notification.dismissKey))
+                }}
+                onDeny={async () => {
+                  await window.petApi.sessions.denyPermission(notification.sessionId)
+                  setDismissedKeys((prev) => new Set(prev).add(notification.dismissKey))
                 }}
               />
             ))}
@@ -542,20 +545,91 @@ export default function PetOverlay(): JSX.Element | null {
   )
 }
 
+function TrayButton({
+  label,
+  title,
+  onClick,
+}: {
+  label: string
+  title: string
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <button
+      data-interactive="true"
+      title={title}
+      aria-label={title}
+      onClick={(ev) => {
+        ev.stopPropagation()
+        onClick()
+      }}
+      style={{
+        minWidth: 22,
+        height: 18,
+        padding: '0 7px',
+        borderRadius: 999,
+        border: '1px solid rgba(255,255,255,0.12)',
+        background: 'rgba(18,18,18,0.72)',
+        color: 'rgba(255,255,255,0.64)',
+        fontSize: 10,
+        lineHeight: '16px',
+        cursor: 'pointer',
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
 function NotificationCard({
-  session,
-  status,
+  notification,
+  expanded,
+  onToggleExpanded,
   onClick,
   onDismiss,
+  onReply,
+  onAllow,
+  onDeny,
 }: {
-  session: SessionState
-  status: PetStatus
+  notification: PetNotification
+  expanded: boolean
+  onToggleExpanded: () => void
   onClick: () => void
   onDismiss: () => void
+  onReply: (text: string) => Promise<void>
+  onAllow: () => Promise<void>
+  onDeny: () => Promise<void>
 }): JSX.Element {
   const [hovered, setHovered] = useState(false)
-  const providerColor = PROVIDER_DEFS[session.provider]?.color ?? '#9CA3AF'
-  const activityText = formatActivity(session, status)
+  const [replyOpen, setReplyOpen] = useState(false)
+  const [replyText, setReplyText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const providerColor = PROVIDER_DEFS[notification.provider]?.color ?? '#9CA3AF'
+  const longBody = notification.body.length > 90
+
+  const submitReply = async (): Promise<void> => {
+    const text = replyText.trim()
+    if (!text || busy) return
+    setBusy(true)
+    try {
+      await onReply(text)
+      setReplyText('')
+      setReplyOpen(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const runAction = async (action: () => Promise<void>): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await action()
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div
@@ -564,80 +638,223 @@ function NotificationCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: 'rgba(18, 18, 18, 0.88)',
-        backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(255,255,255,0.07)',
-        borderRadius: 10,
-        padding: '7px 10px 7px 12px',
+        background: 'rgba(20, 20, 22, 0.9)',
+        backdropFilter: 'blur(18px)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 14px 34px rgba(0,0,0,0.26)',
+        borderRadius: 18,
+        padding: '9px 10px 9px 11px',
         cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 8,
         position: 'relative',
+        color: 'white',
       }}
     >
-      <div
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: providerColor,
-          flexShrink: 0,
-          marginTop: 3,
-        }}
-      />
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
         <div
           style={{
-            fontSize: 11,
-            fontWeight: 500,
-            color: 'rgba(255,255,255,0.88)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: providerColor,
+            flexShrink: 0,
+            marginTop: 4,
+            boxShadow: `0 0 0 3px ${providerColor}22`,
+          }}
+        />
+        <div style={{ flex: 1, minWidth: 0, paddingRight: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 650,
+                color: 'rgba(255,255,255,0.92)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+              }}
+            >
+              {notification.title}
+            </div>
+            <div
+              aria-label={notification.label}
+              title={notification.label}
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                display: 'grid',
+                placeItems: 'center',
+                color: STATUS_COLOR[notification.status],
+                background: `${STATUS_COLOR[notification.status]}1c`,
+                fontSize: notification.status === 'running' ? 8 : 11,
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+            >
+              {statusIcon(notification.status)}
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: STATUS_COLOR[notification.status], marginTop: 1, fontWeight: 560 }}>
+            {notification.label}
+          </div>
+          {notification.body && (
+            <div
+              style={{
+                fontSize: 10.5,
+                color: 'rgba(255,255,255,0.58)',
+                marginTop: 4,
+                overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: expanded ? 10 : 2,
+                WebkitBoxOrient: 'vertical',
+                lineHeight: '14px',
+                maxHeight: expanded ? 140 : 28,
+                fontFamily: notification.body.startsWith('$') ? 'ui-monospace, SFMono-Regular, monospace' : 'inherit',
+              }}
+            >
+              {notification.body}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {(notification.permissionAction || notification.canReply || longBody) && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            marginTop: 8,
           }}
         >
-          {session.name}
+          {notification.permissionAction && (
+            <>
+              <ActionButton label="Allow" busy={busy} onClick={() => runAction(onAllow)} tone="primary" />
+              <ActionButton label="Deny" busy={busy} onClick={() => runAction(onDeny)} />
+            </>
+          )}
+          {notification.canReply && (
+            <ActionButton label={replyOpen ? 'Hide' : 'Reply'} busy={busy} onClick={() => setReplyOpen((v) => !v)} />
+          )}
+          {longBody && (
+            <ActionButton label={expanded ? 'Less' : 'More'} busy={false} onClick={onToggleExpanded} />
+          )}
         </div>
-        <div style={{ fontSize: 10, color: STATUS_COLOR[status], marginTop: 1 }}>
-          {STATUS_LABEL[status]}
-        </div>
-        {activityText && (
-          <div
+      )}
+
+      {replyOpen && (
+        <form
+          onClick={(ev) => ev.stopPropagation()}
+          onSubmit={(ev) => {
+            ev.preventDefault()
+            void submitReply()
+          }}
+          style={{ display: 'flex', gap: 6, marginTop: 8 }}
+        >
+          <input
+            value={replyText}
+            disabled={busy}
+            onChange={(ev) => setReplyText(ev.target.value)}
+            autoFocus
+            placeholder="Reply…"
             style={{
-              fontSize: 10,
-              color: 'rgba(255,255,255,0.45)',
-              marginTop: 3,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              fontFamily: activityText.startsWith('$') ? 'monospace' : 'inherit',
+              minWidth: 0,
+              flex: 1,
+              height: 26,
+              borderRadius: 9,
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(255,255,255,0.08)',
+              color: 'rgba(255,255,255,0.92)',
+              padding: '0 8px',
+              fontSize: 11,
+              outline: 'none',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={busy || !replyText.trim()}
+            title="Send reply"
+            aria-label="Send reply"
+            style={{
+              width: 28,
+              height: 26,
+              borderRadius: 9,
+              border: '1px solid rgba(255,255,255,0.14)',
+              background: providerColor,
+              color: '#fff',
+              cursor: busy || !replyText.trim() ? 'default' : 'pointer',
+              opacity: busy || !replyText.trim() ? 0.55 : 1,
+              fontSize: 12,
+              fontWeight: 700,
             }}
           >
-            {activityText}
-          </div>
-        )}
-      </div>
-      {/* Dismiss button — visible on hover for review/error states */}
-      {hovered && (status === 'review' || status === 'error') && (
+            ↵
+          </button>
+        </form>
+      )}
+
+      {hovered && notification.canDismiss && (
         <button
+          aria-label="Dismiss notification"
+          title="Dismiss"
           onClick={(ev) => { ev.stopPropagation(); onDismiss() }}
           style={{
             position: 'absolute',
-            top: 5,
-            right: 6,
-            background: 'none',
-            border: 'none',
-            color: 'rgba(255,255,255,0.4)',
+            top: 7,
+            right: 7,
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.08)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'rgba(255,255,255,0.52)',
             cursor: 'pointer',
             fontSize: 13,
-            lineHeight: 1,
-            padding: '2px 3px',
+            lineHeight: '16px',
+            padding: 0,
           }}
         >
           ×
         </button>
       )}
     </div>
+  )
+}
+
+function ActionButton({
+  label,
+  busy,
+  tone,
+  onClick,
+}: {
+  label: string
+  busy: boolean
+  tone?: 'primary'
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <button
+      disabled={busy}
+      onClick={(ev) => {
+        ev.stopPropagation()
+        onClick()
+      }}
+      style={{
+        height: 22,
+        padding: '0 8px',
+        borderRadius: 8,
+        border: tone === 'primary' ? '1px solid rgba(255,255,255,0.16)' : '1px solid rgba(255,255,255,0.12)',
+        background: tone === 'primary' ? 'rgba(96,165,250,0.84)' : 'rgba(255,255,255,0.08)',
+        color: 'rgba(255,255,255,0.9)',
+        cursor: busy ? 'default' : 'pointer',
+        opacity: busy ? 0.6 : 1,
+        fontSize: 10.5,
+        fontWeight: 600,
+      }}
+    >
+      {label}
+    </button>
   )
 }

@@ -11,6 +11,12 @@ interface Props {
 const statusColor: Record<Session['status'], string> = {
   idle: 'var(--color-text-muted)',
   running: 'var(--color-green)',
+  waiting_for_permission: 'var(--color-yellow)',
+  waiting_for_user: 'var(--color-yellow)',
+  reconnecting: 'var(--color-yellow)',
+  auth_error: 'var(--color-red)',
+  model_error: 'var(--color-red)',
+  provider_error: 'var(--color-red)',
   error: 'var(--color-red)'
 }
 

@@ -8,7 +8,7 @@ import { gitManager } from './git'
 import { settingsStore } from './settings'
 import { terminalManager } from './terminal'
 import { petOverlayManager } from './petOverlay'
-import { getProviderRuntimeInfo } from './providers'
+import { getProviderDiagnostics, getProviderRuntimeInfo } from './providers'
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   // Projects
@@ -57,9 +57,16 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:grantAndResume', (_, sessionId: string, toolNames: string[]) =>
     sessionManager.grantAndResume(sessionId, toolNames)
   )
+  ipcMain.handle('sessions:answerUserInput', (_, sessionId: string, answer: string) =>
+    sessionManager.answerUserInput(sessionId, answer)
+  )
+  ipcMain.handle('sessions:denyPermission', (_, sessionId: string) =>
+    sessionManager.denyPermission(sessionId)
+  )
 
   // Providers
   ipcMain.handle('providers:getRuntimeInfo', () => getProviderRuntimeInfo())
+  ipcMain.handle('providers:getDiagnostics', () => getProviderDiagnostics())
 
   // Git
   ipcMain.handle('git:isGitRepo', (_, dir: string) => gitManager.isGitRepo(dir))

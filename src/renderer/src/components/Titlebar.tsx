@@ -3,7 +3,7 @@ import { useSessionStore } from '../store/sessions'
 export default function Titlebar(): JSX.Element {
   const { sessions, activeSessionId, uiState, setShowDiff, setShowTerminal, setShowSkills } = useSessionStore()
   const session = sessions.find((s) => s.id === activeSessionId)
-  const ui = activeSessionId ? (uiState[activeSessionId] ?? { showDiff: false, showTerminal: false, showSkills: false }) : null
+  const ui = activeSessionId ? (uiState[activeSessionId] ?? { showDiff: false, showEvents: false, showTerminal: false, showSkills: false }) : null
 
   return (
     <div
@@ -104,19 +104,47 @@ export default function Titlebar(): JSX.Element {
 
 function StatusDot({ status }: { status: string }): JSX.Element {
   const isRunning = status === 'running'
+  const isWaiting = status.startsWith('waiting_') || status === 'reconnecting'
+  const isError = status.endsWith('_error') || status === 'error'
   return (
-    <span
-      className="rounded-full shrink-0"
-      style={{
-        width: 6,
-        height: 6,
-        background: isRunning ? 'var(--color-green)' : 'var(--color-text-muted)',
-        opacity: isRunning ? 1 : 0.4,
-        animation: isRunning ? 'statusPulse 1.5s ease-in-out infinite' : 'none',
-        display: 'inline-block'
-      }}
-    />
+    <span className="flex items-center gap-1">
+      <span
+        className="rounded-full shrink-0"
+        style={{
+          width: 6,
+          height: 6,
+          background: isRunning
+            ? 'var(--color-green)'
+            : isWaiting
+              ? 'var(--color-yellow)'
+              : isError
+                ? 'var(--color-red)'
+                : 'var(--color-text-muted)',
+          opacity: isRunning || isWaiting || isError ? 1 : 0.4,
+          animation: isRunning ? 'statusPulse 1.5s ease-in-out infinite' : 'none',
+          display: 'inline-block'
+        }}
+      />
+      {(isWaiting || isError) && (
+        <span className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+          {statusLabel(status)}
+        </span>
+      )}
+    </span>
   )
+}
+
+function statusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    waiting_for_permission: 'waiting for permission',
+    waiting_for_user: 'waiting for input',
+    reconnecting: 'reconnecting',
+    auth_error: 'auth error',
+    model_error: 'model error',
+    provider_error: 'provider error',
+    error: 'error'
+  }
+  return labels[status] ?? status
 }
 
 function TitleBtn({

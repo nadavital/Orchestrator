@@ -3,11 +3,10 @@ import type { IPty } from 'node-pty'
 import Store from 'electron-store'
 import { BrowserWindow } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
-import { execSync } from 'child_process'
-import type { Session, ChatMessage, RunEvent, RunRequest } from '../types'
+import type { Session, ChatMessage, RunEvent, RunRequest, SessionStatus } from '../types'
 import { PROVIDER_DEFS } from '../types'
 import { gitManager } from './git'
-import { getProvider, PROVIDERS } from './providers'
+import { getProvider, PROVIDERS, resolveProviderBinary, resolveProviderCommand } from './providers'
 import { eventsToMessages } from './runEvents'
 import { settingsStore } from './settings'
 import { migrateLegacyUserData } from './userDataMigration'
@@ -49,6 +48,28 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
   }
 }
 
+function classifyFailure(content?: string): SessionStatus {
+  if (/authentication required|not logged in|login|api key|unauthorized|keychain|SecItemCopyMatching/i.test(content ?? '')) {
+    return 'auth_error'
+  }
+  if (/model .*unavailable|model unavailable|unknown model|invalid model|no models available/i.test(content ?? '')) {
+    return 'model_error'
+  }
+  return 'provider_error'
+}
+
+function isPausedOrFailed(status: SessionStatus): boolean {
+  return [
+    'waiting_for_permission',
+    'waiting_for_user',
+    'reconnecting',
+    'auth_error',
+    'model_error',
+    'provider_error',
+    'error'
+  ].includes(status)
+}
+
 export const sessionManager = {
   list(): Session[] {
     return store.get('sessions', []).map(normalizeSession)
@@ -67,7 +88,7 @@ export const sessionManager = {
     store.set('sessions', sessions)
   },
 
-  updateStatus(id: string, status: Session['status']): void {
+  updateStatus(id: string, status: SessionStatus): void {
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === id)
     if (s) {
@@ -184,7 +205,19 @@ export const sessionManager = {
     const currentSession = this.get(sessionId)!
     const provider = getProvider(currentSession.provider ?? 'claude')
     const runRequest = requestFromSession(currentSession, prompt)
-    const command = provider.buildStartCommand(runRequest)
+    const command = resolveProviderCommand(provider, provider.buildStartCommand(runRequest))
+    if (!command) {
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: `${provider.id} CLI is not available. Check provider settings or install ${provider.binary}.`,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return
+    }
     const pty = spawn(command.binary, command.args, {
       name: 'xterm-color',
       cwd: currentSession.workDir,
@@ -201,6 +234,7 @@ export const sessionManager = {
       send('session:raw', { id: sessionId, data })
 
       if (/\[y\/n\]/i.test(data) || /\[yes\/no\]/i.test(data)) {
+        this.updateStatus(sessionId, 'waiting_for_user')
         send('session:needsInput', { id: sessionId })
       }
 
@@ -213,12 +247,23 @@ export const sessionManager = {
 
     pty.onExit(() => {
       activePtys.delete(sessionId)
-      this.updateStatus(sessionId, 'idle')
+      if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
+        this.updateStatus(sessionId, 'idle')
+      }
     })
   },
 
   applyRunEvents(sessionId: string, events: RunEvent[]): void {
     if (events.length === 0) return
+
+    send('session:events', {
+      id: sessionId,
+      events: events.map((event) => ({
+        id: uuidv4(),
+        timestamp: Date.now(),
+        event
+      }))
+    })
 
     const sessionStarted = events.find((event) => event.type === 'session.started')
     if (sessionStarted?.type === 'session.started') {
@@ -228,6 +273,52 @@ export const sessionManager = {
         s.providerSessionId = sessionStarted.providerSessionId
         s.claudeSessionId = sessionStarted.providerSessionId
         store.set('sessions', sessions)
+      }
+    }
+
+    const currentSession = this.get(sessionId)
+    const repeatedReconnect = events.find((event) =>
+      (event.type === 'connection.reconnecting' || event.type === 'connection.retrying') &&
+      typeof event.attempt === 'number' &&
+      event.attempt >= 2
+    )
+    if (currentSession?.provider === 'cursor' && repeatedReconnect) {
+      const pty = activePtys.get(sessionId)
+      if (pty) {
+        pty.kill()
+        activePtys.delete(sessionId)
+      }
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: 'Cursor Agent is reconnecting repeatedly. The run was stopped before it could hang. Try Cursor again after the CLI transport recovers.',
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'provider_error')
+      return
+    }
+
+    if (events.some((event) => event.type === 'permission.requested')) {
+      this.updateStatus(sessionId, 'waiting_for_permission')
+    } else if (events.some((event) => event.type === 'user_input.requested')) {
+      const pty = activePtys.get(sessionId)
+      if (pty) {
+        pty.kill()
+        activePtys.delete(sessionId)
+      }
+      this.updateStatus(sessionId, 'waiting_for_user')
+    } else if (events.some((event) => event.type === 'connection.reconnecting' || event.type === 'connection.retrying')) {
+      this.updateStatus(sessionId, 'reconnecting')
+    } else {
+      const failed = [...events].reverse().find((event) => event.type === 'run.failed')
+      const completed = [...events].reverse().find((event) => event.type === 'run.completed')
+      if (failed?.type === 'run.failed') {
+        if (currentSession?.status === 'waiting_for_user') return
+        this.updateStatus(sessionId, classifyFailure(failed.content))
+      } else if (completed?.type === 'run.completed') {
+        this.updateStatus(sessionId, 'idle')
       }
     }
 
@@ -273,7 +364,19 @@ export const sessionManager = {
     const currentSession = this.get(sessionId)!
     const resumeProvider = getProvider(currentSession.provider ?? 'claude')
     const runRequest = requestFromSession(currentSession, 'Permission granted. Please continue.')
-    const command = resumeProvider.buildResumeCommand(runRequest)
+    const command = resolveProviderCommand(resumeProvider, resumeProvider.buildResumeCommand(runRequest))
+    if (!command) {
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: `${resumeProvider.id} CLI is not available. Check provider settings or install ${resumeProvider.binary}.`,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return
+    }
 
     const pty = spawn(command.binary, command.args, {
       name: 'xterm-color',
@@ -296,19 +399,99 @@ export const sessionManager = {
 
     pty.onExit(() => {
       activePtys.delete(sessionId)
-      this.updateStatus(sessionId, 'idle')
+      if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
+        this.updateStatus(sessionId, 'idle')
+      }
     })
+  },
+
+  async answerUserInput(sessionId: string, answer: string): Promise<void> {
+    const session = this.get(sessionId)
+    if (!session) return
+    const trimmed = answer.trim()
+    if (!trimmed) return
+
+    const active = activePtys.get(sessionId)
+    if (active) {
+      active.write(`${trimmed}\n`)
+      this.updateStatus(sessionId, 'running')
+      return
+    }
+
+    if (!session.providerSessionId) return
+
+    this.appendMessage(sessionId, [{
+      id: uuidv4(),
+      role: 'user',
+      type: 'text',
+      content: trimmed,
+      timestamp: Date.now()
+    }])
+    this.updateStatus(sessionId, 'running')
+
+    const currentSession = this.get(sessionId)!
+    const resumeProvider = getProvider(currentSession.provider ?? 'claude')
+    const runRequest = requestFromSession(
+      currentSession,
+      `User answered the pending question:\n\n${trimmed}\n\nPlease continue from where you stopped.`
+    )
+    const command = resolveProviderCommand(resumeProvider, resumeProvider.buildResumeCommand(runRequest))
+    if (!command) {
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: `${resumeProvider.id} CLI is not available. Check provider settings or install ${resumeProvider.binary}.`,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return
+    }
+
+    const pty = spawn(command.binary, command.args, {
+      name: 'xterm-color',
+      cwd: currentSession.workDir,
+      env: { ...process.env, TERM: 'xterm-256color' },
+      cols: 220,
+      rows: 50
+    })
+
+    activePtys.set(sessionId, pty)
+    let buffer = ''
+
+    pty.onData((data) => {
+      send('session:raw', { id: sessionId, data })
+      buffer += data
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) this.applyRunEvents(sessionId, resumeProvider.parseOutputLine(line))
+    })
+
+    pty.onExit(() => {
+      activePtys.delete(sessionId)
+      if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
+        this.updateStatus(sessionId, 'idle')
+      }
+    })
+  },
+
+  denyPermission(sessionId: string): void {
+    this.appendMessage(sessionId, [{
+      id: uuidv4(),
+      role: 'system',
+      type: 'result',
+      content: 'Permission denied by user.',
+      subtype: 'permission_denied',
+      timestamp: Date.now()
+    }])
+    this.updateStatus(sessionId, 'idle')
   },
 
   checkProviders(): Record<string, boolean> {
     const result: Record<string, boolean> = {}
     for (const provider of Object.values(PROVIDERS)) {
-      try {
-        execSync(`which ${provider.binary}`, { stdio: 'ignore' })
-        result[provider.id] = true
-      } catch {
-        result[provider.id] = false
-      }
+      result[provider.id] = resolveProviderBinary(provider) !== null
     }
     return result
   },

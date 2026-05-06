@@ -6,6 +6,7 @@ import ChatView from './ChatView'
 import TerminalView from './TerminalView'
 import DiffPanel from './DiffPanel'
 import SkillsPanel from './SkillsPanel'
+import EventInspectorPanel from './EventInspectorPanel'
 import InputBar from './InputBar'
 
 const MIN_TERMINAL_HEIGHT = 120
@@ -59,7 +60,7 @@ export default function SessionPane(): JSX.Element | null {
 
   const isNew = session.messages.length === 0 && session.status !== 'running'
   const project = projects.find((p) => p.id === session.projectId)
-  const ui = uiState[session.id] ?? { showDiff: false, showTerminal: false, showSkills: false }
+  const ui = uiState[session.id] ?? { showDiff: false, showEvents: false, showTerminal: false, showSkills: false }
 
   const terminalId = (tab: number): string => `${session.id}-${tab}`
 
@@ -113,6 +114,7 @@ export default function SessionPane(): JSX.Element | null {
 
         {ui.showSkills && <SkillsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} onClose={() => setShowSkills(session.id, false)} />}
         {ui.showDiff && <DiffPanel sessionId={session.id} />}
+        {ui.showEvents && <EventInspectorPanel sessionId={session.id} />}
       </div>
 
       {/* Terminal bottom panel */}

@@ -1,10 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Project, Session, ChatMessage, FileChange, ProviderRuntimeInfo } from '../types'
+import type { Project, Session, ChatMessage, FileChange, ProviderDiagnosticInfo, ProviderRuntimeInfo, SessionRunEventRecord } from '../types'
 
 export type SessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
   | { type: 'messages'; id: string; messages: ChatMessage[] }
+  | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
   | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
@@ -51,7 +52,11 @@ const api = {
     writeToPty: (sessionId: string, data: string): Promise<void> =>
       ipcRenderer.invoke('sessions:writeToPty', sessionId, data),
     grantAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
-      ipcRenderer.invoke('sessions:grantAndResume', sessionId, toolNames)
+      ipcRenderer.invoke('sessions:grantAndResume', sessionId, toolNames),
+    answerUserInput: (sessionId: string, answer: string): Promise<void> =>
+      ipcRenderer.invoke('sessions:answerUserInput', sessionId, answer),
+    denyPermission: (sessionId: string): Promise<void> =>
+      ipcRenderer.invoke('sessions:denyPermission', sessionId)
   },
 
   git: {
@@ -60,7 +65,9 @@ const api = {
 
   providers: {
     getRuntimeInfo: (): Promise<Record<string, ProviderRuntimeInfo>> =>
-      ipcRenderer.invoke('providers:getRuntimeInfo')
+      ipcRenderer.invoke('providers:getRuntimeInfo'),
+    getDiagnostics: (): Promise<Record<string, ProviderDiagnosticInfo>> =>
+      ipcRenderer.invoke('providers:getDiagnostics')
   },
 
   settings: {
@@ -121,6 +128,8 @@ const api = {
       cb({ type: 'status', ...p })
     const onMessages = (_: Electron.IpcRendererEvent, p: { id: string; messages: ChatMessage[] }): void =>
       cb({ type: 'messages', ...p })
+    const onEvents = (_: Electron.IpcRendererEvent, p: { id: string; events: SessionRunEventRecord[] }): void =>
+      cb({ type: 'events', ...p })
     const onRaw = (_: Electron.IpcRendererEvent, p: { id: string; data: string }): void =>
       cb({ type: 'raw', ...p })
     const onRenamed = (_: Electron.IpcRendererEvent, p: { id: string; name: string }): void =>
@@ -135,6 +144,7 @@ const api = {
     ipcRenderer.on('session:created', onCreated)
     ipcRenderer.on('session:status', onStatus)
     ipcRenderer.on('session:messages', onMessages)
+    ipcRenderer.on('session:events', onEvents)
     ipcRenderer.on('session:raw', onRaw)
     ipcRenderer.on('session:renamed', onRenamed)
     ipcRenderer.on('session:updated', onUpdated)
@@ -145,6 +155,7 @@ const api = {
       ipcRenderer.off('session:created', onCreated)
       ipcRenderer.off('session:status', onStatus)
       ipcRenderer.off('session:messages', onMessages)
+      ipcRenderer.off('session:events', onEvents)
       ipcRenderer.off('session:raw', onRaw)
       ipcRenderer.off('session:renamed', onRenamed)
       ipcRenderer.off('session:updated', onUpdated)

@@ -1,11 +1,12 @@
 /// <reference types="vite/client" />
 
-import type { Session, ChatMessage } from '../../../types'
+import type { Session, ChatMessage, SessionRunEventRecord } from '../../../types'
 
 export type PetSessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
   | { type: 'messages'; id: string; messages: ChatMessage[] }
+  | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'renamed'; id: string; name: string }
   | { type: 'needsInput'; id: string }
 
@@ -42,6 +43,12 @@ declare global {
   interface Window {
     petApi: {
       onSessionEvent: (cb: (event: PetSessionEvent) => void) => () => void
+      sessions: {
+        sendMessage: (sessionId: string, prompt: string) => Promise<void>
+        grantAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
+        answerUserInput: (sessionId: string, answer: string) => Promise<void>
+        denyPermission: (sessionId: string) => Promise<void>
+      }
       pet: {
         getConfig: () => Promise<PetConfig>
         selectPet: (id: string) => Promise<void>

@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Project, Session, ChatMessage, FileChange, ProviderRuntimeInfo } from '../../types'
+import type { Project, Session, ChatMessage, FileChange, ProviderDiagnosticInfo, ProviderRuntimeInfo, SessionRunEventRecord } from '../../types'
 
 export interface AppSettings {
   defaultProvider: string
@@ -14,6 +14,7 @@ export type SessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
   | { type: 'messages'; id: string; messages: ChatMessage[] }
+  | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
   | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
@@ -50,12 +51,15 @@ declare global {
         getDiffForFile: (sessionId: string, filePath: string) => Promise<string>
         writeToPty: (sessionId: string, data: string) => Promise<void>
         grantAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
+        answerUserInput: (sessionId: string, answer: string) => Promise<void>
+        denyPermission: (sessionId: string) => Promise<void>
       }
       git: {
         isGitRepo: (dir: string) => Promise<boolean>
       }
       providers: {
         getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>
+        getDiagnostics: () => Promise<Record<string, ProviderDiagnosticInfo>>
       }
       settings: {
         get: () => Promise<AppSettings>

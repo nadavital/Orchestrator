@@ -39,7 +39,14 @@ export interface ProviderDef {
   supportsEffort: boolean
   effortLevels: Array<{ id: string; label: string }>
   supportsResume: boolean
-  permissionModes: Array<{ id: string; label: string; desc: string }>
+  permissionModes: ProviderPermissionMode[]
+}
+
+export interface ProviderPermissionMode {
+  id: string
+  label: string
+  desc: string
+  intent?: PermissionIntent
 }
 
 export const PROVIDER_DEFS: Record<string, ProviderDef> = {
@@ -63,10 +70,10 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     ],
     supportsResume: true,
     permissionModes: [
-      { id: 'default', label: 'Default', desc: 'Ask for permission' },
-      { id: 'acceptEdits', label: 'Accept Edits', desc: 'Auto-accept file edits' },
-      { id: 'plan', label: 'Plan only', desc: 'Plan without executing' },
-      { id: 'bypassPermissions', label: 'Auto', desc: 'Skip all permission prompts' }
+      { id: 'default', label: 'Ask', desc: 'Ask before tools', intent: 'ask' },
+      { id: 'acceptEdits', label: 'Accept Edits', desc: 'Accept file edits', intent: 'autoEdit' },
+      { id: 'plan', label: 'Plan', desc: 'Plan without changes', intent: 'plan' },
+      { id: 'bypassPermissions', label: 'Auto', desc: 'Skip prompts', intent: 'bypass' }
     ]
   },
   copilot: {
@@ -112,9 +119,9 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     ],
     supportsResume: true,
     permissionModes: [
-      { id: 'default', label: 'Programmatic', desc: 'Auto-allow all tools for prompt mode' },
-      { id: 'allowEdits', label: 'Auto Tools', desc: 'Also auto-allows tools in prompt mode' },
-      { id: 'yolo', label: 'Auto', desc: 'Allow all tools' }
+      { id: 'default', label: 'Prompt', desc: 'Prompt mode', intent: 'ask' },
+      { id: 'allowEdits', label: 'Tools', desc: 'Allow tools', intent: 'autoEdit' },
+      { id: 'yolo', label: 'Auto', desc: 'Allow everything', intent: 'bypass' }
     ]
   },
   codex: {
@@ -141,9 +148,9 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     ],
     supportsResume: true,
     permissionModes: [
-      { id: 'default', label: 'Workspace', desc: 'Write within workspace' },
-      { id: 'fullAccess', label: 'Full Access', desc: 'Full system access' },
-      { id: 'yolo', label: 'Auto', desc: 'Bypass all approvals' }
+      { id: 'default', label: 'Workspace', desc: 'Write within workspace', intent: 'workspaceSandbox' },
+      { id: 'fullAccess', label: 'Full Access', desc: 'Full filesystem', intent: 'fullAccess' },
+      { id: 'yolo', label: 'Auto', desc: 'Bypass prompts', intent: 'bypass' }
     ]
   },
   cursor: {
@@ -309,9 +316,9 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     effortLevels: [],
     supportsResume: true,
     permissionModes: [
-      { id: 'default', label: 'Default', desc: 'Apply changes (--force)' },
-      { id: 'sandbox', label: 'Sandbox', desc: 'Request Cursor sandbox mode' },
-      { id: 'yolo', label: 'Auto', desc: 'Bypass all approvals' }
+      { id: 'default', label: 'Ask', desc: 'Ask mode', intent: 'ask' },
+      { id: 'sandbox', label: 'Sandbox', desc: 'Sandbox mode', intent: 'workspaceSandbox' },
+      { id: 'yolo', label: 'Auto', desc: 'Skip prompts', intent: 'bypass' }
     ]
   }
 }
@@ -374,6 +381,33 @@ export interface ResolvedExecutionPolicy {
   label: string
   description: string
   warning?: string
+  intent?: PermissionIntent
+  interaction?: PermissionInteraction
+  controls?: PermissionRuntimeControl[]
+}
+
+export type PermissionIntent =
+  | 'ask'
+  | 'plan'
+  | 'autoEdit'
+  | 'workspaceSandbox'
+  | 'fullAccess'
+  | 'bypass'
+  | 'custom'
+
+export type PermissionInteraction =
+  | 'structured'
+  | 'pty'
+  | 'headless'
+  | 'config'
+  | 'none'
+
+export interface PermissionRuntimeControl {
+  kind: 'tool' | 'path' | 'url' | 'sandbox' | 'config' | 'mode' | 'mcp'
+  label: string
+  description: string
+  support: 'available' | 'planned' | 'not-supported'
+  examples?: string[]
 }
 
 export interface ProviderRuntimeInfo {
@@ -381,6 +415,36 @@ export interface ProviderRuntimeInfo {
   capabilities: ProviderCapabilities
   abstractCapabilities: ProviderCapability[]
   policies: Record<string, ResolvedExecutionPolicy>
+}
+
+export interface ProviderDiagnosticInfo {
+  id: string
+  binary: {
+    status: 'found' | 'missing'
+    path?: string
+  }
+  version: {
+    status: 'ok' | 'error' | 'unknown'
+    value?: string
+    message?: string
+  }
+  auth: {
+    status: 'ok' | 'error' | 'unknown'
+    message: string
+  }
+  models: {
+    status: 'configured' | 'available' | 'empty' | 'unknown'
+    count: number
+    message: string
+  }
+  usage: {
+    status: 'available' | 'unavailable' | 'unknown'
+    message: string
+  }
+  liveSmoke: {
+    status: 'not-run' | 'passed' | 'failed'
+    message: string
+  }
 }
 
 export interface RunRequest {
@@ -401,8 +465,22 @@ export type RunEvent =
   | { type: 'tool.started'; id: string; toolName: string; toolInput: Record<string, unknown> }
   | { type: 'tool.completed'; id: string; toolUseId: string; content: string; isError: boolean }
   | { type: 'permission.requested'; denials: PermissionDenial[]; content?: string }
+  | { type: 'user_input.requested'; content: string; questions?: UserInputQuestion[] }
+  | { type: 'connection.reconnecting'; attempt?: number; content?: string }
+  | { type: 'connection.retrying'; attempt?: number; content?: string }
   | { type: 'run.completed'; content?: string }
   | { type: 'run.failed'; content?: string }
+
+export type SessionStatus =
+  | 'idle'
+  | 'running'
+  | 'waiting_for_permission'
+  | 'waiting_for_user'
+  | 'reconnecting'
+  | 'auth_error'
+  | 'model_error'
+  | 'provider_error'
+  | 'error'
 
 export interface Session {
   id: string
@@ -413,7 +491,7 @@ export interface Session {
   repoRoot?: string
   providerSessionId: string | null
   claudeSessionId?: string | null
-  status: 'idle' | 'running' | 'error'
+  status: SessionStatus
   messages: ChatMessage[]
   createdAt: number
   provider: string
@@ -423,6 +501,12 @@ export interface Session {
   allowedTools: string[]
   useThinking?: boolean
   useFast?: boolean
+}
+
+export interface SessionRunEventRecord {
+  id: string
+  timestamp: number
+  event: RunEvent
 }
 
 export interface FileChange {
@@ -470,12 +554,25 @@ export interface PermissionDenial {
   tool_input: Record<string, unknown>
 }
 
+export interface UserInputOption {
+  label: string
+  description?: string
+}
+
+export interface UserInputQuestion {
+  question: string
+  header?: string
+  options?: UserInputOption[]
+  multiSelect?: boolean
+}
+
 export interface ResultMessage extends BaseMessage {
   role: 'system'
   type: 'result'
   content: string
   subtype: 'success' | 'error_during_execution' | string
   permissionDenials?: PermissionDenial[]
+  userInputQuestions?: UserInputQuestion[]
 }
 
 export interface ClaudeStreamEvent {

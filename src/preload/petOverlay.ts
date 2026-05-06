@@ -1,10 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Session, ChatMessage } from '../types'
+import type { Session, ChatMessage, SessionRunEventRecord } from '../types'
 
 export type PetSessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
   | { type: 'messages'; id: string; messages: ChatMessage[] }
+  | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'renamed'; id: string; name: string }
   | { type: 'needsInput'; id: string }
 
@@ -16,6 +17,8 @@ const petApi = {
       cb({ type: 'status', ...p })
     const onMessages = (_: Electron.IpcRendererEvent, p: { id: string; messages: ChatMessage[] }): void =>
       cb({ type: 'messages', ...p })
+    const onEvents = (_: Electron.IpcRendererEvent, p: { id: string; events: SessionRunEventRecord[] }): void =>
+      cb({ type: 'events', ...p })
     const onRenamed = (_: Electron.IpcRendererEvent, p: { id: string; name: string }): void =>
       cb({ type: 'renamed', ...p })
     const onNeedsInput = (_: Electron.IpcRendererEvent, p: { id: string }): void =>
@@ -24,6 +27,7 @@ const petApi = {
     ipcRenderer.on('session:created', onCreated)
     ipcRenderer.on('session:status', onStatus)
     ipcRenderer.on('session:messages', onMessages)
+    ipcRenderer.on('session:events', onEvents)
     ipcRenderer.on('session:renamed', onRenamed)
     ipcRenderer.on('session:needsInput', onNeedsInput)
 
@@ -31,9 +35,21 @@ const petApi = {
       ipcRenderer.off('session:created', onCreated)
       ipcRenderer.off('session:status', onStatus)
       ipcRenderer.off('session:messages', onMessages)
+      ipcRenderer.off('session:events', onEvents)
       ipcRenderer.off('session:renamed', onRenamed)
       ipcRenderer.off('session:needsInput', onNeedsInput)
     }
+  },
+
+  sessions: {
+    sendMessage: (sessionId: string, prompt: string): Promise<void> =>
+      ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt),
+    grantAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
+      ipcRenderer.invoke('sessions:grantAndResume', sessionId, toolNames),
+    answerUserInput: (sessionId: string, answer: string): Promise<void> =>
+      ipcRenderer.invoke('sessions:answerUserInput', sessionId, answer),
+    denyPermission: (sessionId: string): Promise<void> =>
+      ipcRenderer.invoke('sessions:denyPermission', sessionId),
   },
 
   pet: {

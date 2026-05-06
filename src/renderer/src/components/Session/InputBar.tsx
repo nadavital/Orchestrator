@@ -155,13 +155,13 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     textareaRef.current?.focus()
   }
 
-  // Combined agent pill label: "Provider · Model · Effort [· Thinking] [· Fast]"
+  // Compact agent pill label: "Provider · Model [· Effort]"
   const agentLabel = [
-    provider.name,
+    providerShortName(provider.id),
     modelLabel,
     provider.supportsEffort && effortLabel ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
-    provider.id === 'cursor' && useThinking ? 'Thinking' : null,
+    provider.id === 'cursor' && useThinking ? 'Think' : null,
     provider.id === 'cursor' && useFast ? 'Fast' : null,
   ].filter(Boolean).join(' · ')
 
@@ -199,7 +199,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
             value={text}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder={isNew ? 'What do you want to build?' : 'Message… (↵ to send, ⇧↵ for new line)'}
+            placeholder={isNew ? 'What do you want to build?' : 'Message…'}
             rows={1}
             autoFocus={isNew}
             className="flex-1 resize-none bg-transparent outline-none text-sm"
@@ -234,7 +234,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
               </ToolbarBtn>
 
               {showModeMenu && (
-                <DropdownPanel style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 210 }}>
+                <DropdownPanel style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 160 }}>
                   {(['local', 'worktree'] as const).map((mode) => {
                     const active = mode === 'worktree' ? useWorktree : !useWorktree
                     return (
@@ -245,9 +245,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                       >
                         <div className="text-xs font-medium" style={{ color: active ? 'var(--color-accent)' : 'var(--color-text)' }}>
                           {mode === 'local' ? 'Local' : 'New branch'}
-                        </div>
-                        <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-                          {mode === 'local' ? 'Run directly in project folder' : 'Isolated git worktree branch'}
                         </div>
                       </DropdownRow>
                     )
@@ -374,41 +371,42 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           {/* Permission mode picker — always shown */}
           <div className="relative" ref={permMenuRef}>
             <ToolbarBtn active={permissionMode !== 'default'} onClick={() => setShowPermMenu((v) => !v)}>
+              <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
               {permLabel}
-              {resolvedPermission && resolvedPermission.support !== 'exact' && (
-                <PolicyBadge policy={resolvedPermission} compact />
-              )}
+              {resolvedPermission?.support === 'unsupported' && <PolicyBadge policy={resolvedPermission} compact />}
               <Chevron />
             </ToolbarBtn>
             {showPermMenu && (
-              <DropdownPanel style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 250 }}>
-                {provider.permissionModes.map((opt) => {
-                  const resolved = providerRuntime?.policies[opt.id]
-                  const unsupported = resolved?.support === 'unsupported'
-                  return (
-                    <DropdownRow
-                      key={opt.id}
-                      active={permissionMode === opt.id}
-                      disabled={unsupported}
-                      onClick={() => { update({ permissionMode: opt.id }); setShowPermMenu(false) }}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <div className="text-xs" style={{ color: permissionMode === opt.id ? 'var(--color-accent)' : 'var(--color-text)' }}>
-                          {opt.label}
-                        </div>
-                        {resolved && resolved.support !== 'exact' && <PolicyBadge policy={resolved} />}
-                      </div>
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 10, lineHeight: 1.35 }}>
-                        {resolved?.description ?? opt.desc}
-                      </div>
-                      {resolved?.warning && (
-                        <div className="text-xs mt-1" style={{ color: 'var(--color-yellow)', fontSize: 10, lineHeight: 1.35 }}>
-                          {resolved.warning}
-                        </div>
-                      )}
-                    </DropdownRow>
-                  )
-                })}
+              <DropdownPanel style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 190 }}>
+                <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                  <div className="flex items-center gap-2">
+                    <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
+                    <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+                      {providerShortName(provider.id)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 px-3 py-2">
+                  {provider.permissionModes.map((opt) => {
+                    const resolved = providerRuntime?.policies[opt.id]
+                    const unsupported = resolved?.support === 'unsupported'
+                    return (
+                      <Chip
+                        key={opt.id}
+                        active={permissionMode === opt.id}
+                        disabled={unsupported}
+                        onClick={() => {
+                          if (!unsupported) update({ permissionMode: opt.id })
+                        }}
+                        title={unsupported ? 'Unsupported by this runtime' : opt.desc}
+                        activeColor={provider.color}
+                      >
+                        {opt.label}
+                      </Chip>
+                    )
+                  })}
+                </div>
               </DropdownPanel>
             )}
           </div>
@@ -449,10 +447,9 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
         </div>
       </div>
 
-      {isNew && (
+      {isNew && effectiveMode && (
         <div className="text-center mt-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          ↵ to send · ⇧↵ for new line · / for commands
-          {effectiveMode ? ' · isolated branch' : ''}
+          New branch
         </div>
       )}
     </div>
@@ -564,13 +561,17 @@ function PolicyBadge({
       ? 'var(--color-red)'
       : policy.support === 'forced'
         ? 'var(--color-yellow)'
-        : 'var(--color-text-muted)'
+        : policy.warning
+          ? 'var(--color-yellow)'
+          : 'var(--color-text-muted)'
   const label =
     policy.support === 'unsupported'
       ? 'Unsupported'
       : policy.support === 'forced'
         ? 'Forced'
-        : 'Approx'
+        : policy.warning
+          ? 'Note'
+          : 'Approx'
 
   return (
     <span
@@ -604,6 +605,16 @@ function TieredRow({ label, children }: { label: string; children: React.ReactNo
       </div>
     </div>
   )
+}
+
+function providerShortName(providerId: string): string {
+  const names: Record<string, string> = {
+    claude: 'Claude',
+    codex: 'Codex',
+    copilot: 'Copilot',
+    cursor: 'Cursor'
+  }
+  return names[providerId] ?? providerId
 }
 
 function Chip({

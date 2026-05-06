@@ -42,6 +42,16 @@ export function eventsToMessages(events: RunEvent[]): ChatMessage[] {
         timestamp: Date.now(),
         permissionDenials: event.denials
       })
+    } else if (event.type === 'user_input.requested') {
+      messages.push({
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: event.content,
+        subtype: 'waiting_for_user',
+        timestamp: Date.now(),
+        userInputQuestions: event.questions
+      })
     } else if (event.type === 'run.completed') {
       messages.push({
         id: uuidv4(),

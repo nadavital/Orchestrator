@@ -2,6 +2,7 @@ import { BrowserWindow, screen, dialog, app } from 'electron'
 import { isAbsolute, join, normalize } from 'path'
 import { readFileSync, mkdirSync, existsSync, readdirSync, cpSync, rmSync, writeFileSync } from 'fs'
 import { execFileSync } from 'child_process'
+import { extractFile, listPackage } from '@electron/asar'
 import { is } from '@electron-toolkit/utils'
 import { settingsStore } from './settings'
 import { sessionManager } from './sessions'
@@ -163,24 +164,53 @@ function slugifyPetId(id: string): string {
   return slug || 'custom'
 }
 
-function codexAssetDirs(): string[] {
+function codexAppAsarPaths(): string[] {
   return [
-    '/Applications/Codex.app/Contents/Resources/app.asar/webview/assets',
-    join(app.getPath('home'), 'Applications/Codex.app/Contents/Resources/app.asar/webview/assets'),
+    '/Applications/Codex.app/Contents/Resources/app.asar',
+    join(app.getPath('home'), 'Applications/Codex.app/Contents/Resources/app.asar'),
   ]
 }
 
-function codexSpritesheetEntries(): Array<{ id: string; fileName: string; sourcePath: string }> {
-  const entries: Array<{ id: string; fileName: string; sourcePath: string }> = []
+function codexAssetDirs(): string[] {
+  return [
+    '/Applications/Codex.app/Contents/Resources/app.asar.unpacked/webview/assets',
+    join(app.getPath('home'), 'Applications/Codex.app/Contents/Resources/app.asar.unpacked/webview/assets'),
+  ]
+}
+
+interface CodexSpritesheetEntry {
+  id: string
+  fileName: string
+  read: () => Buffer
+}
+
+export function codexSpritesheetEntries(): CodexSpritesheetEntry[] {
+  const entries: CodexSpritesheetEntry[] = []
+  for (const asarPath of codexAppAsarPaths()) {
+    if (!existsSync(asarPath)) continue
+    for (const packagePath of listPackage(asarPath, { isPack: false })) {
+      const fileName = packagePath.split('/').pop() ?? ''
+      const match = /^(.+)-spritesheet-v4-[^.]+\.webp$/.exec(fileName)
+      if (!match || !packagePath.startsWith('/webview/assets/')) continue
+      entries.push({
+        id: match[1],
+        fileName,
+        read: () => extractFile(asarPath, packagePath.replace(/^\//, '')),
+      })
+    }
+    if (entries.length > 0) return entries
+  }
+
   for (const dir of codexAssetDirs()) {
     if (!existsSync(dir)) continue
     for (const fileName of readdirSync(dir)) {
       const match = /^(.+)-spritesheet-v4-[^.]+\.webp$/.exec(fileName)
       if (!match) continue
+      const sourcePath = join(dir, fileName)
       entries.push({
         id: match[1],
         fileName,
-        sourcePath: join(dir, fileName),
+        read: () => readFileSync(sourcePath),
       })
     }
     if (entries.length > 0) return entries
@@ -567,7 +597,7 @@ export const petOverlayManager = {
       assertSafeManifest(manifest)
       const destDir = join(userPetsDir(), id)
       mkdirSync(destDir, { recursive: true })
-      writeFileSync(join(destDir, 'spritesheet.webp'), readFileSync(entry.sourcePath))
+      writeFileSync(join(destDir, 'spritesheet.webp'), entry.read())
       writeFileSync(join(destDir, 'pet.json'), `${JSON.stringify(manifest, null, 2)}\n`)
       pets.push(manifest)
     }

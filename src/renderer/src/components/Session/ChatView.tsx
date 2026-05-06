@@ -3,8 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import type { Components } from 'react-markdown'
-import type { Session, ChatMessage, ResultMessage, PermissionDenial } from '../../types'
-import ToolCallCard from '../shared/ToolCallCard'
+import type { Session, ChatMessage, ResultMessage, PermissionDenial, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
 
 interface Props {
   session: Session
@@ -21,6 +20,7 @@ const SUGGESTED_PROMPTS = [
 
 export default function ChatView({ session, projectName, onSuggestedPrompt }: Props): JSX.Element {
   const bottomRef = useRef<HTMLDivElement>(null)
+  const transcriptItems = groupTranscriptMessages(session.messages)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -67,13 +67,46 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ userSelect: 'text' }}>
-      {session.messages.map((msg) => (
-        <MessageRow key={msg.id} msg={msg} sessionId={session.id} />
+      {transcriptItems.map((item) => (
+        item.type === 'tool_group'
+          ? <ToolActivitySummary key={item.id} messages={item.messages} />
+          : <MessageRow key={item.message.id} msg={item.message} sessionId={session.id} />
       ))}
       {session.status === 'running' && <ThinkingIndicator />}
       <div ref={bottomRef} />
     </div>
   )
+}
+
+type TranscriptItem =
+  | { type: 'message'; message: ChatMessage }
+  | { type: 'tool_group'; id: string; messages: Array<ToolUseMessage | ToolResultMessage> }
+
+function groupTranscriptMessages(messages: ChatMessage[]): TranscriptItem[] {
+  const items: TranscriptItem[] = []
+  let pendingTools: Array<ToolUseMessage | ToolResultMessage> = []
+
+  const flushTools = (): void => {
+    if (pendingTools.length === 0) return
+    items.push({
+      type: 'tool_group',
+      id: `tools-${pendingTools[0].id}-${pendingTools[pendingTools.length - 1].id}`,
+      messages: pendingTools
+    })
+    pendingTools = []
+  }
+
+  for (const message of messages) {
+    if (message.type === 'tool_use' || message.type === 'tool_result') {
+      pendingTools.push(message)
+      continue
+    }
+    flushTools()
+    items.push({ type: 'message', message })
+  }
+  flushTools()
+
+  return items
 }
 
 function CopyButton({ getText }: { getText: () => string }): JSX.Element {
@@ -93,26 +126,26 @@ function CopyButton({ getText }: { getText: () => string }): JSX.Element {
   return (
     <button
       onClick={handleCopy}
-      title="Copy"
-      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-opacity"
+      title={copied ? 'Copied' : 'Copy'}
+      aria-label={copied ? 'Copied' : 'Copy'}
+      className="inline-flex h-6 w-6 items-center justify-center rounded-md transition-opacity hover:opacity-100 focus-visible:opacity-100"
       style={{
-        background: 'var(--color-surface)',
+        background: 'transparent',
         color: copied ? 'var(--color-green)' : 'var(--color-text-muted)',
-        border: '1px solid var(--color-border)',
-        opacity: 0.9
+        border: 'none',
+        opacity: copied ? 1 : 0.55
       }}
     >
       {copied ? (
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
           <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
         </svg>
       ) : (
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
           <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z" />
           <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z" />
         </svg>
       )}
-      {copied ? 'Copied' : 'Copy'}
     </button>
   )
 }
@@ -252,8 +285,6 @@ const assistantComponents = makeMarkdownComponents(false)
 const userComponents = makeMarkdownComponents(true)
 
 function MessageRow({ msg, sessionId }: { msg: ChatMessage; sessionId: string }): JSX.Element | null {
-  const [hovered, setHovered] = useState(false)
-
   if (msg.type === 'text') {
     const isUser = msg.role === 'user'
     const isSystem = msg.role === 'system'
@@ -273,22 +304,12 @@ function MessageRow({ msg, sessionId }: { msg: ChatMessage; sessionId: string })
     return (
       <div
         className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
       >
-        {!isUser && (
+        <div style={{ maxWidth: isUser ? '80%' : 'min(760px, 100%)', width: isUser ? 'auto' : '100%', position: 'relative' }}>
           <div
-            className="shrink-0 rounded-full mr-2 mt-1 flex items-center justify-center font-bold"
-            style={{ width: 22, height: 22, background: 'var(--color-accent)', color: '#fff', fontSize: 9 }}
-          >
-            C
-          </div>
-        )}
-        <div style={{ maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 4 }}>
-          <div
-            className="rounded-2xl px-4 py-2.5 text-sm break-words"
+            className={`text-sm break-words ${isUser ? 'rounded-2xl px-4 py-2.5 pr-9' : 'pr-8 py-1'}`}
             style={{
-              background: isUser ? 'var(--color-accent)' : 'var(--color-surface2)',
+              background: isUser ? 'var(--color-accent)' : 'transparent',
               color: isUser ? '#fff' : 'var(--color-text)'
             }}
           >
@@ -300,48 +321,24 @@ function MessageRow({ msg, sessionId }: { msg: ChatMessage; sessionId: string })
               {content}
             </ReactMarkdown>
           </div>
-          {hovered && (
+          <div
+            style={{
+              position: 'absolute',
+              top: isUser ? 6 : 2,
+              right: isUser ? 6 : 0
+            }}
+          >
             <CopyButton getText={() => content} />
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  if (msg.type === 'tool_use') {
-    return <ToolCallCard msg={msg} />
-  }
-
-  if (msg.type === 'tool_result') {
-    const content = msg.content.slice(0, 2000)
-    const truncated = msg.content.length > 2000
-    return (
-      <div className="flex justify-start pl-8">
-        <div
-          className="max-w-[80%] rounded-xl px-3 py-2 text-xs font-mono"
-          style={{
-            background: msg.isError ? '#2d1a1a' : 'var(--color-surface2)',
-            color: msg.isError ? 'var(--color-red)' : 'var(--color-text-muted)',
-            border: `1px solid ${msg.isError ? 'var(--color-red)' : 'var(--color-border)'}`,
-            maxHeight: 200,
-            overflow: 'auto'
-          }}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              {msg.isError ? '✗ Error' : '✓ Result'}
-            </span>
-            <CopyButton getText={() => msg.content} />
           </div>
-          <pre className="whitespace-pre-wrap break-all">
-            {content}{truncated ? '\n…(truncated)' : ''}
-          </pre>
         </div>
       </div>
     )
   }
 
   if (msg.type === 'result') {
+    if (msg.subtype === 'waiting_for_user') {
+      return <UserInputCard msg={msg} sessionId={sessionId} />
+    }
     if (msg.permissionDenials && msg.permissionDenials.length > 0) {
       return <PermissionCard msg={msg} sessionId={sessionId} />
     }
@@ -361,6 +358,142 @@ function MessageRow({ msg, sessionId }: { msg: ChatMessage; sessionId: string })
   return null
 }
 
+interface ToolActivity {
+  tool: ToolUseMessage
+  result?: ToolResultMessage
+}
+
+function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | ToolResultMessage> }): JSX.Element {
+  const [expanded, setExpanded] = useState(false)
+  const activities = pairToolActivities(messages)
+  const orphanResults = messages.filter((message): message is ToolResultMessage => message.type === 'tool_result' && !activities.some((activity) => activity.result?.id === message.id))
+  const hasErrors = activities.some((activity) => activity.result?.isError) || orphanResults.some((result) => result.isError)
+  const summary = summarizeToolActivities(activities, orphanResults)
+
+  return (
+    <div className="flex justify-start">
+      <div className="w-full" style={{ maxWidth: 'min(760px, 100%)' }}>
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-xs transition-colors"
+          onClick={() => setExpanded((value) => !value)}
+          style={{ color: hasErrors ? 'var(--color-red)' : 'var(--color-text-muted)' }}
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="currentColor"
+            className="shrink-0 transition-transform"
+            style={{ transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+          >
+            <path d="M5 7 L1 3 L9 3 Z" />
+          </svg>
+          <span className="truncate">{summary}</span>
+        </button>
+        {expanded && (
+          <div
+            className="space-y-1 pl-5 pr-1 pb-1 text-xs"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            {activities.map((activity) => (
+              <div key={activity.tool.id} className="flex items-start gap-2">
+                <span style={{ color: activity.result?.isError ? 'var(--color-red)' : 'var(--color-text-muted)' }}>
+                  {activity.result?.isError ? 'Error' : 'Done'}
+                </span>
+                <span className="min-w-0 flex-1 truncate" title={describeToolActivity(activity.tool)}>
+                  {describeToolActivity(activity.tool)}
+                </span>
+              </div>
+            ))}
+            {orphanResults.map((result) => (
+              <div key={result.id} className="flex items-start gap-2">
+                <span style={{ color: result.isError ? 'var(--color-red)' : 'var(--color-text-muted)' }}>
+                  {result.isError ? 'Error' : 'Done'}
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  Tool result
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function pairToolActivities(messages: Array<ToolUseMessage | ToolResultMessage>): ToolActivity[] {
+  const resultsByToolId = new Map<string, ToolResultMessage>()
+  const tools: ToolUseMessage[] = []
+
+  for (const message of messages) {
+    if (message.type === 'tool_use') {
+      tools.push(message)
+    } else {
+      resultsByToolId.set(message.toolUseId, message)
+    }
+  }
+
+  return tools.map((tool) => ({ tool, result: resultsByToolId.get(tool.id) }))
+}
+
+function summarizeToolActivities(activities: ToolActivity[], orphanResults: ToolResultMessage[]): string {
+  const counts = new Map<string, number>()
+  for (const activity of activities) {
+    const label = toolSummaryLabel(activity.tool)
+    counts.set(label, (counts.get(label) ?? 0) + 1)
+  }
+  if (orphanResults.length > 0 && counts.size === 0) {
+    counts.set('Received', orphanResults.length)
+  }
+  const parts = [...counts.entries()].map(([label, count]) => `${label} ${count} ${pluralizeToolUnit(toolSummaryUnit(label), count)}`)
+  const errorCount = activities.filter((activity) => activity.result?.isError).length + orphanResults.filter((result) => result.isError).length
+  return `${parts.join(' · ')}${errorCount > 0 ? ` · ${errorCount} error${errorCount === 1 ? '' : 's'}` : ''}`
+}
+
+function toolSummaryLabel(tool: ToolUseMessage): string {
+  const name = tool.toolName.toLowerCase()
+  if (name.includes('read')) return 'Read'
+  if (name.includes('write')) return 'Wrote'
+  if (name.includes('edit')) return 'Edited'
+  if (name.includes('bash') || name.includes('shell') || name.includes('command')) return 'Ran'
+  if (name.includes('grep') || name.includes('search')) return 'Searched'
+  if (name.includes('glob') || name.includes('list')) return 'Listed'
+  if (name.includes('web')) return 'Browsed'
+  return 'Used'
+}
+
+function toolSummaryUnit(label: string): string {
+  if (label === 'Read' || label === 'Wrote' || label === 'Edited') return 'file'
+  if (label === 'Ran') return 'command'
+  if (label === 'Searched') return 'query'
+  if (label === 'Listed') return 'listing'
+  if (label === 'Browsed') return 'page'
+  if (label === 'Received') return 'result'
+  return 'tool'
+}
+
+function pluralizeToolUnit(unit: string, count: number): string {
+  if (count === 1) return unit
+  if (unit === 'query') return 'queries'
+  return `${unit}s`
+}
+
+function describeToolActivity(tool: ToolUseMessage): string {
+  const target = toolTarget(tool.toolInput)
+  return target ? `${tool.toolName} ${target}` : tool.toolName
+}
+
+function toolTarget(input: Record<string, unknown>): string {
+  const keys = ['file_path', 'path', 'pattern', 'query', 'command', 'cmd', 'url']
+  for (const key of keys) {
+    const value = input[key]
+    if (typeof value === 'string' && value.trim()) return value.replace(/\s+/g, ' ').slice(0, 160)
+  }
+  return ''
+}
+
 function describeDenial(denial: PermissionDenial): string {
   const { tool_name, tool_input } = denial
   if (tool_name === 'Write' || tool_name === 'Edit' || tool_name === 'Read' || tool_name === 'MultiEdit') {
@@ -374,6 +507,132 @@ function describeDenial(denial: PermissionDenial): string {
   return tool_name
 }
 
+function UserInputCard({ msg, sessionId }: { msg: ResultMessage; sessionId: string }): JSX.Element {
+  const [answer, setAnswer] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+  const questions = msg.userInputQuestions?.length ? msg.userInputQuestions : [{ question: msg.content }]
+
+  const submitAnswer = async (value: string): Promise<void> => {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    setSubmitted(true)
+    await window.api.sessions.answerUserInput(sessionId, trimmed)
+  }
+
+  return (
+    <div className="flex justify-center my-1">
+      <div
+        className="rounded-xl px-4 py-3 w-full"
+        style={{
+          maxWidth: 560,
+          background: 'var(--color-surface2)',
+          border: '1px solid var(--color-border)'
+        }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ color: 'var(--color-yellow)', flexShrink: 0 }}>
+            <path d="M8 1.5A6.5 6.5 0 1 0 8 14.5 6.5 6.5 0 0 0 8 1.5ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm7.25 4.25a.75.75 0 0 1 1.5 0v.01a.75.75 0 0 1-1.5 0v-.01ZM6.5 5.75A1.5 1.5 0 0 1 8 4.25c.828 0 1.5.67 1.5 1.49 0 .54-.277.86-.897 1.296l-.335.23C7.55 7.76 7.25 8.29 7.25 9.25a.75.75 0 0 0 1.5 0c0-.34.043-.427.367-.65l.35-.24C10.101 7.914 11 7.28 11 5.74a3 3 0 0 0-6 .01.75.75 0 0 0 1.5 0Z" />
+          </svg>
+          <span className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+            Answer Required
+          </span>
+        </div>
+        <div className="space-y-3">
+          {questions.map((question, index) => (
+            <QuestionBlock
+              key={`${question.question}-${index}`}
+              question={question}
+              disabled={submitted}
+              onAnswer={submitAnswer}
+            />
+          ))}
+        </div>
+        <form
+          className="mt-3 flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submitAnswer(answer)
+          }}
+        >
+          <input
+            value={answer}
+            disabled={submitted}
+            onChange={(event) => setAnswer(event.target.value)}
+            placeholder="Type an answer..."
+            className="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+            style={{
+              background: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              border: '1px solid var(--color-border)'
+            }}
+          />
+          <button
+            type="submit"
+            disabled={submitted || !answer.trim()}
+            className="rounded-lg px-4 py-2 text-xs font-medium transition-opacity disabled:opacity-50"
+            style={{ background: 'var(--color-accent)', color: '#fff' }}
+          >
+            Send
+          </button>
+        </form>
+        {submitted && (
+          <div className="mt-2 text-xs" style={{ color: 'var(--color-green)' }}>
+            Answer sent - resuming...
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function QuestionBlock({
+  question,
+  disabled,
+  onAnswer
+}: {
+  question: UserInputQuestion
+  disabled: boolean
+  onAnswer: (answer: string) => Promise<void>
+}): JSX.Element {
+  return (
+    <div>
+      {question.header && (
+        <div className="mb-1 text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+          {question.header}
+        </div>
+      )}
+      <div className="text-sm" style={{ color: 'var(--color-text)' }}>
+        {question.question}
+      </div>
+      {question.options && question.options.length > 0 && (
+        <div className="mt-2 grid gap-1.5">
+          {question.options.map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              disabled={disabled}
+              className="rounded-lg px-3 py-2 text-left transition-colors disabled:opacity-50"
+              style={{
+                background: 'var(--color-surface)',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border)'
+              }}
+              onClick={() => { void onAnswer(option.label) }}
+            >
+              <div className="text-sm">{option.label}</div>
+              {option.description && (
+                <div className="mt-0.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  {option.description}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PermissionCard({ msg, sessionId }: { msg: ResultMessage; sessionId: string }): JSX.Element {
   const [decision, setDecision] = useState<'pending' | 'allowed' | 'denied'>('pending')
   const denials = msg.permissionDenials ?? []
@@ -384,7 +643,10 @@ function PermissionCard({ msg, sessionId }: { msg: ResultMessage; sessionId: str
     await window.api.sessions.grantAndResume(sessionId, toolNames)
   }
 
-  const handleDeny = (): void => setDecision('denied')
+  const handleDeny = async (): Promise<void> => {
+    setDecision('denied')
+    await window.api.sessions.denyPermission(sessionId)
+  }
 
   return (
     <div className="flex justify-center my-1">

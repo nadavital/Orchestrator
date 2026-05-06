@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import type { Session, ChatMessage, SessionEffort, SessionPermissionMode } from '../types'
+import type { Session, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord } from '../types'
 
 interface SessionUIState {
   showDiff: boolean
+  showEvents: boolean
   showTerminal: boolean
   showSkills: boolean
   hasUnread: boolean
@@ -12,6 +13,7 @@ interface SessionState {
   sessions: Session[]
   activeSessionId: string | null
   rawBuffers: Record<string, string>
+  eventBuffers: Record<string, SessionRunEventRecord[]>
   uiState: Record<string, SessionUIState>
   providerAvailability: Record<string, boolean>
   providerModels: Record<string, string[]>
@@ -25,6 +27,7 @@ interface SessionState {
   updateSession: (id: string, patch: Partial<Session>) => void
   updateSettings: (id: string, patch: { provider?: string; model?: string; effort?: SessionEffort; permissionMode?: SessionPermissionMode; useThinking?: boolean; useFast?: boolean }) => void
   setShowDiff: (id: string, v: boolean) => void
+  setShowEvents: (id: string, v: boolean) => void
   setShowTerminal: (id: string, v: boolean) => void
   setShowSkills: (id: string, v: boolean) => void
   setHasUnread: (id: string, v: boolean) => void
@@ -32,15 +35,17 @@ interface SessionState {
   setProviderModels: (v: Record<string, string[]>) => void
   setShowSettings: (v: boolean) => void
   appendMessages: (id: string, messages: ChatMessage[]) => void
+  appendEvents: (id: string, events: SessionRunEventRecord[]) => void
   appendRaw: (id: string, data: string) => void
 }
 
-const defaultUI: SessionUIState = { showDiff: false, showTerminal: false, showSkills: false, hasUnread: false }
+const defaultUI: SessionUIState = { showDiff: false, showEvents: false, showTerminal: false, showSkills: false, hasUnread: false }
 
 export const useSessionStore = create<SessionState>((set) => ({
   sessions: [],
   activeSessionId: null,
   rawBuffers: {},
+  eventBuffers: {},
   uiState: {},
   providerAvailability: {},
   providerModels: {},
@@ -58,11 +63,13 @@ export const useSessionStore = create<SessionState>((set) => ({
   removeSession: (id) =>
     set((s) => {
       const { [id]: _raw, ...rawBuffers } = s.rawBuffers
+      const { [id]: _events, ...eventBuffers } = s.eventBuffers
       const { [id]: _ui, ...uiState } = s.uiState
       return {
         sessions: s.sessions.filter((x) => x.id !== id),
         activeSessionId: s.activeSessionId === id ? null : s.activeSessionId,
         rawBuffers,
+        eventBuffers,
         uiState
       }
     }),
@@ -100,6 +107,11 @@ export const useSessionStore = create<SessionState>((set) => ({
       uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), showDiff: v } }
     })),
 
+  setShowEvents: (id, v) =>
+    set((s) => ({
+      uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), showEvents: v } }
+    })),
+
   setShowTerminal: (id, v) =>
     set((s) => ({
       uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), showTerminal: v } }
@@ -126,6 +138,11 @@ export const useSessionStore = create<SessionState>((set) => ({
       sessions: s.sessions.map((x) =>
         x.id === id ? { ...x, messages: [...x.messages, ...messages] } : x
       )
+    })),
+
+  appendEvents: (id, events) =>
+    set((s) => ({
+      eventBuffers: { ...s.eventBuffers, [id]: [...(s.eventBuffers[id] ?? []), ...events].slice(-500) }
     })),
 
   appendRaw: (id, data) =>

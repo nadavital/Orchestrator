@@ -4,6 +4,27 @@
   "description": "Orchestrate multiple AI coding agent sessions simultaneously",
   "main": "./out/main/index.js",
   "build": {
+    "appId": "com.navital.orchestrator",
+    "productName": "Orchestrator",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "identity": null,
+      "target": [
+        "dir",
+        "dmg",
+        "zip"
+      ]
+    },
     "extraResources": [
       {
         "from": "resources/pets",
@@ -17,7 +38,12 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "pack:mac": "npm run build && electron-builder --mac dir",
+    "dist:mac": "npm run build && electron-builder --mac dmg zip",
     "test:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node --test out-test/src/main/__tests__/*.test.js",
+    "test:smoke-config": "node --test scripts/provider-smoke-config.test.mjs",
+    "smoke:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/provider-diagnostics.mjs",
+    "live:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/provider-live-smoke.mjs",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "echo 'Run npm run rebuild to build native modules'"
@@ -26,6 +52,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@electron/asar": "^3.4.1",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "electron-store": "^8.2.0",

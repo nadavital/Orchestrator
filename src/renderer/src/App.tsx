@@ -18,6 +18,7 @@ export default function App(): JSX.Element {
     updateSession,
     updateSettings,
     appendMessages,
+    appendEvents,
     appendRaw,
     setShowTerminal,
     setActiveSession,
@@ -119,6 +120,8 @@ export default function App(): JSX.Element {
         }
       } else if (event.type === 'messages') {
         appendMessages(event.id, event.messages)
+      } else if (event.type === 'events') {
+        appendEvents(event.id, event.events)
       } else if (event.type === 'raw') {
         appendRaw(event.id, event.data)
       } else if (event.type === 'renamed') {

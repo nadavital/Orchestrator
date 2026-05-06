@@ -279,7 +279,6 @@ export default function SkillsPanel({ provider, workDir, onClose }: Props): JSX.
           <AgentSectionView
             key={section.providerId}
             section={section}
-            sectionIdx={si}
             onUpdateFile={(fi, v) => updateFile(si, fi, v)}
             onSaveFile={(fi) => saveFile(si, fi)}
             onOpenDirFile={openDirFile}
@@ -293,10 +292,9 @@ export default function SkillsPanel({ provider, workDir, onClose }: Props): JSX.
 // ─── Agent section ───────────────────────────────────────────────────────────
 
 function AgentSectionView({
-  section, sectionIdx, onUpdateFile, onSaveFile, onOpenDirFile
+  section, onUpdateFile, onSaveFile, onOpenDirFile
 }: {
   section: AgentSection
-  sectionIdx: number
   onUpdateFile: (fi: number, v: string) => void
   onSaveFile: (fi: number) => void
   onOpenDirFile: (dirPath: string, fileName: string) => void
@@ -318,7 +316,6 @@ function AgentSectionView({
         <CommandsDirView
           key={dir.path}
           dir={dir}
-          accentColor={def?.color}
           onOpenFile={(name) => onOpenDirFile(dir.path, name)}
         />
       ))}
@@ -483,9 +480,8 @@ function FileEditor({ file, accentColor, onUpdate, onSave }: {
 
 // ─── Commands directory ───────────────────────────────────────────────────────
 
-function CommandsDirView({ dir, accentColor, onOpenFile }: {
+function CommandsDirView({ dir, onOpenFile }: {
   dir: CommandsDir
-  accentColor?: string
   onOpenFile: (name: string) => void
 }): JSX.Element {
   const [open, setOpen] = useState(false)

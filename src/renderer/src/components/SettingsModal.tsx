@@ -8,7 +8,7 @@ import {
   verticalListSortingStrategy, arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { PROVIDER_DEFS, getVisibleModels, type ProviderCapability, type ProviderRuntimeInfo } from '../types'
+import { PROVIDER_DEFS, getVisibleModels, type ProviderCapability, type ProviderDiagnosticInfo, type ProviderRuntimeInfo } from '../types'
 import { useSessionStore } from '../store/sessions'
 import ProviderIcon from './shared/ProviderIcon'
 import { applyAppearance, type Appearance } from '../theme'
@@ -27,6 +27,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
   const [defaultEfforts, setDefaultEfforts] = useState<Record<string, string>>({})
   const [providerModels, setProviderModels] = useState<Record<string, string[]>>({})
   const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
+  const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
   const [appearance, setAppearance] = useState<Appearance>('system')
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
       setAppearance((rec.appearance as Appearance) ?? 'system')
     })
     window.api.providers.getRuntimeInfo().then(setProviderRuntime)
+    window.api.providers.getDiagnostics().then(setProviderDiagnostics)
   }, [])
 
   const saveDefaultProvider = (id: string): void => {
@@ -130,6 +132,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
               defaultEfforts={defaultEfforts}
               providerModels={providerModels}
               providerRuntime={providerRuntime}
+              providerDiagnostics={providerDiagnostics}
               providerAvailability={providerAvailability}
               onSetDefaultProvider={saveDefaultProvider}
               onSetDefaultModel={saveDefaultModel}
@@ -217,13 +220,14 @@ function GeneralSection({
 
 function ProvidersSection({
   defaultProvider, defaultModels, defaultEfforts, providerModels,
-  providerRuntime, providerAvailability, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetProviderModels
+  providerRuntime, providerDiagnostics, providerAvailability, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetProviderModels
 }: {
   defaultProvider: string
   defaultModels: Record<string, string>
   defaultEfforts: Record<string, string>
   providerModels: Record<string, string[]>
   providerRuntime: Record<string, ProviderRuntimeInfo>
+  providerDiagnostics: Record<string, ProviderDiagnosticInfo>
   providerAvailability: Record<string, boolean>
   onSetDefaultProvider: (id: string) => void
   onSetDefaultModel: (providerId: string, modelId: string) => void
@@ -239,6 +243,7 @@ function ProvidersSection({
   const visibleModels = getVisibleModels(providerDef, providerModels)
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
+  const diagnostics = providerDiagnostics[selectedId]
 
   return (
     <div style={{ padding: '32px 40px', maxWidth: 700 }}>
@@ -284,28 +289,29 @@ function ProvidersSection({
           {installed ? 'Installed' : 'Not found'}
         </span>
         {!installed && <InstallCommand cmd={providerDef.installCmd} />}
-        {installed && providerDef.id !== 'claude' && (
-          <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)', opacity: 0.5 }}>
-            {providerDef.installCmd}
-          </span>
-        )}
       </div>
 
       {/* Claude endpoint */}
       {providerDef.id === 'claude' && (
-        <SettingGroup title="API Endpoint" description="Override the default Anthropic API endpoint.">
+        <SettingGroup title="API Endpoint">
           <ClaudeEndpointField color={providerDef.color} />
         </SettingGroup>
       )}
 
       {runtime && (
-        <SettingGroup title="Capabilities" description="What Orchestrator can currently abstract for this CLI.">
+        <SettingGroup title="Capabilities">
           <ProviderCapabilityChips capabilities={runtime.abstractCapabilities} color={providerDef.color} />
         </SettingGroup>
       )}
 
+      {diagnostics && (
+        <SettingGroup title="Diagnostics">
+          <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
+        </SettingGroup>
+      )}
+
       {/* Default provider toggle */}
-      <SettingGroup title="Default provider" description="Used when creating a new session.">
+      <SettingGroup title="Default provider">
         <button
           onClick={() => onSetDefaultProvider(selectedId)}
           style={{
@@ -322,7 +328,7 @@ function ProvidersSection({
       </SettingGroup>
 
       {/* Default model */}
-      <SettingGroup title={`Default model · ${providerDef.name}`} description="Pre-selected when creating a new session.">
+      <SettingGroup title={`Default model · ${providerShortName(providerDef.id)}`}>
         <DefaultModelPicker
           providerDef={providerDef}
           currentModel={currentModel}
@@ -332,7 +338,7 @@ function ProvidersSection({
 
       {/* Default effort */}
       {providerDef.supportsEffort && providerDef.effortLevels.length > 0 && (
-        <SettingGroup title={`Default thinking · ${providerDef.name}`} description="How much reasoning effort by default.">
+        <SettingGroup title={`Default thinking · ${providerShortName(providerDef.id)}`}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {providerDef.effortLevels.map((e) => {
               const active = currentEffort === e.id
@@ -357,8 +363,7 @@ function ProvidersSection({
 
       {/* Visible model list manager */}
       <SettingGroup
-        title={`Visible models · ${providerDef.name}`}
-        description="Models shown in the session picker. Drag to reorder."
+        title={`Visible models · ${providerShortName(providerDef.id)}`}
       >
         <ModelListManager
           providerDef={providerDef}
@@ -394,34 +399,34 @@ function DefaultModelPicker({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {providerDef.models.map((m) => {
-        const active = currentModel === m.id
-        return (
-          <button
-            key={m.id}
-            onClick={() => { onSetModel(m.id); setCustomInput('') }}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '10px 16px', borderRadius: 8,
-              background: active ? 'var(--color-surface2)' : 'var(--color-surface)',
-              border: `1px solid ${active ? providerDef.color : 'var(--color-border)'}`,
-              color: active ? providerDef.color : 'var(--color-text)',
-              cursor: 'pointer', textAlign: 'left'
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 500 }}>{m.label}</div>
-              <div style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)', marginTop: 2 }}>{m.id}</div>
-            </div>
-            {active && (
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-              </svg>
-            )}
-          </button>
-        )
-      })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {providerDef.models.map((m) => {
+          const active = currentModel === m.id
+          return (
+            <button
+              key={m.id}
+              onClick={() => { onSetModel(m.id); setCustomInput('') }}
+              title={m.id}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 10px',
+                borderRadius: 8,
+                background: active ? 'var(--color-surface2)' : 'var(--color-surface)',
+                border: `1px solid ${active ? providerDef.color : 'var(--color-border)'}`,
+                color: active ? providerDef.color : 'var(--color-text)',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: active ? 600 : 500
+              }}
+            >
+              {m.label}
+            </button>
+          )
+        })}
+      </div>
 
       {/* Custom model ID */}
       <div
@@ -463,7 +468,7 @@ function ProviderCapabilityChips({
 }): JSX.Element {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-      {capabilities.map((capability) => {
+      {capabilities.filter((capability) => capability.support !== 'unsupported').map((capability) => {
         const isSupported = capability.support === 'supported'
         const isForced = capability.support === 'forced'
         const isPartial = capability.support === 'partial'
@@ -491,7 +496,7 @@ function ProviderCapabilityChips({
               color: text,
               background: isSupported ? 'var(--color-surface2)' : 'var(--color-surface)',
               fontSize: 11,
-              opacity: capability.support === 'unsupported' ? 0.55 : 1
+              opacity: 1
             }}
           >
             <span
@@ -500,7 +505,7 @@ function ProviderCapabilityChips({
                 height: 6,
                 borderRadius: '50%',
                 background: text,
-                opacity: capability.support === 'unsupported' ? 0.5 : 1
+                opacity: 1
               }}
             />
             {capability.label}
@@ -508,6 +513,108 @@ function ProviderCapabilityChips({
         )
       })}
     </div>
+  )
+}
+
+function ProviderDiagnosticsCard({
+  diagnostics,
+  color
+}: {
+  diagnostics: ProviderDiagnosticInfo
+  color: string
+}): JSX.Element {
+  const rows = [
+    {
+      label: 'Binary',
+      status: diagnostics.binary.status,
+      message: diagnostics.binary.path ?? 'Not found'
+    },
+    {
+      label: 'Version',
+      status: diagnostics.version.status,
+      message: diagnostics.version.value ?? diagnostics.version.message ?? 'Unknown'
+    },
+    {
+      label: 'Auth',
+      status: diagnostics.auth.status,
+      message: diagnostics.auth.message
+    },
+    {
+      label: 'Models',
+      status: diagnostics.models.status,
+      message: diagnostics.models.message
+    },
+    {
+      label: 'Usage',
+      status: diagnostics.usage.status,
+      message: diagnostics.usage.message
+    },
+    {
+      label: 'Live smoke',
+      status: diagnostics.liveSmoke.status,
+      message: diagnostics.liveSmoke.message
+    }
+  ]
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+      {rows.map((row) => (
+        <div
+          key={row.label}
+          title={row.message}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '8px 10px',
+            borderRadius: 8,
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)'
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text)' }}>{row.label}</div>
+          <DiagnosticPill status={row.status} color={color} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DiagnosticPill({ status, color }: { status: string; color: string }): JSX.Element {
+  const normalized = status.toLowerCase()
+  const isGood = ['found', 'ok', 'available', 'configured', 'passed'].includes(normalized)
+  const isBad = ['missing', 'error', 'empty', 'failed'].includes(normalized)
+  const pillColor = isGood ? color : isBad ? '#F87171' : 'var(--color-text-muted)'
+  const labels: Record<string, string> = {
+    found: 'OK',
+    ok: 'OK',
+    available: 'OK',
+    configured: 'OK',
+    passed: 'OK',
+    missing: 'Missing',
+    error: 'Error',
+    empty: 'Empty',
+    failed: 'Failed',
+    unavailable: 'N/A',
+    unknown: 'Unknown',
+    'not-run': 'Off'
+  }
+  return (
+    <span
+      style={{
+        justifySelf: 'start',
+        padding: '2px 7px',
+        borderRadius: 999,
+        border: `1px solid ${pillColor}`,
+        color: pillColor,
+        fontSize: 10,
+        fontWeight: 600,
+        lineHeight: 1.2
+      }}
+    >
+      {labels[normalized] ?? status.replace('-', ' ')}
+    </span>
   )
 }
 
@@ -756,9 +863,6 @@ function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
           {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
         </button>
       </div>
-      <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 4, opacity: 0.7 }}>
-        Sets <span style={{ fontFamily: 'monospace' }}>ANTHROPIC_BASE_URL</span> in ~/.claude/settings.json
-      </div>
     </div>
   )
 }
@@ -932,15 +1036,25 @@ function PetsSection(): JSX.Element {
 }
 
 function SettingGroup({ title, description, children }: {
-  title: string; description: string; children: React.ReactNode
+  title: string; description?: string; children: React.ReactNode
 }): JSX.Element {
   return (
-    <div style={{ marginBottom: 32 }}>
+    <div style={{ marginBottom: 26 }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 12 }}>{description}</div>
+      {description && <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 12 }}>{description}</div>}
       {children}
     </div>
   )
+}
+
+function providerShortName(providerId: string): string {
+  const names: Record<string, string> = {
+    claude: 'Claude',
+    codex: 'Codex',
+    copilot: 'Copilot',
+    cursor: 'Cursor'
+  }
+  return names[providerId] ?? providerId
 }
 
 function InstallCommand({ cmd }: { cmd: string }): JSX.Element {
