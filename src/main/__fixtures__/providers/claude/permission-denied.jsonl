@@ -1,3 +1,4 @@
 {"type":"system","subtype":"init","session_id":"claude-session-123"}
 {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I will edit the file."},{"type":"tool_use","id":"tool-1","name":"Edit","input":{"file_path":"/tmp/example.ts","old_string":"before","new_string":"after"}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"Claude requested permissions to edit /tmp/example.ts, but you haven't granted it yet.","is_error":true,"tool_use_id":"tool-1"}]},"session_id":"claude-session-123","tool_use_result":"Error: Claude requested permissions to edit /tmp/example.ts, but you haven't granted it yet."}
 {"type":"result","subtype":"error_during_execution","result":"Permission denied","permission_denials":[{"tool_name":"Edit","tool_use_id":"tool-1","tool_input":{"file_path":"/tmp/example.ts"}}]}

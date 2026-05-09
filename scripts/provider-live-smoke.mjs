@@ -38,6 +38,18 @@ function makeRequest(cwd, providerId) {
   }
 }
 
+function smokeCommandForProvider(providerId, provider, cwd) {
+  const baseCommand = provider.buildStartCommand(makeRequest(cwd, providerId))
+  if (providerId !== 'codex') return baseCommand
+
+  const args = [...baseCommand.args]
+  const execIndex = args.indexOf('exec')
+  if (execIndex >= 0) {
+    args.splice(execIndex + 1, 0, '--ignore-user-config', '--ignore-rules', '--ephemeral')
+  }
+  return { ...baseCommand, args }
+}
+
 function runProvider(providerId) {
   const provider = PROVIDERS[providerId]
   if (!provider) return Promise.resolve({ providerId, ok: false, reason: 'missing adapter' })
@@ -45,7 +57,7 @@ function runProvider(providerId) {
   const cwd = mkdtempSync(join(tmpdir(), `orchestrator-live-${providerId}-`))
   writeFileSync(join(cwd, 'SMOKE.md'), 'This is a safe smoke-test workspace. Do not edit files.\n')
 
-  const baseCommand = provider.buildStartCommand(makeRequest(cwd, providerId))
+  const baseCommand = smokeCommandForProvider(providerId, provider, cwd)
   const command = resolveProviderCommand(provider, baseCommand)
   if (!command) {
     rmSync(cwd, { recursive: true, force: true })

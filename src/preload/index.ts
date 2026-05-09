@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Project, Session, ChatMessage, FileChange, ProviderDiagnosticInfo, ProviderRuntimeInfo, SessionRunEventRecord } from '../types'
+import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, SessionRunEventRecord } from '../types'
 
 export type SessionEvent =
   | { type: 'created'; session: Session }
@@ -9,8 +9,10 @@ export type SessionEvent =
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
   | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
-  | { type: 'settingsUpdated'; id: string; provider?: string; model?: string; effort?: string; permissionMode?: string }
+  | { type: 'settingsUpdated'; id: string; provider?: string; model?: string; effort?: string; permissionMode?: string; runtime?: Session['runtime']; useThinking?: boolean; useFast?: boolean; allowedTools?: string[]; disallowedTools?: string[]; availableTools?: string[]; additionalDirs?: string[] }
   | { type: 'needsInput'; id: string }
+
+type SettingsUpdatedPayload = Omit<Extract<SessionEvent, { type: 'settingsUpdated' }>, 'type'>
 
 const api = {
   projects: {
@@ -37,7 +39,19 @@ const api = {
       ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt, useWorktree),
     updateName: (id: string, name: string): Promise<void> =>
       ipcRenderer.invoke('sessions:updateName', id, name),
-    updateSettings: (id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }): Promise<void> =>
+    updateSettings: (id: string, patch: {
+      provider?: string
+      model?: string
+      effort?: string
+      permissionMode?: string
+      runtime?: Session['runtime']
+      useThinking?: boolean
+      useFast?: boolean
+      allowedTools?: string[]
+      disallowedTools?: string[]
+      availableTools?: string[]
+      additionalDirs?: string[]
+    }): Promise<void> =>
       ipcRenderer.invoke('sessions:updateSettings', id, patch),
     checkProviders: (): Promise<Record<string, boolean>> =>
       ipcRenderer.invoke('sessions:checkProviders'),
@@ -53,6 +67,8 @@ const api = {
       ipcRenderer.invoke('sessions:writeToPty', sessionId, data),
     grantAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
       ipcRenderer.invoke('sessions:grantAndResume', sessionId, toolNames),
+    allowOnceAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
+      ipcRenderer.invoke('sessions:allowOnceAndResume', sessionId, toolNames),
     answerUserInput: (sessionId: string, answer: string): Promise<void> =>
       ipcRenderer.invoke('sessions:answerUserInput', sessionId, answer),
     denyPermission: (sessionId: string): Promise<void> =>
@@ -67,7 +83,9 @@ const api = {
     getRuntimeInfo: (): Promise<Record<string, ProviderRuntimeInfo>> =>
       ipcRenderer.invoke('providers:getRuntimeInfo'),
     getDiagnostics: (): Promise<Record<string, ProviderDiagnosticInfo>> =>
-      ipcRenderer.invoke('providers:getDiagnostics')
+      ipcRenderer.invoke('providers:getDiagnostics'),
+    runCommandSurface: (providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> =>
+      ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId)
   },
 
   settings: {
@@ -136,7 +154,7 @@ const api = {
       cb({ type: 'renamed', ...p })
     const onUpdated = (_: Electron.IpcRendererEvent, p: { id: string; workDir: string; useWorktree: boolean }): void =>
       cb({ type: 'updated', ...p })
-    const onSettingsUpdated = (_: Electron.IpcRendererEvent, p: { id: string; provider?: string; model?: string; effort?: string; permissionMode?: string }): void =>
+    const onSettingsUpdated = (_: Electron.IpcRendererEvent, p: SettingsUpdatedPayload): void =>
       cb({ type: 'settingsUpdated', ...p })
     const onNeedsInput = (_: Electron.IpcRendererEvent, p: { id: string }): void =>
       cb({ type: 'needsInput', ...p })

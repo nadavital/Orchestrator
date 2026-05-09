@@ -1,0 +1,1 @@
+{"type":"approval.requested","data":{"kind":"shell","id":"codex-approval-1","input":{"command":"npm install"},"message":"Approve command outside sandbox?"}}

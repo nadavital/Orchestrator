@@ -2,7 +2,60 @@
 
 Date: 2026-05-06
 
+## 2026-05-06 CLI Coverage Gap Baseline
+
+This pass moved the known CLI coverage gaps out of prose-only research and into the provider runtime registry, so diagnostics and tests can track what still needs adapter/UI work.
+
+Current high-priority gaps now tracked in code:
+
+| Provider | Gap | Status | Next implementation slice |
+| --- | --- | --- | --- |
+| Claude Code | Rich permission controls: denied tools, scoped directories, persisted grants | Partial | Add compact GUI editing for tool/path rules and explicit allow-once vs allow-session behavior. |
+| Copilot | Keychain access differs between sandboxed shell and app/non-sandbox process | Partial | Run account-sensitive probes from the installed app process and show keychain errors separately from missing CLI errors. |
+| Copilot | Structured runtime parsing beyond basic JSON | Partial | Record CLI fixtures for command/user-input/permission/subagent events now that help/version are captured outside the sandbox. |
+| Codex | Interactive approval prompts | Missing | Add a PTY-backed Codex interactive CLI lane using `--ask-for-approval`; keep `codex exec` only for non-interactive automation. |
+| Codex | MCP elicitation | Partial | Add interactive CLI fixtures for `tool_call_mcp_elicitation` and normalize to `user_input.requested`. |
+| Cursor | Account/model probes can fail on keychain | Blocked | Keep model probes optional and preserve manual model overrides. |
+| Cursor | Worktree and MCP/rules controls | Missing | Add shared worktree launch controls and compact provider-specific MCP/rules actions. |
+
+Implementation started:
+
+- `ProviderCapabilityRegistry` now includes `gaps`.
+- `npm run smoke:providers` prints feature, gap, probe, and permission-policy summaries.
+- Generic CLI question events normalize to `user_input.requested` for Copilot, Codex, and Cursor fixtures.
+- Generic CLI permission/approval events normalize to `permission.requested` for Copilot, Codex, and Cursor fixtures.
+- Provider adapters now expose separate interactive CLI command builders so the app can wire a native CLI lane without reusing headless JSON launch flags.
+
+## 2026-05-07 Open-Source Reference Notes
+
+These repos are architecture references only. Do not copy implementation code; use them to validate product shape and risk areas.
+
+| Project | What it proves | Useful ideas for Orchestrator | What not to copy blindly |
+| --- | --- | --- | --- |
+| `siteboon/claudecodeui` | A chat/file/git UI can sit on top of native coding CLIs and discovered provider sessions. | Use provider-native config/session state, keep a direct terminal escape hatch, and render CLI sessions as structured chat where possible. | Do not inherit shell/WebSocket risk patterns; keep process spawning argument-based and local/Electron-scoped. |
+| `farion1231/cc-switch` | A desktop app can manage multiple coding CLI configs, MCP, prompts, skills, provider presets, usage, proxy/failover, and session browsing across apps. | Add a native-config management layer: import/backfill live provider config, switch provider profiles safely, use atomic writes/backups, and separate provider config management from agent runtime rendering. | Do not turn Orchestrator into a provider-proxy-first product. Proxy/takeover can be optional later; our core product remains real CLI sessions with clean GUI rendering. |
+| `johannesjo/parallel-code` | Multi-agent coding can be modeled as isolated branches/worktrees with separate terminals, diffs, notes, CI status, and merge decisions. | Make worktree/session provenance first-class: branch, base, task notes, per-task terminal, diff review, merge/push controls, and optional Docker sandboxing. | Do not make every session a worktree by default. Keep direct/local sessions available and make isolation an explicit task mode. |
+| `withcrux/claudia` | A narrow Claude Code desktop wrapper can still add value through session history, cost tracking, markdown rendering, tool-call viewers, export, and global stats. | Treat transcript quality as a product feature: searchable history, collapsed tool calls, cost/token summaries, export, and simple session stats. | It is Claude-only and very early, so do not use it as evidence for multi-provider behavior or mature parser coverage. |
+| `markes76/claude-code-gui` | The closest Claude-first reference for the runtime we want: real PTY terminal plus a bidirectional structured stream built from Claude session JSONL. | For Claude, combine `node-pty`/xterm with active JSONL tailing so the GUI can render markdown, tool cards, subagents, run summaries, and costs without losing native CLI interaction. | It is Claude-only and small/early, so treat the pattern as useful but verify every config/log shape against the installed Claude CLI before encoding behavior. |
+| `xintaofei/codeg` | A broader multi-agent workspace can aggregate local sessions across Claude Code, Codex, OpenCode, Gemini CLI, OpenClaw, Cline, and more while adding worktrees, MCP/skills, git/file/terminal flows, and remote chat channels. | Use it as a reference for long-term multi-provider session ingestion, permission notifications, remote control surfaces, and worktree-aware engineering loops. | Do not let remote/server/channel breadth distract from the local desktop CLI-first core. |
+| `sombraio/claudecodeui` | A CloudCLI/ClaudeCodeUI variant reinforces the same web/mobile session UI pattern: chat, integrated shell terminal, file/git explorer, session management, and native Claude MCP config sync. | Treat as corroborating evidence for the `claudecodeui` pattern rather than a separate architecture direction. | It appears to overlap heavily with CloudCLI; do not count it as independent proof of provider coverage. |
+
+Immediate architecture implication:
+
+- Split the product into two explicit layers:
+  1. **Runtime layer**: starts/resumes provider CLI sessions, parses output, surfaces questions, permissions, tools, diffs, and subagents.
+  2. **Config layer**: reads/writes provider-native config for models, endpoints, MCP, prompts/rules, skills/plugins, quotas, and local overrides.
+- `claudecodeui` mostly informs the runtime/session layer.
+- `cc-switch` mostly informs the config/provider-management layer.
+- `parallel-code` mostly informs the multi-session worktree/orchestration layer.
+- `claudia` mostly informs the transcript/history/cost-rendering layer.
+- `claude-code-gui` mostly informs the concrete Claude PTY-plus-JSONL implementation pattern.
+- `codeg` mostly informs longer-term multi-provider session aggregation and remote control.
+- Together, they reinforce the same principle: provider-native files and CLI semantics should remain the source of truth.
+
 ## 2026-05-06 SDK Runtime Spike Addendum
+
+Update: this spike is background evidence only. The product direction is CLI-first; SDKs and app-server protocols should not lead the implementation unless a native CLI surface cannot support a feature we need.
 
 This pass inspected current public SDK surfaces and did local no-prompt import/status probes. No agent prompts were sent, so this did not spend model quota.
 
@@ -52,11 +105,11 @@ Evaluation:
 
 | Runtime path | Difficulty | Value | Main risk | Recommendation |
 | --- | --- | --- | --- | --- |
-| Current headless JSON CLIs | Low | Stable baseline for prompt/result, tools, diffs, permissions where emitted | Provider-specific gaps remain; weaker for rich subagents/commands | Keep as universal fallback. |
-| PTY/terminal overlay | Medium | Preserves native provider behavior and interactive commands | Harder to parse reliably; permission states can become text-scraping | Use for providers/features without SDK/app-server support. |
+| Current headless JSON CLIs | Low | Stable baseline for automation, smoke tests, prompt/result, tools, diffs, permissions where emitted | Provider-specific gaps remain; weaker for rich subagents/commands | Keep for automation and tests, not as the primary product experience. |
+| PTY/terminal overlay | Medium | Preserves native provider behavior, permissions, slash commands, and interactive flows | Harder to parse reliably; permission states can become text-scraping | Primary next runtime path for provider features that only exist in the CLI. |
 | Cursor SDK runtime | Medium | Local/cloud runs, stream events, artifacts, MCP, skills, hooks, subagents | Requires `CURSOR_API_KEY` for account/cloud calls; adds native-ish dependency tree | Spike behind optional runtime flag after runtime abstraction exists. |
-| Copilot SDK runtime | Medium-high | Best structured event surface; solves current CLI keychain failure for status/auth/models; rich permissions/subagents/commands | Large dependency/package footprint; protocol is preview and may shift | Prioritize after runtime abstraction. This is likely better than CLI prompt mode for Copilot. |
-| Codex app-server/runtime | Medium-high | Potentially Codex.app-like approvals/events/features | Protocol discovery still needed | Spike separately after SDK adapter interface exists. |
+| Copilot SDK runtime | Medium-high | Best structured event surface; solves current CLI keychain failure for status/auth/models; rich permissions/subagents/commands | Large dependency/package footprint; protocol is preview and may shift | Defer; first fix/observe the native CLI path. |
+| Codex app-server/runtime | Medium-high | Potentially Codex.app-like approvals/events/features | Protocol discovery still needed | Defer until the CLI/PTY path proves insufficient. |
 
 Implementation proposal:
 
@@ -74,10 +127,9 @@ interface ProviderRuntimeAdapter {
 ```
 
 2. Keep current adapters as `*-headless-json` implementations.
-3. Add a `copilot-sdk` adapter first because the no-prompt status/auth/model probe already works locally and the event model maps cleanly to `RunEvent`, `AgentNode`, permissions, user input, and slash commands.
-4. Add `cursor-sdk` second, gated behind explicit auth/API-key settings and a hidden runtime choice until we verify a cheap local run.
-5. Add `codex-app-server` third.
-6. Make runtime selection explicit in provider settings but default to "Auto": prefer SDK/app-server only after a no-quota health check passes; otherwise fall back to headless CLI.
+3. Add provider-specific interactive CLI/PTY runtime lanes for native permission prompts, slash commands, questions, and session controls.
+4. Keep SDK/app-server paths as fallback research only when the CLI cannot expose a feature cleanly.
+5. Make runtime selection explicit in provider settings but default to "Auto": prefer the native CLI path for user-facing coding sessions, and use headless JSON only for automation/smoke tests.
 
 Hardness estimate:
 
@@ -95,7 +147,7 @@ Commands sampled:
 - `which claude`, `claude --help`, `claude --version`, `claude agents --help`, `claude mcp --help`, `claude plugin --help`, `claude ultrareview --help`
 - `which codex`, `codex --help`, `codex --version`, `codex exec --help`, `codex review --help`, `codex mcp --help`, `codex plugin --help`, `codex sandbox --help`, `codex features list`
 - `which cursor-agent`, `cursor-agent --help`, `cursor-agent --version`, `cursor-agent mcp --help`, `cursor-agent create-chat --help`, `cursor-agent models`, `cursor-agent status`, `cursor-agent about`
-- `which copilot`, `copilot --help`, `copilot --version`, plus static inspection of the installed `@github/copilot` package because the CLI failed before printing help.
+- `which copilot`, `copilot --help`, `copilot --version`, plus static inspection of the installed `@github/copilot` package. Copilot help/version work outside the sandbox, while sandboxed shells can fail on Keychain access.
 
 Current local binaries:
 
@@ -103,8 +155,8 @@ Current local binaries:
 | --- | --- | --- | --- |
 | Claude Code | `/Users/navital/.local/bin/claude` | `2.1.129 (Claude Code)` | Richest directly discoverable CLI surface. |
 | Codex CLI | `/Users/navital/.local/bin/codex` | `codex-cli 0.128.0` | Strong structured automation surface plus app/plugin/MCP/sandbox surfaces. |
-| Cursor Agent | `/Users/navital/.local/bin/cursor-agent` | `2026.05.05-84a231c` | Help works; model/auth/status commands currently hit keychain error in this shell. |
-| GitHub Copilot CLI | `/Users/navital/.local/bin/copilot` | CLI help/version currently fails with `SecItemCopyMatching failed -50` | Installed, but health must distinguish keychain/auth failure from missing binary. Static package inspection still shows rich SDK capabilities. |
+| Cursor Agent | `/Users/navital/.local/bin/cursor-agent` | `2026.05.07-42ddaca` | Help works; sandboxed model/auth/status commands can hit keychain errors, while non-sandbox status and Sonnet live smoke pass. |
+| GitHub Copilot CLI | `/Users/navital/.local/bin/copilot` | `GitHub Copilot CLI 1.0.39` outside the sandbox; sandboxed shell can fail with `SecItemCopyMatching failed -50` | Installed, but health must distinguish sandbox/keychain failure from missing binary. |
 
 ### Cross-Provider Capabilities We Should Model
 
@@ -112,17 +164,17 @@ Current local binaries:
 | --- | --- | --- | --- | --- | --- |
 | Structured non-interactive output | `--output-format stream-json` | `exec --json` | `--output-format json` in current adapter | `--print --output-format stream-json` | We parse basics, but not partials, progress, subagents, commands, background tasks, or rich permissions. |
 | Interactive / TUI runtime | Default CLI mode | Default CLI mode | Default CLI mode | Default CLI mode | We mostly use headless prompt mode; need a second runtime class for interactive/PTY or structured app-server protocols. |
-| Permission modes | `default`, `acceptEdits`, `auto`, `bypassPermissions`, `dontAsk`, `plan`; `--allowedTools`, `--disallowedTools`, `--tools` | sandbox: `read-only`, `workspace-write`, `danger-full-access`; interactive approval: `untrusted`, `on-request`, `never`; bypass flag | SDK exposes shell/write/read/MCP/url/memory/custom-tool/hook permission schemas; CLI previously documented tool/path/url allow/deny | `ask`, `plan`, `force/yolo`, `sandbox enabled/disabled`, trust, MCP approval | Need a provider-specific permission request model with allow once/session, deny, diff preview, path/url scope, and "forced headless" honesty. |
+| Permission modes | `default`, `acceptEdits`, `auto`, `bypassPermissions`, `dontAsk`, `plan`; `--allowedTools`, `--disallowedTools`, `--tools` | sandbox: `read-only`, `workspace-write`, `danger-full-access`; interactive approval: `untrusted`, `on-request`, `never`; bypass flag | CLI exposes interactive/plan/autopilot, `--allow-tool`, `--deny-tool`, `--available-tools`, path/url/MCP allow-deny, `--allow-all`, and `--no-ask-user`; SDK exposes shell/write/read/MCP/url/memory/custom-tool/hook permission schemas | `ask`, `plan`, `force/yolo`, `sandbox enabled/disabled`, trust, MCP approval | Need a provider-specific permission request model with allow once/session, deny, diff preview, path/url scope, and "forced headless" honesty. |
 | User questions / elicitation | `AskUserQuestion`, `--brief`, `SendUserMessage` | feature flags include `tool_call_mcp_elicitation`; app supports request_user_input in Codex host | SDK exposes interactive elicitation capability and command/user input events | Not proven from help; likely textual/interactive path | We have Claude question cards; need canonical `user_input.requested` across providers. |
 | Slash commands | CLI has slash-command/skills controls: `--disable-slash-commands`, skills resolve as `/skill-name` | Interactive commands plus plugins/skills; exact slash list not exposed by `--help` | SDK exposes `command.queued`, `command.execute`, `commands.changed`, `CommandDefinition`; skills can be slash commands | Interactive CLI likely has slash commands, not exposed by top-level help | Need a provider command registry and composer autocomplete. Some commands are app-owned, some provider-owned, some extension-owned. |
-| MCP | `claude mcp add/list/get/remove/serve`, `--mcp-config`, strict MCP config | `codex mcp list/get/add/remove/login/logout`, `mcp-server` | SDK has MCP permission kind and MCP config; static package exposes tool permissions | `cursor-agent mcp list/list-tools/login/enable/disable` | Need MCP server status, tool listing, OAuth/login, and per-tool permission UI. |
-| Plugins / skills | `claude plugin install/list/enable/disable/update/validate`, `--plugin-dir`, `--plugin-url` | `codex plugin marketplace`, features show plugins stable | Copilot package has built-in skills and SDK extension model | Cursor has `~/.cursor/plugins` and MCP integrations | Need provider-specific extension settings and command/tool surfacing. |
+| MCP | `claude mcp add/list/get/remove/serve`, `--mcp-config`, strict MCP config | `codex mcp list/get/add/remove/login/logout`, `mcp-server` | CLI exposes `mcp`, built-in GitHub MCP tool/toolset flags, extra MCP config, enable/disable controls; SDK has MCP permission/config events | `cursor-agent mcp list/list-tools/login/enable/disable` | Need MCP server status, tool listing, OAuth/login, and per-tool permission UI. |
+| Plugins / skills | `claude plugin install/list/enable/disable/update/validate`, `--plugin-dir`, `--plugin-url` | `codex plugin marketplace`, features show plugins stable | CLI exposes `plugin` and `--plugin-dir`; package has built-in skills and SDK extension model | Cursor has `~/.cursor/plugins` and MCP integrations | Need provider-specific extension settings and command/tool surfacing. |
 | Agents / subagents / multi-agent | `--agent`, `--agents <json>`, `claude agents`, `ultrareview` cloud multi-agent review | Feature flags show `multi_agent` stable, `multi_agent_v2` under development | SDK event types include `subagent.started/completed/failed/selected/deselected`; built-in agents: code-review, configure-copilot, explore, research, rubber-duck, task | Worktrees/chat/rules; no structured subagent event proven from help | Need agent activity tree: parent, child agents, status, transcript/tool stream, permissions, pet notifications. |
 | Worktrees | `--worktree`, `--tmux` | `--cd`, `--add-dir`; interactive has app/cloud workflows | Not verified from current help due keychain failure | `--worktree`, `--worktree-base`, `--skip-worktree-setup` | Need a workspace/worktree launch surface and session provenance. |
 | Review mode | `ultrareview [--json]` | `codex review`, `codex exec review` | Built-in `code-review.agent.yaml`; prior docs mention review commands | No dedicated review command in top help | Review should be a first-class task type, not only a prompt. |
 | Local/OSS providers | Not from help sampled | `--oss`, `--local-provider lmstudio|ollama` | Not sampled | Bedrock config command exists | Need provider backend variants under one provider, separate from model list. |
 | Images / file attachments | `--file file_id:path`; Chrome integration | `--image <FILE>...` | Package includes computer/image dependencies, but not verified in CLI help due keychain failure | Not from top help | Composer should expose attachment support only when runtime supports it. |
-| Usage / model listing | Model aliases in help; account-specific list not found | `models_cache.json` exists; model arg is arbitrary | Help blocked by keychain | `models` / `--list-models`, but local command hit keychain error | Need cached last-known working model, invalid-model suppression, and opt-in model probes. |
+| Usage / model listing | Model aliases in help; account-specific list not found | `models_cache.json` exists; model arg is arbitrary | Model flag is arbitrary; account/model listing still needs a non-sandbox probe | `models` / `--list-models`, but sandboxed shell can hit keychain error | Need cached last-known working model, invalid-model suppression, and opt-in model probes. |
 
 ### Provider-Specific Notes
 
@@ -165,13 +217,13 @@ UI implications:
 
 #### GitHub Copilot CLI / SDK
 
-This run could not get `copilot --help` or `copilot --version` because both failed with:
+Sandboxed shells can fail to run `copilot --help` or `copilot --version` with:
 
 ```text
 ERROR: SecItemCopyMatching failed -50
 ```
 
-Static package inspection still reveals important capabilities:
+Running outside the sandbox, `copilot --version` reports `GitHub Copilot CLI 1.0.39`, and `copilot --help` exposes interactive prompt mode, JSON prompt mode, ACP, plan/autopilot modes, MCP, plugins, custom providers, ask-user controls, and tool/path/URL allow-deny flags. Static package inspection adds deeper event details:
 
 - SDK event union includes `subagent.started`, `subagent.completed`, `subagent.failed`, `subagent.selected`, `subagent.deselected`.
 - SDK event union includes `command.queued`, `command.execute`, `command.completed`, and `commands.changed`.
@@ -183,7 +235,7 @@ UI implications:
 
 - Our current Copilot adapter is too shallow. We should strongly consider using the SDK/session event protocol rather than only the CLI prompt mode.
 - Copilot is the strongest evidence for a normalized subagent tree and slash-command registry.
-- Health should say "installed but keychain/auth unavailable" instead of only ready/missing.
+- Health should say "installed but keychain/auth unavailable in this process" instead of only ready/missing.
 - Permission UI should be richer than Allow/Deny: shell command details, write diff, URL, MCP tool, memory, and custom tool prompt shapes.
 
 #### Cursor Agent
@@ -294,7 +346,7 @@ Verified locally on 2026-05-05:
 | Claude Code | `claude` | `2.1.128` | Full help available in sandbox. |
 | Codex CLI | `codex` | `codex-cli 0.128.0` | PATH lookup plus desktop bundle fallback. |
 | GitHub Copilot CLI | `copilot` | `1.0.39` | Needs non-sandbox process for Keychain access. |
-| Cursor Agent | `agent` / `cursor-agent` | `2026.05.05-84a231c` | Live smoke passes after enabling the HTTP/1 compatibility option in one enterprise proxy environment. |
+| Cursor Agent | `agent` / `cursor-agent` | `2026.05.07-42ddaca` | Live smoke passes with Sonnet after enabling the HTTP/1 compatibility option in one enterprise proxy environment. |
 
 Important diagnostic lesson: `installed` is not enough. We need states for `missing`, `installed`, `auth-ok`, `auth-error`, `models-available`, `models-empty`, and `runtime-smoke-passed`.
 

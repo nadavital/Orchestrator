@@ -46,6 +46,7 @@ declare global {
       sessions: {
         sendMessage: (sessionId: string, prompt: string) => Promise<void>
         grantAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
+        allowOnceAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
         answerUserInput: (sessionId: string, answer: string) => Promise<void>
         denyPermission: (sessionId: string) => Promise<void>
       }

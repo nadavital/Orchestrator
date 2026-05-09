@@ -11,6 +11,8 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   PROVIDER_DEFS,
   getVisibleModels,
+  type ProviderCommandSurface,
+  type ProviderCommandSurfaceResult,
   type ProviderFeature,
   type ProviderFeatureArea,
   type ProviderDiagnosticInfo,
@@ -330,6 +332,18 @@ function ProvidersSection({
             </CompactSetting>
           )}
         </SettingsPanel>
+
+        {runtime && runtime.registry.commandSurfaces.length > 0 && (
+          <SettingsPanel>
+            <CompactSetting title="Native">
+              <ProviderCommandSurfaces
+                providerId={selectedId}
+                color={providerDef.color}
+                surfaces={runtime.registry.commandSurfaces}
+              />
+            </CompactSetting>
+          </SettingsPanel>
+        )}
 
         <button
           onClick={() => setAdvancedOpen((open) => !open)}
@@ -664,6 +678,356 @@ function FeatureChip({ feature, color }: { feature: ProviderFeature; color: stri
       </span>
     </span>
   )
+}
+
+function ProviderCommandSurfaces({
+  providerId,
+  color,
+  surfaces
+}: {
+  providerId: string
+  color: string
+  surfaces: ProviderCommandSurface[]
+}): JSX.Element {
+  const runnableSurfaces = surfaces.filter((surface) => surface.quota === 'none' && !surface.mutatesState)
+  const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
+  const [loading, setLoading] = useState<Record<string, boolean>>({})
+  const [openId, setOpenId] = useState<string | null>(runnableSurfaces[0]?.id ?? null)
+
+  const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
+    if (surface.quota !== 'none' || surface.mutatesState) return
+    setOpenId(surface.id)
+    setLoading((current) => ({ ...current, [surface.id]: true }))
+    try {
+      const result = await window.api.providers.runCommandSurface(providerId, surface.id)
+      setResults((current) => ({ ...current, [surface.id]: result }))
+    } finally {
+      setLoading((current) => ({ ...current, [surface.id]: false }))
+    }
+  }
+
+  if (surfaces.length === 0) return <></>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {surfaces.map((surface) => {
+          const runnable = surface.quota === 'none' && !surface.mutatesState
+          const active = openId === surface.id
+          const isLoading = loading[surface.id] === true
+          return (
+            <button
+              key={surface.id}
+              onClick={() => runnable ? runSurface(surface) : setOpenId(surface.id)}
+              title={surface.command.length > 0 ? surface.command.join(' ') : surface.label}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                maxWidth: 190,
+                padding: '6px 9px',
+                borderRadius: 8,
+                border: `1px solid ${active ? color : 'var(--color-border)'}`,
+                background: active ? `${color}10` : 'var(--color-surface)',
+                color: runnable ? active ? color : 'var(--color-text)' : 'var(--color-text-muted)',
+                cursor: runnable ? 'pointer' : 'default',
+                fontSize: 11,
+                fontWeight: 650,
+              }}
+            >
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: runnable ? color : 'var(--color-text-muted)',
+                  opacity: isLoading ? 0.45 : 1,
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {surface.label}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {openId && (
+        <CommandSurfaceOutput
+          color={color}
+          surface={surfaces.find((surface) => surface.id === openId)}
+          result={results[openId]}
+          loading={loading[openId] === true}
+          onRun={(surface) => runSurface(surface)}
+        />
+      )}
+    </div>
+  )
+}
+
+function CommandSurfaceOutput({
+  color,
+  surface,
+  result,
+  loading,
+  onRun
+}: {
+  color: string
+  surface?: ProviderCommandSurface
+  result?: ProviderCommandSurfaceResult
+  loading: boolean
+  onRun: (surface: ProviderCommandSurface) => void
+}): JSX.Element {
+  if (!surface) return <></>
+  const runnable = surface.quota === 'none' && !surface.mutatesState
+  const output = result?.output.trim()
+  const statusColor = result?.status === 'ok'
+    ? '#22C55E'
+    : result?.status === 'error'
+      ? '#EF4444'
+      : 'var(--color-text-muted)'
+
+  return (
+    <div
+      style={{
+        border: '1px solid var(--color-border)',
+        borderRadius: 8,
+        overflow: 'hidden',
+        background: 'var(--color-surface2)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          padding: '9px 10px',
+          borderBottom: output || loading || !runnable ? '1px solid var(--color-border)' : 'none',
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text)' }}>{surface.label}</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {surface.command.length > 0 ? surface.command.join(' ') : surface.runtime}
+          </div>
+        </div>
+        <button
+          disabled={!runnable || loading}
+          onClick={() => onRun(surface)}
+          style={{
+            padding: '6px 10px',
+            borderRadius: 7,
+            border: `1px solid ${runnable ? color : 'var(--color-border)'}`,
+            background: runnable ? color : 'var(--color-surface)',
+            color: runnable ? '#fff' : 'var(--color-text-muted)',
+            cursor: runnable && !loading ? 'pointer' : 'default',
+            fontSize: 11,
+            fontWeight: 700,
+            flexShrink: 0,
+            opacity: loading ? 0.65 : 1,
+          }}
+        >
+          {loading ? 'Running' : runnable ? 'Refresh' : surface.quota === 'none' ? 'Manual' : 'Quota'}
+        </button>
+      </div>
+
+      {!runnable ? (
+        <div style={{ padding: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
+          Open this from the terminal or composer when you intentionally want to run it.
+        </div>
+      ) : output ? (
+        <StructuredCommandOutput output={output} color={color} />
+      ) : (
+        <div style={{ padding: 10, fontSize: 12, color: result ? statusColor : 'var(--color-text-muted)' }}>
+          {loading ? 'Running…' : result ? result.status : 'Run a refresh to load this.'}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StructuredCommandOutput({ output, color }: { output: string; color: string }): JSX.Element {
+  const parsed = parseCommandOutput(output)
+  if (parsed.kind === 'json') {
+    return (
+      <div style={{ padding: 10, maxHeight: 220, overflow: 'auto' }}>
+        <StructuredValue value={parsed.value} color={color} depth={0} />
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: 10, maxHeight: 220, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {parsed.lines.map((line, index) => (
+        <div
+          key={`${line}-${index}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '6px 8px',
+            borderRadius: 7,
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+            color: 'var(--color-text)',
+            fontSize: 11,
+            lineHeight: 1.35,
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {line}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+type ParsedCommandOutput =
+  | { kind: 'json'; value: unknown }
+  | { kind: 'lines'; lines: string[] }
+
+function parseCommandOutput(output: string): ParsedCommandOutput {
+  const trimmed = output.trim()
+  if (!trimmed) return { kind: 'lines', lines: ['No output'] }
+  try {
+    return { kind: 'json', value: JSON.parse(trimmed) }
+  } catch {
+    const lines = trimmed
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+    return { kind: 'lines', lines: lines.length > 0 ? lines : ['No output'] }
+  }
+}
+
+function StructuredValue({
+  value,
+  color,
+  depth
+}: {
+  value: unknown
+  color: string
+  depth: number
+}): JSX.Element {
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <EmptyInlineValue />
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {value.map((item, index) => (
+          <div
+            key={index}
+            style={{
+              border: '1px solid var(--color-border)',
+              borderRadius: 7,
+              background: 'var(--color-surface)',
+              padding: 8,
+            }}
+          >
+            <StructuredValue value={item} color={color} depth={depth + 1} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+    if (entries.length === 0) return <EmptyInlineValue />
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: depth > 1 ? '1fr' : 'minmax(90px, 150px) minmax(0, 1fr)', gap: 6 }}>
+        {entries.map(([key, entryValue]) => (
+          <ObjectRow key={key} label={formatObjectKey(key)} value={entryValue} rawKey={key} color={color} depth={depth} />
+        ))}
+      </div>
+    )
+  }
+
+  return <ScalarValue value={value} rawKey="" color={color} />
+}
+
+function ObjectRow({
+  label,
+  value,
+  rawKey,
+  color,
+  depth
+}: {
+  label: string
+  value: unknown
+  rawKey: string
+  color: string
+  depth: number
+}): JSX.Element {
+  const complex = value !== null && typeof value === 'object'
+  if (depth > 1) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 10, fontWeight: 750, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{label}</span>
+        <StructuredValue value={value} color={color} depth={depth + 1} />
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', paddingTop: complex ? 4 : 7 }}>
+        {label}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        {complex
+          ? <StructuredValue value={value} color={color} depth={depth + 1} />
+          : <ScalarValue value={value} rawKey={rawKey} color={color} />}
+      </div>
+    </>
+  )
+}
+
+function ScalarValue({ value, rawKey, color }: { value: unknown; rawKey: string; color: string }): JSX.Element {
+  const sensitive = /key|token|secret|password/i.test(rawKey)
+  const text = sensitive
+    ? '[redacted]'
+    : value === null || value === undefined
+      ? 'Not set'
+      : typeof value === 'boolean'
+        ? value ? 'Yes' : 'No'
+        : String(value)
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        maxWidth: '100%',
+        padding: '5px 8px',
+        borderRadius: 7,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
+        color: typeof value === 'boolean' && value ? color : 'var(--color-text)',
+        fontSize: 11,
+        fontWeight: typeof value === 'boolean' ? 700 : 500,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+      title={text}
+    >
+      {text}
+    </span>
+  )
+}
+
+function EmptyInlineValue(): JSX.Element {
+  return <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>None</span>
+}
+
+function formatObjectKey(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
 function SettingsPanel({ children }: { children: React.ReactNode }): JSX.Element {

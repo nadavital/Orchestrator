@@ -1,0 +1,4 @@
+{"type":"permission-mode","permissionMode":"default","sessionId":"claude-task-session"}
+{"type":"assistant","sessionId":"claude-task-session","message":{"role":"assistant","content":[{"type":"text","text":"I will ask a subagent to inspect the parser."},{"type":"tool_use","id":"tool-task-1","name":"Task","input":{"subagent_type":"explorer","description":"Inspect parser fixtures","prompt":"Find the parser fixture path and summarize it."}}]}}
+{"type":"user","sessionId":"claude-task-session","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool-task-1","content":"Found provider fixtures under src/main/__fixtures__/providers.","is_error":false}]}}
+{"type":"system","subtype":"turn_duration","durationMs":1200,"messageCount":3}

@@ -148,6 +148,7 @@ function eventBody(event: RunEvent, status: PetNotificationStatus): string | nul
   if (status === 'running') {
     if (event.type === 'connection.reconnecting') return reconnectingBody(event, 'Reconnecting')
     if (event.type === 'connection.retrying') return reconnectingBody(event, 'Retrying')
+    if (event.type === 'plan.updated') return planActivity(event.plan)
     if (event.type === 'tool.started') return classifyToolActivity(event.toolName, event.toolInput, true)
     if (event.type === 'tool.completed') return classifyCompletedTool(event)
     if (event.type === 'assistant.text') return compact(event.content) || 'Thinking'
@@ -161,6 +162,15 @@ function eventBody(event: RunEvent, status: PetNotificationStatus): string | nul
   }
 
   return null
+}
+
+function planActivity(plan: Extract<RunEvent, { type: 'plan.updated' }>['plan']): string {
+  const active = plan.items.find((item) => item.status === 'in_progress')
+  if (active) return `Planning: ${truncate(active.content, 80)}`
+  const pending = plan.items.filter((item) => item.status === 'pending').length
+  if (pending > 0) return `Planning ${pending} task${pending === 1 ? '' : 's'}`
+  if (plan.mode === 'plan') return 'Planning'
+  return plan.summary ? truncate(plan.summary, 80) : 'Updated plan'
 }
 
 function latestMessageActivity(

@@ -8,7 +8,8 @@ import { gitManager } from './git'
 import { settingsStore } from './settings'
 import { terminalManager } from './terminal'
 import { petOverlayManager } from './petOverlay'
-import { getProviderDiagnostics, getProviderRuntimeInfo } from './providers'
+import { getProviderDiagnostics, getProviderRuntimeInfo, runProviderCommandSurface } from './providers'
+import type { ProviderRuntimeKind } from '../types'
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   // Projects
@@ -34,7 +35,19 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:updateName', (_, id: string, name: string) =>
     sessionManager.updateName(id, name)
   )
-  ipcMain.handle('sessions:updateSettings', (_, id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }) =>
+  ipcMain.handle('sessions:updateSettings', (_, id: string, patch: {
+    provider?: string
+    model?: string
+    effort?: string
+    permissionMode?: string
+    runtime?: ProviderRuntimeKind
+    useThinking?: boolean
+    useFast?: boolean
+    allowedTools?: string[]
+    disallowedTools?: string[]
+    availableTools?: string[]
+    additionalDirs?: string[]
+  }) =>
     sessionManager.updateSettings(id, patch)
   )
   ipcMain.handle('sessions:checkProviders', () => sessionManager.checkProviders())
@@ -57,6 +70,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:grantAndResume', (_, sessionId: string, toolNames: string[]) =>
     sessionManager.grantAndResume(sessionId, toolNames)
   )
+  ipcMain.handle('sessions:allowOnceAndResume', (_, sessionId: string, toolNames: string[]) =>
+    sessionManager.allowOnceAndResume(sessionId, toolNames)
+  )
   ipcMain.handle('sessions:answerUserInput', (_, sessionId: string, answer: string) =>
     sessionManager.answerUserInput(sessionId, answer)
   )
@@ -67,6 +83,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   // Providers
   ipcMain.handle('providers:getRuntimeInfo', () => getProviderRuntimeInfo())
   ipcMain.handle('providers:getDiagnostics', () => getProviderDiagnostics())
+  ipcMain.handle('providers:runCommandSurface', (_, providerId: string, surfaceId: string) =>
+    runProviderCommandSurface(providerId, surfaceId)
+  )
 
   // Git
   ipcMain.handle('git:isGitRepo', (_, dir: string) => gitManager.isGitRepo(dir))

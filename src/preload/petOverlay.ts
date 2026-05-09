@@ -46,6 +46,8 @@ const petApi = {
       ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt),
     grantAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
       ipcRenderer.invoke('sessions:grantAndResume', sessionId, toolNames),
+    allowOnceAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
+      ipcRenderer.invoke('sessions:allowOnceAndResume', sessionId, toolNames),
     answerUserInput: (sessionId: string, answer: string): Promise<void> =>
       ipcRenderer.invoke('sessions:answerUserInput', sessionId, answer),
     denyPermission: (sessionId: string): Promise<void> =>

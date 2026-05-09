@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useSessionStore } from '../../store/sessions'
-import type { AgentNode, AgentStatus, Session, SessionRunEventRecord } from '../../types'
+import { agentDepth, deriveAgentNodes, derivePlanStates, eventCounts } from '../../types'
+import type { AgentNode, AgentStatus, PlanState, Session, SessionRunEventRecord } from '../../types'
 
 interface Props {
   session: Session
 }
 
-type InspectorTab = 'agents' | 'events' | 'raw'
+type InspectorTab = 'agents' | 'plans' | 'events' | 'raw'
 
 export default function EventInspectorPanel({ session }: Props): JSX.Element {
   const { rawBuffers, eventBuffers } = useSessionStore()
@@ -17,6 +18,7 @@ export default function EventInspectorPanel({ session }: Props): JSX.Element {
   const rawLines = useMemo(() => raw.split('\n').filter((line) => line.trim()).slice(-200), [raw])
   const counts = useMemo(() => eventCounts(events), [events])
   const agents = useMemo(() => deriveAgentNodes(session, events), [session, events])
+  const plans = useMemo(() => derivePlanStates(session, events), [session, events])
 
   return (
     <aside
@@ -38,6 +40,7 @@ export default function EventInspectorPanel({ session }: Props): JSX.Element {
           </div>
           <div className="flex gap-1">
             <TabButton active={tab === 'agents'} onClick={() => setTab('agents')}>Agents</TabButton>
+            <TabButton active={tab === 'plans'} onClick={() => setTab('plans')}>Plans</TabButton>
             <TabButton active={tab === 'events'} onClick={() => setTab('events')}>Events</TabButton>
             <TabButton active={tab === 'raw'} onClick={() => setTab('raw')}>Raw</TabButton>
           </div>
@@ -68,6 +71,12 @@ export default function EventInspectorPanel({ session }: Props): JSX.Element {
             <EmptyText>No agent activity yet.</EmptyText>
           ) : (
             <AgentTree agents={agents} />
+          )
+        ) : tab === 'plans' ? (
+          plans.length === 0 ? (
+            <EmptyText>No plans yet.</EmptyText>
+          ) : (
+            <PlanList plans={plans} />
           )
         ) : tab === 'events' ? (
           events.length === 0 ? (
@@ -163,6 +172,61 @@ function AgentCard({
   )
 }
 
+function PlanList({ plans }: { plans: PlanState[] }): JSX.Element {
+  return (
+    <div className="space-y-2">
+      {plans.map((plan, index) => (
+        <div
+          key={`${plan.sessionId}-${index}`}
+          className="rounded-lg p-2"
+          style={{
+            background: 'var(--color-surface2)',
+            border: '1px solid var(--color-border)'
+          }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+              {plan.title ?? (plan.mode === 'plan' ? 'Plan mode' : 'Plan')}
+            </div>
+            {plan.mode && (
+              <span
+                className="rounded px-1.5 py-0.5 text-xs"
+                style={{
+                  color: plan.mode === 'plan' ? 'var(--color-yellow)' : 'var(--color-green)',
+                  border: `1px solid ${plan.mode === 'plan' ? 'var(--color-yellow)' : 'var(--color-green)'}`,
+                  fontSize: 10
+                }}
+              >
+                {plan.mode}
+              </span>
+            )}
+          </div>
+          {plan.summary && (
+            <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+              {plan.summary}
+            </div>
+          )}
+          {plan.items.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {plan.items.map((item) => (
+                <div key={item.id ?? item.content} className="flex items-start gap-2 text-xs">
+                  <StatusDot status={item.status === 'in_progress' ? 'running' : item.status === 'blocked' ? 'blocked' : item.status === 'completed' ? 'completed' : 'queued'} />
+                  <span className="min-w-0 flex-1" style={{ color: 'var(--color-text)' }}>
+                    {item.content}
+                  </span>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+                    {item.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function EventCard({ record }: { record: SessionRunEventRecord }): JSX.Element {
   return (
     <div
@@ -222,102 +286,6 @@ function EmptyText({ children }: { children: React.ReactNode }): JSX.Element {
   )
 }
 
-function deriveAgentNodes(session: Session, records: SessionRunEventRecord[]): AgentNode[] {
-  const agents = new Map<string, AgentNode>()
-
-  for (const record of records) {
-    const { event } = record
-    if (
-      event.type === 'agent.started' ||
-      event.type === 'agent.updated' ||
-      event.type === 'agent.completed' ||
-      event.type === 'agent.failed'
-    ) {
-      const previous = agents.get(event.agent.id)
-      agents.set(event.agent.id, {
-        ...previous,
-        ...event.agent,
-        providerId: event.agent.providerId || session.provider,
-        sessionId: event.agent.sessionId || session.id,
-        startedAt: previous?.startedAt ?? event.agent.startedAt ?? record.timestamp,
-        completedAt: event.agent.completedAt ?? (event.type === 'agent.completed' || event.type === 'agent.failed' ? record.timestamp : previous?.completedAt),
-      })
-      continue
-    }
-
-    if (event.type === 'tool.started' && isAgentTool(event.toolName)) {
-      agents.set(event.id, {
-        id: event.id,
-        providerId: session.provider,
-        sessionId: session.id,
-        name: agentNameFromTool(event.toolName, event.toolInput),
-        role: compactToolInput(event.toolInput),
-        status: 'running',
-        startedAt: record.timestamp,
-      })
-      continue
-    }
-
-    if (event.type === 'tool.completed') {
-      const agent = agents.get(event.toolUseId)
-      if (agent) {
-        agents.set(event.toolUseId, {
-          ...agent,
-          status: event.isError ? 'failed' : 'completed',
-          completedAt: record.timestamp,
-          summary: compact(event.content)
-        })
-      }
-    }
-  }
-
-  return [...agents.values()].sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0))
-}
-
-function isAgentTool(toolName: string): boolean {
-  const normalized = toolName.toLowerCase()
-  return normalized.includes('agent') || normalized.includes('subtask') || normalized === 'task'
-}
-
-function agentNameFromTool(toolName: string, input: Record<string, unknown>): string {
-  const text = stringField(input, 'description') ?? stringField(input, 'prompt') ?? stringField(input, 'task')
-  if (text) return compact(text, 48)
-  return toolName
-}
-
-function compactToolInput(input: Record<string, unknown>): string | undefined {
-  return compact(
-    stringField(input, 'role') ??
-    stringField(input, 'description') ??
-    stringField(input, 'prompt') ??
-    stringField(input, 'task') ??
-    ''
-  )
-}
-
-function stringField(input: Record<string, unknown>, key: string): string | undefined {
-  const value = input[key]
-  return typeof value === 'string' && value.trim() ? value : undefined
-}
-
-function compact(value: string, max = 120): string | undefined {
-  const normalized = value.replace(/\s+/g, ' ').trim()
-  if (!normalized) return undefined
-  return normalized.length > max ? `${normalized.slice(0, max - 1)}…` : normalized
-}
-
-function agentDepth(agent: AgentNode, agents: AgentNode[]): number {
-  let depth = 0
-  let cursor = agent
-  while (cursor.parentAgentId && depth < 6) {
-    const parent = agents.find((candidate) => candidate.id === cursor.parentAgentId)
-    if (!parent) break
-    cursor = parent
-    depth += 1
-  }
-  return depth
-}
-
 function StatusDot({ status }: { status: AgentStatus }): JSX.Element {
   return (
     <span
@@ -338,13 +306,6 @@ function agentStatusColor(status: AgentStatus): string {
   if (status === 'waiting' || status === 'blocked' || status === 'queued') return 'var(--color-yellow)'
   if (status === 'failed' || status === 'cancelled') return 'var(--color-red)'
   return 'var(--color-accent)'
-}
-
-function eventCounts(events: SessionRunEventRecord[]): Record<string, number> {
-  return events.reduce<Record<string, number>>((acc, record) => {
-    acc[record.event.type] = (acc[record.event.type] ?? 0) + 1
-    return acc
-  }, {})
 }
 
 function eventColor(type: string): string {

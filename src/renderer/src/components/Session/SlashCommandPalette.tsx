@@ -1,104 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { ProviderRuntimeInfo, ProviderRuntimeKind, ProviderSlashCommand } from '../../types'
-
-export type SlashPaletteCommand = ProviderSlashCommand & {
-  group: 'App' | 'Provider'
-}
-
-const APP_COMMANDS: ProviderSlashCommand[] = [
-  {
-    id: 'settings',
-    name: '/settings',
-    description: 'Open settings',
-    providerId: 'app',
-    source: 'app',
-    runtime: 'headless',
-    handler: 'app-action'
-  },
-  {
-    id: 'diff',
-    name: '/diff',
-    description: 'Toggle diff',
-    providerId: 'app',
-    source: 'app',
-    runtime: 'headless',
-    handler: 'app-action'
-  },
-  {
-    id: 'terminal',
-    name: '/terminal',
-    description: 'Toggle terminal',
-    providerId: 'app',
-    source: 'app',
-    runtime: 'headless',
-    handler: 'app-action'
-  },
-  {
-    id: 'skills',
-    name: '/skills',
-    description: 'Toggle skills',
-    providerId: 'app',
-    source: 'app',
-    runtime: 'headless',
-    handler: 'app-action'
-  },
-  {
-    id: 'events',
-    name: '/events',
-    description: 'Toggle events',
-    providerId: 'app',
-    source: 'app',
-    runtime: 'headless',
-    handler: 'app-action'
-  },
-  {
-    id: 'agents',
-    name: '/agents',
-    description: 'Toggle agent activity',
-    providerId: 'app',
-    source: 'app',
-    runtime: 'headless',
-    handler: 'app-action'
-  },
-  {
-    id: 'model',
-    name: '/model',
-    description: 'Choose provider or model',
-    providerId: 'app',
-    source: 'app',
-    runtime: 'headless',
-    handler: 'app-action'
-  },
-  {
-    id: 'permissions',
-    name: '/permissions',
-    description: 'Choose permission mode',
-    providerId: 'app',
-    source: 'app',
-    runtime: 'headless',
-    handler: 'app-action'
-  }
-]
-
-export function availableSlashCommands(
-  providerRuntime: ProviderRuntimeInfo | undefined,
-  runtime: ProviderRuntimeKind
-): SlashPaletteCommand[] {
-  const featureSupport = new Map(
-    providerRuntime?.registry.features.map((feature) => [feature.id, feature.support]) ?? []
-  )
-  const providerCommands = providerRuntime?.registry.slashCommands.filter((command) => {
-    if (command.runtime !== runtime) return false
-    if (!command.featureId) return true
-    const support = featureSupport.get(command.featureId)
-    return support === 'supported' || support === 'partial'
-  }) ?? []
-
-  return [
-    ...APP_COMMANDS.map((command) => ({ ...command, group: 'App' as const })),
-    ...providerCommands.map((command) => ({ ...command, group: 'Provider' as const }))
-  ]
-}
+import type { ProviderRuntimeInfo, ProviderRuntimeKind, SlashPaletteCommand } from '../../types'
+import { availableSlashCommands } from '../../types'
 
 interface Props {
   query: string
@@ -203,7 +105,4 @@ export default function SlashCommandPalette({
   )
 }
 
-export function getSlashQuery(text: string): string | null {
-  const match = text.match(/^(\/\S*)/)
-  return match ? match[1] : null
-}
+export { getSlashQuery } from '../../types'

@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Project, Session, ChatMessage, FileChange, ProviderDiagnosticInfo, ProviderRuntimeInfo, SessionRunEventRecord } from '../../types'
+import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, ProviderRuntimeKind, SessionRunEventRecord } from '../../types'
 
 export interface AppSettings {
   defaultProvider: string
@@ -18,7 +18,21 @@ export type SessionEvent =
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
   | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
-  | { type: 'settingsUpdated'; id: string; provider?: string; model?: string; effort?: string; permissionMode?: string }
+  | {
+      type: 'settingsUpdated'
+      id: string
+      provider?: string
+      model?: string
+      effort?: string
+      permissionMode?: string
+      runtime?: ProviderRuntimeKind
+      useThinking?: boolean
+      useFast?: boolean
+      allowedTools?: string[]
+      disallowedTools?: string[]
+      availableTools?: string[]
+      additionalDirs?: string[]
+    }
   | { type: 'needsInput'; id: string }
 
 declare global {
@@ -42,7 +56,19 @@ declare global {
         }) => Promise<Session>
         sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean) => Promise<void>
         updateName: (id: string, name: string) => Promise<void>
-        updateSettings: (id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }) => Promise<void>
+        updateSettings: (id: string, patch: {
+          provider?: string
+          model?: string
+          effort?: string
+          permissionMode?: string
+          runtime?: ProviderRuntimeKind
+          useThinking?: boolean
+          useFast?: boolean
+          allowedTools?: string[]
+          disallowedTools?: string[]
+          availableTools?: string[]
+          additionalDirs?: string[]
+        }) => Promise<void>
         checkProviders: () => Promise<Record<string, boolean>>
         stop: (sessionId: string) => Promise<void>
         remove: (sessionId: string) => Promise<void>
@@ -51,6 +77,7 @@ declare global {
         getDiffForFile: (sessionId: string, filePath: string) => Promise<string>
         writeToPty: (sessionId: string, data: string) => Promise<void>
         grantAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
+        allowOnceAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
         answerUserInput: (sessionId: string, answer: string) => Promise<void>
         denyPermission: (sessionId: string) => Promise<void>
       }
@@ -60,6 +87,7 @@ declare global {
       providers: {
         getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>
         getDiagnostics: () => Promise<Record<string, ProviderDiagnosticInfo>>
+        runCommandSurface: (providerId: string, surfaceId: string) => Promise<ProviderCommandSurfaceResult>
       }
       settings: {
         get: () => Promise<AppSettings>

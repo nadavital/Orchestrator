@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import type { ProviderRuntimeInfo, ResolvedExecutionPolicy, Session } from '../../types'
+import type { ProviderRuntimeInfo, ProviderRuntimeKind, ResolvedExecutionPolicy, Session } from '../../types'
+import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, getVisibleModels } from '../../types'
 import { useSessionStore } from '../../store/sessions'
-import SlashCommandPalette, { getSlashQuery, type SlashPaletteCommand } from './SlashCommandPalette'
+import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 
 interface Props {
@@ -72,6 +73,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const model = session.model || provider.models[0]?.id || ''
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
   const permissionMode = session.permissionMode ?? provider.permissionModes[0]?.id ?? 'default'
+  const runtime = session.runtime ?? 'headless'
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
   const currentUi = uiState[session.id] ?? { showDiff: false, showEvents: false, showTerminal: false, showSkills: false, hasUnread: false }
@@ -102,7 +104,19 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const useThinking = session.useThinking ?? false
   const useFast = session.useFast ?? false
 
-  const update = (patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }): void => {
+  const update = (patch: {
+    provider?: string
+    model?: string
+    effort?: string
+    permissionMode?: string
+    runtime?: ProviderRuntimeKind
+    useThinking?: boolean
+    useFast?: boolean
+    allowedTools?: string[]
+    disallowedTools?: string[]
+    availableTools?: string[]
+    additionalDirs?: string[]
+  }): void => {
     window.api.sessions.updateSettings(session.id, patch)
   }
 
@@ -200,6 +214,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   // Compact agent pill label: "Provider · Model [· Effort]"
   const agentLabel = [
     providerShortName(provider.id),
+    runtime === 'interactive' ? 'CLI' : null,
     modelLabel,
     provider.supportsEffort && effortLabel ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
@@ -228,7 +243,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           <SlashCommandPalette
             query={slashQuery!}
             providerRuntime={providerRuntime}
-            runtime="headless"
+            runtime={runtime}
             onSelect={applySlashCommand}
             onDismiss={() => setText('')}
             selectedIndex={slashIndex}
@@ -421,7 +436,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
               <Chevron />
             </ToolbarBtn>
             {showPermMenu && (
-              <DropdownPanel style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 190 }}>
+              <DropdownPanel style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: provider.id === 'claude' ? 260 : 190 }}>
                 <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
                   <div className="flex items-center gap-2">
                     <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
@@ -432,6 +447,13 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 px-3 py-2">
+                  {providerRuntime?.capabilities.interactiveCli && (
+                    <RuntimePicker
+                      runtime={runtime}
+                      color={provider.color}
+                      onChange={(nextRuntime) => update({ runtime: nextRuntime })}
+                    />
+                  )}
                   {provider.permissionModes.map((opt) => {
                     const resolved = providerRuntime?.policies[opt.id]
                     const unsupported = resolved?.support === 'unsupported'
@@ -451,6 +473,15 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                     )
                   })}
                 </div>
+                {provider.id === 'claude' && (
+                  <ClaudePermissionRules
+                    allowedTools={session.allowedTools ?? []}
+                    disallowedTools={session.disallowedTools ?? []}
+                    availableTools={session.availableTools ?? []}
+                    additionalDirs={session.additionalDirs ?? []}
+                    onChange={update}
+                  />
+                )}
               </DropdownPanel>
             )}
           </div>
@@ -590,6 +621,123 @@ function DropdownRow({
         </svg>
       )}
     </button>
+  )
+}
+
+function parseListInput(value: string): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function ClaudePermissionRules({
+  allowedTools,
+  disallowedTools,
+  availableTools,
+  additionalDirs,
+  onChange
+}: {
+  allowedTools: string[]
+  disallowedTools: string[]
+  availableTools: string[]
+  additionalDirs: string[]
+  onChange: (patch: {
+    allowedTools?: string[]
+    disallowedTools?: string[]
+    availableTools?: string[]
+    additionalDirs?: string[]
+  }) => void
+}): JSX.Element {
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: 'var(--color-surface2)',
+    border: '1px solid var(--color-border)',
+    color: 'var(--color-text)',
+    borderRadius: 7,
+    padding: '5px 7px',
+    fontSize: 11,
+    outline: 'none'
+  }
+  const rowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '48px 1fr', gap: 8, alignItems: 'center' }
+  const labelStyle: React.CSSProperties = { color: 'var(--color-text-muted)', fontSize: 11 }
+
+  return (
+    <div className="px-3 py-2 space-y-1.5" style={{ borderTop: '1px solid var(--color-border)' }}>
+      <div style={rowStyle}>
+        <span style={labelStyle}>Allow</span>
+        <input
+          defaultValue={allowedTools.join(', ')}
+          placeholder="Read, Edit"
+          onBlur={(event) => onChange({ allowedTools: parseListInput(event.currentTarget.value) })}
+          style={inputStyle}
+        />
+      </div>
+      <div style={rowStyle}>
+        <span style={labelStyle}>Deny</span>
+        <input
+          defaultValue={disallowedTools.join(', ')}
+          placeholder="Bash(git push)"
+          onBlur={(event) => onChange({ disallowedTools: parseListInput(event.currentTarget.value) })}
+          style={inputStyle}
+        />
+      </div>
+      <div style={rowStyle}>
+        <span style={labelStyle}>Tools</span>
+        <input
+          defaultValue={availableTools.join(', ')}
+          placeholder="default"
+          onBlur={(event) => onChange({ availableTools: parseListInput(event.currentTarget.value) })}
+          style={inputStyle}
+        />
+      </div>
+      <div style={rowStyle}>
+        <span style={labelStyle}>Dirs</span>
+        <input
+          defaultValue={additionalDirs.join(', ')}
+          placeholder="/tmp/shared"
+          onBlur={(event) => onChange({ additionalDirs: parseListInput(event.currentTarget.value) })}
+          style={inputStyle}
+        />
+      </div>
+    </div>
+  )
+}
+
+function RuntimePicker({
+  runtime,
+  color,
+  onChange
+}: {
+  runtime: ProviderRuntimeKind
+  color: string
+  onChange: (runtime: ProviderRuntimeKind) => void
+}): JSX.Element {
+  const options: Array<{ id: ProviderRuntimeKind; label: string; title: string }> = [
+    { id: 'headless', label: 'JSON', title: 'Structured non-interactive run with parsed events.' },
+    { id: 'interactive', label: 'CLI', title: 'Native CLI session for slash commands and provider prompts.' }
+  ]
+
+  return (
+    <div
+      className="w-full flex items-center gap-1.5 pb-2 mb-0.5"
+      style={{ borderBottom: '1px solid var(--color-border)' }}
+    >
+      <span className="text-xs font-semibold mr-1" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+        Runtime
+      </span>
+      {options.map((option) => (
+        <Chip
+          key={option.id}
+          active={runtime === option.id}
+          onClick={() => onChange(option.id)}
+          title={option.title}
+          activeColor={color}
+        >
+          {option.label}
+        </Chip>
+      ))}
+    </div>
   )
 }
 

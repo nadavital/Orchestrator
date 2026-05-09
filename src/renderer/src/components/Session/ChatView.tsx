@@ -3,7 +3,14 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import type { Components } from 'react-markdown'
-import type { Session, ChatMessage, ResultMessage, PermissionDenial, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
+import {
+  describeToolAction,
+  describeToolActivity,
+  pairToolActivities,
+  permissionSummary,
+  summarizeToolActivities
+} from '../../types'
+import type { Session, ChatMessage, ResultMessage, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
 
 interface Props {
   session: Session
@@ -358,11 +365,6 @@ function MessageRow({ msg, sessionId }: { msg: ChatMessage; sessionId: string })
   return null
 }
 
-interface ToolActivity {
-  tool: ToolUseMessage
-  result?: ToolResultMessage
-}
-
 function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | ToolResultMessage> }): JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const activities = pairToolActivities(messages)
@@ -398,7 +400,7 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
           >
             {activities.map((activity) => (
               <div key={activity.tool.id} className="flex items-start gap-2">
-                <span style={{ color: activity.result?.isError ? 'var(--color-red)' : 'var(--color-text-muted)' }}>
+                <span style={{ color: activity.result?.isError ? 'var(--color-red)' : actionColor(describeToolAction(activity.tool).risk) }}>
                   {activity.result?.isError ? 'Error' : 'Done'}
                 </span>
                 <span className="min-w-0 flex-1 truncate" title={describeToolActivity(activity.tool)}>
@@ -423,88 +425,10 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
   )
 }
 
-function pairToolActivities(messages: Array<ToolUseMessage | ToolResultMessage>): ToolActivity[] {
-  const resultsByToolId = new Map<string, ToolResultMessage>()
-  const tools: ToolUseMessage[] = []
-
-  for (const message of messages) {
-    if (message.type === 'tool_use') {
-      tools.push(message)
-    } else {
-      resultsByToolId.set(message.toolUseId, message)
-    }
-  }
-
-  return tools.map((tool) => ({ tool, result: resultsByToolId.get(tool.id) }))
-}
-
-function summarizeToolActivities(activities: ToolActivity[], orphanResults: ToolResultMessage[]): string {
-  const counts = new Map<string, number>()
-  for (const activity of activities) {
-    const label = toolSummaryLabel(activity.tool)
-    counts.set(label, (counts.get(label) ?? 0) + 1)
-  }
-  if (orphanResults.length > 0 && counts.size === 0) {
-    counts.set('Received', orphanResults.length)
-  }
-  const parts = [...counts.entries()].map(([label, count]) => `${label} ${count} ${pluralizeToolUnit(toolSummaryUnit(label), count)}`)
-  const errorCount = activities.filter((activity) => activity.result?.isError).length + orphanResults.filter((result) => result.isError).length
-  return `${parts.join(' · ')}${errorCount > 0 ? ` · ${errorCount} error${errorCount === 1 ? '' : 's'}` : ''}`
-}
-
-function toolSummaryLabel(tool: ToolUseMessage): string {
-  const name = tool.toolName.toLowerCase()
-  if (name.includes('read')) return 'Read'
-  if (name.includes('write')) return 'Wrote'
-  if (name.includes('edit')) return 'Edited'
-  if (name.includes('bash') || name.includes('shell') || name.includes('command')) return 'Ran'
-  if (name.includes('grep') || name.includes('search')) return 'Searched'
-  if (name.includes('glob') || name.includes('list')) return 'Listed'
-  if (name.includes('web')) return 'Browsed'
-  return 'Used'
-}
-
-function toolSummaryUnit(label: string): string {
-  if (label === 'Read' || label === 'Wrote' || label === 'Edited') return 'file'
-  if (label === 'Ran') return 'command'
-  if (label === 'Searched') return 'query'
-  if (label === 'Listed') return 'listing'
-  if (label === 'Browsed') return 'page'
-  if (label === 'Received') return 'result'
-  return 'tool'
-}
-
-function pluralizeToolUnit(unit: string, count: number): string {
-  if (count === 1) return unit
-  if (unit === 'query') return 'queries'
-  return `${unit}s`
-}
-
-function describeToolActivity(tool: ToolUseMessage): string {
-  const target = toolTarget(tool.toolInput)
-  return target ? `${tool.toolName} ${target}` : tool.toolName
-}
-
-function toolTarget(input: Record<string, unknown>): string {
-  const keys = ['file_path', 'path', 'pattern', 'query', 'command', 'cmd', 'url']
-  for (const key of keys) {
-    const value = input[key]
-    if (typeof value === 'string' && value.trim()) return value.replace(/\s+/g, ' ').slice(0, 160)
-  }
-  return ''
-}
-
-function describeDenial(denial: PermissionDenial): string {
-  const { tool_name, tool_input } = denial
-  if (tool_name === 'Write' || tool_name === 'Edit' || tool_name === 'Read' || tool_name === 'MultiEdit') {
-    const path = (tool_input.file_path ?? tool_input.path ?? '') as string
-    return `${tool_name} ${path}`
-  }
-  if (tool_name === 'Bash') {
-    const cmd = ((tool_input.command ?? '') as string).slice(0, 80)
-    return `Bash: ${cmd}`
-  }
-  return tool_name
+function actionColor(risk: 'low' | 'medium' | 'high'): string {
+  if (risk === 'high') return 'var(--color-red)'
+  if (risk === 'medium') return 'var(--color-yellow)'
+  return 'var(--color-text-muted)'
 }
 
 function UserInputCard({ msg, sessionId }: { msg: ResultMessage; sessionId: string }): JSX.Element {
@@ -634,18 +558,32 @@ function QuestionBlock({
 }
 
 function PermissionCard({ msg, sessionId }: { msg: ResultMessage; sessionId: string }): JSX.Element {
-  const [decision, setDecision] = useState<'pending' | 'allowed' | 'denied'>('pending')
+  const [decision, setDecision] = useState<'pending' | 'allowed_once' | 'allowed_session' | 'denied'>('pending')
   const denials = msg.permissionDenials ?? []
   const toolNames = [...new Set(denials.map((d) => d.tool_name))]
+  const isPlanApproval = denials.some((d) => d.tool_name === 'ExitPlanMode')
 
-  const handleAllow = async (): Promise<void> => {
-    setDecision('allowed')
+  const handleAllowOnce = async (): Promise<void> => {
+    setDecision('allowed_once')
+    if (isPlanApproval) {
+      await window.api.sessions.grantAndResume(sessionId, toolNames)
+    } else {
+      await window.api.sessions.allowOnceAndResume(sessionId, toolNames)
+    }
+  }
+
+  const handleAllowSession = async (): Promise<void> => {
+    setDecision('allowed_session')
     await window.api.sessions.grantAndResume(sessionId, toolNames)
   }
 
   const handleDeny = async (): Promise<void> => {
     setDecision('denied')
-    await window.api.sessions.denyPermission(sessionId)
+    if (isPlanApproval) {
+      await window.api.sessions.answerUserInput(sessionId, 'Keep planning. Do not exit plan mode yet.')
+    } else {
+      await window.api.sessions.denyPermission(sessionId)
+    }
   }
 
   return (
@@ -663,36 +601,66 @@ function PermissionCard({ msg, sessionId }: { msg: ResultMessage; sessionId: str
             <path d="M8 0a5 5 0 0 0-5 5v1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V5a5 5 0 0 0-5-5Zm-3 5a3 3 0 1 1 6 0v1H5V5Zm3 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
           </svg>
           <span className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
-            Permission Required
+            {isPlanApproval ? 'Plan Ready' : 'Permission Required'}
           </span>
         </div>
         <div className="mb-3 space-y-1">
           {denials.map((d, i) => (
             <div key={i} className="text-xs font-mono truncate" style={{ color: 'var(--color-text-muted)' }}>
-              {describeDenial(d)}
+              {permissionSummary(d)}
             </div>
           ))}
         </div>
         {decision === 'pending' ? (
-          <div className="flex gap-2">
-            <button
-              onClick={handleAllow}
-              className="flex-1 rounded-lg py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
-              style={{ background: 'var(--color-accent)', color: '#fff' }}
-            >
-              Allow &amp; Continue
-            </button>
-            <button
-              onClick={handleDeny}
-              className="rounded-lg px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
-              style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
-            >
-              Deny
-            </button>
-          </div>
+          isPlanApproval ? (
+            <div className="flex gap-2">
+              <button
+                onClick={handleAllowOnce}
+                className="flex-1 rounded-lg py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
+                style={{ background: 'var(--color-accent)', color: '#fff' }}
+              >
+                Approve Plan
+              </button>
+              <button
+                onClick={handleDeny}
+                className="rounded-lg px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
+                style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+              >
+                Keep Planning
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-2" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) auto' }}>
+              <button
+                onClick={handleAllowOnce}
+                className="rounded-lg py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
+                style={{ background: 'var(--color-accent)', color: '#fff' }}
+              >
+                Allow Once
+              </button>
+              <button
+                onClick={handleAllowSession}
+                className="rounded-lg py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
+                style={{ background: 'var(--color-surface)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
+              >
+                Allow Session
+              </button>
+              <button
+                onClick={handleDeny}
+                className="rounded-lg px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
+                style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+              >
+                Deny
+              </button>
+            </div>
+          )
         ) : (
-          <div className="text-xs font-medium" style={{ color: decision === 'allowed' ? 'var(--color-green)' : 'var(--color-text-muted)' }}>
-            {decision === 'allowed' ? '✓ Allowed — resuming...' : '✗ Denied'}
+          <div className="text-xs font-medium" style={{ color: decision.startsWith('allowed') ? 'var(--color-green)' : 'var(--color-text-muted)' }}>
+            {decision === 'allowed_session'
+              ? isPlanApproval ? 'Approving plan...' : 'Allowed for session - resuming...'
+              : decision === 'allowed_once'
+                ? isPlanApproval ? 'Approving plan...' : 'Allowed once - resuming...'
+                : isPlanApproval ? 'Continuing plan...' : 'Denied'}
           </div>
         )}
       </div>

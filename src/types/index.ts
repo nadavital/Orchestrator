@@ -148,8 +148,10 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     ],
     supportsResume: true,
     permissionModes: [
-      { id: 'default', label: 'Workspace', desc: 'Write within workspace', intent: 'workspaceSandbox' },
-      { id: 'fullAccess', label: 'Full Access', desc: 'Full filesystem', intent: 'fullAccess' },
+      { id: 'default', label: 'Ask', desc: 'Ask when requested', intent: 'ask' },
+      { id: 'untrusted', label: 'Trusted', desc: 'Ask for untrusted commands', intent: 'ask' },
+      { id: 'never', label: 'Never', desc: 'Never ask; return failures', intent: 'workspaceSandbox' },
+      { id: 'fullAccess', label: 'Full Access', desc: 'Danger full access', intent: 'fullAccess' },
       { id: 'yolo', label: 'Auto', desc: 'Bypass prompts', intent: 'bypass' }
     ]
   },
@@ -364,6 +366,23 @@ export interface AgentNode {
   summary?: string
 }
 
+export type PlanItemStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'blocked'
+
+export interface PlanItem {
+  id?: string
+  content: string
+  status: PlanItemStatus
+}
+
+export interface PlanState {
+  providerId: string
+  sessionId: string
+  mode?: 'plan' | 'execute'
+  title?: string
+  items: PlanItem[]
+  summary?: string
+}
+
 export interface ProviderCommand {
   binary: string
   args: string[]
@@ -372,6 +391,7 @@ export interface ProviderCommand {
 export interface ProviderCapabilities {
   resume: boolean
   streamingJson: boolean
+  interactiveCli: boolean
   interactivePermissions: boolean
   allowedTools: boolean
   workspaceSandbox: boolean
@@ -381,6 +401,7 @@ export interface ProviderCapabilities {
 
 export type ProviderCapabilityKey =
   | 'resume'
+  | 'interactiveCli'
   | 'structuredOutput'
   | 'streamEvents'
   | 'interactivePermissions'
@@ -421,6 +442,16 @@ export interface ProviderFeature {
   note?: string
 }
 
+export interface ProviderCapabilityGap {
+  id: string
+  label: string
+  area: ProviderFeatureArea
+  severity: 'high' | 'medium' | 'low'
+  status: 'missing' | 'partial' | 'blocked'
+  summary: string
+  nextStep: string
+}
+
 export interface ProviderProbeDefinition {
   id: string
   label: string
@@ -450,10 +481,25 @@ export interface ProviderSlashCommand {
   prompt?: string
 }
 
+export interface ProviderCommandSurface {
+  id: string
+  label: string
+  area: ProviderFeatureArea
+  command: string[]
+  runtime: ProviderRuntimeKind
+  quota: 'none' | 'may-use-quota'
+  mutatesState: boolean
+  appSurface: 'settings' | 'composer' | 'activity' | 'terminal' | 'planned'
+  featureId?: string
+  note?: string
+}
+
 export interface ProviderCapabilityRegistry {
   providerId: string
   features: ProviderFeature[]
+  gaps: ProviderCapabilityGap[]
   probes: ProviderProbeDefinition[]
+  commandSurfaces: ProviderCommandSurface[]
   slashCommands: ProviderSlashCommand[]
 }
 
@@ -532,6 +578,13 @@ export interface ProviderDiagnosticInfo {
   probes: ProviderProbeResult[]
 }
 
+export interface ProviderCommandSurfaceResult {
+  providerId: string
+  surfaceId: string
+  status: 'ok' | 'error' | 'blocked'
+  output: string
+}
+
 export interface RunRequest {
   prompt: string
   cwd: string
@@ -540,6 +593,10 @@ export interface RunRequest {
   providerSessionId: string | null
   executionPolicy: ExecutionPolicy
   allowedTools: string[]
+  disallowedTools?: string[]
+  availableTools?: string[]
+  additionalDirs?: string[]
+  runtime?: ProviderRuntimeKind
   useThinking?: boolean
   useFast?: boolean
 }
@@ -553,6 +610,7 @@ export type RunEvent =
   | { type: 'agent.updated'; agent: AgentNode }
   | { type: 'agent.completed'; agent: AgentNode }
   | { type: 'agent.failed'; agent: AgentNode }
+  | { type: 'plan.updated'; plan: PlanState }
   | { type: 'permission.requested'; denials: PermissionDenial[]; content?: string }
   | { type: 'user_input.requested'; content: string; questions?: UserInputQuestion[] }
   | { type: 'connection.reconnecting'; attempt?: number; content?: string }
@@ -588,6 +646,10 @@ export interface Session {
   effort: SessionEffort
   permissionMode: SessionPermissionMode
   allowedTools: string[]
+  disallowedTools?: string[]
+  availableTools?: string[]
+  additionalDirs?: string[]
+  runtime?: ProviderRuntimeKind
   useThinking?: boolean
   useFast?: boolean
 }
@@ -689,3 +751,41 @@ export interface ContentBlock {
   content?: string | ContentBlock[]
   is_error?: boolean
 }
+
+export type {
+  ToolActionDescriptor,
+  ToolActionKind,
+  ToolActionRisk,
+  ToolActivity
+} from './toolActions'
+export {
+  describeToolAction,
+  describeToolActivity,
+  pairToolActivities,
+  permissionSummary,
+  summarizeToolActivities,
+  toolTarget
+} from './toolActions'
+export {
+  APP_SLASH_COMMANDS,
+  availableSlashCommands,
+  getSlashQuery
+} from './slashCommands'
+export type {
+  SlashPaletteCommand,
+  SlashPaletteGroup
+} from './slashCommands'
+export {
+  agentDepth,
+  deriveAgentNodes,
+  derivePlanStates,
+  eventCounts,
+  isAgentTool
+} from './activityView'
+export type {
+  FileChangeSummary
+} from './fileChanges'
+export {
+  fileStatusLabel,
+  summarizeFileChanges
+} from './fileChanges'

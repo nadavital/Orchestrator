@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","session_id":"claude-plan-session","permissionMode":"plan"}
+{"type":"assistant","sessionId":"claude-plan-session","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool-plan-1","name":"EnterPlanMode","input":{"plan":"Plan the change before editing."}}]}}
+{"type":"assistant","sessionId":"claude-plan-session","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool-todo-1","name":"TodoWrite","input":{"todos":[{"content":"Inspect current implementation","status":"completed","activeForm":"Inspecting current implementation"},{"content":"Map permission events","status":"in_progress","activeForm":"Mapping permission events"},{"content":"Add plan UI","status":"pending","activeForm":"Adding plan UI"}]}}]}}

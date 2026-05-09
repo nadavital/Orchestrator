@@ -1,0 +1,1 @@
+{"type":"permission.requested","data":{"toolName":"shell","toolUseId":"copilot-tool-1","toolInput":{"command":"git push"},"message":"Allow shell command?"}}

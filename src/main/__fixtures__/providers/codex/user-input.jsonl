@@ -1,0 +1,1 @@
+{"type":"mcp_elicitation_request","item":{"question":"Pick a deployment target","options":["staging","production"]}}

@@ -5,11 +5,12 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { PROVIDER_DEFS } from '../../types'
-import { getProviderDiagnostics, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary } from '../providers'
+import { buildProviderCommandForRuntime, getProviderDiagnostics, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
   'resume',
+  'interactiveCli',
   'structuredOutput',
   'streamEvents',
   'interactivePermissions',
@@ -100,7 +101,9 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
     assert.ok(registry, `Missing ${providerId} registry`)
     assert.equal(registry.providerId, providerId)
     assert.ok(registry.features.length > 0, `${providerId} should expose feature metadata`)
+    assert.ok(registry.gaps.length > 0, `${providerId} should expose known coverage gaps`)
     assert.ok(registry.probes.length > 0, `${providerId} should expose probe metadata`)
+    assert.ok(Array.isArray(registry.commandSurfaces), `${providerId} should expose command surface metadata`)
     assert.ok(Array.isArray(registry.slashCommands), `${providerId} should expose slash command metadata`)
 
     for (const probe of registry.probes) {
@@ -116,11 +119,35 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
   }
 
   assert.ok(runtimeInfo.claude.registry.features.some((feature) => feature.id === 'agents'))
+  assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'agents-list' && surface.quota === 'none'))
+  assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'ultrareview-json' && surface.quota === 'may-use-quota'))
   assert.ok(runtimeInfo.codex.registry.features.some((feature) => feature.id === 'multi-agent'))
   assert.ok(runtimeInfo.copilot.registry.features.some((feature) => feature.id === 'subagents'))
   assert.ok(runtimeInfo.cursor.registry.features.some((feature) => feature.id === 'worktrees'))
+  assert.ok(runtimeInfo.claude.registry.gaps.some((gap) => gap.id === 'claude-rich-permission-controls' && gap.status === 'partial'))
+  assert.ok(runtimeInfo.claude.registry.gaps.some((gap) => gap.id === 'claude-cli-management' && gap.status === 'partial'))
+  assert.ok(runtimeInfo.claude.registry.gaps.some((gap) => gap.id === 'claude-worktree-launch' && gap.status === 'partial'))
+  assert.ok(runtimeInfo.codex.registry.gaps.some((gap) => gap.id === 'codex-interactive-approvals' && gap.status === 'missing'))
+  assert.ok(runtimeInfo.codex.registry.gaps.some((gap) => gap.id === 'codex-auto-review-mode' && gap.status === 'blocked'))
+  assert.ok(runtimeInfo.copilot.registry.gaps.some((gap) => gap.id === 'copilot-cli-keychain' && gap.status === 'partial'))
+  assert.ok(runtimeInfo.cursor.registry.gaps.some((gap) => gap.id === 'cursor-keychain-models' && gap.status === 'blocked'))
   assert.ok(runtimeInfo.codex.registry.slashCommands.some((command) => command.name === '/review' && command.runtime === 'headless'))
   assert.ok(runtimeInfo.cursor.registry.slashCommands.some((command) => command.name === '/plan' && command.prompt))
+})
+
+test('provider CLI spec covers every configured provider with evidence levels', () => {
+  const spec = readFileSync(join(process.cwd(), 'docs/provider-cli-spec.md'), 'utf8')
+
+  for (const providerName of ['Claude Code', 'Codex CLI', 'Cursor Agent', 'GitHub Copilot CLI']) {
+    assert.match(spec, new RegExp(`## ${providerName}`), `Missing ${providerName} section`)
+  }
+
+  for (const evidenceLevel of ['verified-cli', 'verified-config', 'verified-package', 'inferred', 'unknown']) {
+    assert.equal(spec.includes(`\`${evidenceLevel}\``), true, `Missing ${evidenceLevel} evidence level`)
+  }
+
+  assert.match(spec, /Auto-review approval mode|auto review/i)
+  assert.match(spec, /SecItemCopyMatching failed -50/)
 })
 
 test('provider diagnostics expose local readiness without claiming unavailable usage', () => {
@@ -142,6 +169,19 @@ test('provider diagnostics expose local readiness without claiming unavailable u
       assert.ok(['ok', 'error', 'missing', 'skipped'].includes(probe.status))
     }
   }
+})
+
+test('provider command surfaces only auto-run no-quota non-mutating commands', () => {
+  const mutating = runProviderCommandSurface('claude', 'project-purge')
+  const quota = runProviderCommandSurface('claude', 'ultrareview-json')
+  const unknown = runProviderCommandSurface('claude', 'missing-surface')
+
+  assert.equal(mutating.status, 'blocked')
+  assert.match(mutating.output, /not safe/i)
+  assert.equal(quota.status, 'blocked')
+  assert.match(quota.output, /not safe/i)
+  assert.equal(unknown.status, 'blocked')
+  assert.match(unknown.output, /unknown provider command/i)
 })
 
 test('provider binary detection searches common desktop CLI locations beyond inherited PATH', () => {
@@ -184,6 +224,43 @@ test('provider spawn env keeps desktop CLI directories available to provider hel
   }
 })
 
+test('provider spawn env merges generic env overrides from provider settings', () => {
+  const originalHome = process.env.HOME
+  const tmpRoot = join(tmpdir(), `orchestrator-provider-env-${Date.now()}`)
+  const claudeDir = join(tmpRoot, '.claude')
+  const cursorDir = join(tmpRoot, '.cursor')
+
+  try {
+    process.env.HOME = tmpRoot
+    mkdirSync(claudeDir, { recursive: true })
+    mkdirSync(cursorDir, { recursive: true })
+    writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify({
+      env: {
+        NPM_CONFIG_REGISTRY: 'https://example.invalid/npm/',
+        ANTHROPIC_BASE_URL: 'https://example.invalid/anthropic/',
+        IGNORED_NON_STRING: 42
+      }
+    }))
+    writeFileSync(join(cursorDir, 'agent-config.json'), JSON.stringify({
+      env: {
+        CURSOR_API_BASE_URL: 'https://example.invalid/cursor/'
+      }
+    }))
+
+    const claudeEnv = providerSpawnEnv('claude')
+    const cursorEnv = providerSpawnEnv('cursor')
+    const codexEnv = providerSpawnEnv('codex')
+    assert.equal(claudeEnv.NPM_CONFIG_REGISTRY, 'https://example.invalid/npm/')
+    assert.equal(claudeEnv.ANTHROPIC_BASE_URL, 'https://example.invalid/anthropic/')
+    assert.equal(claudeEnv.IGNORED_NON_STRING, undefined)
+    assert.equal(cursorEnv.CURSOR_API_BASE_URL, 'https://example.invalid/cursor/')
+    assert.equal(codexEnv.NPM_CONFIG_REGISTRY, undefined)
+  } finally {
+    process.env.HOME = originalHome
+    rmSync(tmpRoot, { recursive: true, force: true })
+  }
+})
+
 test('runtime info resolves every configured permission mode', () => {
   const runtimeInfo = getProviderRuntimeInfo()
 
@@ -211,9 +288,9 @@ test('resolved permission policies expose GUI metadata for adaptive controls', (
   assert.ok(runtimeInfo.copilot.policies.default.controls?.some((control) => control.kind === 'url'))
   assert.ok(runtimeInfo.copilot.policies.default.controls?.some((control) => control.kind === 'path'))
 
-  assert.equal(runtimeInfo.codex.policies.default.intent, 'workspaceSandbox')
+  assert.equal(runtimeInfo.codex.policies.default.intent, 'ask')
   assert.ok(runtimeInfo.codex.policies.default.controls?.some((control) => control.kind === 'sandbox'))
-  assert.ok(runtimeInfo.codex.policies.default.controls?.some((control) => control.support === 'planned'))
+  assert.ok(runtimeInfo.codex.policies.default.controls?.some((control) => control.kind === 'mode' && control.support === 'available'))
 
   assert.equal(runtimeInfo.cursor.policies.sandbox.intent, 'workspaceSandbox')
   assert.ok(runtimeInfo.cursor.policies.sandbox.controls?.some((control) => control.kind === 'config'))
@@ -237,8 +314,102 @@ test('runtime info distinguishes interactive permission support from forced unat
   )
   assert.equal(
     runtimeInfo.copilot.abstractCapabilities.find((capability) => capability.key === 'interactivePermissions')?.support,
-    'forced'
+    'supported'
   )
+})
+
+test('interactive CLI capability is exposed separately from structured output', () => {
+  const runtimeInfo = getProviderRuntimeInfo()
+
+  assert.equal(runtimeInfo.claude.capabilities.interactiveCli, true)
+  assert.equal(runtimeInfo.codex.capabilities.interactiveCli, true)
+  assert.equal(runtimeInfo.cursor.capabilities.interactiveCli, true)
+  assert.equal(runtimeInfo.copilot.capabilities.interactiveCli, true)
+  assert.equal(
+    runtimeInfo.claude.abstractCapabilities.find((capability) => capability.key === 'interactiveCli')?.support,
+    'supported'
+  )
+  assert.equal(
+    runtimeInfo.copilot.abstractCapabilities.find((capability) => capability.key === 'interactiveCli')?.support,
+    'supported'
+  )
+})
+
+test('providers expose native interactive CLI launch commands without headless output flags', () => {
+  const claudeCommand = PROVIDERS.claude.buildInteractiveCommand(request({
+    prompt: 'hello',
+    executionPolicy: 'default',
+    model: 'claude-sonnet-4-6'
+  }))
+  assert.equal(claudeCommand.args.includes('-p'), false)
+  assert.equal(claudeCommand.args.includes('--output-format'), false)
+  assert.equal(claudeCommand.args.at(-1), 'hello')
+  assert.equal(claudeCommand.args.includes('--permission-mode'), true)
+  assert.equal(claudeCommand.args[claudeCommand.args.indexOf('--permission-mode') + 1], 'default')
+
+  const codexCommand = PROVIDERS.codex.buildInteractiveCommand(request({
+    prompt: 'hello',
+    executionPolicy: 'untrusted',
+    model: 'gpt-5.4'
+  }))
+  assert.equal(codexCommand.args[0], '--model')
+  assert.equal(codexCommand.args.includes('exec'), false)
+  assert.equal(codexCommand.args.includes('--json'), false)
+  assert.equal(codexCommand.args.includes('--ask-for-approval'), true)
+  assert.equal(codexCommand.args[codexCommand.args.indexOf('--ask-for-approval') + 1], 'untrusted')
+
+  const cursorCommand = PROVIDERS.cursor.buildInteractiveCommand(request({
+    prompt: 'hello',
+    executionPolicy: 'default',
+    model: 'auto'
+  }))
+  assert.equal(cursorCommand.args.includes('--print'), false)
+  assert.equal(cursorCommand.args.includes('--output-format'), false)
+  assert.equal(cursorCommand.args.includes('--trust'), false)
+  assert.equal(cursorCommand.args.includes('--workspace'), true)
+
+  const copilotCommand = PROVIDERS.copilot.buildInteractiveCommand(request({
+    prompt: 'hello',
+    executionPolicy: 'default',
+    model: 'gpt-5.4-mini'
+  }))
+  assert.equal(copilotCommand.args.includes('-p'), false)
+  assert.equal(copilotCommand.args.includes('--output-format'), false)
+  assert.equal(copilotCommand.args.includes('--allow-all-tools'), false)
+  assert.deepEqual(copilotCommand.args.slice(-2), ['-i', 'hello'])
+})
+
+test('runtime command selection keeps interactive sessions on the native CLI lane', () => {
+  const interactiveClaude = buildProviderCommandForRuntime(
+    PROVIDERS.claude,
+    request({
+      runtime: 'interactive',
+      prompt: 'hello',
+      executionPolicy: 'default',
+      model: 'claude-sonnet-4-6'
+    })
+  )
+  assert.equal(interactiveClaude.args.includes('-p'), false)
+  assert.equal(interactiveClaude.args.includes('--output-format'), false)
+
+  const headlessClaude = buildProviderCommandForRuntime(
+    PROVIDERS.claude,
+    request({
+      runtime: 'headless',
+      prompt: 'hello',
+      executionPolicy: 'default',
+      model: 'claude-sonnet-4-6'
+    })
+  )
+  assert.equal(headlessClaude.args.includes('-p'), true)
+  assert.equal(headlessClaude.args.includes('--output-format'), true)
+
+  const interactiveCopilot = buildProviderCommandForRuntime(
+    PROVIDERS.copilot,
+    request({ runtime: 'interactive', prompt: 'hello' })
+  )
+  assert.equal(interactiveCopilot.args.includes('--output-format'), false)
+  assert.deepEqual(interactiveCopilot.args.slice(-2), ['-i', 'hello'])
 })
 
 test('claude default permission mode asks instead of auto-accepting edits', () => {
@@ -284,6 +455,24 @@ test('claude resume includes captured session id and granted tools', () => {
   assert.equal(command.args[command.args.indexOf('--allowedTools') + 1], 'Read,Edit')
 })
 
+test('claude command maps denied tools, tool set, and extra directories to native CLI flags', () => {
+  const command = PROVIDERS.claude.buildStartCommand(
+    request({
+      allowedTools: ['Read'],
+      disallowedTools: ['Bash(git push)', 'WebFetch'],
+      availableTools: ['Read', 'Edit', 'Bash'],
+      additionalDirs: ['/tmp/shared', '/tmp/other']
+    })
+  )
+
+  assert.equal(command.args[command.args.indexOf('--allowedTools') + 1], 'Read')
+  assert.equal(command.args[command.args.indexOf('--disallowedTools') + 1], 'Bash(git push),WebFetch')
+  assert.equal(command.args[command.args.indexOf('--tools') + 1], 'Read,Edit,Bash')
+  assert.equal(command.args.includes('--add-dir'), true)
+  const addDirIndex = command.args.indexOf('--add-dir')
+  assert.deepEqual(command.args.slice(addDirIndex + 1, addDirIndex + 3), ['/tmp/shared', '/tmp/other'])
+})
+
 test('claude fixture normalizes session, tool, and permission events', () => {
   const events = parseFixture('claude', 'permission-denied.jsonl')
   const messages = eventsToMessages(events)
@@ -298,6 +487,10 @@ test('claude fixture normalizes session, tool, and permission events', () => {
   assert.equal(tool.toolInput.file_path, '/tmp/example.ts')
   assert.equal(permission.denials[0]?.tool_name, 'Edit')
   assert.equal(events.some((event) => event.type === 'run.failed'), false)
+  assert.equal(
+    events.some((event) => event.type === 'tool.completed' && event.toolUseId === 'tool-1' && event.isError),
+    false
+  )
 
   const resultMessage = messages.find((message) => message.type === 'result')
   assert.ok(resultMessage)
@@ -325,6 +518,96 @@ test('claude AskUserQuestion tool result becomes a structured user-input request
     assert.equal(resultMessage.subtype, 'waiting_for_user')
     assert.equal(resultMessage.userInputQuestions?.[0]?.options?.length, 3)
   }
+})
+
+test('claude Task tool normalizes subagent activity alongside tool events', () => {
+  const events = parseFixture('claude', 'task-agent.jsonl')
+  const session = firstEvent(events, 'session.started')
+  const started = firstEvent(events, 'agent.started')
+  const completed = firstEvent(events, 'agent.completed')
+  const tool = firstEvent(events, 'tool.started')
+  const toolResult = firstEvent(events, 'tool.completed')
+
+  assert.equal(session.providerSessionId, 'claude-task-session')
+  assert.equal(started.agent.id, 'tool-task-1')
+  assert.equal(started.agent.providerId, 'claude')
+  assert.equal(started.agent.sessionId, 'claude-task-session')
+  assert.equal(started.agent.name, 'explorer')
+  assert.equal(started.agent.status, 'running')
+  assert.equal(completed.agent.status, 'completed')
+  assert.match(completed.agent.summary ?? '', /provider fixtures/)
+  assert.equal(tool.toolName, 'Task')
+  assert.equal(toolResult.toolUseId, 'tool-task-1')
+  assert.ok(events.some((event) => event.type === 'run.completed'))
+})
+
+test('claude Agent tool normalizes subagent activity alongside tool events', () => {
+  const events = parseFixture('claude', 'agent-tool.jsonl')
+  const started = firstEvent(events, 'agent.started')
+  const completed = firstEvent(events, 'agent.completed')
+  const tool = firstEvent(events, 'tool.started')
+  const toolResult = firstEvent(events, 'tool.completed')
+
+  assert.equal(started.agent.id, 'tool-agent-1')
+  assert.equal(started.agent.providerId, 'claude')
+  assert.equal(started.agent.sessionId, 'claude-agent-session')
+  assert.equal(started.agent.name, 'Explore')
+  assert.equal(completed.agent.status, 'completed')
+  assert.match(completed.agent.summary ?? '', /README.md/)
+  assert.equal(tool.toolName, 'Agent')
+  assert.equal(toolResult.toolUseId, 'tool-agent-1')
+})
+
+test('claude system task lifecycle updates the subagent node from live stream-json events', () => {
+  const events = parseFixture('claude', 'task-progress.jsonl')
+  const startedEvents = events.filter((event): event is Extract<RunEvent, { type: 'agent.started' }> => event.type === 'agent.started')
+  const updated = firstEvent(events, 'agent.updated')
+  const completedEvents = events.filter((event): event is Extract<RunEvent, { type: 'agent.completed' }> => event.type === 'agent.completed')
+  const completed = firstEvent(events, 'agent.completed')
+
+  assert.equal(startedEvents.length, 2, 'assistant Agent tool and system task_started both identify the same subagent')
+  assert.equal(completedEvents.length, 1, 'task_notification should complete the subagent without duplicating the parent Agent tool_result')
+  assert.equal(startedEvents[0].agent.id, 'tool-live-agent-1')
+  assert.equal(startedEvents[1].agent.id, 'tool-live-agent-1')
+  assert.equal(startedEvents[1].agent.name, 'local_agent')
+  assert.match(startedEvents[1].agent.role ?? '', /Find TodoWrite parsing/)
+  assert.equal(updated.agent.id, 'tool-live-agent-1')
+  assert.match(updated.agent.summary ?? '', /Running grep/)
+  assert.match(updated.agent.summary ?? '', /Grep/)
+  assert.match(updated.agent.summary ?? '', /14118 tokens/)
+  assert.equal(completed.agent.status, 'completed')
+  assert.match(completed.agent.summary ?? '', /Found TodoWrite parser test patterns/)
+})
+
+test('claude plan mode and TodoWrite normalize into plan updates', () => {
+  const events = parseFixture('claude', 'plan-todos.jsonl')
+  const plans = events.filter((event): event is Extract<RunEvent, { type: 'plan.updated' }> => event.type === 'plan.updated')
+  const planMode = plans.find((event) => event.plan.mode === 'plan')
+  const todoPlan = plans.find((event) => event.plan.items.length === 3)
+
+  assert.ok(planMode)
+  assert.equal(planMode.plan.sessionId, 'claude-plan-session')
+  assert.match(planMode.plan.summary ?? '', /Plan the change/)
+  assert.ok(todoPlan)
+  assert.equal(todoPlan.plan.title, 'Tasks')
+  assert.equal(todoPlan.plan.items[0].status, 'completed')
+  assert.equal(todoPlan.plan.items[1].status, 'in_progress')
+  assert.equal(todoPlan.plan.items[1].content, 'Map permission events')
+  assert.equal(todoPlan.plan.items[2].status, 'pending')
+})
+
+test('claude ExitPlanMode confirmation is a permission prompt, not a red tool error', () => {
+  const events = parseFixture('claude', 'exit-plan-denial.jsonl')
+  const messages = eventsToMessages(events)
+  const plans = events.filter((event): event is Extract<RunEvent, { type: 'plan.updated' }> => event.type === 'plan.updated')
+  const permission = firstEvent(events, 'permission.requested')
+
+  assert.equal(plans[0].plan.mode, 'execute')
+  assert.equal(plans[1].plan.mode, 'plan')
+  assert.equal(permission.denials[0]?.tool_name, 'ExitPlanMode')
+  assert.equal(events.some((event) => event.type === 'tool.completed' && event.isError), false)
+  assert.equal(messages.some((message) => message.type === 'tool_result' && message.isError), false)
+  assert.equal(messages.some((message) => message.type === 'result' && message.permissionDenials?.[0]?.tool_name === 'ExitPlanMode'), true)
 })
 
 test('claude AskUserQuestion permission denial becomes user input, not permission UI', () => {
@@ -367,6 +650,17 @@ test('claude auth retry output fails fast instead of spinning through retries', 
   assert.match(retryFailure.content ?? '', /authentication failed/i)
 })
 
+test('claude interactive turn duration marks the run complete', () => {
+  const events = PROVIDERS.claude.parseOutputLine(JSON.stringify({
+    type: 'system',
+    subtype: 'turn_duration',
+    durationMs: 2910,
+    messageCount: 3
+  }))
+
+  assert.ok(events.some((event) => event.type === 'run.completed'))
+})
+
 test('provider fixtures expose expected normalized event contracts', () => {
   const cases: Array<{
     providerId: string
@@ -404,6 +698,16 @@ test('provider fixtures expose expected normalized event contracts', () => {
       types: ['session.started', 'run.failed']
     },
     {
+      providerId: 'copilot',
+      fixture: 'user-input.jsonl',
+      types: ['user_input.requested']
+    },
+    {
+      providerId: 'copilot',
+      fixture: 'permission-request.jsonl',
+      types: ['permission.requested']
+    },
+    {
       providerId: 'codex',
       fixture: 'plain-answer.jsonl',
       types: ['session.started', 'assistant.text', 'run.completed']
@@ -417,6 +721,16 @@ test('provider fixtures expose expected normalized event contracts', () => {
       providerId: 'codex',
       fixture: 'error.jsonl',
       types: ['session.started', 'run.failed']
+    },
+    {
+      providerId: 'codex',
+      fixture: 'user-input.jsonl',
+      types: ['user_input.requested']
+    },
+    {
+      providerId: 'codex',
+      fixture: 'permission-request.jsonl',
+      types: ['permission.requested']
     },
     {
       providerId: 'cursor',
@@ -437,12 +751,48 @@ test('provider fixtures expose expected normalized event contracts', () => {
       providerId: 'cursor',
       fixture: 'auth-error.jsonl',
       types: ['run.failed']
+    },
+    {
+      providerId: 'cursor',
+      fixture: 'user-input.jsonl',
+      types: ['user_input.requested']
+    },
+    {
+      providerId: 'cursor',
+      fixture: 'permission-request.jsonl',
+      types: ['permission.requested']
     }
   ]
 
   for (const { providerId, fixture, types } of cases) {
     assert.deepEqual(eventTypes(parseFixture(providerId, fixture)), types, `${providerId}/${fixture}`)
   }
+})
+
+test('generic CLI question events normalize across Copilot, Codex, and Cursor', () => {
+  const copilotQuestion = firstEvent(parseFixture('copilot', 'user-input.jsonl'), 'user_input.requested')
+  const codexQuestion = firstEvent(parseFixture('codex', 'user-input.jsonl'), 'user_input.requested')
+  const cursorQuestion = firstEvent(parseFixture('cursor', 'user-input.jsonl'), 'user_input.requested')
+
+  assert.equal(copilotQuestion.content, 'Which branch should I inspect?')
+  assert.equal(copilotQuestion.questions?.[0]?.options?.[0]?.label, 'main')
+  assert.equal(codexQuestion.content, 'Pick a deployment target')
+  assert.equal(codexQuestion.questions?.[0]?.options?.[1]?.label, 'production')
+  assert.equal(cursorQuestion.content, 'Which mode should Cursor use?')
+  assert.equal(cursorQuestion.questions?.[0]?.options?.[1]?.label, 'Plan')
+})
+
+test('generic CLI permission events preserve tool identity and requested action', () => {
+  const copilotPermission = firstEvent(parseFixture('copilot', 'permission-request.jsonl'), 'permission.requested')
+  const codexPermission = firstEvent(parseFixture('codex', 'permission-request.jsonl'), 'permission.requested')
+  const cursorPermission = firstEvent(parseFixture('cursor', 'permission-request.jsonl'), 'permission.requested')
+
+  assert.equal(copilotPermission.denials[0]?.tool_name, 'shell')
+  assert.equal(copilotPermission.denials[0]?.tool_input.command, 'git push')
+  assert.equal(codexPermission.denials[0]?.tool_name, 'shell')
+  assert.equal(codexPermission.denials[0]?.tool_input.command, 'npm install')
+  assert.equal(cursorPermission.denials[0]?.tool_name, 'write')
+  assert.equal(cursorPermission.denials[0]?.tool_input.path, 'src/index.ts')
 })
 
 test('cursor reconnecting fixture preserves retry attempts', () => {
@@ -515,12 +865,23 @@ test('copilot subagent events normalize into agent activity nodes', () => {
   assert.equal(completed.agent.summary, 'Found the parser path.')
 })
 
-test('codex permission modes map to sandbox arguments', () => {
-  const workspaceCommand = PROVIDERS.codex.buildStartCommand(
+test('codex approval modes map to native approval policy config', () => {
+  const askCommand = PROVIDERS.codex.buildStartCommand(
     request({ model: 'gpt-5.4', executionPolicy: 'default' })
   )
-  assert.equal(workspaceCommand.args.includes('--sandbox'), true)
-  assert.equal(workspaceCommand.args[workspaceCommand.args.indexOf('--sandbox') + 1], 'workspace-write')
+  assert.equal(askCommand.args.includes('--sandbox'), true)
+  assert.equal(askCommand.args[askCommand.args.indexOf('--sandbox') + 1], 'workspace-write')
+  assert.equal(askCommand.args.includes('approval_policy="on-request"'), true)
+
+  const untrustedCommand = PROVIDERS.codex.buildStartCommand(
+    request({ model: 'gpt-5.4', executionPolicy: 'untrusted' })
+  )
+  assert.equal(untrustedCommand.args.includes('approval_policy="untrusted"'), true)
+
+  const neverCommand = PROVIDERS.codex.buildStartCommand(
+    request({ model: 'gpt-5.4', executionPolicy: 'never' })
+  )
+  assert.equal(neverCommand.args.includes('approval_policy="never"'), true)
 
   const fullAccessCommand = PROVIDERS.codex.buildStartCommand(
     request({ model: 'gpt-5.4', executionPolicy: 'fullAccess' })
@@ -537,9 +898,10 @@ test('codex exec policy does not claim interactive approval prompting', () => {
   const resolved = PROVIDERS.codex.resolveExecutionPolicy('default')
   const command = PROVIDERS.codex.buildStartCommand(request({ executionPolicy: 'default' }))
 
-  assert.equal(resolved.support, 'exact')
-  assert.match(resolved.warning ?? '', /does not expose interactive approval prompts/)
+  assert.equal(resolved.support, 'approximate')
+  assert.match(resolved.warning ?? '', /interactive CLI lane/)
   assert.equal(command.args.includes('--ask-for-approval'), false)
+  assert.equal(command.args.includes('approval_policy="on-request"'), true)
   assert.equal(PROVIDERS.codex.capabilities.interactivePermissions, false)
   assert.equal(PROVIDERS.codex.binaryCandidates?.includes('/Applications/Codex.app/Contents/Resources/codex'), true)
 })

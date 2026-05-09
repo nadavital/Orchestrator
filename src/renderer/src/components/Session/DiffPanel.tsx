@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { fileStatusLabel, summarizeFileChanges } from '../../types'
 import type { FileChange } from '../../types'
 
 interface Props {
@@ -9,6 +10,7 @@ export default function DiffPanel({ sessionId }: Props): JSX.Element {
   const [files, setFiles] = useState<FileChange[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileDiff, setFileDiff] = useState('')
+  const summary = summarizeFileChanges(files)
 
   useEffect(() => {
     window.api.sessions.getChangedFiles(sessionId).then((f) => {
@@ -61,6 +63,21 @@ export default function DiffPanel({ sessionId }: Props): JSX.Element {
         </div>
       ) : (
         <>
+          <div
+            className="px-3 py-2 text-xs"
+            style={{
+              borderBottom: '1px solid var(--color-border)',
+              color: summary.risk === 'high' ? 'var(--color-red)' : 'var(--color-text-muted)'
+            }}
+          >
+            <div className="truncate">{summary.label}</div>
+            {(summary.additions > 0 || summary.deletions > 0) && (
+              <div className="mt-1 flex gap-2" style={{ fontSize: 10 }}>
+                {summary.additions > 0 && <span style={{ color: '#22c55e' }}>+{summary.additions}</span>}
+                {summary.deletions > 0 && <span style={{ color: '#ef4444' }}>-{summary.deletions}</span>}
+              </div>
+            )}
+          </div>
           {/* File list */}
           <div
             className="overflow-y-auto shrink-0"
@@ -121,6 +138,7 @@ function FileRow({ file, selected, onClick }: { file: FileChange; selected: bool
       <span
         className="text-xs font-bold shrink-0"
         style={{ color: statusColor[file.status] ?? 'var(--color-text-muted)', width: 10 }}
+        title={fileStatusLabel(file.status)}
       >
         {file.status}
       </span>

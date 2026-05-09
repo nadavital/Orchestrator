@@ -560,7 +560,7 @@ export default function PetOverlay(): JSX.Element | null {
                 }}
                 onAllow={async () => {
                   if (!notification.permissionAction) return
-                  await window.petApi.sessions.grantAndResume(notification.sessionId, notification.permissionAction.toolNames)
+                  await window.petApi.sessions.allowOnceAndResume(notification.sessionId, notification.permissionAction.toolNames)
                   setDismissedKeys((prev) => new Set(prev).add(notification.dismissKey))
                 }}
                 onDeny={async () => {
@@ -837,7 +837,7 @@ function NotificationCard({
         >
           {notification.permissionAction && (
             <>
-              <ActionButton label="Allow" busy={busy} onClick={() => runAction(onAllow)} tone="primary" />
+              <ActionButton label="Allow Once" busy={busy} onClick={() => runAction(onAllow)} tone="primary" />
               <ActionButton label="Deny" busy={busy} onClick={() => runAction(onDeny)} />
             </>
           )}

@@ -1,0 +1,3 @@
+{"type":"permission-mode","permissionMode":"default","sessionId":"claude-agent-session"}
+{"type":"assistant","sessionId":"claude-agent-session","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool-agent-1","name":"Agent","input":{"subagent_type":"Explore","description":"Inspect repo root and report one filename","prompt":"List one filename from /Users/navital/Desktop/ilocksvc and report it."}}]}}
+{"type":"user","sessionId":"claude-agent-session","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool-agent-1","content":[{"type":"text","text":"README.md"}]}]},"toolUseResult":{"status":"completed","agentId":"agent-1","agentType":"Explore","content":[{"type":"text","text":"README.md"}],"totalToolUseCount":1}}

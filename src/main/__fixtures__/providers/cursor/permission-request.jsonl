@@ -1,0 +1,1 @@
+{"type":"approval.requested","data":{"toolName":"write","toolUseId":"cursor-tool-1","toolInput":{"path":"src/index.ts"},"message":"Allow file write?"}}

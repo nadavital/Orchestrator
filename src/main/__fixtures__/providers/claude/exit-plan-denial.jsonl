@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","session_id":"claude-exit-plan-session","permissionMode":"plan"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool-exit-plan-1","name":"ExitPlanMode","input":{"plan":"# Plan\n\nRun the targeted parser test."}}]},"session_id":"claude-exit-plan-session"}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"Exit plan mode?","is_error":true,"tool_use_id":"tool-exit-plan-1"}]},"session_id":"claude-exit-plan-session","tool_use_result":"Error: Exit plan mode?"}
+{"type":"result","subtype":"success","is_error":false,"result":"The plan is ready for confirmation.","session_id":"claude-exit-plan-session","permission_denials":[{"tool_name":"ExitPlanMode","tool_use_id":"tool-exit-plan-1","tool_input":{"plan":"# Plan\n\nRun the targeted parser test."}}]}

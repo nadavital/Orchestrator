@@ -3,13 +3,16 @@ import type { IPty } from 'node-pty'
 import Store from 'electron-store'
 import { BrowserWindow } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
-import type { Session, ChatMessage, RunEvent, RunRequest, SessionStatus } from '../types'
+import type { Session, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus } from '../types'
 import { PROVIDER_DEFS } from '../types'
 import { gitManager } from './git'
-import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand } from './providers'
+import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand } from './providers'
+import type { ProviderAdapter } from './providers'
 import { eventsToMessages } from './runEvents'
+import { decideRunLifecycle, isPausedOrFailed } from './runLifecycle'
 import { settingsStore } from './settings'
 import { migrateLegacyUserData } from './userDataMigration'
+import { claudeProjectDir, createJsonlTailer, type JsonlTailer } from './jsonlTailer'
 
 interface SessionStore {
   sessions: Session[]
@@ -21,10 +24,17 @@ const store = new Store<SessionStore>({ defaults: { sessions: [] } })
 
 const activePtys = new Map<string, IPty>()
 
+const activeJsonlTailers = new Map<string, JsonlTailer>()
+
+function defaultRuntimeForProvider(_providerId: string): ProviderRuntimeKind {
+  return 'headless'
+}
+
 function normalizeSession(session: Session): Session {
   return {
     ...session,
-    providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null
+    providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
+    runtime: session.runtime ?? defaultRuntimeForProvider(session.provider ?? 'claude')
   }
 }
 
@@ -43,31 +53,32 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
     executionPolicy: session.permissionMode ?? 'default',
     allowedTools: session.allowedTools ?? [],
+    disallowedTools: session.disallowedTools ?? [],
+    availableTools: session.availableTools ?? [],
+    additionalDirs: session.additionalDirs ?? [],
+    runtime: session.runtime ?? defaultRuntimeForProvider(session.provider ?? 'claude'),
     useThinking: session.useThinking,
     useFast: session.useFast
   }
 }
 
-function classifyFailure(content?: string): SessionStatus {
-  if (/authentication required|authentication_failed|not logged in|login|api key|apiKeyHelper|unauthorized|keychain|SecItemCopyMatching/i.test(content ?? '')) {
-    return 'auth_error'
-  }
-  if (/model .*unavailable|model unavailable|unknown model|invalid model|no models available/i.test(content ?? '')) {
-    return 'model_error'
-  }
-  return 'provider_error'
+function mergeToolNames(current: string[] | undefined, granted: string[]): string[] {
+  return [...new Set([...(current ?? []), ...granted])]
 }
 
-function isPausedOrFailed(status: SessionStatus): boolean {
-  return [
-    'waiting_for_permission',
-    'waiting_for_user',
-    'reconnecting',
-    'auth_error',
-    'model_error',
-    'provider_error',
-    'error'
-  ].includes(status)
+function stopJsonlTailer(sessionId: string): void {
+  const tailer = activeJsonlTailers.get(sessionId)
+  if (!tailer) return
+  tailer.stop()
+  activeJsonlTailers.delete(sessionId)
+}
+
+function flushAndStopJsonlTailer(sessionId: string): void {
+  const tailer = activeJsonlTailers.get(sessionId)
+  if (!tailer) return
+  tailer.poll()
+  tailer.stop()
+  activeJsonlTailers.delete(sessionId)
 }
 
 export const sessionManager = {
@@ -143,7 +154,11 @@ export const sessionManager = {
       model: defaultModel,
       effort: defaultEffort,
       permissionMode: 'default',
-      allowedTools: []
+      allowedTools: [],
+      disallowedTools: [],
+      availableTools: [],
+      additionalDirs: [],
+      runtime: defaultRuntimeForProvider(defaultProvider)
     }
 
     this.save(session)
@@ -164,7 +179,22 @@ export const sessionManager = {
   async sendMessage(sessionId: string, prompt: string, useWorktree?: boolean): Promise<void> {
     const session = this.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
-    if (activePtys.has(sessionId)) return
+    const existingPty = activePtys.get(sessionId)
+    if (existingPty) {
+      if (session.runtime === 'interactive' && session.status === 'idle') {
+        const userMsg: ChatMessage = {
+          id: uuidv4(),
+          role: 'user',
+          type: 'text',
+          content: prompt,
+          timestamp: Date.now()
+        }
+        this.appendMessage(sessionId, [userMsg])
+        this.updateStatus(sessionId, 'running')
+        existingPty.write(`${prompt}\n`)
+      }
+      return
+    }
 
     // Lazy worktree creation on first message if requested
     if (useWorktree !== undefined && session.messages.length === 0) {
@@ -205,7 +235,7 @@ export const sessionManager = {
     const currentSession = this.get(sessionId)!
     const provider = getProvider(currentSession.provider ?? 'claude')
     const runRequest = requestFromSession(currentSession, prompt)
-    const command = resolveProviderCommand(provider, provider.buildStartCommand(runRequest))
+    const command = resolveProviderCommand(provider, buildProviderCommandForRuntime(provider, runRequest))
     if (!command) {
       this.appendMessage(sessionId, [{
         id: uuidv4(),
@@ -218,13 +248,20 @@ export const sessionManager = {
       this.updateStatus(sessionId, 'error')
       return
     }
-    const pty = spawn(command.binary, command.args, {
-      name: 'xterm-color',
-      cwd: currentSession.workDir,
-      env: providerSpawnEnv(),
-      cols: 220,
-      rows: 50
-    })
+    this.startJsonlTailerIfSupported(sessionId, currentSession, provider, runRequest.runtime ?? 'headless')
+    let pty: IPty
+    try {
+      pty = spawn(command.binary, command.args, {
+        name: 'xterm-color',
+        cwd: currentSession.workDir,
+        env: providerSpawnEnv(provider.id),
+        cols: 220,
+        rows: 50
+      })
+    } catch (error) {
+      stopJsonlTailer(sessionId)
+      throw error
+    }
 
     activePtys.set(sessionId, pty)
 
@@ -247,10 +284,29 @@ export const sessionManager = {
 
     pty.onExit(() => {
       activePtys.delete(sessionId)
+      flushAndStopJsonlTailer(sessionId)
       if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
         this.updateStatus(sessionId, 'idle')
       }
     })
+  },
+
+  startJsonlTailerIfSupported(
+    sessionId: string,
+    session: Session,
+    provider: ProviderAdapter,
+    runtime: ProviderRuntimeKind
+  ): void {
+    if (provider.id !== 'claude' || runtime !== 'interactive') return
+    stopJsonlTailer(sessionId)
+
+    const dir = claudeProjectDir(session.workDir)
+    const tailer = createJsonlTailer(dir, (line) => {
+      this.applyRunEvents(sessionId, provider.parseOutputLine(line))
+    })
+    tailer.start()
+
+    activeJsonlTailers.set(sessionId, tailer)
   },
 
   applyRunEvents(sessionId: string, events: RunEvent[]): void {
@@ -265,79 +321,57 @@ export const sessionManager = {
       }))
     })
 
-    const sessionStarted = events.find((event) => event.type === 'session.started')
-    if (sessionStarted?.type === 'session.started') {
+    const currentSession = this.get(sessionId)
+    const decision = decideRunLifecycle(currentSession, events)
+
+    if (decision.providerSessionId) {
       const sessions = store.get('sessions', [])
       const s = sessions.find((s) => s.id === sessionId)
       if (s) {
-        s.providerSessionId = sessionStarted.providerSessionId
-        s.claudeSessionId = sessionStarted.providerSessionId
+        s.providerSessionId = decision.providerSessionId
+        s.claudeSessionId = decision.claudeSessionId ?? decision.providerSessionId
         store.set('sessions', sessions)
       }
     }
 
-    const currentSession = this.get(sessionId)
-    const repeatedReconnect = events.find((event) =>
-      (event.type === 'connection.reconnecting' || event.type === 'connection.retrying') &&
-      typeof event.attempt === 'number' &&
-      event.attempt >= 2
-    )
-    if (currentSession?.provider === 'cursor' && repeatedReconnect) {
+    if (decision.shouldKillPty) {
       const pty = activePtys.get(sessionId)
       if (pty) {
         pty.kill()
         activePtys.delete(sessionId)
       }
-      this.appendMessage(sessionId, [{
-        id: uuidv4(),
-        role: 'system',
-        type: 'result',
-        content: 'Cursor Agent is reconnecting repeatedly. The run was stopped before it could hang. Try Cursor again after the CLI transport recovers.',
-        subtype: 'error_during_execution',
-        timestamp: Date.now()
-      }])
-      this.updateStatus(sessionId, 'provider_error')
-      return
     }
 
-    if (events.some((event) => event.type === 'permission.requested')) {
-      this.updateStatus(sessionId, 'waiting_for_permission')
-    } else if (events.some((event) => event.type === 'user_input.requested')) {
-      const pty = activePtys.get(sessionId)
-      if (pty) {
-        pty.kill()
-        activePtys.delete(sessionId)
-      }
-      this.updateStatus(sessionId, 'waiting_for_user')
-    } else if (events.some((event) => event.type === 'connection.reconnecting' || event.type === 'connection.retrying')) {
-      this.updateStatus(sessionId, 'reconnecting')
-    } else {
-      const failed = [...events].reverse().find((event) => event.type === 'run.failed')
-      const completed = [...events].reverse().find((event) => event.type === 'run.completed')
-      if (failed?.type === 'run.failed') {
-        if (currentSession?.status === 'waiting_for_user') return
-        const pty = activePtys.get(sessionId)
-        if (pty) {
-          pty.kill()
-          activePtys.delete(sessionId)
-        }
-        this.updateStatus(sessionId, classifyFailure(failed.content))
-      } else if (completed?.type === 'run.completed') {
-        this.updateStatus(sessionId, 'idle')
-      }
-    }
+    if (decision.systemMessages.length > 0) this.appendMessage(sessionId, decision.systemMessages)
+    if (decision.status) this.updateStatus(sessionId, decision.status)
 
     const messages = eventsToMessages(events)
     if (messages.length > 0) this.appendMessage(sessionId, messages)
   },
 
-  updateSettings(id: string, patch: { provider?: string; model?: string; effort?: string; permissionMode?: string; useThinking?: boolean; useFast?: boolean }): void {
+  updateSettings(id: string, patch: {
+    provider?: string
+    model?: string
+    effort?: string
+    permissionMode?: string
+    runtime?: ProviderRuntimeKind
+    useThinking?: boolean
+    useFast?: boolean
+    allowedTools?: string[]
+    disallowedTools?: string[]
+    availableTools?: string[]
+    additionalDirs?: string[]
+  }): void {
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === id)
     if (s) {
-      Object.assign(s, patch)
+      const normalizedPatch = { ...patch }
+      if (patch.provider && !patch.runtime) {
+        normalizedPatch.runtime = defaultRuntimeForProvider(patch.provider)
+      }
+      Object.assign(s, normalizedPatch)
       store.set('sessions', sessions)
-      send('session:settingsUpdated', { id, ...patch })
+      send('session:settingsUpdated', { id, ...normalizedPatch })
     }
   },
 
@@ -346,30 +380,48 @@ export const sessionManager = {
     if (pty) {
       pty.kill()
       activePtys.delete(sessionId)
+      stopJsonlTailer(sessionId)
       this.updateStatus(sessionId, 'idle')
     }
   },
 
   async grantAndResume(sessionId: string, toolNames: string[]): Promise<void> {
+    await this.resumeAfterPermission(sessionId, toolNames, true)
+  },
+
+  async allowOnceAndResume(sessionId: string, toolNames: string[]): Promise<void> {
+    await this.resumeAfterPermission(sessionId, toolNames, false)
+  },
+
+  async resumeAfterPermission(sessionId: string, toolNames: string[], persistGrant: boolean): Promise<void> {
     const session = this.get(sessionId)
     if (!session || !session.providerSessionId) return
-    if (activePtys.has(sessionId)) return
+    const active = activePtys.get(sessionId)
+    if (active) {
+      active.kill()
+      activePtys.delete(sessionId)
+      stopJsonlTailer(sessionId)
+    }
 
-    // Persist newly granted tools on the session
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === sessionId)
-    if (s) {
-      s.allowedTools = [...new Set([...(s.allowedTools ?? []), ...toolNames])]
+    if (s && persistGrant) {
+      s.allowedTools = mergeToolNames(s.allowedTools, toolNames)
       store.set('sessions', sessions)
     }
 
     this.updateStatus(sessionId, 'running')
 
-    // Re-read session so the run request picks up updated allowedTools
     const currentSession = this.get(sessionId)!
     const resumeProvider = getProvider(currentSession.provider ?? 'claude')
-    const runRequest = requestFromSession(currentSession, 'Permission granted. Please continue.')
-    const command = resolveProviderCommand(resumeProvider, resumeProvider.buildResumeCommand(runRequest))
+    const runRequest = {
+      ...requestFromSession(currentSession, 'Permission granted. Please continue.'),
+      allowedTools: persistGrant
+        ? (currentSession.allowedTools ?? [])
+        : mergeToolNames(currentSession.allowedTools, toolNames),
+      runtime: 'headless' as ProviderRuntimeKind
+    }
+    const command = resolveProviderCommand(resumeProvider, buildProviderCommandForRuntime(resumeProvider, runRequest, 'resume'))
     if (!command) {
       this.appendMessage(sessionId, [{
         id: uuidv4(),
@@ -383,13 +435,20 @@ export const sessionManager = {
       return
     }
 
-    const pty = spawn(command.binary, command.args, {
-      name: 'xterm-color',
-      cwd: currentSession.workDir,
-      env: providerSpawnEnv(),
-      cols: 220,
-      rows: 50
-    })
+    this.startJsonlTailerIfSupported(sessionId, currentSession, resumeProvider, runRequest.runtime ?? 'headless')
+    let pty: IPty
+    try {
+      pty = spawn(command.binary, command.args, {
+        name: 'xterm-color',
+        cwd: currentSession.workDir,
+        env: providerSpawnEnv(resumeProvider.id),
+        cols: 220,
+        rows: 50
+      })
+    } catch (error) {
+      stopJsonlTailer(sessionId)
+      throw error
+    }
 
     activePtys.set(sessionId, pty)
     let buffer = ''
@@ -404,6 +463,7 @@ export const sessionManager = {
 
     pty.onExit(() => {
       activePtys.delete(sessionId)
+      flushAndStopJsonlTailer(sessionId)
       if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
         this.updateStatus(sessionId, 'idle')
       }
@@ -418,9 +478,9 @@ export const sessionManager = {
 
     const active = activePtys.get(sessionId)
     if (active) {
-      active.write(`${trimmed}\n`)
-      this.updateStatus(sessionId, 'running')
-      return
+      active.kill()
+      activePtys.delete(sessionId)
+      stopJsonlTailer(sessionId)
     }
 
     if (!session.providerSessionId) return
@@ -436,11 +496,14 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const resumeProvider = getProvider(currentSession.provider ?? 'claude')
-    const runRequest = requestFromSession(
-      currentSession,
-      `User answered the pending question:\n\n${trimmed}\n\nPlease continue from where you stopped.`
-    )
-    const command = resolveProviderCommand(resumeProvider, resumeProvider.buildResumeCommand(runRequest))
+    const runRequest = {
+      ...requestFromSession(
+        currentSession,
+        `User answered the pending question:\n\n${trimmed}\n\nPlease continue from where you stopped.`
+      ),
+      runtime: 'headless' as ProviderRuntimeKind
+    }
+    const command = resolveProviderCommand(resumeProvider, buildProviderCommandForRuntime(resumeProvider, runRequest, 'resume'))
     if (!command) {
       this.appendMessage(sessionId, [{
         id: uuidv4(),
@@ -454,13 +517,20 @@ export const sessionManager = {
       return
     }
 
-    const pty = spawn(command.binary, command.args, {
-      name: 'xterm-color',
-      cwd: currentSession.workDir,
-      env: providerSpawnEnv(),
-      cols: 220,
-      rows: 50
-    })
+    this.startJsonlTailerIfSupported(sessionId, currentSession, resumeProvider, runRequest.runtime ?? 'headless')
+    let pty: IPty
+    try {
+      pty = spawn(command.binary, command.args, {
+        name: 'xterm-color',
+        cwd: currentSession.workDir,
+        env: providerSpawnEnv(resumeProvider.id),
+        cols: 220,
+        rows: 50
+      })
+    } catch (error) {
+      stopJsonlTailer(sessionId)
+      throw error
+    }
 
     activePtys.set(sessionId, pty)
     let buffer = ''
@@ -475,6 +545,7 @@ export const sessionManager = {
 
     pty.onExit(() => {
       activePtys.delete(sessionId)
+      flushAndStopJsonlTailer(sessionId)
       if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
         this.updateStatus(sessionId, 'idle')
       }
@@ -482,6 +553,12 @@ export const sessionManager = {
   },
 
   denyPermission(sessionId: string): void {
+    const active = activePtys.get(sessionId)
+    if (active) {
+      active.kill()
+      activePtys.delete(sessionId)
+      stopJsonlTailer(sessionId)
+    }
     this.appendMessage(sessionId, [{
       id: uuidv4(),
       role: 'system',
@@ -507,6 +584,7 @@ export const sessionManager = {
 
   async remove(sessionId: string): Promise<void> {
     this.stop(sessionId)
+    stopJsonlTailer(sessionId)
     const session = this.get(sessionId)
     if (session?.useWorktree && session.repoRoot && session.workDir) {
       try {

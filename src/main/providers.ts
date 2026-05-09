@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
-import { accessSync, constants } from 'fs'
+import { accessSync, constants, readFileSync } from 'fs'
 import { execFileSync } from 'child_process'
 import { delimiter, join } from 'path'
 import { homedir } from 'os'
@@ -13,12 +13,17 @@ import type {
   PermissionInteraction,
   PermissionRuntimeControl,
   ProviderCapabilityRegistry,
+  ProviderCapabilityGap,
+  ProviderCommandSurface,
+  ProviderCommandSurfaceResult,
   ProviderDiagnosticInfo,
   ProviderFeature,
   ProviderProbeDefinition,
   ProviderProbeResult,
   ProviderRuntimeInfo,
   ProviderSlashCommand,
+  PlanItem,
+  PlanItemStatus,
   ResolvedExecutionPolicy,
   RunEvent,
   RunRequest,
@@ -56,9 +61,36 @@ export function providerSearchPath(): string {
   return [...new Set([...existing, ...commonCliDirs()])].join(delimiter)
 }
 
-export function providerSpawnEnv(): NodeJS.ProcessEnv {
+function providerConfigPath(providerId?: string): string | null {
+  const home = homedir()
+  const paths: Record<string, string> = {
+    claude: join(home, '.claude/settings.json'),
+    cursor: join(home, '.cursor/agent-config.json'),
+    copilot: join(home, '.config/github-copilot/config.json')
+  }
+  return providerId ? paths[providerId] ?? null : null
+}
+
+function providerConfigEnv(providerId?: string): NodeJS.ProcessEnv {
+  const configPath = providerConfigPath(providerId)
+  if (!configPath) return {}
+
+  try {
+    const raw = readFileSync(configPath, 'utf8')
+    const parsed = JSON.parse(raw) as { env?: Record<string, unknown> }
+    return Object.fromEntries(
+      Object.entries(parsed.env ?? {})
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    )
+  } catch {
+    return {}
+  }
+}
+
+export function providerSpawnEnv(providerId?: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
+    ...providerConfigEnv(providerId),
     PATH: providerSearchPath(),
     TERM: 'xterm-256color'
   }
@@ -111,7 +143,21 @@ export interface ProviderAdapter {
   resolveExecutionPolicy(policy: string): ResolvedExecutionPolicy
   buildStartCommand(request: RunRequest): ProviderCommand
   buildResumeCommand(request: RunRequest): ProviderCommand
+  buildInteractiveCommand(request: RunRequest): ProviderCommand
   parseOutputLine(line: string): RunEvent[]
+}
+
+export function buildProviderCommandForRuntime(
+  provider: ProviderAdapter,
+  request: RunRequest,
+  mode: 'start' | 'resume' = 'start'
+): ProviderCommand {
+  if (request.runtime === 'interactive' && provider.capabilities.interactiveCli) {
+    return provider.buildInteractiveCommand(request)
+  }
+  return mode === 'resume'
+    ? provider.buildResumeCommand(request)
+    : provider.buildStartCommand(request)
 }
 
 function command(binary: string, args: string[]): ProviderCommand {
@@ -123,6 +169,24 @@ function resolvedPolicyArgs(provider: ProviderAdapter, policyId: string, fallbac
   return resolved.support === 'unsupported'
     ? provider.resolveExecutionPolicy(fallback).args
     : resolved.args
+}
+
+function interactivePolicyArgs(provider: ProviderAdapter, policyId: string, fallback = 'default'): string[] {
+  const resolved = provider.resolveExecutionPolicy(policyId)
+  const effective = resolved.support === 'unsupported'
+    ? provider.resolveExecutionPolicy(fallback)
+    : resolved
+
+  if (provider.id !== 'codex') return effective.args
+
+  const approvalConfig = effective.args.find((arg) => arg.startsWith('approval_policy='))
+  const approval = approvalConfig?.match(/^approval_policy="([^"]+)"$/)?.[1]
+  const sandboxIndex = effective.args.indexOf('--sandbox')
+  const sandbox = sandboxIndex >= 0 ? effective.args[sandboxIndex + 1] : undefined
+  const args: string[] = []
+  if (sandbox) args.push('--sandbox', sandbox)
+  if (approval) args.push('--ask-for-approval', approval)
+  return args
 }
 
 function capability(
@@ -138,6 +202,7 @@ function capability(
 function baseCapabilities(provider: ProviderAdapter): ProviderCapability[] {
   return [
     capability('resume', 'Resume', provider.capabilities.resume ? 'supported' : 'unsupported', 'adapter'),
+    capability('interactiveCli', 'Interactive CLI', provider.capabilities.interactiveCli ? 'supported' : 'unsupported', 'adapter'),
     capability('structuredOutput', 'Structured Output', provider.capabilities.streamingJson ? 'supported' : 'partial', 'adapter'),
     capability('streamEvents', 'Stream Events', provider.capabilities.streamingJson ? 'supported' : 'unsupported', 'adapter'),
     capability(
@@ -200,6 +265,91 @@ function stringifyContent(value: unknown): string {
   if (typeof value === 'string') return value
   if (value == null) return ''
   return JSON.stringify(value, null, 2)
+}
+
+function normalizePlanItemStatus(value: unknown): PlanItemStatus {
+  if (value === 'in_progress' || value === 'completed' || value === 'cancelled' || value === 'blocked') return value
+  if (value === 'doing' || value === 'active' || value === 'running') return 'in_progress'
+  if (value === 'done' || value === 'success') return 'completed'
+  if (value === 'failed') return 'blocked'
+  return 'pending'
+}
+
+function planItemsFromTodos(input: unknown): PlanItem[] {
+  const record = asRecord(input) ?? {}
+  const rawTodos = Array.isArray(record.todos)
+    ? record.todos
+    : Array.isArray(record.items)
+      ? record.items
+      : []
+
+  return rawTodos.flatMap((todo, index) => {
+    const rec = asRecord(todo)
+    if (!rec) return []
+    const content = stringValue(rec.content, rec.text, rec.task, rec.title)
+    if (!content) return []
+    return [{
+      id: stringValue(rec.id) ?? String(index + 1),
+      content,
+      status: normalizePlanItemStatus(rec.status)
+    }]
+  })
+}
+
+function planModeFromTool(name: string): 'plan' | 'execute' | undefined {
+  if (name === 'EnterPlanMode') return 'plan'
+  if (name === 'ExitPlanMode') return 'execute'
+  return undefined
+}
+
+function claudeTaskSummary(event: Record<string, unknown>): string | undefined {
+  const usage = asRecord(event.usage)
+  const details = [
+    stringValue(event.description, event.summary),
+    stringValue(event.last_tool_name) ? `Tool: ${stringValue(event.last_tool_name)}` : undefined,
+    numberValue(usage?.total_tokens) ? `${numberValue(usage?.total_tokens)} tokens` : undefined
+  ].filter((value): value is string => Boolean(value))
+
+  return details.length > 0 ? details.join(' · ') : undefined
+}
+
+function claudeAgentEventFromTaskSystemEvent(
+  providerId: string,
+  sessionId: string | undefined,
+  event: Record<string, unknown>
+): RunEvent | null {
+  const subtype = stringValue(event.subtype)
+  if (subtype !== 'task_started' && subtype !== 'task_progress' && subtype !== 'task_notification') return null
+
+  const id = stringValue(event.tool_use_id, event.task_id)
+  if (!id) return null
+
+  const status = subtype === 'task_notification'
+    ? normalizeAgentStatus(stringValue(event.status))
+    : 'running'
+  const eventType = status === 'completed'
+    ? 'agent.completed'
+    : status === 'failed'
+      ? 'agent.failed'
+      : subtype === 'task_started'
+        ? 'agent.started'
+        : 'agent.updated'
+
+  return {
+    type: eventType,
+    agent: {
+      id,
+      providerId,
+      sessionId: sessionId ?? '',
+      name: stringValue(event.task_type, event.description),
+      role: stringValue(event.description, event.prompt),
+      status,
+      summary: claudeTaskSummary(event),
+      completedAt: status === 'completed' || status === 'failed' || status === 'cancelled'
+        ? Date.now()
+        : undefined
+    }
+  } as RunEvent
 }
 
 function agentEventFromProviderPayload(
@@ -297,9 +447,79 @@ function userInputFromAskUserQuestionTool(input: unknown): { content: string; qu
   return parseStructuredUserInputRequest({ questions: rec.questions ?? [rec] })
 }
 
+function userInputFromGenericPayload(payload: unknown): { content: string; questions: UserInputQuestion[] } | null {
+  const rec = asRecord(payload)
+  if (!rec) return null
+  const structured = parseStructuredUserInputRequest(rec)
+  if (structured) return structured
+
+  const question = stringValue(
+    rec.question,
+    rec.prompt,
+    rec.message,
+    rec.text,
+    asRecord(rec.input)?.question,
+    asRecord(rec.data)?.question
+  )
+  if (!question) return null
+
+  const rawOptions = Array.isArray(rec.options)
+    ? rec.options
+    : Array.isArray(asRecord(rec.input)?.options)
+      ? asRecord(rec.input)?.options as unknown[]
+      : Array.isArray(asRecord(rec.data)?.options)
+        ? asRecord(rec.data)?.options as unknown[]
+        : []
+  const options = rawOptions.flatMap((option) => {
+    if (typeof option === 'string') return [{ label: option }]
+    const opt = asRecord(option)
+    const label = stringValue(opt?.label, opt?.name, opt?.value, opt?.title)
+    return label
+      ? [{ label, description: stringValue(opt?.description, opt?.detail, opt?.subtitle) }]
+      : []
+  })
+
+  return {
+    content: question,
+    questions: [{
+      question,
+      header: stringValue(rec.header, rec.title),
+      options: options.length > 0 ? options : undefined,
+      multiSelect: rec.multiSelect === true || rec.multiselect === true
+    }]
+  }
+}
+
+function permissionRequestFromGenericPayload(payload: Record<string, unknown>): RunEvent | null {
+  const data = asRecord(payload.data) ?? asRecord(payload.permission) ?? asRecord(payload.approval) ?? payload
+  const toolName = stringValue(data.tool_name, data.toolName, data.name, data.kind, data.type) ?? 'tool'
+  const toolUseId = stringValue(data.tool_use_id, data.toolUseId, data.call_id, data.callId, data.id) ?? uuidv4()
+  const toolInput = asRecord(data.tool_input ?? data.toolInput ?? data.input ?? data.arguments) ?? {}
+  const content = stringValue(data.message, data.summary, data.prompt, data.reason, payload.message)
+
+  return {
+    type: 'permission.requested',
+    content,
+    denials: [{
+      tool_name: toolName,
+      tool_use_id: toolUseId,
+      tool_input: toolInput
+    }]
+  }
+}
+
 const anthropicUserQuestionToolIds = new Set<string>()
+const anthropicPlanConfirmationToolIds = new Set<string>()
+const anthropicTaskAgents = new Map<string, {
+  providerId: string
+  sessionId: string
+  name?: string
+  role?: string
+  model?: string
+}>()
 
 const PROVIDER_PROBE_TIMEOUT_MS = 2_000
+const PROVIDER_COMMAND_SURFACE_TIMEOUT_MS = 5_000
 
 function feature(
   id: string,
@@ -311,6 +531,18 @@ function feature(
   note?: string
 ): ProviderFeature {
   return { id, label, area, support, source, runtimes, note }
+}
+
+function gap(
+  id: string,
+  label: string,
+  area: ProviderCapabilityGap['area'],
+  severity: ProviderCapabilityGap['severity'],
+  status: ProviderCapabilityGap['status'],
+  summary: string,
+  nextStep: string
+): ProviderCapabilityGap {
+  return { id, label, area, severity, status, summary, nextStep }
 }
 
 function probe(
@@ -349,6 +581,31 @@ function withProviderId(providerId: string, command: ProviderSlashCommand): Prov
   return { ...command, providerId }
 }
 
+function commandSurface(
+  id: string,
+  label: string,
+  area: ProviderCommandSurface['area'],
+  command: string[],
+  runtime: ProviderCommandSurface['runtime'],
+  quota: ProviderCommandSurface['quota'],
+  mutatesState: boolean,
+  appSurface: ProviderCommandSurface['appSurface'],
+  patch: Partial<ProviderCommandSurface> = {}
+): ProviderCommandSurface {
+  return {
+    id,
+    label,
+    area,
+    command,
+    runtime,
+    quota,
+    mutatesState,
+    appSurface,
+    featureId: patch.featureId,
+    note: patch.note
+  }
+}
+
 const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
   claude: {
     providerId: 'claude',
@@ -364,6 +621,44 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       feature('worktrees', 'Worktrees', 'workspace', 'supported', 'local-cli', ['headless', 'interactive']),
       feature('attachments', 'Files', 'attachments', 'partial', 'local-cli', ['headless', 'interactive'])
     ],
+    gaps: [
+      gap(
+        'claude-hook-partials',
+        'Hook and partial streams',
+        'runtime',
+        'medium',
+        'partial',
+        'Claude can emit partial messages and hook lifecycle events, but the adapter only consumes finalized stream-json blocks.',
+        'Add opt-in parser fixtures for --include-partial-messages and --include-hook-events before enabling them in runs.'
+      ),
+      gap(
+        'claude-rich-permission-controls',
+        'Denied tools and scoped grants',
+        'permissions',
+        'medium',
+        'partial',
+        'Allowed tools, denied tools, available tool sets, additional directories, allow-once grants, allow-session grants, and denial are represented in run/session state and passed to Claude; native Claude rule-file import/export is not surfaced yet.',
+        'Add native rule-file import/export only after the CLI exposes a stable no-quota contract for those settings.'
+      ),
+      gap(
+        'claude-cli-management',
+        'MCP/plugin/agent management',
+        'mcp',
+        'medium',
+        'partial',
+        'MCP, plugins, agents, auth, and auto-mode no-quota commands are surfaced as provider command panels; mutating commands and model-quota commands are intentionally blocked from one-click execution.',
+        'Route mutating/provider-quota flows through an explicit terminal or composer action with confirmation instead of settings auto-run.'
+      ),
+      gap(
+        'claude-worktree-launch',
+        'Worktree launch',
+        'workspace',
+        'medium',
+        'partial',
+        'Orchestrator can create app-managed git worktrees before launch; native Claude --worktree, --tmux, --from-pr, --fork-session, and named session flows are not exposed as separate launch commands.',
+        'Keep app-managed worktrees as the cross-provider default and add provider-native launch extras only behind an advanced sheet.'
+      )
+    ],
     probes: [
       probe('version', 'Version', ['--version'], 'version'),
       probe('help', 'Help', ['--help'], 'help'),
@@ -371,6 +666,16 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('mcp-help', 'MCP', ['mcp', '--help'], 'mcp'),
       probe('plugin-help', 'Plugins', ['plugin', '--help'], 'extensions'),
       probe('ultrareview-help', 'Ultrareview', ['ultrareview', '--help'], 'features')
+    ],
+    commandSurfaces: [
+      commandSurface('auth-status', 'Auth status', 'runtime', ['auth', 'status'], 'headless', 'none', false, 'settings', { featureId: 'auth' }),
+      commandSurface('agents-list', 'Configured agents', 'agents', ['agents'], 'headless', 'none', false, 'settings', { featureId: 'agents' }),
+      commandSurface('mcp-list', 'MCP servers', 'mcp', ['mcp', 'list'], 'headless', 'none', false, 'settings', { featureId: 'mcp' }),
+      commandSurface('plugin-list', 'Plugins', 'extensions', ['plugin', 'list'], 'headless', 'none', false, 'settings', { featureId: 'plugins' }),
+      commandSurface('auto-mode-defaults', 'Auto mode defaults', 'permissions', ['auto-mode', 'defaults'], 'headless', 'none', false, 'settings', { featureId: 'auto-mode' }),
+      commandSurface('project-purge', 'Purge project state', 'workspace', ['project', 'purge'], 'headless', 'none', true, 'settings', { featureId: 'project-state' }),
+      commandSurface('ultrareview-json', 'Ultrareview JSON', 'review', ['ultrareview', '--json'], 'headless', 'may-use-quota', false, 'composer', { featureId: 'ultrareview' }),
+      commandSurface('interactive-session', 'Interactive session', 'runtime', [], 'interactive', 'may-use-quota', false, 'composer', { featureId: 'interactive-cli' })
     ],
     slashCommands: [
       slashCommand('/review', 'Run Claude ultrareview against the current changes', 'provider', 'headless', 'insert-prompt', {
@@ -386,18 +691,48 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
     providerId: 'copilot',
     features: [
       feature('json-output', 'JSON output', 'runtime', 'partial', 'adapter', ['headless']),
-      feature('sdk-session', 'SDK session', 'runtime', 'planned', 'sdk', ['sdk'], 'Needed for the richer Copilot event model.'),
-      feature('slash-commands', 'Commands', 'commands', 'supported', 'sdk', ['sdk']),
-      feature('subagents', 'Subagents', 'agents', 'supported', 'sdk', ['sdk']),
-      feature('rich-permissions', 'Rich permissions', 'permissions', 'supported', 'sdk', ['sdk']),
-      feature('mcp', 'MCP', 'mcp', 'supported', 'sdk', ['sdk']),
-      feature('skills', 'Skills', 'extensions', 'supported', 'sdk', ['sdk']),
-      feature('code-review', 'Review', 'review', 'supported', 'sdk', ['sdk'])
+      feature('interactive-cli', 'Interactive CLI', 'runtime', 'supported', 'local-cli', ['interactive']),
+      feature('slash-commands', 'Commands', 'commands', 'supported', 'local-cli', ['interactive']),
+      feature('subagents', 'Subagents', 'agents', 'planned', 'local-cli', ['interactive']),
+      feature('rich-permissions', 'Rich permissions', 'permissions', 'supported', 'local-cli', ['interactive', 'headless'], 'Supports allow/deny tool, path, URL, MCP, plan, autopilot, and ask-user controls.'),
+      feature('mcp', 'MCP', 'mcp', 'supported', 'local-cli', ['interactive', 'headless']),
+      feature('skills', 'Plugins', 'extensions', 'supported', 'local-cli', ['interactive']),
+      feature('code-review', 'Review', 'review', 'planned', 'local-cli', ['interactive'])
+    ],
+    gaps: [
+      gap(
+        'copilot-cli-keychain',
+        'CLI keychain health',
+        'runtime',
+        'high',
+        'partial',
+        'The local copilot binary works outside the sandbox, but keychain-backed probes can fail with SecItemCopyMatching in sandboxed processes.',
+        'Run account-sensitive probes from the installed app process and surface keychain errors separately from missing CLI errors.'
+      ),
+      gap(
+        'copilot-cli-command-inventory',
+        'CLI command inventory',
+        'commands',
+        'medium',
+        'partial',
+        'Top-level help is captured, but command/help-topic details for commands, permissions, providers, plugins, and monitoring are not yet fixture-backed.',
+        'Capture no-quota help for permissions, providers, mcp, plugin, and commands, then map the useful controls into provider settings.'
+      ),
+      gap(
+        'copilot-structured-runtime',
+        'Structured CLI event parsing',
+        'runtime',
+        'medium',
+        'partial',
+        'The adapter handles basic JSON messages/tools, but rich command, elicitation, MCP, background-task, and subagent events are not fixture-backed through the CLI path.',
+        'Record CLI JSON transcripts for commands, permissions, user input, and subagents, then add parser fixture tests.'
+      )
     ],
     probes: [
       probe('version', 'Version', ['--version'], 'version'),
       probe('help', 'Help', ['--help'], 'help')
     ],
+    commandSurfaces: [],
     slashCommands: [
       slashCommand('/review', 'Start a Copilot code review task', 'sdk', 'sdk', 'sdk-command', { featureId: 'code-review' }),
       slashCommand('/agents', 'Show Copilot agents', 'sdk', 'sdk', 'sdk-command', { featureId: 'subagents' }),
@@ -408,17 +743,64 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
     providerId: 'codex',
     features: [
       feature('exec-json', 'Exec JSON', 'runtime', 'supported', 'adapter', ['headless']),
-      feature('interactive', 'Interactive', 'runtime', 'planned', 'local-cli', ['interactive']),
-      feature('app-server', 'App server', 'runtime', 'planned', 'local-cli', ['app-server']),
-      feature('mcp-elicitation', 'Elicitation', 'permissions', 'partial', 'local-cli', ['interactive', 'app-server']),
+      feature('interactive', 'Interactive CLI', 'runtime', 'planned', 'local-cli', ['interactive'], 'Needed for native approval prompts and slash-command behavior.'),
+      feature('app-server', 'App server', 'runtime', 'planned', 'local-cli', ['app-server'], 'Deferred; use only if the CLI/PTY lane cannot expose enough state.'),
+      feature('mcp-elicitation', 'Elicitation', 'permissions', 'partial', 'local-cli', ['interactive']),
       feature('sandbox', 'Sandbox', 'permissions', 'supported', 'adapter', ['headless', 'interactive']),
       feature('slash-commands', 'Commands', 'commands', 'partial', 'local-cli', ['interactive']),
-      feature('multi-agent', 'Multi-agent', 'agents', 'supported', 'local-cli', ['interactive', 'app-server']),
+      feature('multi-agent', 'Multi-agent', 'agents', 'supported', 'local-cli', ['interactive']),
       feature('mcp', 'MCP', 'mcp', 'supported', 'local-cli', ['headless', 'interactive']),
       feature('plugins', 'Plugins', 'extensions', 'supported', 'local-cli', ['interactive']),
       feature('review', 'Review', 'review', 'supported', 'local-cli', ['headless']),
       feature('local-providers', 'Local models', 'runtime', 'supported', 'local-cli', ['headless', 'interactive']),
       feature('images', 'Images', 'attachments', 'supported', 'local-cli', ['interactive'])
+    ],
+    gaps: [
+      gap(
+        'codex-interactive-approvals',
+        'Interactive approvals',
+        'permissions',
+        'high',
+        'missing',
+        'codex exec is deterministic but does not expose the full interactive approval UI used by the native CLI.',
+        'Add a PTY-backed Codex interactive CLI lane using --ask-for-approval modes; keep exec only for non-interactive automation.'
+      ),
+      gap(
+        'codex-mcp-elicitation',
+        'MCP elicitation',
+        'permissions',
+        'high',
+        'partial',
+        'The CLI advertises MCP elicitation, but the adapter only has generic function/tool parsing and no Codex-specific interactive fixtures.',
+        'Add recorded interactive CLI fixtures for tool_call_mcp_elicitation and normalize them to user_input.requested.'
+      ),
+      gap(
+        'codex-app-server',
+        'App server protocol',
+        'runtime',
+        'low',
+        'missing',
+        'codex app-server and exec-server exist, but they are not the primary CLI-first integration path.',
+        'Defer until the interactive CLI/PTY lane proves insufficient for approvals, questions, diffs, or agents.'
+      ),
+      gap(
+        'codex-backend-variants',
+        'OSS/local providers',
+        'runtime',
+        'medium',
+        'missing',
+        'The CLI supports --oss and --local-provider, but model/provider backend variants are not represented in settings.',
+        'Add backend variant controls under Codex models: OpenAI, OSS, Ollama, and LM Studio.'
+      ),
+      gap(
+        'codex-auto-review-mode',
+        'Auto-review approval mode',
+        'permissions',
+        'medium',
+        'blocked',
+        'The user reports an auto-review permission mode, but it is not visible as a literal option in current codex --help or codex review --help output.',
+        'Verify the exact config key, app setting, feature flag, or CLI output before adding an Orchestrator label for it.'
+      )
     ],
     probes: [
       probe('version', 'Version', ['--version'], 'version'),
@@ -429,6 +811,7 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('sandbox-help', 'Sandbox', ['sandbox', '--help'], 'features'),
       probe('features-list', 'Features', ['features', 'list'], 'features')
     ],
+    commandSurfaces: [],
     slashCommands: [
       slashCommand('/review', 'Review uncommitted changes with Codex', 'provider', 'headless', 'insert-prompt', {
         featureId: 'review',
@@ -436,7 +819,7 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       }),
       slashCommand('/mcp', 'Open Codex MCP command flow', 'provider', 'interactive', 'send-to-provider', { featureId: 'mcp' }),
       slashCommand('/plugins', 'Open Codex plugin command flow', 'provider', 'interactive', 'send-to-provider', { featureId: 'plugins' }),
-      slashCommand('/agents', 'Show Codex multi-agent activity', 'provider', 'app-server', 'send-to-provider', { featureId: 'multi-agent' })
+      slashCommand('/agents', 'Show Codex multi-agent activity', 'provider', 'interactive', 'send-to-provider', { featureId: 'multi-agent' })
     ]
   },
   cursor: {
@@ -453,6 +836,44 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       feature('bedrock', 'Bedrock', 'runtime', 'supported', 'local-cli', ['headless', 'interactive']),
       feature('model-list', 'Models', 'usage', 'partial', 'local-cli', ['headless'], 'Local command can fail when keychain is unavailable.')
     ],
+    gaps: [
+      gap(
+        'cursor-keychain-models',
+        'Model/status keychain failure',
+        'runtime',
+        'high',
+        'blocked',
+        'Cursor help works, but account-sensitive models/status/about probes can fail in this shell with keychain errors.',
+        'Keep model probes optional, preserve manual model overrides, and surface keychain failure as auth/config rather than missing CLI.'
+      ),
+      gap(
+        'cursor-worktree-ui',
+        'Worktree controls',
+        'workspace',
+        'medium',
+        'missing',
+        'Cursor supports --worktree, --worktree-base, and --skip-worktree-setup, but the launch UI does not expose them.',
+        'Add shared worktree launch controls and map them into Cursor buildStartCommand.'
+      ),
+      gap(
+        'cursor-mcp-rules',
+        'MCP and rules management',
+        'mcp',
+        'medium',
+        'missing',
+        'Cursor can list/enable/disable MCP tools and generate rules, but settings only expose generic capability chips.',
+        'Add compact provider-specific MCP/rules actions backed by no-quota list/list-tools probes.'
+      ),
+      gap(
+        'cursor-stream-deltas',
+        'Partial stream deltas',
+        'runtime',
+        'low',
+        'partial',
+        'Cursor can stream partial output, but the adapter only reads complete stream-json events.',
+        'Add fixture coverage for --stream-partial-output before enabling it in normal runs.'
+      )
+    ],
     probes: [
       probe('version', 'Version', ['--version'], 'version'),
       probe('help', 'Help', ['--help'], 'help'),
@@ -460,6 +881,7 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('create-chat-help', 'Create chat', ['create-chat', '--help'], 'features'),
       probe('models', 'Models', ['models'], 'models')
     ],
+    commandSurfaces: [],
     slashCommands: [
       slashCommand('/plan', 'Switch the task into Cursor plan mode', 'provider', 'headless', 'insert-prompt', {
         featureId: 'plan-mode',
@@ -478,7 +900,9 @@ function providerCapabilityRegistry(providerId: string): ProviderCapabilityRegis
   const registry = providerRegistries[providerId] ?? {
     providerId,
     features: [],
+    gaps: [],
     probes: [probe('version', 'Version', ['--version'], 'version')],
+    commandSurfaces: [],
     slashCommands: []
   }
   return {
@@ -495,6 +919,27 @@ function probeCommand(binary: string, args: string[], timeout = PROVIDER_PROBE_T
   }
 }
 
+function stringifyCommandError(error: { stderr?: unknown; stdout?: unknown; message?: string }): string {
+  const stderr = typeof error.stderr === 'string'
+    ? error.stderr.trim()
+    : Buffer.isBuffer(error.stderr)
+      ? error.stderr.toString('utf8').trim()
+      : ''
+  const stdout = typeof error.stdout === 'string'
+    ? error.stdout.trim()
+    : Buffer.isBuffer(error.stdout)
+      ? error.stdout.toString('utf8').trim()
+      : ''
+  return stderr || stdout || error.message || 'command failed'
+}
+
+function redactProviderCommandOutput(output: string): string {
+  return output
+    .replace(/(authorization:\s*bearer\s+)[^\s"'`]+/gi, '$1[redacted]')
+    .replace(/((?:api[_-]?key|token|secret|password)["']?\s*[:=]\s*["']?)[^"',\s]+/gi, '$1[redacted]')
+    .replace(/((?:ANTHROPIC_API_KEY|OPENAI_API_KEY|GITHUB_TOKEN|CURSOR_API_KEY)\s*=\s*)[^\s]+/g, '$1[redacted]')
+}
+
 function probeCommandFull(binary: string, args: string[], timeout = PROVIDER_PROBE_TIMEOUT_MS): { ok: boolean; output: string } {
   try {
     const output = execFileSync(binary, args, {
@@ -505,15 +950,9 @@ function probeCommandFull(binary: string, args: string[], timeout = PROVIDER_PRO
     return { ok: true, output: output.trim() }
   } catch (error) {
     const err = error as { stderr?: Buffer | string; stdout?: Buffer | string; message?: string }
-    const stderr = typeof err.stderr === 'string'
-      ? err.stderr.trim()
-      : err.stderr?.toString('utf8').trim()
-    const stdout = typeof err.stdout === 'string'
-      ? err.stdout.trim()
-      : err.stdout?.toString('utf8').trim()
     return {
       ok: false,
-      output: stderr || stdout || err.message || 'probe failed'
+      output: stringifyCommandError(err)
     }
   }
 }
@@ -630,9 +1069,23 @@ const claudePermissionControls: PermissionRuntimeControl[] = [
   {
     kind: 'tool',
     label: 'Denied tools',
-    description: 'Claude supports --disallowedTools; the GUI still needs first-class controls for it.',
-    support: 'planned',
+    description: 'Persisted tool denials are passed with --disallowedTools.',
+    support: 'available',
     examples: ['Bash(git push)', 'WebFetch']
+  },
+  {
+    kind: 'tool',
+    label: 'Available tools',
+    description: 'Claude supports --tools to restrict the built-in tool set for a run.',
+    support: 'available',
+    examples: ['default', 'Read,Edit,Bash']
+  },
+  {
+    kind: 'path',
+    label: 'Additional directories',
+    description: 'Claude supports --add-dir for extra tool-access roots.',
+    support: 'available',
+    examples: ['--add-dir /tmp/shared']
   }
 ]
 
@@ -685,9 +1138,9 @@ const codexPermissionControls: PermissionRuntimeControl[] = [
   {
     kind: 'mode',
     label: 'Interactive approvals',
-    description: 'Codex interactive mode supports --ask-for-approval, but codex exec does not.',
-    support: 'planned',
-    examples: ['--ask-for-approval on-request', '--ask-for-approval untrusted']
+    description: 'Codex approval policy supports untrusted, on-request, and never. Interactive CLI exposes this as --ask-for-approval; exec can receive config overrides.',
+    support: 'available',
+    examples: ['--ask-for-approval on-request', '--ask-for-approval untrusted', '-c approval_policy="never"']
   }
 ]
 
@@ -759,7 +1212,7 @@ function claudePolicy(policyId: string): ResolvedExecutionPolicy {
   })
 }
 
-function parseAnthropicStyleLine(line: string): RunEvent[] {
+function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[] {
   const cleanLine = stripAnsi(line).trim()
   const event = parseJsonLine(cleanLine)
   if (!event) {
@@ -771,9 +1224,14 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
 
   const events: RunEvent[] = []
   const type = event.type as string | undefined
+  const sessionId = stringValue(event.sessionId, event.session_id)
 
   if (type === 'system' && event.subtype === 'init' && typeof event.session_id === 'string') {
     events.push({ type: 'session.started', providerSessionId: event.session_id })
+  }
+
+  if (type === 'permission-mode' && typeof event.sessionId === 'string') {
+    events.push({ type: 'session.started', providerSessionId: event.sessionId })
   }
 
   if (type === 'system' && event.subtype === 'api_retry' && event.error === 'authentication_failed') {
@@ -782,6 +1240,20 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
       type: 'run.failed',
       content: `Claude authentication failed during ${attempt}. Check the configured apiKeyHelper or Claude auth.`
     })
+  }
+
+  const taskEvent = type === 'system'
+    ? claudeAgentEventFromTaskSystemEvent(providerId, sessionId, event)
+    : null
+  if (taskEvent) {
+    events.push(taskEvent)
+    if (taskEvent.type === 'agent.completed' || taskEvent.type === 'agent.failed') {
+      anthropicTaskAgents.delete(taskEvent.agent.id)
+    }
+  }
+
+  if (type === 'system' && event.subtype === 'turn_duration') {
+    events.push({ type: 'run.completed' })
   }
 
   if (type === 'assistant') {
@@ -800,6 +1272,48 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
             events.push({ type: 'user_input.requested', ...userInputRequest })
             continue
           }
+        }
+        if ((rec.name === 'Task' || rec.name === 'Agent') && typeof rec.id === 'string') {
+          const input = asRecord(rec.input) ?? {}
+          const agent = {
+            providerId,
+            sessionId: sessionId ?? '',
+            name: stringValue(input.subagent_type, input.agent, input.name, input.description),
+            role: stringValue(input.description, input.prompt),
+            model: stringValue(input.model)
+          }
+          anthropicTaskAgents.set(rec.id, agent)
+          events.push({
+            type: 'agent.started',
+            agent: {
+              id: rec.id,
+              providerId,
+              sessionId: agent.sessionId,
+              name: agent.name,
+              role: agent.role,
+              model: agent.model,
+              status: 'running'
+            }
+          })
+        }
+        if (rec.name === 'TodoWrite' || rec.name === 'EnterPlanMode' || rec.name === 'ExitPlanMode') {
+          const toolName = typeof rec.name === 'string' ? rec.name : ''
+          const input = asRecord(rec.input) ?? {}
+          if (toolName === 'ExitPlanMode' && typeof rec.id === 'string') {
+            anthropicPlanConfirmationToolIds.add(rec.id)
+          }
+          const items = toolName === 'TodoWrite' ? planItemsFromTodos(input) : []
+          events.push({
+            type: 'plan.updated',
+            plan: {
+              providerId,
+              sessionId: sessionId ?? '',
+              mode: planModeFromTool(toolName),
+              title: toolName === 'TodoWrite' ? 'Tasks' : undefined,
+              summary: stringValue(input.plan, input.summary, input.description),
+              items
+            }
+          })
         }
         events.push({
           type: 'tool.started',
@@ -821,6 +1335,34 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
         if (toolUseId && anthropicUserQuestionToolIds.has(toolUseId)) {
           anthropicUserQuestionToolIds.delete(toolUseId)
           continue
+        }
+        if (toolUseId && anthropicPlanConfirmationToolIds.has(toolUseId)) {
+          anthropicPlanConfirmationToolIds.delete(toolUseId)
+          continue
+        }
+        if (
+          toolUseId &&
+          rec.is_error === true &&
+          /requested permissions?|haven't granted/i.test(stringifyContent(rec.content))
+        ) {
+          continue
+        }
+        const taskAgent = toolUseId ? anthropicTaskAgents.get(toolUseId) : undefined
+        if (taskAgent) {
+          anthropicTaskAgents.delete(toolUseId)
+          events.push({
+            type: rec.is_error === true ? 'agent.failed' : 'agent.completed',
+            agent: {
+              id: toolUseId,
+              providerId: taskAgent.providerId,
+              sessionId: taskAgent.sessionId,
+              name: taskAgent.name,
+              role: taskAgent.role,
+              model: taskAgent.model,
+              status: rec.is_error === true ? 'failed' : 'completed',
+              summary: stringifyContent(rec.content)
+            }
+          })
         }
         const userInputRequest = parseStructuredUserInputRequest(rec.content)
         if (userInputRequest) {
@@ -852,6 +1394,19 @@ function parseAnthropicStyleLine(line: string): RunEvent[] {
         events.push({ type: 'user_input.requested', ...userInputRequest })
         return events
       }
+      const planDenial = denials.find((denial) => denial.tool_name === 'ExitPlanMode')
+      if (planDenial) {
+        events.push({
+          type: 'plan.updated',
+          plan: {
+            providerId,
+            sessionId: sessionId ?? '',
+            mode: 'plan',
+            summary: typeof event.result === 'string' ? event.result : 'Plan confirmation required',
+            items: []
+          }
+        })
+      }
       events.push({
         type: 'permission.requested',
         content: typeof event.result === 'string' ? event.result : undefined,
@@ -879,6 +1434,7 @@ const claudeProvider: ProviderAdapter = {
   capabilities: {
     resume: true,
     streamingJson: true,
+    interactiveCli: true,
     interactivePermissions: true,
     allowedTools: true,
     workspaceSandbox: false,
@@ -894,11 +1450,28 @@ const claudeProvider: ProviderAdapter = {
     if (request.effort && request.effort !== 'normal') args.push('--effort', request.effort)
     args.push(...resolvedPolicyArgs(this, request.executionPolicy || 'default'))
     if (request.allowedTools.length > 0) args.push('--allowedTools', request.allowedTools.join(','))
+    if (request.disallowedTools?.length) args.push('--disallowedTools', request.disallowedTools.join(','))
+    if (request.availableTools?.length) args.push('--tools', request.availableTools.join(','))
+    if (request.additionalDirs?.length) args.push('--add-dir', ...request.additionalDirs)
     return command(this.binary, args)
   },
 
   buildResumeCommand(request) {
     return this.buildStartCommand({ ...request, prompt: request.prompt || 'Please continue.' })
+  },
+
+  buildInteractiveCommand(request) {
+    const args: string[] = []
+    if (request.providerSessionId) args.push('--resume', request.providerSessionId)
+    args.push('--model', request.model || 'claude-sonnet-4-6')
+    if (request.effort && request.effort !== 'normal') args.push('--effort', request.effort)
+    args.push(...interactivePolicyArgs(this, request.executionPolicy || 'default'))
+    if (request.allowedTools.length > 0) args.push('--allowedTools', request.allowedTools.join(','))
+    if (request.disallowedTools?.length) args.push('--disallowedTools', request.disallowedTools.join(','))
+    if (request.availableTools?.length) args.push('--tools', request.availableTools.join(','))
+    if (request.additionalDirs?.length) args.push('--add-dir', ...request.additionalDirs)
+    if (request.prompt) args.push(request.prompt)
+    return command(this.binary, args)
   },
 
   parseOutputLine: parseAnthropicStyleLine
@@ -948,7 +1521,8 @@ const copilotProvider: ProviderAdapter = {
   capabilities: {
     resume: true,
     streamingJson: true,
-    interactivePermissions: false,
+    interactiveCli: true,
+    interactivePermissions: true,
     allowedTools: true,
     workspaceSandbox: false,
     fullAccessMode: true,
@@ -970,6 +1544,19 @@ const copilotProvider: ProviderAdapter = {
     return this.buildStartCommand({ ...request, prompt: request.prompt || 'Please continue.' })
   },
 
+  buildInteractiveCommand(request) {
+    const args: string[] = []
+    if (request.model) args.push('--model', request.model)
+    if (request.effort) args.push('--effort', request.effort)
+    if (request.executionPolicy === 'yolo') {
+      args.push('--allow-all')
+    } else if (request.executionPolicy === 'allowEdits') {
+      args.push('--allow-tool=write')
+    }
+    if (request.prompt) args.push('-i', request.prompt)
+    return command(this.binary, args)
+  },
+
   parseOutputLine(line) {
     const obj = parseJsonLine(line)
     if (!obj) return []
@@ -977,6 +1564,25 @@ const copilotProvider: ProviderAdapter = {
     const events: RunEvent[] = []
     const type = obj.type as string | undefined
     const data = asRecord(obj.data)
+
+    if (
+      type === 'user_input.requested' ||
+      type === 'elicitation.requested' ||
+      type === 'elicitation' ||
+      type === 'input.requested'
+    ) {
+      const userInput = userInputFromGenericPayload(data ?? obj)
+      if (userInput) events.push({ type: 'user_input.requested', ...userInput })
+    }
+
+    if (
+      type === 'permission.requested' ||
+      type === 'approval.requested' ||
+      type === 'tool.permission.requested'
+    ) {
+      const permission = permissionRequestFromGenericPayload(data ?? obj)
+      if (permission) events.push(permission)
+    }
 
     if (type === 'result') {
       const sessionId = typeof obj.sessionId === 'string'
@@ -1036,6 +1642,48 @@ const copilotProvider: ProviderAdapter = {
 // OpenAI Codex CLI
 
 function codexPolicy(policyId: string): ResolvedExecutionPolicy {
+  const approvalPolicyById: Record<string, { value: string; label: string; intent: PermissionIntent; description: string }> = {
+    default: {
+      value: 'on-request',
+      label: 'Ask',
+      intent: 'ask',
+      description: 'Uses Codex approval policy on-request with workspace sandboxing.'
+    },
+    onRequest: {
+      value: 'on-request',
+      label: 'Ask',
+      intent: 'ask',
+      description: 'Uses Codex approval policy on-request with workspace sandboxing.'
+    },
+    untrusted: {
+      value: 'untrusted',
+      label: 'Trusted',
+      intent: 'ask',
+      description: 'Runs trusted commands without asking and asks for untrusted commands.'
+    },
+    never: {
+      value: 'never',
+      label: 'Never',
+      intent: 'workspaceSandbox',
+      description: 'Never asks for approval; execution failures are returned to the model.'
+    }
+  }
+  const approvalPolicy = approvalPolicyById[policyId]
+  if (approvalPolicy) {
+    return policy(
+      policyId,
+      'approximate',
+      ['--sandbox', 'workspace-write', '-c', `approval_policy="${approvalPolicy.value}"`],
+      approvalPolicy.label,
+      approvalPolicy.description,
+      'The current Orchestrator runtime uses codex exec, so approval policy is passed as config; native prompt surfacing needs the interactive CLI lane.',
+      {
+        intent: approvalPolicy.intent,
+        interaction: 'headless',
+        controls: codexPermissionControls
+      }
+    )
+  }
   if (policyId === 'yolo') {
     return policy(
       policyId,
@@ -1066,21 +1714,6 @@ function codexPolicy(policyId: string): ResolvedExecutionPolicy {
       }
     )
   }
-  if (policyId === 'default' || policyId === 'workspaceWrite') {
-    return policy(
-      policyId,
-      'exact',
-      ['--sandbox', 'workspace-write'],
-      'Workspace write',
-      'Allows writes in the workspace sandbox.',
-      'Codex exec does not expose interactive approval prompts; denied operations are returned to the agent.',
-      {
-        intent: 'workspaceSandbox',
-        interaction: 'headless',
-        controls: codexPermissionControls
-      }
-    )
-  }
   return policy(policyId, 'unsupported', [], policyId, 'Codex does not support this policy in exec mode.', undefined, {
     intent: 'custom',
     interaction: 'none',
@@ -1099,6 +1732,26 @@ function codexBaseArgs(request: RunRequest): string[] {
 
 function parseCodexItem(item: Record<string, unknown>): RunEvent[] {
   const itemType = item.type as string | undefined
+  if (
+    itemType === 'user_input.requested' ||
+    itemType === 'mcp_elicitation_request' ||
+    itemType === 'mcp.elicitation.requested' ||
+    itemType === 'tool_call_mcp_elicitation' ||
+    itemType === 'elicitation.requested'
+  ) {
+    const userInput = userInputFromGenericPayload(item)
+    return userInput ? [{ type: 'user_input.requested', ...userInput }] : []
+  }
+
+  if (
+    itemType === 'permission.requested' ||
+    itemType === 'approval.requested' ||
+    itemType === 'exec.approval.requested'
+  ) {
+    const permission = permissionRequestFromGenericPayload(item)
+    return permission ? [permission] : []
+  }
+
   if (itemType === 'agent_message') {
     const text = typeof item.text === 'string'
       ? item.text
@@ -1146,6 +1799,7 @@ const codexProvider: ProviderAdapter = {
   capabilities: {
     resume: true,
     streamingJson: true,
+    interactiveCli: true,
     interactivePermissions: false,
     allowedTools: false,
     workspaceSandbox: true,
@@ -1165,12 +1819,41 @@ const codexProvider: ProviderAdapter = {
     return command(this.binary, args)
   },
 
+  buildInteractiveCommand(request) {
+    const args: string[] = []
+    args.push('--model', request.model || 'gpt-5.4')
+    if (request.effort) args.push('-c', `model_reasoning_effort="${request.effort}"`)
+    args.push(...interactivePolicyArgs(this, request.executionPolicy || 'default'))
+    if (request.prompt) args.push(request.prompt)
+    return command(this.binary, args)
+  },
+
   parseOutputLine(line) {
     const obj = parseJsonLine(line)
     if (!obj) return []
 
     const events: RunEvent[] = []
     const type = obj.type as string | undefined
+
+    if (
+      type === 'user_input.requested' ||
+      type === 'mcp_elicitation_request' ||
+      type === 'mcp.elicitation.requested' ||
+      type === 'tool_call_mcp_elicitation' ||
+      type === 'elicitation.requested'
+    ) {
+      const userInput = userInputFromGenericPayload(asRecord(obj.data) ?? asRecord(obj.item) ?? obj)
+      if (userInput) events.push({ type: 'user_input.requested', ...userInput })
+    }
+
+    if (
+      type === 'permission.requested' ||
+      type === 'approval.requested' ||
+      type === 'exec.approval.requested'
+    ) {
+      const permission = permissionRequestFromGenericPayload(asRecord(obj.data) ?? obj)
+      if (permission) events.push(permission)
+    }
 
     if (type === 'thread.started' && typeof obj.thread_id === 'string') {
       events.push({ type: 'session.started', providerSessionId: obj.thread_id })
@@ -1299,6 +1982,7 @@ const cursorProvider: ProviderAdapter = {
   capabilities: {
     resume: true,
     streamingJson: true,
+    interactiveCli: true,
     interactivePermissions: false,
     allowedTools: false,
     workspaceSandbox: true,
@@ -1322,13 +2006,37 @@ const cursorProvider: ProviderAdapter = {
     return this.buildStartCommand({ ...request, prompt: request.prompt || 'Please continue.' })
   },
 
+  buildInteractiveCommand(request) {
+    const args: string[] = []
+    if (request.providerSessionId) args.push('--resume', request.providerSessionId)
+    args.push('--workspace', request.cwd)
+    args.push('--model', effectiveCursorModel(request))
+    args.push(...interactivePolicyArgs(this, request.executionPolicy || 'default').filter((arg) => arg !== '--trust'))
+    if (request.prompt) args.push(request.prompt)
+    return command(this.binary, args)
+  },
+
   parseOutputLine(line) {
     const obj = parseJsonLine(line)
     if (!obj) return []
 
-    const events = parseAnthropicStyleLine(line)
+    const events = parseAnthropicStyleLine(line, 'cursor')
     const type = obj.type as string | undefined
     const subtype = obj.subtype as string | undefined
+
+    if (
+      type === 'user_input.requested' ||
+      type === 'elicitation.requested' ||
+      type === 'question'
+    ) {
+      const userInput = userInputFromGenericPayload(asRecord(obj.data) ?? obj)
+      if (userInput) events.push({ type: 'user_input.requested', ...userInput })
+    }
+
+    if (type === 'permission.requested' || type === 'approval.requested') {
+      const permission = permissionRequestFromGenericPayload(asRecord(obj.data) ?? obj)
+      if (permission) events.push(permission)
+    }
 
     if (type === 'tool_call') {
       const callId = typeof obj.call_id === 'string' ? obj.call_id : uuidv4()
@@ -1386,6 +2094,61 @@ export const PROVIDERS: Record<string, ProviderAdapter> = {
 
 export function getProvider(id: string): ProviderAdapter {
   return PROVIDERS[id] ?? PROVIDERS.claude
+}
+
+export function runProviderCommandSurface(providerId: string, surfaceId: string): ProviderCommandSurfaceResult {
+  const provider = getProvider(providerId)
+  const registry = providerCapabilityRegistry(provider.id)
+  const surface = registry.commandSurfaces.find((candidate) => candidate.id === surfaceId)
+  if (!surface) {
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'blocked',
+      output: 'Unknown provider command.'
+    }
+  }
+  if (surface.quota !== 'none' || surface.mutatesState) {
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'blocked',
+      output: 'This command is not safe to run automatically from settings.'
+    }
+  }
+
+  const binary = resolveProviderBinary(provider)
+  if (!binary) {
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'error',
+      output: `${provider.id} CLI is not available.`
+    }
+  }
+
+  try {
+    const output = execFileSync(binary, surface.command, {
+      encoding: 'utf8',
+      timeout: PROVIDER_COMMAND_SURFACE_TIMEOUT_MS,
+      env: providerSpawnEnv(provider.id),
+      maxBuffer: 512 * 1024
+    })
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'ok',
+      output: redactProviderCommandOutput(output.trim())
+    }
+  } catch (error) {
+    const err = error as { stdout?: unknown; stderr?: unknown; message?: string }
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'error',
+      output: redactProviderCommandOutput(stringifyCommandError(err))
+    }
+  }
 }
 
 export function getProviderRuntimeInfo(): Record<string, ProviderRuntimeInfo> {

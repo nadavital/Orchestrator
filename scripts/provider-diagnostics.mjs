@@ -83,7 +83,13 @@ for (const [providerId, provider] of Object.entries(PROVIDERS)) {
   }
 
   console.log(`  capabilities: ${runtime.abstractCapabilities.map((cap) => `${cap.key}=${cap.support}`).join(', ')}`)
-  console.log(`  registry: ${runtime.registry.features.length} features, ${runtime.registry.probes.length} no-quota probes`)
+  console.log(`  registry: ${runtime.registry.features.length} features, ${runtime.registry.gaps.length} gaps, ${runtime.registry.probes.length} no-quota probes`)
+  if (runtime.registry.gaps.length > 0) {
+    const gapSummary = runtime.registry.gaps
+      .map((gap) => `${gap.id}=${gap.status}/${gap.severity}`)
+      .join(', ')
+    console.log(`  gaps: ${gapSummary}`)
+  }
   if (diagnostics[providerId]?.probes?.length > 0) {
     console.log(`  probes: ${diagnostics[providerId].probes.map((p) => `${p.id}=${p.status}`).join(', ')}`)
   }
