@@ -1371,7 +1371,10 @@ function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[
   const events: RunEvent[] = []
   const type = event.type as string | undefined
   const sessionId = stringValue(event.sessionId, event.session_id)
-  const parentToolUseId = stringValue(event.parent_tool_use_id)
+  const sidechainAgentId = event.isSidechain === true
+    ? stringValue(event.agentId, event.agent_id)
+    : undefined
+  const parentToolUseId = stringValue(event.parent_tool_use_id) ?? sidechainAgentId
 
   if (type === 'system' && event.subtype === 'init' && typeof event.session_id === 'string') {
     events.push({ type: 'session.started', providerSessionId: event.session_id })

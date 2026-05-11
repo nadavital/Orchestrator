@@ -1,0 +1,2 @@
+{"isSidechain":true,"agentId":"agent-sidechain-1","type":"assistant","message":{"id":"msg-sidechain-1","type":"message","role":"assistant","content":[{"type":"text","text":"I found README.md."}]}}
+{"isSidechain":true,"agentId":"agent-sidechain-1","type":"assistant","message":{"id":"msg-sidechain-2","type":"message","role":"assistant","content":[{"type":"text","text":"\nThe repo also has docs."}]}}

@@ -31,7 +31,7 @@ export function deriveAgentNodes(session: Pick<Session, 'id' | 'provider'>, reco
         id: event.agentId,
         providerId: previous?.providerId ?? session.provider,
         sessionId: previous?.sessionId ?? session.id,
-        status: previous?.status ?? 'running',
+        status: previous?.status === 'failed' || previous?.status === 'cancelled' ? previous.status : 'running',
         startedAt: previous?.startedAt ?? record.timestamp,
         transcript,
         summary: compact(transcript)

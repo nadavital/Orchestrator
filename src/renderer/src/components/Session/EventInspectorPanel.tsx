@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useSessionStore } from '../../store/sessions'
-import { agentDepth, deriveAgentNodes, deriveAgentNodesFromMessages } from '../../types'
 import type { AgentNode, AgentStatus, Session } from '../../types'
+import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
   session: Session
@@ -10,24 +10,16 @@ interface Props {
 }
 
 export default function EventInspectorPanel({ session, embedded = false, activeAgentId = null }: Props): JSX.Element {
-  const { eventBuffers, setActiveAgent } = useSessionStore()
+  const { eventBuffers, uiState, setActiveAgent, closeAgentTab } = useSessionStore()
   const events = eventBuffers[session.id] ?? []
-  const agents = useMemo(() => {
-    const fromMessages = deriveAgentNodesFromMessages(session, session.messages)
-    const byId = new Map(fromMessages.map((agent) => [agent.id, agent]))
-    for (const agent of deriveAgentNodes(session, events)) {
-      byId.set(agent.id, {
-        ...byId.get(agent.id),
-        ...agent,
-        transcript: agent.transcript ?? byId.get(agent.id)?.transcript,
-        summary: agent.summary ?? byId.get(agent.id)?.summary
-      })
-    }
-    return [...byId.values()].sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0))
-  }, [events, session])
+  const agents = useMemo(() => deriveSessionAgentNodes(session, events), [events, session])
+  const openAgentIds = uiState[session.id]?.agentTabIds ?? (activeAgentId ? [activeAgentId] : [])
+  const openAgents = openAgentIds
+    .map((id) => agents.find((agent) => agent.id === id))
+    .filter((agent): agent is AgentNode => Boolean(agent))
   const selectedAgent = useMemo(
-    () => agents.find((agent) => agent.id === activeAgentId) ?? agents[0] ?? null,
-    [activeAgentId, agents]
+    () => openAgents.find((agent) => agent.id === activeAgentId) ?? openAgents.at(-1) ?? null,
+    [activeAgentId, openAgents]
   )
 
   return (
@@ -42,28 +34,30 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
     >
       <div className="shrink-0 px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
         <div className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-          {agents.length === 0
-            ? 'No subagents'
-            : `${agents.length} subagent${agents.length === 1 ? '' : 's'}`}
+          Agent transcripts
         </div>
       </div>
 
-      {agents.length === 0 ? (
-        <EmptyText>No subagent activity yet.</EmptyText>
+      {openAgents.length === 0 ? (
+        <EmptyText>
+          {agents.length === 0
+            ? 'Agent transcripts will appear here when a subagent starts.'
+            : 'Select an agent chip above the composer to open its transcript here.'}
+        </EmptyText>
       ) : (
         <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
-            className="shrink-0 overflow-y-auto overflow-x-hidden p-2"
-            style={{ maxHeight: 190, borderBottom: '1px solid var(--color-border)' }}
+            className="shrink-0 overflow-x-auto overflow-y-hidden px-2 py-2"
+            style={{ borderBottom: '1px solid var(--color-border)' }}
           >
-            <div className="space-y-1.5 min-w-0">
-              {agents.map((agent) => (
-                <AgentRow
+            <div className="flex min-w-0 gap-1.5">
+              {openAgents.map((agent) => (
+                <AgentTab
                   key={agent.id}
                   agent={agent}
-                  depth={agentDepth(agent, agents)}
                   active={agent.id === selectedAgent?.id}
                   onClick={() => setActiveAgent(session.id, agent.id)}
+                  onClose={() => closeAgentTab(session.id, agent.id)}
                 />
               ))}
             </div>
@@ -76,50 +70,48 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
   )
 }
 
-function AgentRow({
+function AgentTab({
   agent,
-  depth,
   active,
-  onClick
+  onClick,
+  onClose
 }: {
   agent: AgentNode
-  depth: number
   active: boolean
   onClick: () => void
+  onClose: () => void
 }): JSX.Element {
   return (
-    <button
-      onClick={onClick}
-      className="w-full min-w-0 max-w-full overflow-hidden rounded-md px-2 py-2 text-left"
+    <div
+      className="group inline-flex h-8 min-w-0 max-w-[220px] shrink-0 items-center gap-1.5 rounded-md px-2 text-left"
       style={{
-        marginLeft: depth * 12,
-        width: `calc(100% - ${depth * 12}px)`,
         background: active ? 'var(--color-accent-dim)' : 'var(--color-surface2)',
         border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)'
       }}
     >
-      <div className="flex items-center gap-2 min-w-0 max-w-full overflow-hidden">
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex min-w-0 flex-1 items-center gap-1.5 text-left"
+      >
         <StatusDot status={agent.status} />
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold truncate" style={{ color: 'var(--color-text)' }}>
-            {agent.name ?? agent.role ?? agent.id}
-          </div>
-          <div className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-            {agent.summary ?? agent.role ?? agent.model ?? agent.status}
-          </div>
-        </div>
-        <span
-          className="shrink-0 rounded px-1.5 py-0.5 text-xs"
-          style={{
-            color: agentStatusColor(agent.status),
-            border: `1px solid ${agentStatusColor(agent.status)}`,
-            fontSize: 10
-          }}
-        >
-          {agent.status}
+        <span className="min-w-0 flex-1 truncate text-xs font-medium" style={{ color: active ? 'var(--color-accent)' : 'var(--color-text)' }}>
+          {agent.name ?? agent.role ?? agent.id}
         </span>
-      </div>
-    </button>
+      </button>
+      <button
+        type="button"
+        onClick={onClose}
+        className="grid h-5 w-5 shrink-0 place-items-center rounded"
+        title="Close transcript"
+        aria-label="Close transcript"
+        style={{ color: 'var(--color-text-muted)' }}
+      >
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+        </svg>
+      </button>
+    </div>
   )
 }
 
@@ -151,7 +143,7 @@ function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
       ) : displaySummary ? (
         <TranscriptBlock content={displaySummary} muted />
       ) : (
-        <EmptyText>No subagent transcript yet.</EmptyText>
+        <EmptyText>Waiting for transcript text from this agent.</EmptyText>
       )}
     </div>
   )

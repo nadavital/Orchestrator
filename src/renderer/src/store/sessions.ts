@@ -8,6 +8,7 @@ interface SessionUIState {
   showSkills: boolean
   hasUnread: boolean
   activeAgentId?: string | null
+  agentTabIds?: string[]
 }
 
 interface SessionState {
@@ -43,6 +44,7 @@ interface SessionState {
   setShowTerminal: (id: string, v: boolean) => void
   setShowSkills: (id: string, v: boolean) => void
   setActiveAgent: (id: string, agentId: string | null) => void
+  closeAgentTab: (id: string, agentId: string) => void
   setHasUnread: (id: string, v: boolean) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
@@ -59,7 +61,8 @@ const defaultUI: SessionUIState = {
   showTerminal: false,
   showSkills: false,
   hasUnread: false,
-  activeAgentId: null
+  activeAgentId: null,
+  agentTabIds: []
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -171,15 +174,44 @@ export const useSessionStore = create<SessionState>((set) => ({
     set((s) => ({
       uiState: {
         ...s.uiState,
-        [id]: {
-          ...(s.uiState[id] ?? defaultUI),
-          activeAgentId: agentId,
-          showEvents: true,
-          showDiff: false,
-          showSkills: false
-        }
+        [id]: (() => {
+          const current = s.uiState[id] ?? defaultUI
+          const agentTabIds = agentId
+            ? current.agentTabIds?.includes(agentId)
+              ? current.agentTabIds
+              : [...(current.agentTabIds ?? []), agentId]
+            : current.agentTabIds ?? []
+          return {
+            ...current,
+            activeAgentId: agentId,
+            showEvents: true,
+            showDiff: false,
+            showSkills: false,
+            agentTabIds
+          }
+        })()
       }
     })),
+
+  closeAgentTab: (id, agentId) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const agentTabIds = (current.agentTabIds ?? []).filter((tabId) => tabId !== agentId)
+      const activeAgentId = current.activeAgentId === agentId
+        ? agentTabIds.at(-1) ?? null
+        : current.activeAgentId ?? null
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            agentTabIds,
+            activeAgentId,
+            showEvents: agentTabIds.length > 0 ? current.showEvents : false
+          }
+        }
+      }
+    }),
 
   setHasUnread: (id, v) =>
     set((s) => ({

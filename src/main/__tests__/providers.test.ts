@@ -628,6 +628,23 @@ test('claude nested agent text streams into agent transcript state', () => {
   assert.equal(agents[0].transcript, 'Found src and docs')
 })
 
+test('claude sidechain agent jsonl streams into agent transcript state', () => {
+  const events = parseFixture('claude', 'sidechain-agent.jsonl')
+  const session = { id: 'session-under-test', provider: 'claude' }
+  const agents = deriveAgentNodes(session, records(events))
+
+  assert.deepEqual(
+    events
+      .filter((event): event is Extract<RunEvent, { type: 'agent.text.delta' }> => event.type === 'agent.text.delta')
+      .map((event) => event.agentId),
+    ['agent-sidechain-1', 'agent-sidechain-1']
+  )
+  assert.equal(agents.length, 1)
+  assert.equal(agents[0].id, 'agent-sidechain-1')
+  assert.equal(agents[0].status, 'completed')
+  assert.equal(agents[0].transcript, 'I found README.md.\nThe repo also has docs.')
+})
+
 test('claude plan mode and TodoWrite normalize into plan updates', () => {
   const events = parseFixture('claude', 'plan-todos.jsonl')
   const plans = events.filter((event): event is Extract<RunEvent, { type: 'plan.updated' }> => event.type === 'plan.updated')

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useSessionStore } from '../../store/sessions'
-import { deriveAgentNodes } from '../../types'
 import type { AgentNode, Session } from '../../types'
+import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
   session: Session
@@ -10,10 +10,11 @@ interface Props {
 const LIVE_STATUSES = new Set(['queued', 'running', 'waiting', 'blocked'])
 
 export default function RunningAgentsStrip({ session }: Props): JSX.Element | null {
-  const { eventBuffers, setActiveAgent } = useSessionStore()
+  const { eventBuffers, uiState, setActiveAgent } = useSessionStore()
   const events = eventBuffers[session.id] ?? []
+  const activeAgentId = uiState[session.id]?.activeAgentId ?? null
   const agents = useMemo(
-    () => deriveAgentNodes(session, events).filter((agent) => LIVE_STATUSES.has(agent.status)),
+    () => deriveSessionAgentNodes(session, events).filter((agent) => LIVE_STATUSES.has(agent.status)),
     [events, session]
   )
 
@@ -34,6 +35,7 @@ export default function RunningAgentsStrip({ session }: Props): JSX.Element | nu
         <AgentPill
           key={agent.id}
           agent={agent}
+          active={agent.id === activeAgentId}
           onClick={() => setActiveAgent(session.id, agent.id)}
         />
       ))}
@@ -41,16 +43,16 @@ export default function RunningAgentsStrip({ session }: Props): JSX.Element | nu
   )
 }
 
-function AgentPill({ agent, onClick }: { agent: AgentNode; onClick: () => void }): JSX.Element {
+function AgentPill({ agent, active, onClick }: { agent: AgentNode; active: boolean; onClick: () => void }): JSX.Element {
   return (
     <button
       onClick={onClick}
       title={agent.summary ?? agent.role ?? agent.name ?? agent.id}
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs shrink-0"
       style={{
-        background: 'var(--color-surface2)',
-        color: 'var(--color-text)',
-        border: '1px solid var(--color-border)',
+        background: active ? 'var(--color-accent-dim)' : 'var(--color-surface2)',
+        color: active ? 'var(--color-accent)' : 'var(--color-text)',
+        border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
         maxWidth: 220
       }}
     >
