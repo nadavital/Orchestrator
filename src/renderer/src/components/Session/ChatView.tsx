@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -7,6 +7,7 @@ import {
   describeToolAction,
   describeToolActivity,
   extractFileReferences,
+  extractWorkspaceRootsFromText,
   pairToolActivities,
   permissionSummary,
   summarizeToolActivities
@@ -32,6 +33,7 @@ const TOOL_SUMMARY_MAX_HEIGHT = 220
 export default function ChatView({ session, projectName, onSuggestedPrompt }: Props): JSX.Element {
   const bottomRef = useRef<HTMLDivElement>(null)
   const transcriptItems = groupTranscriptMessages(session.messages)
+  const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
   const lastMessage = session.messages[session.messages.length - 1]
   const lastTextLength = lastMessage?.type === 'text' ? lastMessage.content.length : 0
 
@@ -83,7 +85,7 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
       {transcriptItems.map((item) => (
         item.type === 'tool_group'
           ? <ToolActivitySummary key={item.id} messages={item.messages} />
-          : <MessageRow key={item.message.id} msg={item.message} session={session} />
+          : <MessageRow key={item.message.id} msg={item.message} session={session} fileReferenceRoots={fileReferenceRoots} />
       ))}
       {session.status === 'running' && <ThinkingIndicator />}
       <div ref={bottomRef} />
@@ -345,7 +347,7 @@ function makeMarkdownComponents(isUser: boolean): Components {
 const assistantComponents = makeMarkdownComponents(false)
 const userComponents = makeMarkdownComponents(true)
 
-function MessageRow({ msg, session }: { msg: ChatMessage; session: Session }): JSX.Element | null {
+function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; session: Session; fileReferenceRoots: string[] }): JSX.Element | null {
   if (msg.type === 'text') {
     const isUser = msg.role === 'user'
     const isSystem = msg.role === 'system'
@@ -364,7 +366,6 @@ function MessageRow({ msg, session }: { msg: ChatMessage; session: Session }): J
     const fileReferences = !isUser && !isSystem
       ? extractFileReferences(content, session.workDir).slice(0, 4)
       : []
-
     return (
       <div
         className={`flex min-w-0 w-full ${isUser ? 'justify-end' : 'justify-start'}`}
@@ -402,7 +403,7 @@ function MessageRow({ msg, session }: { msg: ChatMessage; session: Session }): J
                 |
               </span>
             )}
-            {fileReferences.length > 0 && <FileReferenceList files={fileReferences} />}
+            {fileReferences.length > 0 && <FileReferenceList files={fileReferences} cwd={session.workDir} searchRoots={fileReferenceRoots} />}
           </div>
           <div
             style={{
@@ -441,39 +442,68 @@ function MessageRow({ msg, session }: { msg: ChatMessage; session: Session }): J
   return null
 }
 
-function FileReferenceList({ files }: { files: FileReference[] }): JSX.Element {
+function FileReferenceList({ files, cwd, searchRoots }: { files: FileReference[]; cwd: string; searchRoots: string[] }): JSX.Element {
   return (
     <div className="mt-3 space-y-1.5" aria-label="Referenced files">
       {files.map((file) => (
-        <FileReferenceCard key={file.path} file={file} />
+        <FileReferenceCard key={file.path} file={file} cwd={cwd} searchRoots={searchRoots} />
       ))}
     </div>
   )
 }
 
-function FileReferenceCard({ file }: { file: FileReference }): JSX.Element {
+function FileReferenceCard({ file, cwd, searchRoots }: { file: FileReference; cwd: string; searchRoots: string[] }): JSX.Element {
   const [exists, setExists] = useState<boolean | null>(null)
+  const [resolvedPath, setResolvedPath] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const displayPath = resolvedPath ?? file.path
+  const displayLabel = resolvedPath ? fileName(resolvedPath) : file.label
 
   useEffect(() => {
     let cancelled = false
-    window.api.fs.statPath(file.path).then((stat) => {
-      if (!cancelled) setExists(stat.exists)
-    }).catch(() => {
-      if (!cancelled) setExists(false)
-    })
+    setExists(null)
+    setResolvedPath(null)
+    setError(null)
+
+    const resolve = async (): Promise<void> => {
+      try {
+        const stat = await window.api.fs.statPath(file.path)
+        if (cancelled) return
+        if (stat.exists) {
+          setResolvedPath(file.path)
+          setExists(true)
+          return
+        }
+
+        for (const root of uniqueRoots(cwd, searchRoots)) {
+          const workspacePath = await window.api.fs.resolveWorkspaceFileReference(root, file.path)
+          if (cancelled) return
+          if (workspacePath) {
+            setResolvedPath(workspacePath)
+            setExists(true)
+            return
+          }
+        }
+
+        setExists(false)
+      } catch {
+        if (!cancelled) setExists(false)
+      }
+    }
+
+    void resolve()
     return () => { cancelled = true }
-  }, [file.path])
+  }, [cwd, file.path, searchRoots])
 
   const openPath = async (): Promise<void> => {
     setError(null)
-    const result = await window.api.fs.openPath(file.path)
+    const result = await window.api.fs.openPath(displayPath)
     if (result) setError(result)
   }
 
   const revealPath = async (): Promise<void> => {
     setError(null)
-    await window.api.fs.showInFolder(file.path)
+    await window.api.fs.showInFolder(displayPath)
   }
 
   return (
@@ -490,9 +520,9 @@ function FileReferenceCard({ file }: { file: FileReference }): JSX.Element {
           <path d="M2 1.75C2 .784 2.784 0 3.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 12.25 16h-8.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 8 3.25V1.5Zm5.75.06v1.69c0 .138.112.25.25.25h1.69Z" />
         </svg>
         <div className="min-w-0 flex-1">
-          <div className="font-medium truncate">{file.label}</div>
-          <div className="truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10 }} title={file.path}>
-            {file.path}
+          <div className="font-medium truncate">{displayLabel}</div>
+          <div className="truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10 }} title={displayPath}>
+            {displayPath}
           </div>
         </div>
         {exists === false && (
@@ -536,6 +566,36 @@ function FileReferenceCard({ file }: { file: FileReference }): JSX.Element {
       )}
     </div>
   )
+}
+
+function fileName(filePath: string): string {
+  return filePath.split('/').filter(Boolean).at(-1) ?? filePath
+}
+
+function uniqueRoots(cwd: string, roots: string[]): string[] {
+  return [...new Set([cwd, ...roots].filter(Boolean).map((root) => root.replace(/\/+$/, '')))]
+}
+
+function sessionFileReferenceRoots(session: Session): string[] {
+  const roots = new Set<string>()
+  roots.add(session.workDir)
+  for (const dir of session.additionalDirs ?? []) roots.add(dir)
+
+  for (const message of session.messages.slice(-80)) {
+    const content = fileReferenceSearchContent(message)
+    if (!content) continue
+    for (const root of extractWorkspaceRootsFromText(content, session.workDir)) {
+      roots.add(root)
+    }
+  }
+
+  return [...roots]
+}
+
+function fileReferenceSearchContent(message: ChatMessage): string | null {
+  if (message.type === 'text' || message.type === 'tool_result') return message.content
+  if (message.type === 'tool_use') return JSON.stringify(message.toolInput)
+  return null
 }
 
 function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | ToolResultMessage> }): JSX.Element {

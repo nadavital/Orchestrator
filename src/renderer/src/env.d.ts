@@ -100,6 +100,7 @@ declare global {
         writeFile: (filePath: string, content: string) => Promise<void>
         listDir: (dirPath: string) => Promise<string[] | null>
         statPath: (filePath: string) => Promise<{ exists: boolean; isFile?: boolean; isDirectory?: boolean; size?: number }>
+        resolveWorkspaceFileReference: (cwd: string, filePath: string) => Promise<string | null>
         openPath: (filePath: string) => Promise<string>
         showInFolder: (filePath: string) => Promise<void>
       }

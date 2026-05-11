@@ -800,5 +800,6 @@ export type {
   FileReference
 } from './fileReferences'
 export {
-  extractFileReferences
+  extractFileReferences,
+  extractWorkspaceRootsFromText
 } from './fileReferences'

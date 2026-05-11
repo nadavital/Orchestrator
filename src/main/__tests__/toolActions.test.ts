@@ -4,6 +4,7 @@ import type { ToolResultMessage, ToolUseMessage } from '../../types'
 import {
   describeToolAction,
   extractFileReferences,
+  extractWorkspaceRootsFromText,
   pairToolActivities,
   permissionSummary,
   summarizeToolActivities
@@ -110,4 +111,12 @@ test('file references extract local paths from assistant prose without code bloc
     '/Users/navital/Desktop/fgql/docs/plan.md'
   ])
   assert.equal(refs[0].label, 'collection_fop_banner.json')
+})
+
+test('file reference roots include sibling Desktop repos mentioned in tool output', () => {
+  const content = 'Read /Users/navital/Desktop/xopes/xopesweb/src/main/resources/schema/PaymentsUpsellMessage.graphqls'
+  assert.deepEqual(
+    extractWorkspaceRootsFromText(content, '/Users/navital/Desktop/dynamicplatform'),
+    ['/Users/navital/Desktop/dynamicplatform', '/Users/navital/Desktop/xopes']
+  )
 })

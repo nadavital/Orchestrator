@@ -103,6 +103,8 @@ const api = {
     listDir: (dirPath: string): Promise<string[] | null> => ipcRenderer.invoke('fs:listDir', dirPath),
     statPath: (filePath: string): Promise<{ exists: boolean; isFile?: boolean; isDirectory?: boolean; size?: number }> =>
       ipcRenderer.invoke('fs:statPath', filePath),
+    resolveWorkspaceFileReference: (cwd: string, filePath: string): Promise<string | null> =>
+      ipcRenderer.invoke('fs:resolveWorkspaceFileReference', cwd, filePath),
     openPath: (filePath: string): Promise<string> => ipcRenderer.invoke('fs:openPath', filePath),
     showInFolder: (filePath: string): Promise<void> => ipcRenderer.invoke('fs:showInFolder', filePath)
   },

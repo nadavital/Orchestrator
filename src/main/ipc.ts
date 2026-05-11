@@ -9,6 +9,7 @@ import { settingsStore } from './settings'
 import { terminalManager } from './terminal'
 import { petOverlayManager } from './petOverlay'
 import { getProviderDiagnosticsAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
+import { resolveWorkspaceFileReference } from './workspaceResolver'
 import type { ProviderRuntimeKind } from '../types'
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
@@ -122,6 +123,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
       return { exists: false }
     }
   })
+  ipcMain.handle('fs:resolveWorkspaceFileReference', (_, cwd: string, filePath: string): string | null =>
+    resolveWorkspaceFileReference(cwd, filePath)
+  )
   ipcMain.handle('fs:openPath', (_, filePath: string): Promise<string> => shell.openPath(filePath))
   ipcMain.handle('fs:showInFolder', (_, filePath: string): void => shell.showItemInFolder(filePath))
 

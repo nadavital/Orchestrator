@@ -26,6 +26,19 @@ export function extractFileReferences(content: string, cwd?: string): FileRefere
   return [...refs.values()]
 }
 
+export function extractWorkspaceRootsFromText(content: string, cwd?: string): string[] {
+  const roots = new Set<string>()
+  const searchable = content.replace(/```[\s\S]*?```/g, ' ')
+
+  if (cwd) roots.add(cwd.replace(/\/+$/, ''))
+  for (const match of searchable.matchAll(ABSOLUTE_PATH_PATTERN)) {
+    const root = likelyWorkspaceRoot(cleanPath(match[2]), cwd)
+    if (root) roots.add(root)
+  }
+
+  return [...roots]
+}
+
 function addReference(refs: Map<string, FileReference>, rawPath: string, source: FileReference['source']): void {
   const path = cleanPath(rawPath)
   if (!path || path.includes('://') || refs.has(path)) return
@@ -55,4 +68,22 @@ function resolveRelativePath(cwd: string, value: string): string {
   const base = cwd.replace(/\/+$/, '')
   const cleaned = value.replace(/^\.\//, '')
   return `${base}/${cleaned}`
+}
+
+function likelyWorkspaceRoot(path: string, cwd?: string): string | null {
+  const normalizedCwd = cwd?.replace(/\/+$/, '')
+  if (normalizedCwd && (path === normalizedCwd || path.startsWith(`${normalizedCwd}/`))) {
+    return normalizedCwd
+  }
+
+  const desktopProject = path.match(/^(\/Users\/[^/]+\/Desktop\/[^/]+)/)
+  if (desktopProject) return desktopProject[1]
+
+  const documentsProject = path.match(/^(\/Users\/[^/]+\/Documents\/[^/]+)/)
+  if (documentsProject) return documentsProject[1]
+
+  const tmpProject = path.match(/^(\/(?:private\/)?tmp\/[^/]+)/)
+  if (tmpProject) return tmpProject[1]
+
+  return null
 }
