@@ -272,20 +272,54 @@ function makeMarkdownComponents(isUser: boolean): Components {
     // Table
     table({ children }) {
       return (
-        <div style={{ overflowX: 'auto', maxWidth: '100%', minWidth: 0, margin: '6px 0' }}>
-          <table style={{ borderCollapse: 'collapse', fontSize: '0.9em', width: '100%', minWidth: 'max-content' }}>{children}</table>
+        <div style={{ overflowX: 'hidden', maxWidth: '100%', minWidth: 0, margin: '6px 0' }}>
+          <table
+            style={{
+              borderCollapse: 'collapse',
+              fontSize: '0.9em',
+              width: '100%',
+              maxWidth: '100%',
+              tableLayout: 'fixed'
+            }}
+          >
+            {children}
+          </table>
         </div>
       )
     },
     th({ children }) {
       return (
-        <th style={{ padding: '4px 8px', borderBottom: '1px solid var(--color-border)', textAlign: 'left', fontWeight: 600 }}>
+        <th
+          style={{
+            padding: '4px 8px',
+            borderBottom: '1px solid var(--color-border)',
+            textAlign: 'left',
+            fontWeight: 600,
+            verticalAlign: 'top',
+            whiteSpace: 'normal',
+            overflowWrap: 'anywhere',
+            wordBreak: 'normal'
+          }}
+        >
           {children}
         </th>
       )
     },
     td({ children }) {
-      return <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--color-border)' }}>{children}</td>
+      return (
+        <td
+          style={{
+            padding: '4px 8px',
+            borderBottom: '1px solid var(--color-border)',
+            verticalAlign: 'top',
+            whiteSpace: 'normal',
+            overflowWrap: 'anywhere',
+            wordBreak: 'normal'
+          }}
+        >
+          {children}
+        </td>
+      )
     },
     // Strong / em
     strong({ children }) { return <strong style={{ fontWeight: 700 }}>{children}</strong> },
