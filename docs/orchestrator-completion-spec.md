@@ -23,7 +23,7 @@ Completion means the item is either implemented and verified, or intentionally b
 - [x] Search, list, web, MCP, and unknown provider tools normalize without raw payload noise in the transcript.
 - [x] `AskUserQuestion` is rendered as a user-input request, not as a permission prompt.
 - [x] `ExitPlanMode` permission denials render as plan approval UI, not as a red tool failure.
-- [x] `TodoWrite`, `EnterPlanMode`, and related plan events feed the Activity panel plan state.
+- [x] `TodoWrite`, `EnterPlanMode`, and related plan events feed normalized plan state.
 - [x] `Task` and `Agent` tools feed Activity agent nodes, including progress and completion summaries.
 - [x] Claude slash commands are represented in the provider registry and appear only on compatible runtime lanes.
 - [x] Claude no-quota command surfaces cover auth status, agents, MCP, plugins, and auto-mode defaults.
@@ -64,9 +64,9 @@ Completion means the item is either implemented and verified, or intentionally b
 - [x] Skills and project instruction surfaces live outside the transcript so command discovery does not crowd chat.
 - [x] Provider settings can run safe no-quota command surfaces and render structured output with secret redaction.
 
-## Activity, Diff, And Workspace UX
+## Agents, Diff, And Workspace UX
 
-- [x] Activity panel has separate tabs for agents, plans, events, and raw payloads.
+- [x] Agents sidebar focuses on subagent rows and captured subagent output instead of raw provider event feeds.
 - [x] Agent nodes derive from both nested subagent files and live stream-json events.
 - [x] Plan states derive from normalized plan/todo events.
 - [x] Diff panel summarizes changed files by status, additions, deletions, and risk.

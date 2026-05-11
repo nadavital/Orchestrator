@@ -53,18 +53,9 @@ export const APP_SLASH_COMMANDS: ProviderSlashCommand[] = [
     handler: 'app-action'
   },
   {
-    id: 'events',
-    name: '/events',
-    description: 'Toggle events',
-    providerId: 'app',
-    source: 'app',
-    runtime: 'headless',
-    handler: 'app-action'
-  },
-  {
     id: 'agents',
     name: '/agents',
-    description: 'Toggle agent activity',
+    description: 'Open agents',
     providerId: 'app',
     source: 'app',
     runtime: 'headless',

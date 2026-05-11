@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -37,6 +37,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
   const [providerModels, setProviderModels] = useState<Record<string, string[]>>({})
   const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState<Record<string, boolean>>({})
   const [appearance, setAppearance] = useState<Appearance>('system')
 
   useEffect(() => {
@@ -49,8 +50,17 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
       setAppearance((rec.appearance as Appearance) ?? 'system')
     })
     window.api.providers.getRuntimeInfo().then(setProviderRuntime)
-    window.api.providers.getDiagnostics().then(setProviderDiagnostics)
   }, [])
+
+  const loadProviderDiagnostics = useCallback((providerId: string): void => {
+    if (providerDiagnostics[providerId] || diagnosticsLoading[providerId]) return
+    setDiagnosticsLoading((current) => ({ ...current, [providerId]: true }))
+    window.api.providers.getDiagnostics(providerId)
+      .then((next) => setProviderDiagnostics((current) => ({ ...current, ...next })))
+      .finally(() => {
+        setDiagnosticsLoading((current) => ({ ...current, [providerId]: false }))
+      })
+  }, [diagnosticsLoading, providerDiagnostics])
 
   const saveDefaultProvider = (id: string): void => {
     setDefaultProvider(id)
@@ -142,11 +152,13 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
               providerModels={providerModels}
               providerRuntime={providerRuntime}
               providerDiagnostics={providerDiagnostics}
+              diagnosticsLoading={diagnosticsLoading}
               providerAvailability={providerAvailability}
               onSetDefaultProvider={saveDefaultProvider}
               onSetDefaultModel={saveDefaultModel}
               onSetDefaultEffort={saveDefaultEffort}
               onSetProviderModels={saveProviderModels}
+              onLoadProviderDiagnostics={loadProviderDiagnostics}
             />
           )}
         </div>
@@ -229,7 +241,7 @@ function GeneralSection({
 
 function ProvidersSection({
   defaultProvider, defaultModels, defaultEfforts, providerModels,
-  providerRuntime, providerDiagnostics, providerAvailability, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetProviderModels
+  providerRuntime, providerDiagnostics, diagnosticsLoading, providerAvailability, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetProviderModels, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
   defaultModels: Record<string, string>
@@ -237,11 +249,13 @@ function ProvidersSection({
   providerModels: Record<string, string[]>
   providerRuntime: Record<string, ProviderRuntimeInfo>
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
+  diagnosticsLoading: Record<string, boolean>
   providerAvailability: Record<string, boolean>
   onSetDefaultProvider: (id: string) => void
   onSetDefaultModel: (providerId: string, modelId: string) => void
   onSetDefaultEffort: (providerId: string, effortId: string) => void
   onSetProviderModels: (providerId: string, models: string[]) => void
+  onLoadProviderDiagnostics: (providerId: string) => void
 }): JSX.Element {
   const providerList = Object.values(PROVIDER_DEFS)
   const [selectedId, setSelectedId] = useState(defaultProvider)
@@ -253,10 +267,15 @@ function ProvidersSection({
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
   const diagnostics = providerDiagnostics[selectedId]
+  const loadingDiagnostics = diagnosticsLoading[selectedId] === true
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const modelForPicker = visibleIds.includes(currentModel)
     ? currentModel
     : visibleModels[0]?.id ?? currentModel
+
+  useEffect(() => {
+    if (advancedOpen) onLoadProviderDiagnostics(selectedId)
+  }, [advancedOpen, onLoadProviderDiagnostics, selectedId])
 
   const handleVisibleModelsChange = (ids: string[]): void => {
     onSetProviderModels(selectedId, ids)
@@ -377,6 +396,11 @@ function ProvidersSection({
             <CompactSetting title="Config file">
               <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
             </CompactSetting>
+            {loadingDiagnostics && !diagnostics && (
+              <CompactSetting title="Status">
+                <InlineMutedText>Checking local CLI...</InlineMutedText>
+              </CompactSetting>
+            )}
             {diagnostics && (
               <CompactSetting title="Status">
                 <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
@@ -1054,6 +1078,14 @@ function CompactSetting({ title, children }: { title: string; children: React.Re
     <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
       <div style={{ fontSize: 12, fontWeight: 650, color: 'var(--color-text)', paddingTop: 7 }}>{title}</div>
       <div style={{ minWidth: 0 }}>{children}</div>
+    </div>
+  )
+}
+
+function InlineMutedText({ children }: { children: React.ReactNode }): JSX.Element {
+  return (
+    <div style={{ fontSize: 12, color: 'var(--color-text-muted)', padding: '7px 0' }}>
+      {children}
     </div>
   )
 }

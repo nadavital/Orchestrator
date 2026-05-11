@@ -784,6 +784,7 @@ export type {
 export {
   agentDepth,
   deriveAgentNodes,
+  deriveAgentNodesFromMessages,
   derivePlanStates,
   eventCounts,
   isAgentTool

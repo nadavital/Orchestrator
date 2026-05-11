@@ -112,7 +112,7 @@ export default function SessionPane(): JSX.Element | null {
           <InputBarWithInjector session={session} isNew={isNew} injectorRef={promptInjectorRef} />
         </div>
 
-        {(ui.showSkills || ui.showDiff || ui.showEvents) && <ContextSidebar session={session} />}
+        <ContextSidebar session={session} />
       </div>
 
       {/* Terminal bottom panel */}

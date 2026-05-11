@@ -87,7 +87,7 @@ declare global {
       }
       providers: {
         getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>
-        getDiagnostics: () => Promise<Record<string, ProviderDiagnosticInfo>>
+        getDiagnostics: (providerId?: string) => Promise<Record<string, ProviderDiagnosticInfo>>
         runCommandSurface: (providerId: string, surfaceId: string) => Promise<ProviderCommandSurfaceResult>
       }
       settings: {

@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from 'uuid'
 import { accessSync, constants, readFileSync } from 'fs'
-import { execFileSync } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
 import { delimiter, join } from 'path'
 import { homedir } from 'os'
+import { promisify } from 'util'
 import type {
   AgentStatus,
   PermissionDenial,
@@ -593,6 +594,7 @@ const anthropicTaskAgents = new Map<string, {
 
 const PROVIDER_PROBE_TIMEOUT_MS = 2_000
 const PROVIDER_COMMAND_SURFACE_TIMEOUT_MS = 5_000
+const execFileAsync = promisify(execFile)
 
 function feature(
   id: string,
@@ -1030,6 +1032,31 @@ function probeCommandFull(binary: string, args: string[], timeout = PROVIDER_PRO
   }
 }
 
+async function probeCommandFullAsync(binary: string, args: string[], timeout = PROVIDER_PROBE_TIMEOUT_MS): Promise<{ ok: boolean; output: string }> {
+  try {
+    const { stdout } = await execFileAsync(binary, args, {
+      encoding: 'utf8',
+      timeout,
+      maxBuffer: 512 * 1024
+    })
+    return { ok: true, output: String(stdout).trim() }
+  } catch (error) {
+    const err = error as { stderr?: Buffer | string; stdout?: Buffer | string; message?: string }
+    return {
+      ok: false,
+      output: stringifyCommandError(err)
+    }
+  }
+}
+
+async function probeCommandAsync(binary: string, args: string[], timeout = PROVIDER_PROBE_TIMEOUT_MS): Promise<{ ok: boolean; output: string }> {
+  const result = await probeCommandFullAsync(binary, args, timeout)
+  return {
+    ok: result.ok,
+    output: result.output.trim().split('\n')[0] ?? ''
+  }
+}
+
 function versionArgs(providerId: string): string[] {
   return providerId === 'cursor' ? ['--version'] : ['--version']
 }
@@ -1048,6 +1075,21 @@ function runProbeDefinitions(binary: string | null, definitions: ProviderProbeDe
         output: result.output
       }
     })
+}
+
+async function runProbeDefinitionsAsync(binary: string | null, definitions: ProviderProbeDefinition[]): Promise<ProviderProbeResult[]> {
+  const safeDefinitions = definitions.filter((definition) => definition.safeByDefault && definition.quota === 'none')
+  return Promise.all(safeDefinitions.map(async (definition) => {
+    if (!binary) {
+      return { ...definition, status: 'missing', output: 'CLI binary was not found.' }
+    }
+    const result = await probeCommandAsync(binary, definition.args)
+    return {
+      ...definition,
+      status: result.ok ? 'ok' : 'error',
+      output: result.output
+    }
+  }))
 }
 
 function authStatusFromProbe(providerId: string, probe: { ok: boolean; output: string }): ProviderDiagnosticInfo['auth'] {
@@ -1091,6 +1133,37 @@ function providerSpecificDiagnostics(
 
   const statusProbe = probeCommandFull(binary, ['status'])
   const modelsProbe = probeCommandFull(binary, ['models'])
+  const auth: ProviderDiagnosticInfo['auth'] = statusProbe.ok && /Logged in as/i.test(statusProbe.output)
+    ? { status: 'ok', message: statusProbe.output.split('\n')[0] ?? 'Logged in.' }
+    : fallbackAuth
+  const modelLines = modelsProbe.ok
+    ? modelsProbe.output.split('\n').filter((line) => /^[^\s].+ - .+/.test(line))
+    : []
+  const models: ProviderDiagnosticInfo['models'] = modelsProbe.ok && modelLines.length > 0
+    ? {
+        status: 'available',
+        count: modelLines.length,
+        message: `${modelLines.length} models reported by Cursor Agent for this account.`
+      }
+    : fallbackModels
+
+  return { auth, models }
+}
+
+async function providerSpecificDiagnosticsAsync(
+  providerId: string,
+  binary: string | null,
+  fallbackAuth: ProviderDiagnosticInfo['auth'],
+  fallbackModels: ProviderDiagnosticInfo['models']
+): Promise<Pick<ProviderDiagnosticInfo, 'auth' | 'models'>> {
+  if (!binary || providerId !== 'cursor') {
+    return { auth: fallbackAuth, models: fallbackModels }
+  }
+
+  const [statusProbe, modelsProbe] = await Promise.all([
+    probeCommandFullAsync(binary, ['status']),
+    probeCommandFullAsync(binary, ['models'])
+  ])
   const auth: ProviderDiagnosticInfo['auth'] = statusProbe.ok && /Logged in as/i.test(statusProbe.output)
     ? { status: 'ok', message: statusProbe.output.split('\n')[0] ?? 'Logged in.' }
     : fallbackAuth
@@ -2237,6 +2310,61 @@ export function runProviderCommandSurface(providerId: string, surfaceId: string)
   }
 }
 
+export async function runProviderCommandSurfaceAsync(providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> {
+  const provider = getProvider(providerId)
+  const registry = providerCapabilityRegistry(provider.id)
+  const surface = registry.commandSurfaces.find((candidate) => candidate.id === surfaceId)
+  if (!surface) {
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'blocked',
+      output: 'Unknown provider command.'
+    }
+  }
+  if (surface.quota !== 'none' || surface.mutatesState) {
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'blocked',
+      output: 'This command is not safe to run automatically from settings.'
+    }
+  }
+
+  const binary = resolveProviderBinary(provider)
+  if (!binary) {
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'error',
+      output: `${provider.id} CLI is not available.`
+    }
+  }
+
+  try {
+    const { stdout } = await execFileAsync(binary, surface.command, {
+      encoding: 'utf8',
+      timeout: PROVIDER_COMMAND_SURFACE_TIMEOUT_MS,
+      env: providerSpawnEnv(provider.id),
+      maxBuffer: 512 * 1024
+    })
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'ok',
+      output: redactProviderCommandOutput(String(stdout).trim())
+    }
+  } catch (error) {
+    const err = error as { stdout?: unknown; stderr?: unknown; message?: string }
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'error',
+      output: redactProviderCommandOutput(stringifyCommandError(err))
+    }
+  }
+}
+
 export function getProviderRuntimeInfo(): Record<string, ProviderRuntimeInfo> {
   return Object.fromEntries(
     Object.entries(PROVIDERS).map(([id, provider]) => {
@@ -2303,4 +2431,57 @@ export function getProviderDiagnostics(): Record<string, ProviderDiagnosticInfo>
       ]
     })
   )
+}
+
+export async function getProviderDiagnosticsAsync(providerId?: string): Promise<Record<string, ProviderDiagnosticInfo>> {
+  const entries = providerId && PROVIDERS[providerId]
+    ? [[providerId, PROVIDERS[providerId]] as const]
+    : Object.entries(PROVIDERS)
+
+  const diagnostics = await Promise.all(entries.map(async ([id, provider]) => {
+    const providerDef = PROVIDER_DEFS[id]
+    const registry = providerCapabilityRegistry(id)
+    const binary = resolveProviderBinary(provider)
+    const versionProbe = binary
+      ? await probeCommandAsync(binary, versionArgs(id))
+      : { ok: false, output: 'CLI binary was not found.' }
+    const modelCount = providerDef?.models.length ?? 0
+    const fallbackAuth = authStatusFromProbe(id, versionProbe)
+    const fallbackModels: ProviderDiagnosticInfo['models'] = {
+      status: modelCount > 0 ? 'configured' : 'unknown',
+      count: modelCount,
+      message: modelCount > 0
+        ? `${modelCount} configured model IDs in Orchestrator. Provider account availability is verified by live smoke.`
+        : 'No local model catalog is configured.'
+    }
+    const [specific, probes] = await Promise.all([
+      providerSpecificDiagnosticsAsync(id, binary, fallbackAuth, fallbackModels),
+      runProbeDefinitionsAsync(binary, registry.probes)
+    ])
+
+    return [
+      id,
+      {
+        id,
+        binary: binary
+          ? { status: 'found', path: binary }
+          : { status: 'missing' },
+        version: binary
+          ? versionProbe.ok
+            ? { status: 'ok', value: versionProbe.output || 'ok' }
+            : { status: 'error', message: versionProbe.output }
+          : { status: 'unknown', message: 'Install the CLI before probing version.' },
+        auth: specific.auth,
+        models: specific.models,
+        usage: usageStatus(id),
+        liveSmoke: {
+          status: 'not-run',
+          message: 'Run opt-in live smoke with cheap models to verify auth, model access, and parser behavior.'
+        },
+        probes
+      } satisfies ProviderDiagnosticInfo
+    ] as const
+  }))
+
+  return Object.fromEntries(diagnostics)
 }

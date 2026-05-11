@@ -83,8 +83,8 @@ const api = {
   providers: {
     getRuntimeInfo: (): Promise<Record<string, ProviderRuntimeInfo>> =>
       ipcRenderer.invoke('providers:getRuntimeInfo'),
-    getDiagnostics: (): Promise<Record<string, ProviderDiagnosticInfo>> =>
-      ipcRenderer.invoke('providers:getDiagnostics'),
+    getDiagnostics: (providerId?: string): Promise<Record<string, ProviderDiagnosticInfo>> =>
+      ipcRenderer.invoke('providers:getDiagnostics', providerId),
     runCommandSurface: (providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> =>
       ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId)
   },

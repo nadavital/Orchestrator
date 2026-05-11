@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { PROVIDER_DEFS, deriveAgentNodes } from '../../types'
-import { buildProviderCommandForRuntime, getProviderDiagnostics, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface } from '../providers'
+import { buildProviderCommandForRuntime, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -179,6 +179,14 @@ test('provider diagnostics expose local readiness without claiming unavailable u
   }
 })
 
+test('provider diagnostics can load one provider asynchronously for settings', async () => {
+  const diagnostics = await getProviderDiagnosticsAsync('claude')
+
+  assert.deepEqual(Object.keys(diagnostics), ['claude'])
+  assert.equal(diagnostics.claude.id, 'claude')
+  assert.ok(diagnostics.claude.probes.length > 0)
+})
+
 test('provider command surfaces only auto-run no-quota non-mutating commands', () => {
   const mutating = runProviderCommandSurface('claude', 'project-purge')
   const quota = runProviderCommandSurface('claude', 'ultrareview-json')
@@ -190,6 +198,14 @@ test('provider command surfaces only auto-run no-quota non-mutating commands', (
   assert.match(quota.output, /not safe/i)
   assert.equal(unknown.status, 'blocked')
   assert.match(unknown.output, /unknown provider command/i)
+})
+
+test('provider command surfaces can run through async settings IPC path', async () => {
+  const blocked = await runProviderCommandSurfaceAsync('claude', 'project-purge')
+  const unknown = await runProviderCommandSurfaceAsync('claude', 'missing-surface')
+
+  assert.equal(blocked.status, 'blocked')
+  assert.equal(unknown.status, 'blocked')
 })
 
 test('provider binary detection searches common desktop CLI locations beyond inherited PATH', () => {

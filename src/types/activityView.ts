@@ -1,4 +1,4 @@
-import type { AgentNode, PlanState, Session, SessionRunEventRecord } from './index'
+import type { AgentNode, ChatMessage, PlanState, Session, SessionRunEventRecord } from './index'
 
 export function deriveAgentNodes(session: Pick<Session, 'id' | 'provider'>, records: SessionRunEventRecord[]): AgentNode[] {
   const agents = new Map<string, AgentNode>()
@@ -80,6 +80,43 @@ export function deriveAgentNodes(session: Pick<Session, 'id' | 'provider'>, reco
   return [...agents.values()].sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0))
 }
 
+export function deriveAgentNodesFromMessages(
+  session: Pick<Session, 'id' | 'provider'>,
+  messages: ChatMessage[]
+): AgentNode[] {
+  const agents = new Map<string, AgentNode>()
+
+  for (const message of messages) {
+    if (message.type === 'tool_use' && isAgentTool(message.toolName)) {
+      agents.set(message.id, {
+        id: message.id,
+        providerId: session.provider,
+        sessionId: session.id,
+        name: agentNameFromTool(message.toolName, message.toolInput),
+        role: compactToolInput(message.toolInput),
+        status: 'running',
+        startedAt: message.timestamp
+      })
+      continue
+    }
+
+    if (message.type === 'tool_result') {
+      const agent = agents.get(message.toolUseId)
+      if (!agent) continue
+      const content = readableAgentResult(message.content)
+      agents.set(message.toolUseId, {
+        ...agent,
+        status: message.isError ? 'failed' : 'completed',
+        completedAt: message.timestamp,
+        summary: content ? compact(content) : agent.role,
+        transcript: content
+      })
+    }
+  }
+
+  return [...agents.values()].sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0))
+}
+
 export function derivePlanStates(session: Pick<Session, 'id' | 'provider'>, records: SessionRunEventRecord[]): PlanState[] {
   const plans: PlanState[] = []
 
@@ -145,6 +182,43 @@ function compactToolInput(input: Record<string, unknown>): string | undefined {
 function stringField(input: Record<string, unknown>, key: string): string | undefined {
   const value = input[key]
   return typeof value === 'string' && value.trim() ? value : undefined
+}
+
+function readableAgentResult(content: string): string | undefined {
+  const readable = readableToolResult(content)
+  if (isAgentLaunchBoilerplate(readable)) return undefined
+  return readable
+}
+
+function readableToolResult(content: string): string {
+  try {
+    const parsed = JSON.parse(content) as unknown
+    if (Array.isArray(parsed)) {
+      const text = parsed
+        .map((item) => {
+          if (typeof item === 'string') return item
+          if (item && typeof item === 'object' && 'text' in item) {
+            const value = (item as { text?: unknown }).text
+            return typeof value === 'string' ? value : ''
+          }
+          return ''
+        })
+        .filter(Boolean)
+        .join('\n')
+      if (text) return text
+    }
+  } catch {
+    // Plain text tool results are already display-ready.
+  }
+  return content
+}
+
+function isAgentLaunchBoilerplate(content: string): boolean {
+  return (
+    content.includes('Async agent launched successfully') &&
+    content.includes('agentId:') &&
+    content.includes('output_file:')
+  )
 }
 
 function compact(value: string, max = 120): string | undefined {

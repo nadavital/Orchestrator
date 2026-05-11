@@ -191,7 +191,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       setSlashIndex(0)
       if (command.id === 'settings') setShowSettings(true)
       if (command.id === 'diff') setShowDiff(session.id, !currentUi.showDiff)
-      if (command.id === 'events') setShowEvents(session.id, !currentUi.showEvents)
       if (command.id === 'agents') setShowEvents(session.id, !currentUi.showEvents)
       if (command.id === 'skills') setShowSkills(session.id, !currentUi.showSkills)
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)

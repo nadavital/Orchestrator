@@ -8,7 +8,7 @@ import { gitManager } from './git'
 import { settingsStore } from './settings'
 import { terminalManager } from './terminal'
 import { petOverlayManager } from './petOverlay'
-import { getProviderDiagnostics, getProviderRuntimeInfo, runProviderCommandSurface } from './providers'
+import { getProviderDiagnosticsAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
 import type { ProviderRuntimeKind } from '../types'
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
@@ -82,9 +82,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // Providers
   ipcMain.handle('providers:getRuntimeInfo', () => getProviderRuntimeInfo())
-  ipcMain.handle('providers:getDiagnostics', () => getProviderDiagnostics())
+  ipcMain.handle('providers:getDiagnostics', (_, providerId?: string) => getProviderDiagnosticsAsync(providerId))
   ipcMain.handle('providers:runCommandSurface', (_, providerId: string, surfaceId: string) =>
-    runProviderCommandSurface(providerId, surfaceId)
+    runProviderCommandSurfaceAsync(providerId, surfaceId)
   )
 
   // Git

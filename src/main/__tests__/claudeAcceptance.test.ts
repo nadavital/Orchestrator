@@ -6,6 +6,7 @@ import type { FileChange, RunEvent, SessionRunEventRecord } from '../../types'
 import {
   availableSlashCommands,
   deriveAgentNodes,
+  deriveAgentNodesFromMessages,
   derivePlanStates,
   pairToolActivities,
   summarizeFileChanges,
@@ -48,7 +49,7 @@ test('Claude acceptance matrix is backed by fixtures and probes', () => {
   ]) {
     assert.match(matrix, new RegExp(fixture.replace('.', '\\.')), `Matrix should cite ${fixture}`)
   }
-  for (const surface of ['slash commands', 'Skills panel', 'Diff panel', 'Activity panel']) {
+  for (const surface of ['slash commands', 'Skills panel', 'Diff panel', 'Agents sidebar']) {
     assert.match(matrix, new RegExp(surface, 'i'), `Matrix should cover ${surface}`)
   }
   assert.match(matrix, /Allow Once/)
@@ -78,7 +79,7 @@ test('Claude repo actions collapse into the expected transcript vocabulary', () 
   assert.equal(events.some((event) => event.type === 'agent.completed'), true)
 })
 
-test('Claude Activity panel derivation covers subagents and plan mode from fixtures', () => {
+test('Claude agent and plan derivation covers subagents and plan mode from fixtures', () => {
   const session = { id: 'session-under-test', provider: 'claude' }
   const agentEvents = parseClaudeFixture('task-progress.jsonl')
   const agents = deriveAgentNodes(session, records(agentEvents))
@@ -92,6 +93,17 @@ test('Claude Activity panel derivation covers subagents and plan mode from fixtu
   assert.equal(plans.at(-1)?.title, 'Tasks')
   assert.equal(plans.at(-1)?.items.length, 3)
   assert.equal(plans.at(-1)?.items[1].status, 'in_progress')
+})
+
+test('Claude agent derivation falls back to saved transcript tool messages', () => {
+  const session = { id: 'session-under-test', provider: 'claude' }
+  const messages = eventsToMessages(parseClaudeFixture('agent-tool.jsonl'))
+  const agents = deriveAgentNodesFromMessages(session, messages)
+
+  assert.equal(agents.length, 1)
+  assert.equal(agents[0].id, 'tool-agent-1')
+  assert.equal(agents[0].status, 'completed')
+  assert.equal(agents[0].transcript, 'README.md')
 })
 
 test('Claude slash command surface follows feature support and runtime lane', () => {
