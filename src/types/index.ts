@@ -364,6 +364,7 @@ export interface AgentNode {
   startedAt?: number
   completedAt?: number
   summary?: string
+  transcript?: string
 }
 
 export type PlanItemStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'blocked'
@@ -604,12 +605,16 @@ export interface RunRequest {
 export type RunEvent =
   | { type: 'session.started'; providerSessionId: string }
   | { type: 'assistant.text'; content: string }
+  | { type: 'assistant.text.delta'; streamId: string; content: string }
+  | { type: 'assistant.text.completed'; streamId: string }
   | { type: 'tool.started'; id: string; toolName: string; toolInput: Record<string, unknown> }
   | { type: 'tool.completed'; id: string; toolUseId: string; content: string; isError: boolean }
   | { type: 'agent.started'; agent: AgentNode }
   | { type: 'agent.updated'; agent: AgentNode }
   | { type: 'agent.completed'; agent: AgentNode }
   | { type: 'agent.failed'; agent: AgentNode }
+  | { type: 'agent.text.delta'; agentId: string; streamId: string; content: string }
+  | { type: 'agent.text.completed'; agentId: string; streamId: string }
   | { type: 'plan.updated'; plan: PlanState }
   | { type: 'permission.requested'; denials: PermissionDenial[]; content?: string }
   | { type: 'user_input.requested'; content: string; questions?: UserInputQuestion[] }
@@ -682,6 +687,7 @@ export interface TextMessage extends BaseMessage {
   role: 'user' | 'assistant' | 'system'
   type: 'text'
   content: string
+  isStreaming?: boolean
 }
 
 export interface ToolUseMessage extends BaseMessage {
@@ -789,3 +795,9 @@ export {
   fileStatusLabel,
   summarizeFileChanges
 } from './fileChanges'
+export type {
+  FileReference
+} from './fileReferences'
+export {
+  extractFileReferences
+} from './fileReferences'

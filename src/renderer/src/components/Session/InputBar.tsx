@@ -195,6 +195,16 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       if (command.id === 'agents') setShowEvents(session.id, !currentUi.showEvents)
       if (command.id === 'skills') setShowSkills(session.id, !currentUi.showSkills)
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)
+      if (command.id === 'pet') {
+        window.api.pet.getConfig()
+          .then((config) => {
+            const current = typeof config === 'object' && config !== null && 'isOpen' in config
+              ? Boolean((config as { isOpen?: boolean }).isOpen)
+              : true
+            return window.api.pet.setOpen(!current)
+          })
+          .catch(() => window.api.pet.setOpen(true))
+      }
       if (command.id === 'model') {
         if (isNew) setShowAgentMenu(true)
         else setTextareaText('/model ')

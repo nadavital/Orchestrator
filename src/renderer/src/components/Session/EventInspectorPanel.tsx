@@ -5,11 +5,13 @@ import type { AgentNode, AgentStatus, PlanState, Session, SessionRunEventRecord 
 
 interface Props {
   session: Session
+  embedded?: boolean
+  activeAgentId?: string | null
 }
 
 type InspectorTab = 'agents' | 'plans' | 'events' | 'raw'
 
-export default function EventInspectorPanel({ session }: Props): JSX.Element {
+export default function EventInspectorPanel({ session, embedded = false, activeAgentId = null }: Props): JSX.Element {
   const { rawBuffers, eventBuffers } = useSessionStore()
   const [tab, setTab] = useState<InspectorTab>('agents')
   const sessionId = session.id
@@ -24,8 +26,10 @@ export default function EventInspectorPanel({ session }: Props): JSX.Element {
     <aside
       className="w-[420px] shrink-0 flex flex-col"
       style={{
+        width: embedded ? '100%' : 420,
+        height: embedded ? '100%' : undefined,
         background: 'var(--color-surface)',
-        borderLeft: '1px solid var(--color-border)'
+        borderLeft: embedded ? 'none' : '1px solid var(--color-border)'
       }}
     >
       <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
@@ -70,7 +74,7 @@ export default function EventInspectorPanel({ session }: Props): JSX.Element {
           agents.length === 0 ? (
             <EmptyText>No agent activity yet.</EmptyText>
           ) : (
-            <AgentTree agents={agents} />
+            <AgentTree agents={agents} activeAgentId={activeAgentId} />
           )
         ) : tab === 'plans' ? (
           plans.length === 0 ? (
@@ -101,7 +105,7 @@ export default function EventInspectorPanel({ session }: Props): JSX.Element {
   )
 }
 
-function AgentTree({ agents }: { agents: AgentNode[] }): JSX.Element {
+function AgentTree({ agents, activeAgentId }: { agents: AgentNode[]; activeAgentId?: string | null }): JSX.Element {
   const childCount = new Map<string, number>()
   for (const agent of agents) {
     if (agent.parentAgentId) childCount.set(agent.parentAgentId, (childCount.get(agent.parentAgentId) ?? 0) + 1)
@@ -115,6 +119,7 @@ function AgentTree({ agents }: { agents: AgentNode[] }): JSX.Element {
           agent={agent}
           depth={agentDepth(agent, agents)}
           childCount={childCount.get(agent.id) ?? 0}
+          active={agent.id === activeAgentId}
         />
       ))}
     </div>
@@ -124,19 +129,21 @@ function AgentTree({ agents }: { agents: AgentNode[] }): JSX.Element {
 function AgentCard({
   agent,
   depth,
-  childCount
+  childCount,
+  active
 }: {
   agent: AgentNode
   depth: number
   childCount: number
+  active: boolean
 }): JSX.Element {
   return (
     <div
       className="rounded-lg p-2"
       style={{
         marginLeft: depth * 14,
-        background: 'var(--color-surface2)',
-        border: '1px solid var(--color-border)'
+        background: active ? 'var(--color-accent-dim)' : 'var(--color-surface2)',
+        border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)'
       }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -166,6 +173,20 @@ function AgentCard({
       {agent.summary && (
         <div className="text-xs mt-2" style={{ color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
           {agent.summary}
+        </div>
+      )}
+      {agent.transcript && agent.transcript !== agent.summary && (
+        <div
+          className="text-xs mt-2 rounded-md p-2"
+          style={{
+            color: 'var(--color-text)',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            lineHeight: 1.45,
+            whiteSpace: 'pre-wrap'
+          }}
+        >
+          {agent.transcript}
         </div>
       )}
     </div>

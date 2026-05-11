@@ -5,6 +5,7 @@ export type SessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
   | { type: 'messages'; id: string; messages: ChatMessage[] }
+  | { type: 'messageUpdated'; id: string; message: ChatMessage }
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
@@ -99,7 +100,11 @@ const api = {
     resolveHome: (): Promise<string> => ipcRenderer.invoke('fs:resolveHome'),
     readFile: (filePath: string): Promise<string | null> => ipcRenderer.invoke('fs:readFile', filePath),
     writeFile: (filePath: string, content: string): Promise<void> => ipcRenderer.invoke('fs:writeFile', filePath, content),
-    listDir: (dirPath: string): Promise<string[] | null> => ipcRenderer.invoke('fs:listDir', dirPath)
+    listDir: (dirPath: string): Promise<string[] | null> => ipcRenderer.invoke('fs:listDir', dirPath),
+    statPath: (filePath: string): Promise<{ exists: boolean; isFile?: boolean; isDirectory?: boolean; size?: number }> =>
+      ipcRenderer.invoke('fs:statPath', filePath),
+    openPath: (filePath: string): Promise<string> => ipcRenderer.invoke('fs:openPath', filePath),
+    showInFolder: (filePath: string): Promise<void> => ipcRenderer.invoke('fs:showInFolder', filePath)
   },
 
   terminal: {
@@ -146,6 +151,8 @@ const api = {
       cb({ type: 'status', ...p })
     const onMessages = (_: Electron.IpcRendererEvent, p: { id: string; messages: ChatMessage[] }): void =>
       cb({ type: 'messages', ...p })
+    const onMessageUpdated = (_: Electron.IpcRendererEvent, p: { id: string; message: ChatMessage }): void =>
+      cb({ type: 'messageUpdated', ...p })
     const onEvents = (_: Electron.IpcRendererEvent, p: { id: string; events: SessionRunEventRecord[] }): void =>
       cb({ type: 'events', ...p })
     const onRaw = (_: Electron.IpcRendererEvent, p: { id: string; data: string }): void =>
@@ -162,6 +169,7 @@ const api = {
     ipcRenderer.on('session:created', onCreated)
     ipcRenderer.on('session:status', onStatus)
     ipcRenderer.on('session:messages', onMessages)
+    ipcRenderer.on('session:messageUpdated', onMessageUpdated)
     ipcRenderer.on('session:events', onEvents)
     ipcRenderer.on('session:raw', onRaw)
     ipcRenderer.on('session:renamed', onRenamed)
@@ -173,6 +181,7 @@ const api = {
       ipcRenderer.off('session:created', onCreated)
       ipcRenderer.off('session:status', onStatus)
       ipcRenderer.off('session:messages', onMessages)
+      ipcRenderer.off('session:messageUpdated', onMessageUpdated)
       ipcRenderer.off('session:events', onEvents)
       ipcRenderer.off('session:raw', onRaw)
       ipcRenderer.off('session:renamed', onRenamed)

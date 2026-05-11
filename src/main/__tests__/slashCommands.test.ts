@@ -78,6 +78,7 @@ test('slash command availability combines app commands with supported provider c
 
   assert.ok(names.includes('/settings'))
   assert.ok(names.includes('/permissions'))
+  assert.ok(names.includes('/pet'))
   assert.ok(names.includes('/review'))
   assert.ok(names.includes('/agents-native'))
   assert.equal(names.includes('/mcp'), false)

@@ -23,6 +23,34 @@ export function deriveAgentNodes(session: Pick<Session, 'id' | 'provider'>, reco
       continue
     }
 
+    if (event.type === 'agent.text.delta') {
+      const previous = agents.get(event.agentId)
+      const transcript = `${previous?.transcript ?? ''}${event.content}`
+      agents.set(event.agentId, {
+        ...previous,
+        id: event.agentId,
+        providerId: previous?.providerId ?? session.provider,
+        sessionId: previous?.sessionId ?? session.id,
+        status: previous?.status ?? 'running',
+        startedAt: previous?.startedAt ?? record.timestamp,
+        transcript,
+        summary: compact(transcript)
+      })
+      continue
+    }
+
+    if (event.type === 'agent.text.completed') {
+      const previous = agents.get(event.agentId)
+      if (previous) {
+        agents.set(event.agentId, {
+          ...previous,
+          status: previous.status === 'running' ? 'completed' : previous.status,
+          completedAt: previous.completedAt ?? record.timestamp
+        })
+      }
+      continue
+    }
+
     if (event.type === 'tool.started' && isAgentTool(event.toolName)) {
       agents.set(event.id, {
         id: event.id,

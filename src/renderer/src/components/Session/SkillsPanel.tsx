@@ -37,12 +37,13 @@ interface AgentSection {
 interface Props {
   provider: string
   workDir: string
-  onClose: () => void
+  onClose?: () => void
+  embedded?: boolean
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function SkillsPanel({ provider, workDir, onClose }: Props): JSX.Element {
+export default function SkillsPanel({ provider, workDir, onClose, embedded = false }: Props): JSX.Element {
   const [sections, setSections] = useState<AgentSection[]>([])
   const [selectedDir, setSelectedDir] = useState<{ dirPath: string; fileName: string } | null>(null)
   const [dirFileContent, setDirFileContent] = useState<string | null>(null)
@@ -211,18 +212,28 @@ export default function SkillsPanel({ provider, workDir, onClose }: Props): JSX.
   const providerDef = PROVIDER_DEFS[provider] ?? PROVIDER_DEFS.claude
 
   return (
-    <div className="flex flex-col shrink-0 overflow-hidden" style={{ width: 360, borderLeft: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+    <div
+      className="flex flex-col shrink-0 overflow-hidden"
+      style={{
+        width: embedded ? '100%' : 360,
+        height: embedded ? '100%' : undefined,
+        borderLeft: embedded ? 'none' : '1px solid var(--color-border)',
+        background: 'var(--color-surface)'
+      }}
+    >
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
         <ProviderIcon providerId={provider} size={12} color={providerDef.color} />
         <span className="text-xs font-semibold flex-1" style={{ color: 'var(--color-text)' }}>
           {providerDef.name} Skills
         </span>
-        <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}>
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-          </svg>
-        </button>
+        {onClose && (
+          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+            </svg>
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">

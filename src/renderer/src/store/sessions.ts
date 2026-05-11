@@ -7,6 +7,7 @@ interface SessionUIState {
   showTerminal: boolean
   showSkills: boolean
   hasUnread: boolean
+  activeAgentId?: string | null
 }
 
 interface SessionState {
@@ -41,16 +42,25 @@ interface SessionState {
   setShowEvents: (id: string, v: boolean) => void
   setShowTerminal: (id: string, v: boolean) => void
   setShowSkills: (id: string, v: boolean) => void
+  setActiveAgent: (id: string, agentId: string | null) => void
   setHasUnread: (id: string, v: boolean) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
   setShowSettings: (v: boolean) => void
   appendMessages: (id: string, messages: ChatMessage[]) => void
+  upsertMessage: (id: string, message: ChatMessage) => void
   appendEvents: (id: string, events: SessionRunEventRecord[]) => void
   appendRaw: (id: string, data: string) => void
 }
 
-const defaultUI: SessionUIState = { showDiff: false, showEvents: false, showTerminal: false, showSkills: false, hasUnread: false }
+const defaultUI: SessionUIState = {
+  showDiff: false,
+  showEvents: false,
+  showTerminal: false,
+  showSkills: false,
+  hasUnread: false,
+  activeAgentId: null
+}
 
 export const useSessionStore = create<SessionState>((set) => ({
   sessions: [],
@@ -115,12 +125,28 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   setShowDiff: (id, v) =>
     set((s) => ({
-      uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), showDiff: v } }
+      uiState: {
+        ...s.uiState,
+        [id]: {
+          ...(s.uiState[id] ?? defaultUI),
+          showDiff: v,
+          showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
+          showSkills: v ? false : (s.uiState[id]?.showSkills ?? false)
+        }
+      }
     })),
 
   setShowEvents: (id, v) =>
     set((s) => ({
-      uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), showEvents: v } }
+      uiState: {
+        ...s.uiState,
+        [id]: {
+          ...(s.uiState[id] ?? defaultUI),
+          showEvents: v,
+          showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
+          showSkills: v ? false : (s.uiState[id]?.showSkills ?? false)
+        }
+      }
     })),
 
   setShowTerminal: (id, v) =>
@@ -130,7 +156,29 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   setShowSkills: (id, v) =>
     set((s) => ({
-      uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), showSkills: v } }
+      uiState: {
+        ...s.uiState,
+        [id]: {
+          ...(s.uiState[id] ?? defaultUI),
+          showSkills: v,
+          showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
+          showEvents: v ? false : (s.uiState[id]?.showEvents ?? false)
+        }
+      }
+    })),
+
+  setActiveAgent: (id, agentId) =>
+    set((s) => ({
+      uiState: {
+        ...s.uiState,
+        [id]: {
+          ...(s.uiState[id] ?? defaultUI),
+          activeAgentId: agentId,
+          showEvents: true,
+          showDiff: false,
+          showSkills: false
+        }
+      }
     })),
 
   setHasUnread: (id, v) =>
@@ -149,6 +197,18 @@ export const useSessionStore = create<SessionState>((set) => ({
       sessions: s.sessions.map((x) =>
         x.id === id ? { ...x, messages: [...x.messages, ...messages] } : x
       )
+    })),
+
+  upsertMessage: (id, message) =>
+    set((s) => ({
+      sessions: s.sessions.map((x) => {
+        if (x.id !== id) return x
+        const index = x.messages.findIndex((existing) => existing.id === message.id)
+        const messages = index >= 0
+          ? x.messages.map((existing, i) => i === index ? message : existing)
+          : [...x.messages, message]
+        return { ...x, messages }
+      })
     })),
 
   appendEvents: (id, events) =>

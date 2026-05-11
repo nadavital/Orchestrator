@@ -18,6 +18,7 @@ export default function App(): JSX.Element {
     updateSession,
     updateSettings,
     appendMessages,
+    upsertMessage,
     appendEvents,
     appendRaw,
     setShowTerminal,
@@ -120,6 +121,8 @@ export default function App(): JSX.Element {
         }
       } else if (event.type === 'messages') {
         appendMessages(event.id, event.messages)
+      } else if (event.type === 'messageUpdated') {
+        upsertMessage(event.id, event.message)
       } else if (event.type === 'events') {
         appendEvents(event.id, event.events)
       } else if (event.type === 'raw') {

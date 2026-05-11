@@ -4,17 +4,16 @@ import { useProjectStore } from '../../store/projects'
 import type { Session } from '../../types'
 import ChatView from './ChatView'
 import TerminalView from './TerminalView'
-import DiffPanel from './DiffPanel'
-import SkillsPanel from './SkillsPanel'
-import EventInspectorPanel from './EventInspectorPanel'
 import InputBar from './InputBar'
+import ContextSidebar from './ContextSidebar'
+import RunningAgentsStrip from './RunningAgentsStrip'
 
 const MIN_TERMINAL_HEIGHT = 120
 const MAX_TERMINAL_HEIGHT = 600
 const DEFAULT_TERMINAL_HEIGHT = 260
 
 export default function SessionPane(): JSX.Element | null {
-  const { sessions, activeSessionId, uiState, setShowSkills, setShowTerminal } = useSessionStore()
+  const { sessions, activeSessionId, uiState, setShowTerminal } = useSessionStore()
   const { projects } = useProjectStore()
   const session = sessions.find((s) => s.id === activeSessionId)
   const [promptInjectorRef] = useState<MutableRefObject<((text: string) => void) | null>>({ current: null })
@@ -104,17 +103,16 @@ export default function SessionPane(): JSX.Element | null {
       )}
 
       {/* Main content row: chat + optional side panels */}
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 flex min-w-0 overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
             <ChatView session={session} projectName={project?.name} onSuggestedPrompt={handleSuggestedPrompt} />
           </div>
+          <RunningAgentsStrip session={session} />
           <InputBarWithInjector session={session} isNew={isNew} injectorRef={promptInjectorRef} />
         </div>
 
-        {ui.showSkills && <SkillsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} onClose={() => setShowSkills(session.id, false)} />}
-        {ui.showDiff && <DiffPanel sessionId={session.id} />}
-        {ui.showEvents && <EventInspectorPanel session={session} />}
+        {(ui.showSkills || ui.showDiff || ui.showEvents) && <ContextSidebar session={session} />}
       </div>
 
       {/* Terminal bottom panel */}

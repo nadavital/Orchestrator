@@ -14,6 +14,7 @@ export type SessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
   | { type: 'messages'; id: string; messages: ChatMessage[] }
+  | { type: 'messageUpdated'; id: string; message: ChatMessage }
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
@@ -98,6 +99,9 @@ declare global {
         readFile: (filePath: string) => Promise<string | null>
         writeFile: (filePath: string, content: string) => Promise<void>
         listDir: (dirPath: string) => Promise<string[] | null>
+        statPath: (filePath: string) => Promise<{ exists: boolean; isFile?: boolean; isDirectory?: boolean; size?: number }>
+        openPath: (filePath: string) => Promise<string>
+        showInFolder: (filePath: string) => Promise<void>
       }
       terminal: {
         spawn: (terminalId: string, workDir: string) => Promise<void>

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import type { ToolResultMessage, ToolUseMessage } from '../../types'
 import {
   describeToolAction,
+  extractFileReferences,
   pairToolActivities,
   permissionSummary,
   summarizeToolActivities
@@ -92,4 +93,21 @@ test('permission summaries use the same action vocabulary without dumping raw pa
     }),
     'Plan: Plan'
   )
+})
+
+test('file references extract local paths from assistant prose without code block noise', () => {
+  const content = [
+    'Created at /Users/navital/Desktop/fgql/postman/collection_fop_banner.json.',
+    'Also wrote `docs/plan.md`.',
+    '```ts',
+    'const ignored = "/Users/navital/Desktop/fgql/tmp/generated.ts"',
+    '```'
+  ].join('\n')
+  const refs = extractFileReferences(content, '/Users/navital/Desktop/fgql')
+
+  assert.deepEqual(refs.map((ref) => ref.path), [
+    '/Users/navital/Desktop/fgql/postman/collection_fop_banner.json',
+    '/Users/navital/Desktop/fgql/docs/plan.md'
+  ])
+  assert.equal(refs[0].label, 'collection_fop_banner.json')
 })

@@ -1,6 +1,6 @@
 import type { IpcMain } from 'electron'
-import { dialog, app } from 'electron'
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs'
+import { dialog, app, shell } from 'electron'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
 import { dirname } from 'path'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -108,6 +108,22 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('fs:listDir', (_, dirPath: string): string[] | null => {
     try { return readdirSync(dirPath) } catch { return null }
   })
+  ipcMain.handle('fs:statPath', (_, filePath: string): { exists: boolean; isFile?: boolean; isDirectory?: boolean; size?: number } => {
+    try {
+      if (!existsSync(filePath)) return { exists: false }
+      const stat = statSync(filePath)
+      return {
+        exists: true,
+        isFile: stat.isFile(),
+        isDirectory: stat.isDirectory(),
+        size: stat.size
+      }
+    } catch {
+      return { exists: false }
+    }
+  })
+  ipcMain.handle('fs:openPath', (_, filePath: string): Promise<string> => shell.openPath(filePath))
+  ipcMain.handle('fs:showInFolder', (_, filePath: string): void => shell.showItemInFolder(filePath))
 
   // User shell terminal (separate from provider PTYs)
   ipcMain.handle('terminal:spawn', (_, sessionId: string, workDir: string) =>

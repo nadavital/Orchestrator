@@ -119,6 +119,18 @@ export const sessionManager = {
     }
   },
 
+  upsertMessage(id: string, message: ChatMessage): void {
+    const sessions = store.get('sessions', [])
+    const s = sessions.find((s) => s.id === id)
+    if (!s) return
+
+    const index = s.messages.findIndex((candidate) => candidate.id === message.id)
+    if (index >= 0) s.messages[index] = message
+    else s.messages.push(message)
+    store.set('sessions', sessions)
+    send('session:messageUpdated', { id, message })
+  },
+
   async create(opts: {
     projectId: string
     workDir: string
@@ -344,6 +356,25 @@ export const sessionManager = {
 
     if (decision.systemMessages.length > 0) this.appendMessage(sessionId, decision.systemMessages)
     if (decision.status) this.updateStatus(sessionId, decision.status)
+
+    for (const event of events) {
+      if (event.type === 'assistant.text.delta') {
+        const existing = this.get(sessionId)?.messages.find((message) => message.id === event.streamId && message.type === 'text')
+        this.upsertMessage(sessionId, {
+          id: event.streamId,
+          role: 'assistant',
+          type: 'text',
+          content: `${existing?.type === 'text' ? existing.content : ''}${event.content}`,
+          timestamp: existing?.timestamp ?? Date.now(),
+          isStreaming: true
+        })
+      } else if (event.type === 'assistant.text.completed') {
+        const existing = this.get(sessionId)?.messages.find((message) => message.id === event.streamId && message.type === 'text')
+        if (existing?.type === 'text') {
+          this.upsertMessage(sessionId, { ...existing, isStreaming: false })
+        }
+      }
+    }
 
     const messages = eventsToMessages(events)
     if (messages.length > 0) this.appendMessage(sessionId, messages)

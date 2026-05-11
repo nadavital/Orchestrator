@@ -35,6 +35,15 @@ export const APP_SLASH_COMMANDS: ProviderSlashCommand[] = [
     handler: 'app-action'
   },
   {
+    id: 'pet',
+    name: '/pet',
+    description: 'Toggle pet',
+    providerId: 'app',
+    source: 'app',
+    runtime: 'headless',
+    handler: 'app-action'
+  },
+  {
     id: 'skills',
     name: '/skills',
     description: 'Toggle skills',

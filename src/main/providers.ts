@@ -352,6 +352,76 @@ function claudeAgentEventFromTaskSystemEvent(
   } as RunEvent
 }
 
+function streamStateKey(providerId: string, sessionId: string | undefined, parentToolUseId: string | undefined): string {
+  return `${providerId}:${sessionId ?? 'unknown'}:${parentToolUseId ?? 'main'}`
+}
+
+function streamBlockKey(streamKey: string, index: number | undefined): string {
+  return `${streamKey}:${index ?? 0}`
+}
+
+function streamIdForBlock(streamKey: string, index: number | undefined): string {
+  return `${anthropicStreamMessageIds.get(streamKey) ?? streamKey}:${index ?? 0}`
+}
+
+function claudePartialEventFromStreamEvent(
+  providerId: string,
+  sessionId: string | undefined,
+  parentToolUseId: string | undefined,
+  event: Record<string, unknown>
+): RunEvent[] {
+  const streamEvent = asRecord(event.event)
+  const streamType = stringValue(streamEvent?.type)
+  if (!streamEvent || !streamType) return []
+
+  const streamKey = streamStateKey(providerId, sessionId, parentToolUseId)
+  const index = numberValue(streamEvent.index)
+
+  if (streamType === 'message_start') {
+    const message = asRecord(streamEvent.message)
+    const messageId = stringValue(message?.id)
+    if (messageId) anthropicStreamMessageIds.set(streamKey, messageId)
+    return []
+  }
+
+  if (streamType === 'content_block_start') {
+    const contentBlock = asRecord(streamEvent.content_block)
+    const blockType = stringValue(contentBlock?.type)
+    if (blockType) anthropicStreamBlockTypes.set(streamBlockKey(streamKey, index), blockType)
+    return []
+  }
+
+  if (streamType === 'content_block_delta') {
+    const delta = asRecord(streamEvent.delta)
+    if (delta?.type !== 'text_delta' || typeof delta.text !== 'string' || !delta.text) return []
+
+    const streamId = streamIdForBlock(streamKey, index)
+    const messageId = anthropicStreamMessageIds.get(streamKey)
+    if (messageId) anthropicPartialMessageIds.add(messageId)
+
+    return parentToolUseId
+      ? [{ type: 'agent.text.delta', agentId: parentToolUseId, streamId, content: delta.text }]
+      : [{ type: 'assistant.text.delta', streamId, content: delta.text }]
+  }
+
+  if (streamType === 'content_block_stop') {
+    const blockKey = streamBlockKey(streamKey, index)
+    if (anthropicStreamBlockTypes.get(blockKey) !== 'text') return []
+
+    const streamId = streamIdForBlock(streamKey, index)
+    anthropicStreamBlockTypes.delete(blockKey)
+    return parentToolUseId
+      ? [{ type: 'agent.text.completed', agentId: parentToolUseId, streamId }]
+      : [{ type: 'assistant.text.completed', streamId }]
+  }
+
+  if (streamType === 'message_stop') {
+    anthropicStreamMessageIds.delete(streamKey)
+  }
+
+  return []
+}
+
 function agentEventFromProviderPayload(
   providerId: string,
   sessionId: string | null | undefined,
@@ -510,6 +580,9 @@ function permissionRequestFromGenericPayload(payload: Record<string, unknown>): 
 
 const anthropicUserQuestionToolIds = new Set<string>()
 const anthropicPlanConfirmationToolIds = new Set<string>()
+const anthropicPartialMessageIds = new Set<string>()
+const anthropicStreamMessageIds = new Map<string, string>()
+const anthropicStreamBlockTypes = new Map<string, string>()
 const anthropicTaskAgents = new Map<string, {
   providerId: string
   sessionId: string
@@ -628,8 +701,8 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
         'runtime',
         'medium',
         'partial',
-        'Claude can emit partial messages and hook lifecycle events, but the adapter only consumes finalized stream-json blocks.',
-        'Add opt-in parser fixtures for --include-partial-messages and --include-hook-events before enabling them in runs.'
+        'Claude partial text streams are normalized for headless runs; hook lifecycle events are not surfaced yet.',
+        'Add parser fixtures for --include-hook-events before enabling hook event UI.'
       ),
       gap(
         'claude-rich-permission-controls',
@@ -1225,6 +1298,7 @@ function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[
   const events: RunEvent[] = []
   const type = event.type as string | undefined
   const sessionId = stringValue(event.sessionId, event.session_id)
+  const parentToolUseId = stringValue(event.parent_tool_use_id)
 
   if (type === 'system' && event.subtype === 'init' && typeof event.session_id === 'string') {
     events.push({ type: 'session.started', providerSessionId: event.session_id })
@@ -1256,10 +1330,22 @@ function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[
     events.push({ type: 'run.completed' })
   }
 
+  if (type === 'stream_event') {
+    events.push(...claudePartialEventFromStreamEvent(providerId, sessionId, parentToolUseId, event))
+  }
+
   if (type === 'assistant') {
     const message = asRecord(event.message)
+    const messageId = stringValue(message?.id)
+    const hasPartialText = Boolean(messageId && anthropicPartialMessageIds.has(messageId))
     for (const text of textFromContentBlocks(message?.content)) {
-      events.push({ type: 'assistant.text', content: text })
+      if (parentToolUseId && !hasPartialText) {
+        const streamId = `${messageId ?? event.uuid ?? parentToolUseId}:final`
+        events.push({ type: 'agent.text.delta', agentId: parentToolUseId, streamId, content: text })
+        events.push({ type: 'agent.text.completed', agentId: parentToolUseId, streamId })
+      } else if (!hasPartialText) {
+        events.push({ type: 'assistant.text', content: text })
+      }
     }
     const content = Array.isArray(message?.content) ? message.content : []
     for (const block of content) {
@@ -1444,7 +1530,7 @@ const claudeProvider: ProviderAdapter = {
   resolveExecutionPolicy: claudePolicy,
 
   buildStartCommand(request) {
-    const args = ['-p', request.prompt, '--output-format', 'stream-json', '--verbose']
+    const args = ['-p', request.prompt, '--output-format', 'stream-json', '--verbose', '--include-partial-messages']
     if (request.providerSessionId) args.push('--resume', request.providerSessionId)
     args.push('--model', request.model || 'claude-sonnet-4-6')
     if (request.effort && request.effort !== 'normal') args.push('--effort', request.effort)

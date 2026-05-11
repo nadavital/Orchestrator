@@ -4,9 +4,10 @@ import type { FileChange } from '../../types'
 
 interface Props {
   sessionId: string
+  embedded?: boolean
 }
 
-export default function DiffPanel({ sessionId }: Props): JSX.Element {
+export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.Element {
   const [files, setFiles] = useState<FileChange[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileDiff, setFileDiff] = useState('')
@@ -28,8 +29,9 @@ export default function DiffPanel({ sessionId }: Props): JSX.Element {
     <div
       className="flex flex-col shrink-0 overflow-hidden"
       style={{
-        width: 440,
-        borderLeft: '1px solid var(--color-border)',
+        width: embedded ? '100%' : 440,
+        height: embedded ? '100%' : undefined,
+        borderLeft: embedded ? 'none' : '1px solid var(--color-border)',
         background: 'var(--color-surface)',
         fontFamily: "'SF Mono', 'JetBrains Mono', Menlo, monospace"
       }}

@@ -78,12 +78,12 @@ export default function Titlebar(): JSX.Element {
             <TitleBtn
               active={ui.showEvents}
               onClick={() => setShowEvents(activeSessionId!, !ui.showEvents)}
-              title="Toggle agent activity and provider events"
+              title="Toggle agents sidebar"
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M5.25 3.5a2.25 2.25 0 1 1 3.307 1.986 3.754 3.754 0 0 1 2.943 3.66.75.75 0 0 1-1.5 0 2.25 2.25 0 0 0-4.5 0 .75.75 0 0 1-1.5 0 3.754 3.754 0 0 1 2.943-3.66A2.245 2.245 0 0 1 5.25 3.5ZM7.5 2.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm5.5 6a1.75 1.75 0 1 0-1.267 2.933 2.75 2.75 0 0 0-1.983 2.64.75.75 0 0 0 1.5 0 1.25 1.25 0 0 1 2.5 0 .75.75 0 0 0 1.5 0 2.75 2.75 0 0 0-1.983-2.64A1.75 1.75 0 0 0 13 8.75Zm-10 0a1.75 1.75 0 1 0-1.267 2.933 2.75 2.75 0 0 0-1.983 2.64.75.75 0 0 0 1.5 0 1.25 1.25 0 0 1 2.5 0 .75.75 0 0 0 1.5 0 2.75 2.75 0 0 0-1.983-2.64A1.75 1.75 0 0 0 3 8.75Z" />
               </svg>
-              Activity
+              Agents
             </TitleBtn>
             <TitleBtn
               active={ui.showDiff}

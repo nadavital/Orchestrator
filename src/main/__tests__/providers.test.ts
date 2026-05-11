@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { PROVIDER_DEFS } from '../../types'
+import { PROVIDER_DEFS, deriveAgentNodes } from '../../types'
 import { buildProviderCommandForRuntime, getProviderDiagnostics, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -64,6 +64,14 @@ function firstEvent<T extends RunEvent['type']>(
 
 function eventTypes(events: RunEvent[]): RunEvent['type'][] {
   return events.map((event) => event.type)
+}
+
+function records(events: RunEvent[]) {
+  return events.map((event, index) => ({
+    id: `event-${index}`,
+    timestamp: index,
+    event
+  }))
 }
 
 test('every provider definition has an adapter and runtime info', () => {
@@ -577,6 +585,31 @@ test('claude system task lifecycle updates the subagent node from live stream-js
   assert.match(updated.agent.summary ?? '', /14118 tokens/)
   assert.equal(completed.agent.status, 'completed')
   assert.match(completed.agent.summary ?? '', /Found TodoWrite parser test patterns/)
+})
+
+test('claude partial text streams normalize without duplicating finalized assistant blocks', () => {
+  const events = parseFixture('claude', 'partial-message.jsonl')
+  const deltas = events.filter((event): event is Extract<RunEvent, { type: 'assistant.text.delta' }> => event.type === 'assistant.text.delta')
+  const completed = firstEvent(events, 'assistant.text.completed')
+
+  assert.deepEqual(deltas.map((event) => event.content), ['Hello', ' world'])
+  assert.equal(completed.streamId, 'msg-partial-1:0')
+  assert.equal(events.some((event) => event.type === 'assistant.text'), false)
+  assert.ok(events.some((event) => event.type === 'run.completed'))
+})
+
+test('claude nested agent text streams into agent transcript state', () => {
+  const events = parseFixture('claude', 'agent-partial-message.jsonl')
+  const session = { id: 'session-under-test', provider: 'claude' }
+  const agents = deriveAgentNodes(session, records(events))
+  const deltas = events.filter((event): event is Extract<RunEvent, { type: 'agent.text.delta' }> => event.type === 'agent.text.delta')
+
+  assert.deepEqual(deltas.map((event) => event.content), ['Found src', ' and docs'])
+  assert.equal(events.some((event) => event.type === 'assistant.text'), false)
+  assert.equal(agents.length, 1)
+  assert.equal(agents[0].id, 'tool-agent-partial-1')
+  assert.equal(agents[0].status, 'completed')
+  assert.equal(agents[0].transcript, 'Found src and docs')
 })
 
 test('claude plan mode and TodoWrite normalize into plan updates', () => {
