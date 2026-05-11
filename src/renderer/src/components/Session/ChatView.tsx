@@ -26,6 +26,9 @@ const SUGGESTED_PROMPTS = [
   'Refactor the largest file for readability'
 ]
 
+const TOOL_SUMMARY_SCROLL_THRESHOLD = 8
+const TOOL_SUMMARY_MAX_HEIGHT = 220
+
 export default function ChatView({ session, projectName, onSuggestedPrompt }: Props): JSX.Element {
   const bottomRef = useRef<HTMLDivElement>(null)
   const transcriptItems = groupTranscriptMessages(session.messages)
@@ -541,6 +544,8 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
   const orphanResults = messages.filter((message): message is ToolResultMessage => message.type === 'tool_result' && !activities.some((activity) => activity.result?.id === message.id))
   const hasErrors = activities.some((activity) => activity.result?.isError) || orphanResults.some((result) => result.isError)
   const summary = summarizeToolActivities(activities, orphanResults)
+  const rowCount = activities.length + orphanResults.length
+  const shouldScroll = rowCount > TOOL_SUMMARY_SCROLL_THRESHOLD
 
   return (
     <div className="flex justify-start min-w-0 w-full">
@@ -565,29 +570,38 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
         </button>
         {expanded && (
           <div
-            className="space-y-1 pl-5 pr-1 pb-1 text-xs"
-            style={{ color: 'var(--color-text-muted)' }}
+            className="min-w-0 overflow-y-auto overflow-x-hidden pl-5 pr-1 pb-1 text-xs"
+            style={{
+              color: 'var(--color-text-muted)',
+              maxHeight: shouldScroll ? TOOL_SUMMARY_MAX_HEIGHT : undefined,
+              overscrollBehavior: 'contain'
+            }}
           >
-            {activities.map((activity) => (
-              <div key={activity.tool.id} className="flex items-start gap-2">
-                <span style={{ color: activity.result?.isError ? 'var(--color-red)' : actionColor(describeToolAction(activity.tool).risk) }}>
-                  {activity.result?.isError ? 'Error' : 'Done'}
-                </span>
-                <span className="min-w-0 flex-1 truncate" title={describeToolActivity(activity.tool)}>
-                  {describeToolActivity(activity.tool)}
-                </span>
-              </div>
-            ))}
-            {orphanResults.map((result) => (
-              <div key={result.id} className="flex items-start gap-2">
-                <span style={{ color: result.isError ? 'var(--color-red)' : 'var(--color-text-muted)' }}>
-                  {result.isError ? 'Error' : 'Done'}
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  Tool result
-                </span>
-              </div>
-            ))}
+            <div className="min-w-0 space-y-1">
+              {activities.map((activity) => (
+                <div key={activity.tool.id} className="flex min-w-0 max-w-full items-start gap-2">
+                  <span
+                    className="shrink-0"
+                    style={{ color: activity.result?.isError ? 'var(--color-red)' : actionColor(describeToolAction(activity.tool).risk) }}
+                  >
+                    {activity.result?.isError ? 'Error' : 'Done'}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate" title={describeToolActivity(activity.tool)}>
+                    {describeToolActivity(activity.tool)}
+                  </span>
+                </div>
+              ))}
+              {orphanResults.map((result) => (
+                <div key={result.id} className="flex min-w-0 max-w-full items-start gap-2">
+                  <span className="shrink-0" style={{ color: result.isError ? 'var(--color-red)' : 'var(--color-text-muted)' }}>
+                    {result.isError ? 'Error' : 'Done'}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">
+                    Tool result
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

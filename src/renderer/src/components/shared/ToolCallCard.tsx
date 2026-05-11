@@ -70,10 +70,10 @@ export default function ToolCallCard({ msg }: Props): JSX.Element {
         </button>
         {expanded && (
           <div
-            className="px-3 pb-3 font-mono overflow-auto"
-            style={{ borderTop: '1px solid var(--color-border)', maxHeight: 300, color: 'var(--color-text-muted)' }}
+            className="overflow-y-auto overflow-x-hidden px-3 pb-3 font-mono"
+            style={{ borderTop: '1px solid var(--color-border)', maxHeight: 220, color: 'var(--color-text-muted)', overscrollBehavior: 'contain' }}
           >
-            <pre className="whitespace-pre-wrap break-all mt-2 text-xs">
+            <pre className="mt-2 whitespace-pre-wrap break-words text-xs">
               {JSON.stringify(msg.toolInput, null, 2)}
             </pre>
           </div>
