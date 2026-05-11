@@ -1,4 +1,4 @@
-import type { ProviderRuntimeInfo, ProviderRuntimeKind, ProviderSlashCommand } from './index'
+import type { ProviderRuntimeInfo, ProviderSlashCommand } from './index'
 
 export type SlashPaletteGroup = 'App' | 'Provider'
 
@@ -82,21 +82,19 @@ export const APP_SLASH_COMMANDS: ProviderSlashCommand[] = [
 ]
 
 export function availableSlashCommands(
-  providerRuntime: ProviderRuntimeInfo | undefined,
-  runtime: ProviderRuntimeKind
+  providerRuntime: ProviderRuntimeInfo | undefined
 ): SlashPaletteCommand[] {
   const featureSupport = new Map(
     providerRuntime?.registry.features.map((feature) => [feature.id, feature.support]) ?? []
   )
   const providerCommands = providerRuntime?.registry.slashCommands.filter((command) => {
-    if (command.runtime !== runtime) return false
     if (!command.featureId) return true
     const support = featureSupport.get(command.featureId)
     return support === 'supported' || support === 'partial'
   }) ?? []
 
   return [
-    ...APP_SLASH_COMMANDS.map((command) => ({ ...command, runtime, group: 'App' as const })),
+    ...APP_SLASH_COMMANDS.map((command) => ({ ...command, group: 'App' as const })),
     ...providerCommands.map((command) => ({ ...command, group: 'Provider' as const }))
   ]
 }

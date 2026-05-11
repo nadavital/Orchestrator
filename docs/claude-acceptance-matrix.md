@@ -13,7 +13,7 @@ This matrix is the product contract for Claude Code inside Orchestrator. The mai
 | Plan mode | `EnterPlanMode`, `TodoWrite` | `plan-todos.jsonl` | Normalized plan state stays available to Orchestrator without crowding the main transcript. |
 | Exit plan approval | `ExitPlanMode` denial | `exit-plan-denial.jsonl` | Plan Ready card with Approve Plan / Keep Planning; no red tool error. |
 | Subagents | `Task` and `Agent` tools | `task-agent.jsonl`, `agent-tool.jsonl`, `task-progress.jsonl` | Agents sidebar shows running/completed agent nodes and lets users peek into captured subagent output. |
-| Slash commands | Provider registry | Runtime info + `availableSlashCommands` | App commands always appear; provider commands appear only for supported/partial feature and active runtime lane. |
+| Slash commands | Provider registry | Runtime info + `availableSlashCommands` | App commands always appear; provider commands appear for supported/partial features without asking users to choose a runtime lane. |
 | Skills and project commands | `.claude/commands`, `CLAUDE.md`, provider registry | Skills panel + no-quota probes | Skills panel surfaces global/project instructions and command dirs without crowding the transcript. |
 | CLI management | `claude agents/mcp/plugin/ultrareview` probes | `npm run smoke:providers` | No-quota commands appear as provider command surfaces; mutating/destructive commands stay behind settings/terminal confirmation. |
 
@@ -26,3 +26,7 @@ See `docs/orchestrator-completion-spec.md` for the complete cross-provider check
 3. `npm run smoke:providers` confirms local CLI probes without using model quota.
 4. One live Claude Sonnet smoke verifies the real installed CLI still emits the expected basic stream.
 5. Any new live transcript shape becomes a fixture before it is treated as supported product behavior.
+
+## Runtime Decision
+
+The normal Claude session path is the native CLI wrapper with JSONL tailing. Structured stream output remains available for smoke tests and internal automation, but users should not choose between runtimes.

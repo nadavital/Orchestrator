@@ -66,6 +66,23 @@ test('Claude acceptance matrix is backed by fixtures and probes', () => {
   }
 })
 
+test('Claude support test matrix tracks first-class CLI capability gates', () => {
+  const matrix = readFileSync(join(process.cwd(), 'docs/claude-code-support-test-matrix.md'), 'utf8')
+
+  for (const required of [
+    'Workspace trust prompt',
+    'AskUserQuestion tool',
+    'Plan mode',
+    '`Task` tool subagents',
+    'Skills as slash commands',
+    '`claude mcp list/get`',
+    '`claude plugin list --json`',
+    'Queue/steer'
+  ]) {
+    assert.ok(matrix.includes(required), `Missing Claude support matrix row for ${required}`)
+  }
+})
+
 test('Claude repo actions collapse into the expected transcript vocabulary', () => {
   const events = parseClaudeFixture('repo-actions.jsonl')
   const messages = eventsToMessages(events).filter((message) => message.type === 'tool_use' || message.type === 'tool_result')
@@ -106,15 +123,13 @@ test('Claude agent derivation falls back to saved transcript tool messages', () 
   assert.equal(agents[0].transcript, 'README.md')
 })
 
-test('Claude slash command surface follows feature support and runtime lane', () => {
+test('Claude slash command surface follows feature support without a user-visible runtime split', () => {
   const runtime = getProviderRuntimeInfo().claude
-  const headless = availableSlashCommands(runtime, 'headless')
-  const interactive = availableSlashCommands(runtime, 'interactive')
+  const commands = availableSlashCommands(runtime)
 
-  assert.ok(headless.some((command) => command.name === '/settings' && command.group === 'App'))
-  assert.ok(headless.some((command) => command.name === '/review' && command.group === 'Provider'))
-  assert.ok(interactive.some((command) => command.name === '/settings'))
-  assert.equal(interactive.some((command) => command.name === '/review'), false)
+  assert.ok(commands.some((command) => command.name === '/settings' && command.group === 'App'))
+  assert.ok(commands.some((command) => command.name === '/review' && command.group === 'Provider'))
+  assert.ok(commands.some((command) => command.name === '/agents' && command.group === 'Provider'))
 })
 
 test('Diff summary makes deletion and large changes visible without dumping patches', () => {

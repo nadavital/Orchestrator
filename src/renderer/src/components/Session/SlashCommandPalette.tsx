@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { ProviderRuntimeInfo, ProviderRuntimeKind, SlashPaletteCommand } from '../../types'
+import type { ProviderRuntimeInfo, SlashPaletteCommand } from '../../types'
 import { availableSlashCommands } from '../../types'
 
 interface Props {
   query: string
   providerRuntime?: ProviderRuntimeInfo
-  runtime: ProviderRuntimeKind
   onSelect: (command: SlashPaletteCommand) => void
   onDismiss: () => void
   selectedIndex: number
@@ -15,15 +14,14 @@ interface Props {
 export default function SlashCommandPalette({
   query,
   providerRuntime,
-  runtime,
   onSelect,
   onDismiss,
   selectedIndex,
   onSelectedIndexChange
 }: Props): JSX.Element | null {
   const commands = useMemo(
-    () => availableSlashCommands(providerRuntime, runtime),
-    [providerRuntime, runtime]
+    () => availableSlashCommands(providerRuntime),
+    [providerRuntime]
   )
   const matches = commands.filter((command) =>
     command.name.startsWith(query.length > 0 ? query : '/')

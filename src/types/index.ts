@@ -688,6 +688,7 @@ export interface TextMessage extends BaseMessage {
   type: 'text'
   content: string
   isStreaming?: boolean
+  queueState?: 'queued' | 'steer_next'
 }
 
 export interface ToolUseMessage extends BaseMessage {
@@ -803,3 +804,9 @@ export {
   extractFileReferences,
   extractWorkspaceRootsFromText
 } from './fileReferences'
+export {
+  getComposerSendState
+} from './sessionControls'
+export type {
+  ComposerSendState
+} from './sessionControls'

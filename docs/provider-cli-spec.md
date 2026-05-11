@@ -9,7 +9,7 @@ Current implementation baseline:
 - Provider adapters expose separate structured automation commands and interactive CLI commands.
 - Claude, Codex, Cursor, and Copilot are marked `interactiveCli=supported` in diagnostics.
 - Cursor and Copilot account-sensitive probes may need a non-sandbox app process for macOS Keychain access.
-- Interactive command builders are tested to avoid accidentally launching headless output flags in the CLI-first lane.
+- Orchestrator's normal Claude product path uses the native PTY wrapper with JSONL tailing. Structured stream output remains for smoke tests and internal automation.
 
 Evidence levels:
 
@@ -39,8 +39,8 @@ Runtime modes:
 
 | Feature | Evidence | Details | Orchestrator status |
 | --- | --- | --- | --- |
-| Interactive session | `verified-cli` | Default `claude [prompt]` starts interactive mode. | Implemented through the interactive PTY lane with JSONL tailing. |
-| Non-interactive print | `verified-cli` | `-p/--print`; output formats `text`, `json`, `stream-json`. | Implemented as current structured lane. |
+| Interactive session | `verified-cli` | Default `claude [prompt]` starts interactive mode and may show the workspace trust prompt. | Normal Orchestrator session path; workspace trust is bridged into user-input UI. |
+| Non-interactive print | `verified-cli` | `-p/--print`; output formats `text`, `json`, `stream-json`. | Internal smoke/automation path. |
 | Streaming input | `verified-cli` | `--input-format stream-json`; `--replay-user-messages`. | Not implemented. |
 | Partial messages | `verified-cli` | `--include-partial-messages` with print stream JSON. | Gap tracked. |
 | Hook lifecycle events | `verified-cli` | `--include-hook-events` with stream JSON. | Gap tracked. |

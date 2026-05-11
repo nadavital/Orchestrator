@@ -57,6 +57,8 @@ const api = {
     checkProviders: (): Promise<Record<string, boolean>> =>
       ipcRenderer.invoke('sessions:checkProviders'),
     stop: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:stop', sessionId),
+    steerQueuedMessage: (sessionId: string, messageId: string): Promise<void> =>
+      ipcRenderer.invoke('sessions:steerQueuedMessage', sessionId, messageId),
     remove: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:remove', sessionId),
     getDiff: (sessionId: string): Promise<string> =>
       ipcRenderer.invoke('sessions:getDiff', sessionId),

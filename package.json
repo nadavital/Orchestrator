@@ -18,6 +18,7 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
+      "icon": "resources/icons/OrchestratorIcon.icns",
       "identity": null,
       "target": [
         "dir",
@@ -44,6 +45,7 @@
     "test:smoke-config": "node --test scripts/provider-smoke-config.test.mjs",
     "smoke:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/provider-diagnostics.mjs",
     "live:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/provider-live-smoke.mjs",
+    "live:claude-runtimes": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/claude-runtime-parity.mjs",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "echo 'Run npm run rebuild to build native modules'"

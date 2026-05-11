@@ -72,6 +72,7 @@ declare global {
         }) => Promise<void>
         checkProviders: () => Promise<Record<string, boolean>>
         stop: (sessionId: string) => Promise<void>
+        steerQueuedMessage: (sessionId: string, messageId: string) => Promise<void>
         remove: (sessionId: string) => Promise<void>
         getDiff: (sessionId: string) => Promise<string>
         getChangedFiles: (sessionId: string) => Promise<FileChange[]>

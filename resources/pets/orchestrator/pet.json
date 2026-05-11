@@ -1,0 +1,7 @@
+{
+  "id": "orchestrator",
+  "displayName": "Orchestrator",
+  "description": "A tiny colorful wand-wielding coding conductor mascot for Orchestrator.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "codex-custom"
+}

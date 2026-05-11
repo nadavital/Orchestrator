@@ -73,7 +73,7 @@ function runtimeInfo(): ProviderRuntimeInfo {
 }
 
 test('slash command availability combines app commands with supported provider commands', () => {
-  const commands = availableSlashCommands(runtimeInfo(), 'headless')
+  const commands = availableSlashCommands(runtimeInfo())
   const names = commands.map((command) => command.name)
 
   assert.ok(names.includes('/settings'))
@@ -81,19 +81,19 @@ test('slash command availability combines app commands with supported provider c
   assert.ok(names.includes('/pet'))
   assert.ok(names.includes('/review'))
   assert.ok(names.includes('/agents-native'))
+  assert.ok(names.includes('/interactive-only'))
   assert.equal(names.includes('/mcp'), false)
-  assert.equal(names.includes('/interactive-only'), false)
   assert.equal(commands.find((command) => command.name === '/settings')?.group, 'App')
   assert.equal(commands.find((command) => command.name === '/review')?.group, 'Provider')
 })
 
-test('slash command availability tracks the active provider runtime lane', () => {
-  const commands = availableSlashCommands(runtimeInfo(), 'interactive')
+test('slash command availability is not split by user-visible runtime lanes', () => {
+  const commands = availableSlashCommands(runtimeInfo())
   const names = commands.map((command) => command.name)
 
   assert.ok(names.includes('/settings'))
   assert.ok(names.includes('/interactive-only'))
-  assert.equal(names.includes('/review'), false)
+  assert.ok(names.includes('/review'))
 })
 
 test('slash query only opens for leading command text', () => {

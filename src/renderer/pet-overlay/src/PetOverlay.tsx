@@ -342,7 +342,7 @@ export default function PetOverlay(): JSX.Element | null {
   const topBadgeColor = BADGE_COLOR[topStatus]
   let animState: AnimState
   if (dragAnimState !== null) animState = dragAnimState
-  else if (isHovering && !isDragging.current) animState = 'jumping'
+  else if (isHovering) animState = 'jumping'
   else animState = STATUS_TO_ANIM[topStatus]
 
   const selectedPet: PetEntry | undefined =
@@ -579,6 +579,8 @@ export default function PetOverlay(): JSX.Element | null {
         data-avatar-mascot="true"
         data-interactive="true"
         onContextMenu={() => window.petApi.pet.close()}
+        onPointerEnter={() => setIsHovering(true)}
+        onPointerLeave={() => setIsHovering(false)}
         style={{
           position: 'absolute',
           left: layout.mascotLeft,
@@ -594,8 +596,6 @@ export default function PetOverlay(): JSX.Element | null {
           animState={animState}
           spritesheetSrc={selectedPet.spritesheetDataUrl}
           frameOverrides={selectedPet.animFrames}
-          onHoverEnter={() => setIsHovering(true)}
-          onHoverLeave={() => setIsHovering(false)}
         />
         {notifications.length > 0 && (
           <button

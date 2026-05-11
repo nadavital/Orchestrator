@@ -10,9 +10,9 @@ Completion means the item is either implemented and verified, or intentionally b
 
 - [x] Provider definitions expose shared abstract capabilities for resume, interactive CLI, structured output, stream events, interactive permissions, tool allowlists, workspace sandboxing, full access, and bypass-all behavior.
 - [x] Provider registries expose provider-specific features, gaps, no-quota probes, command surfaces, and slash commands without hardcoding Claude-only UI paths.
-- [x] Runtime command builders keep headless structured runs and native interactive CLI sessions on separate lanes.
-- [x] Claude headless runs map model, effort, permission mode, allowed tools, denied tools, available tools, extra directories, and resume session id to native CLI flags.
-- [x] Interactive Claude sessions can tail local JSONL transcripts so native CLI behavior still becomes Orchestrator events.
+- [x] Runtime command builders can still represent structured and native interactive CLI lanes, but the normal product path does not ask users to choose between them.
+- [x] Claude structured runs map model, effort, permission mode, allowed tools, denied tools, available tools, extra directories, and resume session id to native CLI flags.
+- [x] Native Claude PTY is the default session path, with workspace trust prompts bridged into Orchestrator user-input cards.
 - [x] Provider diagnostics distinguish binary, version, auth, models, usage, live-smoke, and probe readiness without claiming unsupported usage/quota data.
 
 ## Claude Code Capability Map
@@ -25,7 +25,7 @@ Completion means the item is either implemented and verified, or intentionally b
 - [x] `ExitPlanMode` permission denials render as plan approval UI, not as a red tool failure.
 - [x] `TodoWrite`, `EnterPlanMode`, and related plan events feed normalized plan state.
 - [x] `Task` and `Agent` tools feed Activity agent nodes, including progress and completion summaries.
-- [x] Claude slash commands are represented in the provider registry and appear only on compatible runtime lanes.
+- [x] Claude slash commands are represented in the provider registry and appear for supported provider features without exposing runtime lanes.
 - [x] Claude no-quota command surfaces cover auth status, agents, MCP, plugins, and auto-mode defaults.
 - [x] Claude mutating commands, destructive commands, and model-quota commands are blocked from automatic settings execution.
 - [x] Live Claude Sonnet smoke verifies the installed local CLI can complete a real run.
@@ -58,9 +58,9 @@ Completion means the item is either implemented and verified, or intentionally b
 
 - [x] App slash commands are shared by all providers.
 - [x] Provider slash commands are exposed from the provider registry.
-- [x] Slash availability respects provider support status and active runtime lane.
+- [x] Slash availability respects provider support status without a user-visible runtime lane split.
 - [x] `/review` maps to Claude review intent without requiring the interactive CLI lane.
-- [x] `/agents`, `/mcp`, and `/plugins` map to Claude interactive provider flows.
+- [x] `/agents`, `/mcp`, and `/plugins` map to Claude provider flows without requiring users to switch runtimes.
 - [x] Skills and project instruction surfaces live outside the transcript so command discovery does not crowd chat.
 - [x] Provider settings can run safe no-quota command surfaces and render structured output with secret redaction.
 

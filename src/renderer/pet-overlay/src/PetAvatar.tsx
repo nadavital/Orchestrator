@@ -96,8 +96,6 @@ interface Props {
   spritesheetSrc: string
   frameOverrides?: Partial<Record<string, number>>
   isAnimationEnabled?: boolean
-  onHoverEnter?: () => void
-  onHoverLeave?: () => void
 }
 
 export default function PetAvatar({
@@ -105,8 +103,6 @@ export default function PetAvatar({
   spritesheetSrc,
   frameOverrides,
   isAnimationEnabled = true,
-  onHoverEnter,
-  onHoverLeave,
 }: Props): JSX.Element {
   const divRef = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = usePrefersReducedMotion()
@@ -157,8 +153,6 @@ export default function PetAvatar({
     <div
       ref={divRef}
       data-interactive="true"
-      onMouseEnter={onHoverEnter}
-      onMouseLeave={onHoverLeave}
       data-avatar-state={animState}
       style={{
         width: `${DISPLAY_W_REM}rem`,

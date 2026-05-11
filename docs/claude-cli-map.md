@@ -6,8 +6,8 @@ This is the Claude-first provider contract Orchestrator should use as the baseli
 
 | Lane | Claude surface | Orchestrator abstraction |
 | --- | --- | --- |
-| Interactive PTY | `claude [prompt]` | `runtime: interactive`, native permission prompts, JSONL transcript tail |
-| Headless stream | `claude -p --output-format stream-json --verbose` | `runtime: headless`, stdout JSON event parser |
+| Interactive PTY | `claude [prompt]` | Default Orchestrator session path; native prompts bridged into cards and JSONL transcript tailing feeds structured UI |
+| Structured session | `claude -p --output-format stream-json --verbose` | Internal structured smoke/automation path; stdout JSON event parser |
 | Streaming input | `--input-format stream-json --output-format stream-json` | Planned bidirectional provider stream |
 | Session resume | `--resume`, `--continue`, `--session-id`, `--fork-session` | `providerSessionId`, future launch options |
 | Worktree launch | `--worktree`, `--tmux`, `--from-pr`, `--name` | Future shared launch sheet |
@@ -69,6 +69,7 @@ These are represented as `ProviderCommandSurface` so the app can render compact 
 
 ## Remaining Claude Gaps
 
+- Native PTY sessions can hit Claude's workspace trust prompt before model work in new workspaces. Orchestrator bridges that prompt into an Answer Required card and sends the selected trust response back to the PTY.
 - Add launch options for `--agent`, `--agents`, `--worktree`, `--tmux`, `--from-pr`, `--name`, `--session-id`, and `--fork-session`.
 - Capture fixtures for hook events and partial messages before enabling `--include-hook-events` or `--include-partial-messages`.
 - Add settings panels for MCP/plugin/agent list commands, with mutating flows routed through explicit confirmations or terminal.

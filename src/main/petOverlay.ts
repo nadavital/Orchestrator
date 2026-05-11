@@ -81,6 +81,8 @@ const CODEX_PET_NAMES: Record<string, string> = {
   stacky: 'Stacky',
 }
 
+const DEFAULT_PET_ID = 'orchestrator'
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let petWin: BrowserWindow | null = null
 let anchor = { x: 0, y: 0 }   // mascot top-left screen position
@@ -520,7 +522,7 @@ export const petOverlayManager = {
     const layout = computeLayout(anchor, trayCount)
     return {
       pets: loadPets(),
-      selectedPetId: settingsStore.get('selectedPetId', 'ditto') as string,
+      selectedPetId: settingsStore.get('selectedPetId', DEFAULT_PET_ID) as string,
       isOpen: settingsStore.get('petOpen', true) as boolean,
       sessions: sessionManager.list(),
       initialLayout: {

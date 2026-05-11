@@ -133,14 +133,14 @@ function runProvider(providerId) {
     child.on('exit', (code) => {
       flushPendingLine()
       const assistantText = events
-        .filter((event) => event.type === 'assistant.text')
+        .filter((event) => event.type === 'assistant.text' || event.type === 'assistant.text.delta')
         .map((event) => event.content)
-        .join('\n')
+        .join('')
       const parsedEventTypes = new Set(events.map((event) => event.type))
       const failedEvent = events.find((event) => event.type === 'run.failed')
       const parseError = events.find((event) => event.type === 'parse.error')
       const missing = []
-      if (!parsedEventTypes.has('assistant.text')) missing.push('assistant.text')
+      if (!parsedEventTypes.has('assistant.text') && !parsedEventTypes.has('assistant.text.delta')) missing.push('assistant text')
       if (!parsedEventTypes.has('run.completed')) missing.push('run.completed')
       if (!assistantText.includes(expectedAssistantText)) missing.push('expected assistant text')
 
@@ -180,9 +180,9 @@ for (const providerId of selectedProviders) {
     ? [...new Set(result.events.map((event) => event.type))].join(', ') || 'none'
     : 'none'
   const assistantPreview = result.events
-    ?.filter((event) => event.type === 'assistant.text')
+    ?.filter((event) => event.type === 'assistant.text' || event.type === 'assistant.text.delta')
     .map((event) => event.content)
-    .join(' ')
+    .join('')
     .slice(0, 120)
   console.log(`${result.ok ? 'PASS' : 'FAIL'} ${providerId}: ${result.reason}`)
   console.log(`  events: ${eventSummary}`)

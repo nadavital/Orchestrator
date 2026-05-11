@@ -5,6 +5,8 @@ import { BrowserWindow } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import type { Session, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus } from '../types'
 import { PROVIDER_DEFS } from '../types'
+import { detectNativeCliPrompt, nativeCliPromptAnswer, nativeCliPromptContent, type NativeCliPromptKind } from '../types/nativeCliPrompts'
+import { parseClaudeTerminalSnapshot } from '../types/nativeTerminalEvents'
 import { gitManager } from './git'
 import { buildProviderCommandForRuntime, getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand } from './providers'
 import type { ProviderAdapter } from './providers'
@@ -26,15 +28,29 @@ const activePtys = new Map<string, IPty>()
 
 const activeJsonlTailers = new Map<string, JsonlTailer>()
 
+interface PendingFollowUp {
+  id: string
+  prompt: string
+  mode: 'queued' | 'steer_next'
+}
+
+const pendingFollowUps = new Map<string, PendingFollowUp[]>()
+
+const activeToolUseIds = new Map<string, Set<string>>()
+
+const activeNativePrompts = new Map<string, NativeCliPromptKind>()
+
+const nativeTerminalCompletions = new Set<string>()
+
 function defaultRuntimeForProvider(_providerId: string): ProviderRuntimeKind {
-  return 'headless'
+  return 'interactive'
 }
 
 function normalizeSession(session: Session): Session {
   return {
     ...session,
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
-    runtime: session.runtime ?? defaultRuntimeForProvider(session.provider ?? 'claude')
+    runtime: defaultRuntimeForProvider(session.provider ?? 'claude')
   }
 }
 
@@ -66,6 +82,51 @@ function mergeToolNames(current: string[] | undefined, granted: string[]): strin
   return [...new Set([...(current ?? []), ...granted])]
 }
 
+function nativePromptEventsForData(
+  sessionId: string,
+  provider: ProviderAdapter,
+  data: string
+): RunEvent[] {
+  if (activeNativePrompts.has(sessionId)) return []
+  const kind = detectNativeCliPrompt(provider.id, data)
+  if (!kind) return []
+
+  activeNativePrompts.set(sessionId, kind)
+  const prompt = nativeCliPromptContent(kind)
+  return [{
+    type: 'user_input.requested',
+    content: prompt.content,
+    questions: prompt.questions
+  }]
+}
+
+function nativeTerminalEventsForData(
+  sessionId: string,
+  provider: ProviderAdapter,
+  data: string
+): RunEvent[] {
+  if (provider.id !== 'claude') return []
+  if (activeNativePrompts.has(sessionId)) return []
+  if (nativeTerminalCompletions.has(sessionId)) return []
+
+  const snapshot = parseClaudeTerminalSnapshot(data)
+  if (!snapshot.completed || !snapshot.assistantText) return []
+
+  nativeTerminalCompletions.add(sessionId)
+  return [
+    { type: 'assistant.text', content: snapshot.assistantText },
+    { type: 'run.completed' }
+  ]
+}
+
+function answerForNativePrompt(sessionId: string, answer: string): string | null {
+  const prompt = activeNativePrompts.get(sessionId)
+  if (!prompt) return null
+  activeNativePrompts.delete(sessionId)
+
+  return nativeCliPromptAnswer(prompt, answer)
+}
+
 function stopJsonlTailer(sessionId: string): void {
   const tailer = activeJsonlTailers.get(sessionId)
   if (!tailer) return
@@ -79,6 +140,66 @@ function flushAndStopJsonlTailer(sessionId: string): void {
   tailer.poll()
   tailer.stop()
   activeJsonlTailers.delete(sessionId)
+}
+
+function appendPendingFollowUp(sessionId: string, followUp: PendingFollowUp): void {
+  const current = pendingFollowUps.get(sessionId) ?? []
+  pendingFollowUps.set(sessionId, [...current, followUp])
+}
+
+function shiftPendingFollowUp(sessionId: string): PendingFollowUp | null {
+  const current = pendingFollowUps.get(sessionId)
+  if (!current || current.length === 0) return null
+  const index = Math.max(0, current.findIndex((item) => item.mode === 'steer_next'))
+  const next = current[index]
+  const rest = current.filter((_, itemIndex) => itemIndex !== index)
+  if (rest.length === 0) pendingFollowUps.delete(sessionId)
+  else pendingFollowUps.set(sessionId, rest)
+  return next
+}
+
+function markPendingFollowUp(sessionId: string, messageId: string, mode: PendingFollowUp['mode']): boolean {
+  const current = pendingFollowUps.get(sessionId)
+  if (!current) return false
+  const index = current.findIndex((item) => item.id === messageId)
+  if (index < 0) return false
+  current[index] = { ...current[index], mode }
+  pendingFollowUps.set(sessionId, current)
+  return true
+}
+
+function hasSteerableFollowUp(sessionId: string): boolean {
+  return Boolean(pendingFollowUps.get(sessionId)?.some((item) => item.mode === 'steer_next'))
+}
+
+function hasActiveTool(sessionId: string): boolean {
+  return (activeToolUseIds.get(sessionId)?.size ?? 0) > 0
+}
+
+function requestPtyStop(pty: IPty): void {
+  try { pty.write('\x03') } catch { /* ignore stop races */ }
+  try { pty.kill('SIGTERM') } catch { /* ignore stop races */ }
+  setTimeout(() => {
+    try { pty.kill('SIGKILL') } catch { /* ignore stop races */ }
+  }, 1500)
+}
+
+function updateToolBoundaryState(sessionId: string, events: RunEvent[]): void {
+  const active = new Set(activeToolUseIds.get(sessionId) ?? [])
+  for (const event of events) {
+    if (event.type === 'tool.started') active.add(event.id)
+    if (event.type === 'tool.completed') active.delete(event.toolUseId)
+    if (event.type === 'run.completed' || event.type === 'run.failed') active.clear()
+  }
+  if (active.size === 0) activeToolUseIds.delete(sessionId)
+  else activeToolUseIds.set(sessionId, active)
+}
+
+function clearRuntimeState(sessionId: string): void {
+  pendingFollowUps.delete(sessionId)
+  activeToolUseIds.delete(sessionId)
+  activeNativePrompts.delete(sessionId)
+  nativeTerminalCompletions.delete(sessionId)
 }
 
 export const sessionManager = {
@@ -203,7 +324,21 @@ export const sessionManager = {
         }
         this.appendMessage(sessionId, [userMsg])
         this.updateStatus(sessionId, 'running')
+        nativeTerminalCompletions.delete(sessionId)
         existingPty.write(`${prompt}\n`)
+      } else {
+        const messageId = uuidv4()
+        const userMsg: ChatMessage = {
+          id: messageId,
+          role: 'user',
+          type: 'text',
+          content: prompt,
+          queueState: 'queued',
+          timestamp: Date.now()
+        }
+        this.appendMessage(sessionId, [userMsg])
+        appendPendingFollowUp(sessionId, { id: messageId, prompt, mode: 'queued' })
+        this.updateStatus(sessionId, 'running')
       }
       return
     }
@@ -234,6 +369,7 @@ export const sessionManager = {
     }
 
     this.updateStatus(sessionId, 'running')
+    nativeTerminalCompletions.delete(sessionId)
 
     const userMsg: ChatMessage = {
       id: uuidv4(),
@@ -278,9 +414,14 @@ export const sessionManager = {
     activePtys.set(sessionId, pty)
 
     let buffer = ''
+    let nativePromptBuffer = ''
 
     pty.onData((data) => {
+      if (activePtys.get(sessionId) !== pty) return
       send('session:raw', { id: sessionId, data })
+      nativePromptBuffer = `${nativePromptBuffer}${data}`.slice(-5000)
+      this.applyRunEvents(sessionId, nativePromptEventsForData(sessionId, provider, nativePromptBuffer))
+      this.applyRunEvents(sessionId, nativeTerminalEventsForData(sessionId, provider, nativePromptBuffer))
 
       if (/\[y\/n\]/i.test(data) || /\[yes\/no\]/i.test(data)) {
         this.updateStatus(sessionId, 'waiting_for_user')
@@ -295,8 +436,16 @@ export const sessionManager = {
     })
 
     pty.onExit(() => {
+      if (activePtys.get(sessionId) !== pty) return
       activePtys.delete(sessionId)
+      activeToolUseIds.delete(sessionId)
+      activeNativePrompts.delete(sessionId)
       flushAndStopJsonlTailer(sessionId)
+      const followUp = shiftPendingFollowUp(sessionId)
+      if (followUp) {
+        void this.runQueuedFollowUp(sessionId, followUp)
+        return
+      }
       if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
         this.updateStatus(sessionId, 'idle')
       }
@@ -349,13 +498,15 @@ export const sessionManager = {
     if (decision.shouldKillPty) {
       const pty = activePtys.get(sessionId)
       if (pty) {
-        pty.kill()
         activePtys.delete(sessionId)
+        requestPtyStop(pty)
       }
     }
 
     if (decision.systemMessages.length > 0) this.appendMessage(sessionId, decision.systemMessages)
     if (decision.status) this.updateStatus(sessionId, decision.status)
+
+    updateToolBoundaryState(sessionId, events)
 
     for (const event of events) {
       if (event.type === 'assistant.text.delta') {
@@ -378,6 +529,11 @@ export const sessionManager = {
 
     const messages = eventsToMessages(events)
     if (messages.length > 0) this.appendMessage(sessionId, messages)
+
+    if (hasSteerableFollowUp(sessionId) && !hasActiveTool(sessionId)) {
+      const pty = activePtys.get(sessionId)
+      if (pty) requestPtyStop(pty)
+    }
   },
 
   updateSettings(id: string, patch: {
@@ -397,7 +553,7 @@ export const sessionManager = {
     const s = sessions.find((s) => s.id === id)
     if (s) {
       const normalizedPatch = { ...patch }
-      if (patch.provider && !patch.runtime) {
+      if (patch.provider) {
         normalizedPatch.runtime = defaultRuntimeForProvider(patch.provider)
       }
       Object.assign(s, normalizedPatch)
@@ -409,11 +565,108 @@ export const sessionManager = {
   stop(sessionId: string): void {
     const pty = activePtys.get(sessionId)
     if (pty) {
-      pty.kill()
+      for (const message of this.get(sessionId)?.messages ?? []) {
+        if (message.type === 'text' && message.queueState) {
+          this.upsertMessage(sessionId, { ...message, queueState: undefined })
+        }
+      }
       activePtys.delete(sessionId)
+      clearRuntimeState(sessionId)
+      requestPtyStop(pty)
       stopJsonlTailer(sessionId)
       this.updateStatus(sessionId, 'idle')
     }
+  },
+
+  steerQueuedMessage(sessionId: string, messageId: string): void {
+    if (!markPendingFollowUp(sessionId, messageId, 'steer_next')) return
+    const existing = this.get(sessionId)?.messages.find((message) => message.id === messageId && message.type === 'text')
+    if (existing?.type === 'text') {
+      this.upsertMessage(sessionId, { ...existing, queueState: 'steer_next' })
+    }
+
+    const pty = activePtys.get(sessionId)
+    if (pty && !hasActiveTool(sessionId)) requestPtyStop(pty)
+  },
+
+  async runQueuedFollowUp(sessionId: string, followUp: PendingFollowUp): Promise<void> {
+    const session = this.get(sessionId)
+    if (!session) return
+
+    const queuedMessage = session.messages.find((message) => message.id === followUp.id && message.type === 'text')
+    if (queuedMessage?.type === 'text') {
+      this.upsertMessage(sessionId, { ...queuedMessage, queueState: undefined })
+    }
+
+    this.updateStatus(sessionId, 'running')
+    nativeTerminalCompletions.delete(sessionId)
+
+    const provider = getProvider(session.provider ?? 'claude')
+    const mode = session.providerSessionId ? 'resume' : 'start'
+    const runRequest = {
+      ...requestFromSession(session, followUp.prompt),
+      runtime: session.runtime
+    }
+    const command = resolveProviderCommand(provider, buildProviderCommandForRuntime(provider, runRequest, mode))
+    if (!command) {
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: `${provider.id} CLI is not available. Check provider settings or install ${provider.binary}.`,
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'error')
+      return
+    }
+
+    this.startJsonlTailerIfSupported(sessionId, session, provider, runRequest.runtime ?? 'headless')
+    let pty: IPty
+    try {
+      pty = spawn(command.binary, command.args, {
+        name: 'xterm-color',
+        cwd: session.workDir,
+        env: providerSpawnEnv(provider.id),
+        cols: 220,
+        rows: 50
+      })
+    } catch (error) {
+      stopJsonlTailer(sessionId)
+      throw error
+    }
+
+    activePtys.set(sessionId, pty)
+    let buffer = ''
+    let nativePromptBuffer = ''
+
+    pty.onData((data) => {
+      if (activePtys.get(sessionId) !== pty) return
+      send('session:raw', { id: sessionId, data })
+      nativePromptBuffer = `${nativePromptBuffer}${data}`.slice(-5000)
+      this.applyRunEvents(sessionId, nativePromptEventsForData(sessionId, provider, nativePromptBuffer))
+      this.applyRunEvents(sessionId, nativeTerminalEventsForData(sessionId, provider, nativePromptBuffer))
+      buffer += data
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) this.applyRunEvents(sessionId, provider.parseOutputLine(line))
+    })
+
+    pty.onExit(() => {
+      if (activePtys.get(sessionId) !== pty) return
+      activePtys.delete(sessionId)
+      activeToolUseIds.delete(sessionId)
+      activeNativePrompts.delete(sessionId)
+      flushAndStopJsonlTailer(sessionId)
+      const followUp = shiftPendingFollowUp(sessionId)
+      if (followUp) {
+        void this.runQueuedFollowUp(sessionId, followUp)
+        return
+      }
+      if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
+        this.updateStatus(sessionId, 'idle')
+      }
+    })
   },
 
   async grantAndResume(sessionId: string, toolNames: string[]): Promise<void> {
@@ -429,8 +682,8 @@ export const sessionManager = {
     if (!session || !session.providerSessionId) return
     const active = activePtys.get(sessionId)
     if (active) {
-      active.kill()
       activePtys.delete(sessionId)
+      requestPtyStop(active)
       stopJsonlTailer(sessionId)
     }
 
@@ -442,6 +695,7 @@ export const sessionManager = {
     }
 
     this.updateStatus(sessionId, 'running')
+    nativeTerminalCompletions.delete(sessionId)
 
     const currentSession = this.get(sessionId)!
     const resumeProvider = getProvider(currentSession.provider ?? 'claude')
@@ -450,7 +704,7 @@ export const sessionManager = {
       allowedTools: persistGrant
         ? (currentSession.allowedTools ?? [])
         : mergeToolNames(currentSession.allowedTools, toolNames),
-      runtime: 'headless' as ProviderRuntimeKind
+      runtime: currentSession.runtime
     }
     const command = resolveProviderCommand(resumeProvider, buildProviderCommandForRuntime(resumeProvider, runRequest, 'resume'))
     if (!command) {
@@ -483,9 +737,14 @@ export const sessionManager = {
 
     activePtys.set(sessionId, pty)
     let buffer = ''
+    let nativePromptBuffer = ''
 
     pty.onData((data) => {
+      if (activePtys.get(sessionId) !== pty) return
       send('session:raw', { id: sessionId, data })
+      nativePromptBuffer = `${nativePromptBuffer}${data}`.slice(-5000)
+      this.applyRunEvents(sessionId, nativePromptEventsForData(sessionId, resumeProvider, nativePromptBuffer))
+      this.applyRunEvents(sessionId, nativeTerminalEventsForData(sessionId, resumeProvider, nativePromptBuffer))
       buffer += data
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
@@ -493,8 +752,16 @@ export const sessionManager = {
     })
 
     pty.onExit(() => {
+      if (activePtys.get(sessionId) !== pty) return
       activePtys.delete(sessionId)
+      activeToolUseIds.delete(sessionId)
+      activeNativePrompts.delete(sessionId)
       flushAndStopJsonlTailer(sessionId)
+      const followUp = shiftPendingFollowUp(sessionId)
+      if (followUp) {
+        void this.runQueuedFollowUp(sessionId, followUp)
+        return
+      }
       if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
         this.updateStatus(sessionId, 'idle')
       }
@@ -508,9 +775,23 @@ export const sessionManager = {
     if (!trimmed) return
 
     const active = activePtys.get(sessionId)
+    if (active && session.runtime === 'interactive') {
+      const nativeAnswer = answerForNativePrompt(sessionId, trimmed)
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'user',
+        type: 'text',
+        content: trimmed,
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'running')
+      active.write(`${nativeAnswer ?? trimmed}\n`)
+      return
+    }
+
     if (active) {
-      active.kill()
       activePtys.delete(sessionId)
+      requestPtyStop(active)
       stopJsonlTailer(sessionId)
     }
 
@@ -524,6 +805,7 @@ export const sessionManager = {
       timestamp: Date.now()
     }])
     this.updateStatus(sessionId, 'running')
+    nativeTerminalCompletions.delete(sessionId)
 
     const currentSession = this.get(sessionId)!
     const resumeProvider = getProvider(currentSession.provider ?? 'claude')
@@ -532,7 +814,7 @@ export const sessionManager = {
         currentSession,
         `User answered the pending question:\n\n${trimmed}\n\nPlease continue from where you stopped.`
       ),
-      runtime: 'headless' as ProviderRuntimeKind
+      runtime: currentSession.runtime
     }
     const command = resolveProviderCommand(resumeProvider, buildProviderCommandForRuntime(resumeProvider, runRequest, 'resume'))
     if (!command) {
@@ -565,9 +847,14 @@ export const sessionManager = {
 
     activePtys.set(sessionId, pty)
     let buffer = ''
+    let nativePromptBuffer = ''
 
     pty.onData((data) => {
+      if (activePtys.get(sessionId) !== pty) return
       send('session:raw', { id: sessionId, data })
+      nativePromptBuffer = `${nativePromptBuffer}${data}`.slice(-5000)
+      this.applyRunEvents(sessionId, nativePromptEventsForData(sessionId, resumeProvider, nativePromptBuffer))
+      this.applyRunEvents(sessionId, nativeTerminalEventsForData(sessionId, resumeProvider, nativePromptBuffer))
       buffer += data
       const lines = buffer.split('\n')
       buffer = lines.pop() ?? ''
@@ -575,8 +862,16 @@ export const sessionManager = {
     })
 
     pty.onExit(() => {
+      if (activePtys.get(sessionId) !== pty) return
       activePtys.delete(sessionId)
+      activeToolUseIds.delete(sessionId)
+      activeNativePrompts.delete(sessionId)
       flushAndStopJsonlTailer(sessionId)
+      const followUp = shiftPendingFollowUp(sessionId)
+      if (followUp) {
+        void this.runQueuedFollowUp(sessionId, followUp)
+        return
+      }
       if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
         this.updateStatus(sessionId, 'idle')
       }
@@ -586,8 +881,14 @@ export const sessionManager = {
   denyPermission(sessionId: string): void {
     const active = activePtys.get(sessionId)
     if (active) {
-      active.kill()
+      for (const message of this.get(sessionId)?.messages ?? []) {
+        if (message.type === 'text' && message.queueState) {
+          this.upsertMessage(sessionId, { ...message, queueState: undefined })
+        }
+      }
       activePtys.delete(sessionId)
+      clearRuntimeState(sessionId)
+      requestPtyStop(active)
       stopJsonlTailer(sessionId)
     }
     this.appendMessage(sessionId, [{

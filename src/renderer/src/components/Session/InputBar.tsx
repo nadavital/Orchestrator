@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import type { ProviderRuntimeInfo, ProviderRuntimeKind, ResolvedExecutionPolicy, Session } from '../../types'
+import type { ProviderRuntimeInfo, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, getVisibleModels } from '../../types'
+import { PROVIDER_DEFS, getComposerSendState, getVisibleModels } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
@@ -73,7 +73,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const model = session.model || provider.models[0]?.id || ''
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
   const permissionMode = session.permissionMode ?? provider.permissionModes[0]?.id ?? 'default'
-  const runtime = session.runtime ?? 'headless'
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
   const currentUi = uiState[session.id] ?? { showDiff: false, showEvents: false, showTerminal: false, showSkills: false, hasUnread: false }
@@ -109,7 +108,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     model?: string
     effort?: string
     permissionMode?: string
-    runtime?: ProviderRuntimeKind
     useThinking?: boolean
     useFast?: boolean
     allowedTools?: string[]
@@ -144,7 +142,12 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     })
   }
 
-  const canSend = text.trim().length > 0 && session.status !== 'running' && canUsePermission
+  const sendState = getComposerSendState({
+    text,
+    status: session.status,
+    canUsePermission
+  })
+  const canSend = sendState.canSend
 
   const send = async (): Promise<void> => {
     if (!canSend) return
@@ -220,10 +223,11 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     setTextareaText(`${command.name} `)
   }
 
+  const sendTitle = sendState.willQueue ? 'Queue message (↵)' : 'Send (↵)'
+
   // Compact agent pill label: "Provider · Model [· Effort]"
   const agentLabel = [
     providerShortName(provider.id),
-    runtime === 'interactive' ? 'CLI' : null,
     modelLabel,
     provider.supportsEffort && effortLabel ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
@@ -252,7 +256,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           <SlashCommandPalette
             query={slashQuery!}
             providerRuntime={providerRuntime}
-            runtime={runtime}
             onSelect={applySlashCommand}
             onDismiss={() => setText('')}
             selectedIndex={slashIndex}
@@ -456,13 +459,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 px-3 py-2">
-                  {providerRuntime?.capabilities.interactiveCli && (
-                    <RuntimePicker
-                      runtime={runtime}
-                      color={provider.color}
-                      onChange={(nextRuntime) => update({ runtime: nextRuntime })}
-                    />
-                  )}
                   {provider.permissionModes.map((opt) => {
                     const resolved = providerRuntime?.policies[opt.id]
                     const unsupported = resolved?.support === 'unsupported'
@@ -496,7 +492,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           </div>
 
           {/* Send / Stop */}
-          {session.status === 'running' ? (
+          {session.status === 'running' && (
             <button
               onClick={() => window.api.sessions.stop(session.id)}
               className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
@@ -507,7 +503,8 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
               </svg>
               Stop
             </button>
-          ) : (
+          )}
+          {(session.status !== 'running' || canSend) && (
             <button
               onClick={send}
               disabled={!canSend}
@@ -518,7 +515,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                 color: canSend ? '#fff' : 'var(--color-text-muted)',
                 cursor: canSend ? 'pointer' : 'default'
               }}
-              title="Send (↵)"
+              title={sendTitle}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
                 <path
@@ -709,43 +706,6 @@ function ClaudePermissionRules({
           style={inputStyle}
         />
       </div>
-    </div>
-  )
-}
-
-function RuntimePicker({
-  runtime,
-  color,
-  onChange
-}: {
-  runtime: ProviderRuntimeKind
-  color: string
-  onChange: (runtime: ProviderRuntimeKind) => void
-}): JSX.Element {
-  const options: Array<{ id: ProviderRuntimeKind; label: string; title: string }> = [
-    { id: 'headless', label: 'JSON', title: 'Structured non-interactive run with parsed events.' },
-    { id: 'interactive', label: 'CLI', title: 'Native CLI session for slash commands and provider prompts.' }
-  ]
-
-  return (
-    <div
-      className="w-full flex items-center gap-1.5 pb-2 mb-0.5"
-      style={{ borderBottom: '1px solid var(--color-border)' }}
-    >
-      <span className="text-xs font-semibold mr-1" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-        Runtime
-      </span>
-      {options.map((option) => (
-        <Chip
-          key={option.id}
-          active={runtime === option.id}
-          onClick={() => onChange(option.id)}
-          title={option.title}
-          activeColor={color}
-        >
-          {option.label}
-        </Chip>
-      ))}
     </div>
   )
 }

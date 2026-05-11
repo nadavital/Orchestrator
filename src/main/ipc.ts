@@ -53,6 +53,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('sessions:checkProviders', () => sessionManager.checkProviders())
   ipcMain.handle('sessions:stop', (_, sessionId: string) => sessionManager.stop(sessionId))
+  ipcMain.handle('sessions:steerQueuedMessage', (_, sessionId: string, messageId: string) =>
+    sessionManager.steerQueuedMessage(sessionId, messageId)
+  )
   ipcMain.handle('sessions:remove', (_, sessionId: string) => sessionManager.remove(sessionId))
   ipcMain.handle('sessions:getDiff', (_, sessionId: string) => sessionManager.getDiff(sessionId))
   ipcMain.handle('sessions:getChangedFiles', (_, sessionId: string) => {

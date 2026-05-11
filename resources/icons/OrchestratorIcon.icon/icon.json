@@ -1,0 +1,67 @@
+{
+  "fill" : "automatic",
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "fill" : {
+            "solid" : "srgb:0.00000,0.56032,0.00000,1.00000"
+          },
+          "glass" : true,
+          "image-name" : "OrchestratorIcon_FaceFeatures.png",
+          "name" : "Face Features",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              19,
+              0
+            ]
+          }
+        },
+        {
+          "image-name" : "OrchestratorIcon_FacePlate.png",
+          "name" : "Face Plate",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              0,
+              -14.5
+            ]
+          }
+        },
+        {
+          "image-name" : "OrchestratorIcon_HeadColors.png",
+          "name" : "Head Colors",
+          "position" : {
+            "scale" : 1.64,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "position" : {
+        "scale" : 1,
+        "translation-in-points" : [
+          0,
+          0
+        ]
+      },
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.4
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

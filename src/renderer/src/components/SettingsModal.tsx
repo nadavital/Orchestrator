@@ -1764,9 +1764,11 @@ interface PetEntry {
   spritesheetDataUrl: string
 }
 
+const DEFAULT_PET_ID = 'orchestrator'
+
 function PetsSection(): JSX.Element {
   const [pets, setPets] = useState<PetEntry[]>([])
-  const [selectedPetId, setSelectedPetId] = useState('ditto')
+  const [selectedPetId, setSelectedPetId] = useState(DEFAULT_PET_ID)
   const [isOpen, setIsOpen] = useState(true)
   const [importing, setImporting] = useState(false)
   const [importingCodex, setImportingCodex] = useState(false)
@@ -1775,7 +1777,7 @@ function PetsSection(): JSX.Element {
     window.api.pet.getConfig().then((cfg) => {
       const c = cfg as { pets: PetEntry[]; selectedPetId: string; isOpen: boolean }
       setPets(c.pets ?? [])
-      setSelectedPetId(c.selectedPetId ?? 'ditto')
+      setSelectedPetId(c.selectedPetId ?? DEFAULT_PET_ID)
       setIsOpen(c.isOpen ?? true)
     })
   }, [])

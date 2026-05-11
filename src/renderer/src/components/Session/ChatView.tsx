@@ -363,6 +363,7 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
     }
 
     const content = msg.content
+    const queueState = isUser ? msg.queueState : undefined
     const fileReferences = !isUser && !isSystem
       ? extractFileReferences(content, session.workDir).slice(0, 4)
       : []
@@ -404,6 +405,27 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
               </span>
             )}
             {fileReferences.length > 0 && <FileReferenceList files={fileReferences} cwd={session.workDir} searchRoots={fileReferenceRoots} />}
+            {queueState && (
+              <div className="mt-2 flex items-center justify-end gap-2">
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                  style={{ background: 'rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.82)' }}
+                >
+                  {queueState === 'steer_next' ? 'Steering next' : 'Queued'}
+                </span>
+                {queueState === 'queued' && (
+                  <button
+                    type="button"
+                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    style={{ background: 'rgba(255,255,255,0.9)', color: 'var(--color-accent)' }}
+                    title="Send after the current tool call completes"
+                    onClick={() => window.api.sessions.steerQueuedMessage(session.id, msg.id)}
+                  >
+                    Steer
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div
             style={{
