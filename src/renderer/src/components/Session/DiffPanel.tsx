@@ -27,9 +27,10 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
 
   return (
     <div
-      className="flex flex-col shrink-0 overflow-hidden"
+      className="flex flex-col shrink-0 min-w-0 overflow-hidden"
       style={{
         width: embedded ? '100%' : 440,
+        maxWidth: '100%',
         height: embedded ? '100%' : undefined,
         borderLeft: embedded ? 'none' : '1px solid var(--color-border)',
         background: 'var(--color-surface)',
@@ -82,7 +83,7 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
           </div>
           {/* File list */}
           <div
-            className="overflow-y-auto shrink-0"
+            className="overflow-y-auto overflow-x-hidden shrink-0"
             style={{ maxHeight: 200, borderBottom: '1px solid var(--color-border)' }}
           >
             {files.map((f) => (
@@ -96,7 +97,7 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
           </div>
 
           {/* File diff */}
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
             {selectedFile ? (
               fileDiff ? (
                 <DiffLines diff={fileDiff} />
@@ -129,7 +130,7 @@ function FileRow({ file, selected, onClick }: { file: FileChange; selected: bool
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors"
+      className="w-full min-w-0 max-w-full overflow-hidden flex items-center gap-2 px-3 py-1.5 text-left transition-colors"
       style={{
         background: selected ? 'var(--color-accent-dim)' : 'transparent',
         borderLeft: selected ? '2px solid var(--color-accent)' : '2px solid transparent'
@@ -169,7 +170,7 @@ function DiffLines({ diff }: { diff: string }): JSX.Element {
     (l) => !l.startsWith('diff --git') && !l.startsWith('index ') && !l.startsWith('--- ') && !l.startsWith('+++ ')
   )
   return (
-    <div className="px-2 py-1" style={{ fontSize: 11, userSelect: 'text' }}>
+    <div className="px-2 py-1 min-w-0" style={{ fontSize: 11, userSelect: 'text' }}>
       {lines.map((line, i) => {
         let color = 'var(--color-text-muted)'
         let bg = 'transparent'
@@ -183,7 +184,17 @@ function DiffLines({ diff }: { diff: string }): JSX.Element {
           color = '#60a5fa'
         }
         return (
-          <div key={i} style={{ color, background: bg, whiteSpace: 'pre', lineHeight: 1.6 }}>
+          <div
+            key={i}
+            style={{
+              color,
+              background: bg,
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+              lineHeight: 1.6
+            }}
+          >
             {line || ' '}
           </div>
         )

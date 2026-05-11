@@ -32,9 +32,10 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
 
   return (
     <section
-      className="flex flex-col"
+      className="flex flex-col min-w-0 overflow-hidden"
       style={{
         width: embedded ? '100%' : 420,
+        maxWidth: '100%',
         height: embedded ? '100%' : undefined,
         background: 'var(--color-surface)'
       }}
@@ -50,12 +51,12 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
       {agents.length === 0 ? (
         <EmptyText>No subagent activity yet.</EmptyText>
       ) : (
-        <div className="flex flex-col min-h-0 flex-1">
+        <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
-            className="shrink-0 overflow-auto p-2"
+            className="shrink-0 overflow-y-auto overflow-x-hidden p-2"
             style={{ maxHeight: 190, borderBottom: '1px solid var(--color-border)' }}
           >
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 min-w-0">
               {agents.map((agent) => (
                 <AgentRow
                   key={agent.id}
@@ -89,7 +90,7 @@ function AgentRow({
   return (
     <button
       onClick={onClick}
-      className="w-full rounded-md px-2 py-2 text-left"
+      className="w-full min-w-0 max-w-full overflow-hidden rounded-md px-2 py-2 text-left"
       style={{
         marginLeft: depth * 12,
         width: `calc(100% - ${depth * 12}px)`,
@@ -97,7 +98,7 @@ function AgentRow({
         border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)'
       }}
     >
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center gap-2 min-w-0 max-w-full overflow-hidden">
         <StatusDot status={agent.status} />
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold truncate" style={{ color: 'var(--color-text)' }}>
@@ -128,9 +129,9 @@ function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
   const displaySummary = summary && summary !== agent.role && summary !== agent.name ? summary : undefined
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+    <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3">
+      <div className="flex items-start justify-between gap-3 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
             <StatusDot status={agent.status} />
             <h3 className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
@@ -161,12 +162,16 @@ function TranscriptBlock({ content, muted = false }: { content: string; muted?: 
     <div
       className="mt-3 rounded-md p-3 text-sm"
       style={{
+        maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
         color: muted ? 'var(--color-text-muted)' : 'var(--color-text)',
         background: 'var(--color-bg)',
         border: '1px solid var(--color-border)',
         lineHeight: 1.5,
         whiteSpace: 'pre-wrap',
-        overflowWrap: 'anywhere'
+        overflowWrap: 'anywhere',
+        wordBreak: 'break-word'
       }}
     >
       {content}
@@ -176,7 +181,7 @@ function TranscriptBlock({ content, muted = false }: { content: string; muted?: 
 
 function EmptyText({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <div className="text-xs p-3" style={{ color: 'var(--color-text-muted)' }}>
+    <div className="text-xs p-3 min-w-0" style={{ color: 'var(--color-text-muted)', overflowWrap: 'anywhere' }}>
       {children}
     </div>
   )

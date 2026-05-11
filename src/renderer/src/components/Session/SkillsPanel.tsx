@@ -213,9 +213,10 @@ export default function SkillsPanel({ provider, workDir, onClose, embedded = fal
 
   return (
     <div
-      className="flex flex-col shrink-0 overflow-hidden"
+      className="flex flex-col shrink-0 min-w-0 overflow-hidden"
       style={{
         width: embedded ? '100%' : 360,
+        maxWidth: '100%',
         height: embedded ? '100%' : undefined,
         borderLeft: embedded ? 'none' : '1px solid var(--color-border)',
         background: 'var(--color-surface)'
@@ -236,7 +237,7 @@ export default function SkillsPanel({ provider, workDir, onClose, embedded = fal
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
         {/* Dir file editor (inline at top when a command file is open) */}
         {selectedDir && (
           <div style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface2)' }}>

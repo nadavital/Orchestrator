@@ -63,12 +63,12 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         </div>
 
         {activeTab && (
-          <div className="w-[440px] flex flex-col min-h-0 overflow-hidden">
+          <div className="w-[440px] min-w-0 flex flex-col min-h-0 overflow-hidden">
             <div
               className="shrink-0 flex items-center justify-between gap-2 px-3 py-2"
               style={{ borderBottom: '1px solid var(--color-border)' }}
             >
-              <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+              <div className="text-xs font-semibold min-w-0 truncate" style={{ color: 'var(--color-text)' }}>
                 {activeTab === 'agents' ? 'Agents' : activeTab === 'diff' ? 'Diff' : 'Skills'}
               </div>
               <button
