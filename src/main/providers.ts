@@ -1203,7 +1203,7 @@ const claudePermissionControls: PermissionRuntimeControl[] = [
     label: 'Permission mode',
     description: 'Maps directly to Claude Code --permission-mode.',
     support: 'available',
-    examples: ['default', 'acceptEdits', 'plan', 'bypassPermissions']
+    examples: ['default', 'acceptEdits', 'auto', 'dontAsk', 'plan', 'bypassPermissions']
   },
   {
     kind: 'tool',
@@ -1315,10 +1315,12 @@ const cursorPermissionControls: PermissionRuntimeControl[] = [
 ]
 
 function claudePolicy(policyId: string): ResolvedExecutionPolicy {
-  if (['default', 'acceptEdits', 'plan', 'bypassPermissions'].includes(policyId)) {
+  if (['default', 'acceptEdits', 'auto', 'dontAsk', 'plan', 'bypassPermissions'].includes(policyId)) {
     const intentByPolicy: Record<string, PermissionIntent> = {
       default: 'ask',
       acceptEdits: 'autoEdit',
+      auto: 'autoEdit',
+      dontAsk: 'workspaceSandbox',
       plan: 'plan',
       bypassPermissions: 'bypass'
     }
@@ -1607,10 +1609,12 @@ const claudeProvider: ProviderAdapter = {
 
   buildStartCommand(request) {
     const args = ['-p', request.prompt, '--output-format', 'stream-json', '--verbose', '--include-partial-messages']
+    if (request.providerContext?.includeHookEvents) args.push('--include-hook-events')
     if (request.providerSessionId) args.push('--resume', request.providerSessionId)
-    args.push('--model', request.model || 'claude-sonnet-4-6')
+    args.push('--model', request.model || 'sonnet')
     if (request.effort && request.effort !== 'normal') args.push('--effort', request.effort)
     args.push(...resolvedPolicyArgs(this, request.executionPolicy || 'default'))
+    if (request.providerContext?.settingsPath) args.push('--settings', request.providerContext.settingsPath)
     if (request.allowedTools.length > 0) args.push('--allowedTools', request.allowedTools.join(','))
     if (request.disallowedTools?.length) args.push('--disallowedTools', request.disallowedTools.join(','))
     if (request.availableTools?.length) args.push('--tools', request.availableTools.join(','))
@@ -1625,7 +1629,7 @@ const claudeProvider: ProviderAdapter = {
   buildInteractiveCommand(request) {
     const args: string[] = []
     if (request.providerSessionId) args.push('--resume', request.providerSessionId)
-    args.push('--model', request.model || 'claude-sonnet-4-6')
+    args.push('--model', request.model || 'sonnet')
     if (request.effort && request.effort !== 'normal') args.push('--effort', request.effort)
     args.push(...interactivePolicyArgs(this, request.executionPolicy || 'default'))
     if (request.allowedTools.length > 0) args.push('--allowedTools', request.allowedTools.join(','))

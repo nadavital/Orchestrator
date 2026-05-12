@@ -454,6 +454,18 @@ test('claude explicit acceptEdits remains opt-in', () => {
   assert.equal(command.args[permissionIndex + 1], 'acceptEdits')
 })
 
+test('claude exposes every native safe permission mode in command construction', () => {
+  for (const mode of ['default', 'acceptEdits', 'auto', 'dontAsk', 'plan', 'bypassPermissions']) {
+    const command = PROVIDERS.claude.buildInteractiveCommand(
+      request({ runtime: 'interactive', executionPolicy: mode })
+    )
+    const permissionIndex = command.args.indexOf('--permission-mode')
+
+    assert.notEqual(permissionIndex, -1)
+    assert.equal(command.args[permissionIndex + 1], mode)
+  }
+})
+
 test('claude bypass permissions uses the explicit permission mode, not granted tools', () => {
   const command = PROVIDERS.claude.buildStartCommand(
     request({ executionPolicy: 'bypassPermissions', allowedTools: [] })
@@ -495,6 +507,21 @@ test('claude command maps denied tools, tool set, and extra directories to nativ
   assert.equal(command.args.includes('--add-dir'), true)
   const addDirIndex = command.args.indexOf('--add-dir')
   assert.deepEqual(command.args.slice(addDirIndex + 1, addDirIndex + 3), ['/tmp/shared', '/tmp/other'])
+})
+
+test('claude structured command carries per-run orchestrator hook settings', () => {
+  const command = PROVIDERS.claude.buildStartCommand(
+    request({
+      runtime: 'headless',
+      providerContext: {
+        settingsPath: '/tmp/orchestrator-claude-hooks/settings.json',
+        includeHookEvents: true
+      }
+    })
+  )
+
+  assert.equal(command.args.includes('--include-hook-events'), true)
+  assert.equal(command.args[command.args.indexOf('--settings') + 1], '/tmp/orchestrator-claude-hooks/settings.json')
 })
 
 test('claude fixture normalizes session, tool, and permission events', () => {

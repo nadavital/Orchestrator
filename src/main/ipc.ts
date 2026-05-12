@@ -10,7 +10,6 @@ import { terminalManager } from './terminal'
 import { petOverlayManager } from './petOverlay'
 import { getProviderDiagnosticsAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
 import { resolveWorkspaceFileReference } from './workspaceResolver'
-import type { ProviderRuntimeKind } from '../types'
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   // Projects
@@ -41,7 +40,6 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     model?: string
     effort?: string
     permissionMode?: string
-    runtime?: ProviderRuntimeKind
     useThinking?: boolean
     useFast?: boolean
     allowedTools?: string[]

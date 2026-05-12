@@ -6,8 +6,8 @@ This is the Claude-first provider contract Orchestrator should use as the baseli
 
 | Lane | Claude surface | Orchestrator abstraction |
 | --- | --- | --- |
-| Interactive PTY | `claude [prompt]` | Default Orchestrator session path; native prompts bridged into cards and JSONL transcript tailing feeds structured UI |
-| Structured session | `claude -p --output-format stream-json --verbose` | Internal structured smoke/automation path; stdout JSON event parser |
+| Structured session | `claude -p --output-format stream-json --verbose --include-partial-messages` | Default Orchestrator session path; stdout JSON event parser plus per-run approval hook bridge |
+| Interactive PTY | `claude [prompt]` | Escape hatch for true TUI-only commands; native prompts bridged into cards and JSONL transcript tailing can feed structured UI |
 | Streaming input | `--input-format stream-json --output-format stream-json` | Planned bidirectional provider stream |
 | Session resume | `--resume`, `--continue`, `--session-id`, `--fork-session` | `providerSessionId`, future launch options |
 | Worktree launch | `--worktree`, `--tmux`, `--from-pr`, `--name` | Future shared launch sheet |
@@ -51,6 +51,8 @@ Claude has several agent-like surfaces:
 | `--disallowedTools` | Session denied-tool rules |
 | `--tools` | Session available-tool set |
 | `--add-dir` | Session additional-directory rules |
+| `--settings <hook config>` | Per-run Orchestrator approval broker for mutating tool approvals |
+| `--include-hook-events` | Hook lifecycle events attached to the structured stream when a broker is present |
 | `--allow-dangerously-skip-permissions` | Planned option exposure only for explicit unsafe flows |
 
 ## Provider Management Surfaces
@@ -71,7 +73,7 @@ These are represented as `ProviderCommandSurface` so the app can render compact 
 
 - Native PTY sessions can hit Claude's workspace trust prompt before model work in new workspaces. Orchestrator bridges that prompt into an Answer Required card and sends the selected trust response back to the PTY.
 - Add launch options for `--agent`, `--agents`, `--worktree`, `--tmux`, `--from-pr`, `--name`, `--session-id`, and `--fork-session`.
-- Capture fixtures for hook events and partial messages before enabling `--include-hook-events` or `--include-partial-messages`.
+- Capture more real hook-event fixtures for mutating tool approvals, MCP tool approvals, and plan-mode transitions.
 - Add settings panels for MCP/plugin/agent list commands, with mutating flows routed through explicit confirmations or terminal.
 - Add file-change/diff fixture coverage from real Claude edits.
 - Add usage/cost display from Claude JSONL usage fields.

@@ -11,10 +11,12 @@ const repoRoot = join(__dirname, '..')
 const providersModulePath = join(repoRoot, 'out-test/src/main/providers.js')
 const jsonlTailerModulePath = join(repoRoot, 'out-test/src/main/jsonlTailer.js')
 const nativePromptsModulePath = join(repoRoot, 'out-test/src/types/nativeCliPrompts.js')
+const nativeTerminalControlModulePath = join(repoRoot, 'out-test/src/types/nativeTerminalControl.js')
 const nativeTerminalModulePath = join(repoRoot, 'out-test/src/types/nativeTerminalEvents.js')
 const { PROVIDERS, buildProviderCommandForRuntime, resolveProviderCommand, providerSpawnEnv } = await import(providersModulePath)
 const { claudeProjectDir, createJsonlTailer } = await import(jsonlTailerModulePath)
-const { detectNativeCliPrompt, nativeCliPromptAnswer } = await import(nativePromptsModulePath)
+const { detectNativeCliPrompt, nativeCliPromptSubmitSequence } = await import(nativePromptsModulePath)
+const { nativeTerminalControlResponses } = await import(nativeTerminalControlModulePath)
 const { parseClaudeTerminalSnapshot } = await import(nativeTerminalModulePath)
 
 const expectedAssistantText = 'ORCHESTRATOR_RUNTIME_PARITY_OK'
@@ -24,7 +26,7 @@ const selectedLanes = (process.env.CLAUDE_RUNTIME_PARITY_LANES ?? 'headless,inte
   .split(',')
   .map((lane) => lane.trim())
   .filter(Boolean)
-const autoTrust = process.env.CLAUDE_RUNTIME_PARITY_AUTO_TRUST === '1'
+const autoTrust = process.env.CLAUDE_RUNTIME_PARITY_AUTO_TRUST !== '0'
 
 function makeWorkspace(lane) {
   const cwd = mkdtempSync(join(tmpdir(), `orchestrator-claude-${lane}-`))
@@ -53,6 +55,16 @@ function makeRequest(cwd, runtime) {
   }
 }
 
+function commandForLiveScenario(command, prompt) {
+  if (process.env.CLAUDE_RUNTIME_PARITY_STRICT_EMPTY_MCP !== '1') return command
+  if (!prompt) return command
+  const promptIndex = command.args.lastIndexOf(prompt)
+  const insertionIndex = promptIndex >= 0 ? promptIndex : command.args.length
+  const args = [...command.args]
+  args.splice(insertionIndex, 0, '--setting-sources', 'user', '--strict-mcp-config', '--mcp-config={"mcpServers":{}}')
+  return { ...command, args }
+}
+
 function summarizeEvents(events) {
   return [...new Set(events.map((event) => event.type))].join(', ') || 'none'
 }
@@ -62,6 +74,10 @@ function assistantText(events) {
     .filter((event) => event.type === 'assistant.text' || event.type === 'assistant.text.delta')
     .map((event) => event.content)
     .join('')
+}
+
+function answerTerminalCapabilityRequests(pty, data) {
+  for (const response of nativeTerminalControlResponses(data)) pty.write(response)
 }
 
 function resultFor(lane, events, stdout = '', stderr = '') {
@@ -103,11 +119,13 @@ function flushStdoutLine(state) {
 
 function runHeadless() {
   const cwd = makeWorkspace('headless')
-  const command = resolveProviderCommand(
+  const request = makeRequest(cwd, 'headless')
+  const resolvedCommand = resolveProviderCommand(
     provider,
-    buildProviderCommandForRuntime(provider, makeRequest(cwd, 'headless'))
+    buildProviderCommandForRuntime(provider, request)
   )
-  if (!command) return Promise.resolve({ lane: 'headless', ok: false, reason: 'missing binary', events: [] })
+  if (!resolvedCommand) return Promise.resolve({ lane: 'headless', ok: false, reason: 'missing binary', events: [] })
+  const command = commandForLiveScenario(resolvedCommand, request.prompt)
 
   return new Promise((resolve) => {
     const state = { events: [], stdout: '', stderr: '', buffer: '' }
@@ -139,16 +157,18 @@ function runHeadless() {
 
 function runInteractive() {
   const cwd = makeWorkspace('interactive')
-  const command = resolveProviderCommand(
+  const request = makeRequest(cwd, 'interactive')
+  const resolvedCommand = resolveProviderCommand(
     provider,
-    buildProviderCommandForRuntime(provider, makeRequest(cwd, 'interactive'))
+    buildProviderCommandForRuntime(provider, request)
   )
-  if (!command) return Promise.resolve({ lane: 'interactive', ok: false, reason: 'missing binary', events: [] })
+  if (!resolvedCommand) return Promise.resolve({ lane: 'interactive', ok: false, reason: 'missing binary', events: [] })
+  const command = commandForLiveScenario(resolvedCommand, request.prompt)
 
   return new Promise((resolve) => {
     const events = []
     let raw = ''
-    let answeredNativePrompt = false
+    const answeredNativePrompts = new Set()
     let parsedTerminalCompletion = false
     let finished = false
     const tailer = createJsonlTailer(claudeProjectDir(cwd), (line) => {
@@ -182,9 +202,13 @@ function runInteractive() {
 
     pty.onData((data) => {
       raw += data
-      if (!answeredNativePrompt && autoTrust && detectNativeCliPrompt('claude', raw)) {
-        answeredNativePrompt = true
-        pty.write(`${nativeCliPromptAnswer('claude_workspace_trust', 'Trust workspace')}\r`)
+      answerTerminalCapabilityRequests(pty, data)
+      const nativePrompt = detectNativeCliPrompt('claude', raw)
+      if (autoTrust && nativePrompt && !answeredNativePrompts.has(nativePrompt)) {
+        answeredNativePrompts.add(nativePrompt)
+        setTimeout(() => {
+          if (!finished) pty.write(nativeCliPromptSubmitSequence(nativePrompt, 'Enable selected'))
+        }, 300)
       }
       if (!parsedTerminalCompletion) {
         const snapshot = parseClaudeTerminalSnapshot(raw)

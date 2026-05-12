@@ -46,6 +46,7 @@
     "smoke:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/provider-diagnostics.mjs",
     "live:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/provider-live-smoke.mjs",
     "live:claude-runtimes": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/claude-runtime-parity.mjs",
+    "live:claude-capabilities": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/claude-live-capability-suite.mjs",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "echo 'Run npm run rebuild to build native modules'"

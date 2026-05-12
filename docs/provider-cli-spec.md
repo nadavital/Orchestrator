@@ -9,7 +9,7 @@ Current implementation baseline:
 - Provider adapters expose separate structured automation commands and interactive CLI commands.
 - Claude, Codex, Cursor, and Copilot are marked `interactiveCli=supported` in diagnostics.
 - Cursor and Copilot account-sensitive probes may need a non-sandbox app process for macOS Keychain access.
-- Orchestrator's normal Claude product path uses the native PTY wrapper with JSONL tailing. Structured stream output remains for smoke tests and internal automation.
+- Orchestrator's normal Claude product path uses the structured `claude -p --output-format stream-json` CLI lane with per-run hook settings for approval UI. Native PTY remains an escape hatch for true TUI-only commands and prompt flows.
 
 Evidence levels:
 
@@ -39,11 +39,11 @@ Runtime modes:
 
 | Feature | Evidence | Details | Orchestrator status |
 | --- | --- | --- | --- |
-| Interactive session | `verified-cli` | Default `claude [prompt]` starts interactive mode and may show the workspace trust prompt. | Normal Orchestrator session path; workspace trust is bridged into user-input UI. |
-| Non-interactive print | `verified-cli` | `-p/--print`; output formats `text`, `json`, `stream-json`. | Internal smoke/automation path. |
+| Interactive session | `verified-cli` | Default `claude [prompt]` starts interactive mode and may show the workspace trust prompt. | Escape hatch for true TUI-only flows; native prompts are bridged into user-input UI when this lane is used. |
+| Non-interactive print | `verified-cli` | `-p/--print`; output formats `text`, `json`, `stream-json`. | Normal Orchestrator session path. |
 | Streaming input | `verified-cli` | `--input-format stream-json`; `--replay-user-messages`. | Not implemented. |
-| Partial messages | `verified-cli` | `--include-partial-messages` with print stream JSON. | Gap tracked. |
-| Hook lifecycle events | `verified-cli` | `--include-hook-events` with stream JSON. | Gap tracked. |
+| Partial messages | `verified-cli` | `--include-partial-messages` with print stream JSON. | Implemented for assistant and subagent text streaming. |
+| Hook lifecycle events | `verified-cli` | `--include-hook-events` with stream JSON. | Enabled when Orchestrator attaches per-run hook settings. |
 | Resume/continue | `verified-cli` | `--resume`, `--continue`, `--session-id`, `--fork-session`, `--from-pr`. | Resume implemented; fork/from-PR are advanced launch extras. |
 | Worktrees | `verified-cli` | `--worktree`, `--tmux`. | App-managed worktrees implemented; native launch extras tracked as advanced. |
 | Chrome/IDE integration | `verified-cli` | `--chrome`, `--no-chrome`, `--ide`. | Not surfaced. |

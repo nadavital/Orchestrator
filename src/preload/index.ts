@@ -45,7 +45,6 @@ const api = {
       model?: string
       effort?: string
       permissionMode?: string
-      runtime?: Session['runtime']
       useThinking?: boolean
       useFast?: boolean
       allowedTools?: string[]

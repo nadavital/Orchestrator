@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, ProviderRuntimeKind, SessionRunEventRecord } from '../../types'
+import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, SessionRunEventRecord } from '../../types'
 
 export interface AppSettings {
   defaultProvider: string
@@ -26,7 +26,7 @@ export type SessionEvent =
       model?: string
       effort?: string
       permissionMode?: string
-      runtime?: ProviderRuntimeKind
+      runtime?: Session['runtime']
       useThinking?: boolean
       useFast?: boolean
       allowedTools?: string[]
@@ -62,7 +62,6 @@ declare global {
           model?: string
           effort?: string
           permissionMode?: string
-          runtime?: ProviderRuntimeKind
           useThinking?: boolean
           useFast?: boolean
           allowedTools?: string[]

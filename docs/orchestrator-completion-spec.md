@@ -11,8 +11,8 @@ Completion means the item is either implemented and verified, or intentionally b
 - [x] Provider definitions expose shared abstract capabilities for resume, interactive CLI, structured output, stream events, interactive permissions, tool allowlists, workspace sandboxing, full access, and bypass-all behavior.
 - [x] Provider registries expose provider-specific features, gaps, no-quota probes, command surfaces, and slash commands without hardcoding Claude-only UI paths.
 - [x] Runtime command builders can still represent structured and native interactive CLI lanes, but the normal product path does not ask users to choose between them.
-- [x] Claude structured runs map model, effort, permission mode, allowed tools, denied tools, available tools, extra directories, and resume session id to native CLI flags.
-- [x] Native Claude PTY is the default session path, with workspace trust prompts bridged into Orchestrator user-input cards.
+- [x] Claude structured runs map model, effort, permission mode, allowed tools, denied tools, available tools, extra directories, resume session id, and per-run hook settings to native CLI flags.
+- [x] Claude structured CLI streaming is the default session path, with a per-run Orchestrator hook bridge for approval UI and the native PTY kept as an escape hatch for true TUI-only flows.
 - [x] Provider diagnostics distinguish binary, version, auth, models, usage, live-smoke, and probe readiness without claiming unsupported usage/quota data.
 
 ## Claude Code Capability Map
@@ -50,6 +50,7 @@ Completion means the item is either implemented and verified, or intentionally b
 - [x] Permission cards support `Allow Once`, which resumes with a one-time allowlist and does not mutate session settings.
 - [x] Permission cards support `Allow Session`, which persists the grant and resumes.
 - [x] Permission cards support denial without confusing it with user-input replies.
+- [x] Claude headless tool approvals resolve through the Orchestrator hook bridge without killing and replaying the process when a hook request is pending.
 - [x] Pet overlay permission notifications default to `Allow Once` for safer background approvals.
 - [x] Mutating provider command surfaces are blocked from settings auto-run.
 - [x] Provider-quota command surfaces are blocked from settings auto-run unless routed through composer/terminal intent.

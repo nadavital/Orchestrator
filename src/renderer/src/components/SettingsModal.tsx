@@ -13,8 +13,6 @@ import {
   getVisibleModels,
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
-  type ProviderFeature,
-  type ProviderFeatureArea,
   type ProviderDiagnosticInfo,
   type ProviderRuntimeInfo
 } from '../types'
@@ -313,13 +311,6 @@ function ProvidersSection({
           onSetDefault={() => onSetDefaultProvider(selectedId)}
         />
 
-        {runtime && (
-          <ProviderCapabilitySummary
-            features={runtime.registry.features}
-            color={providerDef.color}
-          />
-        )}
-
         <SettingsPanel>
           <CompactSetting title="Models">
             <ModelListManager
@@ -576,131 +567,6 @@ function ProviderHeaderCard({
         </button>
       )}
     </div>
-  )
-}
-
-const FEATURE_AREAS: Array<{ id: ProviderFeatureArea; label: string }> = [
-  { id: 'runtime', label: 'Runtime' },
-  { id: 'permissions', label: 'Modes' },
-  { id: 'commands', label: 'Commands' },
-  { id: 'agents', label: 'Agents' },
-  { id: 'mcp', label: 'MCP' },
-  { id: 'extensions', label: 'Plugins' },
-  { id: 'review', label: 'Review' },
-  { id: 'workspace', label: 'Workspace' },
-]
-
-function ProviderCapabilitySummary({
-  features,
-  color
-}: {
-  features: ProviderFeature[]
-  color: string
-}): JSX.Element {
-  const [activeArea, setActiveArea] = useState<ProviderFeatureArea>('runtime')
-  const areaCounts = new Map<ProviderFeatureArea, number>()
-  for (const feature of features) {
-    if (feature.support !== 'unsupported') {
-      areaCounts.set(feature.area, (areaCounts.get(feature.area) ?? 0) + 1)
-    }
-  }
-  const availableAreas = FEATURE_AREAS.filter((area) => areaCounts.has(area.id))
-  const selectedArea = availableAreas.some((area) => area.id === activeArea)
-    ? activeArea
-    : availableAreas[0]?.id ?? 'runtime'
-  const visibleFeatures = features.filter((feature) => feature.area === selectedArea && feature.support !== 'unsupported')
-
-  useEffect(() => {
-    if (!availableAreas.some((area) => area.id === activeArea) && availableAreas[0]) {
-      setActiveArea(availableAreas[0].id)
-    }
-  }, [activeArea, availableAreas])
-
-  if (availableAreas.length === 0) return <></>
-
-  return (
-    <SettingsPanel>
-      <CompactSetting title="Capabilities">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {availableAreas.map((area) => {
-              const active = selectedArea === area.id
-              return (
-                <button
-                  key={area.id}
-                  onClick={() => setActiveArea(area.id)}
-                  style={{
-                    padding: '5px 9px',
-                    borderRadius: 7,
-                    border: `1px solid ${active ? color : 'var(--color-border)'}`,
-                    background: active ? `${color}12` : 'var(--color-surface)',
-                    color: active ? color : 'var(--color-text-muted)',
-                    cursor: 'pointer',
-                    fontSize: 11,
-                    fontWeight: active ? 650 : 500,
-                  }}
-                >
-                  {area.label}
-                </button>
-              )
-            })}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {visibleFeatures.map((feature) => (
-              <FeatureChip key={feature.id} feature={feature} color={color} />
-            ))}
-          </div>
-        </div>
-      </CompactSetting>
-    </SettingsPanel>
-  )
-}
-
-function FeatureChip({ feature, color }: { feature: ProviderFeature; color: string }): JSX.Element {
-  const isSupported = feature.support === 'supported'
-  const isPlanned = feature.support === 'planned'
-  const isBlocked = feature.support === 'blocked'
-  const chipColor = isSupported
-    ? color
-    : isPlanned
-      ? 'var(--color-text-muted)'
-      : isBlocked
-        ? '#F87171'
-        : 'var(--color-yellow)'
-  const label = feature.support === 'supported'
-    ? feature.label
-    : `${feature.label} · ${feature.support}`
-
-  return (
-    <span
-      title={feature.note ?? `${feature.source} · ${feature.runtimes.join(', ')}`}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        maxWidth: 220,
-        padding: '5px 8px',
-        borderRadius: 7,
-        border: `1px solid ${chipColor}`,
-        color: chipColor,
-        background: 'var(--color-surface)',
-        fontSize: 11,
-        fontWeight: 600,
-      }}
-    >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: chipColor,
-          flexShrink: 0,
-        }}
-      />
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {label}
-      </span>
-    </span>
   )
 }
 
