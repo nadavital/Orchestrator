@@ -58,13 +58,25 @@ export default function SkillsPanel({ provider, workDir, onClose, embedded = fal
       const makeFile = (path: string, label: string, content: string | null): SkillFile => ({
         path, label, content, dirty: false, saving: false
       })
+      const claudeSkillEntries = async (dirPath: string, entries: string[] | null): Promise<string[] | null> => {
+        if (entries === null) return null
+        const nestedSkillFiles = await Promise.all(
+          entries.map(async (name) => {
+            if (name.endsWith('.md') || name.endsWith('.mdc')) return name
+            const skillPath = join(dirPath, name, 'SKILL.md')
+            const content = await read(skillPath)
+            return content !== null ? join(name, 'SKILL.md') : null
+          })
+        )
+        return nestedSkillFiles.filter((entry): entry is string => Boolean(entry)).sort((a, b) => a.localeCompare(b))
+      }
 
       let section: AgentSection
 
       if (provider === 'claude') {
         const projectClaudeMd = join(workDir, 'CLAUDE.md')
         const projectClaudeMdAlt = join(workDir, '.claude', 'CLAUDE.md')
-        const [globalContent, projectContent, globalCmds, projectCmds, globalSkills, projectSkills, settingsContent] = await Promise.all([
+        const [globalContent, projectContent, globalCmds, projectCmds, globalSkillsRaw, projectSkillsRaw, settingsContent] = await Promise.all([
           read(join(home, '.claude', 'CLAUDE.md')),
           read(projectClaudeMd),
           listDir(join(home, '.claude', 'commands')),
@@ -75,6 +87,10 @@ export default function SkillsPanel({ provider, workDir, onClose, embedded = fal
         ])
         const projectPath = projectContent !== null ? projectClaudeMd : projectClaudeMdAlt
         const projectFinal = projectContent !== null ? projectContent : await read(projectClaudeMdAlt)
+        const [globalSkills, projectSkills] = await Promise.all([
+          claudeSkillEntries(join(home, '.claude', 'skills'), globalSkillsRaw),
+          claudeSkillEntries(join(workDir, '.claude', 'skills'), projectSkillsRaw)
+        ])
 
         let mcpServers: AgentSection['mcpServers']
         if (settingsContent) {

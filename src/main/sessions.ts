@@ -591,7 +591,12 @@ export const sessionManager = {
         s.allowedTools = mergeToolNames(s.allowedTools, toolNames)
         store.set('sessions', sessions)
       }
-      approvalBroker.resolveSessionApproval(sessionId, true)
+      if (persistGrant) approvalBroker.grantTools(sessionId, toolNames)
+      if (persistGrant) {
+        approvalBroker.resolveSessionApprovals(sessionId, true, undefined, toolNames)
+      } else {
+        approvalBroker.resolveSessionApproval(sessionId, true)
+      }
       this.updateStatus(sessionId, 'running')
       return
     }
@@ -669,8 +674,26 @@ export const sessionManager = {
 
   denyPermission(sessionId: string): void {
     if (approvalBroker.hasPendingApproval(sessionId)) {
-      approvalBroker.resolveSessionApproval(sessionId, false, 'Denied by user.')
+      approvalBroker.resolveSessionApprovals(sessionId, false, 'Denied by user.')
       this.updateStatus(sessionId, 'running')
+      setTimeout(() => {
+        for (const message of this.get(sessionId)?.messages ?? []) {
+          if (message.type === 'text' && message.queueState) {
+            this.upsertMessage(sessionId, { ...message, queueState: undefined })
+          }
+        }
+        clearRuntimeState(sessionId)
+        providerRuntime.stop(sessionId)
+        this.appendMessage(sessionId, [{
+          id: uuidv4(),
+          role: 'system',
+          type: 'result',
+          content: 'Permission denied by user.',
+          subtype: 'permission_denied',
+          timestamp: Date.now()
+        }])
+        this.updateStatus(sessionId, 'idle')
+      }, 150)
       return
     }
 

@@ -73,6 +73,7 @@ export default function SlashCommandPalette({
         {matches.map((command, i) => (
           <button
             key={`${command.group}-${command.id}`}
+            aria-label={`${command.name} ${command.description ?? ''} ${command.group}`.trim()}
             className="w-full flex items-center gap-3 px-3 py-2 text-left"
             style={{
               background: i === selectedIndex ? 'var(--color-surface2)' : 'transparent'

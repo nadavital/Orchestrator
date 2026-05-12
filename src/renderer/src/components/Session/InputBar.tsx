@@ -99,7 +99,10 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
   const modelLabel = provider.models.find((m) => m.id === model)?.label ?? model
   const effortLabel = provider.effortLevels.find((e) => e.id === effort)?.label ?? ''
-  const permLabel = provider.permissionModes.find((p) => p.id === permissionMode)?.label ?? 'Default'
+  const selectedPermissionMode = provider.permissionModes.find((p) => p.id === permissionMode)
+  const permLabel = selectedPermissionMode?.label ?? 'Default'
+  const regularPermissionModes = provider.permissionModes.filter((mode) => mode.intent !== 'bypass')
+  const dangerPermissionModes = provider.permissionModes.filter((mode) => mode.intent === 'bypass')
   const canUsePermission = resolvedPermission?.support !== 'unsupported'
 
   // Cursor per-model effort/thinking/fast config
@@ -479,25 +482,43 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5 px-3 py-2">
-                  {provider.permissionModes.map((opt) => {
-                    const resolved = providerRuntime?.policies[opt.id]
-                    const unsupported = resolved?.support === 'unsupported'
-                    return (
-                      <Chip
+                <div className="px-3 py-2" style={{ borderBottom: provider.id === 'claude' ? '1px solid var(--color-border)' : undefined }}>
+                  <div className="flex flex-wrap gap-1.5">
+                    {regularPermissionModes.map((opt) => (
+                      <PermissionModeChip
                         key={opt.id}
+                        opt={opt}
                         active={permissionMode === opt.id}
-                        disabled={unsupported}
-                        onClick={() => {
-                          if (!unsupported) update({ permissionMode: opt.id })
-                        }}
-                        title={unsupported ? 'Unsupported by this runtime' : opt.desc}
-                        activeColor={provider.color}
-                      >
-                        {opt.label}
-                      </Chip>
-                    )
-                  })}
+                        providerColor={provider.color}
+                        unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
+                        onSelect={() => update({ permissionMode: opt.id })}
+                      />
+                    ))}
+                  </div>
+                  {dangerPermissionModes.length > 0 && (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
+                      <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--color-red)', fontSize: 10 }}>
+                        Isolated only
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {dangerPermissionModes.map((opt) => (
+                          <PermissionModeChip
+                            key={opt.id}
+                            opt={opt}
+                            active={permissionMode === opt.id}
+                            providerColor="var(--color-red)"
+                            unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
+                            onSelect={() => update({ permissionMode: opt.id })}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedPermissionMode?.desc && (
+                    <div style={{ marginTop: 8, color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35 }}>
+                      {selectedPermissionMode.desc}
+                    </div>
+                  )}
                 </div>
                 {provider.id === 'claude' && (
                   <ClaudePermissionRules
@@ -559,6 +580,34 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
+
+function PermissionModeChip({
+  opt,
+  active,
+  providerColor,
+  unsupported,
+  onSelect
+}: {
+  opt: { id: string; label: string; desc: string }
+  active: boolean
+  providerColor: string
+  unsupported: boolean
+  onSelect: () => void
+}): JSX.Element {
+  return (
+    <Chip
+      active={active}
+      disabled={unsupported}
+      onClick={() => {
+        if (!unsupported) onSelect()
+      }}
+      title={unsupported ? 'Unsupported by this runtime' : opt.desc}
+      activeColor={providerColor}
+    >
+      {opt.label}
+    </Chip>
+  )
+}
 
 function ToolbarBtn({
   children, active, onClick, muted, title, providerColor

@@ -744,6 +744,12 @@ function CommandSurfaceOutput({
 function StructuredCommandOutput({ output, color }: { output: string; color: string }): JSX.Element {
   const parsed = parseCommandOutput(output)
   if (parsed.kind === 'json') {
+    if (isAutoModeDefaults(parsed.value)) {
+      return <AutoModeDefaultsSummary value={parsed.value} color={color} />
+    }
+    if (isMcpDetails(parsed.value)) {
+      return <McpDetailsSummary details={parsed.value} color={color} />
+    }
     return (
       <div style={{ padding: 10, maxHeight: 220, overflow: 'auto' }}>
         <StructuredValue value={parsed.value} color={color} depth={0} />
@@ -775,6 +781,151 @@ function StructuredCommandOutput({ output, color }: { output: string; color: str
           </span>
         </div>
       ))}
+    </div>
+  )
+}
+
+type AutoModeDefaults = {
+  allow?: unknown[]
+  soft_deny?: unknown[]
+  hard_deny?: unknown[]
+  environment?: unknown[]
+}
+
+function isAutoModeDefaults(value: unknown): value is AutoModeDefaults {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  return ['allow', 'soft_deny', 'hard_deny', 'environment'].some((key) => Array.isArray(record[key]))
+}
+
+function AutoModeDefaultsSummary({ value, color }: { value: AutoModeDefaults; color: string }): JSX.Element {
+  const sections: Array<{ key: keyof AutoModeDefaults; label: string; tone: string }> = [
+    { key: 'allow', label: 'Allow', tone: '#22C55E' },
+    { key: 'soft_deny', label: 'Review', tone: '#F59E0B' },
+    { key: 'hard_deny', label: 'Block', tone: '#EF4444' },
+    { key: 'environment', label: 'Environment', tone: color },
+  ]
+
+  return (
+    <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflow: 'auto' }}>
+      {sections.map((section) => {
+        const items = (value[section.key] ?? []).map((item) => String(item))
+        return (
+          <details key={section.key} open={section.key === 'allow' || section.key === 'soft_deny'}>
+            <summary
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                listStyle: 'none',
+                color: 'var(--color-text)',
+                fontSize: 12,
+                fontWeight: 750,
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: section.tone, flexShrink: 0 }} />
+              {section.label}
+              <span style={{ color: 'var(--color-text-muted)', fontWeight: 650 }}>{items.length}</span>
+            </summary>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 7, paddingLeft: 15 }}>
+              {items.length === 0 ? (
+                <EmptyInlineValue />
+              ) : items.map((item, index) => (
+                <div
+                  key={`${section.key}-${index}`}
+                  title={item}
+                  style={{
+                    padding: '6px 8px',
+                    borderRadius: 7,
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-text)',
+                    fontSize: 11,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {summarizePolicyLine(item)}
+                </div>
+              ))}
+            </div>
+          </details>
+        )
+      })}
+    </div>
+  )
+}
+
+function summarizePolicyLine(value: string): string {
+  const trimmed = value.replace(/\s+/g, ' ').trim()
+  return trimmed.length > 180 ? `${trimmed.slice(0, 177)}...` : trimmed
+}
+
+type McpDetail = { server: string; status: 'ok' | 'error'; detail: string }
+
+function isMcpDetails(value: unknown): value is McpDetail[] {
+  return Array.isArray(value) && value.every((item) => {
+    if (!item || typeof item !== 'object') return false
+    const record = item as Record<string, unknown>
+    return typeof record.server === 'string' && (record.status === 'ok' || record.status === 'error')
+  })
+}
+
+function McpDetailsSummary({ details, color }: { details: McpDetail[]; color: string }): JSX.Element {
+  if (details.length === 0) {
+    return <div style={{ padding: 10 }}><EmptyInlineValue /></div>
+  }
+
+  return (
+    <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 7, maxHeight: 260, overflow: 'auto' }}>
+      {details.map((detail) => {
+        const ok = detail.status === 'ok'
+        return (
+          <details
+            key={detail.server}
+            style={{
+              border: '1px solid var(--color-border)',
+              borderRadius: 8,
+              background: 'var(--color-surface)',
+              padding: 8,
+            }}
+          >
+            <summary
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                listStyle: 'none',
+                color: 'var(--color-text)',
+                fontSize: 12,
+                fontWeight: 750,
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: ok ? color : '#EF4444', flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{detail.server}</span>
+              <span style={{ color: ok ? color : '#EF4444', fontSize: 10, textTransform: 'uppercase' }}>{detail.status}</span>
+            </summary>
+            {detail.detail && (
+              <pre
+                style={{
+                  margin: '7px 0 0',
+                  padding: 8,
+                  borderRadius: 7,
+                  background: 'var(--color-surface2)',
+                  color: 'var(--color-text-muted)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  fontSize: 10.5,
+                  lineHeight: 1.35,
+                }}
+              >
+                {detail.detail}
+              </pre>
+            )}
+          </details>
+        )
+      })}
     </div>
   )
 }

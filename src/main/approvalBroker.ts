@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'http'
 import { mkdirSync, rmSync, writeFileSync } from 'fs'
-import { join } from 'path'
-import { tmpdir } from 'os'
+import { isAbsolute, join, relative, resolve } from 'path'
+import { homedir, tmpdir } from 'os'
 import type { RunEvent } from '../types'
 
 interface HookRegistration {
@@ -57,6 +57,17 @@ function hookResponse(approved: boolean, reason?: string): Record<string, unknow
   }
 }
 
+function isClaudeNativePlanWrite(toolName: string, toolInput: Record<string, unknown> | undefined): boolean {
+  if (toolName !== 'Write') return false
+  const filePath = typeof toolInput?.file_path === 'string' ? toolInput.file_path : ''
+  if (!filePath.endsWith('.md')) return false
+
+  const plansDir = resolve(homedir(), '.claude', 'plans')
+  const target = resolve(filePath)
+  const pathFromPlansDir = relative(plansDir, target)
+  return pathFromPlansDir !== '' && !pathFromPlansDir.startsWith('..') && !isAbsolute(pathFromPlansDir)
+}
+
 function sendJson(res: ServerResponse, status: number, payload: Record<string, unknown>): void {
   res.writeHead(status, { 'Content-Type': 'application/json' })
   res.end(JSON.stringify(payload))
@@ -100,13 +111,14 @@ export class ApprovalBroker {
   private readonly registrations = new Map<string, HookRegistration>()
   private readonly tokensBySession = new Map<string, string>()
   private readonly pending = new Map<string, PendingApproval>()
+  private readonly grantedToolsBySession = new Map<string, Set<string>>()
   private onEvents: ((sessionId: string, events: RunEvent[]) => void) | null = null
 
   setEventSink(sink: (sessionId: string, events: RunEvent[]) => void): void {
     this.onEvents = sink
   }
 
-  async prepareClaudeRun(sessionId: string): Promise<{ settingsPath: string; dispose: () => void }> {
+  async prepareClaudeRun(sessionId: string, allowedTools: string[] = []): Promise<{ settingsPath: string; dispose: () => void }> {
     await this.ensureServer()
     const token = randomUUID()
     const dir = join(tmpdir(), 'orchestrator-claude-hooks')
@@ -118,6 +130,7 @@ export class ApprovalBroker {
 
     this.registrations.set(token, { sessionId, settingsPath })
     this.tokensBySession.set(sessionId, token)
+    this.grantedToolsBySession.set(sessionId, new Set(allowedTools))
 
     return {
       settingsPath,
@@ -139,9 +152,29 @@ export class ApprovalBroker {
     return true
   }
 
+  resolveSessionApprovals(sessionId: string, approved: boolean, reason?: string, toolNames?: string[]): number {
+    const tools = toolNames && toolNames.length > 0 ? new Set(toolNames) : null
+    const entries = [...this.pending.entries()].filter(([, approval]) =>
+      approval.sessionId === sessionId && (!tools || tools.has(approval.toolName))
+    )
+    for (const [requestId, approval] of entries) {
+      clearTimeout(approval.timeout)
+      this.pending.delete(requestId)
+      approval.resolve({ approved, reason })
+    }
+    return entries.length
+  }
+
+  grantTools(sessionId: string, toolNames: string[]): void {
+    const current = this.grantedToolsBySession.get(sessionId) ?? new Set<string>()
+    for (const toolName of toolNames) current.add(toolName)
+    this.grantedToolsBySession.set(sessionId, current)
+  }
+
   disposeSession(sessionId: string): void {
     const token = this.tokensBySession.get(sessionId)
     if (token) this.disposeRegistration(sessionId, token)
+    this.grantedToolsBySession.delete(sessionId)
     for (const [requestId, approval] of this.pending) {
       if (approval.sessionId !== sessionId) continue
       clearTimeout(approval.timeout)
@@ -227,6 +260,8 @@ export class ApprovalBroker {
   ): Promise<Record<string, unknown>> {
     const toolName = input.tool_name ?? 'tool'
     if (SAFE_TOOLS.has(toolName)) return hookResponse(true)
+    if (this.grantedToolsBySession.get(registration.sessionId)?.has(toolName)) return hookResponse(true)
+    if (isClaudeNativePlanWrite(toolName, input.tool_input)) return hookResponse(true)
 
     const requestId = randomUUID()
     const decision = await new Promise<ApprovalDecision>((resolve) => {

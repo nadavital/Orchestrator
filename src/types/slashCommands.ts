@@ -93,10 +93,12 @@ export function availableSlashCommands(
     const support = featureSupport.get(command.featureId)
     return support === 'supported' || support === 'partial'
   }) ?? []
+  const appCommandNames = new Set(APP_SLASH_COMMANDS.map((command) => command.name))
+  const nonCollidingProviderCommands = providerCommands.filter((command) => !appCommandNames.has(command.name))
 
   return [
     ...APP_SLASH_COMMANDS.map((command) => ({ ...command, group: slashCommandGroup(command) })),
-    ...providerCommands.map((command) => ({ ...command, group: slashCommandGroup(command) })),
+    ...nonCollidingProviderCommands.map((command) => ({ ...command, group: slashCommandGroup(command) })),
     ...discoveredCommands.map((command) => ({ ...command, group: slashCommandGroup(command) }))
   ]
 }

@@ -2263,19 +2263,26 @@ export function getProvider(id: string): ProviderAdapter {
   return PROVIDERS[id] ?? PROVIDERS.claude
 }
 
-function claudeMcpServerNames(output: string): string[] {
+export function claudeMcpServerNames(output: string): string[] {
   const names = output
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
+      if (/^checking\b/i.test(line)) return null
       const withoutMarker = line.replace(/^[•*-]\s*/, '')
-      const candidate = withoutMarker.split(/\s+|:/)[0]?.trim()
-      return candidate && !/^(name|server|servers|no|none)$/i.test(candidate) ? candidate : null
+      const colonMatch = withoutMarker.match(/^([A-Za-z0-9._-]+)\s*:/)
+      const bulletMatch = line.match(/^[•*-]\s*([A-Za-z0-9._-]+)\b/)
+      const candidate = (colonMatch?.[1] ?? bulletMatch?.[1])?.trim()
+      return candidate && !/^(checking|name|server|servers|no|none)$/i.test(candidate) ? candidate : null
     })
     .filter((name): name is string => Boolean(name))
 
   return [...new Set(names)]
+}
+
+function claudeMcpStatusFromDetail(detail: string, fallback: 'ok' | 'error' = 'ok'): 'ok' | 'error' {
+  return /failed|error|not found|unable|cannot/i.test(detail) ? 'error' : fallback
 }
 
 function runClaudeMcpDetails(providerId: string, surfaceId: string, binary: string): ProviderCommandSurfaceResult {
@@ -2295,16 +2302,18 @@ function runClaudeMcpDetails(providerId: string, surfaceId: string, binary: stri
           env: providerSpawnEnv(providerId),
           maxBuffer: 512 * 1024
         })
-        return { server: name, status: 'ok', detail: redactProviderCommandOutput(output.trim()) }
+        const detail = redactProviderCommandOutput(output.trim())
+        return { server: name, status: claudeMcpStatusFromDetail(detail), detail }
       } catch (error) {
         const err = error as { stdout?: unknown; stderr?: unknown; message?: string }
         return { server: name, status: 'error', detail: redactProviderCommandOutput(stringifyCommandError(err)) }
       }
     })
+    const hasErrors = details.some((detail) => detail.status === 'error')
     return {
       providerId,
       surfaceId,
-      status: 'ok',
+      status: hasErrors ? 'error' : 'ok',
       output: JSON.stringify(details, null, 2)
     }
   } catch (error) {
@@ -2335,16 +2344,18 @@ async function runClaudeMcpDetailsAsync(providerId: string, surfaceId: string, b
           env: providerSpawnEnv(providerId),
           maxBuffer: 512 * 1024
         })
-        return { server: name, status: 'ok', detail: redactProviderCommandOutput(String(result.stdout).trim()) }
+        const detail = redactProviderCommandOutput(String(result.stdout).trim())
+        return { server: name, status: claudeMcpStatusFromDetail(detail), detail }
       } catch (error) {
         const err = error as { stdout?: unknown; stderr?: unknown; message?: string }
         return { server: name, status: 'error', detail: redactProviderCommandOutput(stringifyCommandError(err)) }
       }
     }))
+    const hasErrors = details.some((detail) => detail.status === 'error')
     return {
       providerId,
       surfaceId,
-      status: 'ok',
+      status: hasErrors ? 'error' : 'ok',
       output: JSON.stringify(details, null, 2)
     }
   } catch (error) {

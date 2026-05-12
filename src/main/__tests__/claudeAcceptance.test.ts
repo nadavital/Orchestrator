@@ -122,13 +122,42 @@ test('Claude agent derivation falls back to saved transcript tool messages', () 
   assert.equal(agents[0].transcript, 'README.md')
 })
 
+test('Claude saved subagent transcripts hide native agent metadata trailers', () => {
+  const session = { id: 'session-under-test', provider: 'claude' }
+  const messages = [
+    {
+      id: 'tool-agent-2',
+      role: 'assistant' as const,
+      type: 'tool_use' as const,
+      toolName: 'Task',
+      toolInput: { description: 'Read README.md first sentence' },
+      timestamp: 1
+    },
+    {
+      id: 'tool-result-2',
+      role: 'tool' as const,
+      type: 'tool_result' as const,
+      toolUseId: 'tool-agent-2',
+      content: `The first sentence is useful.\nagentId: abc123 (use SendMessage with to: 'abc123' to continue this agent)\n<usage>total_tokens: 15197\ntool_uses: 1\n</usage>`,
+      isError: false,
+      timestamp: 2
+    }
+  ]
+  const agents = deriveAgentNodesFromMessages(session, messages)
+
+  assert.equal(agents.length, 1)
+  assert.equal(agents[0].transcript, 'The first sentence is useful.')
+  assert.equal(agents[0].summary, 'The first sentence is useful.')
+})
+
 test('Claude slash command surface follows feature support without a user-visible runtime split', () => {
   const runtime = getProviderRuntimeInfo().claude
   const commands = availableSlashCommands(runtime)
 
   assert.ok(commands.some((command) => command.name === '/settings' && command.group === 'App'))
   assert.ok(commands.some((command) => command.name === '/review' && command.group === 'Provider'))
-  assert.ok(commands.some((command) => command.name === '/agents' && command.group === 'Terminal'))
+  assert.equal(commands.filter((command) => command.name === '/agents').length, 1)
+  assert.ok(commands.some((command) => command.name === '/agents' && command.group === 'App'))
 })
 
 test('Diff summary makes deletion and large changes visible without dumping patches', () => {

@@ -50,6 +50,16 @@ function runtimeInfo(): ProviderRuntimeInfo {
           featureId: 'agents'
         },
         {
+          id: 'agents-colliding',
+          name: '/agents',
+          description: 'Native agents command with an app-owned name',
+          providerId: 'claude',
+          source: 'provider',
+          runtime: 'headless',
+          handler: 'send-to-provider',
+          featureId: 'agents'
+        },
+        {
           id: 'mcp',
           name: '/mcp',
           description: 'Manage MCP',
@@ -83,7 +93,9 @@ test('slash command availability combines app commands with supported provider c
   assert.ok(names.includes('/agents-native'))
   assert.ok(names.includes('/interactive-only'))
   assert.equal(names.includes('/mcp'), false)
+  assert.equal(names.filter((name) => name === '/agents').length, 1)
   assert.equal(commands.find((command) => command.name === '/settings')?.group, 'App')
+  assert.equal(commands.find((command) => command.name === '/agents')?.group, 'App')
   assert.equal(commands.find((command) => command.name === '/review')?.group, 'Provider')
   assert.equal(commands.find((command) => command.name === '/mcp')?.group, undefined)
 })

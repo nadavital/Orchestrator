@@ -185,9 +185,16 @@ function stringField(input: Record<string, unknown>, key: string): string | unde
 }
 
 function readableAgentResult(content: string): string | undefined {
-  const readable = readableToolResult(content)
+  const readable = stripAgentMetadataTrailer(readableToolResult(content))
   if (isAgentLaunchBoilerplate(readable)) return undefined
   return readable
+}
+
+function stripAgentMetadataTrailer(content: string): string {
+  return content
+    .replace(/\n?<usage>[\s\S]*?<\/usage>\s*$/u, '')
+    .replace(/\nagentId:\s+[^\n]*\s*$/u, '')
+    .trim()
 }
 
 function readableToolResult(content: string): string {

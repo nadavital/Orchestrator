@@ -857,7 +857,7 @@ function PermissionCard({ msg, sessionId }: { msg: ResultMessage; sessionId: str
       <div
         className="rounded-xl px-4 py-3 w-full"
         style={{
-          maxWidth: 480,
+          maxWidth: 560,
           background: 'var(--color-surface2)',
           border: '1px solid var(--color-border)'
         }}
@@ -872,7 +872,16 @@ function PermissionCard({ msg, sessionId }: { msg: ResultMessage; sessionId: str
         </div>
         <div className="mb-3 space-y-1">
           {denials.map((d, i) => (
-            <div key={i} className="text-xs font-mono truncate" style={{ color: 'var(--color-text-muted)' }}>
+            <div
+              key={i}
+              className="text-xs font-mono"
+              style={{
+                color: 'var(--color-text-muted)',
+                lineHeight: 1.45,
+                overflowWrap: 'anywhere',
+                whiteSpace: 'normal'
+              }}
+            >
               {permissionSummary(d)}
             </div>
           ))}
@@ -923,10 +932,10 @@ function PermissionCard({ msg, sessionId }: { msg: ResultMessage; sessionId: str
         ) : (
           <div className="text-xs font-medium" style={{ color: decision.startsWith('allowed') ? 'var(--color-green)' : 'var(--color-text-muted)' }}>
             {decision === 'allowed_session'
-              ? isPlanApproval ? 'Approving plan...' : 'Allowed for session - resuming...'
+              ? isPlanApproval ? 'Plan approved' : 'Allowed for session - resuming...'
               : decision === 'allowed_once'
-                ? isPlanApproval ? 'Approving plan...' : 'Allowed once - resuming...'
-                : isPlanApproval ? 'Continuing plan...' : 'Denied'}
+                ? isPlanApproval ? 'Plan approved' : 'Allowed once - resuming...'
+                : isPlanApproval ? 'Kept planning' : 'Denied'}
           </div>
         )}
       </div>

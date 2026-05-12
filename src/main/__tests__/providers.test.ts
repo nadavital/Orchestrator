@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { PROVIDER_DEFS, deriveAgentNodes } from '../../types'
-import { buildProviderCommandForRuntime, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
+import { buildProviderCommandForRuntime, claudeMcpServerNames, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -200,6 +200,18 @@ test('provider command surfaces only auto-run no-quota non-mutating commands', (
   assert.match(quota.output, /not safe/i)
   assert.equal(unknown.status, 'blocked')
   assert.match(unknown.output, /unknown provider command/i)
+})
+
+test('claude mcp details parser ignores health banners and keeps server names', () => {
+  const output = [
+    'Checking MCP server health...',
+    'git: node /Users/me/claude-mcp/dist/servers/git-server.js - ✗ Failed to connect',
+    'wiki-server: node /Users/me/wiki-server/build/index.js - ✗ Failed to connect',
+    'jira: node /Users/me/claude-mcp/dist/servers/jira-server.js - ✗ Failed to connect',
+    'confluence: node /Users/me/claude-mcp/dist/servers/confluence-server.js - ✗ Failed to connect'
+  ].join('\n')
+
+  assert.deepEqual(claudeMcpServerNames(output), ['git', 'wiki-server', 'jira', 'confluence'])
 })
 
 test('provider command surfaces can run through async settings IPC path', async () => {

@@ -89,7 +89,7 @@ export class ProviderRuntimeManager {
 
     if (provider.id !== 'claude' || (runRequest.runtime ?? 'headless') !== 'headless') return runRequest
 
-    const prepared = await approvalBroker.prepareClaudeRun(sessionId)
+    const prepared = await approvalBroker.prepareClaudeRun(sessionId, runRequest.allowedTools ?? [])
     this.activeRunCleanups.set(sessionId, prepared.dispose)
     return {
       ...runRequest,

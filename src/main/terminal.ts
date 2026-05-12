@@ -10,6 +10,13 @@ function getWindow(): BrowserWindow | null {
   return BrowserWindow.getAllWindows()[0] ?? null
 }
 
+function appendOutput(terminalId: string, data: string): void {
+  const prev = buffers.get(terminalId) ?? ''
+  const next = prev + data
+  buffers.set(terminalId, next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next)
+  getWindow()?.webContents.send('terminal:data', terminalId, data)
+}
+
 export const terminalManager = {
   spawn(terminalId: string, workDir: string): void {
     if (shells.has(terminalId)) return
@@ -22,11 +29,9 @@ export const terminalManager = {
       env: process.env as Record<string, string>
     })
     buffers.set(terminalId, '')
+    appendOutput(terminalId, `\x1b[2mShell ready in ${workDir}\x1b[0m\r\n`)
     pty.onData((data) => {
-      const prev = buffers.get(terminalId) ?? ''
-      const next = prev + data
-      buffers.set(terminalId, next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next)
-      getWindow()?.webContents.send('terminal:data', terminalId, data)
+      appendOutput(terminalId, data)
     })
     pty.onExit(() => {
       shells.delete(terminalId)

@@ -71,12 +71,12 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     ],
     supportsResume: true,
     permissionModes: [
-      { id: 'default', label: 'Ask', desc: 'Ask before tools', intent: 'ask' },
-      { id: 'acceptEdits', label: 'Accept Edits', desc: 'Accept file edits', intent: 'autoEdit' },
-      { id: 'auto', label: 'Auto', desc: 'Let Claude decide safe tool approvals', intent: 'autoEdit' },
-      { id: 'dontAsk', label: 'No Prompts', desc: 'Do not interrupt for permission prompts', intent: 'workspaceSandbox' },
-      { id: 'plan', label: 'Plan', desc: 'Plan without changes', intent: 'plan' },
-      { id: 'bypassPermissions', label: 'Bypass', desc: 'Skip prompts', intent: 'bypass' }
+      { id: 'default', label: 'Ask', desc: 'Claude asks before edits, commands, and network requests.', intent: 'ask' },
+      { id: 'acceptEdits', label: 'Auto-edit', desc: 'Claude can read and edit files in the workspace without prompting.', intent: 'autoEdit' },
+      { id: 'plan', label: 'Plan', desc: 'Claude explores and proposes a plan before making changes.', intent: 'plan' },
+      { id: 'auto', label: 'Auto safe', desc: 'Claude uses native auto mode with background safety checks.', intent: 'autoEdit' },
+      { id: 'dontAsk', label: 'Allowlist', desc: 'Only explicitly pre-approved tools run; other prompts are denied.', intent: 'workspaceSandbox' },
+      { id: 'bypassPermissions', label: 'Bypass unsafe', desc: 'Skips native permission checks. Use only in isolated sandboxes.', intent: 'bypass' }
     ]
   },
   copilot: {

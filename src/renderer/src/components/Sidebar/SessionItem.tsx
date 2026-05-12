@@ -27,7 +27,9 @@ export default function SessionItem({ session }: Props): JSX.Element {
   const hasUnread = !isActive && (uiState[session.id]?.hasUnread ?? false)
 
   const lastMessage = session.messages.findLast((m) => m.type === 'text' && m.role !== 'system')
-  const preview = lastMessage && lastMessage.type === 'text' ? lastMessage.content.slice(0, 60) : ''
+  const preview = lastMessage && lastMessage.type === 'text'
+    ? compactPreview(lastMessage.content, session.name, session.status)
+    : ''
 
   const cleanupActiveIfEmpty = async (): Promise<void> => {
     if (!activeSessionId || activeSessionId === session.id) return
@@ -121,4 +123,14 @@ export default function SessionItem({ session }: Props): JSX.Element {
       </button>
     </div>
   )
+}
+
+function compactPreview(content: string, name: string, status: Session['status']): string {
+  if (status === 'running') return 'Running...'
+  if (status === 'waiting_for_permission') return 'Waiting for approval'
+  if (status === 'waiting_for_user') return 'Waiting for answer'
+
+  const compact = content.replace(/\s+/g, ' ').trim()
+  if (!compact || compact === name) return ''
+  return compact.length > 44 ? `${compact.slice(0, 41)}...` : compact
 }

@@ -14,12 +14,13 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
   const events = eventBuffers[session.id] ?? []
   const agents = useMemo(() => deriveSessionAgentNodes(session, events), [events, session])
   const openAgentIds = uiState[session.id]?.agentTabIds ?? (activeAgentId ? [activeAgentId] : [])
-  const openAgents = openAgentIds
+  const pinnedAgents = openAgentIds
     .map((id) => agents.find((agent) => agent.id === id))
     .filter((agent): agent is AgentNode => Boolean(agent))
+  const visibleAgents = pinnedAgents.length > 0 ? pinnedAgents : agents
   const selectedAgent = useMemo(
-    () => openAgents.find((agent) => agent.id === activeAgentId) ?? openAgents.at(-1) ?? null,
-    [activeAgentId, openAgents]
+    () => visibleAgents.find((agent) => agent.id === activeAgentId) ?? visibleAgents.at(-1) ?? null,
+    [activeAgentId, visibleAgents]
   )
 
   return (
@@ -38,11 +39,11 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
         </div>
       </div>
 
-      {openAgents.length === 0 ? (
+      {visibleAgents.length === 0 ? (
         <EmptyText>
           {agents.length === 0
             ? 'Agent transcripts will appear here when a subagent starts.'
-            : 'Select an agent chip above the composer to open its transcript here.'}
+            : 'Completed agent transcripts will appear here.'}
         </EmptyText>
       ) : (
         <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -51,13 +52,13 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
             style={{ borderBottom: '1px solid var(--color-border)' }}
           >
             <div className="flex min-w-0 gap-1.5">
-              {openAgents.map((agent) => (
+              {visibleAgents.map((agent) => (
                 <AgentTab
                   key={agent.id}
                   agent={agent}
                   active={agent.id === selectedAgent?.id}
                   onClick={() => setActiveAgent(session.id, agent.id)}
-                  onClose={() => closeAgentTab(session.id, agent.id)}
+                  onClose={openAgentIds.includes(agent.id) ? () => closeAgentTab(session.id, agent.id) : undefined}
                 />
               ))}
             </div>
@@ -79,7 +80,7 @@ function AgentTab({
   agent: AgentNode
   active: boolean
   onClick: () => void
-  onClose: () => void
+  onClose?: () => void
 }): JSX.Element {
   return (
     <div
@@ -99,18 +100,20 @@ function AgentTab({
           {agent.name ?? agent.role ?? agent.id}
         </span>
       </button>
-      <button
-        type="button"
-        onClick={onClose}
-        className="grid h-5 w-5 shrink-0 place-items-center rounded"
-        title="Close transcript"
-        aria-label="Close transcript"
-        style={{ color: 'var(--color-text-muted)' }}
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-        </svg>
-      </button>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid h-5 w-5 shrink-0 place-items-center rounded"
+          title="Close transcript"
+          aria-label="Close transcript"
+          style={{ color: 'var(--color-text-muted)' }}
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }
