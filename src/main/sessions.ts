@@ -2,7 +2,7 @@ import Store from 'electron-store'
 import { BrowserWindow } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import type { Session, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus } from '../types'
-import { PROVIDER_DEFS } from '../types'
+import { PROVIDER_DEFS, finalizeInterruptedMessages } from '../types'
 import { detectNativeCliPrompt, nativeCliPromptContent, nativeCliPromptSubmitSequence, type NativeCliPromptKind } from '../types/nativeCliPrompts'
 import { nativeTerminalControlResponses } from '../types/nativeTerminalControl'
 import { parseClaudeTerminalSnapshot, terminalSnapshotToRunEvents, type NativeTerminalStreamState } from '../types/nativeTerminalEvents'
@@ -47,6 +47,7 @@ function defaultRuntimeForProvider(_providerId: string): ProviderRuntimeKind {
 function normalizeSession(session: Session): Session {
   return {
     ...session,
+    messages: session.status === 'running' ? session.messages : finalizeInterruptedMessages(session.messages),
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
     runtime: defaultRuntimeForProvider(session.provider ?? 'claude')
   }
@@ -531,8 +532,8 @@ export const sessionManager = {
   stop(sessionId: string): void {
     if (providerRuntime.hasActiveRun(sessionId)) {
       for (const message of this.get(sessionId)?.messages ?? []) {
-        if (message.type === 'text' && message.queueState) {
-          this.upsertMessage(sessionId, { ...message, queueState: undefined })
+        if (message.type === 'text' && (message.queueState || message.isStreaming)) {
+          this.upsertMessage(sessionId, { ...message, queueState: undefined, isStreaming: false })
         }
       }
       clearRuntimeState(sessionId)

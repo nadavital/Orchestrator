@@ -701,6 +701,18 @@ export interface TextMessage extends BaseMessage {
   queueState?: 'queued' | 'steer_next'
 }
 
+export function finalizeInterruptedMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((message) => {
+    if (message.type !== 'text') return message
+    if (!message.isStreaming && !message.queueState) return message
+    return {
+      ...message,
+      isStreaming: false,
+      queueState: undefined
+    }
+  })
+}
+
 export interface ToolUseMessage extends BaseMessage {
   role: 'assistant'
   type: 'tool_use'

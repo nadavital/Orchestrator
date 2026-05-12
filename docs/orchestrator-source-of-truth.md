@@ -253,9 +253,9 @@ Each task below must end with evidence in this file. Prefer exact command names,
 
 | ID | Task | Status | Verification Required | Notes |
 | --- | --- | --- | --- | --- |
-| P1-001 | Plain answer stream. | `Implemented` | Live installed-app Claude answer streams and ends idle; fixture covers same event shape. | Live provider suites pass; installed app final artifact still needs P0 first. |
-| P1-002 | Multi-turn continuity. | `Planned` | Ask a fact in turn 1, reference it in turn 2, verify Claude resumes with same context and no duplicate transcript. | Capture provider session id behavior. |
-| P1-003 | Stop during assistant text. | `Planned` | Start a long answer, stop mid-stream, verify process stops, composer re-enables, session status is idle/stopped. | Add automated state-machine test after live failure or success is understood. |
+| P1-001 | Plain answer stream. | `Complete` | Live installed-app Claude answer streams and ends idle; fixture covers same event shape; P0 installed artifact was verified. | Keep covered by provider fixtures and installed-app smoke checklist. |
+| P1-002 | Multi-turn continuity. | `Complete` | Installed-app two-turn smoke remembered `ORCHID-912` and returned `CONTINUITY_OK: ORCHID-912` without duplicate transcript. | Verified with Claude Sonnet 4.6 High in Ask mode. |
+| P1-003 | Stop during assistant text. | `Complete` | Installed-app stop smoke interrupted a long streaming answer, removed the streaming cursor, restored idle composer state, and re-enabled Send after text entry. | Added regression coverage for interrupted streaming/queued text settlement. |
 | P1-004 | Stop during tool execution. | `Planned` | Trigger a harmless long shell/read sequence, stop while tool is active, verify no stuck waiting state. | Avoid destructive commands. |
 | P1-005 | Stop during permission pause. | `Planned` | Trigger Write permission, click Stop, verify pending hook resolves/cleans up and no file is created. | Completes permission lifecycle hardening. |
 | P1-006 | Queue next message. | `Planned` | Send while current run is active; queued card appears and sends after completion. | Include screenshot/accessibility evidence. |
@@ -531,3 +531,8 @@ When implementing against this plan:
 - Terminal command input smoke passed in the installed app: Computer Use entered `echo TERMINAL_COMMAND_VISIBLE_OK`, clicked `Run`, and the terminal pane showed both the command and `TERMINAL_COMMAND_VISIBLE_OK`.
 - Terminal design smell fixed during smoke: the terminal pane now uses a consistent dark palette instead of inheriting the light app background.
 - Verification for this installed-app checkpoint: `npm run test:providers`, `npx tsc -p tsconfig.web.json --noEmit`, `npm run test:smoke-config`, `npm run pack:mac`, copy to `/Applications`, relaunch, and Computer Use GUI smoke.
+- P1 continuity smoke passed in the installed app: turn 1 returned `TURN1_OK`; turn 2 remembered `ORCHID-912` and returned `CONTINUITY_OK: ORCHID-912`.
+- P1 stop-during-assistant-text initially failed: Stop removed the running backend state, but the partial assistant message kept its streaming cursor and the composer stayed visually stuck. Fixed by finalizing interrupted streaming/queued text when a run stops or when old non-running sessions load.
+- P1 stop-during-assistant-text retry passed in the installed app: a long `STREAM_STOP_RETRY_LINE` run was interrupted, the assistant message no longer showed the streaming cursor, Stop disappeared, and entering `Composer usable after stop check` re-enabled Send.
+- Verification for the P1 stop/continuity checkpoint: `npm run test:providers` passed 123/123, `npx tsc -p tsconfig.web.json --noEmit` passed, `git diff --check` passed, `npm run pack:mac` had rebuilt the app, and the rebuilt app was copied to `/Applications` before the Computer Use smoke.
+- Residual verification note: one `Computer Use get_app_state` attach after relaunch took 87 seconds before returning the installed app tree. The app was responsive afterward, so treat this as a CUA/session flake unless it recurs.

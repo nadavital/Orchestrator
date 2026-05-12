@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getComposerSendState } from '../../types'
+import { finalizeInterruptedMessages, getComposerSendState, type ChatMessage } from '../../types'
 
 test('composer queues a message while a session is running', () => {
   assert.deepEqual(
@@ -29,4 +29,46 @@ test('composer normal send does not mark idle sessions as queued', () => {
     getComposerSendState({ text: 'hello', status: 'idle', canUsePermission: true }),
     { canSend: true, willQueue: false }
   )
+})
+
+test('interrupted runs settle streaming and queued text messages', () => {
+  const messages: ChatMessage[] = [
+    {
+      id: 'assistant-stream',
+      role: 'assistant',
+      type: 'text',
+      content: 'partial',
+      timestamp: 1,
+      isStreaming: true
+    },
+    {
+      id: 'queued-user',
+      role: 'user',
+      type: 'text',
+      content: 'follow up',
+      timestamp: 2,
+      queueState: 'queued'
+    }
+  ]
+
+  assert.deepEqual(finalizeInterruptedMessages(messages), [
+    {
+      id: 'assistant-stream',
+      role: 'assistant',
+      type: 'text',
+      content: 'partial',
+      timestamp: 1,
+      isStreaming: false,
+      queueState: undefined
+    },
+    {
+      id: 'queued-user',
+      role: 'user',
+      type: 'text',
+      content: 'follow up',
+      timestamp: 2,
+      isStreaming: false,
+      queueState: undefined
+    }
+  ])
 })
