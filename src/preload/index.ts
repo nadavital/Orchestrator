@@ -119,6 +119,8 @@ const api = {
       ipcRenderer.invoke('terminal:getBuffer', terminalId),
     write: (terminalId: string, data: string): Promise<void> =>
       ipcRenderer.invoke('terminal:write', terminalId, data),
+    runCommand: (terminalId: string, command: string): Promise<void> =>
+      ipcRenderer.invoke('terminal:runCommand', terminalId, command),
     resize: (terminalId: string, cols: number, rows: number): Promise<void> =>
       ipcRenderer.invoke('terminal:resize', terminalId, cols, rows),
     clear: (terminalId: string): Promise<void> =>

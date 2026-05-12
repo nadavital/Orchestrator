@@ -141,6 +141,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('terminal:write', (_, sessionId: string, data: string) =>
     terminalManager.write(sessionId, data)
   )
+  ipcMain.handle('terminal:runCommand', (_, sessionId: string, command: string) =>
+    terminalManager.runCommand(sessionId, command)
+  )
   ipcMain.handle('terminal:resize', (_, sessionId: string, cols: number, rows: number) =>
     terminalManager.resize(sessionId, cols, rows)
   )

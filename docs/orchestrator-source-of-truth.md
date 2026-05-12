@@ -105,7 +105,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Stop | Stop consistently interrupts current run and leaves composer usable. | `Partial` | Existing stop path; user reported inconsistency. | Add integration test for stop during text stream, tool call, permission pause, and queued message. |
 | Queue next message | Users can type while a run is active; message sends immediately after the current run completes. | `Partial` | Queue behavior exists, but boundary semantics need hardening. | Add state machine tests and visible queued-message cards. |
 | Steer after current tool | Queued message has a `Steer` action that injects at the next sensible boundary. | `Implemented` | `providerRuntime.interrupt`, `sessionManager.steerQueuedMessage`, provider runtime fake-process tests. | Live-test steering during Claude text/tool states and verify queued card behavior in the GUI. |
-| Installed app update path | User can run the latest committed build locally. | `Partial` | Build scripts exist; installation is manual per pass. | Add documented install/reinstall checklist and verify installed app after major changes. |
+| Installed app update path | User can run the latest committed build locally. | `Implemented` | Installed-app smoke checklist below; final installed artifact verified with Computer Use on 2026-05-12. | Keep checklist current and run it after major UI/runtime changes. |
 
 ### Transcript And Layout UX
 
@@ -244,10 +244,10 @@ Each task below must end with evidence in this file. Prefer exact command names,
 
 | ID | Task | Status | Verification Required | Notes |
 | --- | --- | --- | --- | --- |
-| P0-001 | Diagnose final installed-app Computer Use attach timeout. | `Planned` | After reinstall/relaunch, `Computer Use get_app_state` returns the Orchestrator accessibility tree within 30 seconds. | After final label-only rebuild on 2026-05-12, `list_apps` saw Orchestrator running, but `get_app_state` timed out twice. Determine app hang vs accessibility/CUA session issue. |
-| P0-002 | Add repeatable install/restart smoke checklist. | `Planned` | Document exact commands and expected observable app state; run once from clean package. | Should cover `npm run pack:mac`, copy to `/Applications`, relaunch, CUA attach, new chat start. |
-| P0-003 | Verify final installed app can start a plain Claude session. | `Planned` | Live installed-app chat returns a short no-tools response; record model and permission mode. | Earlier installed app flows worked before the final label-only polish; this task verifies the final installed artifact. |
-| P0-004 | Verify packaged resources load. | `Planned` | Installed app can load pet assets and no missing-resource errors are visible. | Use `/pet` or settings/resource smoke. |
+| P0-001 | Diagnose final installed-app Computer Use attach timeout. | `Complete` | After reinstall/relaunch, `Computer Use get_app_state` returned the installed Orchestrator accessibility tree in 0.5-2.3 seconds. | Previous timeout did not reproduce after restart/reinstall; treat as stale app/CUA session unless it recurs. |
+| P0-002 | Add repeatable install/restart smoke checklist. | `Complete` | `Installed App Smoke Checklist` below documents commands and expected observable app state; checklist was run from a clean package on 2026-05-12. | Keep this checklist as the minimum installed-app gate after major changes. |
+| P0-003 | Verify final installed app can start a plain Claude session. | `Complete` | Live installed app returned `FINAL_INSTALLED_APP_SMOKE_OK` with Claude Sonnet 4.6 High in Ask mode. | Verified before the terminal command-bar patch; no Claude runtime changes landed afterward. |
+| P0-004 | Verify packaged resources load. | `Complete` | `npm run test:smoke-config` passed; `/Applications/Orchestrator.app/Contents/Resources/pets/*/{pet.json,spritesheet.webp}` contains ditto, orchestrator, pika, and psyduck. `/pet` applied without visible error. | Pet overlay animation fidelity remains separate P-polish work. |
 
 ### P1: Claude Core Run Semantics
 
@@ -324,7 +324,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | P6-002 | Bounded tool expansions. | `Planned` | Large tool output expands inside scrollable/bounded pane, not entire transcript. | Use synthetic fixture or smoke repo. |
 | P6-003 | Permission card visual polish. | `Implemented` | Long paths wrap and card max-width is 560px; live smoke looked acceptable. | Still include in broader screenshot matrix. |
 | P6-004 | Answered user-question card polish. | `Planned` | Answered card transitions away from active `Answer Required` visual state. | Live smoke worked functionally but looked a bit heavy. |
-| P6-005 | Terminal command input. | `Planned` | User and Computer Use can enter a command, execute it, and see output in terminal pane. | Current readiness banner works; CUA typing did not execute. |
+| P6-005 | Terminal command input. | `Complete` | In the installed app, Computer Use entered `echo TERMINAL_COMMAND_VISIBLE_OK`; the terminal pane showed the command and `TERMINAL_COMMAND_VISIBLE_OK`. | Added an accessible command bar backed by `terminal:runCommand`, fixed terminal live-event targeting to the main renderer, and made terminal colors consistently dark. |
 | P6-006 | Sidebar control audit. | `Planned` | Remove or consolidate duplicate/low-value controls; main transcript stays calm. | Use live walkthrough notes. |
 
 ### P7: Fixtures And Automated Coverage
@@ -416,6 +416,64 @@ Do not mark Claude support `Complete` until all of these pass or are explicitly 
 20. Live Claude Sonnet verification passes when auth/quota/network allow.
 21. Installed app is rebuilt and smoke-verified after major changes.
 
+## Installed App Smoke Checklist
+
+Use this after major runtime, renderer, packaging, or resource changes. Record the result in the Decision Log.
+
+1. Build the packaged app:
+
+```bash
+npm run pack:mac
+```
+
+2. Quit the currently installed app before replacing it:
+
+```bash
+killall Orchestrator
+```
+
+3. Copy the fresh package into `/Applications`:
+
+```bash
+ditto /Users/navital/Desktop/Orchestrator/dist/mac-arm64/Orchestrator.app /Applications/Orchestrator.app
+```
+
+4. Launch the installed app:
+
+```bash
+open -a /Applications/Orchestrator.app
+```
+
+5. Use Computer Use on `Orchestrator` and confirm `get_app_state` returns the accessibility tree for:
+
+```text
+file:///Applications/Orchestrator.app/Contents/Resources/app.asar/out/renderer/index.html
+```
+
+6. Start or select a disposable smoke project session. Send:
+
+```text
+Reply exactly FINAL_INSTALLED_APP_SMOKE_OK. Do not use tools.
+```
+
+Expected: the transcript shows `FINAL_INSTALLED_APP_SMOKE_OK` and the run returns idle.
+
+7. Verify packaged resources:
+
+```bash
+find /Applications/Orchestrator.app/Contents/Resources/pets -maxdepth 2 -type f | sort
+```
+
+Expected: each bundled pet has `pet.json` and `spritesheet.webp`. Running `/pet` should not show missing-resource errors.
+
+8. Toggle Terminal and run:
+
+```text
+echo TERMINAL_COMMAND_VISIBLE_OK
+```
+
+Expected: the terminal pane shows the command and `TERMINAL_COMMAND_VISIBLE_OK`.
+
 ## Verification Commands
 
 Use the strongest feasible set for the change:
@@ -467,5 +525,9 @@ When implementing against this plan:
 - Verified `npm run test:providers`, `npx tsc -p tsconfig.web.json --noEmit`, `npm run test:smoke-config`, `npm run smoke:providers`, `npm run build`, `npm run pack:mac`, and `git diff --check`.
 - Checkpoint commit `97d30c39` (`Polish Claude agent UI flows`) landed the live-tested permission, plan, subagent, skills, settings, slash, and terminal polish pass.
 - Live installed-app GUI smoke before the final label-only polish verified Write allow once, Write allow session, Write deny, AskUserQuestion choices, slash palette grouping, Diff for a real smoke git repo, project command discovery, project skill directory rendering, completed subagent sidebar transcript, and plan approval flow through Claude native `Plan Ready`.
-- The final installed app was rebuilt and copied to `/Applications/Orchestrator.app`; `Computer Use list_apps` saw Orchestrator running, but `Computer Use get_app_state` timed out after relaunch. Treat P0-001 as the first follow-up before claiming the final installed artifact is GUI-smoke verified.
-- Terminal pane readiness was visible (`Shell ready in ...`), but Computer Use could not execute typed commands through the xterm surface. Treat P6-005 as an open first-class UX gap.
+- The final installed-app Computer Use attach timeout no longer reproduces after restart/reinstall. `get_app_state` returned the `/Applications/Orchestrator.app/.../out/renderer/index.html` accessibility tree in 0.5-2.3 seconds.
+- Final installed app plain Claude smoke passed: `Reply exactly FINAL_INSTALLED_APP_SMOKE_OK. Do not use tools.` returned `FINAL_INSTALLED_APP_SMOKE_OK` using Claude Sonnet 4.6 High in Ask mode.
+- Packaged resource smoke passed: `npm run test:smoke-config` passed, installed pet resources include ditto/orchestrator/pika/psyduck `pet.json` and `spritesheet.webp`, and `/pet` applied without visible missing-resource errors.
+- Terminal command input smoke passed in the installed app: Computer Use entered `echo TERMINAL_COMMAND_VISIBLE_OK`, clicked `Run`, and the terminal pane showed both the command and `TERMINAL_COMMAND_VISIBLE_OK`.
+- Terminal design smell fixed during smoke: the terminal pane now uses a consistent dark palette instead of inheriting the light app background.
+- Verification for this installed-app checkpoint: `npm run test:providers`, `npx tsc -p tsconfig.web.json --noEmit`, `npm run test:smoke-config`, `npm run pack:mac`, copy to `/Applications`, relaunch, and Computer Use GUI smoke.

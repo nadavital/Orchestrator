@@ -109,6 +109,7 @@ declare global {
         spawn: (terminalId: string, workDir: string) => Promise<void>
         getBuffer: (terminalId: string) => Promise<string>
         write: (terminalId: string, data: string) => Promise<void>
+        runCommand: (terminalId: string, command: string) => Promise<void>
         resize: (terminalId: string, cols: number, rows: number) => Promise<void>
         clear: (terminalId: string) => Promise<void>
         kill: (terminalId: string) => Promise<void>

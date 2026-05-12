@@ -59,7 +59,8 @@ test('Orchestrator source of truth is backed by Claude fixtures and completion g
     'Orchestrator-native',
     'Provider diagnostics remain available',
     'Mutating provider-management commands are gated',
-    'Verify dev app visually'
+    'P0-003',
+    'P6-001'
   ]) {
     assert.match(plan, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
