@@ -5,6 +5,10 @@ export interface ComposerSendState {
   willQueue: boolean
 }
 
+export function canStopSession(status: SessionStatus): boolean {
+  return status === 'running' || status === 'waiting_for_permission' || status === 'waiting_for_user'
+}
+
 export function getComposerSendState({
   text,
   status,

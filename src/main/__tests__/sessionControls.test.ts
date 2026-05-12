@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { finalizeInterruptedMessages, getComposerSendState, type ChatMessage } from '../../types'
+import { canStopSession, finalizeInterruptedMessages, getComposerSendState, type ChatMessage } from '../../types'
 
 test('composer queues a message while a session is running', () => {
   assert.deepEqual(
@@ -71,4 +71,12 @@ test('interrupted runs settle streaming and queued text messages', () => {
       queueState: undefined
     }
   ])
+})
+
+test('stop control is available for active and paused runs', () => {
+  assert.equal(canStopSession('running'), true)
+  assert.equal(canStopSession('waiting_for_permission'), true)
+  assert.equal(canStopSession('waiting_for_user'), true)
+  assert.equal(canStopSession('idle'), false)
+  assert.equal(canStopSession('error'), false)
 })

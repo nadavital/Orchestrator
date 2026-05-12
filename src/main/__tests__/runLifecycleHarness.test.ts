@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { ChatMessage, ProviderRuntimeKind, RunEvent, SessionStatus } from '../../types'
 import { PROVIDERS } from '../providers'
 import { eventsToMessages } from '../runEvents'
-import { decideRunLifecycle, type RunLifecycleSession } from '../runLifecycle'
+import { decideRunLifecycle, eventsForLifecycleDecision, type RunLifecycleSession } from '../runLifecycle'
 
 interface HarnessResult {
   state: RunLifecycleSession & {
@@ -147,4 +147,21 @@ test('harness stops repeated Cursor reconnect loops with a user-visible message'
     message.type === 'result' &&
     /reconnecting repeatedly/i.test(message.content)
   ))
+})
+
+test('steered follow-up suppresses expected interrupt failure events', () => {
+  const state: RunLifecycleSession = {
+    id: 'session-under-test',
+    provider: 'claude',
+    runtime: 'interactive',
+    status: 'running'
+  }
+  const interrupted: RunEvent[] = [{ type: 'run.failed', content: 'Interrupted by user' }]
+  const lifecycleEvents = eventsForLifecycleDecision(interrupted, { suppressFailure: true })
+  const decision = decideRunLifecycle(state, lifecycleEvents)
+
+  assert.equal(lifecycleEvents.length, 0)
+  assert.equal(decision.status, undefined)
+  assert.equal(decision.shouldKillPty, false)
+  assert.equal(eventsToMessages(lifecycleEvents).some((message) => message.type === 'result' && message.subtype === 'error_during_execution'), false)
 })

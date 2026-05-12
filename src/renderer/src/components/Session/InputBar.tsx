@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, expandSlashCommandPrompt, getComposerSendState, getVisibleModels } from '../../types'
+import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getVisibleModels } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
@@ -162,6 +162,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     canUsePermission
   })
   const canSend = sendState.canSend
+  const canStop = canStopSession(session.status)
 
   const send = async (): Promise<void> => {
     if (!canSend) return
@@ -534,7 +535,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           </div>
 
           {/* Send / Stop */}
-          {session.status === 'running' && (
+          {canStop && (
             <button
               onClick={() => window.api.sessions.stop(session.id)}
               className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"

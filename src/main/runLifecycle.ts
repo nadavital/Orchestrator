@@ -37,6 +37,11 @@ export function isPausedOrFailed(status: SessionStatus): boolean {
   ].includes(status)
 }
 
+export function eventsForLifecycleDecision(events: RunEvent[], options?: { suppressFailure?: boolean }): RunEvent[] {
+  if (!options?.suppressFailure) return events
+  return events.filter((event) => event.type !== 'run.failed')
+}
+
 export function decideRunLifecycle(
   session: RunLifecycleSession | undefined,
   events: RunEvent[]

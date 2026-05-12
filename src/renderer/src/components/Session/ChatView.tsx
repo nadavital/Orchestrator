@@ -446,7 +446,7 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
       return <UserInputCard msg={msg} sessionId={session.id} />
     }
     if (msg.permissionDenials && msg.permissionDenials.length > 0) {
-      return <PermissionCard msg={msg} sessionId={session.id} />
+      return <PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />
     }
     if (msg.subtype === 'success') return null
     return (
@@ -823,11 +823,12 @@ function QuestionBlock({
   )
 }
 
-function PermissionCard({ msg, sessionId }: { msg: ResultMessage; sessionId: string }): JSX.Element {
+function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage; sessionId: string; sessionStatus: Session['status'] }): JSX.Element {
   const [decision, setDecision] = useState<'pending' | 'allowed_once' | 'allowed_session' | 'denied'>('pending')
   const denials = msg.permissionDenials ?? []
   const toolNames = [...new Set(denials.map((d) => d.tool_name))]
   const isPlanApproval = denials.some((d) => d.tool_name === 'ExitPlanMode')
+  const requestIsActive = sessionStatus === 'waiting_for_permission'
 
   const handleAllowOnce = async (): Promise<void> => {
     setDecision('allowed_once')
@@ -886,7 +887,7 @@ function PermissionCard({ msg, sessionId }: { msg: ResultMessage; sessionId: str
             </div>
           ))}
         </div>
-        {decision === 'pending' ? (
+        {decision === 'pending' && requestIsActive ? (
           isPlanApproval ? (
             <div className="flex gap-2">
               <button
@@ -932,10 +933,12 @@ function PermissionCard({ msg, sessionId }: { msg: ResultMessage; sessionId: str
         ) : (
           <div className="text-xs font-medium" style={{ color: decision.startsWith('allowed') ? 'var(--color-green)' : 'var(--color-text-muted)' }}>
             {decision === 'allowed_session'
-              ? isPlanApproval ? 'Plan approved' : 'Allowed for session - resuming...'
+              ? isPlanApproval ? 'Plan approved' : requestIsActive ? 'Allowed for session - resuming...' : 'Allowed for session'
               : decision === 'allowed_once'
-                ? isPlanApproval ? 'Plan approved' : 'Allowed once - resuming...'
-                : isPlanApproval ? 'Kept planning' : 'Denied'}
+                ? isPlanApproval ? 'Plan approved' : requestIsActive ? 'Allowed once - resuming...' : 'Allowed once'
+                : decision === 'denied'
+                  ? isPlanApproval ? 'Kept planning' : 'Denied'
+                  : 'Request closed'}
           </div>
         )}
       </div>

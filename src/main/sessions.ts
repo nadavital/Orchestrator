@@ -11,7 +11,7 @@ import { getProvider, PROVIDERS, resolveProviderBinary } from './providers'
 import type { ProviderAdapter } from './providers'
 import { providerRuntime, type ProviderRuntimeProcess } from './providerRuntime'
 import { eventsToMessages } from './runEvents'
-import { decideRunLifecycle, isPausedOrFailed } from './runLifecycle'
+import { decideRunLifecycle, eventsForLifecycleDecision, isPausedOrFailed } from './runLifecycle'
 import { settingsStore } from './settings'
 import { migrateLegacyUserData } from './userDataMigration'
 import { approvalBroker } from './approvalBroker'
@@ -342,6 +342,11 @@ export const sessionManager = {
         activeNativePrompts.delete(sessionId)
         const followUp = shiftPendingFollowUp(sessionId)
         if (followUp) {
+          for (const message of this.get(sessionId)?.messages ?? []) {
+            if (message.type === 'text' && message.isStreaming) {
+              this.upsertMessage(sessionId, { ...message, isStreaming: false })
+            }
+          }
           void this.runQueuedFollowUp(sessionId, followUp)
           return
         }
@@ -456,7 +461,9 @@ export const sessionManager = {
     })
 
     const currentSession = this.get(sessionId)
-    const decision = decideRunLifecycle(currentSession, events)
+    const suppressInterruptFailure = hasSteerableFollowUp(sessionId)
+    const lifecycleEvents = eventsForLifecycleDecision(events, { suppressFailure: suppressInterruptFailure })
+    const decision = decideRunLifecycle(currentSession, lifecycleEvents)
 
     if (decision.providerSessionId) {
       const sessions = store.get('sessions', [])
@@ -496,7 +503,7 @@ export const sessionManager = {
       }
     }
 
-    const messages = eventsToMessages(events)
+    const messages = eventsToMessages(lifecycleEvents)
     if (messages.length > 0) this.appendMessage(sessionId, messages)
 
     if (hasSteerableFollowUp(sessionId) && !hasActiveTool(sessionId)) {

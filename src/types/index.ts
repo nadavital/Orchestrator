@@ -828,6 +828,7 @@ export {
   extractWorkspaceRootsFromText
 } from './fileReferences'
 export {
+  canStopSession,
   getComposerSendState
 } from './sessionControls'
 export type {
