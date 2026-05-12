@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, SessionRunEventRecord } from '../types'
+import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord } from '../types'
 
 export type SessionEvent =
   | { type: 'created'; session: Session }
@@ -87,7 +87,9 @@ const api = {
     getDiagnostics: (providerId?: string): Promise<Record<string, ProviderDiagnosticInfo>> =>
       ipcRenderer.invoke('providers:getDiagnostics', providerId),
     runCommandSurface: (providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> =>
-      ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId)
+      ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId),
+    discoverClaudeExtensions: (workDir: string): Promise<{ commands: ProviderSlashCommand[]; skills: ProviderSlashCommand[] }> =>
+      ipcRenderer.invoke('providers:discoverClaudeExtensions', workDir)
   },
 
   settings: {

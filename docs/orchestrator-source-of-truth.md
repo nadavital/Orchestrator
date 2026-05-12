@@ -1,6 +1,6 @@
 # Orchestrator Source Of Truth
 
-Last updated: 2026-05-11
+Last updated: 2026-05-12
 
 This is the canonical execution plan for Orchestrator. Every long-running implementation pass should start here, update this file as work lands, and treat the older docs in `docs/` as supporting research or historical evidence.
 
@@ -100,11 +100,11 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Claude structured session | Default Claude chat streams from structured CLI with hook bridge. | `Implemented` | `src/main/sessions.ts`, `src/main/providers.ts`, provider tests, live structured smoke. | Verify multi-turn behavior and make status here match code after each runtime change. |
 | Claude bidirectional input | Send queued/steer/user-question replies into the same provider process where possible. | `Research` | Claude supports `--input-format stream-json`; not implemented. | Spike `ProviderTransport` with stdin/stdout fixture harness; decide if it replaces one-prompt-per-process. |
 | Claude PTY overlay | Native terminal for TUI-only flows and fallback prompt handling. | `Implemented` | Native prompt bridge and live capability suite notes. | Keep as escape hatch; do not make it the normal user-visible runtime. |
-| Provider runtime abstraction | One interface for start/send/resolve/stop across structured, PTY, SDK, app-server. | `Partial` | Provider adapters have command builders; runtime ownership still spread through sessions. | Add `ProviderRuntime`/`ProviderTransport` layer and migrate Claude first. |
+| Provider runtime abstraction | One interface for start/send/resolve/stop across structured, PTY, SDK, app-server. | `Partial` | `src/main/providerRuntime.ts` owns PTY process start/stdout parsing/cleanup, JSONL tailing, and Claude hook prep for current CLI lanes. | Extend the runtime contract for future SDK/app-server lanes and complete live stop/queue/steer verification. |
 | Resume/continue | Continue provider sessions with preserved provider session ids and user-visible continuity. | `Partial` | Claude resume command construction and fixtures. | Live test queued message, permission continuation, and user-question answer. |
 | Stop | Stop consistently interrupts current run and leaves composer usable. | `Partial` | Existing stop path; user reported inconsistency. | Add integration test for stop during text stream, tool call, permission pause, and queued message. |
 | Queue next message | Users can type while a run is active; message sends immediately after the current run completes. | `Partial` | Queue behavior exists, but boundary semantics need hardening. | Add state machine tests and visible queued-message cards. |
-| Steer after current tool | Queued message has a `Steer` action that injects at the next sensible boundary. | `Planned` | Product decision from user feedback. | Define runtime boundary event and implement for Claude first. |
+| Steer after current tool | Queued message has a `Steer` action that injects at the next sensible boundary. | `Implemented` | `providerRuntime.interrupt`, `sessionManager.steerQueuedMessage`, provider runtime fake-process tests. | Live-test steering during Claude text/tool states and verify queued card behavior in the GUI. |
 | Installed app update path | User can run the latest committed build locally. | `Partial` | Build scripts exist; installation is manual per pass. | Add documented install/reinstall checklist and verify installed app after major changes. |
 
 ### Transcript And Layout UX
@@ -166,12 +166,12 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | App slash commands | `/pet`, `/diff`, `/settings`, etc. are provider-neutral app actions. | `Implemented` | Slash palette and `/pet` prior change. | Add tests for command availability and no provider runtime dependency. |
 | Provider slash commands | Prompt-like provider commands appear only where supported and useful. | `Partial` | Provider registry. | Audit visible command list for usefulness and runtime correctness. |
 | Built-in Claude TUI commands | True TUI-only commands open terminal overlay or provider management UI. | `Partial` | `/mcp`, `/plugins`, `/agents` surfaces. | Verify no fake chat handling for TUI-only flows. |
-| Project commands | Discover `.claude/commands` and render in command palette. | `Planned` | Research from CodeMantis pattern. | Implement scanner, frontmatter parser, `$ARGUMENTS` expansion, tests. |
-| Global commands | Discover `~/.claude/commands`. | `Planned` | Research. | Add safe scanner and source labels. |
-| Project skills | Discover `.claude/skills` and expose useful runnable entries. | `Planned` | Skills panel exists, discovery incomplete. | Implement scanner and run one safe skill live. |
-| Global skills | Discover `~/.claude/skills`. | `Planned` | Research. | Add scanner, cache, invalidation. |
-| Skill variables | Expand `${CLAUDE_SESSION_ID}`, `${CLAUDE_SKILL_DIR}`, `$ARGUMENTS` where provider semantics allow. | `Planned` | Research. | Add template expansion tests. |
-| Command safety | Mutating/provider-state commands require confirmation or terminal handoff. | `Partial` | Command surfaces have quota/mutating metadata. | Add central confirmation contract. |
+| Project commands | Discover `.claude/commands` and render in command palette. | `Implemented` | `src/main/claudeExtensions.ts`, slash command tests. | Live-test a safe project command and promote any real transcript shape if needed. |
+| Global commands | Discover `~/.claude/commands`. | `Implemented` | `src/main/claudeExtensions.ts`, source-scoped palette grouping. | Add cache/invalidation if repeated scans become visible. |
+| Project skills | Discover `.claude/skills` and expose useful runnable entries. | `Implemented` | `src/main/claudeExtensions.ts`, `SkillsPanel` project skill directory rendering. | Run one safe project skill live. |
+| Global skills | Discover `~/.claude/skills`. | `Implemented` | `src/main/claudeExtensions.ts`, `SkillsPanel` global skill directory rendering. | Run one safe global skill live. |
+| Skill variables | Expand `${CLAUDE_SESSION_ID}`, `${CLAUDE_SKILL_DIR}`, `$ARGUMENTS` where provider semantics allow. | `Partial` | `$ARGUMENTS` expansion is covered for discovered slash commands. | Add session/skill-dir variable expansion only after confirming Claude semantics for those contexts. |
+| Command safety | Mutating/provider-state commands require confirmation or terminal handoff. | `Implemented` | Provider command surfaces block quota/mutating commands and settings renders them as terminal/confirmation handoffs. | Add explicit terminal-launch buttons only after confirming the desired handoff UX. |
 
 ### MCP, Plugins, Agents Config, And Provider Management
 
@@ -179,12 +179,12 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | --- | --- | --- | --- | --- |
 | Claude auth status | Settings shows compact status, not raw CLI output. | `Implemented` | Smoke probes. | Verify in installed app. |
 | Claude login/logout | Explicit terminal handoff or confirmation; never silent. | `Gated` | CLI help verified. | Design confirmation/terminal flow. |
-| Claude MCP list/get | Settings renders servers/tools compactly. | `Partial` | `mcp list` no-quota probe passes. | Add `mcp get` coverage and UI table. |
+| Claude MCP list/get | Settings renders servers/tools compactly. | `Implemented` | Settings Native surface includes `mcp list` plus safe `mcp get` details per discovered server. | Live-verify against local MCP config in the dev app. |
 | Claude MCP add/remove/reset | Confirmation or terminal handoff only. | `Gated` | CLI help verified. | Add gated command flow in settings. |
 | Native `.mcp.json` prompt | Compact Answer Required card. | `Implemented` | Native prompt tests/live suite. | Manual UI smoke for enable/reject. |
-| Claude plugin list | Settings renders plugins compactly. | `Partial` | `plugin list --json` no-quota probe passes. | Add UI rendering and tests. |
+| Claude plugin list | Settings renders plugins compactly. | `Implemented` | Settings Native surface runs `plugin list --json` and renders structured output compactly. | Live-verify local plugin output shape. |
 | Claude plugin mutations | Explicit confirmation or terminal handoff. | `Gated` | CLI help verified. | Add gated flow or mark terminal-only. |
-| Claude agents list | Settings shows configured agents compactly. | `Partial` | `claude agents` probed. | Render list and add selected-agent launch option. |
+| Claude agents list | Settings shows configured agents compactly. | `Implemented` | Settings Native surface runs `claude agents` and renders compact output. | Add selected-agent launch option after live UX check. |
 | Claude agent mutation | Confirmation/terminal handoff. | `Gated` | CLI help verified. | Decide product scope. |
 | Doctor/update/install/setup-token/project purge | Diagnostics or terminal-only; destructive/system flows gated. | `Gated` | CLI help verified. | Add policy table before implementation. |
 
@@ -229,15 +229,15 @@ Work in this order unless the user explicitly redirects. A long-running agent sh
 - [x] Create this canonical source-of-truth document.
 - [x] Add short pointers in older docs saying this file owns active status.
 - [x] Resolve runtime wording drift in older docs so they no longer contradict the current product decision.
-- [ ] Add a `Last verified` note whenever a live provider suite passes.
+- [x] Add a `Last verified` note whenever a live provider suite passes.
 - [ ] Keep `main` clean with checkpoint commits after broad changes.
 
 ### Phase 1: Runtime Backbone
 
-- [ ] Introduce `ProviderRuntime` or `ProviderTransport` as the owner of provider process lifecycle.
-- [ ] Move Claude structured process start/stdout/stderr/cleanup into that runtime.
-- [ ] Attach the Claude approval broker from the runtime, not ad hoc session code.
-- [ ] Add a fake-process test harness for stdout JSONL, stderr text, stdin input, process exit, and cleanup.
+- [x] Introduce `ProviderRuntime` or `ProviderTransport` as the owner of provider process lifecycle.
+- [x] Move Claude structured process start/stdout/stderr/cleanup into that runtime.
+- [x] Attach the Claude approval broker from the runtime, not ad hoc session code.
+- [x] Add a fake-process test harness for stdout JSONL, stderr text, stdin input, process exit, and cleanup.
 - [ ] Spike Claude `--input-format stream-json` for same-process follow-up, user-question replies, and queued steering.
 - [ ] Decide and document whether Claude remains one-prompt-per-process with `--resume` or becomes a long-lived bidirectional stream.
 - [ ] Ensure stop/queue/steer semantics are runtime-owned and tested.
@@ -255,14 +255,15 @@ Work in this order unless the user explicitly redirects. A long-running agent sh
 
 ### Phase 3: Command, Skill, MCP, Plugin, Agent Surfaces
 
-- [ ] Implement `.claude/commands` scanner with frontmatter and argument expansion.
-- [ ] Implement `~/.claude/commands` scanner with source labels and safe errors.
-- [ ] Implement `.claude/skills` and `~/.claude/skills` discovery.
-- [ ] Add slash palette grouping: app commands, project commands, global commands, provider terminal commands.
-- [ ] Add MCP list/get settings UI with compact status and no raw JSON by default.
-- [ ] Add plugin list settings UI.
-- [ ] Add agents list settings UI and selected-agent launch option.
-- [ ] Add confirmation/terminal handoff policy for all mutating MCP/plugin/agent/auth/system commands.
+- [x] Implement `.claude/commands` scanner with frontmatter and argument expansion.
+- [x] Implement `~/.claude/commands` scanner with source labels and safe errors.
+- [x] Implement `.claude/skills` and `~/.claude/skills` discovery.
+- [x] Add slash palette grouping: app commands, project commands, global commands, provider terminal commands.
+- [x] Add MCP list/get settings UI with compact status and no raw JSON by default.
+- [x] Add plugin list settings UI.
+- [x] Add agents list settings UI.
+- [ ] Add selected-agent launch option.
+- [x] Add confirmation/terminal handoff policy for all mutating MCP/plugin/agent/auth/system commands.
 
 ### Phase 4: Cross-Provider Runtime Reuse
 
@@ -275,13 +276,13 @@ Work in this order unless the user explicitly redirects. A long-running agent sh
 
 ### Phase 5: Packaging And Release Readiness
 
-- [ ] Run `npm run test:providers`.
-- [ ] Run `npx tsc -p tsconfig.web.json --noEmit`.
-- [ ] Run `npm run test:smoke-config`.
-- [ ] Run `npm run smoke:providers`.
-- [ ] Run `npm run build`.
-- [ ] Run `npm run live:claude-capabilities` with Sonnet when quota/network/auth allow.
-- [ ] Run `LIVE_PROVIDERS=claude npm run live:providers` with Sonnet when quota/network/auth allow.
+- [x] Run `npm run test:providers`.
+- [x] Run `npx tsc -p tsconfig.web.json --noEmit`.
+- [x] Run `npm run test:smoke-config`.
+- [x] Run `npm run smoke:providers`.
+- [x] Run `npm run build`.
+- [x] Run `npm run live:claude-capabilities` with Sonnet when quota/network/auth allow.
+- [x] Run `LIVE_PROVIDERS=claude npm run live:providers` with Sonnet when quota/network/auth allow.
 - [ ] Verify dev app visually for the core flows.
 - [ ] Rebuild/install the app for local use.
 - [ ] Verify installed app launches, has current pets/resources, and can start a Claude session.
@@ -391,3 +392,14 @@ When implementing against this plan:
 - Current code default for Claude sessions is structured/headless CLI mode with hook approval bridge. Native interactive PTY remains an escape hatch.
 - Older docs now point here for active status. Some historical notes still describe native CLI experiments, but their active runtime-decision sections have been aligned to the structured Claude default.
 - Removed superseded plan/checklist docs from the remote-bound tree so this file remains the only active product specification.
+
+### 2026-05-12
+
+- Added `ProviderRuntimeManager` as the process lifecycle owner for current CLI lanes, including Claude hook prep, PTY stdout parsing, JSONL tailer cleanup, stop, and interrupt-for-steer behavior.
+- Added project/global Claude command and skill discovery with frontmatter descriptions, source-scoped slash palette grouping, and `$ARGUMENTS` expansion.
+- Settings Native surfaces now include compact MCP list/details, plugin JSON list, and agents list rendering while mutating/quota commands remain terminal/confirmation handoffs.
+- Fixed live Claude capability capture to parse structured `-p stream-json` PTY stdout and use the structured runtime for normal Claude capability scenarios.
+- Last verified: `CLAUDE_CAPABILITY_STRICT_EMPTY_MCP=1 npm run live:claude-capabilities` passed with Sonnet (`claude-sonnet-4-6`, low effort), covering plain answer, file ops, plan mode, streaming, slash help, auth status, MCP list, plugin JSON list, auto-mode defaults, and agents list.
+- Last verified: `LIVE_PROVIDERS=claude npm run live:providers` passed with Sonnet (`claude-sonnet-4-6`, low effort), capturing `session.started`, assistant streaming, and `run.completed`.
+- `npm run pack:mac` rebuilt `dist/mac-arm64/Orchestrator.app`; packaged resources include the bundled pets, and the packaged app launch was confirmed by process list. It was not copied over `/Applications/Orchestrator.app`.
+- Verified `npm run test:providers`, `npx tsc -p tsconfig.web.json --noEmit`, `npm run test:smoke-config`, `npm run smoke:providers`, `npm run build`, `npm run pack:mac`, and `git diff --check`.

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import type { ProviderRuntimeInfo, ResolvedExecutionPolicy, Session } from '../../types'
+import type { ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, getComposerSendState, getVisibleModels } from '../../types'
+import { PROVIDER_DEFS, expandSlashCommandPrompt, getComposerSendState, getVisibleModels } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
@@ -32,6 +32,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const [showPermMenu, setShowPermMenu] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
+  const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const modeMenuRef = useRef<HTMLDivElement>(null)
   const agentMenuRef = useRef<HTMLDivElement>(null)
@@ -44,6 +45,16 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   useEffect(() => {
     window.api.providers.getRuntimeInfo().then(setRuntimeInfo)
   }, [])
+
+  useEffect(() => {
+    if ((session.provider ?? 'claude') !== 'claude') {
+      setExtensionCommands([])
+      return
+    }
+    window.api.providers.discoverClaudeExtensions(session.workDir)
+      .then((extensions) => setExtensionCommands([...extensions.commands, ...extensions.skills]))
+      .catch(() => setExtensionCommands([]))
+  }, [session.provider, session.workDir])
 
   useEffect(() => {
     if (injectedText) {
@@ -151,7 +162,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
   const send = async (): Promise<void> => {
     if (!canSend) return
-    const prompt = text.trim()
+    const prompt = expandedCommandPrompt(text.trim()) ?? text.trim()
     setText('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined)
@@ -186,6 +197,15 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
         textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'
       }
     }, 0)
+  }
+
+  const expandedCommandPrompt = (value: string): string | null => {
+    const match = value.match(/^(\/\S+)(?:\s+([\s\S]*))?$/)
+    if (!match) return null
+    const commandName = match[1]
+    const args = match[2] ?? ''
+    const command = extensionCommands.find((candidate) => candidate.name === commandName)
+    return command ? expandSlashCommandPrompt(command, args) : null
   }
 
   const applySlashCommand = (command: SlashPaletteCommand): void => {
@@ -256,6 +276,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           <SlashCommandPalette
             query={slashQuery!}
             providerRuntime={providerRuntime}
+            discoveredCommands={extensionCommands}
             onSelect={applySlashCommand}
             onDismiss={() => setText('')}
             selectedIndex={slashIndex}

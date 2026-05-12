@@ -85,7 +85,7 @@ export function nativeCliPromptSubmitSequence(kind: NativeCliPromptKind, answer:
   const mapped = nativeCliPromptAnswer(kind, answer)
   if (mapped === '\x1b') return mapped
   if (kind === 'claude_workspace_trust' || kind === 'claude_mcp_servers_enable') {
-    return `${mapped}\x1b[13u`
+    return `${mapped}\r`
   }
   return `${mapped}\n`
 }

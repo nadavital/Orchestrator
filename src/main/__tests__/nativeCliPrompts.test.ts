@@ -17,8 +17,8 @@ test('maps Claude workspace trust prompt to a compact user-input card', () => {
   assert.equal(content.questions[0].options?.[0].label, 'Trust workspace')
   assert.equal(nativeCliPromptAnswer('claude_workspace_trust', 'Trust workspace'), '')
   assert.equal(nativeCliPromptAnswer('claude_workspace_trust', 'Exit'), '2')
-  assert.equal(nativeCliPromptSubmitSequence('claude_workspace_trust', 'Trust workspace'), '\x1b[13u')
-  assert.equal(nativeCliPromptSubmitSequence('claude_workspace_trust', 'Exit'), '2\x1b[13u')
+  assert.equal(nativeCliPromptSubmitSequence('claude_workspace_trust', 'Trust workspace'), '\r')
+  assert.equal(nativeCliPromptSubmitSequence('claude_workspace_trust', 'Exit'), '2\r')
 })
 
 test('detects and maps Claude MCP server enable prompt', () => {
@@ -31,6 +31,6 @@ test('detects and maps Claude MCP server enable prompt', () => {
   assert.equal(content.questions[0].options?.[0].label, 'Enable selected')
   assert.equal(nativeCliPromptAnswer('claude_mcp_servers_enable', 'Enable selected'), '')
   assert.equal(nativeCliPromptAnswer('claude_mcp_servers_enable', 'Reject all'), '\x1b')
-  assert.equal(nativeCliPromptSubmitSequence('claude_mcp_servers_enable', 'Enable selected'), '\x1b[13u')
+  assert.equal(nativeCliPromptSubmitSequence('claude_mcp_servers_enable', 'Enable selected'), '\r')
   assert.equal(nativeCliPromptSubmitSequence('claude_mcp_servers_enable', 'Reject all'), '\x1b')
 })

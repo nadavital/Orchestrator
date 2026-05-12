@@ -128,7 +128,7 @@ test('Claude slash command surface follows feature support without a user-visibl
 
   assert.ok(commands.some((command) => command.name === '/settings' && command.group === 'App'))
   assert.ok(commands.some((command) => command.name === '/review' && command.group === 'Provider'))
-  assert.ok(commands.some((command) => command.name === '/agents' && command.group === 'Provider'))
+  assert.ok(commands.some((command) => command.name === '/agents' && command.group === 'Terminal'))
 })
 
 test('Diff summary makes deletion and large changes visible without dumping patches', () => {

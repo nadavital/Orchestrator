@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, SessionRunEventRecord } from '../../types'
+import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord } from '../../types'
 
 export interface AppSettings {
   defaultProvider: string
@@ -89,6 +89,7 @@ declare global {
         getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>
         getDiagnostics: (providerId?: string) => Promise<Record<string, ProviderDiagnosticInfo>>
         runCommandSurface: (providerId: string, surfaceId: string) => Promise<ProviderCommandSurfaceResult>
+        discoverClaudeExtensions: (workDir: string) => Promise<{ commands: ProviderSlashCommand[]; skills: ProviderSlashCommand[] }>
       }
       settings: {
         get: () => Promise<AppSettings>

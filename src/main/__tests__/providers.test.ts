@@ -128,6 +128,8 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
 
   assert.ok(runtimeInfo.claude.registry.features.some((feature) => feature.id === 'agents'))
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'agents-list' && surface.quota === 'none'))
+  assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'mcp-details' && surface.command.join(' ') === 'mcp get'))
+  assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'plugin-list' && surface.command.join(' ') === 'plugin list --json'))
   assert.ok(runtimeInfo.claude.registry.commandSurfaces.some((surface) => surface.id === 'ultrareview-json' && surface.quota === 'may-use-quota'))
   assert.ok(runtimeInfo.codex.registry.features.some((feature) => feature.id === 'multi-agent'))
   assert.ok(runtimeInfo.copilot.registry.features.some((feature) => feature.id === 'subagents'))

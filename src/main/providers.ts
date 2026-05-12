@@ -746,7 +746,8 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       commandSurface('auth-status', 'Auth status', 'runtime', ['auth', 'status'], 'headless', 'none', false, 'settings', { featureId: 'auth' }),
       commandSurface('agents-list', 'Configured agents', 'agents', ['agents'], 'headless', 'none', false, 'settings', { featureId: 'agents' }),
       commandSurface('mcp-list', 'MCP servers', 'mcp', ['mcp', 'list'], 'headless', 'none', false, 'settings', { featureId: 'mcp' }),
-      commandSurface('plugin-list', 'Plugins', 'extensions', ['plugin', 'list'], 'headless', 'none', false, 'settings', { featureId: 'plugins' }),
+      commandSurface('mcp-details', 'MCP details', 'mcp', ['mcp', 'get'], 'headless', 'none', false, 'settings', { featureId: 'mcp', note: 'Runs mcp list, then mcp get for each discovered server.' }),
+      commandSurface('plugin-list', 'Plugins', 'extensions', ['plugin', 'list', '--json'], 'headless', 'none', false, 'settings', { featureId: 'plugins' }),
       commandSurface('auto-mode-defaults', 'Auto mode defaults', 'permissions', ['auto-mode', 'defaults'], 'headless', 'none', false, 'settings', { featureId: 'auto-mode' }),
       commandSurface('project-purge', 'Purge project state', 'workspace', ['project', 'purge'], 'headless', 'none', true, 'settings', { featureId: 'project-state' }),
       commandSurface('ultrareview-json', 'Ultrareview JSON', 'review', ['ultrareview', '--json'], 'headless', 'may-use-quota', false, 'composer', { featureId: 'ultrareview' }),
@@ -2262,6 +2263,101 @@ export function getProvider(id: string): ProviderAdapter {
   return PROVIDERS[id] ?? PROVIDERS.claude
 }
 
+function claudeMcpServerNames(output: string): string[] {
+  const names = output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const withoutMarker = line.replace(/^[•*-]\s*/, '')
+      const candidate = withoutMarker.split(/\s+|:/)[0]?.trim()
+      return candidate && !/^(name|server|servers|no|none)$/i.test(candidate) ? candidate : null
+    })
+    .filter((name): name is string => Boolean(name))
+
+  return [...new Set(names)]
+}
+
+function runClaudeMcpDetails(providerId: string, surfaceId: string, binary: string): ProviderCommandSurfaceResult {
+  try {
+    const listOutput = execFileSync(binary, ['mcp', 'list'], {
+      encoding: 'utf8',
+      timeout: PROVIDER_COMMAND_SURFACE_TIMEOUT_MS,
+      env: providerSpawnEnv(providerId),
+      maxBuffer: 512 * 1024
+    })
+    const names = claudeMcpServerNames(listOutput)
+    const details = names.map((name) => {
+      try {
+        const output = execFileSync(binary, ['mcp', 'get', name], {
+          encoding: 'utf8',
+          timeout: PROVIDER_COMMAND_SURFACE_TIMEOUT_MS,
+          env: providerSpawnEnv(providerId),
+          maxBuffer: 512 * 1024
+        })
+        return { server: name, status: 'ok', detail: redactProviderCommandOutput(output.trim()) }
+      } catch (error) {
+        const err = error as { stdout?: unknown; stderr?: unknown; message?: string }
+        return { server: name, status: 'error', detail: redactProviderCommandOutput(stringifyCommandError(err)) }
+      }
+    })
+    return {
+      providerId,
+      surfaceId,
+      status: 'ok',
+      output: JSON.stringify(details, null, 2)
+    }
+  } catch (error) {
+    const err = error as { stdout?: unknown; stderr?: unknown; message?: string }
+    return {
+      providerId,
+      surfaceId,
+      status: 'error',
+      output: redactProviderCommandOutput(stringifyCommandError(err))
+    }
+  }
+}
+
+async function runClaudeMcpDetailsAsync(providerId: string, surfaceId: string, binary: string): Promise<ProviderCommandSurfaceResult> {
+  try {
+    const { stdout } = await execFileAsync(binary, ['mcp', 'list'], {
+      encoding: 'utf8',
+      timeout: PROVIDER_COMMAND_SURFACE_TIMEOUT_MS,
+      env: providerSpawnEnv(providerId),
+      maxBuffer: 512 * 1024
+    })
+    const names = claudeMcpServerNames(String(stdout))
+    const details = await Promise.all(names.map(async (name) => {
+      try {
+        const result = await execFileAsync(binary, ['mcp', 'get', name], {
+          encoding: 'utf8',
+          timeout: PROVIDER_COMMAND_SURFACE_TIMEOUT_MS,
+          env: providerSpawnEnv(providerId),
+          maxBuffer: 512 * 1024
+        })
+        return { server: name, status: 'ok', detail: redactProviderCommandOutput(String(result.stdout).trim()) }
+      } catch (error) {
+        const err = error as { stdout?: unknown; stderr?: unknown; message?: string }
+        return { server: name, status: 'error', detail: redactProviderCommandOutput(stringifyCommandError(err)) }
+      }
+    }))
+    return {
+      providerId,
+      surfaceId,
+      status: 'ok',
+      output: JSON.stringify(details, null, 2)
+    }
+  } catch (error) {
+    const err = error as { stdout?: unknown; stderr?: unknown; message?: string }
+    return {
+      providerId,
+      surfaceId,
+      status: 'error',
+      output: redactProviderCommandOutput(stringifyCommandError(err))
+    }
+  }
+}
+
 export function runProviderCommandSurface(providerId: string, surfaceId: string): ProviderCommandSurfaceResult {
   const provider = getProvider(providerId)
   const registry = providerCapabilityRegistry(provider.id)
@@ -2291,6 +2387,9 @@ export function runProviderCommandSurface(providerId: string, surfaceId: string)
       status: 'error',
       output: `${provider.id} CLI is not available.`
     }
+  }
+  if (provider.id === 'claude' && surface.id === 'mcp-details') {
+    return runClaudeMcpDetails(provider.id, surface.id, binary)
   }
 
   try {
@@ -2346,6 +2445,9 @@ export async function runProviderCommandSurfaceAsync(providerId: string, surface
       status: 'error',
       output: `${provider.id} CLI is not available.`
     }
+  }
+  if (provider.id === 'claude' && surface.id === 'mcp-details') {
+    return await runClaudeMcpDetailsAsync(provider.id, surface.id, binary)
   }
 
   try {

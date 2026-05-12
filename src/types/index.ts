@@ -483,6 +483,7 @@ export interface ProviderSlashCommand {
   description?: string
   providerId: string
   source: ProviderSlashCommandSource
+  scope?: 'project' | 'global' | 'provider'
   runtime: ProviderRuntimeKind
   handler: 'app-action' | 'send-to-provider' | 'insert-prompt' | 'sdk-command'
   arguments?: Array<{ name: string; optional?: boolean; description?: string }>
@@ -785,6 +786,7 @@ export {
 export {
   APP_SLASH_COMMANDS,
   availableSlashCommands,
+  expandSlashCommandPrompt,
   getSlashQuery
 } from './slashCommands'
 export type {

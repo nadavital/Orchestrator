@@ -64,7 +64,7 @@ function makeRequest(cwd, prompt, patch = {}) {
     disallowedTools: patch.disallowedTools ?? [],
     availableTools: patch.availableTools ?? [],
     additionalDirs: patch.additionalDirs ?? [],
-    runtime: 'interactive'
+    runtime: patch.runtime ?? 'headless'
   }
 }
 
@@ -123,6 +123,7 @@ async function runNativeScenario(scenario) {
 
   const events = []
   let raw = ''
+  let stdoutLineBuffer = ''
   const answeredNativePrompts = new Set()
   let terminalStreamState
   let finished = false
@@ -177,6 +178,10 @@ async function runNativeScenario(scenario) {
 
     pty.onData((data) => {
       raw += data
+      stdoutLineBuffer += data
+      const lines = stdoutLineBuffer.split('\n')
+      stdoutLineBuffer = lines.pop() ?? ''
+      for (const line of lines) events.push(...provider.parseOutputLine(line))
       answerTerminalCapabilityRequests(pty, data)
       const nativePrompt = detectNativeCliPrompt('claude', raw)
       if (nativePrompt && !answeredNativePrompts.has(nativePrompt)) {
@@ -271,6 +276,7 @@ const scenarios = [
   },
   {
     id: 'slash_help',
+    request: { runtime: 'interactive' },
     prompt: '/help',
     finishWhen: ({ raw }) => /(?:slash commands|available commands|\/(?:clear|help|model|status))/i.test(raw),
     assert: ({ raw }) => [

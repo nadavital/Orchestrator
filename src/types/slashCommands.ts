@@ -1,6 +1,6 @@
 import type { ProviderRuntimeInfo, ProviderSlashCommand } from './index'
 
-export type SlashPaletteGroup = 'App' | 'Provider'
+export type SlashPaletteGroup = 'App' | 'Provider' | 'Project' | 'Global' | 'Skills' | 'Terminal'
 
 export type SlashPaletteCommand = ProviderSlashCommand & {
   group: SlashPaletteGroup
@@ -82,7 +82,8 @@ export const APP_SLASH_COMMANDS: ProviderSlashCommand[] = [
 ]
 
 export function availableSlashCommands(
-  providerRuntime: ProviderRuntimeInfo | undefined
+  providerRuntime: ProviderRuntimeInfo | undefined,
+  discoveredCommands: ProviderSlashCommand[] = []
 ): SlashPaletteCommand[] {
   const featureSupport = new Map(
     providerRuntime?.registry.features.map((feature) => [feature.id, feature.support]) ?? []
@@ -94,9 +95,27 @@ export function availableSlashCommands(
   }) ?? []
 
   return [
-    ...APP_SLASH_COMMANDS.map((command) => ({ ...command, group: 'App' as const })),
-    ...providerCommands.map((command) => ({ ...command, group: 'Provider' as const }))
+    ...APP_SLASH_COMMANDS.map((command) => ({ ...command, group: slashCommandGroup(command) })),
+    ...providerCommands.map((command) => ({ ...command, group: slashCommandGroup(command) })),
+    ...discoveredCommands.map((command) => ({ ...command, group: slashCommandGroup(command) }))
   ]
+}
+
+export function slashCommandGroup(command: ProviderSlashCommand): SlashPaletteGroup {
+  if (command.source === 'app') return 'App'
+  if (command.source === 'skill') return 'Skills'
+  if (command.scope === 'project') return 'Project'
+  if (command.scope === 'global') return 'Global'
+  if (command.runtime === 'interactive' && command.handler === 'send-to-provider') return 'Terminal'
+  return 'Provider'
+}
+
+export function expandSlashCommandPrompt(command: ProviderSlashCommand, args: string): string | null {
+  if (command.handler !== 'insert-prompt' || !command.prompt) return null
+  const trimmedArgs = args.trim()
+  return command.prompt
+    .replace(/\$\{?ARGUMENTS\}?/g, trimmedArgs)
+    .trim()
 }
 
 export function getSlashQuery(text: string): string | null {

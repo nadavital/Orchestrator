@@ -64,11 +64,13 @@ export default function SkillsPanel({ provider, workDir, onClose, embedded = fal
       if (provider === 'claude') {
         const projectClaudeMd = join(workDir, 'CLAUDE.md')
         const projectClaudeMdAlt = join(workDir, '.claude', 'CLAUDE.md')
-        const [globalContent, projectContent, globalCmds, projectCmds, settingsContent] = await Promise.all([
+        const [globalContent, projectContent, globalCmds, projectCmds, globalSkills, projectSkills, settingsContent] = await Promise.all([
           read(join(home, '.claude', 'CLAUDE.md')),
           read(projectClaudeMd),
           listDir(join(home, '.claude', 'commands')),
           listDir(join(workDir, '.claude', 'commands')),
+          listDir(join(home, '.claude', 'skills')),
+          listDir(join(workDir, '.claude', 'skills')),
           read(join(home, '.claude', 'settings.json')),
         ])
         const projectPath = projectContent !== null ? projectClaudeMd : projectClaudeMdAlt
@@ -93,6 +95,8 @@ export default function SkillsPanel({ provider, workDir, onClose, embedded = fal
           dirs: [
             { path: join(home, '.claude', 'commands'), label: 'Global commands', files: globalCmds },
             { path: join(workDir, '.claude', 'commands'), label: 'Project commands', files: projectCmds },
+            { path: join(home, '.claude', 'skills'), label: 'Global skills', files: globalSkills },
+            { path: join(workDir, '.claude', 'skills'), label: 'Project skills', files: projectSkills },
           ],
           mcpServers
         }

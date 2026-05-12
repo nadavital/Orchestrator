@@ -724,8 +724,11 @@ function CommandSurfaceOutput({
       </div>
 
       {!runnable ? (
-        <div style={{ padding: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
-          Open this from the terminal or composer when you intentionally want to run it.
+        <div style={{ padding: 10, fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.45 }}>
+          {surface.mutatesState
+            ? 'This changes provider or project state. Orchestrator keeps it as an explicit terminal handoff.'
+            : 'This may spend model quota or open an interactive provider flow, so it is not run from settings.'}
+          {surface.note && <div style={{ marginTop: 6 }}>{surface.note}</div>}
         </div>
       ) : output ? (
         <StructuredCommandOutput output={output} color={color} />
