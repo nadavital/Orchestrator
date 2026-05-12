@@ -69,9 +69,7 @@ These files remain useful, but this file is the root plan:
 | `docs/provider-cli-spec.md` | CLI evidence and provider capability reference. |
 | `docs/claude-cli-map.md` | Claude-specific CLI to Orchestrator mapping reference. |
 | `docs/claude-code-support-test-matrix.md` | Historical Claude live/fixture matrix. Promote important facts here as work continues. |
-| `docs/claude-acceptance-matrix.md` | Claude UX acceptance reference. |
 | `docs/provider-capability-research.md` | Research notes from provider/open-source/SDK investigations. |
-| `docs/orchestrator-completion-spec.md` | Older broad checklist; should not be used as the active status board. |
 
 ## Orchestrator-Native Abstractions
 
@@ -292,6 +290,21 @@ Work in this order unless the user explicitly redirects. A long-running agent sh
 
 Add or refresh these fixtures as features are implemented:
 
+Current Claude fixture files that back the implemented rows:
+
+- `plain-answer.jsonl`
+- `partial-message.jsonl`
+- `repo-actions.jsonl`
+- `permission-denied.jsonl`
+- `ask-user-question.jsonl`
+- `plan-todos.jsonl`
+- `exit-plan-denial.jsonl`
+- `task-agent.jsonl`
+- `agent-tool.jsonl`
+- `task-progress.jsonl`
+- `agent-partial-message.jsonl`
+- `sidechain-agent.jsonl`
+
 - [x] Claude plain answer.
 - [x] Claude partial assistant message.
 - [x] Claude file/tool action bundle.
@@ -377,3 +390,4 @@ When implementing against this plan:
 - Created this canonical source-of-truth file.
 - Current code default for Claude sessions is structured/headless CLI mode with hook approval bridge. Native interactive PTY remains an escape hatch.
 - Older docs now point here for active status. Some historical notes still describe native CLI experiments, but their active runtime-decision sections have been aligned to the structured Claude default.
+- Removed superseded plan/checklist docs from the remote-bound tree so this file remains the only active product specification.

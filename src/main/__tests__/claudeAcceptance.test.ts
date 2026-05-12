@@ -34,8 +34,8 @@ function records(events: RunEvent[]): SessionRunEventRecord[] {
   }))
 }
 
-test('Claude acceptance matrix is backed by fixtures and probes', () => {
-  const matrix = readFileSync(join(process.cwd(), 'docs/claude-acceptance-matrix.md'), 'utf8')
+test('Orchestrator source of truth is backed by Claude fixtures and completion gates', () => {
+  const plan = readFileSync(join(process.cwd(), 'docs/orchestrator-source-of-truth.md'), 'utf8')
   for (const fixture of [
     'plain-answer.jsonl',
     'repo-actions.jsonl',
@@ -47,22 +47,21 @@ test('Claude acceptance matrix is backed by fixtures and probes', () => {
     'agent-tool.jsonl',
     'task-progress.jsonl'
   ]) {
-    assert.match(matrix, new RegExp(fixture.replace('.', '\\.')), `Matrix should cite ${fixture}`)
+    assert.match(plan, new RegExp(fixture.replace('.', '\\.')), `Source of truth should cite ${fixture}`)
   }
-  for (const surface of ['slash commands', 'Skills panel', 'Diff panel', 'Agents sidebar']) {
-    assert.match(matrix, new RegExp(surface, 'i'), `Matrix should cover ${surface}`)
+  for (const surface of ['slash commands', 'skills', 'Diff', 'subagents']) {
+    assert.match(plan, new RegExp(surface, 'i'), `Source of truth should cover ${surface}`)
   }
-  assert.match(matrix, /Allow Once/)
-  assert.match(matrix, /Allow Session/)
+  assert.match(plan, /Allow once/i)
+  assert.match(plan, /Allow session/i)
 
-  const completionSpec = readFileSync(join(process.cwd(), 'docs/orchestrator-completion-spec.md'), 'utf8')
   for (const contract of [
-    'Provider registries expose provider-specific features',
-    'Permission cards support `Allow Once`',
-    'Mutating provider command surfaces are blocked',
-    'Computer Use GUI verification'
+    'Orchestrator-native',
+    'Provider diagnostics remain available',
+    'Mutating provider-management commands are gated',
+    'Verify dev app visually'
   ]) {
-    assert.match(completionSpec, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    assert.match(plan, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
 })
 
