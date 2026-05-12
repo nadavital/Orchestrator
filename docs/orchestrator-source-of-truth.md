@@ -137,14 +137,14 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
 | Claude hook broker | Tool approval cards can resolve without killing/replaying the Claude process when a hook is pending. | `Implemented` | `src/main/approvalBroker.ts`, tests. | Live mutating-tool approval flow with Sonnet. |
-| Allow once | Allows one action without changing session settings. | `Implemented` | Permission card behavior and tests. | Live test. |
-| Allow session | Persists scoped grant and resumes. | `Implemented` | Session allowlist handling. | Live test and verify persisted command flags. |
-| Deny | Denies cleanly without corrupting session state. | `Implemented` | Fixture coverage. | Live deny test. |
+| Allow once | Allows one action without changing session settings. | `Complete` | Permission card behavior, tests, and live installed-app Write smoke. | Keep covered by regression tests when approval broker changes. |
+| Allow session | Persists scoped grant and resumes. | `Complete` | Session allowlist handling, tests, and live installed-app two-Write smoke. | Add path/tool scoped grants before broadening beyond tool names. |
+| Deny | Denies cleanly without corrupting session state. | `Complete` | Fixture coverage, tests, and live installed-app denied Write smoke. | Keep stop/deny interaction covered in P1/P3 tasks. |
 | Permission scopes | Tool/path/url/MCP scopes display compactly and map back to provider flags/settings. | `Partial` | Tool names implemented; richer scopes incomplete. | Add path/url/MCP-specific scope UI and parser tests. |
 | AskUserQuestion | User question card with choices/custom answer, separate from permissions. | `Implemented` | Fixture-covered. | Live AskUserQuestion session and resume test. |
 | SendUserMessage/brief updates | Provider user-facing questions/updates map to user input or assistant status appropriately. | `Research` | Claude help mentions `--brief`. | Capture live/fixture output and decide UI. |
 | Plan mode enter | Plan state appears in sidebar/card without crowding transcript. | `Partial` | Fixtures; live native placeholder observed. | Capture real structured plan body and terminal preview path. |
-| Plan approval | `Approve Plan` and `Keep Planning` resume correctly. | `Partial` | ExitPlanMode fixture. | Live plan approval and keep-planning flow. |
+| Plan approval | `Approve Plan` and `Keep Planning` resume correctly. | `Partial` | ExitPlanMode fixture; live approve path verified in installed app. | Live-test keep-planning and save plan approval fixture. |
 | Permission mode picker | Product labels map to provider-native policy. | `Implemented` | Provider registry/tests. | Live non-dangerous modes; gated bypass manual check. |
 
 ### Agents And Subagents
@@ -152,7 +152,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
 | Active agent chips | Running agents appear above composer, not as a noisy sidebar list. | `Implemented` | `RunningAgentsStrip`. | Live subagent run and UI verification. |
-| Agent sidebar tabs | Clicking an agent chip opens/focuses that agent transcript tab. | `Partial` | Sidebar tab UI exists; transcripts unreliable per user. | Fix transcript source and tab lifecycle. |
+| Agent sidebar tabs | Clicking an agent chip opens/focuses that agent transcript tab. | `Implemented` | Sidebar tab UI exists; completed subagent transcript verified live after commit `97d30c39`. | Live-test active/running chip behavior and sidechain transcripts. |
 | Task tool | `Task` creates/updates/completes an `AgentNode`. | `Implemented` | Fixtures. | Live Claude task run. |
 | Agent tool | `Agent` maps to same shared agent model. | `Implemented` | Fixtures. | Live selected-agent run if locally available. |
 | Sidechain/nested transcript | Child transcript captured without raw event spam. | `Partial` | Fixture-covered; user saw `no subagent transcript`. | Trace real Claude JSONL sidechain location and promote fixture. |
@@ -168,7 +168,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Built-in Claude TUI commands | True TUI-only commands open terminal overlay or provider management UI. | `Partial` | `/mcp`, `/plugins`, `/agents` surfaces. | Verify no fake chat handling for TUI-only flows. |
 | Project commands | Discover `.claude/commands` and render in command palette. | `Implemented` | `src/main/claudeExtensions.ts`, slash command tests. | Live-test a safe project command and promote any real transcript shape if needed. |
 | Global commands | Discover `~/.claude/commands`. | `Implemented` | `src/main/claudeExtensions.ts`, source-scoped palette grouping. | Add cache/invalidation if repeated scans become visible. |
-| Project skills | Discover `.claude/skills` and expose useful runnable entries. | `Implemented` | `src/main/claudeExtensions.ts`, `SkillsPanel` project skill directory rendering. | Run one safe project skill live. |
+| Project skills | Discover `.claude/skills` and expose useful runnable entries. | `Implemented` | `src/main/claudeExtensions.ts`, `SkillsPanel` project skill directory rendering, live project skill discovery smoke. | Run one safe project skill live. |
 | Global skills | Discover `~/.claude/skills`. | `Implemented` | `src/main/claudeExtensions.ts`, `SkillsPanel` global skill directory rendering. | Run one safe global skill live. |
 | Skill variables | Expand `${CLAUDE_SESSION_ID}`, `${CLAUDE_SKILL_DIR}`, `$ARGUMENTS` where provider semantics allow. | `Partial` | `$ARGUMENTS` expansion is covered for discovered slash commands. | Add session/skill-dir variable expansion only after confirming Claude semantics for those contexts. |
 | Command safety | Mutating/provider-state commands require confirmation or terminal handoff. | `Implemented` | Provider command surfaces block quota/mutating commands and settings renders them as terminal/confirmation handoffs. | Add explicit terminal-launch buttons only after confirming the desired handoff UX. |
@@ -224,68 +224,130 @@ All providers should translate into these shapes at the adapter/runtime boundary
 
 Work in this order unless the user explicitly redirects. A long-running agent should pick the first unchecked item whose dependencies are satisfied, implement it, verify it, update this file, and commit at stable checkpoints.
 
-### Phase 0: Keep The Plan Trustworthy
+Each task below must end with evidence in this file. Prefer exact command names, fixture names, screenshots, commit hashes, or a short live-observation note. If a task cannot be verified in the current environment, mark it `Blocked` with the concrete blocker.
 
-- [x] Create this canonical source-of-truth document.
-- [x] Add short pointers in older docs saying this file owns active status.
-- [x] Resolve runtime wording drift in older docs so they no longer contradict the current product decision.
-- [x] Add a `Last verified` note whenever a live provider suite passes.
-- [ ] Keep `main` clean with checkpoint commits after broad changes.
+### Verified Checkpoints
 
-### Phase 1: Runtime Backbone
+| ID | Checkpoint | Status | Evidence |
+| --- | --- | --- | --- |
+| V-001 | Canonical source-of-truth document exists and older docs point here. | `Complete` | `docs/orchestrator-source-of-truth.md`; older planning docs cleaned up in previous checkpoint. |
+| V-002 | Runtime backbone owns provider process lifecycle and Claude hook prep. | `Complete` | `src/main/providerRuntime.ts`; `npm run test:providers`. |
+| V-003 | Claude command and skill discovery exists for project and global scopes. | `Complete` | `src/main/claudeExtensions.ts`; slash command tests; live project command/skill discovery smoke on `/private/tmp/orchestrator-agent-ui-smoke`. |
+| V-004 | Compact settings surfaces exist for Claude MCP, plugins, agents, auth, and auto-mode defaults. | `Implemented` | `src/renderer/src/components/SettingsModal.tsx`; provider tests; needs installed-app settings smoke. |
+| V-005 | Permission cards support allow once, allow session, and deny without confusing user questions. | `Implemented` | `src/main/approvalBroker.ts`; `src/main/sessions.ts`; live Write allow-once, deny, and allow-session smoke in installed app. |
+| V-006 | Plan approval reaches Claude native plan flow instead of prompting for `~/.claude/plans/*.md`. | `Implemented` | Live installed-app smoke: native plan artifact write auto-allowed, `Plan Ready` card shown, real workspace file write still prompted. |
+| V-007 | Completed subagents appear in the Agents sidebar with cleaned transcript text. | `Implemented` | Live installed-app smoke on Task subagent; raw `agentId`/`<usage>` trailer removed by `src/types/activityView.ts`. |
+| V-008 | Project skills render directory-backed Claude skills in the Skills panel. | `Implemented` | Live installed-app smoke showed `.claude/skills/tiny-skill/SKILL.md` as `Project skills 1 file`. |
+| V-009 | Latest source/test checkpoint committed. | `Complete` | Commit `97d30c39` (`Polish Claude agent UI flows`); working tree clean afterward. |
 
-- [x] Introduce `ProviderRuntime` or `ProviderTransport` as the owner of provider process lifecycle.
-- [x] Move Claude structured process start/stdout/stderr/cleanup into that runtime.
-- [x] Attach the Claude approval broker from the runtime, not ad hoc session code.
-- [x] Add a fake-process test harness for stdout JSONL, stderr text, stdin input, process exit, and cleanup.
-- [ ] Spike Claude `--input-format stream-json` for same-process follow-up, user-question replies, and queued steering.
-- [ ] Decide and document whether Claude remains one-prompt-per-process with `--resume` or becomes a long-lived bidirectional stream.
-- [ ] Ensure stop/queue/steer semantics are runtime-owned and tested.
+### P0: Re-establish Installed-App Verification
 
-### Phase 2: Claude Core UX Closure
+| ID | Task | Status | Verification Required | Notes |
+| --- | --- | --- | --- | --- |
+| P0-001 | Diagnose final installed-app Computer Use attach timeout. | `Planned` | After reinstall/relaunch, `Computer Use get_app_state` returns the Orchestrator accessibility tree within 30 seconds. | After final label-only rebuild on 2026-05-12, `list_apps` saw Orchestrator running, but `get_app_state` timed out twice. Determine app hang vs accessibility/CUA session issue. |
+| P0-002 | Add repeatable install/restart smoke checklist. | `Planned` | Document exact commands and expected observable app state; run once from clean package. | Should cover `npm run pack:mac`, copy to `/Applications`, relaunch, CUA attach, new chat start. |
+| P0-003 | Verify final installed app can start a plain Claude session. | `Planned` | Live installed-app chat returns a short no-tools response; record model and permission mode. | Earlier installed app flows worked before the final label-only polish; this task verifies the final installed artifact. |
+| P0-004 | Verify packaged resources load. | `Planned` | Installed app can load pet assets and no missing-resource errors are visible. | Use `/pet` or settings/resource smoke. |
 
-- [ ] Live-test Claude plain answer, multi-turn answer, and stop during answer.
-- [ ] Live-test file create/edit/delete/read/search and verify transcript, file cards, and Diff.
-- [ ] Live-test Bash permission flow with allow once, allow session, deny, and stop.
-- [ ] Live-test AskUserQuestion and structured choices.
-- [ ] Live-test plan enter, plan body capture, approve plan, and keep planning.
-- [ ] Live-test subagent/task run and fix transcript tabs until they work in the sidebar.
-- [ ] Save each live transcript shape as a fixture.
-- [ ] Add GUI verification for the above in dev app using Computer Use or Playwright.
+### P1: Claude Core Run Semantics
 
-### Phase 3: Command, Skill, MCP, Plugin, Agent Surfaces
+| ID | Task | Status | Verification Required | Notes |
+| --- | --- | --- | --- | --- |
+| P1-001 | Plain answer stream. | `Implemented` | Live installed-app Claude answer streams and ends idle; fixture covers same event shape. | Live provider suites pass; installed app final artifact still needs P0 first. |
+| P1-002 | Multi-turn continuity. | `Planned` | Ask a fact in turn 1, reference it in turn 2, verify Claude resumes with same context and no duplicate transcript. | Capture provider session id behavior. |
+| P1-003 | Stop during assistant text. | `Planned` | Start a long answer, stop mid-stream, verify process stops, composer re-enables, session status is idle/stopped. | Add automated state-machine test after live failure or success is understood. |
+| P1-004 | Stop during tool execution. | `Planned` | Trigger a harmless long shell/read sequence, stop while tool is active, verify no stuck waiting state. | Avoid destructive commands. |
+| P1-005 | Stop during permission pause. | `Planned` | Trigger Write permission, click Stop, verify pending hook resolves/cleans up and no file is created. | Completes permission lifecycle hardening. |
+| P1-006 | Queue next message. | `Planned` | Send while current run is active; queued card appears and sends after completion. | Include screenshot/accessibility evidence. |
+| P1-007 | Steer queued message. | `Planned` | Queue message, use Steer, verify it is injected at the next sensible boundary. | Current code has runtime interrupt tests; live GUI still needed. |
+| P1-008 | Decide Claude one-process vs bidirectional stream. | `Research` | Spike `--input-format stream-json` with stdin/stdout harness; write decision in this doc. | Do this after P1-002 through P1-007 expose real pain points. |
 
-- [x] Implement `.claude/commands` scanner with frontmatter and argument expansion.
-- [x] Implement `~/.claude/commands` scanner with source labels and safe errors.
-- [x] Implement `.claude/skills` and `~/.claude/skills` discovery.
-- [x] Add slash palette grouping: app commands, project commands, global commands, provider terminal commands.
-- [x] Add MCP list/get settings UI with compact status and no raw JSON by default.
-- [x] Add plugin list settings UI.
-- [x] Add agents list settings UI.
-- [ ] Add selected-agent launch option.
-- [x] Add confirmation/terminal handoff policy for all mutating MCP/plugin/agent/auth/system commands.
+### P2: Workspace Effects, Diff, And Files
 
-### Phase 4: Cross-Provider Runtime Reuse
+| ID | Task | Status | Verification Required | Notes |
+| --- | --- | --- | --- | --- |
+| P2-001 | File create. | `Implemented` | Live installed-app create shows tool summary, file card, Diff row, and correct file contents. | Verified for `plan-mode-smoke-fixed.txt`; add fixture/live evidence entry before marking complete. |
+| P2-002 | File edit. | `Planned` | Edit an existing file in smoke repo; verify transcript summary, file card, Diff additions/deletions, and content. | Use disposable git repo. |
+| P2-003 | File delete. | `Planned` | Delete a disposable file; verify deletion summary and Diff deletion warning. | Must avoid repo source files. |
+| P2-004 | File read/search/list. | `Planned` | Ask Claude to read/list/search smoke repo; verify compact summaries and no raw JSON dump. | Include `Read`, `LS`, `Grep`/`Glob`. |
+| P2-005 | Bash allow once. | `Planned` | Run harmless `pwd`/`printf` style command, approve once, verify output summary and no extra grants. | Should not use network or destructive commands. |
+| P2-006 | Bash allow session. | `Planned` | Run two harmless Bash commands in one prompt; first prompts, second auto-allows after session grant. | Mirror Write allow-session verification. |
+| P2-007 | Bash deny. | `Planned` | Deny harmless command; verify run ends cleanly and no bogus success text. | Add fixture if transcript shape differs. |
+| P2-008 | File reference resolution matrix. | `Planned` | Verify cards for cwd-relative, absolute, tilde, quoted, generated, and missing paths. | Addresses prior false-missing risk. |
+| P2-009 | Git Diff edge cases. | `Planned` | Diff panel correctly renders modified, added, deleted, untracked, staged, and large file states. | Use smoke git repo. |
 
-- [ ] Move common runtime event contracts into shared types.
-- [ ] Keep current Codex exec lane as automation, but add a Codex interactive/app-server spike for approvals/questions.
-- [ ] Add Cursor partial-output/keychain-aware diagnostics and fixtures.
-- [ ] Add Copilot CLI/SDK event fixture captures without spending quota where possible.
-- [ ] Map provider-specific plans, permissions, user questions, agents, MCP, and attachments to the shared abstractions.
-- [ ] Update this file with per-provider done criteria once Claude is complete.
+### P3: Permissions, Questions, And Plan Mode
 
-### Phase 5: Packaging And Release Readiness
+| ID | Task | Status | Verification Required | Notes |
+| --- | --- | --- | --- | --- |
+| P3-001 | Write allow once. | `Complete` | Live installed-app smoke created disposable file after `Allow Once`; provider tests pass. | Already verified before commit `97d30c39`. |
+| P3-002 | Write allow session. | `Complete` | Live installed-app smoke created two files with only first Write prompt after `Allow Session`; tests pass. | Already verified before commit `97d30c39`. |
+| P3-003 | Write deny. | `Complete` | Live installed-app smoke denied Write, run ended idle, file absent; tests pass. | Already verified before commit `97d30c39`. |
+| P3-004 | AskUserQuestion choices. | `Implemented` | Live smoke showed `Answer Required`, Alpha/Beta options, answer sent, Claude resumed. | Add saved fixture/live transcript before marking complete. |
+| P3-005 | AskUserQuestion free-form answer. | `Planned` | Use custom answer field, verify answer is sent as user input and not permission resolution. | Complements choice test. |
+| P3-006 | Plan approve. | `Implemented` | Live smoke showed plan artifact auto-allow, `Plan Ready`, approve, then real workspace Write prompt and created file. | Need final installed artifact recheck after P0 and fixture capture. |
+| P3-007 | Plan keep-planning. | `Planned` | Click `Keep Planning`; verify Claude stays in plan mode and no workspace edit occurs. | Also verifies new `Kept planning` label. |
+| P3-008 | Permission scope details. | `Planned` | Cards show readable tool/path/url/MCP scope and wrap long paths. | Long path wrap already improved; URL/MCP still open. |
+| P3-009 | Permission mode picker. | `Implemented` | Live smoke showed Ask, Auto-edit, Plan, Auto safe, Allowlist, isolated-only Bypass unsafe. | Need non-dangerous live checks for Ask/Plan/Auto-edit/Auto safe. |
 
-- [x] Run `npm run test:providers`.
-- [x] Run `npx tsc -p tsconfig.web.json --noEmit`.
-- [x] Run `npm run test:smoke-config`.
-- [x] Run `npm run smoke:providers`.
-- [x] Run `npm run build`.
-- [x] Run `npm run live:claude-capabilities` with Sonnet when quota/network/auth allow.
-- [x] Run `LIVE_PROVIDERS=claude npm run live:providers` with Sonnet when quota/network/auth allow.
-- [ ] Verify dev app visually for the core flows.
-- [ ] Rebuild/install the app for local use.
-- [ ] Verify installed app launches, has current pets/resources, and can start a Claude session.
+### P4: Agents And Subagents
+
+| ID | Task | Status | Verification Required | Notes |
+| --- | --- | --- | --- | --- |
+| P4-001 | Task subagent happy path. | `Implemented` | Live smoke used Task to read README; transcript summary and completed Agents sidebar worked. | Add fixture/live transcript from real run before marking complete. |
+| P4-002 | Active agent chips while running. | `Planned` | During a long subagent task, chip appears above composer and opens transcript tab. | Existing live smoke only verified completed state. |
+| P4-003 | Completed agent sidebar tabs. | `Implemented` | Live installed-app smoke showed completed agent selectable with cleaned transcript. | Covered by commit `97d30c39`. |
+| P4-004 | Nested/sidechain transcript capture. | `Planned` | Real Claude nested/sidechain transcript appears without raw event spam; fixture saved. | Existing fixture coverage may not match real sidechain path. |
+| P4-005 | Agent failure/cancel states. | `Planned` | Failed/cancelled subagent shows compact status and useful error in sidebar. | Needs synthetic fixture and one live-ish smoke if possible. |
+| P4-006 | Selected-agent launch option. | `Planned` | User can choose a configured Claude agent for a run without raw terminal command. | Depends on settings agents list UX. |
+
+### P5: Slash Commands, Skills, MCP, Plugins, Agents
+
+| ID | Task | Status | Verification Required | Notes |
+| --- | --- | --- | --- | --- |
+| P5-001 | Slash palette app commands. | `Implemented` | Live smoke showed app commands and no duplicate `/agents`; tests pass. | Add screenshot or CUA tree evidence in decision log if repeated. |
+| P5-002 | Project command run. | `Planned` | Run safe `.claude/commands/ui-smoke.md`; verify expansion, response, and fixture if new shape. | Discovery was live-verified, execution still open. |
+| P5-003 | Global command discovery/run. | `Planned` | If safe global command exists, discover and run; otherwise create disposable one and cleanly document. | Avoid mutating user global config unless explicitly approved. |
+| P5-004 | Project skill discovery. | `Implemented` | Live smoke showed `tiny-skill/SKILL.md` in Skills panel and slash palette. | Execution still separate in P5-005. |
+| P5-005 | Project skill run. | `Planned` | Invoke safe project skill and verify Claude uses it or reports expected phrase. | Save fixture if tool shape differs. |
+| P5-006 | Global skill discovery/run. | `Planned` | Verify safe global skill discovery and execution, or mark blocked if none exists and user declines creating one. | Do not write global skill without explicit approval. |
+| P5-007 | Settings MCP list/get. | `Planned` | Installed app settings render MCP servers/details compactly, including failure statuses. | Parser tests pass; live UI smoke still needed. |
+| P5-008 | Settings plugin list. | `Planned` | Installed app settings render plugin JSON/list compactly without raw dump. | Use no-mutation command only. |
+| P5-009 | Settings agents list. | `Planned` | Installed app settings render configured agents compactly. | Use no-mutation command only. |
+| P5-010 | Mutating provider-management gates. | `Implemented` | Attempting add/remove/login/logout/update/purge routes to confirmation or terminal-only surface. | Needs live UI smoke, but do not execute destructive mutations. |
+
+### P6: Layout, Design, And Accessibility QA
+
+| ID | Task | Status | Verification Required | Notes |
+| --- | --- | --- | --- | --- |
+| P6-001 | No page-level horizontal scroll. | `Planned` | Screenshots/accessibility checks for long paths, code blocks, markdown tables, permission cards, agent cards, and tool details at narrow/wide widths. | Core design smell risk. |
+| P6-002 | Bounded tool expansions. | `Planned` | Large tool output expands inside scrollable/bounded pane, not entire transcript. | Use synthetic fixture or smoke repo. |
+| P6-003 | Permission card visual polish. | `Implemented` | Long paths wrap and card max-width is 560px; live smoke looked acceptable. | Still include in broader screenshot matrix. |
+| P6-004 | Answered user-question card polish. | `Planned` | Answered card transitions away from active `Answer Required` visual state. | Live smoke worked functionally but looked a bit heavy. |
+| P6-005 | Terminal command input. | `Planned` | User and Computer Use can enter a command, execute it, and see output in terminal pane. | Current readiness banner works; CUA typing did not execute. |
+| P6-006 | Sidebar control audit. | `Planned` | Remove or consolidate duplicate/low-value controls; main transcript stays calm. | Use live walkthrough notes. |
+
+### P7: Fixtures And Automated Coverage
+
+| ID | Task | Status | Verification Required | Notes |
+| --- | --- | --- | --- | --- |
+| P7-001 | Save live hook approval fixture. | `Planned` | Fixture covers PreToolUse allow/deny/resume shape used by current approval broker. | Required before marking approval broker complete. |
+| P7-002 | Save plan approval fixture. | `Planned` | Fixture covers native plan write, ExitPlanMode approval, and subsequent workspace write prompt. | Based on P3-006 live path. |
+| P7-003 | Save project command fixture. | `Planned` | Fixture covers discovered project command execution. | Based on P5-002. |
+| P7-004 | Save skill fixture. | `Planned` | Fixture covers discovered project skill execution. | Based on P5-005. |
+| P7-005 | Save sidechain/nested agent fixture from real run. | `Planned` | Fixture proves transcript source path and cleaned sidebar output. | Based on P4-004. |
+| P7-006 | Save MCP/web approval fixtures. | `Planned` | Fixture covers MCP tool approval and WebFetch/WebSearch approval if available. | Avoid quota/network unless user approves. |
+| P7-007 | Save auth/rate/quota error fixtures. | `Planned` | Fixture/classifier distinguishes auth, quota, rate limit, and model failure. | Can be synthetic if live quota failure is unavailable. |
+| P7-008 | Add renderer/Playwright smoke harness or documented CUA script. | `Planned` | Repeatable command/checklist verifies core UI states without manual re-discovery. | Pick Playwright if app automation is stable, CUA checklist otherwise. |
+
+### P8: Cross-Provider After Claude Closure
+
+| ID | Task | Status | Verification Required | Notes |
+| --- | --- | --- | --- | --- |
+| P8-001 | Shared runtime event contract cleanup. | `Planned` | Common types cover session/message/tool/permission/user_input/plan/agent/diff/usage across providers. | Do not start broad refactor until Claude UX is stable. |
+| P8-002 | Codex interactive/app-server approval spike. | `Research` | Real approval/question UX identified and mapped, or explicitly deferred. | Keep Codex exec lane as automation until then. |
+| P8-003 | Cursor diagnostics and partial-output fixture. | `Research` | Keychain/auth/partial-output cases are captured and classified. | Defer until Claude completion gates pass. |
+| P8-004 | Copilot CLI/SDK fixture capture. | `Research` | No-quota fixture or SDK event capture maps user input/permission/subagent events. | Defer until Claude completion gates pass. |
 
 ## Required Fixtures
 
@@ -403,3 +465,7 @@ When implementing against this plan:
 - Last verified: `LIVE_PROVIDERS=claude npm run live:providers` passed with Sonnet (`claude-sonnet-4-6`, low effort), capturing `session.started`, assistant streaming, and `run.completed`.
 - `npm run pack:mac` rebuilt `dist/mac-arm64/Orchestrator.app`; packaged resources include the bundled pets, and the packaged app launch was confirmed by process list. It was not copied over `/Applications/Orchestrator.app`.
 - Verified `npm run test:providers`, `npx tsc -p tsconfig.web.json --noEmit`, `npm run test:smoke-config`, `npm run smoke:providers`, `npm run build`, `npm run pack:mac`, and `git diff --check`.
+- Checkpoint commit `97d30c39` (`Polish Claude agent UI flows`) landed the live-tested permission, plan, subagent, skills, settings, slash, and terminal polish pass.
+- Live installed-app GUI smoke before the final label-only polish verified Write allow once, Write allow session, Write deny, AskUserQuestion choices, slash palette grouping, Diff for a real smoke git repo, project command discovery, project skill directory rendering, completed subagent sidebar transcript, and plan approval flow through Claude native `Plan Ready`.
+- The final installed app was rebuilt and copied to `/Applications/Orchestrator.app`; `Computer Use list_apps` saw Orchestrator running, but `Computer Use get_app_state` timed out after relaunch. Treat P0-001 as the first follow-up before claiming the final installed artifact is GUI-smoke verified.
+- Terminal pane readiness was visible (`Shell ready in ...`), but Computer Use could not execute typed commands through the xterm surface. Treat P6-005 as an open first-class UX gap.
