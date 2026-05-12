@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, statSync } from 'fs'
+import { homedir } from 'os'
 import { basename, isAbsolute, join, normalize, relative, sep } from 'path'
 
 const IGNORED_DIRECTORIES = new Set([
@@ -23,10 +24,11 @@ export function resolveWorkspaceFileReference(cwd: string, filePath: string): st
   if (!cwd || !filePath) return null
 
   const root = normalize(cwd)
-  const literalPath = normalize(isAbsolute(filePath) ? filePath : join(root, filePath))
+  const expandedPath = expandHomePath(filePath)
+  const literalPath = normalize(isAbsolute(expandedPath) ? expandedPath : join(root, expandedPath))
   if (pathExistsAsFile(literalPath)) return literalPath
 
-  const hint = referenceHint(root, literalPath, filePath)
+  const hint = referenceHint(root, literalPath, expandedPath)
   const hintParts = splitPath(hint)
   const targetName = hintParts.at(-1) ?? basename(literalPath)
   if (!targetName || targetName === '.' || targetName === '..') return null
@@ -65,6 +67,12 @@ export function resolveWorkspaceFileReference(cwd: string, filePath: string): st
 
   matches.sort((a, b) => a.score - b.score || a.path.length - b.path.length || a.path.localeCompare(b.path))
   return matches[0]?.path ?? null
+}
+
+function expandHomePath(filePath: string): string {
+  if (filePath === '~') return homedir()
+  if (filePath.startsWith('~/')) return join(homedir(), filePath.slice(2))
+  return filePath
 }
 
 function pathExistsAsFile(filePath: string): boolean {

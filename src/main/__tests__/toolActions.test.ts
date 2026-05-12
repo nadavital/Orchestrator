@@ -113,6 +113,25 @@ test('file references extract local paths from assistant prose without code bloc
   assert.equal(refs[0].label, 'collection_fop_banner.json')
 })
 
+test('file references preserve quoted paths, paths with spaces, and home references', () => {
+  const content = [
+    'p2-read-search.txt',
+    '/private/tmp/orchestrator-agent-ui-smoke/p2-read-search.txt',
+    '"p2 paths/quoted path file.txt"',
+    '/private/tmp/orchestrator-agent-ui-smoke/p2 paths/long-path-directory/reference-file-with-a-very-long-name.txt',
+    '~/Desktop/Orchestrator/docs/orchestrator-source-of-truth.md'
+  ].join('\n')
+  const refs = extractFileReferences(content, '/private/tmp/orchestrator-agent-ui-smoke')
+
+  assert.deepEqual(refs.map((ref) => ref.path), [
+    '/private/tmp/orchestrator-agent-ui-smoke/p2-read-search.txt',
+    '/private/tmp/orchestrator-agent-ui-smoke/p2 paths/quoted path file.txt',
+    '/private/tmp/orchestrator-agent-ui-smoke/p2 paths/long-path-directory/reference-file-with-a-very-long-name.txt',
+    '~/Desktop/Orchestrator/docs/orchestrator-source-of-truth.md'
+  ])
+  assert.equal(refs.some((ref) => ref.path === '/private/tmp/orchestrator-agent-ui-smoke/p2'), false)
+})
+
 test('file reference roots include sibling Desktop repos mentioned in tool output', () => {
   const content = 'Read /Users/navital/Desktop/xopes/xopesweb/src/main/resources/schema/PaymentsUpsellMessage.graphqls'
   assert.deepEqual(

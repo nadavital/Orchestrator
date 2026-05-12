@@ -117,20 +117,20 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Markdown tables | Table cell text wraps responsively instead of forcing horizontal scroll. | `Implemented` | Prior CSS changes. | Add screenshot fixture at narrow and wide widths. |
 | Tool summaries | Main transcript shows concise counts and action labels; detail is expandable and bounded. | `Implemented` | `ToolCallCard`, `ChatView`, provider fixtures. | Add max-height scroll test for large tool-call expansions. |
 | Raw events | Raw provider event noise stays out of the main transcript. | `Implemented` | Sidebar/inspector design. | Continue enforcing in UI tests. |
-| File reference cards | Created/referenced files appear as cards that open existing files and do not falsely say missing. | `Partial` | Cards exist; user reported false missing state. | Re-test path resolution across cwd, absolute paths, tilde paths, quoted paths, and generated files. |
+| File reference cards | Created/referenced files appear as cards that open existing files and do not falsely say missing. | `Complete` | Installed-app P2-008 smoke verified cwd-relative, absolute, quoted path with spaces, long path with spaces, generated file, missing file, and `~/...` references after parser/card-cap fixes. | Keep covered by file-reference unit tests and installed-app smoke when parser/UI changes. |
 | Activity/sidebar simplicity | Secondary information is available but not crowded or duplicated in header/sidebar. | `Partial` | Header/sidebar simplification in prior pass. | Audit sidebar actions and remove duplicate controls. |
 
 ### Files, Diff, And Workspace Effects
 
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
-| File create | Transcript summary, file card, Diff row, and click-to-open behavior. | `Partial` | Live disposable file create smoke; fixtures. | Add GUI verification after live file operation. |
-| File edit | Summary, exact file target, Diff row with additions/deletions. | `Partial` | Fixture-covered. | Live edit smoke and GUI diff verification. |
-| File delete | Clear deletion summary and Diff warning. | `Partial` | Live create/delete smoke. | Add UI screenshot for deletion state. |
-| File read/search/list | Compact summary; no raw JSON; searchable targets in expanded details. | `Implemented` | Fixtures. | Add live grep/list smoke where no quota impact is excessive. |
-| Bash/shell | Permission-aware command summary with bounded output. | `Partial` | Fixture-covered. | Live harmless shell permission flow with allow once/session/deny. |
+| File create | Transcript summary, file card, Diff row, and click-to-open behavior. | `Complete` | Installed-app P2-001 smoke created `p2-created-by-claude.txt`, showed tool summary/file card, and Diff showed the untracked file; filesystem content matched `P2_CREATE_OK`. | Keep covered by repo-action fixture plus live smoke after workspace-effect UI changes. |
+| File edit | Summary, exact file target, Diff row with additions/deletions. | `Complete` | Installed-app P2-002 smoke edited `p2-edit-target.txt`, showed file card, and Diff showed `+1 -1`; filesystem content matched the requested two-line result. | Keep covered by repo-action fixture plus live smoke after workspace-effect UI changes. |
+| File delete | Clear deletion summary and Diff warning. | `Complete` | Installed-app P2-003 smoke deleted `p2-delete-target.txt`; file card showed missing/disabled actions and Diff showed deleted-file mode with removed baseline line. | Keep deletion rows visually checked in Diff edge-case smoke. |
+| File read/search/list | Compact summary; no raw JSON; searchable targets in expanded details. | `Complete` | Installed-app P2-004 smoke read/listed/searched the repo, surfaced `P2_SEARCH_NEEDLE`, and showed `Read 2 files · Listed 1 listing` without raw JSON in chat. | Keep compact summary tests current as tool vocabulary changes. |
+| Bash/shell | Permission-aware command summary with bounded output. | `Complete` | Installed-app P2-005 through P2-007 smokes covered Bash allow once, allow session, and deny; denied command ended with explicit permission-denied error and did not create the target file. | Add fixture if Claude denial event shape changes. |
 | Workspace provenance | Session knows cwd, worktree/base/branch, provider session id, and generated artifact roots. | `Partial` | App-managed worktrees exist. | Add provenance strip/detail to session metadata and tests. |
-| Git state | Diff panel reflects changed files and risky deletes/large patches. | `Implemented` | Diff panel exists. | Verify after real Claude edits and staged/untracked cases. |
+| Git state | Diff panel reflects changed files and risky deletes/large patches. | `Complete` | Installed-app P2-009 smoke showed modified, added/staged, deleted, untracked, and large modified states with previews for deleted, large, and staged-added files. | Keep as a required installed-app smoke after Diff renderer changes. |
 
 ### Permissions, Questions, And Plan Mode
 
@@ -239,6 +239,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-007 | Completed subagents appear in the Agents sidebar with cleaned transcript text. | `Implemented` | Live installed-app smoke on Task subagent; raw `agentId`/`<usage>` trailer removed by `src/types/activityView.ts`. |
 | V-008 | Project skills render directory-backed Claude skills in the Skills panel. | `Implemented` | Live installed-app smoke showed `.claude/skills/tiny-skill/SKILL.md` as `Project skills 1 file`. |
 | V-009 | Latest source/test checkpoint committed. | `Complete` | Commit `97d30c39` (`Polish Claude agent UI flows`); working tree clean afterward. |
+| V-010 | P2 workspace effects, file references, Bash permissions, and Diff edge cases verified in installed app. | `Complete` | Installed-app P2 smoke on `/private/tmp/orchestrator-agent-ui-smoke`; `npm run test:providers` 126/126 and `npx tsc -p tsconfig.web.json --noEmit` passed. |
 
 ### P0: Re-establish Installed-App Verification
 
@@ -266,15 +267,15 @@ Each task below must end with evidence in this file. Prefer exact command names,
 
 | ID | Task | Status | Verification Required | Notes |
 | --- | --- | --- | --- | --- |
-| P2-001 | File create. | `Implemented` | Live installed-app create shows tool summary, file card, Diff row, and correct file contents. | Verified for `plan-mode-smoke-fixed.txt`; add fixture/live evidence entry before marking complete. |
-| P2-002 | File edit. | `Planned` | Edit an existing file in smoke repo; verify transcript summary, file card, Diff additions/deletions, and content. | Use disposable git repo. |
-| P2-003 | File delete. | `Planned` | Delete a disposable file; verify deletion summary and Diff deletion warning. | Must avoid repo source files. |
-| P2-004 | File read/search/list. | `Planned` | Ask Claude to read/list/search smoke repo; verify compact summaries and no raw JSON dump. | Include `Read`, `LS`, `Grep`/`Glob`. |
-| P2-005 | Bash allow once. | `Planned` | Run harmless `pwd`/`printf` style command, approve once, verify output summary and no extra grants. | Should not use network or destructive commands. |
-| P2-006 | Bash allow session. | `Planned` | Run two harmless Bash commands in one prompt; first prompts, second auto-allows after session grant. | Mirror Write allow-session verification. |
-| P2-007 | Bash deny. | `Planned` | Deny harmless command; verify run ends cleanly and no bogus success text. | Add fixture if transcript shape differs. |
-| P2-008 | File reference resolution matrix. | `Planned` | Verify cards for cwd-relative, absolute, tilde, quoted, generated, and missing paths. | Addresses prior false-missing risk. |
-| P2-009 | Git Diff edge cases. | `Planned` | Diff panel correctly renders modified, added, deleted, untracked, staged, and large file states. | Use smoke git repo. |
+| P2-001 | File create. | `Complete` | Installed-app smoke created `p2-created-by-claude.txt`; transcript showed `Wrote 1 file`, file card opened/revealed, Diff showed untracked file, and filesystem content was `P2_CREATE_OK`. | Verified in disposable git repo `/private/tmp/orchestrator-agent-ui-smoke`. |
+| P2-002 | File edit. | `Complete` | Installed-app smoke edited `p2-edit-target.txt`; transcript showed `Edited 1 file`, file card existed, Diff showed `+1 -1`, and filesystem content matched the requested two-line result. | Verified in disposable git repo. |
+| P2-003 | File delete. | `Complete` | Installed-app smoke deleted `p2-delete-target.txt`; missing card disabled Open/Reveal and Diff showed deleted-file mode with removed baseline line. | Verified in disposable git repo. |
+| P2-004 | File read/search/list. | `Complete` | Installed-app smoke found `P2_SEARCH_NEEDLE`; transcript summary stayed compact as `Read 2 files · Listed 1 listing`. | Verified with Claude Sonnet 4.6 High. |
+| P2-005 | Bash allow once. | `Complete` | Installed-app Bash `printf 'P2_BASH_ONCE_OK\n'` prompted, `Allow Once` resumed, card showed `Allowed once`, and final reply was `P2_BASH_ONCE_DONE`. | Harmless no-network command. |
+| P2-006 | Bash allow session. | `Complete` | Installed-app two-command Bash smoke prompted on the first command, `Allow Session` resumed, second command ran without another prompt, and final reply was `P2_BASH_SESSION_DONE`. | Session grant behavior verified. |
+| P2-007 | Bash deny. | `Complete` | Installed-app denied Bash redirection showed `Denied` plus `Error — Permission denied by user`; `p2-bash-deny.txt` remained absent and no bogus success text appeared. | Current behavior ends the run with explicit denied-tool error rather than an assistant success reply. |
+| P2-008 | File reference resolution matrix. | `Complete` | Installed-app retry after fixes showed cards for cwd-relative/absolute file, quoted path with spaces, long path with spaces, generated file, missing file with disabled actions, and `~/Desktop/Orchestrator/docs/orchestrator-source-of-truth.md`. | Fixed parser support for quoted/space/tilde paths and raised visible reference cap to 8. |
+| P2-009 | Git Diff edge cases. | `Complete` | Installed-app Diff showed six states: modified, deleted, large modified `+50 -1`, staged added, staged modified, and untracked; previews worked for deleted, large, and staged-added rows. | Verified in disposable git repo. |
 
 ### P3: Permissions, Questions, And Plan Mode
 
@@ -543,3 +544,9 @@ When implementing against this plan:
 - P1 steer-next retry passed in the freshly reinstalled app: the primary answer stopped around `P1_STEER_RETRY_PRIMARY 181`, no error card appeared, and the follow-up returned `P1_STEER_RETRY_OK`.
 - P1 transport decision: do not replace the current structured resume/interrupt path with a bidirectional stdin transport for P1. P1-002 through P1-007 now pass; keep `--input-format stream-json` as a deferred option for future same-process-only user-question or plan semantics.
 - Verification for the P1 semantics checkpoint: `npm run test:providers` passed 125/125, `npx tsc -p tsconfig.web.json --noEmit` passed, `npm run pack:mac` passed, the app was copied to `/Applications`, relaunched, and Computer Use verified the installed UI steer retry.
+- P2 workspace-effects smoke passed in the installed app on disposable repo `/private/tmp/orchestrator-agent-ui-smoke`: Claude read/listed/searched `P2_SEARCH_NEEDLE`, created `p2-created-by-claude.txt`, edited `p2-edit-target.txt`, deleted `p2-delete-target.txt`, and the filesystem/Diff panel matched those changes.
+- P2 Bash permission smoke passed in the installed app: allow-once resumed a harmless `printf`, allow-session let the second harmless Bash command run without another prompt, and deny produced `Error — Permission denied by user` while leaving `p2-bash-deny.txt` absent.
+- P2 file-reference matrix initially exposed a real bug: paths with spaces truncated into a bogus missing `p2` card, quoted paths and `~/...` paths were missed, and the four-card cap hid later references. Fixed by adding quoted/whole-line/tilde extraction, home-path resolution, truncated-space guardrails, and an 8-card visible cap.
+- P2 file-reference retry passed in the installed app: cards resolved `p2-read-search.txt`, `"p2 paths/quoted path file.txt"`, the long path with spaces, generated `p2-created-by-claude.txt`, missing `p2-missing-reference.txt` with disabled Open/Reveal, and `~/Desktop/Orchestrator/docs/orchestrator-source-of-truth.md`.
+- P2 Diff edge-case smoke passed in the installed app: the Diff panel showed `3 modified · 1 added · 1 deleted · 1 untracked +53 -3` across deleted, edited, large modified, staged added, staged modified, and untracked files, with previews for deletion, large diff, and staged add.
+- Verification for the P2 checkpoint: `npm run test:providers` passed 126/126, `npx tsc -p tsconfig.web.json --noEmit` passed, `npm run pack:mac` passed twice after UI fixes, the app was copied to `/Applications`, relaunched, and Computer Use verified P2-008 and P2-009 in the installed app.

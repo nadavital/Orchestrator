@@ -365,7 +365,7 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
     const content = msg.content
     const queueState = isUser ? msg.queueState : undefined
     const fileReferences = !isUser && !isSystem
-      ? extractFileReferences(content, session.workDir).slice(0, 4)
+      ? extractFileReferences(content, session.workDir).slice(0, 8)
       : []
     return (
       <div
