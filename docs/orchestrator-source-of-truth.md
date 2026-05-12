@@ -140,12 +140,12 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Allow once | Allows one action without changing session settings. | `Complete` | Permission card behavior, tests, and live installed-app Write smoke. | Keep covered by regression tests when approval broker changes. |
 | Allow session | Persists scoped grant and resumes. | `Complete` | Session allowlist handling, tests, and live installed-app two-Write smoke. | Add path/tool scoped grants before broadening beyond tool names. |
 | Deny | Denies cleanly without corrupting session state. | `Complete` | Fixture coverage, tests, and live installed-app denied Write smoke. | Keep stop/deny interaction covered in P1/P3 tasks. |
-| Permission scopes | Tool/path/url/MCP scopes display compactly and map back to provider flags/settings. | `Partial` | Tool names implemented; richer scopes incomplete. | Add path/url/MCP-specific scope UI and parser tests. |
-| AskUserQuestion | User question card with choices/custom answer, separate from permissions. | `Implemented` | Fixture-covered. | Live AskUserQuestion session and resume test. |
+| Permission scopes | Tool/path/url/MCP scopes display compactly and map back to provider flags/settings. | `Complete` | Installed-app cards showed readable path scopes for Write and parser tests cover file path, URL, MCP, Bash, and plan summaries. | Keep parser tests current as provider payloads change. |
+| AskUserQuestion | User question card with choices/custom answer, separate from permissions. | `Complete` | Installed-app P3-004/P3-005 smokes verified option selection, free-form answer, user-input resume, and exact Claude echo replies. | Improve answered-card labeling in P6-004. |
 | SendUserMessage/brief updates | Provider user-facing questions/updates map to user input or assistant status appropriately. | `Research` | Claude help mentions `--brief`. | Capture live/fixture output and decide UI. |
 | Plan mode enter | Plan state appears in sidebar/card without crowding transcript. | `Partial` | Fixtures; live native placeholder observed. | Capture real structured plan body and terminal preview path. |
-| Plan approval | `Approve Plan` and `Keep Planning` resume correctly. | `Partial` | ExitPlanMode fixture; live approve path verified in installed app. | Live-test keep-planning and save plan approval fixture. |
-| Permission mode picker | Product labels map to provider-native policy. | `Implemented` | Provider registry/tests. | Live non-dangerous modes; gated bypass manual check. |
+| Plan approval | `Approve Plan` and `Keep Planning` resume correctly. | `Complete` | Installed-app P3-006/P3-007 smokes verified native `Plan Ready`, approve-then-Write permission, `Kept planning`, and no workspace edit on keep-planning. | Save richer plan fixtures in P7-002. |
+| Permission mode picker | Product labels map to provider-native policy. | `Complete` | Installed-app P3-009 smoke showed Ask, Auto-edit, Plan, Auto safe, Allowlist, isolated-only Bypass unsafe, plus exact no-tool replies in Auto-edit/Auto safe/Allowlist. | Bypass remains intentionally gated to isolated environments. |
 
 ### Agents And Subagents
 
@@ -240,6 +240,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-008 | Project skills render directory-backed Claude skills in the Skills panel. | `Implemented` | Live installed-app smoke showed `.claude/skills/tiny-skill/SKILL.md` as `Project skills 1 file`. |
 | V-009 | Latest source/test checkpoint committed. | `Complete` | Commit `97d30c39` (`Polish Claude agent UI flows`); working tree clean afterward. |
 | V-010 | P2 workspace effects, file references, Bash permissions, and Diff edge cases verified in installed app. | `Complete` | Installed-app P2 smoke on `/private/tmp/orchestrator-agent-ui-smoke`; `npm run test:providers` 126/126 and `npx tsc -p tsconfig.web.json --noEmit` passed. |
+| V-011 | P3 permissions, user questions, plan approval, permission scopes, and mode picker verified in installed app. | `Complete` | Installed-app P3 smoke on `/private/tmp/orchestrator-agent-ui-smoke`; `toolActions.test` covers URL/MCP/long-path permission summaries. |
 
 ### P0: Re-establish Installed-App Verification
 
@@ -284,12 +285,12 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | P3-001 | Write allow once. | `Complete` | Live installed-app smoke created disposable file after `Allow Once`; provider tests pass. | Already verified before commit `97d30c39`. |
 | P3-002 | Write allow session. | `Complete` | Live installed-app smoke created two files with only first Write prompt after `Allow Session`; tests pass. | Already verified before commit `97d30c39`. |
 | P3-003 | Write deny. | `Complete` | Live installed-app smoke denied Write, run ended idle, file absent; tests pass. | Already verified before commit `97d30c39`. |
-| P3-004 | AskUserQuestion choices. | `Implemented` | Live smoke showed `Answer Required`, Alpha/Beta options, answer sent, Claude resumed. | Add saved fixture/live transcript before marking complete. |
-| P3-005 | AskUserQuestion free-form answer. | `Planned` | Use custom answer field, verify answer is sent as user input and not permission resolution. | Complements choice test. |
-| P3-006 | Plan approve. | `Implemented` | Live smoke showed plan artifact auto-allow, `Plan Ready`, approve, then real workspace Write prompt and created file. | Need final installed artifact recheck after P0 and fixture capture. |
-| P3-007 | Plan keep-planning. | `Planned` | Click `Keep Planning`; verify Claude stays in plan mode and no workspace edit occurs. | Also verifies new `Kept planning` label. |
-| P3-008 | Permission scope details. | `Planned` | Cards show readable tool/path/url/MCP scope and wrap long paths. | Long path wrap already improved; URL/MCP still open. |
-| P3-009 | Permission mode picker. | `Implemented` | Live smoke showed Ask, Auto-edit, Plan, Auto safe, Allowlist, isolated-only Bypass unsafe. | Need non-dangerous live checks for Ask/Plan/Auto-edit/Auto safe. |
+| P3-004 | AskUserQuestion choices. | `Complete` | Installed-app smoke showed `Answer Required`, `ALPHA_P3_CHOICE`/`BETA_P3_CHOICE` options, answer sent, user bubble, and final `P3_CHOICES_DONE:ALPHA_P3_CHOICE`. | Choice path verified separate from permission resume. |
+| P3-005 | AskUserQuestion free-form answer. | `Complete` | Installed-app smoke typed `FREEFORM_P3_TOKEN_742`, showed answer sent/user bubble, and final `P3_FREEFORM_DONE:FREEFORM_P3_TOKEN_742`. | Claude also emitted placeholder option buttons in this run; free-form path still worked. |
+| P3-006 | Plan approve. | `Complete` | Installed-app smoke showed plan artifact auto-allow, native `Plan Ready`, `Plan approved`, real Write permission, `Allowed once`, file content `P3_PLAN_APPROVE_OK`, and final `P3_PLAN_APPROVE_DONE`. | Fixture capture remains P7-002, not a P3 blocker. |
+| P3-007 | Plan keep-planning. | `Complete` | Installed-app smoke clicked `Keep Planning`, showed `Kept planning`, answered follow-up with `Keep planning`, and verified `p3-plan-keep-planning.txt` remained missing. | No workspace edit occurred. |
+| P3-008 | Permission scope details. | `Complete` | Installed-app Write permission card showed full path scope; parser tests cover Write/Edit/Bash/ExitPlanMode/WebFetch/MCP and long-path truncation. | Add screenshots later if permission-card CSS changes. |
+| P3-009 | Permission mode picker. | `Complete` | Installed-app smoke showed Ask, Auto-edit, Plan, Auto safe, Allowlist, isolated-only Bypass unsafe; no-tool runs returned `P3_MODE_AUTO_EDIT_OK`, `P3_MODE_AUTO_SAFE_OK`, and `P3_MODE_ALLOWLIST_OK`. | Bypass unsafe was inspected only, not run. |
 
 ### P4: Agents And Subagents
 
@@ -543,6 +544,12 @@ When implementing against this plan:
 - P1 steer-next initially failed with a false provider-error state because Claude's intentional interrupt emitted `run.failed`, which lifecycle handling treated as a crash and killed the runtime before the queued follow-up could start. Fixed by filtering expected interrupt failures while a steer follow-up is pending and by settling the interrupted assistant stream before resuming the follow-up.
 - P1 steer-next retry passed in the freshly reinstalled app: the primary answer stopped around `P1_STEER_RETRY_PRIMARY 181`, no error card appeared, and the follow-up returned `P1_STEER_RETRY_OK`.
 - P1 transport decision: do not replace the current structured resume/interrupt path with a bidirectional stdin transport for P1. P1-002 through P1-007 now pass; keep `--input-format stream-json` as a deferred option for future same-process-only user-question or plan semantics.
+- P3 AskUserQuestion choices passed in the installed app: Claude showed `Answer Required` with `ALPHA_P3_CHOICE`/`BETA_P3_CHOICE`, `ALPHA_P3_CHOICE` resumed as user input, and the run ended with `P3_CHOICES_DONE:ALPHA_P3_CHOICE`.
+- P3 AskUserQuestion free-form passed in the installed app: typed `FREEFORM_P3_TOKEN_742`, the answer resumed through user-input UI rather than permission UI, and Claude returned `P3_FREEFORM_DONE:FREEFORM_P3_TOKEN_742`.
+- P3 plan approve passed in the installed app: native `Plan Ready` appeared, `Approve Plan` resumed, a real workspace Write prompt appeared for `/private/tmp/orchestrator-agent-ui-smoke/p3-plan-approve.txt`, `Allow Once` created content `P3_PLAN_APPROVE_OK`, and Claude returned `P3_PLAN_APPROVE_DONE`.
+- P3 plan keep-planning passed in the installed app: `Keep Planning` changed the plan card to `Kept planning`, Claude stayed in plan mode, follow-up `Keep planning` kept execution blocked, and `/private/tmp/orchestrator-agent-ui-smoke/p3-plan-keep-planning.txt` remained missing.
+- P3 permission scope coverage is complete for the current contract: live Write cards show readable path scopes, and `toolActions.test` now covers Write/Edit/Bash/ExitPlanMode/WebFetch/MCP plus long-path truncation.
+- P3 permission mode picker passed in the installed app: the menu showed Ask, Auto-edit, Plan, Auto safe, Allowlist, and isolated-only Bypass unsafe; no-tool runs in Auto-edit, Auto safe, and Allowlist returned exact sentinel replies. Bypass unsafe was inspected but not run.
 - Verification for the P1 semantics checkpoint: `npm run test:providers` passed 125/125, `npx tsc -p tsconfig.web.json --noEmit` passed, `npm run pack:mac` passed, the app was copied to `/Applications`, relaunched, and Computer Use verified the installed UI steer retry.
 - P2 workspace-effects smoke passed in the installed app on disposable repo `/private/tmp/orchestrator-agent-ui-smoke`: Claude read/listed/searched `P2_SEARCH_NEEDLE`, created `p2-created-by-claude.txt`, edited `p2-edit-target.txt`, deleted `p2-delete-target.txt`, and the filesystem/Diff panel matched those changes.
 - P2 Bash permission smoke passed in the installed app: allow-once resumed a harmless `printf`, allow-session let the second harmless Bash command run without another prompt, and deny produced `Error — Permission denied by user` while leaving `p2-bash-deny.txt` absent.

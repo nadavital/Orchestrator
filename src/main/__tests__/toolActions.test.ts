@@ -70,6 +70,8 @@ test('tool activity summary stays concise across mixed repo actions and errors',
 })
 
 test('permission summaries use the same action vocabulary without dumping raw payloads', () => {
+  const longPath = `/private/tmp/orchestrator-agent-ui-smoke/${'very-long-directory-name-'.repeat(8)}target.txt`
+
   assert.equal(
     permissionSummary({
       tool_name: 'Edit',
@@ -93,6 +95,30 @@ test('permission summaries use the same action vocabulary without dumping raw pa
       tool_input: { plan: '# Plan\n\nRun parser tests.' }
     }),
     'Plan: Plan'
+  )
+  assert.equal(
+    permissionSummary({
+      tool_name: 'WebFetch',
+      tool_use_id: 'tool-4',
+      tool_input: { url: 'https://docs.anthropic.com/en/docs/claude-code/settings' }
+    }),
+    'WebFetch https://docs.anthropic.com/en/docs/claude-code/settings'
+  )
+  assert.equal(
+    permissionSummary({
+      tool_name: 'mcp__linear__create_issue',
+      tool_use_id: 'tool-5',
+      tool_input: { description: 'Create issue in ORCH project' }
+    }),
+    'mcp__linear__create_issue Create issue in ORCH project'
+  )
+  assert.equal(
+    permissionSummary({
+      tool_name: 'Write',
+      tool_use_id: 'tool-6',
+      tool_input: { file_path: longPath }
+    }),
+    `Write ${longPath.slice(0, 160)}`
   )
 })
 
