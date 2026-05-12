@@ -2,7 +2,9 @@
 
 Date: 2026-05-08
 
-This is the completion checklist for making Orchestrator a first-class GUI for Claude Code first, while keeping every behavior mapped through provider-agnostic runtime contracts so Codex, Cursor, Copilot, and future CLIs can share the same surface.
+Canonical active plan: `docs/orchestrator-source-of-truth.md`.
+
+This is an older completion checklist for making Orchestrator a first-class GUI for Claude Code first, while keeping every behavior mapped through provider-agnostic runtime contracts so Codex, Cursor, Copilot, and future CLIs can share the same surface. Active implementation status and completion gates live in the source-of-truth plan.
 
 Completion means the item is either implemented and verified, or intentionally blocked from automatic execution because it is destructive, mutates provider state, or may spend model quota.
 

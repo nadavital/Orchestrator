@@ -1,6 +1,8 @@
 # Claude Code CLI Map
 
-This is the Claude-first provider contract Orchestrator should use as the baseline for other CLI providers.
+Canonical active plan: `docs/orchestrator-source-of-truth.md`.
+
+This is the Claude-first provider mapping reference Orchestrator should use as the baseline for other CLI providers. Active implementation status and completion gates live in the source-of-truth plan.
 
 ## Runtime Lanes
 

@@ -2,7 +2,9 @@
 
 Date: 2026-05-07
 
-This is the source-of-truth checklist for Orchestrator's provider support. It should be updated before we add or rename provider UI, permission modes, slash commands, model pickers, runtime lanes, or parser behavior.
+Canonical active plan: `docs/orchestrator-source-of-truth.md`.
+
+This file is the provider CLI evidence reference for Orchestrator's provider support. It should be updated when local CLI evidence changes, but active implementation status and completion gates live in the source-of-truth plan.
 
 Current implementation baseline:
 

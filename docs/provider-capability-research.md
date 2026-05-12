@@ -2,6 +2,10 @@
 
 Date: 2026-05-06
 
+Canonical active plan: `docs/orchestrator-source-of-truth.md`.
+
+This file is research evidence. Active implementation status and completion gates live in the source-of-truth plan.
+
 ## 2026-05-06 CLI Coverage Gap Baseline
 
 This pass moved the known CLI coverage gaps out of prose-only research and into the provider runtime registry, so diagnostics and tests can track what still needs adapter/UI work.

@@ -2,7 +2,9 @@
 
 Date: 2026-05-11
 
-This matrix tracks Claude Code capability support inside Orchestrator. A feature is not first-class until it has a product mapping, parser/runtime handling, UI behavior, and at least fixture or live coverage.
+Canonical active plan: `docs/orchestrator-source-of-truth.md`.
+
+This matrix tracks Claude Code capability evidence inside Orchestrator. A feature is not first-class until it has a product mapping, parser/runtime handling, UI behavior, and at least fixture or live coverage. Active implementation status and completion gates live in the source-of-truth plan.
 
 ## Status Legend
 
@@ -18,9 +20,9 @@ This matrix tracks Claude Code capability support inside Orchestrator. A feature
 
 | Claude surface | Expected Orchestrator UX | Current coverage | Tests still needed |
 | --- | --- | --- | --- |
-| Native interactive session: `claude [prompt]` | Default Claude session path. No user-visible runtime picker. Render chat from JSONL events plus terminal fallback. | Verified live with Sonnet through the native CLI path for plain response, file create/delete, plan mode, terminal streaming fallback, and `/help`. Provider PTYs now answer Claude terminal capability queries in the main process, so hidden terminal UI cannot stall startup. | Live shell permission, AskUserQuestion, and subagent sessions. |
+| Native interactive session: `claude [prompt]` | Escape hatch for true TUI-only flows, native prompts, and fallback verification. No user-visible runtime picker. | Verified live with Sonnet through the native CLI path for plain response, file create/delete, plan mode, terminal streaming fallback, and `/help`. Provider PTYs now answer Claude terminal capability queries in the main process, so hidden terminal UI cannot stall startup. | Live shell permission, AskUserQuestion, and subagent sessions. |
 | Workspace trust prompt | Show compact Answer Required card with `Trust workspace` / `Exit`; send selected answer back to PTY. | Implemented and covered by `nativeCliPrompts` tests. Native prompt submit now sends Claude's enhanced Enter key sequence. | Manual UI smoke in a fresh workspace. |
-| Structured print stream: `-p --output-format stream-json` | Internal smoke/automation path, not a user choice. | Verified by live structured smoke and parser fixtures. | Keep as regression lane only. |
+| Structured print stream: `-p --output-format stream-json` | Default Claude product path and internal smoke/automation path. Not a user-visible runtime choice. | Verified by live structured smoke and parser fixtures. | Multi-turn/queued/steer verification and bidirectional input spike. |
 | Partial messages / native terminal fallback | Stream assistant text incrementally without duplicating final text. | Fixture-covered for structured partials; live native Sonnet suite now emits `assistant.text.delta` and `assistant.text.completed` from terminal fallback. | Promote more live terminal repaint shapes into fixtures as discovered. |
 | Hook events: `--include-hook-events` | Activity/diagnostic events, not main transcript noise. | Inventory-only. | Capture fixture with hook events, normalize useful states, decide UI placement. |
 | Streaming input: `--input-format stream-json`, `--replay-user-messages` | Potential future bidirectional structured bridge. | Inventory-only. | Spike whether this can replace terminal scraping while preserving native behavior. |

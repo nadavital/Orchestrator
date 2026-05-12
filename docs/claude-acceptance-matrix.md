@@ -1,6 +1,8 @@
 # Claude Code Acceptance Matrix
 
-This matrix is the product contract for Claude Code inside Orchestrator. The main transcript should stay calm, while Agents, Skills, Diff, Terminal, and Settings carry the detail.
+Canonical active plan: `docs/orchestrator-source-of-truth.md`.
+
+This matrix is a Claude Code acceptance reference for Orchestrator. The main transcript should stay calm, while Agents, Skills, Diff, Terminal, and Settings carry the detail. Active implementation status and completion gates live in the source-of-truth plan.
 
 | Capability | Source | Fixture / probe | Expected Orchestrator UX |
 | --- | --- | --- | --- |
@@ -29,4 +31,4 @@ See `docs/orchestrator-completion-spec.md` for the complete cross-provider check
 
 ## Runtime Decision
 
-The normal Claude session path is the native CLI wrapper with JSONL tailing. Structured stream output remains available for smoke tests and internal automation, but users should not choose between runtimes.
+The normal Claude session path is structured Claude print mode with stream JSON and the Orchestrator hook bridge. The native CLI wrapper remains an escape hatch for TUI-only flows and prompt handling. Users should not choose between runtimes.
