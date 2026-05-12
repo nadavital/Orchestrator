@@ -74,6 +74,11 @@ export function deriveAgentNodes(session: Pick<Session, 'id' | 'provider'>, reco
           summary: compact(event.content)
         })
       }
+      continue
+    }
+
+    if (event.type === 'run.failed') {
+      failActiveAgents(agents, event.content, record.timestamp)
     }
   }
 
@@ -111,10 +116,30 @@ export function deriveAgentNodesFromMessages(
         summary: content ? compact(content) : agent.role,
         transcript: content
       })
+      continue
+    }
+
+    if (message.type === 'result' && message.subtype !== 'success') {
+      failActiveAgents(agents, message.content, message.timestamp)
     }
   }
 
   return [...agents.values()].sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0))
+}
+
+function failActiveAgents(agents: Map<string, AgentNode>, content: string | undefined, timestamp: number): void {
+  const status = /interrupt|cancel/i.test(content ?? '') ? 'cancelled' : 'failed'
+  const summary = compact(content ?? 'Run failed')
+  for (const [id, agent] of agents) {
+    if (agent.status === 'queued' || agent.status === 'running' || agent.status === 'waiting' || agent.status === 'blocked') {
+      agents.set(id, {
+        ...agent,
+        status,
+        completedAt: agent.completedAt ?? timestamp,
+        summary: agent.summary ?? summary
+      })
+    }
+  }
 }
 
 export function derivePlanStates(session: Pick<Session, 'id' | 'provider'>, records: SessionRunEventRecord[]): PlanState[] {

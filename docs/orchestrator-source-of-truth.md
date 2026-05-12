@@ -151,12 +151,12 @@ All providers should translate into these shapes at the adapter/runtime boundary
 
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
-| Active agent chips | Running agents appear above composer, not as a noisy sidebar list. | `Implemented` | `RunningAgentsStrip`. | Live subagent run and UI verification. |
-| Agent sidebar tabs | Clicking an agent chip opens/focuses that agent transcript tab. | `Implemented` | Sidebar tab UI exists; completed subagent transcript verified live after commit `97d30c39`. | Live-test active/running chip behavior and sidechain transcripts. |
-| Task tool | `Task` creates/updates/completes an `AgentNode`. | `Implemented` | Fixtures. | Live Claude task run. |
+| Active agent chips | Running agents appear above composer, not as a noisy sidebar list. | `Complete` | Installed-app P4-002 smoke showed a running Task chip during a long `sleep 18` subagent run. | Keep covered by installed-app smoke after agent UI changes. |
+| Agent sidebar tabs | Clicking an agent chip opens/focuses that agent transcript tab. | `Complete` | Installed-app P4-002/P4-003 smokes verified running and completed agent tabs with cleaned transcript content. | Keep active/completed states in renderer tests where practical. |
+| Task tool | `Task` creates/updates/completes an `AgentNode`. | `Complete` | Installed-app P4-001 smoke delegated README reading through Task and showed final subagent transcript in the Agents sidebar. | Keep `task-agent.jsonl` and live Task smoke current as Claude event shapes change. |
 | Agent tool | `Agent` maps to same shared agent model. | `Implemented` | Fixtures. | Live selected-agent run if locally available. |
-| Sidechain/nested transcript | Child transcript captured without raw event spam. | `Partial` | Fixture-covered; user saw `no subagent transcript`. | Trace real Claude JSONL sidechain location and promote fixture. |
-| Agent failures | Failed/cancelled subagents show compact state and useful error. | `Planned` | Not fully covered. | Add fixtures and UI states. |
+| Sidechain/nested transcript | Child transcript captured without raw event spam. | `Complete` | Installed-app P4-001/P4-004 smokes showed Task sidechain transcript in the sidebar with cleaned child content instead of raw JSON. | Save richer raw sidechain transcript in P7-005 for fixture refresh. |
+| Agent failures | Failed/cancelled subagents show compact state and useful error. | `Complete` | Installed-app P4-005 denial smoke found and fixed stuck active chips; retry showed failed red sidebar state and no created denied file. | Keep failure finalization covered for event buffers and saved transcripts. |
 | Multi-provider agents | Codex/Copilot/Cursor agent events use same `AgentNode` model. | `Partial` | Generic fixtures. | Add provider-specific live/fixture captures after Claude is solid. |
 
 ### Slash Commands, Skills, And Composer Commands
@@ -296,11 +296,11 @@ Each task below must end with evidence in this file. Prefer exact command names,
 
 | ID | Task | Status | Verification Required | Notes |
 | --- | --- | --- | --- | --- |
-| P4-001 | Task subagent happy path. | `Implemented` | Live smoke used Task to read README; transcript summary and completed Agents sidebar worked. | Add fixture/live transcript from real run before marking complete. |
-| P4-002 | Active agent chips while running. | `Planned` | During a long subagent task, chip appears above composer and opens transcript tab. | Existing live smoke only verified completed state. |
-| P4-003 | Completed agent sidebar tabs. | `Implemented` | Live installed-app smoke showed completed agent selectable with cleaned transcript. | Covered by commit `97d30c39`. |
-| P4-004 | Nested/sidechain transcript capture. | `Planned` | Real Claude nested/sidechain transcript appears without raw event spam; fixture saved. | Existing fixture coverage may not match real sidechain path. |
-| P4-005 | Agent failure/cancel states. | `Planned` | Failed/cancelled subagent shows compact status and useful error in sidebar. | Needs synthetic fixture and one live-ish smoke if possible. |
+| P4-001 | Task subagent happy path. | `Complete` | Live installed-app smoke used Task to read README; main chat showed compact delegation summary and Agents sidebar showed final child transcript. | Fixture-backed by `task-agent.jsonl`; live run verified against installed Sonnet app. |
+| P4-002 | Active agent chips while running. | `Complete` | Long Task smoke paused on `Bash sleep 18`; running chip appeared above composer and opened the active agent tab. | Verified before allowing the pending Bash permission. |
+| P4-003 | Completed agent sidebar tabs. | `Complete` | Live installed-app smoke showed completed agent selectable with cleaned transcript. | Covered by commit `97d30c39` and P4-001 retry. |
+| P4-004 | Nested/sidechain transcript capture. | `Complete` | Real Claude Task sidechain transcript appeared in the sidebar without raw event spam. | Richer raw sidechain fixture capture remains P7-005, not a P4 blocker. |
+| P4-005 | Agent failure/cancel states. | `Complete` | Denying a subagent Bash permission now finalizes the child as failed, removes the running chip, shows a red failed tab, and leaves the target file absent. | Added event-buffer and saved-transcript regression coverage. |
 | P4-006 | Selected-agent launch option. | `Planned` | User can choose a configured Claude agent for a run without raw terminal command. | Depends on settings agents list UX. |
 
 ### P5: Slash Commands, Skills, MCP, Plugins, Agents
@@ -369,6 +369,7 @@ Current Claude fixture files that back the implemented rows:
 - `task-progress.jsonl`
 - `agent-partial-message.jsonl`
 - `sidechain-agent.jsonl`
+- `task-permission-denied.jsonl`
 
 - [x] Claude plain answer.
 - [x] Claude partial assistant message.
@@ -378,6 +379,7 @@ Current Claude fixture files that back the implemented rows:
 - [x] Claude plan/todo events.
 - [x] Claude ExitPlanMode denial.
 - [x] Claude Task/Agent subagent events.
+- [x] Claude Task/subagent permission-denied failure event.
 - [ ] Claude live hook approval event stream.
 - [ ] Claude MCP tool approval.
 - [ ] Claude web fetch/search approval.
@@ -557,3 +559,8 @@ When implementing against this plan:
 - P2 file-reference retry passed in the installed app: cards resolved `p2-read-search.txt`, `"p2 paths/quoted path file.txt"`, the long path with spaces, generated `p2-created-by-claude.txt`, missing `p2-missing-reference.txt` with disabled Open/Reveal, and `~/Desktop/Orchestrator/docs/orchestrator-source-of-truth.md`.
 - P2 Diff edge-case smoke passed in the installed app: the Diff panel showed `3 modified · 1 added · 1 deleted · 1 untracked +53 -3` across deleted, edited, large modified, staged added, staged modified, and untracked files, with previews for deletion, large diff, and staged add.
 - Verification for the P2 checkpoint: `npm run test:providers` passed 126/126, `npx tsc -p tsconfig.web.json --noEmit` passed, `npm run pack:mac` passed twice after UI fixes, the app was copied to `/Applications`, relaunched, and Computer Use verified P2-008 and P2-009 in the installed app.
+- P4 Task happy path passed in the installed app: Claude delegated README reading through Task, the main transcript showed compact delegation/tool summaries, and the Agents sidebar showed the child transcript with cleaned content.
+- P4 active agent chips passed in the installed app: a long Task run paused on `Bash sleep 18`, showed a running chip above the composer, and clicking it opened the active child transcript tab before the permission was allowed.
+- P4 agent failure smoke initially exposed a real stale-chip bug: denying a subagent Bash permission failed the main run but left the child chip running. Fixed by finalizing active agents on run failure for both event-buffer and saved-transcript reconstruction.
+- P4 failure retry passed in the freshly reinstalled app: denying subagent Bash removed the running chip, showed a red failed agent tab with useful approval context, and `/private/tmp/orchestrator-agent-ui-smoke/p4-denied-agent-after-fix-2.txt` remained absent.
+- Verification for the P4 checkpoint: `npm run test:providers` passed 128/128, `npx tsc -p tsconfig.web.json --noEmit` passed, `npm run pack:mac` passed, the app was copied to `/Applications`, relaunched, and Computer Use verified Task happy path, running-chip focus, completed sidebar tabs, sidechain transcript display, and failure/denial state.

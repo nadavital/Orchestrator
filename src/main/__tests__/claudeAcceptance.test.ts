@@ -151,6 +151,17 @@ test('Claude saved subagent transcripts hide native agent metadata trailers', ()
   assert.equal(agents[0].summary, 'The first sentence is useful.')
 })
 
+test('Claude saved transcript failure finalizes active subagents', () => {
+  const session = { id: 'session-under-test', provider: 'claude' }
+  const messages = eventsToMessages(parseClaudeFixture('task-permission-denied.jsonl'))
+  const agents = deriveAgentNodesFromMessages(session, messages)
+
+  assert.equal(agents.length, 1)
+  assert.equal(agents[0].id, 'tool-denied-agent-1')
+  assert.equal(agents[0].status, 'failed')
+  assert.match(agents[0].summary ?? '', /Permission denied by user/)
+})
+
 test('Claude slash command surface follows feature support without a user-visible runtime split', () => {
   const runtime = getProviderRuntimeInfo().claude
   const commands = availableSlashCommands(runtime)

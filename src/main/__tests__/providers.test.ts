@@ -644,6 +644,19 @@ test('claude system task lifecycle updates the subagent node from live stream-js
   assert.match(completed.agent.summary ?? '', /Found TodoWrite parser test patterns/)
 })
 
+test('claude run failure finalizes active subagent nodes as failed', () => {
+  const events = parseFixture('claude', 'task-permission-denied.jsonl')
+  const session = { id: 'session-under-test', provider: 'claude' }
+  const agents = deriveAgentNodes(session, records(events))
+  const failed = firstEvent(events, 'run.failed')
+
+  assert.match(failed.content ?? '', /Permission denied by user/)
+  assert.equal(agents.length, 1)
+  assert.equal(agents[0].id, 'tool-denied-agent-1')
+  assert.equal(agents[0].status, 'failed')
+  assert.match(agents[0].summary ?? '', /Running Write P4_SHOULD_NOT_RUN/)
+})
+
 test('claude partial text streams normalize without duplicating finalized assistant blocks', () => {
   const events = parseFixture('claude', 'partial-message.jsonl')
   const deltas = events.filter((event): event is Extract<RunEvent, { type: 'assistant.text.delta' }> => event.type === 'assistant.text.delta')
