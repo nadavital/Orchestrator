@@ -9,7 +9,7 @@ This is the Claude-first provider mapping reference Orchestrator should use as t
 | Lane | Claude surface | Orchestrator abstraction |
 | --- | --- | --- |
 | Structured session | `claude -p --output-format stream-json --verbose --include-partial-messages` | Default Orchestrator session path; stdout JSON event parser plus per-run approval hook bridge |
-| Interactive PTY | `claude [prompt]` | Escape hatch for true TUI-only commands; native prompts bridged into cards and JSONL transcript tailing can feed structured UI |
+| Interactive PTY | `claude [prompt]` | Deprecated for normal chat; terminal handoff only for true TUI-only/provider-management commands and rare native prompts |
 | Streaming input | `--input-format stream-json --output-format stream-json` | Planned bidirectional provider stream |
 | Session resume | `--resume`, `--continue`, `--session-id`, `--fork-session` | `providerSessionId`, future launch options |
 | Worktree launch | `--worktree`, `--tmux`, `--from-pr`, `--name` | Future shared launch sheet |
@@ -73,7 +73,7 @@ These are represented as `ProviderCommandSurface` so the app can render compact 
 
 ## Remaining Claude Gaps
 
-- Native PTY sessions can hit Claude's workspace trust prompt before model work in new workspaces. Orchestrator bridges that prompt into an Answer Required card and sends the selected trust response back to the PTY.
+- Native PTY sessions can hit Claude's workspace trust prompt before model work in new workspaces. This is fallback/terminal-handoff behavior only; normal chat uses structured print mode.
 - Add launch options for `--agent`, `--agents`, `--worktree`, `--tmux`, `--from-pr`, `--name`, `--session-id`, and `--fork-session`.
 - Capture more real hook-event fixtures for mutating tool approvals, MCP tool approvals, and plan-mode transitions.
 - Add settings panels for MCP/plugin/agent list commands, with mutating flows routed through explicit confirmations or terminal.

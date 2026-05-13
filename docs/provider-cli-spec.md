@@ -41,7 +41,7 @@ Runtime modes:
 
 | Feature | Evidence | Details | Orchestrator status |
 | --- | --- | --- | --- |
-| Interactive session | `verified-cli` | Default `claude [prompt]` starts interactive mode and may show the workspace trust prompt. | Escape hatch for true TUI-only flows; native prompts are bridged into user-input UI when this lane is used. |
+| Interactive session | `verified-cli` | Default `claude [prompt]` starts interactive mode and may show the workspace trust prompt. | Deprecated for normal Claude chat; keep only for explicit terminal handoff/provider-management flows and rare native prompts. |
 | Non-interactive print | `verified-cli` | `-p/--print`; output formats `text`, `json`, `stream-json`. | Normal Orchestrator session path. |
 | Streaming input | `verified-cli` | `--input-format stream-json`; `--replay-user-messages`. | Not implemented. |
 | Partial messages | `verified-cli` | `--include-partial-messages` with print stream JSON. | Implemented for assistant and subagent text streaming. |

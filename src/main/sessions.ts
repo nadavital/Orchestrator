@@ -48,6 +48,11 @@ function defaultRuntimeForProvider(_providerId: string): ProviderRuntimeKind {
   return 'headless'
 }
 
+function sessionRuntimeForProvider(providerId: string, runtime?: ProviderRuntimeKind): ProviderRuntimeKind {
+  if (providerId === 'claude' && runtime === 'interactive') return defaultRuntimeForProvider(providerId)
+  return runtime ?? defaultRuntimeForProvider(providerId)
+}
+
 function hasRecoverableActiveStatus(status: SessionStatus): boolean {
   return status === 'running' ||
     status === 'waiting_for_permission' ||
@@ -58,12 +63,13 @@ function hasRecoverableActiveStatus(status: SessionStatus): boolean {
 function normalizeSession(session: Session): Session {
   const hasRuntime = providerRuntime.hasActiveRun(session.id)
   const status = !hasRuntime && hasRecoverableActiveStatus(session.status) ? 'idle' : session.status
+  const providerId = session.provider ?? 'claude'
   return {
     ...session,
     status,
     messages: hasRuntime ? session.messages : finalizeInterruptedMessages(session.messages),
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
-    runtime: session.runtime ?? defaultRuntimeForProvider(session.provider ?? 'claude')
+    runtime: sessionRuntimeForProvider(providerId, session.runtime)
   }
 }
 
@@ -74,6 +80,7 @@ function send(channel: string, ...args: unknown[]): void {
 }
 
 function requestFromSession(session: Session, prompt: string): RunRequest {
+  const providerId = session.provider ?? 'claude'
   return {
     prompt,
     cwd: session.workDir,
@@ -86,18 +93,10 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     disallowedTools: session.disallowedTools ?? [],
     availableTools: session.availableTools ?? [],
     additionalDirs: session.additionalDirs ?? [],
-    runtime: session.runtime ?? defaultRuntimeForProvider(session.provider ?? 'claude'),
+    runtime: sessionRuntimeForProvider(providerId, session.runtime),
     useThinking: session.useThinking,
     useFast: session.useFast
   }
-}
-
-function runtimeForNewProviderRun(session: Session): ProviderRuntimeKind {
-  const runtime = session.runtime ?? defaultRuntimeForProvider(session.provider ?? 'claude')
-  if (runtime === 'interactive' && (session.providerSessionId || session.claudeSessionId)) {
-    return 'headless'
-  }
-  return runtime
 }
 
 function mergeToolNames(current: string[] | undefined, granted: string[]): string[] {
@@ -503,10 +502,7 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const provider = getProvider(currentSession.provider ?? 'claude')
-    let runRequest = {
-      ...requestFromSession(currentSession, prompt),
-      runtime: runtimeForNewProviderRun(currentSession)
-    }
+    let runRequest = requestFromSession(currentSession, prompt)
     await this.startProviderRun(sessionId, currentSession, provider, runRequest)
   },
 
@@ -598,6 +594,9 @@ export const sessionManager = {
           const storedPermissionModes = settingsStore.get('defaultPermissionModes', {}) as Record<string, string>
           normalizedPatch.permissionMode = getDefaultPermissionMode(providerDef, storedPermissionModes[providerDef.id])
         }
+      }
+      if (normalizedPatch.runtime) {
+        normalizedPatch.runtime = sessionRuntimeForProvider(normalizedPatch.provider ?? s.provider ?? 'claude', normalizedPatch.runtime)
       }
       Object.assign(s, normalizedPatch)
       store.set('sessions', sessions)
