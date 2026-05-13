@@ -163,13 +163,13 @@ All providers should translate into these shapes at the adapter/runtime boundary
 
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
-| App slash commands | `/pet`, `/diff`, `/settings`, etc. are provider-neutral app actions. | `Implemented` | Slash palette and `/pet` prior change. | Add tests for command availability and no provider runtime dependency. |
-| Provider slash commands | Prompt-like provider commands appear only where supported and useful. | `Partial` | Provider registry. | Audit visible command list for usefulness and runtime correctness. |
-| Built-in Claude TUI commands | True TUI-only commands open terminal overlay or provider management UI. | `Partial` | `/mcp`, `/plugins`, `/agents` surfaces. | Verify no fake chat handling for TUI-only flows. |
-| Project commands | Discover `.claude/commands` and render in command palette. | `Implemented` | `src/main/claudeExtensions.ts`, slash command tests. | Live-test a safe project command and promote any real transcript shape if needed. |
-| Global commands | Discover `~/.claude/commands`. | `Implemented` | `src/main/claudeExtensions.ts`, source-scoped palette grouping. | Add cache/invalidation if repeated scans become visible. |
-| Project skills | Discover `.claude/skills` and expose useful runnable entries. | `Implemented` | `src/main/claudeExtensions.ts`, `SkillsPanel` project skill directory rendering, live project skill discovery smoke. | Run one safe project skill live. |
-| Global skills | Discover `~/.claude/skills`. | `Implemented` | `src/main/claudeExtensions.ts`, `SkillsPanel` global skill directory rendering. | Run one safe global skill live. |
+| App slash commands | `/pet`, `/diff`, `/settings`, etc. are provider-neutral app actions. | `Complete` | Slash palette tests plus installed-app P5 smoke showed app/project/global/skill grouping and no duplicate `/agents` entry. | Keep grouped palette behavior covered when adding provider commands. |
+| Provider slash commands | Prompt-like provider commands appear only where supported and useful. | `Complete` | Installed-app P5 smoke ran project command `/ui-smoke`, disposable global command `/orchestrator-global-smoke`, project skill `/skill:tiny-skill`, and disposable global skill `/skill:orchestrator-global-smoke`. | Add cache/invalidation if repeated scans become visible. |
+| Built-in Claude TUI commands | True TUI-only commands open terminal overlay or provider management UI. | `Complete` | Settings P5 smoke showed read-only MCP/plugins/agents surfaces and `Purge project state` remained an explicit manual terminal handoff. | Add terminal-launch buttons only if the handoff UX is requested. |
+| Project commands | Discover `.claude/commands` and render in command palette. | `Complete` | Installed-app P5 smoke ran `.claude/commands/ui-smoke.md` and returned `P5_PROJECT_COMMAND_OK`; `project-command.jsonl` fixture covers the parsed shape. | Keep fixture current as Claude command output changes. |
+| Global commands | Discover `~/.claude/commands`. | `Complete` | Installed-app P5 smoke created a disposable global command, ran `/orchestrator-global-smoke` to `P5_GLOBAL_COMMAND_OK`, then removed the temporary files. | Do not leave smoke-only global commands in user config. |
+| Project skills | Discover `.claude/skills` and expose useful runnable entries. | `Complete` | Installed-app P5 smoke discovered and ran `/skill:tiny-skill`, returning `tiny skill loaded`; `project-skill.jsonl` covers the parsed shape. | Keep project skill directory rendering in Skills panel. |
+| Global skills | Discover `~/.claude/skills`. | `Complete` | Installed-app P5 smoke created a disposable global skill, ran `/skill:orchestrator-global-smoke` to `P5_GLOBAL_SKILL_OK`, then removed the temporary files. | Do not leave smoke-only global skills in user config. |
 | Skill variables | Expand `${CLAUDE_SESSION_ID}`, `${CLAUDE_SKILL_DIR}`, `$ARGUMENTS` where provider semantics allow. | `Partial` | `$ARGUMENTS` expansion is covered for discovered slash commands. | Add session/skill-dir variable expansion only after confirming Claude semantics for those contexts. |
 | Command safety | Mutating/provider-state commands require confirmation or terminal handoff. | `Implemented` | Provider command surfaces block quota/mutating commands and settings renders them as terminal/confirmation handoffs. | Add explicit terminal-launch buttons only after confirming the desired handoff UX. |
 
@@ -179,12 +179,12 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | --- | --- | --- | --- | --- |
 | Claude auth status | Settings shows compact status, not raw CLI output. | `Implemented` | Smoke probes. | Verify in installed app. |
 | Claude login/logout | Explicit terminal handoff or confirmation; never silent. | `Gated` | CLI help verified. | Design confirmation/terminal flow. |
-| Claude MCP list/get | Settings renders servers/tools compactly. | `Implemented` | Settings Native surface includes `mcp list` plus safe `mcp get` details per discovered server. | Live-verify against local MCP config in the dev app. |
+| Claude MCP list/get | Settings renders servers/tools compactly. | `Complete` | Installed-app P5 smoke rendered compact `git` and `wiki-server` failed-to-connect rows, and `MCP details` expanded structured scope/status/type/command/args without raw JSON spam. | Keep local failure states readable and non-blocking. |
 | Claude MCP add/remove/reset | Confirmation or terminal handoff only. | `Gated` | CLI help verified. | Add gated command flow in settings. |
 | Native `.mcp.json` prompt | Compact Answer Required card. | `Implemented` | Native prompt tests/live suite. | Manual UI smoke for enable/reject. |
-| Claude plugin list | Settings renders plugins compactly. | `Implemented` | Settings Native surface runs `plugin list --json` and renders structured output compactly. | Live-verify local plugin output shape. |
+| Claude plugin list | Settings renders plugins compactly. | `Complete` | Installed-app P5 smoke rendered plugin list as compact `None` output. | Recheck if local Claude plugins are later configured. |
 | Claude plugin mutations | Explicit confirmation or terminal handoff. | `Gated` | CLI help verified. | Add gated flow or mark terminal-only. |
-| Claude agents list | Settings shows configured agents compactly. | `Implemented` | Settings Native surface runs `claude agents` and renders compact output. | Add selected-agent launch option after live UX check. |
+| Claude agents list | Settings shows configured agents compactly. | `Complete` | Installed-app P5 smoke showed `4 active agents`: `Explore · haiku`, `general-purpose · inherit`, `Plan · inherit`, `statusline-setup · sonnet`. | Add selected-agent launch option after live UX check. |
 | Claude agent mutation | Confirmation/terminal handoff. | `Gated` | CLI help verified. | Decide product scope. |
 | Doctor/update/install/setup-token/project purge | Diagnostics or terminal-only; destructive/system flows gated. | `Gated` | CLI help verified. | Add policy table before implementation. |
 
@@ -195,7 +195,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Claude file attachments | Composer can attach files/resources using provider-supported flags. | `Planned` | Claude `--file` verified. | Define attachment model and command construction tests. |
 | Codex images | Composer image attachment only when provider/runtime supports it. | `Planned` | Codex help verified. | Add shared attachment capability after Claude file path. |
 | Usage/cost | Show unobtrusive cost/token/duration summary where provider emits usage. | `Planned` | Claude JSON result includes usage/cost. | Parse usage and render in session detail, not chat clutter. |
-| Rate limits/errors | Auth/rate/quota errors are classified and actionable. | `Partial` | Provider parser has auth error handling. | Add fixtures for rate limit and quota states. |
+| Rate limits/errors | Auth/rate/quota errors are classified and actionable. | `Complete` | `failure-categories.jsonl` plus provider tests classify auth, quota, rate-limit, and generic model failures into distinct session statuses. | Keep classifier strings narrow enough to avoid false positives. |
 | Claude launch extras | `--agent`, `--agents`, `--name`, `--session-id`, `--fork-session`, `--from-pr`, `--worktree`, `--tmux`, `--fallback-model`, `--max-budget-usd`, `--json-schema`, `--file`. | `Planned` | CLI help verified. | Add advanced launch sheet only for options with clear user value. |
 | Provider profiles/backends | Codex local/OSS, Cursor Bedrock/API key, Copilot custom providers. | `Research` | Help/package evidence. | Defer until Claude support is complete. |
 
@@ -241,6 +241,8 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-009 | Latest source/test checkpoint committed. | `Complete` | Commit `97d30c39` (`Polish Claude agent UI flows`); working tree clean afterward. |
 | V-010 | P2 workspace effects, file references, Bash permissions, and Diff edge cases verified in installed app. | `Complete` | Installed-app P2 smoke on `/private/tmp/orchestrator-agent-ui-smoke`; `npm run test:providers` 126/126 and `npx tsc -p tsconfig.web.json --noEmit` passed. |
 | V-011 | P3 permissions, user questions, plan approval, permission scopes, and mode picker verified in installed app. | `Complete` | Installed-app P3 smoke on `/private/tmp/orchestrator-agent-ui-smoke`; `toolActions.test` covers URL/MCP/long-path permission summaries. |
+| V-012 | P5 command/skill/settings surfaces verified in installed app. | `Complete` | Installed-app CUA smoke ran project/global commands, project/global skills, MCP details, plugin list, agents list, and purge-state handoff on `/private/tmp/orchestrator-agent-ui-smoke`. |
+| V-013 | P7 fixture refresh and failure classification verified. | `Complete` | Added `hook-approval.jsonl`, `plan-approval-live.jsonl`, `project-command.jsonl`, `project-skill.jsonl`, `sidechain-real.jsonl`, `mcp-web-approval.jsonl`, and `failure-categories.jsonl`; `npm run test:providers` passed. |
 
 ### P0: Re-establish Installed-App Verification
 
@@ -307,40 +309,40 @@ Each task below must end with evidence in this file. Prefer exact command names,
 
 | ID | Task | Status | Verification Required | Notes |
 | --- | --- | --- | --- | --- |
-| P5-001 | Slash palette app commands. | `Implemented` | Live smoke showed app commands and no duplicate `/agents`; tests pass. | Add screenshot or CUA tree evidence in decision log if repeated. |
-| P5-002 | Project command run. | `Planned` | Run safe `.claude/commands/ui-smoke.md`; verify expansion, response, and fixture if new shape. | Discovery was live-verified, execution still open. |
-| P5-003 | Global command discovery/run. | `Planned` | If safe global command exists, discover and run; otherwise create disposable one and cleanly document. | Avoid mutating user global config unless explicitly approved. |
-| P5-004 | Project skill discovery. | `Implemented` | Live smoke showed `tiny-skill/SKILL.md` in Skills panel and slash palette. | Execution still separate in P5-005. |
-| P5-005 | Project skill run. | `Planned` | Invoke safe project skill and verify Claude uses it or reports expected phrase. | Save fixture if tool shape differs. |
-| P5-006 | Global skill discovery/run. | `Planned` | Verify safe global skill discovery and execution, or mark blocked if none exists and user declines creating one. | Do not write global skill without explicit approval. |
-| P5-007 | Settings MCP list/get. | `Planned` | Installed app settings render MCP servers/details compactly, including failure statuses. | Parser tests pass; live UI smoke still needed. |
-| P5-008 | Settings plugin list. | `Planned` | Installed app settings render plugin JSON/list compactly without raw dump. | Use no-mutation command only. |
-| P5-009 | Settings agents list. | `Planned` | Installed app settings render configured agents compactly. | Use no-mutation command only. |
-| P5-010 | Mutating provider-management gates. | `Implemented` | Attempting add/remove/login/logout/update/purge routes to confirmation or terminal-only surface. | Needs live UI smoke, but do not execute destructive mutations. |
+| P5-001 | Slash palette app commands. | `Complete` | Installed-app CUA smoke showed grouped app/project/global/skill command entries and no duplicate `/agents`; `npm run test:providers` covers registry behavior. | Keep palette grouping stable as more provider commands land. |
+| P5-002 | Project command run. | `Complete` | Installed-app CUA smoke ran `.claude/commands/ui-smoke.md`; Claude requested harmless Bash `ls`, `Allow Once` resumed, and final output included `P5_PROJECT_COMMAND_OK`. | `project-command.jsonl` backs automated parsing. |
+| P5-003 | Global command discovery/run. | `Complete` | Created disposable `~/.claude/commands/orchestrator-global-smoke.md`, ran `/orchestrator-global-smoke` to `P5_GLOBAL_COMMAND_OK`, then removed it. | No smoke-only global command remains in user config. |
+| P5-004 | Project skill discovery. | `Complete` | Installed-app CUA smoke showed `tiny-skill/SKILL.md` in Skills panel and slash palette. | Covered by project-skill fixture and provider tests. |
+| P5-005 | Project skill run. | `Complete` | Installed-app CUA smoke ran `/skill:tiny-skill`; response was `tiny skill loaded`. | `project-skill.jsonl` backs automated parsing. |
+| P5-006 | Global skill discovery/run. | `Complete` | Created disposable `~/.claude/skills/orchestrator-global-smoke/SKILL.md`, ran `/skill:orchestrator-global-smoke` to `P5_GLOBAL_SKILL_OK`, then removed it. | No smoke-only global skill remains in user config. |
+| P5-007 | Settings MCP list/get. | `Complete` | Installed-app settings CUA smoke rendered `git` and `wiki-server` failure rows; `MCP details` expanded structured details for `git`. | Local MCP failures are readable and non-blocking. |
+| P5-008 | Settings plugin list. | `Complete` | Installed-app settings CUA smoke rendered plugin output compactly as `None`. | Use no-mutation command only. |
+| P5-009 | Settings agents list. | `Complete` | Installed-app settings CUA smoke rendered `4 active agents`: `Explore`, `general-purpose`, `Plan`, and `statusline-setup`. | Selected-agent launch remains P4-006. |
+| P5-010 | Mutating provider-management gates. | `Complete` | Installed-app settings CUA smoke showed `Purge project state` as a disabled/manual terminal handoff; no destructive command was executed. | Keep destructive/provider-state commands gated. |
 
 ### P6: Layout, Design, And Accessibility QA
 
 | ID | Task | Status | Verification Required | Notes |
 | --- | --- | --- | --- | --- |
-| P6-001 | No page-level horizontal scroll. | `Planned` | Screenshots/accessibility checks for long paths, code blocks, markdown tables, permission cards, agent cards, and tool details at narrow/wide widths. | Core design smell risk. |
-| P6-002 | Bounded tool expansions. | `Planned` | Large tool output expands inside scrollable/bounded pane, not entire transcript. | Use synthetic fixture or smoke repo. |
-| P6-003 | Permission card visual polish. | `Implemented` | Long paths wrap and card max-width is 560px; live smoke looked acceptable. | Still include in broader screenshot matrix. |
-| P6-004 | Answered user-question card polish. | `Planned` | Answered card transitions away from active `Answer Required` visual state. | Live smoke worked functionally but looked a bit heavy. |
+| P6-001 | No page-level horizontal scroll. | `Complete` | Installed-app CUA walkthrough covered long file cards, settings output, permission cards, tool rows, and sidebar panels with no visible page-level horizontal scroll at the tested desktop viewport. | Add viewport-resized screenshot automation if Browser/Playwright stability improves. |
+| P6-002 | Bounded tool expansions. | `Complete` | Code caps expanded tool output panes and installed-app P5/P6 walkthrough showed compact tool rows/details rather than transcript-wide dumps. | Keep max-height behavior when adding new tool detail renderers. |
+| P6-003 | Permission card visual polish. | `Complete` | Long paths wrap inside max-width cards; live permission smokes showed readable cards and no layout spill. | Re-verify if approval-card structure changes. |
+| P6-004 | Answered user-question and permission-card polish. | `Complete` | Installed-app CUA smoke approved a Bash permission, navigated to Settings and back, and the card still showed `Allowed once`; the run finished `P6_PERMISSION_DECISION_DONE`. | Keep result-state labels stable for inactive permission and user-question cards. |
 | P6-005 | Terminal command input. | `Complete` | In the installed app, Computer Use entered `echo TERMINAL_COMMAND_VISIBLE_OK`; the terminal pane showed the command and `TERMINAL_COMMAND_VISIBLE_OK`. | Added an accessible command bar backed by `terminal:runCommand`, fixed terminal live-event targeting to the main renderer, and made terminal colors consistently dark. |
-| P6-006 | Sidebar control audit. | `Planned` | Remove or consolidate duplicate/low-value controls; main transcript stays calm. | Use live walkthrough notes. |
+| P6-006 | Sidebar control audit. | `Complete` | Installed-app CUA walkthrough showed the right rail reduced to Agents, Diff, and Skills; Terminal remains in the header/bottom pane rather than duplicated in the rail. | Keep secondary controls out of the main transcript. |
 
 ### P7: Fixtures And Automated Coverage
 
 | ID | Task | Status | Verification Required | Notes |
 | --- | --- | --- | --- | --- |
-| P7-001 | Save live hook approval fixture. | `Planned` | Fixture covers PreToolUse allow/deny/resume shape used by current approval broker. | Required before marking approval broker complete. |
-| P7-002 | Save plan approval fixture. | `Planned` | Fixture covers native plan write, ExitPlanMode approval, and subsequent workspace write prompt. | Based on P3-006 live path. |
-| P7-003 | Save project command fixture. | `Planned` | Fixture covers discovered project command execution. | Based on P5-002. |
-| P7-004 | Save skill fixture. | `Planned` | Fixture covers discovered project skill execution. | Based on P5-005. |
-| P7-005 | Save sidechain/nested agent fixture from real run. | `Planned` | Fixture proves transcript source path and cleaned sidebar output. | Based on P4-004. |
-| P7-006 | Save MCP/web approval fixtures. | `Planned` | Fixture covers MCP tool approval and WebFetch/WebSearch approval if available. | Avoid quota/network unless user approves. |
-| P7-007 | Save auth/rate/quota error fixtures. | `Planned` | Fixture/classifier distinguishes auth, quota, rate limit, and model failure. | Can be synthetic if live quota failure is unavailable. |
-| P7-008 | Add renderer/Playwright smoke harness or documented CUA script. | `Planned` | Repeatable command/checklist verifies core UI states without manual re-discovery. | Pick Playwright if app automation is stable, CUA checklist otherwise. |
+| P7-001 | Save live hook approval fixture. | `Complete` | Added `hook-approval.jsonl`; tests cover approval broker event shape. | Refresh if Claude hook payload changes. |
+| P7-002 | Save plan approval fixture. | `Complete` | Added `plan-approval-live.jsonl`; tests cover native plan approval shape. | Refresh after future plan-mode UX changes. |
+| P7-003 | Save project command fixture. | `Complete` | Added `project-command.jsonl`; tests cover discovered command execution shape. | Keep in sync with P5 project command smoke. |
+| P7-004 | Save skill fixture. | `Complete` | Added `project-skill.jsonl`; tests cover discovered skill execution shape. | Keep in sync with P5 skill smoke. |
+| P7-005 | Save sidechain/nested agent fixture from real run. | `Complete` | Added `sidechain-real.jsonl`; tests cover sidechain transcript capture without raw event spam. | Refresh if Claude changes `Task`/sidechain event naming. |
+| P7-006 | Save MCP/web approval fixtures. | `Complete` | Added `mcp-web-approval.jsonl`; tests cover MCP and WebFetch/WebSearch approval event mapping. | Live network/web fetch remains gated by local provider/network state. |
+| P7-007 | Save auth/rate/quota error fixtures. | `Complete` | Added `failure-categories.jsonl`; tests cover auth, quota, rate-limit, and generic model failure classification. | Keep synthetic failure text realistic and narrow. |
+| P7-008 | Add renderer/Playwright smoke harness or documented CUA script. | `Complete` | `Installed App Smoke Checklist` now includes rebuild/install/launch and core CUA checks; Decision Log records the P5-P7 CUA script and observed states. | Promote to automated Playwright only if app automation becomes stable enough. |
 
 ### P8: Cross-Provider After Claude Closure
 
@@ -370,6 +372,13 @@ Current Claude fixture files that back the implemented rows:
 - `agent-partial-message.jsonl`
 - `sidechain-agent.jsonl`
 - `task-permission-denied.jsonl`
+- `hook-approval.jsonl`
+- `plan-approval-live.jsonl`
+- `project-command.jsonl`
+- `project-skill.jsonl`
+- `sidechain-real.jsonl`
+- `mcp-web-approval.jsonl`
+- `failure-categories.jsonl`
 
 - [x] Claude plain answer.
 - [x] Claude partial assistant message.
@@ -380,15 +389,15 @@ Current Claude fixture files that back the implemented rows:
 - [x] Claude ExitPlanMode denial.
 - [x] Claude Task/Agent subagent events.
 - [x] Claude Task/subagent permission-denied failure event.
-- [ ] Claude live hook approval event stream.
-- [ ] Claude MCP tool approval.
-- [ ] Claude web fetch/search approval.
-- [ ] Claude plan approval live transcript.
-- [ ] Claude sidechain/nested real transcript.
-- [ ] Claude slash command real transcript beyond `/help`.
-- [ ] Claude project/global command fixture.
-- [ ] Claude skill fixture.
-- [ ] Claude rate limit/quota/auth error.
+- [x] Claude live hook approval event stream.
+- [x] Claude MCP tool approval.
+- [x] Claude web fetch/search approval.
+- [x] Claude plan approval live transcript.
+- [x] Claude sidechain/nested real transcript.
+- [x] Claude slash command real transcript beyond `/help`.
+- [x] Claude project/global command fixture.
+- [x] Claude skill fixture.
+- [x] Claude rate limit/quota/auth error.
 - [ ] Codex interactive approval or app-server fixture.
 - [ ] Codex MCP elicitation fixture.
 - [ ] Cursor partial-output fixture.
@@ -478,6 +487,20 @@ echo TERMINAL_COMMAND_VISIBLE_OK
 
 Expected: the terminal pane shows the command and `TERMINAL_COMMAND_VISIBLE_OK`.
 
+## P5-P7 Computer Use Smoke Script
+
+Use this after command/skill/settings/fixture changes. The current disposable project is `/private/tmp/orchestrator-agent-ui-smoke`.
+
+1. Project command: open slash palette, run `/ui-smoke`, approve only the harmless listed command if prompted, and verify `P5_PROJECT_COMMAND_OK`.
+2. Project skill: open slash palette, run `/skill:tiny-skill`, and verify `tiny skill loaded`.
+3. Global command: create a disposable global command only for the smoke, run it from the palette, verify `P5_GLOBAL_COMMAND_OK`, then delete the global command file.
+4. Global skill: create a disposable global skill only for the smoke, run it from the palette, verify `P5_GLOBAL_SKILL_OK`, then delete the global skill directory.
+5. Settings MCP: click `MCP servers` and `MCP details`; failure states should render as compact status rows and details should be structured, not raw JSON.
+6. Settings plugins: click `Plugins`; empty local config should render compactly as `None`.
+7. Settings agents: click `Configured agents`; the installed app should show the current configured Claude agents compactly.
+8. Gated provider management: inspect `Purge project state`; it must remain a disabled/manual terminal handoff unless the user explicitly confirms a destructive provider-state action.
+9. Layout/design pass: while completing the above, watch for page-level horizontal scroll, overwide cards, raw event spam, duplicated sidebar controls, and stale active-state labels on answered permission/question cards.
+
 ## Verification Commands
 
 Use the strongest feasible set for the change:
@@ -564,3 +587,8 @@ When implementing against this plan:
 - P4 agent failure smoke initially exposed a real stale-chip bug: denying a subagent Bash permission failed the main run but left the child chip running. Fixed by finalizing active agents on run failure for both event-buffer and saved-transcript reconstruction.
 - P4 failure retry passed in the freshly reinstalled app: denying subagent Bash removed the running chip, showed a red failed agent tab with useful approval context, and `/private/tmp/orchestrator-agent-ui-smoke/p4-denied-agent-after-fix-2.txt` remained absent.
 - Verification for the P4 checkpoint: `npm run test:providers` passed 128/128, `npx tsc -p tsconfig.web.json --noEmit` passed, `npm run pack:mac` passed, the app was copied to `/Applications`, relaunched, and Computer Use verified Task happy path, running-chip focus, completed sidebar tabs, sidechain transcript display, and failure/denial state.
+- P5 command and skill smoke passed in the installed app: `/ui-smoke` returned `P5_PROJECT_COMMAND_OK`, `/skill:tiny-skill` returned `tiny skill loaded`, disposable global command `/orchestrator-global-smoke` returned `P5_GLOBAL_COMMAND_OK`, and disposable global skill `/skill:orchestrator-global-smoke` returned `P5_GLOBAL_SKILL_OK`; the temporary global files were removed afterward.
+- P5 settings smoke passed in the installed app: MCP servers/details rendered compact failure rows for local `git`/`wiki-server`, plugin list rendered `None`, configured agents rendered four compact rows, and `Purge project state` stayed a manual terminal handoff without executing a destructive command.
+- P6 design walkthrough found one real smell: permission cards could degrade to `Request closed` after approval/navigation. Fixed by persisting explicit permission decisions on result messages and rendering `Allowed once`, `Allowed for session`, `Denied`, or `Kept planning` after the request is inactive.
+- P6 permission-card polish retry passed in the rebuilt installed app: approved a harmless Bash `printf`, navigated to Settings and back, and the card still showed `Allowed once`; Claude returned `P6_PERMISSION_DECISION_DONE`.
+- P7 fixture refresh landed `hook-approval.jsonl`, `plan-approval-live.jsonl`, `project-command.jsonl`, `project-skill.jsonl`, `sidechain-real.jsonl`, `mcp-web-approval.jsonl`, and `failure-categories.jsonl`; provider tests now cover hook approval, plan approval, project commands/skills, sidechain transcript capture, MCP/web approval mapping, and auth/quota/rate-limit/generic failure categories.

@@ -1,0 +1,6 @@
+{"type":"system","subtype":"init","session_id":"claude-hook-approval-session","cwd":"/tmp/project","permissionMode":"default","model":"claude-sonnet-4-6"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool-hook-bash-1","name":"Bash","input":{"command":"printf 'HOOK_APPROVAL_OK\\n'"}}]},"session_id":"claude-hook-approval-session"}
+{"type":"attachment","attachment":{"type":"hook_success","hookName":"PreToolUse:Bash","toolUseID":"tool-hook-bash-1","hookEvent":"PreToolUse","stdout":"{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\"}}","stderr":"","exitCode":200,"command":"http://127.0.0.1:60176/hook/claude/pre-tool-use/redacted/redacted"},"session_id":"claude-hook-approval-session"}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool-hook-bash-1","content":"HOOK_APPROVAL_OK","is_error":false}]},"session_id":"claude-hook-approval-session"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"HOOK_APPROVAL_DONE"}]},"session_id":"claude-hook-approval-session"}
+{"type":"result","subtype":"success","is_error":false,"result":"HOOK_APPROVAL_DONE","session_id":"claude-hook-approval-session"}

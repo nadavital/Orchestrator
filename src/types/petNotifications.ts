@@ -64,6 +64,8 @@ export function petStatusForSession(session: Pick<PetSessionSnapshot, 'status' |
   if (
     session.status === 'auth_error' ||
     session.status === 'model_error' ||
+    session.status === 'quota_error' ||
+    session.status === 'rate_limit_error' ||
     session.status === 'provider_error' ||
     session.status === 'error'
   ) return 'failed'

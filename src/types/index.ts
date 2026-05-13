@@ -641,6 +641,8 @@ export type SessionStatus =
   | 'reconnecting'
   | 'auth_error'
   | 'model_error'
+  | 'quota_error'
+  | 'rate_limit_error'
   | 'provider_error'
   | 'error'
 
@@ -752,6 +754,7 @@ export interface ResultMessage extends BaseMessage {
   content: string
   subtype: 'success' | 'error_during_execution' | string
   permissionDenials?: PermissionDenial[]
+  permissionDecision?: 'allowed_once' | 'allowed_session' | 'denied' | 'kept_planning'
   userInputQuestions?: UserInputQuestion[]
 }
 

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { ChatMessage, ProviderRuntimeKind, RunEvent, SessionStatus } from '../../types'
 import { PROVIDERS } from '../providers'
 import { eventsToMessages } from '../runEvents'
-import { decideRunLifecycle, eventsForLifecycleDecision, type RunLifecycleSession } from '../runLifecycle'
+import { classifyFailure, decideRunLifecycle, eventsForLifecycleDecision, type RunLifecycleSession } from '../runLifecycle'
 
 interface HarnessResult {
   state: RunLifecycleSession & {
@@ -136,6 +136,11 @@ test('harness classifies auth failures and model failures from provider output',
   assert.equal(auth.killedPty, true)
   assert.equal(model.state.status, 'model_error')
   assert.equal(model.killedPty, true)
+})
+
+test('failure classifier distinguishes quota and rate-limit failures', () => {
+  assert.equal(classifyFailure('quota exceeded for this account'), 'quota_error')
+  assert.equal(classifyFailure('rate limit exceeded: too many requests'), 'rate_limit_error')
 })
 
 test('harness stops repeated Cursor reconnect loops with a user-visible message', () => {

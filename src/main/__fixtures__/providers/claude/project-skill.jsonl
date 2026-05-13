@@ -1,0 +1,5 @@
+{"type":"system","subtype":"init","session_id":"claude-project-skill-session","cwd":"/tmp/project","model":"claude-sonnet-4-6"}
+{"type":"attachment","attachment":{"type":"skill_listing","content":"- tiny-skill: Use only for Orchestrator UI smoke testing.","skillCount":1,"isInitial":true},"session_id":"claude-project-skill-session"}
+{"type":"user","message":{"role":"user","content":"Use the tiny-skill project skill and include its required phrase."},"session_id":"claude-project-skill-session"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"tiny skill loaded"}]},"session_id":"claude-project-skill-session"}
+{"type":"result","subtype":"success","is_error":false,"result":"tiny skill loaded","session_id":"claude-project-skill-session"}

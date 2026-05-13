@@ -45,7 +45,14 @@ test('Orchestrator source of truth is backed by Claude fixtures and completion g
     'exit-plan-denial.jsonl',
     'task-agent.jsonl',
     'agent-tool.jsonl',
-    'task-progress.jsonl'
+    'task-progress.jsonl',
+    'hook-approval.jsonl',
+    'plan-approval-live.jsonl',
+    'project-command.jsonl',
+    'project-skill.jsonl',
+    'sidechain-real.jsonl',
+    'mcp-web-approval.jsonl',
+    'failure-categories.jsonl'
   ]) {
     assert.match(plan, new RegExp(fixture.replace('.', '\\.')), `Source of truth should cite ${fixture}`)
   }
@@ -161,6 +168,49 @@ test('Claude saved transcript failure finalizes active subagents', () => {
   assert.equal(agents[0].status, 'failed')
   assert.match(agents[0].summary ?? '', /Permission denied by user/)
 })
+
+test('Claude live hook approval fixture hides hook attachments and preserves tool flow', () => {
+  const events = parseClaudeFixture('hook-approval.jsonl')
+  const messages = eventsToMessages(events)
+  const activities = pairToolActivities(messages.filter((message) => message.type === 'tool_use' || message.type === 'tool_result'))
+
+  assert.deepEqual(events.map((event) => event.type), [
+    'session.started',
+    'tool.started',
+    'tool.completed',
+    'assistant.text',
+    'run.completed'
+  ])
+  assert.equal(summarizeToolActivities(activities), 'Ran 1 command')
+  assert.equal(messages.some((message) => message.type === 'text' && /hook_success|PreToolUse/.test(message.content)), false)
+})
+
+test('Claude plan approval live fixture covers plan permission and approved write', () => {
+  const events = parseClaudeFixture('plan-approval-live.jsonl')
+  const plans = derivePlanStates({ id: 'session-under-test', provider: 'claude' }, records(events))
+  const messages = eventsToMessages(events)
+  const writeResult = messages.find((message) => message.type === 'tool_result' && message.toolUseId === 'tool-plan-approved-write-1')
+
+  assert.ok(plans.some((plan) => /Create p7-plan-approve/.test(plan.summary ?? '')))
+  assert.ok(events.some((event) => event.type === 'permission.requested' && event.denials[0]?.tool_name === 'ExitPlanMode'))
+  assert.ok(writeResult)
+  assert.ok(messages.some((message) => message.type === 'text' && message.content === 'P7_PLAN_APPROVE_DONE'))
+})
+
+test('Claude project command and skill fixtures preserve expected assistant output', () => {
+  const commandText = assistantText(parseClaudeFixture('project-command.jsonl'))
+  const skillText = assistantText(parseClaudeFixture('project-skill.jsonl'))
+
+  assert.match(commandText, /P5_PROJECT_COMMAND_OK/)
+  assert.match(skillText, /tiny skill loaded/)
+})
+
+function assistantText(events: RunEvent[]): string {
+  return events
+    .filter((event) => event.type === 'assistant.text' || event.type === 'assistant.text.delta')
+    .map((event) => event.content)
+    .join('')
+}
 
 test('Claude slash command surface follows feature support without a user-visible runtime split', () => {
   const runtime = getProviderRuntimeInfo().claude

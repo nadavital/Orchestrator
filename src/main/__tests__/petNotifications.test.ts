@@ -32,6 +32,8 @@ test('pet status maps rich session states to Codex-style notification states', (
   assert.equal(petStatusForSession({ status: 'waiting_for_user', hasUnread: false }), 'waiting')
   assert.equal(petStatusForSession({ status: 'provider_error', hasUnread: false }), 'failed')
   assert.equal(petStatusForSession({ status: 'auth_error', hasUnread: false }), 'failed')
+  assert.equal(petStatusForSession({ status: 'quota_error', hasUnread: false }), 'failed')
+  assert.equal(petStatusForSession({ status: 'rate_limit_error', hasUnread: false }), 'failed')
   assert.equal(petStatusForSession({ status: 'reconnecting', hasUnread: false }), 'running')
   assert.equal(petStatusForSession({ status: 'idle', hasUnread: true }), 'review')
   assert.equal(petStatusForSession({ status: 'idle', hasUnread: false }), 'idle')

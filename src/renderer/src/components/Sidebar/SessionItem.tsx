@@ -16,6 +16,8 @@ const statusColor: Record<Session['status'], string> = {
   reconnecting: 'var(--color-yellow)',
   auth_error: 'var(--color-red)',
   model_error: 'var(--color-red)',
+  quota_error: 'var(--color-red)',
+  rate_limit_error: 'var(--color-red)',
   provider_error: 'var(--color-red)',
   error: 'var(--color-red)'
 }

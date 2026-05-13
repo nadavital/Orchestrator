@@ -81,6 +81,26 @@ function mergeToolNames(current: string[] | undefined, granted: string[]): strin
   return [...new Set([...(current ?? []), ...granted])]
 }
 
+function markLatestPermissionDecision(
+  sessionId: string,
+  decision: 'allowed_once' | 'allowed_session' | 'denied' | 'kept_planning'
+): void {
+  const sessions = store.get('sessions', [])
+  const session = sessions.find((candidate) => candidate.id === sessionId)
+  if (!session) return
+
+  for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+    const message = session.messages[index]
+    if (message.type === 'result' && message.permissionDenials?.length) {
+      const next = { ...message, permissionDecision: decision }
+      session.messages[index] = next
+      store.set('sessions', sessions)
+      send('session:messageUpdated', { id: sessionId, message: next })
+      return
+    }
+  }
+}
+
 function nativePromptEventsForData(
   sessionId: string,
   provider: ProviderAdapter,
@@ -591,6 +611,7 @@ export const sessionManager = {
   async resumeAfterPermission(sessionId: string, toolNames: string[], persistGrant: boolean): Promise<void> {
     const session = this.get(sessionId)
     if (!session) return
+    markLatestPermissionDecision(sessionId, persistGrant ? 'allowed_session' : 'allowed_once')
 
     if (approvalBroker.hasPendingApproval(sessionId)) {
       const sessions = store.get('sessions', [])
@@ -639,6 +660,7 @@ export const sessionManager = {
     if (!session) return
     const trimmed = answer.trim()
     if (!trimmed) return
+    if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
 
     if (providerRuntime.hasActiveRun(sessionId) && session.runtime === 'interactive') {
       const nativeAnswer = answerForNativePrompt(sessionId, trimmed)
@@ -681,6 +703,7 @@ export const sessionManager = {
   },
 
   denyPermission(sessionId: string): void {
+    markLatestPermissionDecision(sessionId, 'denied')
     if (approvalBroker.hasPendingApproval(sessionId)) {
       approvalBroker.resolveSessionApprovals(sessionId, false, 'Denied by user.')
       this.updateStatus(sessionId, 'running')

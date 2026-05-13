@@ -699,6 +699,19 @@ test('claude sidechain agent jsonl streams into agent transcript state', () => {
   assert.equal(agents[0].transcript, 'I found README.md.\nThe repo also has docs.')
 })
 
+test('claude real sidechain fixture streams tool and final text into one agent transcript', () => {
+  const events = parseFixture('claude', 'sidechain-real.jsonl')
+  const session = { id: 'session-under-test', provider: 'claude' }
+  const agents = deriveAgentNodes(session, records(events))
+
+  assert.equal(agents.length, 1)
+  assert.equal(agents[0].id, 'agent-real-sidechain-1')
+  assert.equal(agents[0].status, 'completed')
+  assert.match(agents[0].transcript ?? '', /first sentence of the README/)
+  assert.ok(events.some((event) => event.type === 'tool.started' && event.toolName === 'Read'))
+  assert.ok(events.some((event) => event.type === 'tool.completed' && event.toolUseId === 'tool-sidechain-read-1'))
+})
+
 test('claude plan mode and TodoWrite normalize into plan updates', () => {
   const events = parseFixture('claude', 'plan-todos.jsonl')
   const plans = events.filter((event): event is Extract<RunEvent, { type: 'plan.updated' }> => event.type === 'plan.updated')
@@ -728,6 +741,27 @@ test('claude ExitPlanMode confirmation is a permission prompt, not a red tool er
   assert.equal(events.some((event) => event.type === 'tool.completed' && event.isError), false)
   assert.equal(messages.some((message) => message.type === 'tool_result' && message.isError), false)
   assert.equal(messages.some((message) => message.type === 'result' && message.permissionDenials?.[0]?.tool_name === 'ExitPlanMode'), true)
+})
+
+test('claude MCP and web approval fixture normalizes both denials', () => {
+  const events = parseFixture('claude', 'mcp-web-approval.jsonl')
+  const permission = firstEvent(events, 'permission.requested')
+
+  assert.equal(permission.denials.length, 2)
+  assert.equal(permission.denials[0].tool_name, 'mcp__linear__create_issue')
+  assert.equal(permission.denials[1].tool_name, 'WebFetch')
+  assert.match(permission.content ?? '', /Permission approval required/)
+})
+
+test('claude failure category fixture preserves auth, model, quota, and rate-limit text', () => {
+  const failures = parseFixture('claude', 'failure-categories.jsonl')
+    .filter((event): event is Extract<RunEvent, { type: 'run.failed' }> => event.type === 'run.failed')
+
+  assert.equal(failures.length, 4)
+  assert.match(failures[0].content ?? '', /authentication failed/i)
+  assert.match(failures[1].content ?? '', /model unavailable/i)
+  assert.match(failures[2].content ?? '', /quota exceeded/i)
+  assert.match(failures[3].content ?? '', /rate limit exceeded/i)
 })
 
 test('claude AskUserQuestion permission denial becomes user input, not permission UI', () => {
@@ -801,6 +835,16 @@ test('provider fixtures expose expected normalized event contracts', () => {
       providerId: 'claude',
       fixture: 'ask-user-question.jsonl',
       types: ['session.started', 'assistant.text', 'user_input.requested']
+    },
+    {
+      providerId: 'claude',
+      fixture: 'hook-approval.jsonl',
+      types: ['session.started', 'tool.started', 'tool.completed', 'assistant.text', 'run.completed']
+    },
+    {
+      providerId: 'claude',
+      fixture: 'mcp-web-approval.jsonl',
+      types: ['session.started', 'permission.requested']
     },
     {
       providerId: 'copilot',

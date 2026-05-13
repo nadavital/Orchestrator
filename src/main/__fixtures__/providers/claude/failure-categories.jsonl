@@ -1,0 +1,4 @@
+{"type":"system","subtype":"api_retry","attempt":1,"error_status":401,"error":"authentication_failed","session_id":"claude-failure-category-session"}
+{"type":"result","subtype":"error_during_execution","is_error":true,"result":"model unavailable: claude-example","session_id":"claude-failure-category-session"}
+{"type":"result","subtype":"error_during_execution","is_error":true,"result":"quota exceeded for this account","session_id":"claude-failure-category-session"}
+{"type":"result","subtype":"error_during_execution","is_error":true,"result":"rate limit exceeded: too many requests","session_id":"claude-failure-category-session"}

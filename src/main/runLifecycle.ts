@@ -22,6 +22,12 @@ export function classifyFailure(content?: string): SessionStatus {
   if (/model .*unavailable|model unavailable|unknown model|invalid model|no models available/i.test(content ?? '')) {
     return 'model_error'
   }
+  if (/quota|usage limit|billing limit|credit limit|maximum.*budget|insufficient credits/i.test(content ?? '')) {
+    return 'quota_error'
+  }
+  if (/rate limit|too many requests|429|overloaded|try again later/i.test(content ?? '')) {
+    return 'rate_limit_error'
+  }
   return 'provider_error'
 }
 
@@ -32,6 +38,8 @@ export function isPausedOrFailed(status: SessionStatus): boolean {
     'reconnecting',
     'auth_error',
     'model_error',
+    'quota_error',
+    'rate_limit_error',
     'provider_error',
     'error'
   ].includes(status)

@@ -443,7 +443,7 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
 
   if (msg.type === 'result') {
     if (msg.subtype === 'waiting_for_user') {
-      return <UserInputCard msg={msg} sessionId={session.id} />
+      return <UserInputCard msg={msg} sessionId={session.id} sessionStatus={session.status} />
     }
     if (msg.permissionDenials && msg.permissionDenials.length > 0) {
       return <PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />
@@ -697,10 +697,20 @@ function actionColor(risk: 'low' | 'medium' | 'high'): string {
   return 'var(--color-text-muted)'
 }
 
-function UserInputCard({ msg, sessionId }: { msg: ResultMessage; sessionId: string }): JSX.Element {
+function UserInputCard({
+  msg,
+  sessionId,
+  sessionStatus
+}: {
+  msg: ResultMessage
+  sessionId: string
+  sessionStatus: Session['status']
+}): JSX.Element {
   const [answer, setAnswer] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const questions = msg.userInputQuestions?.length ? msg.userInputQuestions : [{ question: msg.content }]
+  const requestIsActive = sessionStatus === 'waiting_for_user'
+  const isAnswered = submitted || !requestIsActive
 
   const submitAnswer = async (value: string): Promise<void> => {
     const trimmed = value.trim()
@@ -720,11 +730,15 @@ function UserInputCard({ msg, sessionId }: { msg: ResultMessage; sessionId: stri
         }}
       >
         <div className="flex items-center gap-2 mb-3">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ color: 'var(--color-yellow)', flexShrink: 0 }}>
-            <path d="M8 1.5A6.5 6.5 0 1 0 8 14.5 6.5 6.5 0 0 0 8 1.5ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm7.25 4.25a.75.75 0 0 1 1.5 0v.01a.75.75 0 0 1-1.5 0v-.01ZM6.5 5.75A1.5 1.5 0 0 1 8 4.25c.828 0 1.5.67 1.5 1.49 0 .54-.277.86-.897 1.296l-.335.23C7.55 7.76 7.25 8.29 7.25 9.25a.75.75 0 0 0 1.5 0c0-.34.043-.427.367-.65l.35-.24C10.101 7.914 11 7.28 11 5.74a3 3 0 0 0-6 .01.75.75 0 0 0 1.5 0Z" />
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ color: isAnswered ? 'var(--color-green)' : 'var(--color-yellow)', flexShrink: 0 }}>
+            {isAnswered ? (
+              <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+            ) : (
+              <path d="M8 1.5A6.5 6.5 0 1 0 8 14.5 6.5 6.5 0 0 0 8 1.5ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm7.25 4.25a.75.75 0 0 1 1.5 0v.01a.75.75 0 0 1-1.5 0v-.01ZM6.5 5.75A1.5 1.5 0 0 1 8 4.25c.828 0 1.5.67 1.5 1.49 0 .54-.277.86-.897 1.296l-.335.23C7.55 7.76 7.25 8.29 7.25 9.25a.75.75 0 0 0 1.5 0c0-.34.043-.427.367-.65l.35-.24C10.101 7.914 11 7.28 11 5.74a3 3 0 0 0-6 .01.75.75 0 0 0 1.5 0Z" />
+            )}
           </svg>
           <span className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
-            Answer Required
+            {isAnswered ? 'Answer Sent' : 'Answer Required'}
           </span>
         </div>
         <div className="space-y-3">
@@ -732,42 +746,43 @@ function UserInputCard({ msg, sessionId }: { msg: ResultMessage; sessionId: stri
             <QuestionBlock
               key={`${question.question}-${index}`}
               question={question}
-              disabled={submitted}
+              disabled={isAnswered}
               onAnswer={submitAnswer}
             />
           ))}
         </div>
-        <form
-          className="mt-3 flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void submitAnswer(answer)
-          }}
-        >
-          <input
-            value={answer}
-            disabled={submitted}
-            onChange={(event) => setAnswer(event.target.value)}
-            placeholder="Type an answer..."
-            className="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none"
-            style={{
-              background: 'var(--color-surface)',
-              color: 'var(--color-text)',
-              border: '1px solid var(--color-border)'
+        {!isAnswered && (
+          <form
+            className="mt-3 flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submitAnswer(answer)
             }}
-          />
-          <button
-            type="submit"
-            disabled={submitted || !answer.trim()}
-            className="rounded-lg px-4 py-2 text-xs font-medium transition-opacity disabled:opacity-50"
-            style={{ background: 'var(--color-accent)', color: '#fff' }}
           >
-            Send
-          </button>
-        </form>
-        {submitted && (
+            <input
+              value={answer}
+              onChange={(event) => setAnswer(event.target.value)}
+              placeholder="Type an answer..."
+              className="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+              style={{
+                background: 'var(--color-surface)',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border)'
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!answer.trim()}
+              className="rounded-lg px-4 py-2 text-xs font-medium transition-opacity disabled:opacity-50"
+              style={{ background: 'var(--color-accent)', color: '#fff' }}
+            >
+              Send
+            </button>
+          </form>
+        )}
+        {isAnswered && (
           <div className="mt-2 text-xs" style={{ color: 'var(--color-green)' }}>
-            Answer sent - resuming...
+            {submitted ? 'Answer sent - resuming...' : 'Answered'}
           </div>
         )}
       </div>
@@ -829,6 +844,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
   const toolNames = [...new Set(denials.map((d) => d.tool_name))]
   const isPlanApproval = denials.some((d) => d.tool_name === 'ExitPlanMode')
   const requestIsActive = sessionStatus === 'waiting_for_permission'
+  const displayDecision = msg.permissionDecision ?? decision
 
   const handleAllowOnce = async (): Promise<void> => {
     setDecision('allowed_once')
@@ -931,19 +947,27 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
             </div>
           )
         ) : (
-          <div className="text-xs font-medium" style={{ color: decision.startsWith('allowed') ? 'var(--color-green)' : 'var(--color-text-muted)' }}>
-            {decision === 'allowed_session'
+          <div className="text-xs font-medium" style={{ color: permissionDecisionColor(displayDecision) }}>
+            {displayDecision === 'allowed_session'
               ? isPlanApproval ? 'Plan approved' : requestIsActive ? 'Allowed for session - resuming...' : 'Allowed for session'
-              : decision === 'allowed_once'
+              : displayDecision === 'allowed_once'
                 ? isPlanApproval ? 'Plan approved' : requestIsActive ? 'Allowed once - resuming...' : 'Allowed once'
-                : decision === 'denied'
+                : displayDecision === 'denied'
                   ? isPlanApproval ? 'Kept planning' : 'Denied'
-                  : 'Request closed'}
+                  : displayDecision === 'kept_planning'
+                    ? 'Kept planning'
+                    : 'Handled'}
           </div>
         )}
       </div>
     </div>
   )
+}
+
+function permissionDecisionColor(decision: ResultMessage['permissionDecision'] | 'pending'): string {
+  if (decision === 'allowed_once' || decision === 'allowed_session') return 'var(--color-green)'
+  if (decision === 'denied') return 'var(--color-red)'
+  return 'var(--color-text-muted)'
 }
 
 function ThinkingIndicator(): JSX.Element {

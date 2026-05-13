@@ -121,6 +121,8 @@ function statusLabel(status: string): string {
     reconnecting: 'reconnecting',
     auth_error: 'auth error',
     model_error: 'model error',
+    quota_error: 'quota error',
+    rate_limit_error: 'rate limited',
     provider_error: 'provider error',
     error: 'error'
   }

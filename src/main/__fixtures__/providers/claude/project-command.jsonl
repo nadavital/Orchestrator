@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","session_id":"claude-project-command-session","cwd":"/tmp/project","model":"claude-sonnet-4-6"}
+{"type":"user","message":{"role":"user","content":"Report the current project name and list the files you can see. Do not edit files. Include P5_PROJECT_COMMAND_OK."},"session_id":"claude-project-command-session"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"P5_PROJECT_COMMAND_OK\n\nProject: orchestrator-agent-ui-smoke\nFiles visible: README.md"}]},"session_id":"claude-project-command-session"}
+{"type":"result","subtype":"success","is_error":false,"result":"P5_PROJECT_COMMAND_OK","session_id":"claude-project-command-session"}
