@@ -31,6 +31,7 @@ interface SessionState {
     provider?: string
     model?: string
     effort?: SessionEffort
+    agentName?: string | null
     permissionMode?: SessionPermissionMode
     useThinking?: boolean
     useFast?: boolean

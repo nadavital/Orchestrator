@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { PROVIDER_DEFS, deriveAgentNodes } from '../../types'
+import { PROVIDER_DEFS, deriveAgentNodes, parseClaudeAgentsOutput } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -503,6 +503,46 @@ test('claude resume includes captured session id and granted tools', () => {
   assert.equal(command.args[command.args.indexOf('--resume') + 1], 'claude-session-123')
   assert.equal(command.args.includes('--allowedTools'), true)
   assert.equal(command.args[command.args.indexOf('--allowedTools') + 1], 'Read,Edit')
+})
+
+test('claude selected agent maps to native launch flag only for new runs', () => {
+  const command = PROVIDERS.claude.buildStartCommand(
+    request({
+      agentName: 'Explore',
+      model: 'claude-sonnet-4-6'
+    })
+  )
+
+  assert.equal(command.args.includes('--agent'), true)
+  assert.equal(command.args[command.args.indexOf('--agent') + 1], 'Explore')
+
+  const resumeCommand = PROVIDERS.claude.buildResumeCommand(
+    request({
+      agentName: 'Explore',
+      providerSessionId: 'claude-session-123',
+      model: 'claude-sonnet-4-6'
+    })
+  )
+
+  assert.equal(resumeCommand.args.includes('--resume'), true)
+  assert.equal(resumeCommand.args.includes('--agent'), false)
+})
+
+test('claude agents output parses configured launch agents', () => {
+  const agents = parseClaudeAgentsOutput([
+    '4 active agents',
+    'Built-in agents:',
+    'Explore · haiku',
+    'general-purpose · inherit',
+    '- Plan · inherit',
+    'Explore · haiku'
+  ].join('\n'))
+
+  assert.deepEqual(agents, [
+    { id: 'Explore', name: 'Explore', model: 'haiku' },
+    { id: 'general-purpose', name: 'general-purpose', model: 'inherit' },
+    { id: 'Plan', name: 'Plan', model: 'inherit' }
+  ])
 })
 
 test('claude command maps denied tools, tool set, and extra directories to native CLI flags', () => {

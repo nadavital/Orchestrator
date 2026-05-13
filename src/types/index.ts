@@ -28,6 +28,31 @@ export interface ProviderModelDef {
   cursorConfig?: CursorModelConfig
 }
 
+export interface ProviderAgentDef {
+  id: string
+  name: string
+  model?: string
+}
+
+export function parseClaudeAgentsOutput(output: string): ProviderAgentDef[] {
+  const seen = new Set<string>()
+  return output
+    .split('\n')
+    .map((line) => line.trim().replace(/^[-*]\s+/, ''))
+    .filter(Boolean)
+    .flatMap((line): ProviderAgentDef[] => {
+      if (/^\d+\s+active\s+agents?$/i.test(line)) return []
+      const parts = line.split(/\s*[·•]\s*/).map((part) => part.trim()).filter(Boolean)
+      const name = parts[0]?.replace(/^agent:\s*/i, '').trim()
+      if (!name || /^(none|no configured agents)$/i.test(name)) return []
+      if (/agents?:$/i.test(name)) return []
+      const key = name.toLowerCase()
+      if (seen.has(key)) return []
+      seen.add(key)
+      return [{ id: name, name, model: parts[1] }]
+    })
+}
+
 export interface ProviderDef {
   id: string
   name: string
@@ -600,6 +625,7 @@ export interface RunRequest {
   cwd: string
   model: string
   effort: SessionEffort
+  agentName?: string | null
   providerSessionId: string | null
   executionPolicy: ExecutionPolicy
   allowedTools: string[]
@@ -661,6 +687,7 @@ export interface Session {
   provider: string
   model: string
   effort: SessionEffort
+  agentName?: string | null
   permissionMode: SessionPermissionMode
   allowedTools: string[]
   disallowedTools?: string[]

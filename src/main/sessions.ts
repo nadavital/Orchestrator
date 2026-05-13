@@ -65,6 +65,7 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     cwd: session.workDir,
     model: session.model,
     effort: session.effort,
+    agentName: session.agentName ?? null,
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
     executionPolicy: session.permissionMode ?? 'default',
     allowedTools: session.allowedTools ?? [],
@@ -294,6 +295,7 @@ export const sessionManager = {
       provider: defaultProvider,
       model: defaultModel,
       effort: defaultEffort,
+      agentName: null,
       permissionMode: 'default',
       allowedTools: [],
       disallowedTools: [],
@@ -535,6 +537,7 @@ export const sessionManager = {
     provider?: string
     model?: string
     effort?: string
+    agentName?: string | null
     permissionMode?: string
     useThinking?: boolean
     useFast?: boolean

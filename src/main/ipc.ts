@@ -40,6 +40,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     provider?: string
     model?: string
     effort?: string
+    agentName?: string | null
     permissionMode?: string
     useThinking?: boolean
     useFast?: boolean

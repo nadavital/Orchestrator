@@ -184,7 +184,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Native `.mcp.json` prompt | Compact Answer Required card. | `Implemented` | Native prompt tests/live suite. | Manual UI smoke for enable/reject. |
 | Claude plugin list | Settings renders plugins compactly. | `Complete` | Installed-app P5 smoke rendered plugin list as compact `None` output. | Recheck if local Claude plugins are later configured. |
 | Claude plugin mutations | Explicit confirmation or terminal handoff. | `Gated` | CLI help verified. | Add gated flow or mark terminal-only. |
-| Claude agents list | Settings shows configured agents compactly. | `Complete` | Installed-app P5 smoke showed `4 active agents`: `Explore · haiku`, `general-purpose · inherit`, `Plan · inherit`, `statusline-setup · sonnet`. | Add selected-agent launch option after live UX check. |
+| Claude agents list | Settings shows configured agents compactly. | `Complete` | Installed-app P5 smoke showed `4 active agents`: `Explore · haiku`, `general-purpose · inherit`, `Plan · inherit`, `statusline-setup · sonnet`; P4-006 reused the same native list in the composer. | Keep parser tolerant of CLI heading/count formatting. |
 | Claude agent mutation | Confirmation/terminal handoff. | `Gated` | CLI help verified. | Decide product scope. |
 | Doctor/update/install/setup-token/project purge | Diagnostics or terminal-only; destructive/system flows gated. | `Gated` | CLI help verified. | Add policy table before implementation. |
 
@@ -196,7 +196,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Codex images | Composer image attachment only when provider/runtime supports it. | `Planned` | Codex help verified. | Add shared attachment capability after Claude file path. |
 | Usage/cost | Show unobtrusive cost/token/duration summary where provider emits usage. | `Planned` | Claude JSON result includes usage/cost. | Parse usage and render in session detail, not chat clutter. |
 | Rate limits/errors | Auth/rate/quota errors are classified and actionable. | `Complete` | `failure-categories.jsonl` plus provider tests classify auth, quota, rate-limit, and generic model failures into distinct session statuses. | Keep classifier strings narrow enough to avoid false positives. |
-| Claude launch extras | `--agent`, `--agents`, `--name`, `--session-id`, `--fork-session`, `--from-pr`, `--worktree`, `--tmux`, `--fallback-model`, `--max-budget-usd`, `--json-schema`, `--file`. | `Planned` | CLI help verified. | Add advanced launch sheet only for options with clear user value. |
+| Claude launch extras | `--agent`, `--agents`, `--name`, `--session-id`, `--fork-session`, `--from-pr`, `--worktree`, `--tmux`, `--fallback-model`, `--max-budget-usd`, `--json-schema`, `--file`. | `Partial` | `--agent` is surfaced in the composer agent picker and command tests cover launch-only `--agent` behavior. | Add only remaining launch extras with clear user value. |
 | Provider profiles/backends | Codex local/OSS, Cursor Bedrock/API key, Copilot custom providers. | `Research` | Help/package evidence. | Defer until Claude support is complete. |
 
 ### Cross-Provider Parity
@@ -243,6 +243,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-011 | P3 permissions, user questions, plan approval, permission scopes, and mode picker verified in installed app. | `Complete` | Installed-app P3 smoke on `/private/tmp/orchestrator-agent-ui-smoke`; `toolActions.test` covers URL/MCP/long-path permission summaries. |
 | V-012 | P5 command/skill/settings surfaces verified in installed app. | `Complete` | Installed-app CUA smoke ran project/global commands, project/global skills, MCP details, plugin list, agents list, and purge-state handoff on `/private/tmp/orchestrator-agent-ui-smoke`. |
 | V-013 | P7 fixture refresh and failure classification verified. | `Complete` | Added `hook-approval.jsonl`, `plan-approval-live.jsonl`, `project-command.jsonl`, `project-skill.jsonl`, `sidechain-real.jsonl`, `mcp-web-approval.jsonl`, and `failure-categories.jsonl`; `npm run test:providers` passed. |
+| V-014 | P4 selected Claude agent launch verified in installed app. | `Complete` | Composer listed configured Claude agents, selecting `Explore` changed the run label to `Claude · Explore · Sonnet 4.6 · High`, and the installed-app run returned `P4_SELECTED_AGENT_OK`. |
 
 ### P0: Re-establish Installed-App Verification
 
@@ -303,7 +304,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | P4-003 | Completed agent sidebar tabs. | `Complete` | Live installed-app smoke showed completed agent selectable with cleaned transcript. | Covered by commit `97d30c39` and P4-001 retry. |
 | P4-004 | Nested/sidechain transcript capture. | `Complete` | Real Claude Task sidechain transcript appeared in the sidebar without raw event spam. | Richer raw sidechain fixture capture remains P7-005, not a P4 blocker. |
 | P4-005 | Agent failure/cancel states. | `Complete` | Denying a subagent Bash permission now finalizes the child as failed, removes the running chip, shows a red failed tab, and leaves the target file absent. | Added event-buffer and saved-transcript regression coverage. |
-| P4-006 | Selected-agent launch option. | `Planned` | User can choose a configured Claude agent for a run without raw terminal command. | Depends on settings agents list UX. |
+| P4-006 | Selected-agent launch option. | `Complete` | Installed-app composer listed configured Claude agents, selecting `Explore` changed the label to `Claude · Explore · Sonnet 4.6 · High`, and the run returned `P4_SELECTED_AGENT_OK`. | Parser bug found and fixed during CUA smoke: CLI headings like `Built-in agents:` no longer render as agent chips. |
 
 ### P5: Slash Commands, Skills, MCP, Plugins, Agents
 
@@ -592,3 +593,6 @@ When implementing against this plan:
 - P6 design walkthrough found one real smell: permission cards could degrade to `Request closed` after approval/navigation. Fixed by persisting explicit permission decisions on result messages and rendering `Allowed once`, `Allowed for session`, `Denied`, or `Kept planning` after the request is inactive.
 - P6 permission-card polish retry passed in the rebuilt installed app: approved a harmless Bash `printf`, navigated to Settings and back, and the card still showed `Allowed once`; Claude returned `P6_PERMISSION_DECISION_DONE`.
 - P7 fixture refresh landed `hook-approval.jsonl`, `plan-approval-live.jsonl`, `project-command.jsonl`, `project-skill.jsonl`, `sidechain-real.jsonl`, `mcp-web-approval.jsonl`, and `failure-categories.jsonl`; provider tests now cover hook approval, plan approval, project commands/skills, sidechain transcript capture, MCP/web approval mapping, and auth/quota/rate-limit/generic failure categories.
+- P4 selected-agent launch option passed in the rebuilt installed app: the composer loaded configured Claude agents from `claude agents`, selecting `Explore` changed the run label to `Claude · Explore · Sonnet 4.6 · High`, and the run returned `P4_SELECTED_AGENT_OK`.
+- Selected-agent smoke caught and fixed one parser/design smell: the heading `Built-in agents:` briefly rendered as a bogus agent chip; parser coverage now skips headings/count lines and deduplicates entries.
+- Verification for the selected-agent checkpoint: `npm run test:providers` passed 137/137, `npx tsc -p tsconfig.node.json --noEmit` passed, `npx tsc -p tsconfig.web.json --noEmit` passed, `npm run pack:mac` passed, the app was copied to `/Applications`, relaunched, and Computer Use verified the installed UI run.

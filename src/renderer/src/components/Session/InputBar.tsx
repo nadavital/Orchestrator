@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import type { ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
+import type { ProviderAgentDef, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getVisibleModels } from '../../types'
+import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
@@ -33,6 +33,8 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const [slashIndex, setSlashIndex] = useState(0)
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
+  const [claudeAgents, setClaudeAgents] = useState<ProviderAgentDef[]>([])
+  const [claudeAgentsStatus, setClaudeAgentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const modeMenuRef = useRef<HTMLDivElement>(null)
   const agentMenuRef = useRef<HTMLDivElement>(null)
@@ -55,6 +57,25 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       .then((extensions) => setExtensionCommands([...extensions.commands, ...extensions.skills]))
       .catch(() => setExtensionCommands([]))
   }, [session.provider, session.workDir])
+
+  useEffect(() => {
+    if ((session.provider ?? 'claude') !== 'claude') {
+      setClaudeAgents([])
+      setClaudeAgentsStatus('idle')
+      return
+    }
+    if (!showAgentMenu || claudeAgentsStatus !== 'idle') return
+    setClaudeAgentsStatus('loading')
+    window.api.providers.runCommandSurface('claude', 'agents-list')
+      .then((result) => {
+        setClaudeAgents(result.status === 'ok' ? parseClaudeAgentsOutput(result.output) : [])
+        setClaudeAgentsStatus(result.status === 'ok' ? 'loaded' : 'error')
+      })
+      .catch(() => {
+        setClaudeAgents([])
+        setClaudeAgentsStatus('error')
+      })
+  }, [session.provider, showAgentMenu, claudeAgentsStatus])
 
   useEffect(() => {
     if (injectedText) {
@@ -99,6 +120,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
   const modelLabel = provider.models.find((m) => m.id === model)?.label ?? model
   const effortLabel = provider.effortLevels.find((e) => e.id === effort)?.label ?? ''
+  const selectedAgentName = provider.id === 'claude' ? session.agentName ?? null : null
   const selectedPermissionMode = provider.permissionModes.find((p) => p.id === permissionMode)
   const permLabel = selectedPermissionMode?.label ?? 'Default'
   const regularPermissionModes = provider.permissionModes.filter((mode) => mode.intent !== 'bypass')
@@ -121,6 +143,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     provider?: string
     model?: string
     effort?: string
+    agentName?: string | null
     permissionMode?: string
     useThinking?: boolean
     useFast?: boolean
@@ -139,6 +162,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       provider: providerId,
       model: newDef.models[0]?.id ?? '',
       effort: newDef.effortLevels[0]?.id ?? '',
+      agentName: null,
       permissionMode: newDef.permissionModes[0]?.id ?? 'default',
       useThinking: false,
       useFast: false
@@ -252,6 +276,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   // Compact agent pill label: "Provider · Model [· Effort]"
   const agentLabel = [
     providerShortName(provider.id),
+    selectedAgentName,
     modelLabel,
     provider.supportsEffort && effortLabel ? effortLabel : null,
     provider.id === 'cursor' && cursorEffortLevels.length > 0 && cursorEfLevel ? cursorEfLevel.label : null,
@@ -411,6 +436,33 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                       </Chip>
                     ))}
                   </TieredRow>
+
+                  {provider.id === 'claude' && (
+                    <TieredRow label="Agent">
+                      <Chip
+                        active={!selectedAgentName}
+                        onClick={() => update({ agentName: null })}
+                        activeColor={provider.color}
+                      >
+                        Default
+                      </Chip>
+                      {claudeAgentsStatus === 'loading' && <InlineHint>Loading</InlineHint>}
+                      {claudeAgentsStatus === 'error' && <InlineHint>Unavailable</InlineHint>}
+                      {claudeAgentsStatus === 'loaded' && claudeAgents.length === 0 && <InlineHint>None</InlineHint>}
+                      {claudeAgents.map((agent) => (
+                        <Chip
+                          key={agent.id}
+                          active={selectedAgentName === agent.name}
+                          onClick={() => update({ agentName: agent.name })}
+                          activeColor={provider.color}
+                          title={agent.model ? `${agent.name} · ${agent.model}` : agent.name}
+                        >
+                          {agent.name}
+                          {agent.model && <span style={{ opacity: 0.72 }}>{agent.model}</span>}
+                        </Chip>
+                      ))}
+                    </TieredRow>
+                  )}
 
                   {/* Cursor: per-model effort row */}
                   {provider.id === 'cursor' && cursorEffortLevels.length > 0 && (
@@ -836,6 +888,14 @@ function TieredRow({ label, children }: { label: string; children: React.ReactNo
         {children}
       </div>
     </div>
+  )
+}
+
+function InlineHint({ children }: { children: React.ReactNode }): JSX.Element {
+  return (
+    <span className="text-xs" style={{ color: 'var(--color-text-muted)', padding: '2px 4px' }}>
+      {children}
+    </span>
   )
 }
 

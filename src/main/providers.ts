@@ -1612,6 +1612,7 @@ const claudeProvider: ProviderAdapter = {
     const args = ['-p', request.prompt, '--output-format', 'stream-json', '--verbose', '--include-partial-messages']
     if (request.providerContext?.includeHookEvents) args.push('--include-hook-events')
     if (request.providerSessionId) args.push('--resume', request.providerSessionId)
+    if (request.agentName && !request.providerSessionId) args.push('--agent', request.agentName)
     args.push('--model', request.model || 'sonnet')
     if (request.effort && request.effort !== 'normal') args.push('--effort', request.effort)
     args.push(...resolvedPolicyArgs(this, request.executionPolicy || 'default'))
@@ -1630,6 +1631,7 @@ const claudeProvider: ProviderAdapter = {
   buildInteractiveCommand(request) {
     const args: string[] = []
     if (request.providerSessionId) args.push('--resume', request.providerSessionId)
+    if (request.agentName && !request.providerSessionId) args.push('--agent', request.agentName)
     args.push('--model', request.model || 'sonnet')
     if (request.effort && request.effort !== 'normal') args.push('--effort', request.effort)
     args.push(...interactivePolicyArgs(this, request.executionPolicy || 'default'))
