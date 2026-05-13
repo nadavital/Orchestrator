@@ -1,6 +1,6 @@
 # Orchestrator Source Of Truth
 
-Last updated: 2026-05-12
+Last updated: 2026-05-13
 
 This is the canonical execution plan for Orchestrator. Every long-running implementation pass should start here, update this file as work lands, and treat the older docs in `docs/` as supporting research or historical evidence.
 
@@ -99,9 +99,9 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | --- | --- | --- | --- | --- |
 | Claude structured session | Default Claude chat streams from structured CLI with hook bridge. | `Implemented` | `src/main/sessions.ts`, `src/main/providers.ts`, provider tests, live structured smoke. | Verify multi-turn behavior and make status here match code after each runtime change. |
 | Claude bidirectional input | Send queued/steer/user-question replies into the same provider process where possible. | `Research` | P1-002 through P1-007 pass with current structured resume/interrupt path; Claude supports `--input-format stream-json`, but P1 does not require replacing one-prompt-per-process. | Revisit only if P3 user-question/plan flows require same-process stdin semantics. |
-| Claude PTY overlay | Native terminal for TUI-only flows and fallback prompt handling. | `Implemented` | Native prompt bridge and live capability suite notes. | Keep as escape hatch; do not make it the normal user-visible runtime. |
+| Claude PTY overlay | Native terminal for TUI-only flows and fallback prompt handling. | `Implemented` | Native prompt bridge, live capability suite notes, and 2026-05-13 dev UI smoke: native first turn rendered `INTERACTIVE_UI_CLEAN_FIRST_OK` without banner leakage and native first-turn Write created `interactive-native-smoke.txt`. | Keep as escape hatch; do not make it the normal user-visible runtime. |
 | Provider runtime abstraction | One interface for start/send/resolve/stop across structured, PTY, SDK, app-server. | `Partial` | `src/main/providerRuntime.ts` owns PTY process start/stdout parsing/cleanup, JSONL tailing, Claude hook prep, stop, and interrupt-for-steer for current CLI lanes. | Extend the runtime contract for future SDK/app-server lanes. |
-| Resume/continue | Continue provider sessions with preserved provider session ids and user-visible continuity. | `Partial` | Claude resume command construction and fixtures. | Live test queued message, permission continuation, and user-question answer. |
+| Resume/continue | Continue provider sessions with preserved provider session ids and user-visible continuity. | `Partial` | Claude resume command construction, fixtures, and 2026-05-13 dev UI smoke: a native interactive session follow-up resumed through the structured lane and returned `INTERACTIVE_UI_CLEAN_SECOND_OK`. | Live test permission continuation and user-question answer. |
 | Stop | Stop consistently interrupts current run and leaves composer usable. | `Complete` | Installed-app smokes cover assistant text, tool execution, and permission pause; tests cover interrupted message settlement and stop availability. | Keep covered when approval or provider runtime changes. |
 | Queue next message | Users can type while a run is active; message sends immediately after the current run completes. | `Complete` | Installed-app P1-006 queued follow-up ran to `P1_QUEUE_FOLLOWUP_OK`; composer state and queued card were visible. | Add lower-level state-machine coverage if queue logic broadens beyond one pending follow-up. |
 | Steer after current tool | Queued message has a `Steer` action that injects at the next sensible boundary. | `Complete` | Installed-app P1-007 retry interrupted the active text stream and ran the follow-up to `P1_STEER_RETRY_OK`; provider runtime and lifecycle tests cover the intentional interrupt path. | Re-test with an active tool boundary during P2 Bash smokes. |
@@ -245,6 +245,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-013 | P7 fixture refresh and failure classification verified. | `Complete` | Added `hook-approval.jsonl`, `plan-approval-live.jsonl`, `project-command.jsonl`, `project-skill.jsonl`, `sidechain-real.jsonl`, `mcp-web-approval.jsonl`, and `failure-categories.jsonl`; `npm run test:providers` passed. |
 | V-014 | P4 selected Claude agent launch verified in installed app. | `Complete` | Composer listed configured Claude agents, selecting `Explore` changed the run label to `Claude · Explore · Sonnet 4.6 · High`, and the installed-app run returned `P4_SELECTED_AGENT_OK`. |
 | V-015 | Isolated UI verification profile exists. | `Complete` | `src/main/appProfile.ts` selects `ORCHESTRATOR_PROFILE` / `ORCHESTRATOR_USER_DATA_DIR` before stores open; `npm run smoke:app` launches a separate dev Electron profile with a visible titlebar badge, clean user data, and pet overlay disabled by default. Packaged smoke copies `dist/mac-arm64/Orchestrator.app` to a temp renamed bundle. |
+| V-016 | Claude native interactive first-turn UI smoke works for clean assistant text and file creation, with follow-up continuation routed through structured resume. | `Complete` | Dev Electron profile `interactivecua5` on 2026-05-13: native first turn returned `INTERACTIVE_UI_CLEAN_FIRST_OK`; follow-up returned `INTERACTIVE_UI_CLEAN_SECOND_OK`; new native first-turn Write created `/private/tmp/orchestrator-interactive-ui-smoke/interactive-native-smoke.txt` with `INTERACTIVE_NATIVE_FILE_OK` and rendered `Wrote 1 file` plus `INTERACTIVE_UI_FILE_DONE`. |
 
 ### P0: Re-establish Installed-App Verification
 

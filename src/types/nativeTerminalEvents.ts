@@ -25,6 +25,12 @@ function isNativeToolStatusLine(line: string): boolean {
   return /^[A-Z][A-Za-z0-9_]{1,24}\([^)]*\)$/.test(line)
 }
 
+function isClaudeNativeModeBanner(line: string): boolean {
+  const compact = line.replace(/\s+/g, '').toLowerCase()
+  return compact.includes('modeletsclaudehandlepermissionprompts') ||
+    compact.includes('shift+tabtochangemode')
+}
+
 export function parseClaudeTerminalSnapshot(value: string): NativeTerminalSnapshot {
   const clean = stripTerminalControls(value)
   const assistantStart = clean.lastIndexOf('⏺')
@@ -66,6 +72,7 @@ export function parseClaudeTerminalSnapshot(value: string): NativeTerminalSnapsh
     .filter((line) => !/for\s*shortcuts/i.test(line))
     .filter((line) => !/\/effort/i.test(line))
     .filter((line) => !/tokens?/i.test(line))
+    .filter((line) => !isClaudeNativeModeBanner(line))
   let assistantText = assistantLines
     .join('\n')
     .trim()

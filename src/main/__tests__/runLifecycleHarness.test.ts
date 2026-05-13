@@ -82,7 +82,7 @@ test('harness proves fast Claude interactive JSONL reaches assistant text and id
 
   assert.equal(result.state.providerSessionId, 'claude-fast-session')
   assert.equal(result.state.status, 'idle')
-  assert.equal(result.killedPty, false)
+  assert.equal(result.killedPty, true)
   assert.equal(hasEvent(result.events, 'assistant.text'), true)
   assert.equal(hasEvent(result.events, 'run.completed'), true)
   assert.ok(result.messages.some((message) => message.type === 'text' && message.content === 'orchestrator smoke ok'))

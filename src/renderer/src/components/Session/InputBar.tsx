@@ -152,6 +152,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     effort?: string
     agentName?: string | null
     permissionMode?: string
+    runtime?: Session['runtime']
     useThinking?: boolean
     useFast?: boolean
     allowedTools?: string[]
@@ -194,6 +195,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   })
   const canSend = sendState.canSend
   const canStop = canStopSession(session.status)
+  const runtimeMode = session.runtime ?? 'headless'
 
   const send = async (): Promise<void> => {
     if (!canSend) return
@@ -611,6 +613,28 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
+                  {provider.id === 'claude' && showAdvancedPerms && (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
+                      <TieredRow label="Runtime">
+                        <Chip
+                          active={runtimeMode !== 'interactive'}
+                          onClick={() => update({ runtime: 'headless' })}
+                          activeColor={provider.color}
+                          title="Use Orchestrator's structured Claude stream with approval hooks."
+                        >
+                          Structured
+                        </Chip>
+                        <Chip
+                          active={runtimeMode === 'interactive'}
+                          onClick={() => update({ runtime: 'interactive' })}
+                          activeColor={provider.color}
+                          title="Run Claude's native terminal UI for TUI-only flows and prompt handling."
+                        >
+                          Native terminal
+                        </Chip>
+                      </TieredRow>
                     </div>
                   )}
                   {selectedPermissionMode?.desc && (

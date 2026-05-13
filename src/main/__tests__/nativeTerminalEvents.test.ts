@@ -65,6 +65,22 @@ test('filters Claude native status fragments from terminal fallback text', () =>
   assert.equal(snapshot.completed, true)
 })
 
+test('filters Claude native mode banner from terminal fallback text', () => {
+  const raw = '⏺Auto mode lets Claude handle permission prompts automatically -- Shift+Tab to change mode.\rINTERACTIVE_UI_OK\r❯'
+  const snapshot = parseClaudeTerminalSnapshot(raw)
+
+  assert.equal(snapshot.assistantText, 'INTERACTIVE_UI_OK')
+  assert.equal(snapshot.completed, true)
+})
+
+test('filters compacted Claude native mode banner from terminal fallback text', () => {
+  const raw = '⏺Auto modeletsClaudehandlepermissionpromptsautomatically—Claudecheckseachtoolcall\rINTERACTIVE_UI_OK\r❯'
+  const snapshot = parseClaudeTerminalSnapshot(raw)
+
+  assert.equal(snapshot.assistantText, 'INTERACTIVE_UI_OK')
+  assert.equal(snapshot.completed, true)
+})
+
 test('maps Claude native plan preview hint to a placeholder completion', () => {
   const raw = 'Updatd plan\r❯\u00a0\r⏺\r⎿ /plantopreview\r❯\u00a0'
   const snapshot = parseClaudeTerminalSnapshot(raw)

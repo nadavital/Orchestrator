@@ -1,6 +1,6 @@
 # Claude Code Support Test Matrix
 
-Date: 2026-05-11
+Date: 2026-05-13
 
 Canonical active plan: `docs/orchestrator-source-of-truth.md`.
 
@@ -20,13 +20,13 @@ This matrix tracks Claude Code capability evidence inside Orchestrator. A featur
 
 | Claude surface | Expected Orchestrator UX | Current coverage | Tests still needed |
 | --- | --- | --- | --- |
-| Native interactive session: `claude [prompt]` | Escape hatch for true TUI-only flows, native prompts, and fallback verification. No user-visible runtime picker. | Verified live with Sonnet through the native CLI path for plain response, file create/delete, plan mode, terminal streaming fallback, and `/help`. Provider PTYs now answer Claude terminal capability queries in the main process, so hidden terminal UI cannot stall startup. | Live shell permission, AskUserQuestion, and subagent sessions. |
+| Native interactive session: `claude [prompt]` | Escape hatch for true TUI-only flows, native prompts, and fallback verification. Normal chat stays structured by default; the native lane is advanced/diagnostic. | Verified live with Sonnet through the native CLI path for plain response, file create/delete, plan mode, terminal streaming fallback, and `/help`. Provider PTYs now answer Claude terminal capability queries in the main process, so hidden terminal UI cannot stall startup. 2026-05-13 dev UI smoke verified native first-turn assistant text, native first-turn Write, and clean transcript filtering. | Live shell permission, AskUserQuestion, and subagent sessions. |
 | Workspace trust prompt | Show compact Answer Required card with `Trust workspace` / `Exit`; send selected answer back to PTY. | Implemented and covered by `nativeCliPrompts` tests. Native prompt submit now sends Claude's enhanced Enter key sequence. | Manual UI smoke in a fresh workspace. |
 | Structured print stream: `-p --output-format stream-json` | Default Claude product path and internal smoke/automation path. Not a user-visible runtime choice. | Verified by live structured smoke and parser fixtures. | Multi-turn/queued/steer verification and bidirectional input spike. |
 | Partial messages / native terminal fallback | Stream assistant text incrementally without duplicating final text. | Fixture-covered for structured partials; live native Sonnet suite now emits `assistant.text.delta` and `assistant.text.completed` from terminal fallback. | Promote more live terminal repaint shapes into fixtures as discovered. |
 | Hook events: `--include-hook-events` | Activity/diagnostic events, not main transcript noise. | Inventory-only. | Capture fixture with hook events, normalize useful states, decide UI placement. |
 | Streaming input: `--input-format stream-json`, `--replay-user-messages` | Potential future bidirectional structured bridge. | Inventory-only. | Spike whether this can replace terminal scraping while preserving native behavior. |
-| Resume: `--resume`, `--continue`, `--session-id` | Continue existing Claude session from Orchestrator. | Implemented for provider session id; fixture-covered. | Live native resume with queued message, permission continuation, and user question answer. |
+| Resume: `--resume`, `--continue`, `--session-id` | Continue existing Claude session from Orchestrator. | Implemented for provider session id; fixture-covered. 2026-05-13 dev UI smoke verified native interactive sessions continue through the structured resume lane after the first native turn, avoiding warm TUI prompt loss. | Live permission continuation and user question answer. |
 | Fork/from PR/name: `--fork-session`, `--from-pr`, `--name` | Advanced launch/session controls. | Inventory-only. | Add launch UI, no-quota command construction tests, live smoke for non-destructive flows. |
 | Worktrees/tmux: `--worktree`, `--tmux` | Prefer app-managed worktrees; provider-native extras advanced. | App-managed worktrees implemented. | Native worktree/tmux spike, decide whether to surface. |
 | Remote control: `--remote-control` | Possible future remote session control. | Inventory-only. | Research protocol and decide whether it fits Orchestrator. |
@@ -35,8 +35,8 @@ This matrix tracks Claude Code capability evidence inside Orchestrator. A featur
 
 | Claude surface | Expected Orchestrator UX | Current coverage | Tests still needed |
 | --- | --- | --- | --- |
-| Plain assistant answer | Flat assistant row, streaming when possible. | Verified native smoke and structured smoke. | Multi-turn native continuity. |
-| Read/write/edit/delete tools | Concise tool summaries; Diff panel owns review. | Verified by live native disposable file create/delete smoke plus fixture coverage. | Add UI screenshot smoke for Diff/file-reference cards after live file operation. |
+| Plain assistant answer | Flat assistant row, streaming when possible. | Verified native smoke and structured smoke. 2026-05-13 dev UI smoke rendered `INTERACTIVE_UI_CLEAN_FIRST_OK` and `INTERACTIVE_UI_CLEAN_SECOND_OK` without leaking Claude native mode banner text. | Keep live UI smoke current after terminal parser changes. |
+| Read/write/edit/delete tools | Concise tool summaries; Diff panel owns review. | Verified by live native disposable file create/delete smoke plus fixture coverage. 2026-05-13 dev UI smoke created `interactive-native-smoke.txt`, rendered `Wrote 1 file`, and verified file contents on disk. | Add UI screenshot smoke for Diff/file-reference cards in a git-backed workspace after live file operation. |
 | Bash/shell tool | Summarize command; permission card for risky commands. | Fixture-covered. | Live native shell permission flow with harmless command. |
 | Search/list/web/MCP tools | Normalize to shared action vocabulary. | Fixture-covered for common actions. | Live native MCP/search/web fixtures. |
 | Permission modes: `default`, `acceptEdits`, `auto`, `dontAsk`, `plan`, `bypassPermissions` | Mode picker maps to Claude native policy without runtime complexity. | Command construction and policy tests cover supported modes. | Live native run for each non-dangerous mode; explicit gated test for bypass. |
@@ -137,3 +137,12 @@ Final pass on 2026-05-11:
 - Native prompt answers now use Claude's enhanced Enter key sequence, which lets the live suite pass through the `.mcp.json` enable prompt.
 - Live Sonnet suite passes for native plain response, native file create/delete, native plan mode placeholder, native terminal streaming, `/help`, and no-quota probes for auth, MCP, plugins, auto-mode, and agents.
 - Terminal fallback parsing now ignores compact tool progress rows, tool-output rows, token/status footers, MCP status fragments, and corrupted plan status fragments instead of treating them as assistant completion.
+
+2026-05-13 dev UI interactive pass:
+
+- Fresh isolated Electron profile `interactivecua5` was driven with Computer Use against `/private/tmp/orchestrator-interactive-ui-smoke`, leaving the user's main Orchestrator window untouched.
+- Advanced permissions exposed the native runtime selector and switching `Structured` to `Native terminal` worked from the composer popover.
+- Native first-turn plain response returned `INTERACTIVE_UI_CLEAN_FIRST_OK`; the main transcript did not include the Claude auto-mode banner.
+- Follow-up on the same native interactive session returned `INTERACTIVE_UI_CLEAN_SECOND_OK` through structured resume, confirming the warm native TUI prompt-loss workaround.
+- Native first-turn Write in a fresh chat created `interactive-native-smoke.txt`, showed `Wrote 1 file`, returned `INTERACTIVE_UI_FILE_DONE`, and filesystem verification read `INTERACTIVE_NATIVE_FILE_OK`.
+- Remaining polish smell: the advanced permissions popover is powerful but dense; keep runtime selection advanced-only and consider a clearer compact label for diagnostic sessions.

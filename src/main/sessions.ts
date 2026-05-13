@@ -36,20 +36,34 @@ const activeToolUseIds = new Map<string, Set<string>>()
 
 const activeNativePrompts = new Map<string, NativeCliPromptKind>()
 
+const answeredNativePrompts = new Map<string, Set<NativeCliPromptKind>>()
+
 const nativeTerminalCompletions = new Set<string>()
 
 const nativeTerminalStreamStates = new Map<string, NativeTerminalStreamState>()
+
+const nativeTerminalBuffers = new Map<string, string>()
 
 function defaultRuntimeForProvider(_providerId: string): ProviderRuntimeKind {
   return 'headless'
 }
 
+function hasRecoverableActiveStatus(status: SessionStatus): boolean {
+  return status === 'running' ||
+    status === 'waiting_for_permission' ||
+    status === 'waiting_for_user' ||
+    status === 'reconnecting'
+}
+
 function normalizeSession(session: Session): Session {
+  const hasRuntime = providerRuntime.hasActiveRun(session.id)
+  const status = !hasRuntime && hasRecoverableActiveStatus(session.status) ? 'idle' : session.status
   return {
     ...session,
-    messages: session.status === 'running' ? session.messages : finalizeInterruptedMessages(session.messages),
+    status,
+    messages: hasRuntime ? session.messages : finalizeInterruptedMessages(session.messages),
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
-    runtime: defaultRuntimeForProvider(session.provider ?? 'claude')
+    runtime: session.runtime ?? defaultRuntimeForProvider(session.provider ?? 'claude')
   }
 }
 
@@ -76,6 +90,14 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     useThinking: session.useThinking,
     useFast: session.useFast
   }
+}
+
+function runtimeForNewProviderRun(session: Session): ProviderRuntimeKind {
+  const runtime = session.runtime ?? defaultRuntimeForProvider(session.provider ?? 'claude')
+  if (runtime === 'interactive' && (session.providerSessionId || session.claudeSessionId)) {
+    return 'headless'
+  }
+  return runtime
 }
 
 function mergeToolNames(current: string[] | undefined, granted: string[]): string[] {
@@ -110,6 +132,7 @@ function nativePromptEventsForData(
   if (activeNativePrompts.has(sessionId)) return []
   const kind = detectNativeCliPrompt(provider.id, data)
   if (!kind) return []
+  if (answeredNativePrompts.get(sessionId)?.has(kind)) return []
 
   activeNativePrompts.set(sessionId, kind)
   const prompt = nativeCliPromptContent(kind)
@@ -148,6 +171,9 @@ function answerForNativePrompt(sessionId: string, answer: string): string | null
   const prompt = activeNativePrompts.get(sessionId)
   if (!prompt) return null
   activeNativePrompts.delete(sessionId)
+  const answered = answeredNativePrompts.get(sessionId) ?? new Set<NativeCliPromptKind>()
+  answered.add(prompt)
+  answeredNativePrompts.set(sessionId, answered)
 
   return nativeCliPromptSubmitSequence(prompt, answer)
 }
@@ -155,6 +181,12 @@ function answerForNativePrompt(sessionId: string, answer: string): string | null
 function appendPendingFollowUp(sessionId: string, followUp: PendingFollowUp): void {
   const current = pendingFollowUps.get(sessionId) ?? []
   pendingFollowUps.set(sessionId, [...current, followUp])
+}
+
+function appendNativeTerminalBuffer(sessionId: string, data: string): string {
+  const buffer = `${nativeTerminalBuffers.get(sessionId) ?? ''}${data}`.slice(-5000)
+  nativeTerminalBuffers.set(sessionId, buffer)
+  return buffer
 }
 
 function shiftPendingFollowUp(sessionId: string): PendingFollowUp | null {
@@ -201,14 +233,18 @@ function clearRuntimeState(sessionId: string): void {
   pendingFollowUps.delete(sessionId)
   activeToolUseIds.delete(sessionId)
   activeNativePrompts.delete(sessionId)
+  answeredNativePrompts.delete(sessionId)
   nativeTerminalCompletions.delete(sessionId)
   nativeTerminalStreamStates.delete(sessionId)
+  nativeTerminalBuffers.delete(sessionId)
   providerRuntime.cleanupSession(sessionId)
 }
 
 function resetNativeTerminalState(sessionId: string): void {
+  answeredNativePrompts.delete(sessionId)
   nativeTerminalCompletions.delete(sessionId)
   nativeTerminalStreamStates.delete(sessionId)
+  nativeTerminalBuffers.delete(sessionId)
 }
 
 export const sessionManager = {
@@ -337,7 +373,6 @@ export const sessionManager = {
       }
     )
 
-    let nativePromptBuffer = ''
     const result = providerRuntime.startRun({
       sessionId,
       session,
@@ -352,7 +387,7 @@ export const sessionManager = {
       },
       onData: (data, process) => {
         answerNativeTerminalControlRequests(process, data)
-        nativePromptBuffer = `${nativePromptBuffer}${data}`.slice(-5000)
+        const nativePromptBuffer = appendNativeTerminalBuffer(sessionId, data)
         this.applyRunEvents(sessionId, nativePromptEventsForData(sessionId, provider, nativePromptBuffer))
         this.applyRunEvents(sessionId, nativeTerminalEventsForData(sessionId, provider, nativePromptBuffer))
 
@@ -411,7 +446,7 @@ export const sessionManager = {
         this.appendMessage(sessionId, [userMsg])
         this.updateStatus(sessionId, 'running')
         resetNativeTerminalState(sessionId)
-        providerRuntime.write(sessionId, `${prompt}\n`)
+        providerRuntime.write(sessionId, `${prompt}\r`)
       } else {
         const messageId = uuidv4()
         const userMsg: ChatMessage = {
@@ -468,7 +503,10 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const provider = getProvider(currentSession.provider ?? 'claude')
-    let runRequest = requestFromSession(currentSession, prompt)
+    let runRequest = {
+      ...requestFromSession(currentSession, prompt),
+      runtime: runtimeForNewProviderRun(currentSession)
+    }
     await this.startProviderRun(sessionId, currentSession, provider, runRequest)
   },
 
@@ -541,6 +579,7 @@ export const sessionManager = {
     effort?: string
     agentName?: string | null
     permissionMode?: string
+    runtime?: ProviderRuntimeKind
     useThinking?: boolean
     useFast?: boolean
     allowedTools?: string[]
@@ -682,7 +721,7 @@ export const sessionManager = {
         timestamp: Date.now()
       }])
       this.updateStatus(sessionId, 'running')
-      providerRuntime.write(sessionId, nativeAnswer ?? `${trimmed}\n`)
+      providerRuntime.write(sessionId, nativeAnswer ?? `${trimmed}\r`)
       return
     }
 

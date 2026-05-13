@@ -46,6 +46,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     effort?: string
     agentName?: string | null
     permissionMode?: string
+    runtime?: 'headless' | 'interactive' | 'sdk' | 'app-server'
     useThinking?: boolean
     useFast?: boolean
     allowedTools?: string[]

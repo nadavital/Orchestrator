@@ -110,6 +110,7 @@ export function decideRunLifecycle(
 
   const completed = [...events].reverse().find((event) => event.type === 'run.completed')
   if (completed?.type === 'run.completed') {
+    decision.shouldKillPty = true
     decision.status = 'idle'
   }
 

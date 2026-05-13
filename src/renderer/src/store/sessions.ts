@@ -33,6 +33,7 @@ interface SessionState {
     effort?: SessionEffort
     agentName?: string | null
     permissionMode?: SessionPermissionMode
+    runtime?: Session['runtime']
     useThinking?: boolean
     useFast?: boolean
     allowedTools?: string[]

@@ -76,6 +76,7 @@ declare global {
           effort?: string
           agentName?: string | null
           permissionMode?: string
+          runtime?: Session['runtime']
           useThinking?: boolean
           useFast?: boolean
           allowedTools?: string[]
