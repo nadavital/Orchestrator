@@ -8,11 +8,15 @@ import { gitManager } from './git'
 import { settingsStore } from './settings'
 import { terminalManager } from './terminal'
 import { petOverlayManager } from './petOverlay'
+import { getAppProfile } from './appProfile'
 import { getProviderDiagnosticsAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
 import { resolveWorkspaceFileReference } from './workspaceResolver'
 import { discoverClaudeExtensions } from './claudeExtensions'
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
+  // App profile
+  ipcMain.handle('app:getProfile', () => getAppProfile())
+
   // Projects
   ipcMain.handle('projects:list', () => projectStore.list())
   ipcMain.handle('projects:add', (_, name: string, rootPath: string) =>

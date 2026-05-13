@@ -1,9 +1,16 @@
+import { useEffect, useState } from 'react'
 import { useSessionStore } from '../store/sessions'
+import type { AppProfile } from '../env'
 
 export default function Titlebar(): JSX.Element {
   const { sessions, activeSessionId, uiState, setShowTerminal } = useSessionStore()
   const session = sessions.find((s) => s.id === activeSessionId)
   const ui = activeSessionId ? (uiState[activeSessionId] ?? { showDiff: false, showEvents: false, showTerminal: false, showSkills: false }) : null
+  const [profile, setProfile] = useState<AppProfile | null>(null)
+
+  useEffect(() => {
+    window.api.app.getProfile().then(setProfile).catch(() => setProfile(null))
+  }, [])
 
   return (
     <div
@@ -20,6 +27,25 @@ export default function Titlebar(): JSX.Element {
       <div
         style={{ width: 80, flexShrink: 0, height: '100%', WebkitAppRegion: 'drag' } as React.CSSProperties}
       />
+
+      {profile?.isIsolated && (
+        <div
+          className="flex items-center gap-2 pl-1"
+          style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
+        >
+          <span
+            className="text-xs font-medium rounded px-2 py-0.5"
+            title={`User data: ${profile.userDataDir}`}
+            style={{
+              color: 'var(--color-yellow)',
+              border: '1px solid var(--color-yellow)',
+              background: 'rgba(250, 204, 21, 0.08)'
+            }}
+          >
+            {profile.displayName} profile
+          </span>
+        </div>
+      )}
 
       {/* Center — absolutely positioned so it spans the full width for true centering */}
       <div

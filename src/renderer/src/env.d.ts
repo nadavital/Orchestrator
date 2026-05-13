@@ -11,6 +11,14 @@ export interface AppSettings {
   appearance: 'system' | 'dark' | 'light'
 }
 
+export interface AppProfile {
+  name: string
+  displayName: string
+  userDataDir: string
+  isIsolated: boolean
+  disablePetOverlay: boolean
+}
+
 export type SessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
@@ -41,6 +49,9 @@ export type SessionEvent =
 declare global {
   interface Window {
     api: {
+      app: {
+        getProfile: () => Promise<AppProfile>
+      }
       projects: {
         list: () => Promise<Project[]>
         add: (name: string, rootPath: string) => Promise<Project>

@@ -10,6 +10,14 @@ interface AppSettings {
   appearance: 'system' | 'dark' | 'light'
 }
 
+interface AppProfile {
+  name: string
+  displayName: string
+  userDataDir: string
+  isIsolated: boolean
+  disablePetOverlay: boolean
+}
+
 export type SessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
@@ -25,6 +33,10 @@ export type SessionEvent =
 type SettingsUpdatedPayload = Omit<Extract<SessionEvent, { type: 'settingsUpdated' }>, 'type'>
 
 const api = {
+  app: {
+    getProfile: (): Promise<AppProfile> => ipcRenderer.invoke('app:getProfile')
+  },
+
   projects: {
     list: (): Promise<Project[]> => ipcRenderer.invoke('projects:list'),
     add: (name: string, rootPath: string): Promise<Project> =>
