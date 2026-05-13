@@ -1573,13 +1573,14 @@ function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[
       }
       const planDenial = denials.find((denial) => denial.tool_name === 'ExitPlanMode')
       if (planDenial) {
+        const planInput = asRecord(planDenial.tool_input) ?? {}
         events.push({
           type: 'plan.updated',
           plan: {
             providerId,
             sessionId: sessionId ?? '',
             mode: 'plan',
-            summary: typeof event.result === 'string' ? event.result : 'Plan confirmation required',
+            summary: stringValue(planInput.plan, planInput.summary, event.result) ?? 'Plan confirmation required',
             items: []
           }
         })

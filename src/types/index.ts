@@ -873,6 +873,7 @@ export {
   deriveAgentNodes,
   deriveAgentNodesFromMessages,
   derivePlanStates,
+  derivePlanStatesFromMessages,
   eventCounts,
   isAgentTool
 } from './activityView'

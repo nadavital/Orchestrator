@@ -20,6 +20,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     uiState,
     setShowDiff,
     setShowEvents,
+    setShowPlan,
     setShowSettings,
     setShowSkills,
     setShowTerminal
@@ -113,7 +114,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const permissionMode = session.permissionMode ?? defaultPermissionMode
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
-  const currentUi = uiState[session.id] ?? { showDiff: false, showEvents: false, showTerminal: false, showSkills: false, hasUnread: false }
+  const currentUi = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showSkills: false, hasUnread: false }
   const resolvedPermission = providerRuntime?.policies[permissionMode] ?? (providerRuntime
     ? {
         policy: permissionMode,
@@ -250,6 +251,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       setSlashIndex(0)
       if (command.id === 'settings') setShowSettings(true)
       if (command.id === 'diff') setShowDiff(session.id, !currentUi.showDiff)
+      if (command.id === 'plan-sidebar') setShowPlan(session.id, !currentUi.showPlan)
       if (command.id === 'agents') setShowEvents(session.id, !currentUi.showEvents)
       if (command.id === 'skills') setShowSkills(session.id, !currentUi.showSkills)
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)

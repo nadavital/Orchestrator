@@ -1,4 +1,4 @@
-import type { AgentNode, ChatMessage, PlanState, Session, SessionRunEventRecord } from './index'
+import type { AgentNode, ChatMessage, PlanItem, PlanState, Session, SessionRunEventRecord } from './index'
 
 export function deriveAgentNodes(session: Pick<Session, 'id' | 'provider'>, records: SessionRunEventRecord[]): AgentNode[] {
   const agents = new Map<string, AgentNode>()
@@ -17,6 +17,11 @@ export function deriveAgentNodes(session: Pick<Session, 'id' | 'provider'>, reco
         ...event.agent,
         providerId: event.agent.providerId || session.provider,
         sessionId: event.agent.sessionId || session.id,
+        name: previous?.name ?? event.agent.name,
+        role: previous?.role ?? event.agent.role,
+        model: previous?.model ?? event.agent.model,
+        summary: event.agent.summary ?? previous?.summary,
+        transcript: event.agent.transcript ?? previous?.transcript,
         startedAt: previous?.startedAt ?? event.agent.startedAt ?? record.timestamp,
         completedAt: event.agent.completedAt ?? (event.type === 'agent.completed' || event.type === 'agent.failed' ? record.timestamp : previous?.completedAt)
       })
@@ -164,6 +169,42 @@ export function derivePlanStates(session: Pick<Session, 'id' | 'provider'>, reco
   return plans.slice(-5)
 }
 
+export function derivePlanStatesFromMessages(
+  session: Pick<Session, 'id' | 'provider'>,
+  messages: ChatMessage[]
+): PlanState[] {
+  const plans: PlanState[] = []
+
+  for (const message of messages) {
+    if (message.type === 'tool_use' && isPlanTool(message.toolName)) {
+      const items = message.toolName === 'TodoWrite' ? planItemsFromTodos(message.toolInput.todos) : []
+      plans.push({
+        providerId: session.provider,
+        sessionId: session.id,
+        mode: planModeFromTool(message.toolName),
+        title: message.toolName === 'TodoWrite' ? 'Tasks' : undefined,
+        summary: stringField(message.toolInput, 'plan') ?? stringField(message.toolInput, 'summary') ?? stringField(message.toolInput, 'description'),
+        items
+      })
+      continue
+    }
+
+    if (message.type === 'result') {
+      const denial = message.permissionDenials?.find((item) => item.tool_name === 'ExitPlanMode')
+      if (!denial) continue
+      plans.push({
+        providerId: session.provider,
+        sessionId: session.id,
+        mode: 'plan',
+        summary: stringField(denial.tool_input, 'plan') ?? stringField(denial.tool_input, 'summary') ?? message.content,
+        items: []
+      })
+    }
+  }
+
+  return plans.slice(-5)
+}
+
 export function eventCounts(events: SessionRunEventRecord[]): Record<string, number> {
   return events.reduce<Record<string, number>>((acc, record) => {
     acc[record.event.type] = (acc[record.event.type] ?? 0) + 1
@@ -186,6 +227,38 @@ export function agentDepth(agent: AgentNode, agents: AgentNode[]): number {
 export function isAgentTool(toolName: string): boolean {
   const normalized = toolName.toLowerCase()
   return normalized.includes('agent') || normalized.includes('subtask') || normalized === 'task'
+}
+
+function isPlanTool(toolName: string): boolean {
+  return toolName === 'TodoWrite' || toolName === 'EnterPlanMode' || toolName === 'ExitPlanMode'
+}
+
+function planModeFromTool(toolName: string): 'plan' | 'execute' | undefined {
+  if (toolName === 'EnterPlanMode') return 'plan'
+  if (toolName === 'ExitPlanMode') return 'execute'
+  return undefined
+}
+
+function planItemsFromTodos(input: unknown): PlanItem[] {
+  if (!Array.isArray(input)) return []
+  const items: PlanItem[] = []
+  for (const [index, item] of input.entries()) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const content = typeof rec.content === 'string' ? rec.content : undefined
+    if (!content) continue
+    items.push({
+      id: typeof rec.id === 'string' ? rec.id : `${index}`,
+      content,
+      status: normalizePlanItemStatus(rec.status)
+    })
+  }
+  return items
+}
+
+function normalizePlanItemStatus(value: unknown): PlanItem['status'] {
+  if (value === 'in_progress' || value === 'completed' || value === 'cancelled' || value === 'blocked') return value
+  return 'pending'
 }
 
 function agentNameFromTool(toolName: string, input: Record<string, unknown>): string {

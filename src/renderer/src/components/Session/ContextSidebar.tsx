@@ -2,33 +2,38 @@ import { useSessionStore } from '../../store/sessions'
 import type { Session } from '../../types'
 import DiffPanel from './DiffPanel'
 import EventInspectorPanel from './EventInspectorPanel'
+import PlanPanel from './PlanPanel'
 import SkillsPanel from './SkillsPanel'
 
-type ContextTab = 'diff' | 'agents' | 'skills'
+type ContextTab = 'plan' | 'diff' | 'agents' | 'skills'
 
 interface Props {
   session: Session
 }
 
 export default function ContextSidebar({ session }: Props): JSX.Element | null {
-  const { uiState, setShowDiff, setShowEvents, setShowSkills } = useSessionStore()
+  const { uiState, setShowDiff, setShowEvents, setShowPlan, setShowSkills } = useSessionStore()
   const ui = uiState[session.id]
-  const activeTab: ContextTab | null = ui?.showDiff
-    ? 'diff'
-    : ui?.showEvents
-      ? 'agents'
-      : ui?.showSkills
-        ? 'skills'
-        : null
+  const activeTab: ContextTab | null = ui?.showPlan
+    ? 'plan'
+    : ui?.showDiff
+      ? 'diff'
+      : ui?.showEvents
+        ? 'agents'
+        : ui?.showSkills
+          ? 'skills'
+          : null
 
   const toggleTab = (tab: ContextTab): void => {
     const nextTab = activeTab === tab ? null : tab
+    setShowPlan(session.id, nextTab === 'plan')
     setShowDiff(session.id, nextTab === 'diff')
     setShowEvents(session.id, nextTab === 'agents')
     setShowSkills(session.id, nextTab === 'skills')
   }
 
   const close = (): void => {
+    setShowPlan(session.id, false)
     setShowDiff(session.id, false)
     setShowEvents(session.id, false)
     setShowSkills(session.id, false)
@@ -51,6 +56,9 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
             borderRight: activeTab ? '1px solid var(--color-border)' : 'none'
           }}
         >
+          <RailTab active={activeTab === 'plan'} label="Plan" onClick={() => toggleTab('plan')}>
+            <path d="M2.75 1A1.75 1.75 0 0 0 1 2.75v10.5C1 14.216 1.784 15 2.75 15h10.5A1.75 1.75 0 0 0 15 13.25V2.75A1.75 1.75 0 0 0 13.25 1H2.75Zm0 1.5h10.5a.25.25 0 0 1 .25.25v10.5a.25.25 0 0 1-.25.25H2.75a.25.25 0 0 1-.25-.25V2.75a.25.25 0 0 1 .25-.25Zm2 2.25A.75.75 0 0 1 5.5 4h5.75a.75.75 0 0 1 0 1.5H5.5a.75.75 0 0 1-.75-.75Zm0 3A.75.75 0 0 1 5.5 7h5.75a.75.75 0 0 1 0 1.5H5.5a.75.75 0 0 1-.75-.75Zm0 3A.75.75 0 0 1 5.5 10h3.75a.75.75 0 0 1 0 1.5H5.5a.75.75 0 0 1-.75-.75Z" />
+          </RailTab>
           <RailTab active={activeTab === 'agents'} label="Agents" onClick={() => toggleTab('agents')}>
             <path d="M5.25 3.5a2.25 2.25 0 1 1 3.307 1.986 3.754 3.754 0 0 1 2.943 3.66.75.75 0 0 1-1.5 0 2.25 2.25 0 0 0-4.5 0 .75.75 0 0 1-1.5 0 3.754 3.754 0 0 1 2.943-3.66A2.245 2.245 0 0 1 5.25 3.5ZM7.5 2.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm5.5 6a1.75 1.75 0 1 0-1.267 2.933 2.75 2.75 0 0 0-1.983 2.64.75.75 0 0 0 1.5 0 1.25 1.25 0 0 1 2.5 0 .75.75 0 0 0 1.5 0 2.75 2.75 0 0 0-1.983-2.64A1.75 1.75 0 0 0 13 8.75Zm-10 0a1.75 1.75 0 1 0-1.267 2.933 2.75 2.75 0 0 0-1.983 2.64.75.75 0 0 0 1.5 0 1.25 1.25 0 0 1 2.5 0 .75.75 0 0 0 1.5 0 2.75 2.75 0 0 0-1.983-2.64A1.75 1.75 0 0 0 3 8.75Z" />
           </RailTab>
@@ -69,7 +77,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
               style={{ borderBottom: '1px solid var(--color-border)' }}
             >
               <div className="text-xs font-semibold min-w-0 truncate" style={{ color: 'var(--color-text)' }}>
-                {activeTab === 'agents' ? 'Agents' : activeTab === 'diff' ? 'Diff' : 'Skills'}
+                {activeTab === 'plan' ? 'Plan' : activeTab === 'agents' ? 'Agents' : activeTab === 'diff' ? 'Diff' : 'Skills'}
               </div>
               <button
                 onClick={close}
@@ -86,6 +94,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
               </button>
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">
+              {activeTab === 'plan' && <PlanPanel session={session} embedded />}
               {activeTab === 'agents' && (
                 <EventInspectorPanel session={session} embedded activeAgentId={ui?.activeAgentId ?? null} />
               )}

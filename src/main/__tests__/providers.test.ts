@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { PROVIDER_DEFS, deriveAgentNodes, getDefaultPermissionMode, getPrimaryPermissionModes, parseClaudeAgentsOutput } from '../../types'
+import { PROVIDER_DEFS, deriveAgentNodes, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, parseClaudeAgentsOutput } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -695,6 +695,9 @@ test('claude system task lifecycle updates the subagent node from live stream-js
   assert.match(updated.agent.summary ?? '', /14118 tokens/)
   assert.equal(completed.agent.status, 'completed')
   assert.match(completed.agent.summary ?? '', /Found TodoWrite parser test patterns/)
+  const derived = deriveAgentNodes({ id: 'session-under-test', provider: 'claude' }, records(events))
+  assert.equal(derived[0]!.name, 'Find TodoWrite parsing code and test patterns')
+  assert.match(derived[0]!.role ?? '', /Find TodoWrite parsing/)
 })
 
 test('claude run failure finalizes active subagent nodes as failed', () => {
@@ -790,6 +793,9 @@ test('claude ExitPlanMode confirmation is a permission prompt, not a red tool er
 
   assert.equal(plans[0].plan.mode, 'execute')
   assert.equal(plans[1].plan.mode, 'plan')
+  assert.match(plans[1].plan.summary ?? '', /Run the targeted parser test/)
+  const savedPlans = derivePlanStatesFromMessages({ id: 'session-under-test', provider: 'claude' }, messages)
+  assert.match(savedPlans.at(-1)?.summary ?? '', /Run the targeted parser test/)
   assert.equal(permission.denials[0]?.tool_name, 'ExitPlanMode')
   assert.equal(events.some((event) => event.type === 'tool.completed' && event.isError), false)
   assert.equal(messages.some((message) => message.type === 'tool_result' && message.isError), false)

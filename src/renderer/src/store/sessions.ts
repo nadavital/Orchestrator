@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Session, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord } from '../types'
 
 interface SessionUIState {
+  showPlan: boolean
   showDiff: boolean
   showEvents: boolean
   showTerminal: boolean
@@ -42,6 +43,7 @@ interface SessionState {
     additionalDirs?: string[]
   }) => void
   setShowDiff: (id: string, v: boolean) => void
+  setShowPlan: (id: string, v: boolean) => void
   setShowEvents: (id: string, v: boolean) => void
   setShowTerminal: (id: string, v: boolean) => void
   setShowSkills: (id: string, v: boolean) => void
@@ -58,6 +60,7 @@ interface SessionState {
 }
 
 const defaultUI: SessionUIState = {
+  showPlan: false,
   showDiff: false,
   showEvents: false,
   showTerminal: false,
@@ -135,6 +138,21 @@ export const useSessionStore = create<SessionState>((set) => ({
         [id]: {
           ...(s.uiState[id] ?? defaultUI),
           showDiff: v,
+          showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
+          showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
+          showSkills: v ? false : (s.uiState[id]?.showSkills ?? false)
+        }
+      }
+    })),
+
+  setShowPlan: (id, v) =>
+    set((s) => ({
+      uiState: {
+        ...s.uiState,
+        [id]: {
+          ...(s.uiState[id] ?? defaultUI),
+          showPlan: v,
+          showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
           showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
           showSkills: v ? false : (s.uiState[id]?.showSkills ?? false)
         }
@@ -148,6 +166,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         [id]: {
           ...(s.uiState[id] ?? defaultUI),
           showEvents: v,
+          showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
           showSkills: v ? false : (s.uiState[id]?.showSkills ?? false)
         }
@@ -166,6 +185,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         [id]: {
           ...(s.uiState[id] ?? defaultUI),
           showSkills: v,
+          showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
           showEvents: v ? false : (s.uiState[id]?.showEvents ?? false)
         }
@@ -187,6 +207,7 @@ export const useSessionStore = create<SessionState>((set) => ({
             ...current,
             activeAgentId: agentId,
             showEvents: true,
+            showPlan: false,
             showDiff: false,
             showSkills: false,
             agentTabIds
