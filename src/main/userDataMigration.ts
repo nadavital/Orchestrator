@@ -1,12 +1,14 @@
 import { app } from 'electron'
 import { cpSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
+import { getAppProfile } from './appProfile'
 
 let didMigrate = false
 
 export function migrateLegacyUserData(): void {
   if (didMigrate) return
   didMigrate = true
+  if (getAppProfile().isIsolated) return
 
   const legacyDir = join(app.getPath('appData'), 'claude-orchestrator')
   const currentDir = app.getPath('userData')

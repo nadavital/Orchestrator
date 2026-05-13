@@ -244,7 +244,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-012 | P5 command/skill/settings surfaces verified in installed app. | `Complete` | Installed-app CUA smoke ran project/global commands, project/global skills, MCP details, plugin list, agents list, and purge-state handoff on `/private/tmp/orchestrator-agent-ui-smoke`. |
 | V-013 | P7 fixture refresh and failure classification verified. | `Complete` | Added `hook-approval.jsonl`, `plan-approval-live.jsonl`, `project-command.jsonl`, `project-skill.jsonl`, `sidechain-real.jsonl`, `mcp-web-approval.jsonl`, and `failure-categories.jsonl`; `npm run test:providers` passed. |
 | V-014 | P4 selected Claude agent launch verified in installed app. | `Complete` | Composer listed configured Claude agents, selecting `Explore` changed the run label to `Claude · Explore · Sonnet 4.6 · High`, and the installed-app run returned `P4_SELECTED_AGENT_OK`. |
-| V-015 | Isolated UI verification profile exists. | `Complete` | `src/main/appProfile.ts` selects `ORCHESTRATOR_PROFILE` / `ORCHESTRATOR_USER_DATA_DIR` before stores open; `npm run smoke:app` launches a separate smoke profile with a visible titlebar badge and pet overlay disabled by default. Packaged smoke copies `dist/mac-arm64/Orchestrator.app` to a temp renamed bundle. |
+| V-015 | Isolated UI verification profile exists. | `Complete` | `src/main/appProfile.ts` selects `ORCHESTRATOR_PROFILE` / `ORCHESTRATOR_USER_DATA_DIR` before stores open; `npm run smoke:app` launches a separate dev Electron profile with a visible titlebar badge, clean user data, and pet overlay disabled by default. Packaged smoke copies `dist/mac-arm64/Orchestrator.app` to a temp renamed bundle. |
 
 ### P0: Re-establish Installed-App Verification
 
@@ -254,8 +254,9 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | P0-002 | Add repeatable install/restart smoke checklist. | `Complete` | `Installed App Smoke Checklist` below documents commands and expected observable app state; checklist was run from a clean package on 2026-05-12. | Keep this checklist as the minimum installed-app gate after major changes. |
 | P0-003 | Verify final installed app can start a plain Claude session. | `Complete` | Live installed app returned `FINAL_INSTALLED_APP_SMOKE_OK` with Claude Sonnet 4.6 High in Ask mode. | Verified before the terminal command-bar patch; no Claude runtime changes landed afterward. |
 | P0-004 | Verify packaged resources load. | `Complete` | `npm run test:smoke-config` passed; `/Applications/Orchestrator.app/Contents/Resources/pets/*/{pet.json,spritesheet.webp}` contains ditto, orchestrator, pika, and psyduck. `/pet` applied without visible error. | Pet overlay animation fidelity remains separate P-polish work. |
-| P0-005 | Add isolated UI verification window/profile. | `Complete` | `node scripts/launch-isolated-app.mjs --print --profile smoke-check --user-data-dir /private/tmp/orchestrator-profile-check --workspace-dir /private/tmp/orchestrator-workspace-check` printed the expected isolated profile config; `npm run smoke:app:packaged -- --reset --profile smokecua` launched a temp renamed bundle with separate `userData`; TypeScript/build/provider tests passed. | Future UI verification should start here instead of the user's active Orchestrator window. Current Computer Use can list the renamed app but `get_app_state` did not attach to it in this session, so use this with manual inspection, screenshots, or a future CDP/Playwright driver until CUA targeting is fixed. |
-| P0-006 | Add automated detached UI driver. | `Planned` | Browser/Playwright/CDP smoke can inspect the isolated profile without depending on Computer Use app-name targeting. | Needed because Computer Use listed `Orchestrator Smokecua` but `get_app_state("Orchestrator Smokecua")` returned `appNotFound` and `get_app_state("Orchestrator")` still attached to the user's active app. |
+| P0-005 | Add isolated UI verification window/profile. | `Complete` | `node scripts/launch-isolated-app.mjs --print --profile smoke-check --user-data-dir /private/tmp/orchestrator-profile-check --workspace-dir /private/tmp/orchestrator-workspace-check` printed the expected isolated profile config; `npm run smoke:app:packaged -- --reset --profile smokecua` launched a temp renamed bundle with separate `userData`; TypeScript/build/provider tests passed. | Future UI verification should start here instead of the user's active Orchestrator window. Packaged smoke remains useful for parity, but current Computer Use can list the renamed app while `get_app_state` does not attach to it by name. |
+| P0-006 | Use dev Electron as the primary Computer Use target. | `Complete` | `npm run smoke:app -- --reset --profile devcua --workspace-dir /private/tmp/orchestrator-agent-ui-smoke` launched `Orchestrator - Devcua`; Computer Use `get_app_state("Electron")` attached to `localhost:5173`, showed the `Devcua profile` badge and clean empty project state, and a Settings click opened the dev Settings UI. | Isolated profiles skip legacy user-data migration so old projects/sessions do not leak into smoke runs. |
+| P0-007 | Add automated detached UI driver. | `Planned` | Browser/Playwright/CDP smoke can inspect the isolated profile without depending on Computer Use app-name targeting. | Still useful for repeatable screenshot/assertion automation beyond CUA. |
 
 ### P1: Claude Core Run Semantics
 
@@ -435,13 +436,23 @@ Do not mark Claude support `Complete` until all of these pass or are explicitly 
 
 ## Isolated UI Smoke Profile
 
-Use this path when the user has active work in their normal Orchestrator window. It launches a separate app profile with its own Electron `userData` directory, a visible `Smoke profile` titlebar badge, and the pet overlay disabled by default. Packaged smoke runs from a temp renamed app bundle so it does not replace `/Applications/Orchestrator.app`.
+Use this path when the user has active work in their normal Orchestrator window. It launches a separate app profile with its own Electron `userData` directory, a visible `Smoke profile` titlebar badge, and the pet overlay disabled by default.
+
+For Computer Use, prefer the dev Electron lane:
 
 ```bash
 npm run smoke:app -- --reset
 ```
 
-For a packaged smoke against `dist/mac-arm64/Orchestrator.app` without replacing `/Applications/Orchestrator.app`:
+Then target Computer Use at:
+
+```text
+Electron
+```
+
+Expected: the CUA tree shows `Window: "Orchestrator - <Profile>"`, `URL: localhost:5173/`, and the profile badge. Do not target `Orchestrator` while the user has active installed-app work.
+
+For packaged parity against `dist/mac-arm64/Orchestrator.app` without replacing `/Applications/Orchestrator.app`:
 
 ```bash
 npm run pack:mac
@@ -460,7 +471,7 @@ Expected:
 - The titlebar shows `<Profile> profile`.
 - `window.api.app.getProfile()` returns `isIsolated: true` and a `/private/tmp` or otherwise explicit `userDataDir`.
 - Existing sessions/settings in the user's normal Orchestrator window do not appear in the smoke profile.
-- Computer Use targeting is not fully solved in the current plugin: it can list the renamed smoke app, but `get_app_state` did not attach by renamed app name in the 2026-05-13 smoke. Do not use `get_app_state("Orchestrator")` while the user has active work, because it can still attach to the normal app.
+- Computer Use targeting is reliable for the dev lane via `Electron`. Packaged renamed-bundle targeting is not fully solved in the current plugin: it can list the renamed smoke app, but `get_app_state` did not attach by renamed app name in the 2026-05-13 smoke.
 - Do not quit or replace the user's installed `/Applications/Orchestrator.app` unless they explicitly ask for that.
 
 ## Installed App Smoke Checklist
@@ -630,4 +641,4 @@ When implementing against this plan:
 - Selected-agent smoke caught and fixed one parser/design smell: the heading `Built-in agents:` briefly rendered as a bogus agent chip; parser coverage now skips headings/count lines and deduplicates entries.
 - Verification for the selected-agent checkpoint: `npm run test:providers` passed 137/137, `npx tsc -p tsconfig.node.json --noEmit` passed, `npx tsc -p tsconfig.web.json --noEmit` passed, `npm run pack:mac` passed, the app was copied to `/Applications`, relaunched, and Computer Use verified the installed UI run.
 - Permission mode polish decision: Claude `auto` is now the product default because it best balances convenience with Claude's native safety classifier. Installed-app CUA verified the Settings default-mode control with Auto selected, plus the composer picker showing Auto/Plan/Ask first by default and moving Auto-edit, Preapproved only, raw allow/deny/tools/dirs controls, and Bypass unsafe behind Advanced.
-- Isolated UI verification decision: future UI smokes should launch `npm run smoke:app -- --reset` or `npm run smoke:app:packaged -- --reset` and target the smoke-profile window, not the user's active Orchestrator window. The smoke profile uses a separate Electron `userData` directory, a visible profile badge, and disables the pet overlay by default. Packaged smoke now creates a temp renamed bundle and preserves Electron framework symlinks; Computer Use can list that bundle, but this CUA build still returned `appNotFound` for `get_app_state("Orchestrator Smokecua")`.
+- Isolated UI verification decision: future Computer Use smokes should launch the dev lane with `npm run smoke:app -- --reset --profile devcua --workspace-dir /private/tmp/orchestrator-agent-ui-smoke` and target `Electron`, not `Orchestrator`. The 2026-05-13 retry verified CUA attached to `Orchestrator - Devcua`, showed a clean isolated project state after skipping legacy migration, and opened Settings in the dev window. Packaged smoke still creates a temp renamed bundle and preserves Electron framework symlinks; Computer Use can list that bundle, but this CUA build returned `appNotFound` for `get_app_state("Orchestrator Smokecua")`.
