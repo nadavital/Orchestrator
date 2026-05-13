@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import type { ProviderAgentDef, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
+import type { Attachment, ProviderAgentDef, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
 import { useSessionStore } from '../../store/sessions'
@@ -22,10 +22,14 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     setShowEvents,
     setShowPlan,
     setShowSettings,
+    setShowSideQuestions,
     setShowSkills,
-    setShowTerminal
+    setShowTerminal,
+    appendSideQuestion,
+    updateSideQuestion
   } = useSessionStore()
   const [text, setText] = useState('')
+  const [attachments, setAttachments] = useState<Attachment[]>([])
   const [useWorktree, setUseWorktree] = useState(false)
   const [isGitRepo, setIsGitRepo] = useState(false)
   const [showModeMenu, setShowModeMenu] = useState(false)
@@ -114,7 +118,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const permissionMode = session.permissionMode ?? defaultPermissionMode
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
-  const currentUi = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showSkills: false, hasUnread: false }
+  const currentUi = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showSkills: false, showSideQuestions: false, showUsage: false, hasUnread: false }
   const resolvedPermission = providerRuntime?.policies[permissionMode] ?? (providerRuntime
     ? {
         policy: permissionMode,
@@ -199,10 +203,63 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
   const send = async (): Promise<void> => {
     if (!canSend) return
-    const prompt = expandedCommandPrompt(text.trim()) ?? text.trim()
+    const rawPrompt = text.trim()
+    const sideQuestion = rawPrompt.match(/^\/btw(?:\s+([\s\S]+))?$/)
+    if (sideQuestion) {
+      const question = (sideQuestion[1] ?? '').trim()
+      setText('')
+      setAttachments([])
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+      setShowSideQuestions(session.id, true)
+      if (!question) return
+      const userMessageId = crypto.randomUUID()
+      const answerMessageId = crypto.randomUUID()
+      appendSideQuestion(session.id, {
+        id: userMessageId,
+        role: 'user',
+        content: question,
+        status: 'complete'
+      })
+      appendSideQuestion(session.id, {
+        id: answerMessageId,
+        role: 'assistant',
+        content: 'Thinking...',
+        status: 'pending'
+      })
+      try {
+        const result = await window.api.sessions.answerSideQuestion(session.id, question)
+        updateSideQuestion(session.id, answerMessageId, {
+          content: result.ok ? result.answer : (result.error ?? 'Side question failed.'),
+          status: result.ok ? 'complete' : 'error',
+          usage: result.usage
+        })
+      } catch (error) {
+        updateSideQuestion(session.id, answerMessageId, {
+          content: error instanceof Error ? error.message : 'Side question failed.',
+          status: 'error'
+        })
+      }
+      return
+    }
+    const prompt = expandedCommandPrompt(rawPrompt) ?? rawPrompt
     setText('')
+    setAttachments([])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-    await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined)
+    await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachments)
+  }
+
+  const attachFiles = async (): Promise<void> => {
+    const files = await window.api.dialog.openFiles()
+    if (!files?.length) return
+    const next = files.map((file): Attachment => ({
+      id: crypto.randomUUID(),
+      kind: 'local_file',
+      path: file.path,
+      name: file.name,
+      size: file.size
+    }))
+    setAttachments((current) => dedupeAttachments([...current, ...next]))
+    textareaRef.current?.focus()
   }
 
   const slashQuery = getSlashQuery(text)
@@ -255,6 +312,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       if (command.id === 'agents') setShowEvents(session.id, !currentUi.showEvents)
       if (command.id === 'skills') setShowSkills(session.id, !currentUi.showSkills)
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)
+      if (command.id === 'btw') setShowSideQuestions(session.id, true)
       if (command.id === 'pet') {
         window.api.pet.getConfig()
           .then((config) => {
@@ -337,6 +395,17 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
             style={{ color: 'var(--color-text)', lineHeight: 1.6, maxHeight: 200, userSelect: 'text' }}
           />
         </div>
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-4 pb-2" aria-label="Attachments">
+            {attachments.map((attachment) => (
+              <AttachmentChip
+                key={attachment.id}
+                attachment={attachment}
+                onRemove={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Bottom toolbar */}
         <div className="flex items-center px-3 pb-2 gap-1.5">
@@ -392,6 +461,12 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           )}
 
           <div className="flex-1" />
+
+          <ToolbarBtn active={attachments.length > 0} onClick={attachFiles} title="Attach files">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M7.775 3.275a2.75 2.75 0 0 1 3.889 3.889l-5.657 5.657a1.75 1.75 0 0 1-2.475-2.475l5.303-5.303a.75.75 0 0 1 1.061 1.061l-5.303 5.303a.25.25 0 1 0 .354.354l5.657-5.657a1.25 1.25 0 0 0-1.768-1.768L3.179 9.993a3.25 3.25 0 0 0 4.596 4.596l5.657-5.657a.75.75 0 0 1 1.061 1.061l-5.657 5.657A4.75 4.75 0 0 1 2.118 8.932Z" />
+            </svg>
+          </ToolbarBtn>
 
           {/* New session: combined agent picker */}
           {isNew && (
@@ -709,6 +784,66 @@ function PermissionModeChip({
       {opt.label}
     </Chip>
   )
+}
+
+function AttachmentChip({
+  attachment,
+  onRemove
+}: {
+  attachment: Attachment
+  onRemove: () => void
+}): JSX.Element {
+  const label = attachment.kind === 'local_file'
+    ? attachment.name
+    : attachment.name ?? attachment.relativePath
+  return (
+    <span
+      className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs"
+      style={{
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        color: 'var(--color-text-muted)'
+      }}
+      title={attachment.kind === 'local_file' ? attachment.path : `${attachment.fileId}:${attachment.relativePath}`}
+    >
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" className="shrink-0">
+        <path d="M2 1.75C2 .784 2.784 0 3.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 12.25 16h-8.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 8 3.25V1.5Z" />
+      </svg>
+      <span className="min-w-0 truncate">{label}</span>
+      {attachment.kind === 'local_file' && attachment.size !== undefined && (
+        <span className="shrink-0" style={{ opacity: 0.7 }}>{formatBytes(attachment.size)}</span>
+      )}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${label}`}
+        className="grid h-4 w-4 shrink-0 place-items-center rounded"
+        style={{ color: 'var(--color-text-muted)' }}
+      >
+        <svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+        </svg>
+      </button>
+    </span>
+  )
+}
+
+function dedupeAttachments(attachments: Attachment[]): Attachment[] {
+  const seen = new Set<string>()
+  return attachments.filter((attachment) => {
+    const key = attachment.kind === 'local_file'
+      ? `local:${attachment.path}`
+      : `claude:${attachment.fileId}:${attachment.relativePath}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function ToolbarBtn({

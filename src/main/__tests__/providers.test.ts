@@ -576,6 +576,23 @@ test('claude command maps denied tools, tool set, and extra directories to nativ
   assert.deepEqual(command.args.slice(addDirIndex + 1, addDirIndex + 3), ['/tmp/shared', '/tmp/other'])
 })
 
+test('claude command maps provider file resources to native --file specs', () => {
+  const command = PROVIDERS.claude.buildStartCommand(
+    request({
+      attachments: [
+        { id: 'local-1', kind: 'local_file', path: '/tmp/local.txt', name: 'local.txt' },
+        { id: 'file-1', kind: 'claude_file', fileId: 'file_abc', relativePath: 'docs/context.md' },
+        { id: 'file-2', kind: 'claude_file', fileId: 'file_def', relativePath: 'assets/img.png' }
+      ]
+    })
+  )
+
+  const fileIndex = command.args.indexOf('--file')
+  assert.notEqual(fileIndex, -1)
+  assert.deepEqual(command.args.slice(fileIndex + 1, fileIndex + 3), ['file_abc:docs/context.md', 'file_def:assets/img.png'])
+  assert.equal(command.args.includes('/tmp/local.txt'), false)
+})
+
 test('claude structured command carries per-run orchestrator hook settings', () => {
   const command = PROVIDERS.claude.buildStartCommand(
     request({
@@ -589,6 +606,29 @@ test('claude structured command carries per-run orchestrator hook settings', () 
 
   assert.equal(command.args.includes('--include-hook-events'), true)
   assert.equal(command.args[command.args.indexOf('--settings') + 1], '/tmp/orchestrator-claude-hooks/settings.json')
+})
+
+test('claude brief fixture maps SendUserMessage to status and preserves usage summary', () => {
+  const events = parseFixture('claude', 'brief-usage.jsonl')
+  const messages = eventsToMessages(events)
+  const status = firstEvent(events, 'assistant.status')
+  const completed = firstEvent(events, 'run.completed')
+
+  assert.match(status.content, /checking the fixture shape/)
+  assert.equal(completed.usage?.inputTokens, 10)
+  assert.equal(completed.usage?.outputTokens, 40)
+  assert.equal(completed.usage?.cacheCreationInputTokens, 20)
+  assert.equal(completed.usage?.cacheReadInputTokens, 30)
+  assert.equal(completed.usage?.totalTokens, 100)
+  assert.equal(completed.usage?.totalCostUsd, 0.0123)
+
+  const statusMessage = messages.find((message) => message.type === 'result' && message.subtype === 'status')
+  const successMessage = messages.find((message) => message.type === 'result' && message.subtype === 'success')
+  assert.ok(statusMessage)
+  assert.ok(successMessage)
+  if (successMessage?.type === 'result') {
+    assert.equal(successMessage.usageSummary?.totalCostUsd, 0.0123)
+  }
 })
 
 test('claude fixture normalizes session, tool, and permission events', () => {

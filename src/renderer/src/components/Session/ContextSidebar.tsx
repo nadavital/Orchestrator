@@ -4,15 +4,17 @@ import DiffPanel from './DiffPanel'
 import EventInspectorPanel from './EventInspectorPanel'
 import PlanPanel from './PlanPanel'
 import SkillsPanel from './SkillsPanel'
+import SideQuestionPanel from './SideQuestionPanel'
+import UsagePanel from './UsagePanel'
 
-type ContextTab = 'plan' | 'diff' | 'agents' | 'skills'
+type ContextTab = 'plan' | 'diff' | 'agents' | 'skills' | 'usage' | 'side'
 
 interface Props {
   session: Session
 }
 
 export default function ContextSidebar({ session }: Props): JSX.Element | null {
-  const { uiState, setShowDiff, setShowEvents, setShowPlan, setShowSkills } = useSessionStore()
+  const { uiState, setShowDiff, setShowEvents, setShowPlan, setShowSkills, setShowSideQuestions, setShowUsage } = useSessionStore()
   const ui = uiState[session.id]
   const activeTab: ContextTab | null = ui?.showPlan
     ? 'plan'
@@ -22,7 +24,12 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         ? 'agents'
         : ui?.showSkills
           ? 'skills'
-          : null
+          : ui?.showSideQuestions
+            ? 'side'
+            : ui?.showUsage
+              ? 'usage'
+              : null
+  const effectiveTab = activeTab
 
   const toggleTab = (tab: ContextTab): void => {
     const nextTab = activeTab === tab ? null : tab
@@ -30,6 +37,8 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     setShowDiff(session.id, nextTab === 'diff')
     setShowEvents(session.id, nextTab === 'agents')
     setShowSkills(session.id, nextTab === 'skills')
+    setShowSideQuestions(session.id, nextTab === 'side')
+    setShowUsage(session.id, nextTab === 'usage')
   }
 
   const close = (): void => {
@@ -37,13 +46,15 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     setShowDiff(session.id, false)
     setShowEvents(session.id, false)
     setShowSkills(session.id, false)
+    setShowSideQuestions(session.id, false)
+    setShowUsage(session.id, false)
   }
 
   return (
     <aside
       className="shrink-0 flex flex-col overflow-hidden"
       style={{
-        width: activeTab ? 492 : 52,
+        width: effectiveTab ? 492 : 52,
         background: 'var(--color-surface)',
         borderLeft: '1px solid var(--color-border)'
       }}
@@ -53,7 +64,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           className="w-[52px] shrink-0 flex flex-col items-center gap-2 py-2"
           style={{
             background: 'var(--color-surface)',
-            borderRight: activeTab ? '1px solid var(--color-border)' : 'none'
+            borderRight: effectiveTab ? '1px solid var(--color-border)' : 'none'
           }}
         >
           <RailTab active={activeTab === 'plan'} label="Plan" onClick={() => toggleTab('plan')}>
@@ -68,16 +79,32 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           <RailTab active={activeTab === 'skills'} label="Skills" onClick={() => toggleTab('skills')}>
             <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.004-5.073-.002-2.253A2.25 2.25 0 0 0 5.003 2.5H1.5v9h3.757a3.75 3.75 0 0 1 1.994.574ZM8.755 4.75l-.004 7.322a3.752 3.752 0 0 1 1.992-.572H14.5v-9h-3.495a2.25 2.25 0 0 0-2.25 2.25Z" />
           </RailTab>
+          <RailTab active={activeTab === 'side'} label="Side questions" onClick={() => toggleTab('side')}>
+            <path d="M2.75 1A1.75 1.75 0 0 0 1 2.75v7.5C1 11.216 1.784 12 2.75 12H4v2.25a.75.75 0 0 0 1.28.53L8.06 12h5.19A1.75 1.75 0 0 0 15 10.25v-7.5A1.75 1.75 0 0 0 13.25 1H2.75Zm.75 3.25a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1-.75-.75Zm.75 2.25a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Z" />
+          </RailTab>
+          <RailTab active={effectiveTab === 'usage'} label="Usage" onClick={() => toggleTab('usage')}>
+            <path d="M2.5 11.5a.75.75 0 0 1 .75-.75h9.5a.75.75 0 0 1 0 1.5h-9.5a.75.75 0 0 1-.75-.75Zm0-3.5a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 2.5 8Zm0-3.5a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H3.25A.75.75 0 0 1 2.5 4.5Z" />
+          </RailTab>
         </div>
 
-        {activeTab && (
+        {effectiveTab && (
           <div className="w-[440px] min-w-0 flex flex-col min-h-0 overflow-hidden">
             <div
               className="shrink-0 flex items-center justify-between gap-2 px-3 py-2"
               style={{ borderBottom: '1px solid var(--color-border)' }}
             >
               <div className="text-xs font-semibold min-w-0 truncate" style={{ color: 'var(--color-text)' }}>
-                {activeTab === 'plan' ? 'Plan' : activeTab === 'agents' ? 'Agents' : activeTab === 'diff' ? 'Diff' : 'Skills'}
+                {effectiveTab === 'plan'
+                  ? 'Plan'
+                  : effectiveTab === 'agents'
+                    ? 'Agents'
+                    : effectiveTab === 'diff'
+                      ? 'Diff'
+                      : effectiveTab === 'skills'
+                        ? 'Skills'
+                        : effectiveTab === 'side'
+                          ? 'Side questions'
+                          : 'Usage'}
               </div>
               <button
                 onClick={close}
@@ -94,14 +121,16 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
               </button>
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">
-              {activeTab === 'plan' && <PlanPanel session={session} embedded />}
-              {activeTab === 'agents' && (
+              {effectiveTab === 'plan' && <PlanPanel session={session} embedded />}
+              {effectiveTab === 'agents' && (
                 <EventInspectorPanel session={session} embedded activeAgentId={ui?.activeAgentId ?? null} />
               )}
-              {activeTab === 'diff' && <DiffPanel sessionId={session.id} embedded />}
-              {activeTab === 'skills' && (
+              {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} embedded />}
+              {effectiveTab === 'skills' && (
                 <SkillsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} embedded />
               )}
+              {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
+              {effectiveTab === 'usage' && <UsagePanel session={session} embedded />}
             </div>
           </div>
         )}

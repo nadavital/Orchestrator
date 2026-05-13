@@ -35,6 +35,15 @@ export const APP_SLASH_COMMANDS: ProviderSlashCommand[] = [
     handler: 'app-action'
   },
   {
+    id: 'btw',
+    name: '/btw',
+    description: 'Open side questions',
+    providerId: 'app',
+    source: 'app',
+    runtime: 'headless',
+    handler: 'app-action'
+  },
+  {
     id: 'terminal',
     name: '/terminal',
     description: 'Toggle terminal',

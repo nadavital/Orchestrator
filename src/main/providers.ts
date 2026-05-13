@@ -28,6 +28,7 @@ import type {
   ResolvedExecutionPolicy,
   RunEvent,
   RunRequest,
+  UsageSummary,
   UserInputQuestion
 } from '../types'
 import { PROVIDER_DEFS } from '../types'
@@ -260,6 +261,63 @@ function numberValue(...values: unknown[]): number | undefined {
     if (typeof value === 'number' && Number.isFinite(value)) return value
   }
   return undefined
+}
+
+function usageSummaryFromAnthropicResult(event: Record<string, unknown>): UsageSummary | undefined {
+  const usage = asRecord(event.usage)
+  const modelUsage = asRecord(event.modelUsage)
+  const inputTokens = numberValue(usage?.input_tokens, usage?.inputTokens)
+  const outputTokens = numberValue(usage?.output_tokens, usage?.outputTokens)
+  const cacheCreationInputTokens = numberValue(usage?.cache_creation_input_tokens, usage?.cacheCreationInputTokens)
+  const cacheReadInputTokens = numberValue(usage?.cache_read_input_tokens, usage?.cacheReadInputTokens)
+  const totalCostUsd = numberValue(event.total_cost_usd, event.totalCostUsd)
+  const durationMs = numberValue(event.duration_ms, event.durationMs)
+  const apiDurationMs = numberValue(event.duration_api_ms, event.apiDurationMs)
+  const turns = numberValue(event.num_turns, event.turns)
+  const serviceTier = stringValue(usage?.service_tier, usage?.serviceTier)
+  const totalTokens = [
+    inputTokens,
+    outputTokens,
+    cacheCreationInputTokens,
+    cacheReadInputTokens
+  ].reduce<number>((sum, value) => sum + (value ?? 0), 0)
+
+  if (
+    inputTokens === undefined &&
+    outputTokens === undefined &&
+    cacheCreationInputTokens === undefined &&
+    cacheReadInputTokens === undefined &&
+    totalCostUsd === undefined &&
+    durationMs === undefined &&
+    apiDurationMs === undefined &&
+    turns === undefined &&
+    !modelUsage
+  ) {
+    return undefined
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+    cacheCreationInputTokens,
+    cacheReadInputTokens,
+    totalTokens: totalTokens > 0 ? totalTokens : undefined,
+    totalCostUsd,
+    durationMs,
+    apiDurationMs,
+    turns,
+    serviceTier,
+    modelUsage: modelUsage as UsageSummary['modelUsage'] | undefined
+  }
+}
+
+function claudeFileSpecs(attachments: RunRequest['attachments']): string[] {
+  return (attachments ?? []).flatMap((attachment) => {
+    if (attachment.kind !== 'claude_file') return []
+    const fileId = attachment.fileId.trim()
+    const relativePath = attachment.relativePath.trim()
+    return fileId && relativePath ? [`${fileId}:${relativePath}`] : []
+  })
 }
 
 function textFromContentBlocks(content: unknown): string[] {
@@ -1442,6 +1500,14 @@ function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[
     for (const block of content) {
       const rec = asRecord(block)
       if (rec?.type === 'tool_use') {
+        if (rec.name === 'SendUserMessage') {
+          const input = asRecord(rec.input) ?? {}
+          const content = stringValue(input.message, input.text, input.content, input.summary)
+          if (content) {
+            events.push({ type: 'assistant.status', content })
+            continue
+          }
+        }
         if (rec.name === 'AskUserQuestion') {
           const userInputRequest = userInputFromAskUserQuestionTool(rec.input)
           if (userInputRequest) {
@@ -1558,6 +1624,7 @@ function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[
   }
 
   if (type === 'result') {
+    const usage = usageSummaryFromAnthropicResult(event)
     const denials = Array.isArray(event.permission_denials)
       ? event.permission_denials as PermissionDenial[]
       : []
@@ -1591,9 +1658,9 @@ function parseAnthropicStyleLine(line: string, providerId = 'claude'): RunEvent[
         denials
       })
     } else if (event.subtype === 'success' || event.is_error === false) {
-      events.push({ type: 'run.completed', content: typeof event.result === 'string' ? event.result : undefined })
+      events.push({ type: 'run.completed', content: typeof event.result === 'string' ? event.result : undefined, usage })
     } else {
-      events.push({ type: 'run.failed', content: typeof event.result === 'string' ? event.result : undefined })
+      events.push({ type: 'run.failed', content: typeof event.result === 'string' ? event.result : undefined, usage })
     }
   }
 
@@ -1634,6 +1701,8 @@ const claudeProvider: ProviderAdapter = {
     if (request.disallowedTools?.length) args.push('--disallowedTools', request.disallowedTools.join(','))
     if (request.availableTools?.length) args.push('--tools', request.availableTools.join(','))
     if (request.additionalDirs?.length) args.push('--add-dir', ...request.additionalDirs)
+    const fileSpecs = claudeFileSpecs(request.attachments)
+    if (fileSpecs.length > 0) args.push('--file', ...fileSpecs)
     return command(this.binary, args)
   },
 
@@ -1652,6 +1721,8 @@ const claudeProvider: ProviderAdapter = {
     if (request.disallowedTools?.length) args.push('--disallowedTools', request.disallowedTools.join(','))
     if (request.availableTools?.length) args.push('--tools', request.availableTools.join(','))
     if (request.additionalDirs?.length) args.push('--add-dir', ...request.additionalDirs)
+    const fileSpecs = claudeFileSpecs(request.attachments)
+    if (fileSpecs.length > 0) args.push('--file', ...fileSpecs)
     if (request.prompt) args.push(request.prompt)
     return command(this.binary, args)
   },

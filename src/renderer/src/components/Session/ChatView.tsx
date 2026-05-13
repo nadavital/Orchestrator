@@ -13,6 +13,7 @@ import {
   summarizeToolActivities
 } from '../../types'
 import type { Session, ChatMessage, FileReference, ResultMessage, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
+import type { Attachment } from '../../types'
 
 interface Props {
   session: Session
@@ -405,6 +406,7 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
               </span>
             )}
             {fileReferences.length > 0 && <FileReferenceList files={fileReferences} cwd={session.workDir} searchRoots={fileReferenceRoots} />}
+            {isUser && msg.attachments && msg.attachments.length > 0 && <MessageAttachmentList attachments={msg.attachments} />}
             {queueState && (
               <div className="mt-2 flex items-center justify-end gap-2">
                 <span
@@ -448,6 +450,23 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
     if (msg.permissionDenials && msg.permissionDenials.length > 0) {
       return <PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />
     }
+    if (msg.subtype === 'status') {
+      return (
+        <div className="flex justify-start min-w-0 w-full">
+          <div
+            className="rounded-md px-3 py-2 text-xs"
+            style={{
+              maxWidth: 'min(640px, 100%)',
+              background: 'var(--color-surface2)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-muted)'
+            }}
+          >
+            {msg.content}
+          </div>
+        </div>
+      )
+    }
     if (msg.subtype === 'success') return null
     return (
       <div className="flex justify-center">
@@ -462,6 +481,26 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
   }
 
   return null
+}
+
+function MessageAttachmentList({ attachments }: { attachments: Attachment[] }): JSX.Element {
+  return (
+    <div className="mt-2 flex flex-wrap gap-1">
+      {attachments.map((attachment) => (
+        <span
+          key={attachment.id}
+          className="inline-flex max-w-full items-center gap-1 rounded-md px-2 py-1 text-[10px]"
+          style={{ background: 'rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.84)' }}
+          title={attachment.kind === 'local_file' ? attachment.path : `${attachment.fileId}:${attachment.relativePath}`}
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" className="shrink-0">
+            <path d="M2 1.75C2 .784 2.784 0 3.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 12.25 16h-8.5A1.75 1.75 0 0 1 2 14.25Z" />
+          </svg>
+          <span className="min-w-0 truncate">{attachment.kind === 'local_file' ? attachment.name : attachment.name ?? attachment.relativePath}</span>
+        </span>
+      ))}
+    </div>
+  )
 }
 
 function FileReferenceList({ files, cwd, searchRoots }: { files: FileReference[]; cwd: string; searchRoots: string[] }): JSX.Element {

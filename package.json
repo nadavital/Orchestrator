@@ -46,6 +46,7 @@
     "smoke:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/provider-diagnostics.mjs",
     "smoke:app": "node scripts/launch-isolated-app.mjs",
     "smoke:app:packaged": "node scripts/launch-isolated-app.mjs --packaged",
+    "smoke:ui:auto": "node scripts/run-automated-ui-smoke.mjs",
     "live:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/provider-live-smoke.mjs",
     "live:claude-runtimes": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/claude-runtime-parity.mjs",
     "live:claude-capabilities": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/claude-live-capability-suite.mjs",

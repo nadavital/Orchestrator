@@ -669,11 +669,53 @@ export interface RunRequest {
   useThinking?: boolean
   useFast?: boolean
   providerContext?: ProviderRunContext
+  attachments?: Attachment[]
 }
+
+export interface UsageSummary {
+  inputTokens?: number
+  outputTokens?: number
+  cacheCreationInputTokens?: number
+  cacheReadInputTokens?: number
+  totalTokens?: number
+  totalCostUsd?: number
+  durationMs?: number
+  apiDurationMs?: number
+  turns?: number
+  serviceTier?: string
+  modelUsage?: Record<string, {
+    inputTokens?: number
+    outputTokens?: number
+    cacheReadInputTokens?: number
+    cacheCreationInputTokens?: number
+    costUSD?: number
+    contextWindow?: number
+    maxOutputTokens?: number
+    webSearchRequests?: number
+  }>
+}
+
+export type Attachment =
+  | {
+      id: string
+      kind: 'local_file'
+      path: string
+      name: string
+      size?: number
+      mimeType?: string
+    }
+  | {
+      id: string
+      kind: 'claude_file'
+      fileId: string
+      relativePath: string
+      name?: string
+    }
 
 export type RunEvent =
   | { type: 'session.started'; providerSessionId: string }
   | { type: 'assistant.text'; content: string }
+  | { type: 'assistant.status'; content: string }
   | { type: 'assistant.text.delta'; streamId: string; content: string }
   | { type: 'assistant.text.completed'; streamId: string }
   | { type: 'tool.started'; id: string; toolName: string; toolInput: Record<string, unknown> }
@@ -689,8 +731,8 @@ export type RunEvent =
   | { type: 'user_input.requested'; content: string; questions?: UserInputQuestion[] }
   | { type: 'connection.reconnecting'; attempt?: number; content?: string }
   | { type: 'connection.retrying'; attempt?: number; content?: string }
-  | { type: 'run.completed'; content?: string }
-  | { type: 'run.failed'; content?: string }
+  | { type: 'run.completed'; content?: string; usage?: UsageSummary }
+  | { type: 'run.failed'; content?: string; usage?: UsageSummary }
 
 export type SessionStatus =
   | 'idle'
@@ -729,6 +771,7 @@ export interface Session {
   runtime?: ProviderRuntimeKind
   useThinking?: boolean
   useFast?: boolean
+  usageSummary?: UsageSummary
 }
 
 export interface SessionRunEventRecord {
@@ -761,6 +804,7 @@ export interface TextMessage extends BaseMessage {
   content: string
   isStreaming?: boolean
   queueState?: 'queued' | 'steer_next'
+  attachments?: Attachment[]
 }
 
 export function finalizeInterruptedMessages(messages: ChatMessage[]): ChatMessage[] {
@@ -816,6 +860,7 @@ export interface ResultMessage extends BaseMessage {
   permissionDenials?: PermissionDenial[]
   permissionDecision?: 'allowed_once' | 'allowed_session' | 'denied' | 'kept_planning'
   userInputQuestions?: UserInputQuestion[]
+  usageSummary?: UsageSummary
 }
 
 export interface ClaudeStreamEvent {

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord } from '../types'
+import type { Attachment, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../types'
 
 interface AppSettings {
   defaultProvider: string
@@ -27,7 +27,7 @@ export type SessionEvent =
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
   | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
-  | { type: 'settingsUpdated'; id: string; provider?: string; model?: string; effort?: string; permissionMode?: string; runtime?: Session['runtime']; useThinking?: boolean; useFast?: boolean; allowedTools?: string[]; disallowedTools?: string[]; availableTools?: string[]; additionalDirs?: string[] }
+  | { type: 'settingsUpdated'; id: string; provider?: string; model?: string; effort?: string; permissionMode?: string; runtime?: Session['runtime']; useThinking?: boolean; useFast?: boolean; allowedTools?: string[]; disallowedTools?: string[]; availableTools?: string[]; additionalDirs?: string[]; usageSummary?: UsageSummary }
   | { type: 'needsInput'; id: string }
 
 type SettingsUpdatedPayload = Omit<Extract<SessionEvent, { type: 'settingsUpdated' }>, 'type'>
@@ -57,8 +57,10 @@ const api = {
       useWorktree: boolean
       repoRoot?: string
     }): Promise<Session> => ipcRenderer.invoke('sessions:create', opts),
-    sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean): Promise<void> =>
-      ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt, useWorktree),
+    sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]): Promise<void> =>
+      ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt, useWorktree, attachments ?? []),
+    answerSideQuestion: (sessionId: string, question: string): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> =>
+      ipcRenderer.invoke('sessions:answerSideQuestion', sessionId, question),
     updateName: (id: string, name: string): Promise<void> =>
       ipcRenderer.invoke('sessions:updateName', id, name),
     updateSettings: (id: string, patch: {
@@ -158,7 +160,8 @@ const api = {
   },
 
   dialog: {
-    openDirectory: (): Promise<string | null> => ipcRenderer.invoke('dialog:openDirectory')
+    openDirectory: (): Promise<string | null> => ipcRenderer.invoke('dialog:openDirectory'),
+    openFiles: (): Promise<Array<{ path: string; name: string; size?: number }> | null> => ipcRenderer.invoke('dialog:openFiles')
   },
 
   pet: {

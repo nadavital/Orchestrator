@@ -1,7 +1,8 @@
 import type { IpcMain } from 'electron'
 import { dialog, app, shell } from 'electron'
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
-import { dirname } from 'path'
+import { basename, dirname } from 'path'
+import type { Attachment } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
 import { gitManager } from './git'
@@ -34,8 +35,11 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:list', () => sessionManager.list())
   ipcMain.handle('sessions:get', (_, id: string) => sessionManager.get(id))
   ipcMain.handle('sessions:create', (_, opts) => sessionManager.create(opts))
-  ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean) =>
-    sessionManager.sendMessage(sessionId, prompt, useWorktree)
+  ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) =>
+    sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
+  )
+  ipcMain.handle('sessions:answerSideQuestion', (_, sessionId: string, question: string) =>
+    sessionManager.answerSideQuestion(sessionId, question)
   )
   ipcMain.handle('sessions:updateName', (_, id: string, name: string) =>
     sessionManager.updateName(id, name)
@@ -167,6 +171,15 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('dialog:openDirectory', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
     return result.canceled ? null : result.filePaths[0]
+  })
+  ipcMain.handle('dialog:openFiles', async (): Promise<Array<{ path: string; name: string; size?: number }> | null> => {
+    const result = await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
+    if (result.canceled) return null
+    return result.filePaths.map((filePath) => {
+      let size: number | undefined
+      try { size = statSync(filePath).size } catch { /* ignore stat races */ }
+      return { path: filePath, name: basename(filePath), size }
+    })
   })
 
   // Pet overlay

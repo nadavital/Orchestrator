@@ -13,6 +13,15 @@ export function eventsToMessages(events: RunEvent[]): ChatMessage[] {
         content: event.content,
         timestamp: Date.now()
       })
+    } else if (event.type === 'assistant.status') {
+      messages.push({
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: event.content,
+        subtype: 'status',
+        timestamp: Date.now()
+      })
     } else if (event.type === 'tool.started') {
       messages.push({
         id: event.id,
@@ -59,7 +68,8 @@ export function eventsToMessages(events: RunEvent[]): ChatMessage[] {
         type: 'result',
         content: event.content ?? '',
         subtype: 'success',
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        usageSummary: event.usage
       })
     } else if (event.type === 'run.failed') {
       messages.push({
@@ -68,7 +78,8 @@ export function eventsToMessages(events: RunEvent[]): ChatMessage[] {
         type: 'result',
         content: event.content ?? '',
         subtype: 'error_during_execution',
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        usageSummary: event.usage
       })
     }
   }

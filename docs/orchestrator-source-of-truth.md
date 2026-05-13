@@ -143,7 +143,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Deny | Denies cleanly without corrupting session state. | `Complete` | Fixture coverage, tests, and live installed-app denied Write smoke. | Keep stop/deny interaction covered in P1/P3 tasks. |
 | Permission scopes | Tool/path/url/MCP scopes display compactly and map back to provider flags/settings. | `Complete` | Installed-app cards showed readable path scopes for Write and parser tests cover file path, URL, MCP, Bash, and plan summaries. | Keep parser tests current as provider payloads change. |
 | AskUserQuestion | User question card with choices/custom answer, separate from permissions. | `Complete` | Installed-app P3-004/P3-005 smokes verified option selection, free-form answer, user-input resume, and exact Claude echo replies. | Improve answered-card labeling in P6-004. |
-| SendUserMessage/brief updates | Provider user-facing questions/updates map to user input or assistant status appropriately. | `Research` | Claude help mentions `--brief`. | Capture live/fixture output and decide UI. |
+| SendUserMessage/brief updates | Provider user-facing questions/updates map to user input or assistant status appropriately. | `Implemented` | `brief-usage.jsonl` maps `SendUserMessage` to assistant status; live Claude 2.1.140 `--brief` probes on 2026-05-13 exposed no `SendUserMessage` tool and returned normal assistant text plus usage. | Keep parser support; treat current live Claude brief output as assistant text unless a future CLI emits the tool. |
 | Plan mode enter | Plan state appears in sidebar/card without crowding transcript. | `Complete` | Dev CUA structured smoke verified the Plan rail/sidebar renders TodoWrite tasks, ExitPlanMode plan bodies, markdown summary, and survives event-buffer reload via saved transcript reconstruction. | Keep saved-message reconstruction covered as provider payloads change. |
 | Plan approval | `Approve Plan` and `Keep Planning` resume correctly. | `Complete` | Installed-app P3-006/P3-007 smokes verified native `Plan Ready`, approve-then-Write permission, `Kept planning`, and no workspace edit on keep-planning. | Save richer plan fixtures in P7-002. |
 | Permission mode picker | Product labels map to provider-native policy. | `Complete` | Installed-app CUA verified Settings default `Mode` shows Auto selected; composer shows Auto, Plan, and Ask first as primary choices; Auto-edit, Preapproved only, raw allow/deny/tools/dirs, and Bypass unsafe live behind Advanced. | Existing sessions can retain their saved mode. |
@@ -185,14 +185,14 @@ The product target is first-class Orchestrator UI on top of Claude structured JS
 | Bash | Permission card, bounded command/output details, resumed execution. | `Complete` | Refresh fixtures if Claude denial/hook payload changes. |
 | MCP tools during a run | Tool cards and permission scopes using the shared MCP action vocabulary. | `Complete` | Add more real MCP server fixtures as local servers become available. |
 | AskUserQuestion | User-input card with choices/free-form answer; never permission UI. | `Complete` | Polish answered-card copy if UX gets crowded. |
-| SendUserMessage / `--brief` | User-facing update or question card, depending on observed event shape. | `Research` | Capture structured fixture and decide if it is `assistant.status` or `user_input.requested`. |
+| SendUserMessage / `--brief` | User-facing updates map to a compact assistant status card when the tool appears; current live Claude 2.1.140 emits ordinary assistant text. | `Implemented` | `brief-usage.jsonl`; live probes with `--brief` and budget caps returned `ORCH_BRIEF_STATUS_OK` as assistant text and did not list `SendUserMessage` in tools. Keep fixture parser support and re-probe after Claude CLI changes. |
 | Plan mode, TodoWrite, ExitPlanMode | Plan sidebar/card, plan approval card, keep-planning path. | `Complete` | Prefer structured plan fixtures over native plan placeholder evidence going forward. |
 | Task/Agent subagents | Agent chips, sidebar tabs, cleaned nested transcripts, failure states. | `Complete` | Keep sidechain fixtures fresh; add more selected-agent live runs when useful. |
 | `--agent` selected launch agent | Composer agent picker; launch-only provider flag. | `Complete` | Add clearer empty-state messaging when no agents are configured. |
 | `--agents <json>` custom agents | Future agent editor/importer with validation. | `Planned` | Design only after built-in configured agents stay stable. |
 | Project/global slash commands | Discover prompt-like commands and expand/send through structured runs. | `Complete` | Add cache invalidation only if repeated scans are visible. |
 | Claude skills as slash commands | Skills panel plus slash palette entries for project/global skills. | `Complete` | Add variable semantics beyond `$ARGUMENTS` after confirming Claude behavior. |
-| Built-in interactive slash commands | Orchestrator-native surfaces where safe; explicit terminal handoff for real TUI commands. | `Implemented` | `/btw` probe with `claude -p --output-format json --max-budget-usd 0.02 "/btw ..."` returned `/btw isn't available in this environment.` with zero turns/cost, confirming it is not a structured `-p` surface. | Implement Orchestrator-owned side questions separately if we want `/btw`-style UX. |
+| Built-in interactive slash commands | Orchestrator-native surfaces where safe; explicit terminal handoff for real TUI commands. | `Implemented` | `/btw` probe with `claude -p --output-format json --max-budget-usd 0.02 "/btw ..."` returned `/btw isn't available in this environment.` with zero turns/cost, confirming it is not a structured `-p` surface. Orchestrator now owns `/btw` side questions instead of depending on provider TUI state. |
 | MCP list/get | Settings inventory and details without raw JSON spam. | `Complete` | Keep failed-local-server states readable. |
 | MCP add/remove/reset/config mutations | Gated provider-management handoff. | `Gated` | Confirmation/terminal handoff only; never silently mutate provider config. |
 | Plugin list | Settings inventory without raw JSON spam. | `Complete` | Recheck when local Claude plugins exist. |
@@ -200,8 +200,8 @@ The product target is first-class Orchestrator UI on top of Claude structured JS
 | Auth status | Compact settings/diagnostics status. | `Implemented` | Verify in installed app after next settings pass. |
 | Login/logout/setup-token/update/install/project purge | Explicit terminal handoff or confirmation. | `Gated` | Keep destructive/provider-state actions out of chat runtime. |
 | `--mcp-config`, `--strict-mcp-config`, `--plugin-dir`, `--plugin-url` | Session-scoped advanced launch config. | `Planned` | Add only with validation and a clear user-facing settings surface. |
-| Attachments / `--file` | Shared attachment model in composer. | `Planned` | Implement Claude file attachments before cross-provider image/resource support. |
-| Usage/cost/budget/fallback | Unobtrusive session detail and diagnostics. | `Planned` | Parse structured usage/cost; keep budget controls advanced. |
+| Attachments / `--file` | Shared attachment model in composer. | `Implemented` | Composer local-file chips pass attachment context into runs; Claude resource attachments map to `--file file_id:relative_path` in command tests. Live-test provider-hosted file resources when a safe file id is available; expand to image/resource provider support later. |
+| Usage/cost/budget/fallback | Unobtrusive session detail and diagnostics. | `Complete` | Claude result usage/cost parses into `UsageSummary`, Usage sidebar renders session/latest run totals, and live `--brief` probes emitted usage/cost fields. Keep budget controls advanced; add per-provider usage adapters as other CLIs expose metrics. |
 | Worktree/tmux/from-pr/fork/name/remote-control | Advanced session-launch or provider-management controls. | `Research` | Prefer app-managed worktrees; only surface provider-native extras with clear value. |
 | Doctor/ultrareview/debug/chrome/IDE | Diagnostics or gated provider actions. | `Research` | Classify each as no-quota diagnostics, quota-spending, or terminal-only before implementation. |
 
@@ -224,9 +224,9 @@ The product target is first-class Orchestrator UI on top of Claude structured JS
 
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
-| Claude file attachments | Composer can attach files/resources using provider-supported flags. | `Planned` | Claude `--file` verified. | Define attachment model and command construction tests. |
+| Claude file attachments | Composer can attach local files as prompt context and provider file resources via `--file`. | `Implemented` | `Attachment` model, composer file chips, IPC file picker, and command construction test for `--file file_abc:docs/context.md`. | Live-test a real `file_id:relative_path` resource when one is safely available. |
 | Codex images | Composer image attachment only when provider/runtime supports it. | `Planned` | Codex help verified. | Add shared attachment capability after Claude file path. |
-| Usage/cost | Show unobtrusive cost/token/duration summary where provider emits usage. | `Planned` | Claude JSON result includes usage/cost. | Parse usage and render in session detail, not chat clutter. |
+| Usage/cost | Show unobtrusive cost/token/duration summary where provider emits usage. | `Complete` | `brief-usage.jsonl`, provider tests, `UsagePanel`, and live Claude `--brief` result with `total_cost_usd` / token fields. | Recheck UI after any sidebar redesign. |
 | Rate limits/errors | Auth/rate/quota errors are classified and actionable. | `Complete` | `failure-categories.jsonl` plus provider tests classify auth, quota, rate-limit, and generic model failures into distinct session statuses. | Keep classifier strings narrow enough to avoid false positives. |
 | Claude launch extras | `--agent`, `--agents`, `--name`, `--session-id`, `--fork-session`, `--from-pr`, `--worktree`, `--tmux`, `--fallback-model`, `--max-budget-usd`, `--json-schema`, `--file`. | `Partial` | `--agent` is surfaced in the composer agent picker and command tests cover launch-only `--agent` behavior. | Add only remaining launch extras with clear user value. |
 | Provider profiles/backends | Codex local/OSS, Cursor Bedrock/API key, Copilot custom providers. | `Research` | Help/package evidence. | Defer until Claude support is complete. |
@@ -279,6 +279,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-015 | Isolated UI verification profile exists. | `Complete` | `src/main/appProfile.ts` selects `ORCHESTRATOR_PROFILE` / `ORCHESTRATOR_USER_DATA_DIR` before stores open; `npm run smoke:app` launches a separate dev Electron profile with a visible titlebar badge, clean user data, and pet overlay disabled by default. Packaged smoke copies `dist/mac-arm64/Orchestrator.app` to a temp renamed bundle. |
 | V-016 | Claude native interactive first-turn UI smoke works for clean assistant text and file creation, with follow-up continuation routed through structured resume. | `Complete` | Dev Electron profile `interactivecua5` on 2026-05-13: native first turn returned `INTERACTIVE_UI_CLEAN_FIRST_OK`; follow-up returned `INTERACTIVE_UI_CLEAN_SECOND_OK`; new native first-turn Write created `/private/tmp/orchestrator-interactive-ui-smoke/interactive-native-smoke.txt` with `INTERACTIVE_NATIVE_FILE_OK` and rendered `Wrote 1 file` plus `INTERACTIVE_UI_FILE_DONE`. |
 | V-017 | Selectable Claude native chat runtime deprecated. | `Complete` | Composer no longer exposes a Structured/Native runtime picker; stale Claude chat sessions normalize back to structured/headless before sending. Native PTY remains only for terminal handoff internals. |
+| V-018 | Brief/status events, usage metadata, attachments, `/btw` side questions, and automated detached UI smoke landed. | `Complete` | `brief-usage.jsonl`; `npx tsc -p tsconfig.node.json --noEmit`; `npx tsc -p tsconfig.web.json --noEmit`; `npm run test:providers`; `npm run smoke:ui:auto`; live Claude 2.1.140 `--brief` probes showed usage/cost fields but no `SendUserMessage` tool. |
 
 ### P0: Re-establish Installed-App Verification
 
@@ -290,7 +291,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | P0-004 | Verify packaged resources load. | `Complete` | `npm run test:smoke-config` passed; `/Applications/Orchestrator.app/Contents/Resources/pets/*/{pet.json,spritesheet.webp}` contains ditto, orchestrator, pika, and psyduck. `/pet` applied without visible error. | Pet overlay animation fidelity remains separate P-polish work. |
 | P0-005 | Add isolated UI verification window/profile. | `Complete` | `node scripts/launch-isolated-app.mjs --print --profile smoke-check --user-data-dir /private/tmp/orchestrator-profile-check --workspace-dir /private/tmp/orchestrator-workspace-check` printed the expected isolated profile config; `npm run smoke:app:packaged -- --reset --profile smokecua` launched a temp renamed bundle with separate `userData`; TypeScript/build/provider tests passed. | Future UI verification should start here instead of the user's active Orchestrator window. Packaged smoke remains useful for parity, but current Computer Use can list the renamed app while `get_app_state` does not attach to it by name. |
 | P0-006 | Use dev Electron as the primary Computer Use target. | `Complete` | `npm run smoke:app -- --reset --profile devcua --workspace-dir /private/tmp/orchestrator-agent-ui-smoke` launched `Orchestrator - Devcua`; Computer Use `get_app_state("Electron")` attached to `localhost:5173`, showed the `Devcua profile` badge and clean empty project state, and a Settings click opened the dev Settings UI. | Isolated profiles skip legacy user-data migration so old projects/sessions do not leak into smoke runs. |
-| P0-007 | Add automated detached UI driver. | `Planned` | Browser/Playwright/CDP smoke can inspect the isolated profile without depending on Computer Use app-name targeting. | Still useful for repeatable screenshot/assertion automation beyond CUA. |
+| P0-007 | Add automated detached UI driver. | `Complete` | `npm run smoke:ui:auto` launches an isolated Electron profile, bootstraps a disposable project/session, inspects profile badge/composer/sidebar rail, and exits with JSON evidence. | Extend assertions as new primary UI flows land. |
 
 ### P1: Claude Core Run Semantics
 
@@ -418,6 +419,7 @@ Current Claude fixture files that back the implemented rows:
 - `sidechain-real.jsonl`
 - `mcp-web-approval.jsonl`
 - `failure-categories.jsonl`
+- `brief-usage.jsonl`
 
 - [x] Claude plain answer.
 - [x] Claude partial assistant message.
@@ -437,6 +439,7 @@ Current Claude fixture files that back the implemented rows:
 - [x] Claude project/global command fixture.
 - [x] Claude skill fixture.
 - [x] Claude rate limit/quota/auth error.
+- [x] Claude SendUserMessage/brief usage fixture.
 - [x] Codex interactive approval or app-server fixture.
 - [x] Codex MCP elicitation fixture.
 - [ ] Cursor partial-output fixture.
@@ -680,3 +683,5 @@ When implementing against this plan:
 - Claude structured Plan sidebar polish verified on 2026-05-13 in isolated dev CUA profile `plan-agent-polish`: a structured plan run rendered TodoWrite tasks in the new Plan rail/sidebar, then after hot reload the sidebar reconstructed the ExitPlanMode markdown plan body from saved chat messages. The smoke also caught and fixed a duplication smell in recent plan updates.
 - Claude structured subagent polish verified on 2026-05-13 in the same dev CUA run: two Task subagents completed with readable tabs (`Read README.md first sentence`, `Count files in docs directory`), cleaned transcripts, and no raw `toolu_...` tab labels after lifecycle updates. The run also verified a subagent Bash permission card can allow once and resume.
 - `/btw` decision verified on 2026-05-13: `claude -p --output-format json --max-budget-usd 0.02 "/btw ..."` returned `/btw isn't available in this environment.` with zero turns/cost. Treat `/btw` as native interactive side-chat behavior, not a structured `-p` feature; build an Orchestrator-owned side question/chat if we want that UX.
+- Attachment/usage/brief polish landed on 2026-05-13: local files can be attached from the composer, Claude file resources map to native `--file` specs, result usage/cost rolls up into a Usage sidebar, and `SendUserMessage` is supported as an assistant status card if a future Claude `--brief` stream emits it.
+- Automated detached UI smoke landed on 2026-05-13: `npm run smoke:ui:auto` launches an isolated Electron profile, bootstraps a disposable project/session before renderer load, verifies the profile badge/composer/sidebar rail, and exits with JSON evidence without touching the user's active Orchestrator window.

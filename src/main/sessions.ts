@@ -1,13 +1,16 @@
 import Store from 'electron-store'
 import { BrowserWindow } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
-import type { Session, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus } from '../types'
+import { execFile } from 'child_process'
+import { readFileSync } from 'fs'
+import { promisify } from 'util'
+import type { Attachment, Session, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus, UsageSummary } from '../types'
 import { PROVIDER_DEFS, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { detectNativeCliPrompt, nativeCliPromptContent, nativeCliPromptSubmitSequence, type NativeCliPromptKind } from '../types/nativeCliPrompts'
 import { nativeTerminalControlResponses } from '../types/nativeTerminalControl'
 import { parseClaudeTerminalSnapshot, terminalSnapshotToRunEvents, type NativeTerminalStreamState } from '../types/nativeTerminalEvents'
 import { gitManager } from './git'
-import { getProvider, PROVIDERS, resolveProviderBinary } from './providers'
+import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand } from './providers'
 import type { ProviderAdapter } from './providers'
 import { providerRuntime, type ProviderRuntimeProcess } from './providerRuntime'
 import { eventsToMessages } from './runEvents'
@@ -23,11 +26,14 @@ interface SessionStore {
 migrateLegacyUserData()
 
 const store = new Store<SessionStore>({ defaults: { sessions: [] } })
+const execFileAsync = promisify(execFile)
+const MAX_ATTACHMENT_CHARS = 80_000
 
 interface PendingFollowUp {
   id: string
   prompt: string
   mode: 'queued' | 'steer_next'
+  attachments?: Attachment[]
 }
 
 const pendingFollowUps = new Map<string, PendingFollowUp[]>()
@@ -97,6 +103,97 @@ function requestFromSession(session: Session, prompt: string): RunRequest {
     useThinking: session.useThinking,
     useFast: session.useFast
   }
+}
+
+function claudeResourceAttachmentSpecs(attachments: Attachment[] = []): Attachment[] {
+  return attachments.filter((attachment) => attachment.kind === 'claude_file')
+}
+
+function localFileAttachments(attachments: Attachment[] = []): Extract<Attachment, { kind: 'local_file' }>[] {
+  return attachments.filter((attachment): attachment is Extract<Attachment, { kind: 'local_file' }> => attachment.kind === 'local_file')
+}
+
+function escapeAttachmentAttribute(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+}
+
+function promptWithLocalAttachments(prompt: string, attachments: Attachment[] = []): string {
+  const localFiles = localFileAttachments(attachments)
+  if (localFiles.length === 0) return prompt
+
+  const blocks = localFiles.map((attachment) => {
+    const path = escapeAttachmentAttribute(attachment.path)
+    const name = escapeAttachmentAttribute(attachment.name)
+    try {
+      const raw = readFileSync(attachment.path, 'utf8')
+      const truncated = raw.length > MAX_ATTACHMENT_CHARS
+      const content = truncated ? raw.slice(0, MAX_ATTACHMENT_CHARS) : raw
+      return [
+        `<attached_file path="${path}" name="${name}">`,
+        content,
+        truncated ? '\n[Attachment truncated by Orchestrator.]' : '',
+        '</attached_file>'
+      ].join('\n')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return [
+        `<attached_file path="${path}" name="${name}" unreadable="true">`,
+        message,
+        '</attached_file>'
+      ].join('\n')
+    }
+  })
+
+  return [
+    prompt,
+    '',
+    'Attached file context:',
+    ...blocks
+  ].join('\n')
+}
+
+function mergeUsageSummary(current: UsageSummary | undefined, next: UsageSummary | undefined): UsageSummary | undefined {
+  if (!next) return current
+  return {
+    inputTokens: (current?.inputTokens ?? 0) + (next.inputTokens ?? 0) || undefined,
+    outputTokens: (current?.outputTokens ?? 0) + (next.outputTokens ?? 0) || undefined,
+    cacheCreationInputTokens: (current?.cacheCreationInputTokens ?? 0) + (next.cacheCreationInputTokens ?? 0) || undefined,
+    cacheReadInputTokens: (current?.cacheReadInputTokens ?? 0) + (next.cacheReadInputTokens ?? 0) || undefined,
+    totalTokens: (current?.totalTokens ?? 0) + (next.totalTokens ?? 0) || undefined,
+    totalCostUsd: (current?.totalCostUsd ?? 0) + (next.totalCostUsd ?? 0) || undefined,
+    durationMs: (current?.durationMs ?? 0) + (next.durationMs ?? 0) || undefined,
+    apiDurationMs: (current?.apiDurationMs ?? 0) + (next.apiDurationMs ?? 0) || undefined,
+    turns: (current?.turns ?? 0) + (next.turns ?? 0) || undefined,
+    serviceTier: next.serviceTier ?? current?.serviceTier,
+    modelUsage: { ...(current?.modelUsage ?? {}), ...(next.modelUsage ?? {}) }
+  }
+}
+
+function sideQuestionPrompt(session: Session, question: string): string {
+  const transcript = session.messages
+    .slice(-16)
+    .flatMap((message) => {
+      if (message.type === 'text') return [`${message.role}: ${message.content}`]
+      if (message.type === 'result' && message.content) return [`system:${message.subtype}: ${message.content}`]
+      if (message.type === 'tool_use') return [`tool:${message.toolName}: ${JSON.stringify(message.toolInput).slice(0, 1200)}`]
+      return []
+    })
+    .join('\n\n')
+
+  return [
+    'You are answering a side question about an active Orchestrator coding-agent session.',
+    'Answer directly and do not edit files. Use the transcript context below when it is relevant.',
+    '',
+    'Transcript context:',
+    transcript || '(No transcript yet.)',
+    '',
+    'Side question:',
+    question
+  ].join('\n')
 }
 
 function mergeToolNames(current: string[] | undefined, granted: string[]): string[] {
@@ -430,9 +527,11 @@ export const sessionManager = {
     return true
   },
 
-  async sendMessage(sessionId: string, prompt: string, useWorktree?: boolean): Promise<void> {
+  async sendMessage(sessionId: string, prompt: string, useWorktree?: boolean, attachments: Attachment[] = []): Promise<void> {
     const session = this.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
+    const effectivePrompt = promptWithLocalAttachments(prompt, attachments)
+    const providerAttachments = claudeResourceAttachmentSpecs(attachments)
     if (providerRuntime.hasActiveRun(sessionId)) {
       if (session.runtime === 'interactive' && session.status === 'idle') {
         const userMsg: ChatMessage = {
@@ -440,12 +539,13 @@ export const sessionManager = {
           role: 'user',
           type: 'text',
           content: prompt,
+          attachments,
           timestamp: Date.now()
         }
         this.appendMessage(sessionId, [userMsg])
         this.updateStatus(sessionId, 'running')
         resetNativeTerminalState(sessionId)
-        providerRuntime.write(sessionId, `${prompt}\r`)
+        providerRuntime.write(sessionId, `${effectivePrompt}\r`)
       } else {
         const messageId = uuidv4()
         const userMsg: ChatMessage = {
@@ -453,11 +553,12 @@ export const sessionManager = {
           role: 'user',
           type: 'text',
           content: prompt,
+          attachments,
           queueState: 'queued',
           timestamp: Date.now()
         }
         this.appendMessage(sessionId, [userMsg])
-        appendPendingFollowUp(sessionId, { id: messageId, prompt, mode: 'queued' })
+        appendPendingFollowUp(sessionId, { id: messageId, prompt: effectivePrompt, mode: 'queued', attachments: providerAttachments })
         this.updateStatus(sessionId, 'running')
       }
       return
@@ -496,13 +597,17 @@ export const sessionManager = {
       role: 'user',
       type: 'text',
       content: prompt,
+      attachments,
       timestamp: Date.now()
     }
     this.appendMessage(sessionId, [userMsg])
 
     const currentSession = this.get(sessionId)!
     const provider = getProvider(currentSession.provider ?? 'claude')
-    let runRequest = requestFromSession(currentSession, prompt)
+    let runRequest: RunRequest = {
+      ...requestFromSession(currentSession, effectivePrompt),
+      attachments: providerAttachments
+    }
     await this.startProviderRun(sessionId, currentSession, provider, runRequest)
   },
 
@@ -541,6 +646,21 @@ export const sessionManager = {
     if (decision.status) this.updateStatus(sessionId, decision.status)
 
     updateToolBoundaryState(sessionId, events)
+
+    const usageEvents = events.filter((event): event is Extract<RunEvent, { type: 'run.completed' | 'run.failed' }> =>
+      (event.type === 'run.completed' || event.type === 'run.failed') && Boolean(event.usage)
+    )
+    if (usageEvents.length > 0) {
+      const sessions = store.get('sessions', [])
+      const s = sessions.find((candidate) => candidate.id === sessionId)
+      if (s) {
+        for (const event of usageEvents) {
+          s.usageSummary = mergeUsageSummary(s.usageSummary, event.usage)
+        }
+        store.set('sessions', sessions)
+        send('session:settingsUpdated', { id: sessionId, usageSummary: s.usageSummary })
+      }
+    }
 
     for (const event of events) {
       if (event.type === 'assistant.text.delta') {
@@ -643,7 +763,8 @@ export const sessionManager = {
     const mode = session.providerSessionId ? 'resume' : 'start'
     let runRequest: RunRequest = {
       ...requestFromSession(session, followUp.prompt),
-      runtime: session.runtime
+      runtime: session.runtime,
+      attachments: followUp.attachments ?? []
     }
     await this.startProviderRun(sessionId, session, provider, runRequest, mode)
   },
@@ -794,6 +915,61 @@ export const sessionManager = {
       timestamp: Date.now()
     }])
     this.updateStatus(sessionId, 'idle')
+  },
+
+  async answerSideQuestion(sessionId: string, question: string): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> {
+    const session = this.get(sessionId)
+    if (!session) return { ok: false, answer: '', error: `Session ${sessionId} not found.` }
+    const trimmed = question.trim()
+    if (!trimmed) return { ok: false, answer: '', error: 'Question is empty.' }
+
+    const provider = getProvider(session.provider ?? 'claude')
+    const request: RunRequest = {
+      ...requestFromSession(session, sideQuestionPrompt(session, trimmed)),
+      providerSessionId: null,
+      executionPolicy: provider.id === 'claude' ? 'dontAsk' : session.permissionMode,
+      allowedTools: [],
+      disallowedTools: [],
+      availableTools: provider.id === 'claude' ? [''] : [],
+      attachments: []
+    }
+    const command = resolveProviderCommand(provider, provider.buildStartCommand(request))
+    if (!command) return { ok: false, answer: '', error: `${provider.id} CLI is not available.` }
+    if (provider.id === 'claude') command.args.push('--max-budget-usd', '0.05')
+
+    try {
+      const { stdout } = await execFileAsync(command.binary, command.args, {
+        cwd: session.workDir,
+        env: providerSpawnEnv(provider.id),
+        timeout: 90_000,
+        maxBuffer: 2 * 1024 * 1024
+      })
+      const events = String(stdout)
+        .split('\n')
+        .flatMap((line) => provider.parseOutputLine(line))
+      const text = events
+        .flatMap((event) => event.type === 'assistant.text' ? [event.content] : [])
+        .join('\n')
+        .trim()
+      const terminal = [...events].reverse().find((event) => event.type === 'run.completed' || event.type === 'run.failed')
+      const usage = terminal?.type === 'run.completed' || terminal?.type === 'run.failed' ? terminal.usage : undefined
+      const fallback = terminal && (terminal.type === 'run.completed' || terminal.type === 'run.failed') ? terminal.content : undefined
+      return {
+        ok: terminal?.type !== 'run.failed',
+        answer: text || fallback || '',
+        error: terminal?.type === 'run.failed' ? (fallback || 'Side question failed.') : undefined,
+        usage
+      }
+    } catch (error) {
+      const err = error as { stderr?: Buffer | string; stdout?: Buffer | string; message?: string }
+      const stderr = Buffer.isBuffer(err.stderr) ? err.stderr.toString('utf8') : err.stderr
+      const stdout = Buffer.isBuffer(err.stdout) ? err.stdout.toString('utf8') : err.stdout
+      return {
+        ok: false,
+        answer: '',
+        error: stderr?.trim() || stdout?.trim() || err.message || 'Side question failed.'
+      }
+    }
   },
 
   checkProviders(): Record<string, boolean> {

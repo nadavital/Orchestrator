@@ -1,5 +1,13 @@
 import { create } from 'zustand'
-import type { Session, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord } from '../types'
+import type { Session, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, UsageSummary } from '../types'
+
+export interface SideQuestionMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  status?: 'pending' | 'complete' | 'error'
+  usage?: UsageSummary
+}
 
 interface SessionUIState {
   showPlan: boolean
@@ -7,9 +15,12 @@ interface SessionUIState {
   showEvents: boolean
   showTerminal: boolean
   showSkills: boolean
+  showSideQuestions: boolean
+  showUsage: boolean
   hasUnread: boolean
   activeAgentId?: string | null
   agentTabIds?: string[]
+  sideQuestions?: SideQuestionMessage[]
 }
 
 interface SessionState {
@@ -41,14 +52,19 @@ interface SessionState {
     disallowedTools?: string[]
     availableTools?: string[]
     additionalDirs?: string[]
+    usageSummary?: UsageSummary
   }) => void
   setShowDiff: (id: string, v: boolean) => void
   setShowPlan: (id: string, v: boolean) => void
   setShowEvents: (id: string, v: boolean) => void
   setShowTerminal: (id: string, v: boolean) => void
   setShowSkills: (id: string, v: boolean) => void
+  setShowUsage: (id: string, v: boolean) => void
   setActiveAgent: (id: string, agentId: string | null) => void
   closeAgentTab: (id: string, agentId: string) => void
+  appendSideQuestion: (id: string, message: SideQuestionMessage) => void
+  updateSideQuestion: (id: string, messageId: string, patch: Partial<SideQuestionMessage>) => void
+  setShowSideQuestions: (id: string, v: boolean) => void
   setHasUnread: (id: string, v: boolean) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
@@ -65,9 +81,12 @@ const defaultUI: SessionUIState = {
   showEvents: false,
   showTerminal: false,
   showSkills: false,
+  showSideQuestions: false,
+  showUsage: false,
   hasUnread: false,
   activeAgentId: null,
-  agentTabIds: []
+  agentTabIds: [],
+  sideQuestions: []
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -140,7 +159,9 @@ export const useSessionStore = create<SessionState>((set) => ({
           showDiff: v,
           showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
-          showSkills: v ? false : (s.uiState[id]?.showSkills ?? false)
+          showSkills: v ? false : (s.uiState[id]?.showSkills ?? false),
+          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false),
+          showUsage: v ? false : (s.uiState[id]?.showUsage ?? false)
         }
       }
     })),
@@ -154,7 +175,9 @@ export const useSessionStore = create<SessionState>((set) => ({
           showPlan: v,
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
           showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
-          showSkills: v ? false : (s.uiState[id]?.showSkills ?? false)
+          showSkills: v ? false : (s.uiState[id]?.showSkills ?? false),
+          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false),
+          showUsage: v ? false : (s.uiState[id]?.showUsage ?? false)
         }
       }
     })),
@@ -168,7 +191,9 @@ export const useSessionStore = create<SessionState>((set) => ({
           showEvents: v,
           showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
-          showSkills: v ? false : (s.uiState[id]?.showSkills ?? false)
+          showSkills: v ? false : (s.uiState[id]?.showSkills ?? false),
+          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false),
+          showUsage: v ? false : (s.uiState[id]?.showUsage ?? false)
         }
       }
     })),
@@ -187,10 +212,51 @@ export const useSessionStore = create<SessionState>((set) => ({
           showSkills: v,
           showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
-          showEvents: v ? false : (s.uiState[id]?.showEvents ?? false)
+          showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
+          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false),
+          showUsage: v ? false : (s.uiState[id]?.showUsage ?? false)
         }
       }
     })),
+
+  setShowSideQuestions: (id, v) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            showSkills: v ? false : current.showSkills,
+            showPlan: v ? false : current.showPlan,
+            showDiff: v ? false : current.showDiff,
+            showEvents: v ? false : current.showEvents,
+            showUsage: v ? false : current.showUsage,
+            sideQuestions: current.sideQuestions ?? [],
+            showSideQuestions: v
+          }
+        }
+      }
+    }),
+
+  setShowUsage: (id, v) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            showSkills: v ? false : current.showSkills,
+            showPlan: v ? false : current.showPlan,
+            showDiff: v ? false : current.showDiff,
+            showEvents: v ? false : current.showEvents,
+            showSideQuestions: v ? false : current.showSideQuestions,
+            showUsage: v
+          }
+        }
+      }
+    }),
 
   setActiveAgent: (id, agentId) =>
     set((s) => ({
@@ -210,6 +276,8 @@ export const useSessionStore = create<SessionState>((set) => ({
             showPlan: false,
             showDiff: false,
             showSkills: false,
+            showSideQuestions: false,
+            showUsage: false,
             agentTabIds
           }
         })()
@@ -231,6 +299,42 @@ export const useSessionStore = create<SessionState>((set) => ({
             agentTabIds,
             activeAgentId,
             showEvents: agentTabIds.length > 0 ? current.showEvents : false
+          }
+        }
+      }
+    }),
+
+  appendSideQuestion: (id, message) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            showPlan: false,
+            showDiff: false,
+            showEvents: false,
+            showSkills: false,
+            showUsage: false,
+            showSideQuestions: true,
+            sideQuestions: [...(current.sideQuestions ?? []), message]
+          }
+        }
+      }
+    }),
+
+  updateSideQuestion: (id, messageId, patch) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            sideQuestions: (current.sideQuestions ?? []).map((message) =>
+              message.id === messageId ? { ...message, ...patch } : message
+            )
           }
         }
       }

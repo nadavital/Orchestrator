@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord } from '../../types'
+import type { Attachment, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../../types'
 
 export interface AppSettings {
   defaultProvider: string
@@ -43,6 +43,7 @@ export type SessionEvent =
       disallowedTools?: string[]
       availableTools?: string[]
       additionalDirs?: string[]
+      usageSummary?: UsageSummary
     }
   | { type: 'needsInput'; id: string }
 
@@ -68,7 +69,8 @@ declare global {
           useWorktree: boolean
           repoRoot?: string
         }) => Promise<Session>
-        sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean) => Promise<void>
+        sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => Promise<void>
+        answerSideQuestion: (sessionId: string, question: string) => Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }>
         updateName: (id: string, name: string) => Promise<void>
         updateSettings: (id: string, patch: {
           provider?: string
@@ -132,6 +134,7 @@ declare global {
       }
       dialog: {
         openDirectory: () => Promise<string | null>
+        openFiles: () => Promise<Array<{ path: string; name: string; size?: number }> | null>
       }
       pet: {
         getConfig: () => Promise<unknown>
