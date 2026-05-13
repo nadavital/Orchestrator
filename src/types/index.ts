@@ -179,10 +179,11 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
     supportsResume: true,
     permissionModes: [
       { id: 'default', label: 'Ask', desc: 'Ask when requested', intent: 'ask' },
-      { id: 'untrusted', label: 'Trusted', desc: 'Ask for untrusted commands', intent: 'ask' },
-      { id: 'never', label: 'Never', desc: 'Never ask; return failures', intent: 'workspaceSandbox' },
-      { id: 'fullAccess', label: 'Full Access', desc: 'Danger full access', intent: 'fullAccess' },
-      { id: 'yolo', label: 'Auto', desc: 'Bypass prompts', intent: 'bypass' }
+      { id: 'untrusted', label: 'Trust safe', desc: 'Run trusted commands and ask for untrusted ones.', intent: 'ask' },
+      { id: 'never', label: 'No prompts', desc: 'Never ask; return failures to the model.', intent: 'workspaceSandbox' },
+      { id: 'autoReview', label: 'Auto-review', desc: 'Let Codex review approval requests before routing riskier ones to you.', intent: 'ask' },
+      { id: 'fullAccess', label: 'Full access', desc: 'Run without workspace sandbox limits.', intent: 'fullAccess' },
+      { id: 'yolo', label: 'Bypass unsafe', desc: 'Skip approvals and sandboxing. Use only in isolated sandboxes.', intent: 'bypass' }
     ]
   },
   cursor: {
@@ -358,7 +359,8 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
 const DEFAULT_VISIBLE_COUNT = 5
 
 const PRIMARY_PERMISSION_MODE_IDS: Record<string, string[]> = {
-  claude: ['auto', 'plan', 'default']
+  claude: ['auto', 'plan', 'default'],
+  codex: ['default', 'untrusted', 'never']
 }
 
 export function getDefaultPermissionMode(providerDef: ProviderDef, configuredMode?: string): string {

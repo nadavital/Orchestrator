@@ -101,7 +101,7 @@ Evidence commands:
 
 Local status:
 
-- Binary: `/Users/navital/.local/bin/codex`
+- Binary: `/Users/navital/.nvm/versions/node/v22.12.0/bin/codex`
 - Version: `codex-cli 0.128.0` from current diagnostics.
 - CLI help: available.
 
@@ -109,11 +109,11 @@ Runtime modes:
 
 | Feature | Evidence | Details | Orchestrator status |
 | --- | --- | --- | --- |
-| Interactive TUI | `verified-cli` | Top-level `codex [prompt]` starts interactive CLI. | Needs PTY runtime. |
-| Non-interactive exec | `verified-cli` | `codex exec --json`; supports resume/review subcommands. | Implemented as current automation lane. |
+| Interactive TUI | `verified-cli` | Top-level `codex [prompt]` starts interactive CLI; `--no-alt-screen` probe showed the native workspace trust prompt. | Needs PTY runtime for live approval capture. |
+| Non-interactive exec | `verified-cli` | `codex exec --json`; live 2026-05-13 smoke emitted `item.completed` with `item.type = agent_message`. | Implemented as current automation lane. |
 | Review command | `verified-cli` | `codex review --uncommitted`, `--base`, `--commit`, `--title`. | Partial. |
 | Resume/fork | `verified-cli` | Top-level `resume`, `fork`; exec has `exec resume`. | Partial. |
-| App/app-server/exec-server | `verified-cli` | Experimental app/server commands exist. | Deferred, not primary. |
+| App/app-server/exec-server | `verified-cli` | Experimental app/server commands exist; generated v2 schema includes command/file approvals, user-input requests, MCP elicitation, turn diffs, and agent items. | Parser fixtures added; runtime transport deferred. |
 | Remote app server | `verified-cli` | Top-level `--remote` and `--remote-auth-token-env`. | Deferred. |
 | Inline terminal scrollback | `verified-cli` | `--no-alt-screen`. | Useful for PTY lane; not implemented. |
 | Apply latest diff | `verified-cli` | `codex apply`. | Not surfaced. |
@@ -155,8 +155,9 @@ Provider features:
 | Apps/connectors | `verified-cli` | Feature flags `apps`, `enable_mcp_apps`, `tool_search`, `tool_suggest`. | Partial. |
 | Multi-agent | `verified-cli` | Feature flags `multi_agent` true, `multi_agent_v2` under development. | Partial activity parser. |
 | Computer/browser use | `verified-cli` | Feature flags `computer_use`, `browser_use`, `in_app_browser` true. | Not provider-surfaced. |
-| MCP elicitation | `verified-cli` | Feature flag `tool_call_mcp_elicitation` true. | Partial generic parser. |
-| Request user input | `verified-cli` | Feature flag `default_mode_request_user_input` false; host tool exists in Codex app context. | Partial parser/UI. |
+| MCP elicitation | `verified-cli` | Feature flag `tool_call_mcp_elicitation` true; app-server protocol has `mcpServer/elicitation/request`. | Partial parser/UI with Codex fixture. |
+| Request user input | `verified-cli` | Feature flag `default_mode_request_user_input` false; app-server protocol has `item/tool/requestUserInput`. | Partial parser/UI with Codex fixture. |
+| Auto-review approvals | `verified-schema` | App-server v2 schema exposes `approvalsReviewer: "auto_review"` and config key `approvals_reviewer`. | Advanced Codex permission mode passes the config; live behavior still needs approval-producing verification. |
 | Hooks | `verified-cli` | Feature flag `codex_hooks` true. | Not surfaced. |
 | Runtime metrics | `verified-cli` | Feature flag `runtime_metrics` false/under development. | Not surfaced. |
 

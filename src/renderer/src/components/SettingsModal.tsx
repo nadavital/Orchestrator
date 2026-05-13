@@ -1212,9 +1212,23 @@ function configPathForProvider(providerId: string, home: string): string {
   return paths[providerId] ?? `${home}/.${providerId}/config.json`
 }
 
+function redactConfigSecrets(raw: string): { content: string; redacted: boolean } {
+  let redacted = false
+  const secretKey = /(?:api[_-]?key|token|pat|password|passwd|secret|credential|authorization)/i
+  const assignment = /^(\s*["']?[^"'\s:=]+["']?\s*[:=]\s*)(.*?)(\s*,?\s*)$/
+  const content = raw.split('\n').map((line) => {
+    const match = line.match(assignment)
+    if (!match || !secretKey.test(match[1])) return line
+    redacted = true
+    return `${match[1]}"[redacted]"${match[3]}`
+  }).join('\n')
+  return { content, redacted }
+}
+
 function ProviderConfigEditor({ providerId, color }: { providerId: string; color: string }): JSX.Element {
   const [path, setPath] = useState('')
   const [content, setContent] = useState('')
+  const [hasRedactions, setHasRedactions] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -1225,8 +1239,10 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
       const home = await window.api.fs.resolveHome()
       const nextPath = configPathForProvider(providerId, home)
       const file = await window.api.fs.readFile(nextPath)
+      const redacted = redactConfigSecrets(file ?? '')
       setPath(nextPath)
-      setContent(file ?? '')
+      setContent(redacted.content)
+      setHasRedactions(redacted.redacted)
       setDirty(false)
       setSaved(false)
       setError('')
@@ -1236,6 +1252,10 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
 
   const save = async (): Promise<void> => {
     if (!path || saving) return
+    if (hasRedactions) {
+      setError('Secret values are redacted; edit this file outside Orchestrator.')
+      return
+    }
     const trimmed = content.trim()
     if (path.endsWith('.json') && trimmed) {
       try {
@@ -1297,18 +1317,18 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <div style={{ fontSize: 11, color: error ? '#F87171' : 'var(--color-text-muted)' }}>
-          {error || (saved ? 'Saved' : 'Local file override')}
+          {error || (hasRedactions ? 'Secrets redacted; edit locally to change this file.' : saved ? 'Saved' : 'Local file override')}
         </div>
         <button
           onClick={save}
-          disabled={!dirty || saving}
+          disabled={!dirty || saving || hasRedactions}
           style={{
             padding: '6px 12px',
             borderRadius: 7,
-            border: `1px solid ${dirty ? color : 'var(--color-border)'}`,
-            background: dirty ? color : 'var(--color-surface2)',
-            color: dirty ? '#fff' : 'var(--color-text-muted)',
-            cursor: dirty ? 'pointer' : 'default',
+            border: `1px solid ${dirty && !hasRedactions ? color : 'var(--color-border)'}`,
+            background: dirty && !hasRedactions ? color : 'var(--color-surface2)',
+            color: dirty && !hasRedactions ? '#fff' : 'var(--color-text-muted)',
+            cursor: dirty && !hasRedactions ? 'pointer' : 'default',
             fontSize: 11,
             fontWeight: 650,
           }}

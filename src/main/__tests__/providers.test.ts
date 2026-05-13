@@ -137,8 +137,8 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
   assert.ok(runtimeInfo.claude.registry.gaps.some((gap) => gap.id === 'claude-rich-permission-controls' && gap.status === 'partial'))
   assert.ok(runtimeInfo.claude.registry.gaps.some((gap) => gap.id === 'claude-cli-management' && gap.status === 'partial'))
   assert.ok(runtimeInfo.claude.registry.gaps.some((gap) => gap.id === 'claude-worktree-launch' && gap.status === 'partial'))
-  assert.ok(runtimeInfo.codex.registry.gaps.some((gap) => gap.id === 'codex-interactive-approvals' && gap.status === 'missing'))
-  assert.ok(runtimeInfo.codex.registry.gaps.some((gap) => gap.id === 'codex-auto-review-mode' && gap.status === 'blocked'))
+  assert.ok(runtimeInfo.codex.registry.gaps.some((gap) => gap.id === 'codex-interactive-approvals' && gap.status === 'partial'))
+  assert.ok(runtimeInfo.codex.registry.gaps.some((gap) => gap.id === 'codex-auto-review-mode' && gap.status === 'partial'))
   assert.ok(runtimeInfo.copilot.registry.gaps.some((gap) => gap.id === 'copilot-cli-keychain' && gap.status === 'partial'))
   assert.ok(runtimeInfo.cursor.registry.gaps.some((gap) => gap.id === 'cursor-keychain-models' && gap.status === 'blocked'))
   assert.ok(runtimeInfo.codex.registry.slashCommands.some((command) => command.name === '/review' && command.runtime === 'headless'))
@@ -931,6 +931,11 @@ test('provider fixtures expose expected normalized event contracts', () => {
     },
     {
       providerId: 'codex',
+      fixture: 'exec-item-agent-message.jsonl',
+      types: ['session.started', 'assistant.text', 'run.completed']
+    },
+    {
+      providerId: 'codex',
       fixture: 'tool-flow.jsonl',
       types: ['session.started', 'assistant.text', 'tool.started', 'tool.completed', 'run.completed']
     },
@@ -948,6 +953,11 @@ test('provider fixtures expose expected normalized event contracts', () => {
       providerId: 'codex',
       fixture: 'permission-request.jsonl',
       types: ['permission.requested']
+    },
+    {
+      providerId: 'codex',
+      fixture: 'app-server-approval-question.jsonl',
+      types: ['session.started', 'assistant.text', 'permission.requested', 'user_input.requested', 'user_input.requested', 'run.completed']
     },
     {
       providerId: 'cursor',
@@ -1010,6 +1020,23 @@ test('generic CLI permission events preserve tool identity and requested action'
   assert.equal(codexPermission.denials[0]?.tool_input.command, 'npm install')
   assert.equal(cursorPermission.denials[0]?.tool_name, 'write')
   assert.equal(cursorPermission.denials[0]?.tool_input.path, 'src/index.ts')
+})
+
+test('codex app-server protocol messages normalize approval and question semantics', () => {
+  const events = parseFixture('codex', 'app-server-approval-question.jsonl')
+  const permission = firstEvent(events, 'permission.requested')
+  const questions = events.filter((event): event is Extract<RunEvent, { type: 'user_input.requested' }> => event.type === 'user_input.requested')
+
+  assert.equal(firstEvent(events, 'session.started').providerSessionId, 'codex-app-thread-123')
+  assert.equal(firstEvent(events, 'assistant.text').content, 'I need one approval and one answer.')
+  assert.equal(permission.denials[0]?.tool_name, 'shell')
+  assert.equal(permission.denials[0]?.tool_use_id, 'approval-cmd-1')
+  assert.equal(permission.denials[0]?.tool_input.command, 'touch codex_p8_should_not_exist.txt')
+  assert.equal(permission.denials[0]?.tool_input.cwd, '/private/tmp/orchestrator-codex-p8')
+  assert.equal(questions[0]?.content, 'Pick a deployment target')
+  assert.equal(questions[0]?.questions?.[0]?.options?.[1]?.label, 'production')
+  assert.equal(questions[1]?.content, 'Confirm the deploy window')
+  assert.equal(questions[1]?.questions?.[0]?.header, 'deploy')
 })
 
 test('cursor reconnecting fixture preserves retry attempts', () => {
@@ -1099,6 +1126,19 @@ test('codex approval modes map to native approval policy config', () => {
     request({ model: 'gpt-5.4', executionPolicy: 'never' })
   )
   assert.equal(neverCommand.args.includes('approval_policy="never"'), true)
+
+  const autoReviewCommand = PROVIDERS.codex.buildStartCommand(
+    request({ model: 'gpt-5.4', executionPolicy: 'autoReview' })
+  )
+  assert.equal(autoReviewCommand.args.includes('approval_policy="on-request"'), true)
+  assert.equal(autoReviewCommand.args.includes('approvals_reviewer="auto_review"'), true)
+
+  const interactiveAutoReviewCommand = PROVIDERS.codex.buildInteractiveCommand(
+    request({ model: 'gpt-5.4', executionPolicy: 'autoReview' })
+  )
+  assert.equal(interactiveAutoReviewCommand.args.includes('--ask-for-approval'), true)
+  assert.equal(interactiveAutoReviewCommand.args[interactiveAutoReviewCommand.args.indexOf('--ask-for-approval') + 1], 'on-request')
+  assert.equal(interactiveAutoReviewCommand.args.includes('approvals_reviewer="auto_review"'), true)
 
   const fullAccessCommand = PROVIDERS.codex.buildStartCommand(
     request({ model: 'gpt-5.4', executionPolicy: 'fullAccess' })

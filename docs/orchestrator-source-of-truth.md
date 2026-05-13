@@ -203,9 +203,9 @@ All providers should translate into these shapes at the adapter/runtime boundary
 
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
-| Codex exec automation | Deterministic structured lane for smoke/automation. | `Partial` | Adapter/tests. | Keep working; do not fake interactive approvals through exec. |
-| Codex interactive approvals | Real approval UX via PTY/app-server/other protocol. | `Research` | CLI help shows interactive approval flags. | Spike after Claude runtime abstraction. |
-| Codex MCP elicitation | Map to `user_input.requested`. | `Partial` | Feature flag and generic fixture. | Capture provider-specific fixture. |
+| Codex exec automation | Deterministic structured lane for smoke/automation. | `Partial` | Live `codex exec --json` on 2026-05-13 emitted `item.completed` / `agent_message`; `exec-item-agent-message.jsonl` now covers that shape. | Keep exec as automation; do not fake interactive approvals through exec. |
+| Codex interactive approvals | Real approval UX via PTY/app-server/other protocol. | `Partial` | Interactive CLI trust prompt verified; generated app-server v2 schema exposes command/file approvals, `acceptForSession`, and `approvalsReviewer: auto_review`; app-server fixture maps approval requests. | Wire PTY or app-server runtime before claiming live in-app approval handling. |
+| Codex MCP elicitation | Map to `user_input.requested`. | `Partial` | `app-server-approval-question.jsonl` covers `mcpServer/elicitation/request` and normalizes it to user input. | Verify with a live app-server/PTY transcript before marking complete. |
 | Cursor print mode | Structured stream lane. | `Partial` | Adapter/tests; keychain caveats. | Add partial-output parsing and keychain-aware diagnostics. |
 | Cursor plan/ask/worktree/MCP/rules | Shared plan/workspace/extension surfaces. | `Research` | Help verified. | Implement after Claude/Codex core. |
 | Copilot prompt/interactive/SDK | Map rich SDK/CLI events to Orchestrator abstractions. | `Research` | Package/CLI research. | Defer until Claude is complete; keep diagnostics honest. |
@@ -354,7 +354,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | ID | Task | Status | Verification Required | Notes |
 | --- | --- | --- | --- | --- |
 | P8-001 | Shared runtime event contract cleanup. | `Planned` | Common types cover session/message/tool/permission/user_input/plan/agent/diff/usage across providers. | Do not start broad refactor until Claude UX is stable. |
-| P8-002 | Codex interactive/app-server approval spike. | `Research` | Real approval/question UX identified and mapped, or explicitly deferred. | Keep Codex exec lane as automation until then. |
+| P8-002 | Codex interactive/app-server approval spike. | `Partial` | `codex --help`, `codex exec --help`, `features list`, app-server generated schema, live exec JSON, and parser fixtures verified. | Runtime wiring remains: choose PTY bridge or app-server transport for live in-app approval handling. |
 | P8-003 | Cursor diagnostics and partial-output fixture. | `Research` | Keychain/auth/partial-output cases are captured and classified. | Defer until Claude completion gates pass. |
 | P8-004 | Copilot CLI/SDK fixture capture. | `Research` | No-quota fixture or SDK event capture maps user input/permission/subagent events. | Defer until Claude completion gates pass. |
 
@@ -403,8 +403,8 @@ Current Claude fixture files that back the implemented rows:
 - [x] Claude project/global command fixture.
 - [x] Claude skill fixture.
 - [x] Claude rate limit/quota/auth error.
-- [ ] Codex interactive approval or app-server fixture.
-- [ ] Codex MCP elicitation fixture.
+- [x] Codex interactive approval or app-server fixture.
+- [x] Codex MCP elicitation fixture.
 - [ ] Cursor partial-output fixture.
 - [ ] Copilot user-input/permission/subagent fixture.
 
@@ -642,3 +642,4 @@ When implementing against this plan:
 - Verification for the selected-agent checkpoint: `npm run test:providers` passed 137/137, `npx tsc -p tsconfig.node.json --noEmit` passed, `npx tsc -p tsconfig.web.json --noEmit` passed, `npm run pack:mac` passed, the app was copied to `/Applications`, relaunched, and Computer Use verified the installed UI run.
 - Permission mode polish decision: Claude `auto` is now the product default because it best balances convenience with Claude's native safety classifier. Installed-app CUA verified the Settings default-mode control with Auto selected, plus the composer picker showing Auto/Plan/Ask first by default and moving Auto-edit, Preapproved only, raw allow/deny/tools/dirs controls, and Bypass unsafe behind Advanced.
 - Isolated UI verification decision: future Computer Use smokes should launch the dev lane with `npm run smoke:app -- --reset --profile devcua --workspace-dir /private/tmp/orchestrator-agent-ui-smoke` and target `Electron`, not `Orchestrator`. The 2026-05-13 retry verified CUA attached to `Orchestrator - Devcua`, showed a clean isolated project state after skipping legacy migration, and opened Settings in the dev window. Packaged smoke still creates a temp renamed bundle and preserves Electron framework symlinks; Computer Use can list that bundle, but this CUA build returned `appNotFound` for `get_app_state("Orchestrator Smokecua")`.
+- P8 Codex spike verified on 2026-05-13: local Codex 0.128.0 help/features/schema, live `codex exec --json`, and generated app-server v2 bindings show the real split between headless exec automation and structured app-server approval/question semantics. Dev CUA also caught a settings smell: raw provider config could expose secret-looking env values; the advanced config editor now redacts those values and disables saving redacted files.

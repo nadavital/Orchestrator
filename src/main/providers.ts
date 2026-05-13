@@ -187,6 +187,14 @@ function interactivePolicyArgs(provider: ProviderAdapter, policyId: string, fall
   const args: string[] = []
   if (sandbox) args.push('--sandbox', sandbox)
   if (approval) args.push('--ask-for-approval', approval)
+  for (let index = 0; index < effective.args.length; index += 1) {
+    if (effective.args[index] !== '-c') continue
+    const configValue = effective.args[index + 1]
+    if (typeof configValue === 'string' && !configValue.startsWith('approval_policy=')) {
+      args.push('-c', configValue)
+    }
+    index += 1
+  }
   return args
 }
 
@@ -579,6 +587,10 @@ function permissionRequestFromGenericPayload(payload: Record<string, unknown>): 
   }
 }
 
+function compactToolInput(input: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined && value !== null))
+}
+
 const anthropicUserQuestionToolIds = new Set<string>()
 const anthropicPlanConfirmationToolIds = new Set<string>()
 const anthropicPartialMessageIds = new Set<string>()
@@ -819,8 +831,8 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
     providerId: 'codex',
     features: [
       feature('exec-json', 'Exec JSON', 'runtime', 'supported', 'adapter', ['headless']),
-      feature('interactive', 'Interactive CLI', 'runtime', 'planned', 'local-cli', ['interactive'], 'Needed for native approval prompts and slash-command behavior.'),
-      feature('app-server', 'App server', 'runtime', 'planned', 'local-cli', ['app-server'], 'Deferred; use only if the CLI/PTY lane cannot expose enough state.'),
+      feature('interactive', 'Interactive CLI', 'runtime', 'partial', 'local-cli', ['interactive'], 'Launch command and trust prompt are verified; native approval capture still needs a PTY runtime pass.'),
+      feature('app-server', 'App server', 'runtime', 'partial', 'local-cli', ['app-server'], 'Protocol schema exposes approvals, questions, MCP elicitation, diffs, and agents; runtime wiring is still deferred.'),
       feature('mcp-elicitation', 'Elicitation', 'permissions', 'partial', 'local-cli', ['interactive']),
       feature('sandbox', 'Sandbox', 'permissions', 'supported', 'adapter', ['headless', 'interactive']),
       feature('slash-commands', 'Commands', 'commands', 'partial', 'local-cli', ['interactive']),
@@ -837,9 +849,9 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
         'Interactive approvals',
         'permissions',
         'high',
-        'missing',
-        'codex exec is deterministic but does not expose the full interactive approval UI used by the native CLI.',
-        'Add a PTY-backed Codex interactive CLI lane using --ask-for-approval modes; keep exec only for non-interactive automation.'
+        'partial',
+        'codex exec is deterministic and does not expose native approval UI; the interactive CLI trust prompt and app-server approval protocol are now verified.',
+        'Add a PTY-backed interactive lane or app-server runtime so approval requests can be answered from Orchestrator instead of only parsed from fixtures.'
       ),
       gap(
         'codex-mcp-elicitation',
@@ -847,17 +859,17 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
         'permissions',
         'high',
         'partial',
-        'The CLI advertises MCP elicitation, but the adapter only has generic function/tool parsing and no Codex-specific interactive fixtures.',
-        'Add recorded interactive CLI fixtures for tool_call_mcp_elicitation and normalize them to user_input.requested.'
+        'The CLI advertises MCP elicitation and app-server schema exposes mcpServer/elicitation/request; the adapter normalizes protocol fixtures to user_input.requested.',
+        'Wire a live app-server or PTY transcript before marking this complete.'
       ),
       gap(
         'codex-app-server',
         'App server protocol',
         'runtime',
         'low',
-        'missing',
-        'codex app-server and exec-server exist, but they are not the primary CLI-first integration path.',
-        'Defer until the interactive CLI/PTY lane proves insufficient for approvals, questions, diffs, or agents.'
+        'partial',
+        'codex app-server and exec-server exist, and generated v2 bindings show first-class approvals, questions, diffs, and agent items.',
+        'Prototype app-server transport only if PTY cannot provide enough native CLI state.'
       ),
       gap(
         'codex-backend-variants',
@@ -873,9 +885,9 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
         'Auto-review approval mode',
         'permissions',
         'medium',
-        'blocked',
-        'The user reports an auto-review permission mode, but it is not visible as a literal option in current codex --help or codex review --help output.',
-        'Verify the exact config key, app setting, feature flag, or CLI output before adding an Orchestrator label for it.'
+        'partial',
+        'Generated app-server v2 schema verifies approvals_reviewer="auto_review"; Orchestrator can now pass it as an advanced Codex permission mode.',
+        'Verify live auto-review behavior with an approval-producing run before promoting it to a primary/default mode.'
       )
     ],
     probes: [
@@ -1853,6 +1865,21 @@ function codexPolicy(policyId: string): ResolvedExecutionPolicy {
       }
     )
   }
+  if (policyId === 'autoReview') {
+    return policy(
+      policyId,
+      'approximate',
+      ['--sandbox', 'workspace-write', '-c', 'approval_policy="on-request"', '-c', 'approvals_reviewer="auto_review"'],
+      'Auto-review',
+      'Routes approval requests through Codex auto-review while keeping workspace sandboxing.',
+      'Verified in the Codex app-server v2 schema; current headless exec still cannot surface native approval prompts in Orchestrator.',
+      {
+        intent: 'ask',
+        interaction: 'headless',
+        controls: codexPermissionControls
+      }
+    )
+  }
   if (policyId === 'yolo') {
     return policy(
       policyId,
@@ -1957,6 +1984,201 @@ function parseCodexItem(item: Record<string, unknown>): RunEvent[] {
   return []
 }
 
+function codexAppServerUserInput(params: Record<string, unknown>): RunEvent | null {
+  const questions = Array.isArray(params.questions) ? params.questions : []
+  const parsedQuestions: UserInputQuestion[] = questions.flatMap((question) => {
+    const rec = asRecord(question)
+    const questionText = stringValue(rec?.question, rec?.message, rec?.prompt)
+    if (!rec || !questionText) return []
+    const options = Array.isArray(rec.options)
+      ? rec.options.flatMap((option) => {
+          const opt = asRecord(option)
+          const label = typeof option === 'string' ? option : stringValue(opt?.label, opt?.name, opt?.value)
+          return label
+            ? [{ label, description: stringValue(opt?.description, opt?.detail) }]
+            : []
+        })
+      : undefined
+    return [{
+      question: questionText,
+      header: stringValue(rec.header, rec.title),
+      options: options && options.length > 0 ? options : undefined,
+      multiSelect: rec.multiSelect === true || rec.multiselect === true
+    }]
+  })
+
+  if (parsedQuestions.length === 0) return null
+  return {
+    type: 'user_input.requested',
+    content: parsedQuestions.map((question) => question.question).join('\n'),
+    questions: parsedQuestions
+  }
+}
+
+function codexAppServerMcpElicitation(params: Record<string, unknown>): RunEvent | null {
+  const message = stringValue(params.message)
+  if (!message) return null
+  return {
+    type: 'user_input.requested',
+    content: message,
+    questions: [{
+      question: message,
+      header: stringValue(params.serverName, params.mode)
+    }]
+  }
+}
+
+function codexAppServerPermissionRequest(
+  method: string,
+  requestId: string | undefined,
+  params: Record<string, unknown>
+): RunEvent | null {
+  if (method === 'item/commandExecution/requestApproval') {
+    const toolUseId = stringValue(params.approvalId, params.itemId, requestId) ?? uuidv4()
+    const command = stringValue(params.command)
+    return {
+      type: 'permission.requested',
+      content: stringValue(params.reason) ?? (command ? `Approve command: ${command}` : 'Approve command?'),
+      denials: [{
+        tool_name: 'shell',
+        tool_use_id: toolUseId,
+        tool_input: compactToolInput({
+          command,
+          cwd: stringValue(params.cwd),
+          reason: stringValue(params.reason),
+          commandActions: params.commandActions,
+          proposedExecpolicyAmendment: params.proposedExecpolicyAmendment,
+          proposedNetworkPolicyAmendments: params.proposedNetworkPolicyAmendments
+        })
+      }]
+    }
+  }
+
+  if (method === 'item/fileChange/requestApproval') {
+    const toolUseId = stringValue(params.itemId, requestId) ?? uuidv4()
+    return {
+      type: 'permission.requested',
+      content: stringValue(params.reason) ?? 'Approve file change?',
+      denials: [{
+        tool_name: 'write',
+        tool_use_id: toolUseId,
+        tool_input: compactToolInput({
+          reason: stringValue(params.reason),
+          grantRoot: stringValue(params.grantRoot)
+        })
+      }]
+    }
+  }
+
+  return null
+}
+
+function parseCodexAppServerItem(item: Record<string, unknown>): RunEvent[] {
+  const itemType = stringValue(item.type)
+  if (itemType === 'agentMessage') {
+    const text = stringValue(item.text)
+    return text ? [{ type: 'assistant.text', content: text }] : []
+  }
+
+  if (itemType === 'commandExecution') {
+    const id = stringValue(item.id) ?? uuidv4()
+    const commandText = stringValue(item.command) ?? ''
+    const status = stringValue(item.status)
+    if (status === 'inProgress') {
+      return [{ type: 'tool.started', id, toolName: 'shell', toolInput: { command: commandText, cwd: stringValue(item.cwd) } }]
+    }
+    return [{
+      type: 'tool.completed',
+      id: uuidv4(),
+      toolUseId: id,
+      content: stringifyContent(item.aggregatedOutput ?? ''),
+      isError: status === 'failed' || status === 'declined'
+    }]
+  }
+
+  if (itemType === 'mcpToolCall' || itemType === 'dynamicToolCall') {
+    const id = stringValue(item.id) ?? uuidv4()
+    const status = stringValue(item.status)
+    const toolName = itemType === 'mcpToolCall'
+      ? [stringValue(item.server), stringValue(item.tool)].filter(Boolean).join('.') || 'mcpToolCall'
+      : stringValue(item.tool) ?? 'dynamicToolCall'
+    if (status === 'inProgress') {
+      return [{ type: 'tool.started', id, toolName, toolInput: asRecord(item.arguments) ?? {} }]
+    }
+    return [{
+      type: 'tool.completed',
+      id: uuidv4(),
+      toolUseId: id,
+      content: stringifyContent(item.result ?? item.error ?? item.contentItems ?? ''),
+      isError: status === 'failed' || item.error != null
+    }]
+  }
+
+  if (itemType === 'collabAgentToolCall') {
+    const id = stringValue(item.id) ?? uuidv4()
+    const status = normalizeAgentStatus(stringValue(item.status))
+    const eventType = status === 'completed'
+      ? 'agent.completed'
+      : status === 'failed'
+        ? 'agent.failed'
+        : 'agent.updated'
+    return [{
+      type: eventType,
+      agent: {
+        id,
+        providerId: 'codex',
+        sessionId: stringValue(item.senderThreadId) ?? '',
+        name: stringValue(asRecord(item.tool)?.type, item.tool),
+        role: stringValue(item.prompt),
+        status,
+        model: stringValue(item.model)
+      }
+    } as RunEvent]
+  }
+
+  return []
+}
+
+function parseCodexAppServerMessage(obj: Record<string, unknown>): RunEvent[] {
+  const method = stringValue(obj.method)
+  if (!method) return []
+
+  const params = asRecord(obj.params) ?? {}
+  const requestId = stringValue(obj.id)
+  const events: RunEvent[] = []
+
+  if (method === 'thread/started') {
+    const thread = asRecord(params.thread)
+    const threadId = stringValue(thread?.id, params.threadId)
+    if (threadId) events.push({ type: 'session.started', providerSessionId: threadId })
+  }
+
+  if (method === 'turn/completed') events.push({ type: 'run.completed' })
+  if (method === 'error') events.push({ type: 'run.failed', content: stringifyContent(params.message ?? params.error ?? obj.error) })
+
+  if (method === 'item/started' || method === 'item/completed') {
+    const item = asRecord(params.item)
+    if (item) events.push(...parseCodexAppServerItem(item))
+  }
+
+  if (method === 'item/commandExecution/requestApproval' || method === 'item/fileChange/requestApproval') {
+    const permission = codexAppServerPermissionRequest(method, requestId, params)
+    if (permission) events.push(permission)
+  }
+
+  if (method === 'item/tool/requestUserInput') {
+    const userInput = codexAppServerUserInput(params)
+    if (userInput) events.push(userInput)
+  }
+
+  if (method === 'mcpServer/elicitation/request') {
+    const elicitation = codexAppServerMcpElicitation(params)
+    if (elicitation) events.push(elicitation)
+  }
+
+  return events
+}
+
 const codexProvider: ProviderAdapter = {
   id: 'codex',
   binary: 'codex',
@@ -2002,6 +2224,7 @@ const codexProvider: ProviderAdapter = {
     if (!obj) return []
 
     const events: RunEvent[] = []
+    events.push(...parseCodexAppServerMessage(obj))
     const type = obj.type as string | undefined
 
     if (
