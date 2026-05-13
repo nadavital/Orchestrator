@@ -10,6 +10,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   PROVIDER_DEFS,
+  getDefaultPermissionMode,
+  getPrimaryPermissionModes,
   getVisibleModels,
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
@@ -32,6 +34,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
   const [defaultProvider, setDefaultProvider] = useState('claude')
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
   const [defaultEfforts, setDefaultEfforts] = useState<Record<string, string>>({})
+  const [defaultPermissionModes, setDefaultPermissionModes] = useState<Record<string, string>>({})
   const [providerModels, setProviderModels] = useState<Record<string, string[]>>({})
   const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
@@ -44,6 +47,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
       setDefaultProvider((rec.defaultProvider as string) ?? 'claude')
       setDefaultModels((rec.defaultModels as Record<string, string>) ?? {})
       setDefaultEfforts((rec.defaultEfforts as Record<string, string>) ?? {})
+      setDefaultPermissionModes((rec.defaultPermissionModes as Record<string, string>) ?? {})
       setProviderModels((rec.providerModels as Record<string, string[]>) ?? {})
       setAppearance((rec.appearance as Appearance) ?? 'system')
     })
@@ -75,6 +79,12 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
     const next = { ...defaultEfforts, [providerId]: effortId }
     setDefaultEfforts(next)
     window.api.settings.set('defaultEfforts', next)
+  }
+
+  const saveDefaultPermissionMode = (providerId: string, modeId: string): void => {
+    const next = { ...defaultPermissionModes, [providerId]: modeId }
+    setDefaultPermissionModes(next)
+    window.api.settings.set('defaultPermissionModes', next)
   }
 
   const saveProviderModels = (providerId: string, models: string[]): void => {
@@ -147,6 +157,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
               defaultProvider={defaultProvider}
               defaultModels={defaultModels}
               defaultEfforts={defaultEfforts}
+              defaultPermissionModes={defaultPermissionModes}
               providerModels={providerModels}
               providerRuntime={providerRuntime}
               providerDiagnostics={providerDiagnostics}
@@ -155,6 +166,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
               onSetDefaultProvider={saveDefaultProvider}
               onSetDefaultModel={saveDefaultModel}
               onSetDefaultEffort={saveDefaultEffort}
+              onSetDefaultPermissionMode={saveDefaultPermissionMode}
               onSetProviderModels={saveProviderModels}
               onLoadProviderDiagnostics={loadProviderDiagnostics}
             />
@@ -238,12 +250,13 @@ function GeneralSection({
 // ─── Providers section ────────────────────────────────────────────────────────
 
 function ProvidersSection({
-  defaultProvider, defaultModels, defaultEfforts, providerModels,
-  providerRuntime, providerDiagnostics, diagnosticsLoading, providerAvailability, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetProviderModels, onLoadProviderDiagnostics
+  defaultProvider, defaultModels, defaultEfforts, defaultPermissionModes, providerModels,
+  providerRuntime, providerDiagnostics, diagnosticsLoading, providerAvailability, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
   defaultModels: Record<string, string>
   defaultEfforts: Record<string, string>
+  defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   providerRuntime: Record<string, ProviderRuntimeInfo>
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
@@ -252,6 +265,7 @@ function ProvidersSection({
   onSetDefaultProvider: (id: string) => void
   onSetDefaultModel: (providerId: string, modelId: string) => void
   onSetDefaultEffort: (providerId: string, effortId: string) => void
+  onSetDefaultPermissionMode: (providerId: string, modeId: string) => void
   onSetProviderModels: (providerId: string, models: string[]) => void
   onLoadProviderDiagnostics: (providerId: string) => void
 }): JSX.Element {
@@ -261,7 +275,9 @@ function ProvidersSection({
   const installed = providerAvailability[selectedId] !== false
   const currentModel = defaultModels[selectedId] ?? providerDef.models[0]?.id ?? ''
   const currentEffort = defaultEfforts[selectedId] ?? providerDef.effortLevels[0]?.id ?? ''
+  const currentPermissionMode = getDefaultPermissionMode(providerDef, defaultPermissionModes[selectedId])
   const visibleModels = getVisibleModels(providerDef, providerModels)
+  const primaryPermissionModes = getPrimaryPermissionModes(providerDef)
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
   const diagnostics = providerDiagnostics[selectedId]
@@ -338,6 +354,17 @@ function ProvidersSection({
                 value={currentEffort}
                 color={providerDef.color}
                 onChange={(id) => onSetDefaultEffort(selectedId, id)}
+              />
+            </CompactSetting>
+          )}
+
+          {primaryPermissionModes.length > 0 && (
+            <CompactSetting title="Mode">
+              <SegmentedControl
+                items={primaryPermissionModes}
+                value={currentPermissionMode}
+                color={providerDef.color}
+                onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
               />
             </CompactSetting>
           )}

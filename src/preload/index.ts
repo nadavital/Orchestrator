@@ -1,6 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord } from '../types'
 
+interface AppSettings {
+  defaultProvider: string
+  defaultModels: Record<string, string>
+  defaultEfforts: Record<string, string>
+  defaultPermissionModes: Record<string, string>
+  providerModels: Record<string, string[]>
+  appearance: 'system' | 'dark' | 'light'
+}
+
 export type SessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
@@ -44,6 +53,7 @@ const api = {
       provider?: string
       model?: string
       effort?: string
+      agentName?: string | null
       permissionMode?: string
       useThinking?: boolean
       useFast?: boolean
@@ -93,7 +103,7 @@ const api = {
   },
 
   settings: {
-    get: (): Promise<{ defaultProvider: string; defaultModels: Record<string, string> }> =>
+    get: (): Promise<AppSettings> =>
       ipcRenderer.invoke('settings:get'),
     set: (key: string, value: unknown): Promise<void> =>
       ipcRenderer.invoke('settings:set', key, value)

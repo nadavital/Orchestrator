@@ -6,6 +6,7 @@ export interface AppSettings {
   defaultProvider: string
   defaultModels: Record<string, string>
   defaultEfforts: Record<string, string>
+  defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   appearance: 'system' | 'dark' | 'light'
 }

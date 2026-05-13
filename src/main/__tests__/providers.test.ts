@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { PROVIDER_DEFS, deriveAgentNodes, parseClaudeAgentsOutput } from '../../types'
+import { PROVIDER_DEFS, deriveAgentNodes, getDefaultPermissionMode, getPrimaryPermissionModes, parseClaudeAgentsOutput } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -450,8 +450,21 @@ test('runtime command selection keeps interactive sessions on the native CLI lan
   assert.deepEqual(interactiveCopilot.args.slice(-2), ['-i', 'hello'])
 })
 
-test('claude default permission mode asks instead of auto-accepting edits', () => {
-  const command = PROVIDERS.claude.buildStartCommand(request())
+test('claude product default permission mode is native auto', () => {
+  assert.equal(getDefaultPermissionMode(PROVIDER_DEFS.claude), 'auto')
+  assert.deepEqual(getPrimaryPermissionModes(PROVIDER_DEFS.claude).map((mode) => mode.id), ['auto', 'plan', 'default'])
+
+  const command = PROVIDERS.claude.buildStartCommand(
+    request({ executionPolicy: getDefaultPermissionMode(PROVIDER_DEFS.claude) })
+  )
+  const permissionIndex = command.args.indexOf('--permission-mode')
+
+  assert.notEqual(permissionIndex, -1)
+  assert.equal(command.args[permissionIndex + 1], 'auto')
+})
+
+test('claude explicit ask-first mode remains available', () => {
+  const command = PROVIDERS.claude.buildStartCommand(request({ executionPolicy: 'default' }))
   const permissionIndex = command.args.indexOf('--permission-mode')
 
   assert.notEqual(permissionIndex, -1)

@@ -2,7 +2,7 @@ import Store from 'electron-store'
 import { BrowserWindow } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import type { Session, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus } from '../types'
-import { PROVIDER_DEFS, finalizeInterruptedMessages } from '../types'
+import { PROVIDER_DEFS, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { detectNativeCliPrompt, nativeCliPromptContent, nativeCliPromptSubmitSequence, type NativeCliPromptKind } from '../types/nativeCliPrompts'
 import { nativeTerminalControlResponses } from '../types/nativeTerminalControl'
 import { parseClaudeTerminalSnapshot, terminalSnapshotToRunEvents, type NativeTerminalStreamState } from '../types/nativeTerminalEvents'
@@ -278,8 +278,10 @@ export const sessionManager = {
     const providerDef = PROVIDER_DEFS[defaultProvider] ?? PROVIDER_DEFS.claude
     const storedModels = settingsStore.get('defaultModels', {}) as Record<string, string>
     const storedEfforts = settingsStore.get('defaultEfforts', {}) as Record<string, string>
+    const storedPermissionModes = settingsStore.get('defaultPermissionModes', {}) as Record<string, string>
     const defaultModel = storedModels[providerDef.id] ?? providerDef.models[0]?.id ?? ''
     const defaultEffort = storedEfforts[providerDef.id] ?? providerDef.effortLevels[0]?.id ?? 'normal'
+    const defaultPermissionMode = getDefaultPermissionMode(providerDef, storedPermissionModes[providerDef.id])
 
     const session: Session = {
       id,
@@ -296,7 +298,7 @@ export const sessionManager = {
       model: defaultModel,
       effort: defaultEffort,
       agentName: null,
-      permissionMode: 'default',
+      permissionMode: defaultPermissionMode,
       allowedTools: [],
       disallowedTools: [],
       availableTools: [],
@@ -552,6 +554,11 @@ export const sessionManager = {
       const normalizedPatch: typeof patch & { runtime?: ProviderRuntimeKind } = { ...patch }
       if (patch.provider) {
         normalizedPatch.runtime = defaultRuntimeForProvider(patch.provider)
+        if (!patch.permissionMode) {
+          const providerDef = PROVIDER_DEFS[patch.provider] ?? PROVIDER_DEFS.claude
+          const storedPermissionModes = settingsStore.get('defaultPermissionModes', {}) as Record<string, string>
+          normalizedPatch.permissionMode = getDefaultPermissionMode(providerDef, storedPermissionModes[providerDef.id])
+        }
       }
       Object.assign(s, normalizedPatch)
       store.set('sessions', sessions)

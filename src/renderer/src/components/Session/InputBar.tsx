@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { ProviderAgentDef, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
-import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getComposerSendState, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
+import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
@@ -30,6 +30,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const [showModeMenu, setShowModeMenu] = useState(false)
   const [showAgentMenu, setShowAgentMenu] = useState(false)
   const [showPermMenu, setShowPermMenu] = useState(false)
+  const [showAdvancedPerms, setShowAdvancedPerms] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
@@ -101,10 +102,15 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     return () => document.removeEventListener('mousedown', handler)
   }, [showModeMenu, showAgentMenu, showPermMenu])
 
+  useEffect(() => {
+    if (!showPermMenu) setShowAdvancedPerms(false)
+  }, [showPermMenu])
+
   const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
   const model = session.model || provider.models[0]?.id || ''
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
-  const permissionMode = session.permissionMode ?? provider.permissionModes[0]?.id ?? 'default'
+  const defaultPermissionMode = getDefaultPermissionMode(provider)
+  const permissionMode = session.permissionMode ?? defaultPermissionMode
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
   const currentUi = uiState[session.id] ?? { showDiff: false, showEvents: false, showTerminal: false, showSkills: false, hasUnread: false }
@@ -122,9 +128,10 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const effortLabel = provider.effortLevels.find((e) => e.id === effort)?.label ?? ''
   const selectedAgentName = provider.id === 'claude' ? session.agentName ?? null : null
   const selectedPermissionMode = provider.permissionModes.find((p) => p.id === permissionMode)
-  const permLabel = selectedPermissionMode?.label ?? 'Default'
-  const regularPermissionModes = provider.permissionModes.filter((mode) => mode.intent !== 'bypass')
-  const dangerPermissionModes = provider.permissionModes.filter((mode) => mode.intent === 'bypass')
+  const permLabel = selectedPermissionMode?.label ?? 'Mode'
+  const primaryPermissionModes = getPrimaryPermissionModes(provider)
+  const advancedPermissionModes = getAdvancedPermissionModes(provider)
+  const dangerPermissionModes = getDangerPermissionModes(provider)
   const canUsePermission = resolvedPermission?.support !== 'unsupported'
 
   // Cursor per-model effort/thinking/fast config
@@ -163,7 +170,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       model: newDef.models[0]?.id ?? '',
       effort: newDef.effortLevels[0]?.id ?? '',
       agentName: null,
-      permissionMode: newDef.permissionModes[0]?.id ?? 'default',
+      permissionMode: getDefaultPermissionMode(newDef),
       useThinking: false,
       useFast: false
     })
@@ -518,7 +525,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
           {/* Permission mode picker — always shown */}
           <div className="relative" ref={permMenuRef}>
-            <ToolbarBtn active={permissionMode !== 'default'} onClick={() => setShowPermMenu((v) => !v)}>
+            <ToolbarBtn active={permissionMode !== defaultPermissionMode} onClick={() => setShowPermMenu((v) => !v)}>
               <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
               {permLabel}
               {resolvedPermission?.support === 'unsupported' && <PolicyBadge policy={resolvedPermission} compact />}
@@ -537,7 +544,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
                 <div className="px-3 py-2" style={{ borderBottom: provider.id === 'claude' ? '1px solid var(--color-border)' : undefined }}>
                   <div className="flex flex-wrap gap-1.5">
-                    {regularPermissionModes.map((opt) => (
+                    {primaryPermissionModes.map((opt) => (
                       <PermissionModeChip
                         key={opt.id}
                         opt={opt}
@@ -548,23 +555,62 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                       />
                     ))}
                   </div>
-                  {dangerPermissionModes.length > 0 && (
+                  {(advancedPermissionModes.length > 0 || dangerPermissionModes.length > 0) && (
                     <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
-                      <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--color-red)', fontSize: 10 }}>
-                        Isolated only
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {dangerPermissionModes.map((opt) => (
-                          <PermissionModeChip
-                            key={opt.id}
-                            opt={opt}
-                            active={permissionMode === opt.id}
-                            providerColor="var(--color-red)"
-                            unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
-                            onSelect={() => update({ permissionMode: opt.id })}
-                          />
-                        ))}
-                      </div>
+                      <button
+                        onClick={() => setShowAdvancedPerms((open) => !open)}
+                        className="w-full text-xs font-semibold"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          color: 'var(--color-text-muted)',
+                          background: 'transparent',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Advanced permissions
+                        <span>{showAdvancedPerms ? 'Hide' : 'Show'}</span>
+                      </button>
+                      {showAdvancedPerms && (
+                        <div style={{ marginTop: 8 }}>
+                          {advancedPermissionModes.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {advancedPermissionModes.map((opt) => (
+                                <PermissionModeChip
+                                  key={opt.id}
+                                  opt={opt}
+                                  active={permissionMode === opt.id}
+                                  providerColor={provider.color}
+                                  unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
+                                  onSelect={() => update({ permissionMode: opt.id })}
+                                />
+                              ))}
+                            </div>
+                          )}
+                          {dangerPermissionModes.length > 0 && (
+                            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
+                              <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--color-red)', fontSize: 10 }}>
+                                Isolated only
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {dangerPermissionModes.map((opt) => (
+                                  <PermissionModeChip
+                                    key={opt.id}
+                                    opt={opt}
+                                    active={permissionMode === opt.id}
+                                    providerColor="var(--color-red)"
+                                    unsupported={providerRuntime?.policies[opt.id]?.support === 'unsupported'}
+                                    onSelect={() => update({ permissionMode: opt.id })}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                   {selectedPermissionMode?.desc && (
@@ -573,7 +619,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                     </div>
                   )}
                 </div>
-                {provider.id === 'claude' && (
+                {provider.id === 'claude' && showAdvancedPerms && (
                   <ClaudePermissionRules
                     allowedTools={session.allowedTools ?? []}
                     disallowedTools={session.disallowedTools ?? []}

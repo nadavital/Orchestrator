@@ -64,6 +64,7 @@ export interface ProviderDef {
   supportsEffort: boolean
   effortLevels: Array<{ id: string; label: string }>
   supportsResume: boolean
+  defaultPermissionMode?: string
   permissionModes: ProviderPermissionMode[]
 }
 
@@ -95,12 +96,13 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
       { id: 'max', label: 'Max' }
     ],
     supportsResume: true,
+    defaultPermissionMode: 'auto',
     permissionModes: [
-      { id: 'default', label: 'Ask', desc: 'Claude asks before edits, commands, and network requests.', intent: 'ask' },
-      { id: 'acceptEdits', label: 'Auto-edit', desc: 'Claude can read and edit files in the workspace without prompting.', intent: 'autoEdit' },
+      { id: 'auto', label: 'Auto', desc: 'Claude handles routine safe work automatically and asks or blocks when risk increases.', intent: 'autoEdit' },
       { id: 'plan', label: 'Plan', desc: 'Claude explores and proposes a plan before making changes.', intent: 'plan' },
-      { id: 'auto', label: 'Auto safe', desc: 'Claude uses native auto mode with background safety checks.', intent: 'autoEdit' },
-      { id: 'dontAsk', label: 'Allowlist', desc: 'Only explicitly pre-approved tools run; other prompts are denied.', intent: 'workspaceSandbox' },
+      { id: 'default', label: 'Ask first', desc: 'Claude asks before edits, commands, and network requests.', intent: 'ask' },
+      { id: 'acceptEdits', label: 'Auto-edit', desc: 'Claude can read and edit files in the workspace without prompting.', intent: 'autoEdit' },
+      { id: 'dontAsk', label: 'Preapproved only', desc: 'Only explicitly preapproved tools run; other prompts are denied.', intent: 'workspaceSandbox' },
       { id: 'bypassPermissions', label: 'Bypass unsafe', desc: 'Skips native permission checks. Use only in isolated sandboxes.', intent: 'bypass' }
     ]
   },
@@ -354,6 +356,35 @@ export const PROVIDER_DEFS: Record<string, ProviderDef> = {
 }
 
 const DEFAULT_VISIBLE_COUNT = 5
+
+const PRIMARY_PERMISSION_MODE_IDS: Record<string, string[]> = {
+  claude: ['auto', 'plan', 'default']
+}
+
+export function getDefaultPermissionMode(providerDef: ProviderDef, configuredMode?: string): string {
+  if (configuredMode && providerDef.permissionModes.some((mode) => mode.id === configuredMode)) return configuredMode
+  if (providerDef.defaultPermissionMode && providerDef.permissionModes.some((mode) => mode.id === providerDef.defaultPermissionMode)) {
+    return providerDef.defaultPermissionMode
+  }
+  return providerDef.permissionModes[0]?.id ?? 'default'
+}
+
+export function getPrimaryPermissionModes(providerDef: ProviderDef): ProviderPermissionMode[] {
+  const primaryIds = PRIMARY_PERMISSION_MODE_IDS[providerDef.id]
+  if (!primaryIds) return providerDef.permissionModes.filter((mode) => mode.intent !== 'bypass')
+  return primaryIds
+    .map((id) => providerDef.permissionModes.find((mode) => mode.id === id))
+    .filter((mode): mode is ProviderPermissionMode => Boolean(mode))
+}
+
+export function getAdvancedPermissionModes(providerDef: ProviderDef): ProviderPermissionMode[] {
+  const primaryIds = new Set(PRIMARY_PERMISSION_MODE_IDS[providerDef.id] ?? [])
+  return providerDef.permissionModes.filter((mode) => mode.intent !== 'bypass' && !primaryIds.has(mode.id))
+}
+
+export function getDangerPermissionModes(providerDef: ProviderDef): ProviderPermissionMode[] {
+  return providerDef.permissionModes.filter((mode) => mode.intent === 'bypass')
+}
 
 export function getVisibleModels(
   providerDef: ProviderDef,
