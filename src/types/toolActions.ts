@@ -9,6 +9,7 @@ export type ToolActionKind =
   | 'search'
   | 'list'
   | 'web'
+  | 'image'
   | 'mcp'
   | 'agent'
   | 'plan'
@@ -74,6 +75,10 @@ const TOOL_ACTIONS: Array<{
   {
     match: (name) => name.includes('web') || name.includes('fetch') || name.includes('url'),
     descriptor: { kind: 'web', verb: 'Browsed', unit: 'page', label: 'Web', risk: 'low' }
+  },
+  {
+    match: (name) => name.includes('image') || name.includes('vision'),
+    descriptor: { kind: 'image', verb: 'Viewed', unit: 'image', label: 'Image', risk: 'low' }
   },
   {
     match: (name) => name.includes('agent') || name.includes('subtask') || name === 'task',

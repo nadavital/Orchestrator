@@ -451,21 +451,7 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
       return <PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />
     }
     if (msg.subtype === 'status') {
-      return (
-        <div className="flex justify-start min-w-0 w-full">
-          <div
-            className="rounded-md px-3 py-2 text-xs"
-            style={{
-              maxWidth: 'min(640px, 100%)',
-              background: 'var(--color-surface2)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text-muted)'
-            }}
-          >
-            {msg.content}
-          </div>
-        </div>
-      )
+      return <StatusCard content={msg.content} />
     }
     if (msg.subtype === 'success') return null
     return (
@@ -481,6 +467,78 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
   }
 
   return null
+}
+
+type StatusMeta = {
+  label: string
+  tone: string
+  icon: JSX.Element
+}
+
+function StatusCard({ content }: { content: string }): JSX.Element {
+  const meta = statusMeta(content)
+  return (
+    <div className="flex justify-start min-w-0 w-full">
+      <div
+        className="flex min-w-0 items-start gap-2 rounded-md px-3 py-2 text-xs"
+        style={{
+          maxWidth: 'min(680px, 100%)',
+          background: 'var(--color-surface2)',
+          border: '1px solid var(--color-border)',
+          color: 'var(--color-text-muted)'
+        }}
+      >
+        <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded" style={{ color: meta.tone, background: 'var(--color-surface)' }}>
+          {meta.icon}
+        </span>
+        <div className="min-w-0">
+          <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: meta.tone }}>
+            {meta.label}
+          </div>
+          <div className="mt-0.5" style={{ color: 'var(--color-text)', overflowWrap: 'anywhere' }}>
+            {statusBody(content)}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function statusBody(content: string): string {
+  if (/^Diff updated/i.test(content)) return content
+  const stripped = content.replace(/^(Goal|Auto-review|MCP progress|Reasoning|Patch updated|Thread compacted|Context compacted|Thread status|Thread renamed|Thread closed|Turn started|Hook started|Hook completed|Realtime|Model rerouted|Model verification|Codex warning|Codex guardian warning|Codex deprecation notice|Codex config warning):?\s*/i, '')
+  return stripped.trim() || content
+}
+
+function statusMeta(content: string): StatusMeta {
+  const lower = content.toLowerCase()
+  if (lower.startsWith('goal')) return { label: 'Goal', tone: 'var(--color-accent)', icon: iconPath('target') }
+  if (lower.startsWith('diff updated') || lower.startsWith('patch updated')) return { label: 'Changes', tone: 'var(--color-green)', icon: iconPath('diff') }
+  if (lower.startsWith('auto-review') || lower.includes('review mode')) return { label: 'Review', tone: 'var(--color-yellow)', icon: iconPath('review') }
+  if (lower.startsWith('mcp')) return { label: 'MCP', tone: 'var(--color-accent)', icon: iconPath('plug') }
+  if (lower.startsWith('reasoning')) return { label: 'Reasoning', tone: 'var(--color-text-muted)', icon: iconPath('spark') }
+  if (lower.includes('warning') || lower.includes('error')) return { label: 'Notice', tone: 'var(--color-yellow)', icon: iconPath('warning') }
+  if (lower.startsWith('thread') || lower.startsWith('turn') || lower.startsWith('hook')) return { label: 'Run', tone: 'var(--color-text-muted)', icon: iconPath('activity') }
+  if (lower.startsWith('realtime')) return { label: 'Realtime', tone: 'var(--color-accent)', icon: iconPath('wave') }
+  return { label: 'Status', tone: 'var(--color-text-muted)', icon: iconPath('activity') }
+}
+
+function iconPath(kind: 'target' | 'diff' | 'review' | 'plug' | 'spark' | 'warning' | 'activity' | 'wave'): JSX.Element {
+  const paths: Record<typeof kind, string> = {
+    target: 'M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Zm0 2.25a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z',
+    diff: 'M4.75 2a.75.75 0 0 1 .75.75V5h2.25a.75.75 0 0 1 0 1.5H5.5v2.25a.75.75 0 0 1-1.5 0V6.5H1.75a.75.75 0 0 1 0-1.5H4V2.75A.75.75 0 0 1 4.75 2Zm5.5 7.5h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1 0-1.5Z',
+    review: 'M2.75 2A1.75 1.75 0 0 0 1 3.75v8.5C1 13.216 1.784 14 2.75 14h10.5A1.75 1.75 0 0 0 15 12.25v-8.5A1.75 1.75 0 0 0 13.25 2H2.75Zm1 3h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 3h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1 0-1.5Z',
+    plug: 'M5 1.75a.75.75 0 0 1 1.5 0V4h3V1.75a.75.75 0 0 1 1.5 0V4h.75a.75.75 0 0 1 0 1.5H11v1.25A3.75 3.75 0 0 1 8.75 10.2v2.05a.75.75 0 0 1-1.5 0V10.2A3.75 3.75 0 0 1 5 6.75V5.5h-.75a.75.75 0 0 1 0-1.5H5V1.75Z',
+    spark: 'M8 1.5 9.25 5.7 13.5 7 9.25 8.3 8 12.5 6.75 8.3 2.5 7l4.25-1.3L8 1.5Z',
+    warning: 'M7.16 2.33a1 1 0 0 1 1.68 0l6.02 9.52A1 1 0 0 1 14.02 13H1.98a1 1 0 0 1-.84-1.15l6.02-9.52ZM8 5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 0 1.5 0v-2.5A.75.75 0 0 0 8 5Zm0 6a.8.8 0 1 0 0-1.6.8.8 0 0 0 0 1.6Z',
+    activity: 'M1.75 8.75h2.5l1.25-4 2.5 7.5 2-5h4.25a.75.75 0 0 0 0-1.5H9l-.9 2.25-2.7-8.1-2.25 7.35h-1.4a.75.75 0 0 0 0 1.5Z',
+    wave: 'M1.5 8c1.2-2.1 2.4-2.1 3.6 0s2.4 2.1 3.6 0 2.4-2.1 3.6 0 2.4 2.1 3.6 0v2c-1.2 2.1-2.4 2.1-3.6 0s-2.4-2.1-3.6 0-2.4 2.1-3.6 0-2.4-2.1-3.6 0V8Z'
+  }
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d={paths[kind]} />
+    </svg>
+  )
 }
 
 function MessageAttachmentList({ attachments }: { attachments: Attachment[] }): JSX.Element {

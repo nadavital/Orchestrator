@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useSessionStore } from '../../store/sessions'
 import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
-import type { PlanItemStatus, PlanState, Session } from '../../types'
+import type { PlanItemStatus, PlanState, RunEvent, Session, SessionRunEventRecord } from '../../types'
 
 interface Props {
   session: Session
@@ -18,6 +18,8 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
     ...derivePlanStates(session, events)
   ].slice(-5), [events, session])
   const current = useMemo(() => combinedPlan(plans), [plans])
+  const goal = useMemo(() => latestGoal(events), [events])
+  const hasContent = Boolean(current || goal)
 
   return (
     <section
@@ -31,19 +33,111 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
     >
       <div className="shrink-0 px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
         <div className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-          Plan and tasks
+          Goal, plan, and tasks
         </div>
       </div>
 
-      {!current ? (
-        <EmptyText>Plan mode updates and TodoWrite tasks will appear here when the agent starts planning.</EmptyText>
+      {!hasContent ? (
+        <EmptyText>Goals, plan mode updates, and task lists will appear here as the agent organizes the work.</EmptyText>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3">
-          <PlanBlock plan={current} current />
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 flex flex-col gap-3">
+          {goal && <GoalBlock goal={goal} />}
+          {current && <PlanBlock plan={current} current />}
         </div>
       )}
     </section>
   )
+}
+
+type GoalEvent = Extract<RunEvent, { type: 'goal.updated' }>['goal']
+
+function latestGoal(records: SessionRunEventRecord[]): GoalEvent | null {
+  let current: GoalEvent | null = null
+  for (const record of records) {
+    if (record.event.type === 'goal.updated') current = record.event.goal
+    if (record.event.type === 'goal.cleared') current = null
+  }
+  return current
+}
+
+function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
+  const budget = typeof goal.tokenBudget === 'number' && goal.tokenBudget > 0 ? goal.tokenBudget : null
+  const used = typeof goal.tokensUsed === 'number' ? goal.tokensUsed : null
+  const pct = budget && used !== null ? Math.min(100, Math.round((used / budget) * 100)) : null
+  const stats = [
+    goal.status ? goal.status : undefined,
+    used !== null ? `${used.toLocaleString()} tokens` : undefined,
+    budget ? `${budget.toLocaleString()} budget` : undefined,
+    typeof goal.timeUsedSeconds === 'number' ? formatDuration(goal.timeUsedSeconds) : undefined
+  ].filter(Boolean)
+
+  return (
+    <div
+      className="min-w-0 rounded-md p-3"
+      style={{
+        background: 'var(--color-bg)',
+        border: '1px solid var(--color-border)'
+      }}
+    >
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: 'var(--color-accent)' }}>
+            Goal
+          </div>
+          <h3 className="mt-1 text-sm font-semibold" style={{ color: 'var(--color-text)', overflowWrap: 'anywhere' }}>
+            {goal.objective}
+          </h3>
+          {stats.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {stats.map((stat) => (
+                <span
+                  key={stat}
+                  className="rounded px-2 py-0.5 text-[10px] font-semibold"
+                  style={{
+                    color: 'var(--color-text-muted)',
+                    background: 'var(--color-surface2)',
+                    border: '1px solid var(--color-border)'
+                  }}
+                >
+                  {stat}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        {pct !== null && (
+          <span
+            className="shrink-0 rounded px-2 py-0.5 text-xs font-medium"
+            style={{
+              color: pct >= 90 ? 'var(--color-yellow)' : 'var(--color-accent)',
+              background: 'var(--color-accent-dim)',
+              border: '1px solid var(--color-accent)'
+            }}
+          >
+            {pct}%
+          </span>
+        )}
+      </div>
+      {pct !== null && (
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--color-surface2)' }}>
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${pct}%`,
+              background: pct >= 90 ? 'var(--color-yellow)' : 'var(--color-accent)'
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  const minutes = Math.floor(seconds / 60)
+  const remaining = Math.round(seconds % 60)
+  return remaining > 0 ? `${minutes}m ${remaining}s` : `${minutes}m`
 }
 
 function PlanBlock({ plan, current = false }: { plan: PlanState; current?: boolean }): JSX.Element {

@@ -758,7 +758,7 @@ function CommandSurfaceOutput({
           {surface.note && <div style={{ marginTop: 6 }}>{surface.note}</div>}
         </div>
       ) : output ? (
-        <StructuredCommandOutput output={output} color={color} />
+        <StructuredCommandOutput output={output} color={color} surface={surface} />
       ) : (
         <div style={{ padding: 10, fontSize: 12, color: result ? statusColor : 'var(--color-text-muted)' }}>
           {loading ? 'Running…' : result ? result.status : 'Run a refresh to load this.'}
@@ -768,9 +768,12 @@ function CommandSurfaceOutput({
   )
 }
 
-function StructuredCommandOutput({ output, color }: { output: string; color: string }): JSX.Element {
+function StructuredCommandOutput({ output, color, surface }: { output: string; color: string; surface?: ProviderCommandSurface }): JSX.Element {
   const parsed = parseCommandOutput(output)
   if (parsed.kind === 'json') {
+    if (surface?.id.startsWith('appserver-')) {
+      return <AppServerSurfaceSummary surface={surface} value={parsed.value} color={color} />
+    }
     if (isAutoModeDefaults(parsed.value)) {
       return <AutoModeDefaultsSummary value={parsed.value} color={color} />
     }
@@ -955,6 +958,228 @@ function McpDetailsSummary({ details, color }: { details: McpDetail[]; color: st
       })}
     </div>
   )
+}
+
+type SummaryItem = {
+  id: string
+  title: string
+  subtitle?: string
+  meta?: string
+  tone?: string
+}
+
+function AppServerSurfaceSummary({
+  surface,
+  value,
+  color
+}: {
+  surface: ProviderCommandSurface
+  value: unknown
+  color: string
+}): JSX.Element {
+  const items = appServerSummaryItems(surface.id, value, color)
+  const stats = appServerSummaryStats(surface.id, value)
+  if (items.length === 0 && stats.length === 0) {
+    return (
+      <div style={{ padding: 10, maxHeight: 260, overflow: 'auto' }}>
+        <StructuredValue value={value} color={color} depth={0} />
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 300, overflow: 'auto' }}>
+      {stats.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 7 }}>
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              style={{
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                background: 'var(--color-surface)',
+                padding: '8px 9px',
+                minWidth: 0
+              }}
+            >
+              <div style={{ color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 750, textTransform: 'uppercase' }}>{stat.label}</div>
+              <div className="truncate" style={{ color: stat.tone ?? 'var(--color-text)', fontSize: 15, fontWeight: 750, marginTop: 2 }} title={stat.value}>
+                {stat.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {items.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {items.map((item) => (
+            <div
+              key={item.id}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+                border: '1px solid var(--color-border)',
+                borderRadius: 8,
+                background: 'var(--color-surface)',
+                padding: 9,
+                minWidth: 0
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: item.tone ?? color, marginTop: 5, flexShrink: 0 }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="truncate" style={{ color: 'var(--color-text)', fontSize: 12, fontWeight: 750 }} title={item.title}>
+                  {item.title}
+                </div>
+                {item.subtitle && (
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35, overflowWrap: 'anywhere' }}>
+                    {item.subtitle}
+                  </div>
+                )}
+              </div>
+              {item.meta && (
+                <span
+                  className="shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase"
+                  style={{
+                    color: item.tone ?? color,
+                    background: 'var(--color-surface2)',
+                    border: '1px solid var(--color-border)'
+                  }}
+                >
+                  {item.meta}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyInlineValue />
+      )}
+    </div>
+  )
+}
+
+function appServerSummaryStats(surfaceId: string, value: unknown): Array<{ label: string; value: string; tone?: string }> {
+  const data = appServerDataArray(value)
+  const record = objectValue(value)
+  if (surfaceId === 'appserver-rate-limits') {
+    const limits = objectValue(record?.rateLimits ?? value)
+    return Object.entries(limits ?? {}).slice(0, 4).map(([key, entry]) => ({
+      label: formatObjectKey(key),
+      value: compactScalar(entry),
+      tone: key.toLowerCase().includes('remaining') ? 'var(--color-green)' : undefined
+    }))
+  }
+  if (surfaceId === 'appserver-account') {
+    return [
+      { label: 'Plan', value: compactScalar(record?.planType ?? record?.plan ?? record?.tier ?? 'Unknown') },
+      { label: 'Auth', value: compactScalar(record?.authMode ?? record?.mode ?? 'Codex') }
+    ]
+  }
+  if (surfaceId === 'appserver-config-requirements') {
+    const requirements = objectValue(record?.requirements)
+    return [
+      { label: 'Approval modes', value: String(arrayValue(requirements?.allowedApprovalPolicies).length || 'Any') },
+      { label: 'Sandbox modes', value: String(arrayValue(requirements?.allowedSandboxModes).length || 'Any') }
+    ]
+  }
+  if (data.length > 0) return [{ label: 'Items', value: data.length.toLocaleString() }]
+  return []
+}
+
+function appServerSummaryItems(surfaceId: string, value: unknown, color: string): SummaryItem[] {
+  const data = appServerDataArray(value)
+  const record = objectValue(value)
+  const source = data.length > 0 ? data : arrayValue(record?.plugins ?? record?.apps ?? record?.skills ?? record?.hooks ?? record?.servers ?? record?.threads)
+
+  if (surfaceId === 'appserver-config') {
+    return Object.entries(objectValue(record?.config ?? record) ?? {}).slice(0, 12).map(([key, entry]) => ({
+      id: key,
+      title: formatObjectKey(key),
+      subtitle: compactScalar(entry),
+      tone: color
+    }))
+  }
+
+  if (surfaceId === 'appserver-model-provider-capabilities') {
+    return Object.entries(objectValue(record?.capabilities ?? record) ?? {}).slice(0, 12).map(([key, entry]) => ({
+      id: key,
+      title: formatObjectKey(key),
+      subtitle: compactScalar(entry),
+      tone: color
+    }))
+  }
+
+  if (surfaceId === 'appserver-auth-status') {
+    return [{
+      id: 'auth',
+      title: compactScalar(record?.status ?? record?.authStatus ?? 'Auth status'),
+      subtitle: compactScalar(record?.message ?? record?.accountEmail ?? record?.loginMode ?? value),
+      tone: /error|fail/i.test(compactScalar(record?.status)) ? '#EF4444' : 'var(--color-green)'
+    }]
+  }
+
+  return source.slice(0, 24).map((entry, index) => {
+    const item = objectValue(entry)
+    const title = compactScalar(
+      item?.name ??
+      item?.title ??
+      item?.id ??
+      item?.model ??
+      item?.server ??
+      item?.threadId ??
+      item?.path ??
+      `Item ${index + 1}`
+    )
+    const subtitle = compactScalar(
+      item?.description ??
+      item?.summary ??
+      item?.provider ??
+      item?.cwd ??
+      item?.status ??
+      item?.source ??
+      item?.command ??
+      item?.availabilityNux ??
+      entry
+    )
+    const meta = compactScalar(item?.status ?? item?.state ?? item?.availability ?? item?.kind)
+    const isBad = /error|failed|disabled|unavailable/i.test(meta)
+    const isGood = /ready|ok|enabled|available|active|installed/i.test(meta)
+    return {
+      id: compactScalar(item?.id ?? item?.model ?? item?.name ?? index),
+      title,
+      subtitle: subtitle !== title ? subtitle : undefined,
+      meta: meta && meta !== title ? meta : undefined,
+      tone: isBad ? '#EF4444' : isGood ? 'var(--color-green)' : color
+    }
+  })
+}
+
+function appServerDataArray(value: unknown): unknown[] {
+  const record = objectValue(value)
+  return arrayValue(record?.data ?? record?.items ?? record?.results ?? value)
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function compactScalar(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value.replace(/\s+/g, ' ').trim() || 'Not set'
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.length === 0 ? 'None' : `${value.length} item${value.length === 1 ? '' : 's'}`
+  const record = objectValue(value)
+  if (!record) return String(value)
+  const preferred = record.message ?? record.label ?? record.name ?? record.id ?? record.status
+  if (preferred !== undefined) return compactScalar(preferred)
+  const json = JSON.stringify(value)
+  return json.length > 140 ? `${json.slice(0, 137)}...` : json
 }
 
 type ParsedCommandOutput =
