@@ -70,6 +70,7 @@ These files remain useful, but this file is the root plan:
 | `docs/claude-cli-map.md` | Claude-specific CLI to Orchestrator mapping reference. |
 | `docs/claude-code-support-test-matrix.md` | Historical Claude live/fixture matrix. Promote important facts here as work continues. |
 | `docs/provider-capability-research.md` | Research notes from provider/open-source/SDK investigations. |
+| `docs/capabilities-surface-matrix.md` | Current capability ownership matrix for Claude/Codex file-backed, plugin-backed, and provider-managed resources. |
 
 ## Orchestrator-Native Abstractions
 
@@ -192,6 +193,7 @@ The product target is first-class Orchestrator UI on top of Claude structured JS
 | `--agents <json>` custom agents | Future agent editor/importer with validation. | `Planned` | Design only after built-in configured agents stay stable. |
 | Project/global slash commands | Discover prompt-like commands and expand/send through structured runs. | `Complete` | Add cache invalidation only if repeated scans are visible. |
 | Claude skills as slash commands | Skills panel plus slash palette entries for project/global skills. | `Complete` | Add variable semantics beyond `$ARGUMENTS` after confirming Claude behavior. |
+| Cross-provider Capabilities page | One inventory for skills, plugins, MCPs, apps/connectors, agents, hooks, commands, and instructions across Claude and Codex. | `Implemented` | `src/main/providerResources.ts`, `src/main/capabilityCreator.ts`, `src/main/capabilityManager.ts`, `src/renderer/src/components/CapabilitiesPage.tsx`, `docs/capabilities-surface-matrix.md`, provider tests. | Keep provider-native install/update/auth/reload actions gated until explicit confirmation UX exists. |
 | Built-in interactive slash commands | Orchestrator-native surfaces where safe; manual provider-management stays out of normal chat. | `Implemented` | `/btw` probe with `claude -p --output-format json --max-budget-usd 0.02 "/btw ..."` returned `/btw isn't available in this environment.` with zero turns/cost, confirming it is not a structured `-p` surface. Orchestrator now owns `/btw` side questions instead of depending on provider TUI state. |
 | MCP list/get | Settings inventory and details without raw JSON spam. | `Complete` | Keep failed-local-server states readable. |
 | MCP add/remove/reset/config mutations | Gated provider-management handoff. | `Gated` | Confirmation/terminal handoff only; never silently mutate provider config. |

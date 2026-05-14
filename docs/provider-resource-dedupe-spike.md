@@ -44,15 +44,16 @@ Create a normalized `ProviderResource` model:
 - `providers:updateCapability` and `providers:deleteCapability` manage file-backed global skills, portable plugins, and MCP JSON config entries.
 - Portable plugin packages write both provider manifests: `.claude-plugin/plugin.json` for Claude and `.codex-plugin/plugin.json` for Codex. Shared `skills/` content can live at the plugin root, but marketplace registration is provider-specific.
 - Claude local marketplace metadata is written under `.orchestrator/capabilities/.claude-plugin/marketplace.json`; Codex local marketplace metadata is written under `.agents/plugins/marketplace.json`.
+- New Codex skill mirrors use the documented `.agents/skills` location. Legacy `.codex/skills` entries are still discovered as installed/legacy inventory so older local capabilities do not disappear.
 - Safe provider command surfaces are still used where they exist; file/config-backed provider resources are discovered locally when the provider has no stable read-only inventory command.
-- Mutation actions are limited to file-backed global capabilities Orchestrator can safely edit; provider-native marketplace install/uninstall/update flows remain gated until confirmation UX is added.
+- Mutation actions are limited to file-backed capabilities explicitly marked editable; provider-native marketplace install/uninstall/update flows remain gated until confirmation UX is added.
 
 ## Provider Support Snapshot
 
 | Provider | Discovery sources | Normalized resources |
 | --- | --- | --- |
-| Claude | Safe CLI surfaces plus `.claude/skills` and `.claude/commands` discovery | Agents, MCP servers, plugins, skills, commands. |
-| Codex | App-server read APIs plus local `.codex/skills` discovery | Skills, hooks, plugins, apps, MCP servers, external agent configs. |
+| Claude | Safe CLI surfaces plus `.claude/skills`, `.claude/commands`, `.claude/agents`, `CLAUDE.md`, and settings hook discovery | Agents, MCP servers, plugins, skills, commands, hooks, instructions. |
+| Codex | App-server read APIs plus `.agents/skills`, legacy `.codex/skills`, `AGENTS.md`, local marketplaces, and `.codex/config.toml` MCP discovery | Skills, hooks, plugins, apps, MCP servers, external agent configs, instructions. |
 | Cursor | `.cursor/rules`, `.cursorrules`, and Cursor MCP config files | Rules and MCP servers. |
 | Copilot | Built-in GitHub MCP, `~/.copilot/mcp-config.json`, `.github/copilot-instructions.md`, `.github/instructions`, `AGENTS.md`, root `CLAUDE.md`/`GEMINI.md` | MCP servers and repository/agent instruction rules. |
 

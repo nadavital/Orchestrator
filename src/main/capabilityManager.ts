@@ -155,7 +155,7 @@ function syncPluginSkillMirrors(
 ): void {
   const base = capabilityBaseFromPluginPath(nextPluginPath)
   if (!base) return
-  for (const providerDir of ['.claude', '.codex']) {
+  for (const providerDir of ['.claude', '.agents']) {
     const oldRoot = join(base, providerDir, 'skills', oldSlug)
     const nextRoot = join(base, providerDir, 'skills', nextSlug)
     const nextPath = join(nextRoot, 'SKILL.md')
@@ -167,6 +167,7 @@ function syncPluginSkillMirrors(
       files.push(oldRoot)
     }
   }
+  removeLegacyCodexSkillMirror(base, oldSlug, nextSlug, files)
   void oldPluginPath
 }
 
@@ -176,7 +177,7 @@ function removePlugin(path: string, files: string[]): void {
   rmSync(path, { recursive: true, force: true })
   files.push(path)
   if (!base) return
-  for (const providerDir of ['.claude', '.codex']) {
+  for (const providerDir of ['.claude', '.agents', '.codex']) {
     const mirrorRoot = join(base, providerDir, 'skills', slug)
     if (!existsSync(mirrorRoot)) continue
     rmSync(mirrorRoot, { recursive: true, force: true })
@@ -188,6 +189,15 @@ function removePlugin(path: string, files: string[]): void {
 function capabilityBaseFromPluginPath(pluginPath: string): string | null {
   const capabilitiesDir = dirname(dirname(dirname(pluginPath)))
   return basename(capabilitiesDir) === '.orchestrator' ? dirname(capabilitiesDir) : null
+}
+
+function removeLegacyCodexSkillMirror(base: string, oldSlug: string, nextSlug: string, files: string[]): void {
+  for (const slug of new Set([oldSlug, nextSlug])) {
+    const legacyRoot = join(base, '.codex', 'skills', slug)
+    if (!existsSync(legacyRoot)) continue
+    rmSync(legacyRoot, { recursive: true, force: true })
+    files.push(legacyRoot)
+  }
 }
 
 function syncPluginMarketplaces(
@@ -281,6 +291,10 @@ function updateMcpServer(
   input: CapabilityUpdateRequest,
   files: string[]
 ): void {
+  if (rawConfigFormat(resource) === 'codex-toml') {
+    updateCodexMcpToml(resource, path, input, files)
+    return
+  }
   const oldName = resource.name
   const nextName = slugify(input.name)
   const current = readJson(path)
@@ -296,12 +310,68 @@ function updateMcpServer(
 }
 
 function removeMcpServer(resource: ProviderResource, path: string, files: string[]): void {
+  if (rawConfigFormat(resource) === 'codex-toml') {
+    removeCodexMcpToml(resource, path, files)
+    return
+  }
   const current = readJson(path)
   const servers = isRecord(current.mcpServers) ? current.mcpServers : {}
   if (!(resource.name in servers)) return
   const nextServers = { ...servers }
   delete nextServers[resource.name]
   writeJson(path, { ...current, mcpServers: nextServers }, files)
+}
+
+function updateCodexMcpToml(
+  resource: ProviderResource,
+  path: string,
+  input: CapabilityUpdateRequest,
+  files: string[]
+): void {
+  const current = existsSync(path) ? readFileSync(path, 'utf8') : ''
+  const nextName = slugify(input.name)
+  const block = codexMcpTomlBlock(nextName, input)
+  const next = replaceOrAppendCodexMcpSection(current, resource.name, nextName, block)
+  writeText(path, next, files)
+}
+
+function removeCodexMcpToml(resource: ProviderResource, path: string, files: string[]): void {
+  const current = existsSync(path) ? readFileSync(path, 'utf8') : ''
+  const next = removeCodexMcpSection(current, resource.name)
+  if (next === current) return
+  writeText(path, next, files)
+}
+
+function codexMcpTomlBlock(name: string, input: CapabilityUpdateRequest): string {
+  const markerStart = `# orchestrator:${name}:start`
+  const markerEnd = `# orchestrator:${name}:end`
+  const lines = [
+    markerStart,
+    `[mcp_servers.${quoteTomlKey(name)}]`,
+    input.transport === 'http'
+      ? `url = ${JSON.stringify(input.url ?? '')}`
+      : `command = ${JSON.stringify(input.command ?? '')}`,
+    input.transport === 'stdio' ? `args = ${JSON.stringify(input.args ?? [])}` : '',
+    markerEnd
+  ].filter(Boolean)
+  return `${lines.join('\n')}\n`
+}
+
+function replaceOrAppendCodexMcpSection(current: string, oldName: string, nextName: string, block: string): string {
+  const withoutOld = removeCodexMcpSection(current, oldName)
+  const withoutNext = oldName === nextName ? withoutOld : removeCodexMcpSection(withoutOld, nextName)
+  return `${withoutNext.trimEnd()}${withoutNext.trim() ? '\n\n' : ''}${block}`
+}
+
+function removeCodexMcpSection(current: string, name: string): string {
+  const markerPattern = new RegExp(`\\n?\\s*# orchestrator:${escapeRegExp(name)}:start[\\s\\S]*?# orchestrator:${escapeRegExp(name)}:end\\s*\\n?`, 'm')
+  if (markerPattern.test(current)) return current.replace(markerPattern, '\n').replace(/\n{3,}/g, '\n\n')
+  const headerPattern = new RegExp(`^\\s*\\[mcp_servers\\.${escapeRegExp(quoteTomlKey(name))}\\]\\s*$`, 'm')
+  const match = current.match(headerPattern)
+  if (!match || match.index === undefined) return current
+  const nextHeader = current.slice(match.index + match[0].length).search(/^\s*\[/m)
+  const end = nextHeader >= 0 ? match.index + match[0].length + nextHeader : current.length
+  return `${current.slice(0, match.index)}${current.slice(end)}`.replace(/\n{3,}/g, '\n\n')
 }
 
 function updateClaudeMcpServer(
@@ -386,6 +456,11 @@ function rawConfig(resource: ProviderResource): JsonObject {
   return isRecord(raw?.config) ? raw.config : {}
 }
 
+function rawConfigFormat(resource: ProviderResource): string {
+  const raw = isRecord(resource.raw) ? resource.raw : null
+  return typeof raw?.configFormat === 'string' ? raw.configFormat : 'json'
+}
+
 function claudeScope(value: unknown): string {
   return value === 'project' || value === 'local' || value === 'user' ? value : 'user'
 }
@@ -448,4 +523,12 @@ function isRecord(value: unknown): value is JsonObject {
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'capability'
+}
+
+function quoteTomlKey(value: string): string {
+  return /^[A-Za-z0-9_-]+$/.test(value) ? value : JSON.stringify(value)
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

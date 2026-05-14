@@ -15,6 +15,7 @@ import Icon from './shared/Icon'
 import ProviderIcon from './shared/ProviderIcon'
 
 type CapabilityTab = 'skill' | 'mcp' | 'plugin' | 'app' | 'agent' | 'instruction' | 'more'
+type CapabilityScopeFilter = 'all' | 'global' | 'project'
 
 type CapabilityTabDef = {
   id: CapabilityTab
@@ -59,6 +60,7 @@ export default function CapabilitiesPage(): JSX.Element {
   const [tab, setTab] = useState<CapabilityTab>('skill')
   const [query, setQuery] = useState('')
   const [providerFilter, setProviderFilter] = useState('all')
+  const [scopeFilter, setScopeFilter] = useState<CapabilityScopeFilter>('all')
   const [createOpen, setCreateOpen] = useState(false)
   const [createMenuOpen, setCreateMenuOpen] = useState(false)
   const [createKind, setCreateKind] = useState<CapabilityCreateKind>('skill')
@@ -99,8 +101,12 @@ export default function CapabilitiesPage(): JSX.Element {
   const resources = useMemo(() => (
     Object.values(snapshots)
       .flatMap((snapshot) => snapshot.resources)
-      .filter((resource) => resource.scope !== 'project' && resource.kind !== 'rule')
-  ), [snapshots])
+      .filter((resource) => (
+        scopeFilter === 'all' ||
+        resource.scope === scopeFilter ||
+        (scopeFilter === 'project' && resource.scope === 'workspace')
+      ))
+  ), [scopeFilter, snapshots])
   const groups = useMemo(() => mergeResourceGroups(resources), [resources])
   const filteredGroups = useMemo(() => filterGroups(groups, query, providerFilter), [groups, providerFilter, query])
   const errors = Object.values(snapshots).flatMap((snapshot) =>
@@ -220,7 +226,7 @@ export default function CapabilitiesPage(): JSX.Element {
             <h1>Capabilities</h1>
           </div>
           <p>
-            Global skills, MCPs, plugins, apps, and provider-native extensions that can be reused across projects.
+            Skills, MCPs, plugins, apps, and provider-native extensions across global and project scopes.
           </p>
         </div>
         <div className="capabilities-header-actions">
@@ -255,10 +261,14 @@ export default function CapabilitiesPage(): JSX.Element {
 
       <main className="capabilities-main">
         <section className="capabilities-toolbar">
-          <div className="capabilities-workspace">
+          <label className="capabilities-scope-select">
             <span>Scope</span>
-            <strong className="truncate">Global</strong>
-          </div>
+            <select value={scopeFilter} onChange={(event) => setScopeFilter(event.target.value as CapabilityScopeFilter)}>
+              <option value="all">All scopes</option>
+              <option value="global">Global</option>
+              <option value="project">Project</option>
+            </select>
+          </label>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -444,6 +454,7 @@ function CapabilityRow({
       <div className="capability-row-meta">
         <span>{resourceKindLabel(group.kind).replace(/s$/, '')}</span>
         {sources[0] && <span title={sources.join(', ')}>{sources[0]}</span>}
+        <span>{scopeSummary(group)}</span>
         {compatibility && <span>{compatibility}</span>}
       </div>
       <div className="provider-chip-row">
@@ -761,7 +772,7 @@ function filterGroups(groups: ResourceGroup[], query: string, providerFilter: st
   const q = query.trim().toLowerCase()
   return groups.filter((group) => {
     const providerMatch = providerFilter === 'all' || group.resources.some((resource) => resource.providerId === providerFilter)
-    const queryMatch = !q || [group.name, group.description, resourceKindLabel(group.kind)]
+    const queryMatch = !q || [group.name, group.description, resourceKindLabel(group.kind), scopeSummary(group)]
       .filter((value): value is string => typeof value === 'string' && value.length > 0)
       .some((value) => value.toLowerCase().includes(q))
     return providerMatch && queryMatch
@@ -806,6 +817,21 @@ function pluginCompatibilityLabel(group: ResourceGroup): string | null {
   if (providers.has('claude')) return 'Claude package'
   if (providers.has('codex')) return 'Codex package'
   return null
+}
+
+function scopeSummary(group: ResourceGroup): string {
+  const scopes = Array.from(new Set(group.resources.map((resource) => resource.scope)))
+  if (scopes.length === 1) return scopeLabel(scopes[0])
+  if (scopes.includes('global') && scopes.includes('project')) return 'Global + project'
+  return scopes.map(scopeLabel).join(', ')
+}
+
+function scopeLabel(scope: ProviderResource['scope']): string {
+  if (scope === 'global') return 'Global'
+  if (scope === 'project') return 'Project'
+  if (scope === 'workspace') return 'Workspace'
+  if (scope === 'session') return 'Session'
+  return 'Provider'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

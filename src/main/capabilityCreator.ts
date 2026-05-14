@@ -26,7 +26,7 @@ function createSkillCapability(request: CapabilityCreateRequest): CapabilityCrea
   for (const root of roots) {
     writeText(join(root.orchestrator, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
     writeText(join(root.claude, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
-    writeText(join(root.codex, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
+    writeText(join(root.codexSkills, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
   }
 
   return {
@@ -61,7 +61,7 @@ function createPluginCapability(request: CapabilityCreateRequest): CapabilityCre
     }, files)
     writeText(join(pluginRoot, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
     writeText(join(root.claude, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
-    writeText(join(root.codex, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
+    writeText(join(root.codexSkills, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
     upsertClaudePluginMarketplace(root, slug, request, files)
     upsertCodexPluginMarketplace(root, slug, request, files)
   }
@@ -91,7 +91,7 @@ function createMcpCapability(request: CapabilityCreateRequest): CapabilityCreate
     upsertMcpJson(join(root.base, '.mcp.json'), slug, serverConfig, files)
     upsertMcpJson(join(root.base, '.cursor', 'mcp.json'), slug, serverConfig, files)
     upsertMcpJson(join(root.base, '.copilot', 'mcp-config.json'), slug, serverConfig, files)
-    upsertCodexMcpToml(join(root.codex, 'config.toml'), slug, request, files)
+    upsertCodexMcpToml(join(root.codexConfig, 'config.toml'), slug, request, files)
   }
 
   warnings.push('MCP config was written for shared project config, Claude, Cursor, and Codex. Some providers may require a running session reload before the new server appears.')
@@ -133,7 +133,8 @@ function capabilityRoots(request: CapabilityCreateRequest): Array<{
   base: string
   orchestrator: string
   claude: string
-  codex: string
+  codexConfig: string
+  codexSkills: string
 }> {
   if (request.scope === 'global') {
     const home = homedir()
@@ -141,14 +142,16 @@ function capabilityRoots(request: CapabilityCreateRequest): Array<{
       base: home,
       orchestrator: join(home, '.orchestrator', 'capabilities'),
       claude: join(home, '.claude'),
-      codex: join(home, '.codex')
+      codexConfig: join(home, '.codex'),
+      codexSkills: join(home, '.agents')
     }]
   }
   return [{
     base: request.workDir,
     orchestrator: join(request.workDir, '.orchestrator', 'capabilities'),
     claude: join(request.workDir, '.claude'),
-    codex: join(request.workDir, '.codex')
+    codexConfig: join(request.workDir, '.codex'),
+    codexSkills: join(request.workDir, '.agents')
   }]
 }
 

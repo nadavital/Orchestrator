@@ -113,7 +113,7 @@ test('resource parsing filters provider command noise and gives fallback names',
   assert.equal(codexAgentConfig[0].description, 'Migrate /Users/navital/.claude/settings.json into /Users/navital/.codex/config.toml')
 })
 
-test('local provider resources expose global capabilities without project instruction files', () => {
+test('local provider resources expose file-backed capabilities across scopes', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'orchestrator-resources-cwd-'))
   const home = mkdtempSync(join(tmpdir(), 'orchestrator-resources-home-'))
   try {
@@ -123,6 +123,32 @@ test('local provider resources expose global capabilities without project instru
     writeFileSync(join(cwd, '.claude', 'commands', 'ship.md'), '# Ship\nRelease checklist')
     mkdirSync(join(home, '.claude', 'skills', 'global-debug'), { recursive: true })
     writeFileSync(join(home, '.claude', 'skills', 'global-debug', 'SKILL.md'), '---\ndescription: Global debug failures\n---\n# Debug\n')
+    mkdirSync(join(home, '.claude', 'agents'), { recursive: true })
+    writeFileSync(join(home, '.claude', 'agents', 'reviewer.md'), '---\ndescription: Reviews code\n---\n# Reviewer\n')
+    mkdirSync(join(cwd, '.claude'), { recursive: true })
+    writeFileSync(join(cwd, '.claude', 'settings.json'), JSON.stringify({
+      hooks: {
+        PreToolUse: [{
+          matcher: 'Bash',
+          hooks: [{ type: 'command', command: './scripts/check.sh' }]
+        }]
+      }
+    }))
+    writeFileSync(join(cwd, 'CLAUDE.md'), '# Claude project instructions\n')
+    mkdirSync(join(home, '.agents', 'skills', 'commit'), { recursive: true })
+    writeFileSync(join(home, '.agents', 'skills', 'commit', 'SKILL.md'), '---\ndescription: Commit workflow\n---\n# Commit\n')
+    mkdirSync(join(cwd, '.agents', 'skills', 'repo-review'), { recursive: true })
+    writeFileSync(join(cwd, '.agents', 'skills', 'repo-review', 'SKILL.md'), '---\ndescription: Repo review\n---\n# Repo Review\n')
+    mkdirSync(join(home, '.codex'), { recursive: true })
+    writeFileSync(join(home, '.codex', 'AGENTS.md'), '# Codex global instructions\n')
+    writeFileSync(join(home, '.codex', 'config.toml'), [
+      '# orchestrator:docs:start',
+      '[mcp_servers.docs]',
+      'command = "node"',
+      'args = ["server.js"]',
+      '# orchestrator:docs:end',
+      ''
+    ].join('\n'))
     mkdirSync(join(cwd, '.cursor', 'rules'), { recursive: true })
     writeFileSync(join(cwd, '.cursor', 'rules', 'frontend.mdc'), '# Frontend rules\n')
     mkdirSync(join(cwd, '.github', 'instructions'), { recursive: true })
@@ -144,10 +170,17 @@ test('local provider resources expose global capabilities without project instru
     const copilot = discoverLocalProviderResources('copilot', cwd, home)
 
     assert.ok(claude.some((resource) => resource.kind === 'skill' && resource.name === 'global-debug' && resource.scope === 'global'))
+    assert.ok(claude.some((resource) => resource.kind === 'skill' && resource.name === 'debug' && resource.scope === 'project'))
+    assert.ok(claude.some((resource) => resource.kind === 'command' && resource.name === '/ship' && resource.scope === 'project'))
+    assert.ok(claude.some((resource) => resource.kind === 'agent' && resource.name === 'reviewer' && resource.scope === 'global'))
+    assert.ok(claude.some((resource) => resource.kind === 'hook' && resource.name === 'PreToolUse Bash 1' && resource.scope === 'project'))
+    assert.ok(claude.some((resource) => resource.kind === 'rule' && resource.name === 'CLAUDE.md' && resource.scope === 'project'))
     assert.ok(claude.some((resource) => resource.kind === 'plugin' && resource.name === 'release-helper'))
+    assert.ok(codex.some((resource) => resource.kind === 'skill' && resource.name === 'commit' && resource.scope === 'global'))
+    assert.ok(codex.some((resource) => resource.kind === 'skill' && resource.name === 'repo-review' && resource.scope === 'project'))
     assert.ok(codex.some((resource) => resource.kind === 'plugin' && resource.name === 'release-helper'))
-    assert.ok(!claude.some((resource) => resource.kind === 'skill' && resource.name === 'debug'))
-    assert.ok(!claude.some((resource) => resource.kind === 'command' && resource.name === '/ship'))
+    assert.ok(codex.some((resource) => resource.kind === 'rule' && resource.name === 'AGENTS.md' && resource.scope === 'global'))
+    assert.ok(codex.some((resource) => resource.kind === 'mcp_server' && resource.name === 'docs' && resource.source === 'Codex config'))
     assert.ok(!cursor.some((resource) => resource.kind === 'rule' && resource.name === '.cursor/rules/frontend'))
     assert.ok(cursor.some((resource) => resource.kind === 'mcp_server' && resource.name === 'browser'))
     assert.ok(copilot.some((resource) => resource.kind === 'mcp_server' && resource.name === 'github'))

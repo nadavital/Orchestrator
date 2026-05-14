@@ -48,7 +48,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Diff updates | Parsed | App-server `turn/diff/updated` becomes a `diff.updated` event/status. Orchestrator Diff panel still reads workspace git diff. |
 | Side questions | External | `/btw` exists as Orchestrator-owned detached side question. It is not a Codex app-server same-thread side channel. |
 | Review mode | Parsed | `enteredReviewMode` and `exitedReviewMode` render as status messages; `review/start` is not productized. Existing `/review` still uses Codex headless review. |
-| Skills/plugins/apps browsers | Partial | Read-only app-server settings surfaces list skills, hooks, plugins, and apps. Read/install/configuration UI is still missing. |
+| Skills/plugins/apps browsers | Partial | App-server settings surfaces list skills, hooks, plugins, and apps; the Capabilities page also discovers file-backed Codex skills, plugins, MCP config, and AGENTS instructions. Native install/configuration UI is still missing. |
 | Account/model/config/filesystem/MCP management | Partial | Read-only app-server settings surfaces cover models, model-provider capabilities, auth/account/rate limits, config, config requirements, MCP status, external agent config detection, and thread lists. Filesystem and mutating management APIs are still not productized. |
 | Realtime/audio | Parsed | Realtime/audio notifications are consumed as generic status/delta events. There is no voice/realtime UI. |
 | Remote/unix/ws transports | Not wired | Orchestrator uses stdio only. |
@@ -162,8 +162,8 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Approvals | Supported | Command/file/permission requests round-trip through app-server. | Live approval-producing Codex UI smoke and auto-review/guardian details. |
 | MCP elicitation | Supported | Request maps to user input and responds through JSON-RPC. | Live MCP form fixture and structured schema-aware form UI. |
 | Apps/connectors | Partial | `app/list` is available as a read-only app-server settings surface. | Browser/mention insertion with `app://...` and connector invocation UI. |
-| Skills | Partial | `skills/list` and `hooks/list` are available as read-only app-server settings surfaces. Prompt can still mention `$skill`. | `skills/config/write`, skill picker, and native `skill` input items. |
-| Plugins | Partial | `plugin/list` is available as a read-only app-server settings surface. | Marketplace/plugin read/install/uninstall UI and `plugin://...` mention insertion. |
+| Skills | Partial | `skills/list` and `hooks/list` are available as read-only app-server settings surfaces. Capabilities discovers documented `$HOME/.agents/skills` and repo `.agents/skills`; create/edit/delete is file-backed. Prompt can still mention `$skill`. | `skills/config/write`, native skill input items, and provider enable/disable controls. |
+| Plugins | Partial | `plugin/list` is available as a read-only app-server settings surface. Capabilities creates portable `.codex-plugin/plugin.json` packages and local `.agents/plugins/marketplace.json` entries. | Marketplace/plugin read/install/uninstall UI and `plugin://...` mention insertion. |
 | Review | Partial/external | Existing provider command surface can use headless review command; review-mode items are parsed. | `review/start` inline/detached app-server flow and review mode item UI. |
 | Model/account/settings | Partial | Read-only settings surfaces cover models, model-provider capabilities, account/auth/rate limits, config, config requirements, and feature flags. | Promote app-server model/account data into primary settings controls and add safe write flows where needed. |
 | Filesystem/search | External | Orchestrator has its own file refs/git diff paths. | App-server `fs/*`, `fs/watch`, fuzzy file search integration. |

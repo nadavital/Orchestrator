@@ -279,7 +279,7 @@
     align-items: center;
   }
 
-  .capabilities-workspace,
+  .capabilities-scope-select,
   .capabilities-search,
   .capabilities-select,
   .cap-field input,
@@ -293,7 +293,7 @@
     outline: none;
   }
 
-  .capabilities-workspace {
+  .capabilities-scope-select {
     display: flex;
     min-width: 0;
     align-items: center;
@@ -301,18 +301,22 @@
     padding: 0 11px;
   }
 
-  .capabilities-workspace span {
+  .capabilities-scope-select span {
     color: var(--text-tertiary);
     font-size: 10px;
     font-weight: 760;
     text-transform: uppercase;
   }
 
-  .capabilities-workspace strong {
+  .capabilities-scope-select select {
     min-width: 0;
+    flex: 1;
+    border: 0;
+    background: transparent;
     color: var(--text-primary);
     font-size: 12px;
     font-weight: 680;
+    outline: none;
   }
 
   .capabilities-search,

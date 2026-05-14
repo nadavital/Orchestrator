@@ -8,7 +8,7 @@ import type {
 import { getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
 import { discoverClaudeExtensions } from './claudeExtensions'
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
-import { basename, dirname, join } from 'path'
+import { basename, dirname, join, relative, sep } from 'path'
 import { homedir } from 'os'
 
 const RESOURCE_AREAS = new Set<ProviderCommandSurface['area']>(['agents', 'extensions', 'mcp'])
@@ -240,26 +240,25 @@ function discoverClaudeResources(cwd: string, homeDir: string): ProviderResource
   const extensions = discoverClaudeExtensions(cwd, homeDir)
   return [
     ...portablePlugins('claude', homeDir, 'global'),
-    ...extensions.skills.filter((skill) => skill.scope === 'global').map((skill) => makeResource({
-      providerId: 'claude',
-      kind: 'skill',
-      source: 'Claude skills',
-      name: skill.name.replace(/^\/skill:/, ''),
-      description: skill.description,
-      status: 'available',
-      scope: 'global',
-      raw: skill
-    })),
-    ...extensions.commands.filter((command) => command.scope === 'global').map((command) => makeResource({
+    ...portablePlugins('claude', cwd, 'project'),
+    ...skillsFromDirectory('claude', 'Claude skills', join(homeDir, '.claude', 'skills'), 'global', true),
+    ...skillsFromDirectory('claude', 'Claude project skills', join(cwd, '.claude', 'skills'), 'project', true),
+    ...extensions.commands.map((command) => makeResource({
       providerId: 'claude',
       kind: 'command',
       source: 'Claude commands',
       name: command.name,
       description: command.description,
       status: 'available',
-      scope: 'global',
+      scope: command.scope ?? 'provider',
       raw: command
-    }))
+    })),
+    ...markdownFilesFromDirectory('claude', 'Claude agents', join(homeDir, '.claude', 'agents'), 'agent', 'global', { prefixSlash: false }),
+    ...markdownFilesFromDirectory('claude', 'Claude agents', join(cwd, '.claude', 'agents'), 'agent', 'project', { prefixSlash: false }),
+    ...claudeHooksFromSettings(join(homeDir, '.claude', 'settings.json'), 'global'),
+    ...claudeHooksFromSettings(join(cwd, '.claude', 'settings.json'), 'project'),
+    ...instructionFile('claude', 'Claude instructions', join(homeDir, '.claude', 'CLAUDE.md'), 'global', 'CLAUDE.md'),
+    ...instructionFile('claude', 'Claude instructions', join(cwd, 'CLAUDE.md'), 'project', 'CLAUDE.md')
   ]
 }
 
@@ -285,10 +284,18 @@ function discoverCopilotResources(_cwd: string, homeDir: string): ProviderResour
   ]
 }
 
-function discoverCodexResources(_cwd: string, homeDir: string): ProviderResource[] {
+function discoverCodexResources(cwd: string, homeDir: string): ProviderResource[] {
   return [
-    ...skillsFromDirectory('codex', 'Codex skills', join(homeDir, '.codex', 'skills'), 'global'),
-    ...portablePlugins('codex', homeDir, 'global')
+    ...skillsFromDirectory('codex', 'Codex user skills', join(homeDir, '.agents', 'skills'), 'global', true),
+    ...skillsFromDirectory('codex', 'Codex project skills', join(cwd, '.agents', 'skills'), 'project', true),
+    ...skillsFromDirectory('codex', 'Codex installed skills', join(homeDir, '.codex', 'skills'), 'global', false),
+    ...skillsFromDirectory('codex', 'Codex project legacy skills', join(cwd, '.codex', 'skills'), 'project', true),
+    ...portablePlugins('codex', homeDir, 'global'),
+    ...portablePlugins('codex', cwd, 'project'),
+    ...instructionFile('codex', 'Codex instructions', join(homeDir, '.codex', 'AGENTS.md'), 'global', 'AGENTS.md'),
+    ...instructionFile('codex', 'Codex instructions', join(cwd, 'AGENTS.md'), 'project', 'AGENTS.md'),
+    ...codexMcpServersFromToml(join(homeDir, '.codex', 'config.toml'), 'global'),
+    ...codexMcpServersFromToml(join(cwd, '.codex', 'config.toml'), 'project')
   ]
 }
 
@@ -296,7 +303,8 @@ function skillsFromDirectory(
   providerId: string,
   source: string,
   root: string,
-  scope: ProviderResource['scope']
+  scope: ProviderResource['scope'],
+  editable = true
 ): ProviderResource[] {
   return walkFiles(root)
     .filter((path) => basename(path) === 'SKILL.md')
@@ -310,9 +318,55 @@ function skillsFromDirectory(
         description: firstMarkdownSummary(path),
         status: 'available',
         scope,
-        raw: { path }
+        raw: { path, editable }
       })
     })
+}
+
+function markdownFilesFromDirectory(
+  providerId: string,
+  source: string,
+  root: string,
+  kind: ProviderResourceKind,
+  scope: ProviderResource['scope'],
+  options: { prefixSlash: boolean }
+): ProviderResource[] {
+  return walkFiles(root)
+    .filter((path) => basename(path).endsWith('.md'))
+    .map((path) => {
+      const name = relative(root, path).replace(/\.md$/, '').split(sep).join(':')
+      return makeResource({
+        providerId,
+        kind,
+        source,
+        name: options.prefixSlash ? `/${name}` : name,
+        description: firstMarkdownSummary(path),
+        status: 'available',
+        scope,
+        raw: { path, editable: false }
+      })
+    })
+}
+
+function instructionFile(
+  providerId: string,
+  source: string,
+  path: string,
+  scope: ProviderResource['scope'],
+  name: string
+): ProviderResource[] {
+  const stat = safeStat(path)
+  if (!stat?.isFile()) return []
+  return [makeResource({
+    providerId,
+    kind: 'rule',
+    source,
+    name,
+    description: firstMarkdownSummary(path),
+    status: 'available',
+    scope,
+    raw: { path, editable: false }
+  })]
 }
 
 function portablePlugins(
@@ -342,6 +396,7 @@ function portablePlugins(
       scope,
       raw: {
         path: pluginRoot,
+        editable: true,
         manifestPath,
         marketplacePath,
         compatibility: providerId === 'claude' ? 'claude-plugin' : 'codex-plugin'
@@ -369,7 +424,69 @@ function mcpServersFromConfig(
       description: stringValue(item?.type, item?.url, item?.command),
       status: statusFromText(item?.disabled === true ? false : item?.status ?? item?.enabled ?? true),
       scope,
-      raw: { path, config: value }
+      raw: { path, config: value, editable: true, configFormat: 'json' }
+    })
+  })
+}
+
+function codexMcpServersFromToml(path: string, scope: ProviderResource['scope']): ProviderResource[] {
+  const content = readText(path)
+  if (!content) return []
+  const sections = [...content.matchAll(/^\s*\[mcp_servers\.([^\]\n]+)\]\s*$/gm)]
+  return sections.map((match, index) => {
+    const name = unquoteTomlKey(match[1].trim())
+    const start = (match.index ?? 0) + match[0].length
+    const end = index + 1 < sections.length ? sections[index + 1].index ?? content.length : content.length
+    const body = content.slice(start, end)
+    const url = tomlStringValue(body, 'url')
+    const command = tomlStringValue(body, 'command')
+    const args = tomlArrayValue(body, 'args')
+    const config = url ? { type: 'http', url } : { command, args }
+    return makeResource({
+      providerId: 'codex',
+      kind: 'mcp_server',
+      source: 'Codex config',
+      name,
+      description: url || command || 'MCP server',
+      status: 'available',
+      scope,
+      raw: { path, config, editable: true, configFormat: 'codex-toml' }
+    })
+  })
+}
+
+function claudeHooksFromSettings(path: string, scope: ProviderResource['scope']): ProviderResource[] {
+  const settings = readJsonObject(path)
+  const hooks = objectValue(settings?.hooks)
+  if (!hooks) return []
+  return Object.entries(hooks).flatMap(([eventName, value]) => {
+    return arrayValue(value).flatMap((entry, groupIndex) => {
+      const group = objectValue(entry)
+      const matcher = stringValue(group?.matcher) ?? '*'
+      const handlers = arrayValue(group?.hooks)
+      return handlers.map((handler, handlerIndex) => {
+        const item = objectValue(handler)
+        const type = stringValue(item?.type) ?? 'hook'
+        const command = stringValue(item?.command, item?.url, item?.prompt)
+        return makeResource({
+          providerId: 'claude',
+          kind: 'hook',
+          source: 'Claude settings',
+          name: `${eventName} ${matcher} ${handlerIndex + 1}`,
+          description: command || `${type} hook`,
+          status: 'available',
+          scope,
+          raw: {
+            path,
+            eventName,
+            matcher,
+            groupIndex,
+            handlerIndex,
+            config: handler,
+            editable: false
+          }
+        })
+      })
     })
   })
 }
@@ -406,6 +523,14 @@ function readJsonObject(path: string): Record<string, unknown> | null {
     return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>
   } catch {
     return null
+  }
+}
+
+function readText(path: string): string {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return ''
   }
 }
 
@@ -463,7 +588,7 @@ function makeResource(input: Omit<ProviderResource, 'id' | 'fingerprint' | 'acti
   const fingerprint = [input.kind, canonicalName(name)].join(':')
   const raw = objectValue(input.raw)
   const canManage = (
-    input.scope === 'global' && Boolean(raw?.path) && ['skill', 'plugin', 'mcp_server'].includes(input.kind)
+    Boolean(raw?.path) && raw?.editable === true && ['skill', 'plugin', 'mcp_server'].includes(input.kind)
   ) || (
     input.providerId === 'claude' && input.kind === 'mcp_server' && raw?.manage === 'claude-mcp'
   )
@@ -606,6 +731,35 @@ function scopeFromText(value: unknown): ProviderResource['scope'] {
 
 function canonicalName(value: string): string {
   return value.toLowerCase().replace(/^@/, '').replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'unnamed'
+}
+
+function unquoteTomlKey(value: string): string {
+  const trimmed = value.trim()
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
+
+function tomlStringValue(section: string, key: string): string | undefined {
+  const match = section.match(new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*("([^"]*)"|'([^']*)'|[^\\n#]+)`, 'm'))
+  const value = match?.[2] ?? match?.[3] ?? match?.[1]
+  return value?.replace(/^['"]|['"]$/g, '').trim() || undefined
+}
+
+function tomlArrayValue(section: string, key: string): string[] {
+  const match = section.match(new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*(\\[[^\\n]*\\])`, 'm'))
+  if (!match) return []
+  try {
+    const parsed = JSON.parse(match[1]) as unknown
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function textLines(value: string): string[] {
