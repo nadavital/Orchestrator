@@ -8,27 +8,27 @@ import type {
 import { getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
 import { discoverClaudeExtensions } from './claudeExtensions'
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
-import { basename, join, relative } from 'path'
+import { basename, dirname, join } from 'path'
 import { homedir } from 'os'
 
 const RESOURCE_AREAS = new Set<ProviderCommandSurface['area']>(['agents', 'extensions', 'mcp'])
 
-export async function listProviderResources(providerId?: string): Promise<Record<string, ProviderResourceSnapshot>> {
+export async function listProviderResources(providerId?: string, cwd = process.cwd()): Promise<Record<string, ProviderResourceSnapshot>> {
   const runtimeInfo = getProviderRuntimeInfo()
   const ids = providerId ? [providerId] : Object.keys(runtimeInfo)
-  const snapshots = await Promise.all(ids.map((id) => discoverProviderResources(id)))
+  const snapshots = await Promise.all(ids.map((id) => discoverProviderResources(id, cwd)))
   return Object.fromEntries(snapshots.map((snapshot) => [snapshot.providerId, snapshot]))
 }
 
-export async function discoverProviderResources(providerId: string): Promise<ProviderResourceSnapshot> {
+export async function discoverProviderResources(providerId: string, cwd = process.cwd()): Promise<ProviderResourceSnapshot> {
   const runtime = getProviderRuntimeInfo()[providerId]
   const surfaces = resourceSurfaces(runtime?.registry.commandSurfaces ?? [])
-  const resources: ProviderResource[] = discoverLocalProviderResources(providerId)
+  const resources: ProviderResource[] = discoverLocalProviderResources(providerId, cwd)
   const errors: ProviderResourceSnapshot['errors'] = []
 
   const results = await Promise.all(surfaces.map(async (surface) => ({
     surface,
-    result: await runProviderCommandSurfaceAsync(providerId, surface.id)
+    result: await runProviderCommandSurfaceAsync(providerId, surface.id, cwd)
   })))
 
   for (const { surface, result } of results) {
@@ -63,6 +63,7 @@ export function discoverLocalProviderResources(
   homeDir = homedir()
 ): ProviderResource[] {
   if (providerId === 'claude') return discoverClaudeResources(cwd, homeDir)
+  if (providerId === 'codex') return discoverCodexResources(cwd, homeDir)
   if (providerId === 'cursor') return discoverCursorResources(cwd, homeDir)
   if (providerId === 'copilot') return discoverCopilotResources(cwd, homeDir)
   return []
@@ -106,15 +107,20 @@ function claudeResources(
       const name = stringValue(item?.server, item?.name, item?.id)
       if (!name || isCommandNoise(name)) return []
       const statusText = stringValue(item?.status)
+      const detail = stringValue(item?.detail)
       return makeResource({
         providerId: result.providerId,
         kind: 'mcp_server',
         source: 'Claude CLI',
         name,
-        description: stringValue(item?.detail),
+        description: detail,
         status: statusFromText(statusText),
         scope: 'provider',
-        raw: entry
+        raw: {
+          ...(objectValue(entry) ?? {}),
+          manage: 'claude-mcp',
+          config: claudeMcpConfigFromDetail(detail)
+        }
       })
     })
   }
@@ -233,39 +239,37 @@ function codexKind(surfaceId: string): ProviderResourceKind | null {
 function discoverClaudeResources(cwd: string, homeDir: string): ProviderResource[] {
   const extensions = discoverClaudeExtensions(cwd, homeDir)
   return [
-    ...extensions.skills.map((skill) => makeResource({
+    ...portablePlugins('claude', homeDir, 'global'),
+    ...extensions.skills.filter((skill) => skill.scope === 'global').map((skill) => makeResource({
       providerId: 'claude',
       kind: 'skill',
       source: 'Claude skills',
       name: skill.name.replace(/^\/skill:/, ''),
       description: skill.description,
       status: 'available',
-      scope: skill.scope ?? 'project',
+      scope: 'global',
       raw: skill
     })),
-    ...extensions.commands.map((command) => makeResource({
+    ...extensions.commands.filter((command) => command.scope === 'global').map((command) => makeResource({
       providerId: 'claude',
       kind: 'command',
       source: 'Claude commands',
       name: command.name,
       description: command.description,
       status: 'available',
-      scope: command.scope ?? 'project',
+      scope: 'global',
       raw: command
     }))
   ]
 }
 
-function discoverCursorResources(cwd: string, homeDir: string): ProviderResource[] {
+function discoverCursorResources(_cwd: string, homeDir: string): ProviderResource[] {
   return [
-    ...rulesFromDirectory('cursor', 'Cursor rules', join(cwd, '.cursor', 'rules'), '.cursor/rules'),
-    ...rulesFromFiles('cursor', 'Cursor rules', cwd, ['.cursorrules']),
-    ...mcpServersFromConfig('cursor', 'Cursor MCP', join(homeDir, '.cursor', 'mcp.json'), 'global'),
-    ...mcpServersFromConfig('cursor', 'Cursor MCP', join(cwd, '.cursor', 'mcp.json'), 'project')
+    ...mcpServersFromConfig('cursor', 'Cursor MCP', join(homeDir, '.cursor', 'mcp.json'), 'global')
   ]
 }
 
-function discoverCopilotResources(cwd: string, homeDir: string): ProviderResource[] {
+function discoverCopilotResources(_cwd: string, homeDir: string): ProviderResource[] {
   return [
     makeResource({
       providerId: 'copilot',
@@ -277,64 +281,64 @@ function discoverCopilotResources(cwd: string, homeDir: string): ProviderResourc
       scope: 'provider',
       raw: { builtIn: true }
     }),
-    ...mcpServersFromConfig('copilot', 'GitHub Copilot MCP', join(homeDir, '.copilot', 'mcp-config.json'), 'global'),
-    ...rulesFromFiles('copilot', 'GitHub Copilot instructions', cwd, [
-      '.github/copilot-instructions.md',
-      'CLAUDE.md',
-      'GEMINI.md'
-    ]),
-    ...rulesFromDirectory('copilot', 'GitHub Copilot instructions', join(cwd, '.github', 'instructions'), '.github/instructions', '.instructions.md'),
-    ...rulesFromDirectory('copilot', 'GitHub Copilot agent instructions', cwd, '.', 'AGENTS.md')
+    ...mcpServersFromConfig('copilot', 'GitHub Copilot MCP', join(homeDir, '.copilot', 'mcp-config.json'), 'global')
   ]
 }
 
-function rulesFromFiles(
-  providerId: string,
-  source: string,
-  cwd: string,
-  paths: string[]
-): ProviderResource[] {
-  return paths.flatMap((path) => ruleFromFile(providerId, source, join(cwd, path), path, 'project'))
+function discoverCodexResources(_cwd: string, homeDir: string): ProviderResource[] {
+  return [
+    ...skillsFromDirectory('codex', 'Codex skills', join(homeDir, '.codex', 'skills'), 'global'),
+    ...portablePlugins('codex', homeDir, 'global')
+  ]
 }
 
-function rulesFromDirectory(
+function skillsFromDirectory(
   providerId: string,
   source: string,
   root: string,
-  displayRoot: string,
-  suffix = ''
+  scope: ProviderResource['scope']
 ): ProviderResource[] {
   return walkFiles(root)
-    .filter((path) => {
-      if (!suffix) return /\.(md|mdc)$/i.test(path)
-      return basename(path) === suffix || path.endsWith(suffix)
-    })
+    .filter((path) => basename(path) === 'SKILL.md')
     .flatMap((path) => {
-      const rel = relative(root, path)
-      const displayPath = displayRoot === '.' ? rel : join(displayRoot, rel)
-      return ruleFromFile(providerId, source, path, displayPath, 'project')
+      const name = basename(dirname(path))
+      return makeResource({
+        providerId,
+        kind: 'skill',
+        source,
+        name,
+        description: firstMarkdownSummary(path),
+        status: 'available',
+        scope,
+        raw: { path }
+      })
     })
 }
 
-function ruleFromFile(
+function portablePlugins(
   providerId: string,
-  source: string,
-  path: string,
-  displayPath: string,
+  base: string,
   scope: ProviderResource['scope']
 ): ProviderResource[] {
-  if (!safeStat(path)?.isFile()) return []
-  const name = displayPath.replace(/\.(instructions\.md|mdc|md)$/i, '')
-  return [makeResource({
-    providerId,
-    kind: 'rule',
-    source,
-    name,
-    description: firstMarkdownSummary(path),
-    status: 'available',
-    scope,
-    raw: { path }
-  })]
+  const root = join(base, '.orchestrator', 'capabilities', 'plugins')
+  const stat = safeStat(root)
+  if (!stat?.isDirectory()) return []
+  return readdirSync(root).sort().flatMap((name) => {
+    const pluginRoot = join(root, name)
+    if (!safeStat(pluginRoot)?.isDirectory()) return []
+    const manifest = readJsonObject(join(pluginRoot, providerId === 'claude' ? '.claude-plugin' : '.codex-plugin', 'plugin.json'))
+    if (!manifest && providerId !== 'claude' && providerId !== 'codex') return []
+    return makeResource({
+      providerId,
+      kind: 'plugin',
+      source: 'Orchestrator portable plugin',
+      name: stringValue(manifest?.name) ?? name,
+      description: stringValue(manifest?.description),
+      status: 'available',
+      scope,
+      raw: { path: pluginRoot }
+    })
+  })
 }
 
 function mcpServersFromConfig(
@@ -398,13 +402,30 @@ function readJsonObject(path: string): Record<string, unknown> | null {
 
 function firstMarkdownSummary(path: string): string | undefined {
   try {
-    return readFileSync(path, 'utf8')
-      .split('\n')
-      .map((line) => line.replace(/^#+\s*/, '').trim())
+    const lines = readFileSync(path, 'utf8').split('\n')
+    if (lines[0]?.trim() === '---') {
+      const end = lines.slice(1).findIndex((line) => line.trim() === '---')
+      const frontmatter = end >= 0 ? lines.slice(1, end + 1) : []
+      const description = frontmatter
+        .map((line) => line.match(/^description:\s*(.+)$/i)?.[1]?.trim())
+        .find(Boolean)
+      if (description) return description.replace(/^['"]|['"]$/g, '')
+      return lines
+        .slice(end >= 0 ? end + 2 : 1)
+        .map(markdownSummaryLine)
+        .find((line) => line.length > 0)
+    }
+    return lines
+      .map(markdownSummaryLine)
       .find((line) => line.length > 0)
   } catch {
     return undefined
   }
+}
+
+function markdownSummaryLine(line: string): string {
+  const trimmed = line.replace(/^#+\s*/, '').trim()
+  return trimmed === '---' ? '' : trimmed
 }
 
 function walkFiles(root: string, depth = 0): string[] {
@@ -431,13 +452,47 @@ function safeStat(path: string): ReturnType<typeof statSync> | null {
 function makeResource(input: Omit<ProviderResource, 'id' | 'fingerprint' | 'actions'>): ProviderResource {
   const name = input.name.trim() || 'Unnamed'
   const fingerprint = [input.kind, canonicalName(name)].join(':')
+  const raw = objectValue(input.raw)
+  const canManage = (
+    input.scope === 'global' && Boolean(raw?.path) && ['skill', 'plugin', 'mcp_server'].includes(input.kind)
+  ) || (
+    input.providerId === 'claude' && input.kind === 'mcp_server' && raw?.manage === 'claude-mcp'
+  )
   return {
     ...input,
     name,
     id: `${input.providerId}:${input.kind}:${canonicalName(name)}`,
     fingerprint,
-    actions: ['refresh', 'inspect']
+    actions: canManage ? ['refresh', 'inspect', 'edit', 'remove'] : ['refresh', 'inspect']
   }
+}
+
+function claudeMcpConfigFromDetail(detail?: string): Record<string, unknown> {
+  if (!detail) return {}
+  const scopeText = detail.match(/Scope:\s*([^\n]+)/i)?.[1] ?? ''
+  const type = detail.match(/Type:\s*([^\n]+)/i)?.[1]?.trim().toLowerCase()
+  const command = detail.match(/Command:\s*([^\n]+)/i)?.[1]?.trim()
+  const argsText = detail.match(/Args:\s*([^\n]+)/i)?.[1]?.trim()
+  const url = detail.match(/URL:\s*([^\n]+)/i)?.[1]?.trim()
+  const scope = /user/i.test(scopeText)
+    ? 'user'
+    : /project/i.test(scopeText)
+      ? 'project'
+      : /local/i.test(scopeText)
+        ? 'local'
+        : undefined
+  return {
+    scope,
+    type,
+    command,
+    args: argsText ? shellLikeSplit(argsText) : [],
+    url
+  }
+}
+
+function shellLikeSplit(value: string): string[] {
+  const matches = value.match(/"([^"]*)"|'([^']*)'|\S+/g) ?? []
+  return matches.map((part) => part.replace(/^["']|["']$/g, ''))
 }
 
 function dedupeProviderResources(resources: ProviderResource[]): ProviderResource[] {

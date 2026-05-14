@@ -14,7 +14,19 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   const [collapsed, setCollapsed] = useState(false)
   const [creating, setCreating] = useState(false)
   const { removeProject, addSessionToProject, removeSessionFromProject } = useProjectStore()
-  const { sessions: allSessions, activeSessionId, removeSession, addSession, setActiveSession } = useSessionStore()
+  const {
+    sessions: allSessions,
+    activeSessionId,
+    removeSession,
+    addSession,
+    setActiveSession,
+    setShowCapabilities,
+    setShowSettings
+  } = useSessionStore()
+  const sortedSessions = [...sessions].sort((a, b) => {
+    if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1
+    return b.createdAt - a.createdAt
+  })
 
   const handleNewSession = async (): Promise<void> => {
     if (creating) return
@@ -41,6 +53,8 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
       addSession(session)
       addSessionToProject(project.id, session.id)
       setActiveSession(session.id)
+      setShowCapabilities(false)
+      setShowSettings(false)
     } finally {
       setCreating(false)
     }
@@ -107,7 +121,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
               New chat
             </div>
           )}
-          {sessions.map((session) => (
+          {sortedSessions.map((session) => (
             <SessionItem key={session.id} session={session} />
           ))}
         </div>

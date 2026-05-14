@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useSessionStore } from '../store/sessions'
+import { useProjectStore } from '../store/projects'
 import type { AppProfile } from '../env'
 import Icon from './shared/Icon'
+import SessionActionsMenu from './shared/SessionActionsMenu'
 
 export default function Titlebar(): JSX.Element {
   const {
@@ -15,11 +17,13 @@ export default function Titlebar(): JSX.Element {
     setShowPlan,
     setShowSideQuestions
   } = useSessionStore()
+  const { removeSessionFromProject } = useProjectStore()
   const session = sessions.find((s) => s.id === activeSessionId)
   const ui = activeSessionId
     ? (uiState[activeSessionId] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, hasUnread: false })
     : null
   const [profile, setProfile] = useState<AppProfile | null>(null)
+  const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     window.api.app.getProfile().then(setProfile).catch(() => setProfile(null))
@@ -39,6 +43,14 @@ export default function Titlebar(): JSX.Element {
     }
   }
 
+  const removeActiveSession = async (): Promise<void> => {
+    if (!session) return
+    await window.api.sessions.remove(session.id)
+    await window.api.projects.removeSession(session.projectId, session.id)
+    useSessionStore.getState().removeSession(session.id)
+    removeSessionFromProject(session.projectId, session.id)
+  }
+
   return (
     <div
       className="flex items-center shrink-0 w-full"
@@ -49,7 +61,7 @@ export default function Titlebar(): JSX.Element {
         userSelect: 'none',
         position: 'relative',
         WebkitAppRegion: 'drag'
-      }}
+      } as React.CSSProperties}
     >
       <div className="flex min-w-0 items-center gap-2 px-4" style={{ flex: 1 }}>
         {session ? (
@@ -62,6 +74,11 @@ export default function Titlebar(): JSX.Element {
               {session.name}
             </span>
             <StatusDot status={session.status} />
+            {session.pinned && (
+              <span style={{ color: 'var(--text-tertiary)' }} title="Pinned">
+                <Icon name="pin" size={13} />
+              </span>
+            )}
           </>
         ) : (
           <span style={{ color: 'var(--text-primary)', fontSize: 15, fontWeight: 520 }}>
@@ -97,6 +114,16 @@ export default function Titlebar(): JSX.Element {
         {session && ui && (
           <>
             <TitleBtn
+              active={menuPoint !== null}
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect()
+                setMenuPoint({ x: rect.right - 196, y: rect.bottom + 6 })
+              }}
+              title="Chat actions"
+            >
+              <Icon name="ellipsis" size={15} />
+            </TitleBtn>
+            <TitleBtn
               active={inspectorOpen}
               onClick={toggleInspector}
               title="Toggle sidebar"
@@ -113,6 +140,15 @@ export default function Titlebar(): JSX.Element {
           </>
         )}
       </div>
+      {session && menuPoint && (
+        <SessionActionsMenu
+          session={session}
+          x={menuPoint.x}
+          y={menuPoint.y}
+          onClose={() => setMenuPoint(null)}
+          onRemove={removeActiveSession}
+        />
+      )}
     </div>
   )
 }
@@ -167,7 +203,7 @@ function statusLabel(status: string): string {
 function TitleBtn({
   children, active, onClick, title
 }: {
-  children: React.ReactNode; active: boolean; onClick: () => void; title: string
+  children: React.ReactNode; active: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; title: string
 }): JSX.Element {
   return (
     <button

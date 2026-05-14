@@ -334,6 +334,7 @@ export const sessionManager = {
     const session: Session = {
       id,
       name: 'New Chat',
+      pinned: false,
       projectId: opts.projectId,
       workDir,
       useWorktree: opts.useWorktree,
@@ -360,12 +361,24 @@ export const sessionManager = {
   },
 
   updateName(id: string, name: string): void {
+    const nextName = name.trim()
+    if (!nextName) return
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === id)
     if (s) {
-      s.name = name
+      s.name = nextName
       store.set('sessions', sessions)
-      send('session:renamed', { id, name })
+      send('session:renamed', { id, name: nextName })
+    }
+  },
+
+  updatePinned(id: string, pinned: boolean): void {
+    const sessions = store.get('sessions', [])
+    const s = sessions.find((s) => s.id === id)
+    if (s) {
+      s.pinned = pinned
+      store.set('sessions', sessions)
+      send('session:pinned', { id, pinned })
     }
   },
 

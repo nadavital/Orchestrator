@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Session, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, UsageSummary } from '../types'
 
-export type SettingsSection = 'general' | 'providers' | 'resources' | 'pets'
+export type SettingsSection = 'general' | 'providers' | 'pets'
 
 export interface SideQuestionMessage {
   id: string
@@ -33,6 +33,7 @@ interface SessionState {
   providerAvailability: Record<string, boolean>
   providerModels: Record<string, string[]>
   showSettings: boolean
+  showCapabilities: boolean
   settingsSection: SettingsSection
   setSessions: (sessions: Session[]) => void
   addSession: (session: Session) => void
@@ -40,6 +41,7 @@ interface SessionState {
   setActiveSession: (id: string | null) => void
   updateStatus: (id: string, status: Session['status']) => void
   updateName: (id: string, name: string) => void
+  updatePinned: (id: string, pinned: boolean) => void
   updateSession: (id: string, patch: Partial<Session>) => void
   updateSettings: (id: string, patch: {
     provider?: string
@@ -70,6 +72,7 @@ interface SessionState {
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
   setShowSettings: (v: boolean) => void
+  setShowCapabilities: (v: boolean) => void
   setSettingsSection: (section: SettingsSection) => void
   appendMessages: (id: string, messages: ChatMessage[]) => void
   upsertMessage: (id: string, message: ChatMessage) => void
@@ -99,6 +102,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   providerAvailability: {},
   providerModels: {},
   showSettings: false,
+  showCapabilities: false,
   settingsSection: 'general',
 
   setSessions: (sessions) => set({ sessions }),
@@ -140,6 +144,11 @@ export const useSessionStore = create<SessionState>((set) => ({
   updateName: (id, name) =>
     set((s) => ({
       sessions: s.sessions.map((x) => (x.id === id ? { ...x, name } : x))
+    })),
+
+  updatePinned: (id, pinned) =>
+    set((s) => ({
+      sessions: s.sessions.map((x) => (x.id === id ? { ...x, pinned } : x))
     })),
 
   updateSession: (id, patch) =>
@@ -325,7 +334,8 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   setProviderModels: (v) => set({ providerModels: v }),
 
-  setShowSettings: (v) => set({ showSettings: v }),
+  setShowSettings: (v) => set((s) => ({ showSettings: v, showCapabilities: v ? false : s.showCapabilities })),
+  setShowCapabilities: (v) => set((s) => ({ showCapabilities: v, showSettings: v ? false : s.showSettings })),
 
   setSettingsSection: (section) => set({ settingsSection: section }),
 

@@ -6,7 +6,7 @@ Date: 2026-05-14
 
 Orchestrator currently discovers provider resources through provider-specific command surfaces. Claude exposes agents, MCP, plugins, and skills differently from Codex app-server, Cursor, and Copilot. The UI should not make users manage four separate ideas when several entries describe the same underlying capability.
 
-The Resources page should be a main settings surface, not a chat/session sidebar. Session sidebars should stay focused on live work: changes, plan, active subagent transcript, and side questions. Usage belongs in settings/provider diagnostics rather than per-session chrome.
+Capabilities should be a first-class app surface, not a settings subsection or chat/session sidebar. Session sidebars should stay focused on live work: changes, plan, active subagent transcript, and side questions. Usage belongs in settings/provider diagnostics rather than per-session chrome.
 
 ## Target Shape
 
@@ -38,17 +38,19 @@ Create a normalized `ProviderResource` model:
 ## Implemented Shape
 
 - `src/main/providerResources.ts` owns read-only discovery and normalization.
-- `providers:listResources` returns provider snapshots with normalized resources and raw provider diagnostics.
-- Settings -> Resources is centralized by resource kind, then merged by fingerprint, with provider badges as provenance.
+- `providers:listResources` returns provider snapshots with normalized global resources and raw provider diagnostics.
+- The left-nav Capabilities page is centralized by resource kind, then merged by fingerprint, with provider badges as provenance.
+- `providers:createCapability` can create global portable skills, portable plugin packages, and MCP server configs from the same screen.
+- `providers:updateCapability` and `providers:deleteCapability` manage file-backed global skills, portable plugins, and MCP JSON config entries.
 - Safe provider command surfaces are still used where they exist; file/config-backed provider resources are discovered locally when the provider has no stable read-only inventory command.
-- No mutation actions are exposed from the resource inventory yet.
+- Mutation actions are limited to file-backed global capabilities Orchestrator can safely edit; provider-native marketplace install/uninstall/update flows remain gated until confirmation UX is added.
 
 ## Provider Support Snapshot
 
 | Provider | Discovery sources | Normalized resources |
 | --- | --- | --- |
 | Claude | Safe CLI surfaces plus `.claude/skills` and `.claude/commands` discovery | Agents, MCP servers, plugins, skills, commands. |
-| Codex | App-server read APIs | Skills, hooks, plugins, apps, MCP servers, external agent configs. |
+| Codex | App-server read APIs plus local `.codex/skills` discovery | Skills, hooks, plugins, apps, MCP servers, external agent configs. |
 | Cursor | `.cursor/rules`, `.cursorrules`, and Cursor MCP config files | Rules and MCP servers. |
 | Copilot | Built-in GitHub MCP, `~/.copilot/mcp-config.json`, `.github/copilot-instructions.md`, `.github/instructions`, `AGENTS.md`, root `CLAUDE.md`/`GEMINI.md` | MCP servers and repository/agent instruction rules. |
 
@@ -71,4 +73,4 @@ Create a normalized `ProviderResource` model:
 
 ## Recommendation
 
-Start read-only. Ship the Resources page as a normalized inventory and dedupe suggestion surface first. After that, add explicit migration/import actions for the resource kinds with stable native contracts. This avoids mutating provider state before we know the discovery model is correct.
+Keep the Capabilities page as the one user-facing inventory. Continue adding provider-native actions behind explicit confirmation: Claude marketplace add/install/update, Codex marketplace/plugin install, app auth/connect, and MCP reload/OAuth. Avoid duplicating this surface back into Settings.

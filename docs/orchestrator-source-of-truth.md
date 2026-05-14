@@ -1,6 +1,6 @@
 # Orchestrator Source Of Truth
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 This is the canonical execution plan for Orchestrator. Every long-running implementation pass should start here, update this file as work lands, and treat the older docs in `docs/` as supporting research or historical evidence.
 
@@ -242,6 +242,8 @@ The product target is first-class Orchestrator UI on top of Claude structured JS
 | Cursor plan/ask/worktree/MCP/rules | Shared plan/workspace/extension surfaces. | `Research` | Help verified. | Implement after Claude/Codex core. |
 | Copilot prompt/interactive/SDK | Map rich SDK/CLI events to Orchestrator abstractions. | `Research` | Package/CLI research. | Defer until Claude is complete; keep diagnostics honest. |
 | Provider diagnostics | Binary/version/auth/models/probes distinguish missing, auth error, keychain error, and smoke pass. | `Implemented` | `smoke:providers`. | Continue updating as provider probes change. |
+| Capabilities inventory | First-class global left-nav surface for skills, plugins, apps, MCP servers, agents, hooks, and commands across providers. Project instruction files stay in project/chat context. | `Implemented` | `src/renderer/src/components/CapabilitiesPage.tsx`; `src/main/providerResources.ts`; `providers:listResources`; `npm run smoke:ui:auto -- --capabilities` passed with screenshot evidence. | Add provider-native marketplace install/update/auth actions behind confirmations. |
+| Custom capabilities | Create global portable skills, portable plugin packages, and MCP configs from one screen where possible; edit/remove file-backed global skills/plugins/MCP config entries. | `Partial` | `src/main/capabilityCreator.ts`; `src/main/capabilityManager.ts`; `capabilityCreator.test.ts`; `capabilityManager.test.ts`; `npm run test:providers` passed 140/140, including portable plugin mirror lifecycle coverage. | Promote provider-native plugin install/enable and MCP reload once confirmation flows are designed. |
 
 ### Pets And App Polish
 
@@ -280,6 +282,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-016 | Claude native chat runtime retired. | `Complete` | Composer no longer exposes a Structured/Native runtime picker; stale Claude chat sessions normalize back to structured/headless before sending; Claude-native terminal parser/prompt code and runtime-parity script were removed. |
 | V-017 | Codex app-server chosen as the rich Codex runtime target. | `Complete` | Local Codex 0.128.0 app-server help and generated v2 schema expose structured approvals, questions, diffs, plans, agents, plugins, skills, MCP, account, model, filesystem, hooks, and terminal APIs. |
 | V-018 | Brief/status events, usage metadata, attachments, `/btw` side questions, and automated detached UI smoke landed. | `Complete` | `brief-usage.jsonl`; `npx tsc -p tsconfig.node.json --noEmit`; `npx tsc -p tsconfig.web.json --noEmit`; `npm run test:providers`; `npm run smoke:ui:auto`; live Claude 2.1.140 `--brief` probes showed usage/cost fields but no `SendUserMessage` tool. |
+| V-019 | First-class Capabilities page landed. | `Complete` | `src/renderer/src/components/CapabilitiesPage.tsx`; `src/main/capabilityCreator.ts`; `npm run build`; `npm run test:providers` 140/140; `npm run smoke:ui:auto -- --capabilities` screenshot `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-capabilities-1778791668483.png`. |
 
 ### P0: Re-establish Installed-App Verification
 
@@ -685,3 +688,8 @@ When implementing against this plan:
 - `/btw` decision verified on 2026-05-13: `claude -p --output-format json --max-budget-usd 0.02 "/btw ..."` returned `/btw isn't available in this environment.` with zero turns/cost. Treat `/btw` as native interactive side-chat behavior, not a structured `-p` feature; build an Orchestrator-owned side question/chat if we want that UX.
 - Attachment/usage/brief polish landed on 2026-05-13: local files can be attached from the composer, Claude file resources map to native `--file` specs, result usage/cost rolls up into a Usage sidebar, and `SendUserMessage` is supported as an assistant status card if a future Claude `--brief` stream emits it.
 - Automated detached UI smoke landed on 2026-05-13: `npm run smoke:ui:auto` launches an isolated Electron profile, bootstraps a disposable project/session before renderer load, verifies the profile badge/composer/sidebar rail, and exits with JSON evidence without touching the user's active Orchestrator window.
+
+### 2026-05-14
+
+- Capabilities robustness checkpoint: renderer typecheck was restored, custom capability create results now only claim providers with actual file-backed resources, and portable plugin update/delete keeps mirrored Claude/Codex skill folders in sync instead of leaving stale global skills behind.
+- Verification passed: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `npm run test:providers` 140/140, `npm run test:smoke-config`, `npm run smoke:providers`, `npm run build`, `git diff --check`, and `npm run smoke:ui:auto -- --capabilities` with screenshot `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-capabilities-1778791668483.png`.

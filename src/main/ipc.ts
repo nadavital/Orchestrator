@@ -2,7 +2,7 @@ import type { IpcMain } from 'electron'
 import { dialog, app, shell } from 'electron'
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
 import { basename, dirname } from 'path'
-import type { Attachment } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilityUpdateRequest } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
 import { gitManager } from './git'
@@ -14,6 +14,8 @@ import { getProviderDiagnosticsAsync, getProviderRuntimeInfo, runProviderCommand
 import { resolveWorkspaceFileReference } from './workspaceResolver'
 import { discoverClaudeExtensions } from './claudeExtensions'
 import { listProviderResources } from './providerResources'
+import { createCapability } from './capabilityCreator'
+import { deleteCapability, updateCapability } from './capabilityManager'
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   // App profile
@@ -44,6 +46,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('sessions:updateName', (_, id: string, name: string) =>
     sessionManager.updateName(id, name)
+  )
+  ipcMain.handle('sessions:updatePinned', (_, id: string, pinned: boolean) =>
+    sessionManager.updatePinned(id, pinned)
   )
   ipcMain.handle('sessions:updateSettings', (_, id: string, patch: {
     provider?: string
@@ -100,8 +105,17 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('providers:runCommandSurface', (_, providerId: string, surfaceId: string) =>
     runProviderCommandSurfaceAsync(providerId, surfaceId)
   )
-  ipcMain.handle('providers:listResources', (_, providerId?: string) =>
-    listProviderResources(providerId)
+  ipcMain.handle('providers:listResources', (_, providerId?: string, cwd?: string) =>
+    listProviderResources(providerId, cwd)
+  )
+  ipcMain.handle('providers:createCapability', (_, request: CapabilityCreateRequest) =>
+    createCapability(request)
+  )
+  ipcMain.handle('providers:updateCapability', (_, request: CapabilityUpdateRequest) =>
+    updateCapability(request)
+  )
+  ipcMain.handle('providers:deleteCapability', (_, request: CapabilityDeleteRequest) =>
+    deleteCapability(request)
   )
   ipcMain.handle('providers:discoverClaudeExtensions', (_, workDir: string) =>
     discoverClaudeExtensions(workDir)

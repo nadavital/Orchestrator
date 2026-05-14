@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilityUpdateRequest, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../../types'
 
 export interface AppSettings {
   defaultProvider: string
@@ -35,6 +35,7 @@ export type SessionEvent =
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
+  | { type: 'pinned'; id: string; pinned: boolean }
   | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
   | {
       type: 'settingsUpdated'
@@ -80,6 +81,7 @@ declare global {
         sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => Promise<void>
         answerSideQuestion: (sessionId: string, question: string) => Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }>
         updateName: (id: string, name: string) => Promise<void>
+        updatePinned: (id: string, pinned: boolean) => Promise<void>
         updateSettings: (id: string, patch: {
           provider?: string
           model?: string
@@ -114,7 +116,10 @@ declare global {
         getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>
         getDiagnostics: (providerId?: string) => Promise<Record<string, ProviderDiagnosticInfo>>
         runCommandSurface: (providerId: string, surfaceId: string) => Promise<ProviderCommandSurfaceResult>
-        listResources: (providerId?: string) => Promise<Record<string, ProviderResourceSnapshot>>
+        listResources: (providerId?: string, cwd?: string) => Promise<Record<string, ProviderResourceSnapshot>>
+        createCapability: (request: CapabilityCreateRequest) => Promise<CapabilityCreateResult>
+        updateCapability: (request: CapabilityUpdateRequest) => Promise<CapabilityMutationResult>
+        deleteCapability: (request: CapabilityDeleteRequest) => Promise<CapabilityMutationResult>
         discoverClaudeExtensions: (workDir: string) => Promise<{ commands: ProviderSlashCommand[]; skills: ProviderSlashCommand[] }>
       }
       settings: {

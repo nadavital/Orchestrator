@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilityUpdateRequest, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../types'
 
 interface AppSettings {
   defaultProvider: string
@@ -30,6 +30,7 @@ export type SessionEvent =
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
+  | { type: 'pinned'; id: string; pinned: boolean }
   | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
   | { type: 'settingsUpdated'; id: string; provider?: string; model?: string; effort?: string; permissionMode?: string; runtime?: Session['runtime']; useThinking?: boolean; useFast?: boolean; allowedTools?: string[]; disallowedTools?: string[]; availableTools?: string[]; additionalDirs?: string[]; usageSummary?: UsageSummary }
   | { type: 'needsInput'; id: string }
@@ -67,6 +68,8 @@ const api = {
       ipcRenderer.invoke('sessions:answerSideQuestion', sessionId, question),
     updateName: (id: string, name: string): Promise<void> =>
       ipcRenderer.invoke('sessions:updateName', id, name),
+    updatePinned: (id: string, pinned: boolean): Promise<void> =>
+      ipcRenderer.invoke('sessions:updatePinned', id, pinned),
     updateSettings: (id: string, patch: {
       provider?: string
       model?: string
@@ -117,8 +120,14 @@ const api = {
       ipcRenderer.invoke('providers:getDiagnostics', providerId),
     runCommandSurface: (providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> =>
       ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId),
-    listResources: (providerId?: string): Promise<Record<string, ProviderResourceSnapshot>> =>
-      ipcRenderer.invoke('providers:listResources', providerId),
+    listResources: (providerId?: string, cwd?: string): Promise<Record<string, ProviderResourceSnapshot>> =>
+      ipcRenderer.invoke('providers:listResources', providerId, cwd),
+    createCapability: (request: CapabilityCreateRequest): Promise<CapabilityCreateResult> =>
+      ipcRenderer.invoke('providers:createCapability', request),
+    updateCapability: (request: CapabilityUpdateRequest): Promise<CapabilityMutationResult> =>
+      ipcRenderer.invoke('providers:updateCapability', request),
+    deleteCapability: (request: CapabilityDeleteRequest): Promise<CapabilityMutationResult> =>
+      ipcRenderer.invoke('providers:deleteCapability', request),
     discoverClaudeExtensions: (workDir: string): Promise<{ commands: ProviderSlashCommand[]; skills: ProviderSlashCommand[] }> =>
       ipcRenderer.invoke('providers:discoverClaudeExtensions', workDir)
   },
@@ -198,6 +207,8 @@ const api = {
       cb({ type: 'raw', ...p })
     const onRenamed = (_: Electron.IpcRendererEvent, p: { id: string; name: string }): void =>
       cb({ type: 'renamed', ...p })
+    const onPinned = (_: Electron.IpcRendererEvent, p: { id: string; pinned: boolean }): void =>
+      cb({ type: 'pinned', ...p })
     const onUpdated = (_: Electron.IpcRendererEvent, p: { id: string; workDir: string; useWorktree: boolean }): void =>
       cb({ type: 'updated', ...p })
     const onSettingsUpdated = (_: Electron.IpcRendererEvent, p: SettingsUpdatedPayload): void =>
@@ -212,6 +223,7 @@ const api = {
     ipcRenderer.on('session:events', onEvents)
     ipcRenderer.on('session:raw', onRaw)
     ipcRenderer.on('session:renamed', onRenamed)
+    ipcRenderer.on('session:pinned', onPinned)
     ipcRenderer.on('session:updated', onUpdated)
     ipcRenderer.on('session:settingsUpdated', onSettingsUpdated)
     ipcRenderer.on('session:needsInput', onNeedsInput)
@@ -224,6 +236,7 @@ const api = {
       ipcRenderer.off('session:events', onEvents)
       ipcRenderer.off('session:raw', onRaw)
       ipcRenderer.off('session:renamed', onRenamed)
+      ipcRenderer.off('session:pinned', onPinned)
       ipcRenderer.off('session:updated', onUpdated)
       ipcRenderer.off('session:settingsUpdated', onSettingsUpdated)
       ipcRenderer.off('session:needsInput', onNeedsInput)

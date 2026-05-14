@@ -2960,11 +2960,12 @@ function runClaudeMcpDetails(providerId: string, surfaceId: string, binary: stri
   }
 }
 
-async function runClaudeMcpDetailsAsync(providerId: string, surfaceId: string, binary: string): Promise<ProviderCommandSurfaceResult> {
+async function runClaudeMcpDetailsAsync(providerId: string, surfaceId: string, binary: string, cwd = process.cwd()): Promise<ProviderCommandSurfaceResult> {
   try {
     const { stdout } = await execFileAsync(binary, ['mcp', 'list'], {
       encoding: 'utf8',
       timeout: PROVIDER_COMMAND_SURFACE_TIMEOUT_MS,
+      cwd,
       env: providerSpawnEnv(providerId),
       maxBuffer: 512 * 1024
     })
@@ -2974,6 +2975,7 @@ async function runClaudeMcpDetailsAsync(providerId: string, surfaceId: string, b
         const result = await execFileAsync(binary, ['mcp', 'get', name], {
           encoding: 'utf8',
           timeout: PROVIDER_COMMAND_SURFACE_TIMEOUT_MS,
+          cwd,
           env: providerSpawnEnv(providerId),
           maxBuffer: 512 * 1024
         })
@@ -3007,8 +3009,7 @@ type CodexAppServerSurfaceRequest = {
   params?: Record<string, unknown>
 }
 
-function codexAppServerSurfaceRequest(surfaceId: string): CodexAppServerSurfaceRequest | null {
-  const cwd = process.cwd()
+function codexAppServerSurfaceRequest(surfaceId: string, cwd = process.cwd()): CodexAppServerSurfaceRequest | null {
   const requests: Record<string, CodexAppServerSurfaceRequest> = {
     'appserver-models': { method: 'model/list', params: { limit: 100, includeHidden: true } },
     'appserver-model-provider-capabilities': { method: 'modelProvider/capabilities/read', params: {} },
@@ -3033,11 +3034,12 @@ function codexAppServerSurfaceRequest(surfaceId: string): CodexAppServerSurfaceR
 async function runCodexAppServerSingleRequest(
   provider: ProviderAdapter,
   binary: string,
-  request: CodexAppServerSurfaceRequest
+  request: CodexAppServerSurfaceRequest,
+  cwd = process.cwd()
 ): Promise<unknown> {
   return await new Promise((resolve, reject) => {
     const child = spawn(binary, ['app-server', '--listen', 'stdio://'], {
-      cwd: process.cwd(),
+      cwd,
       env: providerSpawnEnv(provider.id),
       stdio: ['pipe', 'pipe', 'pipe']
     })
@@ -3133,9 +3135,10 @@ async function runCodexAppServerSingleRequest(
 async function runCodexAppServerCommandSurface(
   provider: ProviderAdapter,
   surfaceId: string,
-  binary: string
+  binary: string,
+  cwd = process.cwd()
 ): Promise<ProviderCommandSurfaceResult> {
-  const request = codexAppServerSurfaceRequest(surfaceId)
+  const request = codexAppServerSurfaceRequest(surfaceId, cwd)
   if (!request) {
     return {
       providerId: provider.id,
@@ -3145,7 +3148,7 @@ async function runCodexAppServerCommandSurface(
     }
   }
   try {
-    const result = await runCodexAppServerSingleRequest(provider, binary, request)
+    const result = await runCodexAppServerSingleRequest(provider, binary, request, cwd)
     return {
       providerId: provider.id,
       surfaceId,
@@ -3228,7 +3231,7 @@ export function runProviderCommandSurface(providerId: string, surfaceId: string)
   }
 }
 
-export async function runProviderCommandSurfaceAsync(providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> {
+export async function runProviderCommandSurfaceAsync(providerId: string, surfaceId: string, cwd = process.cwd()): Promise<ProviderCommandSurfaceResult> {
   const provider = getProvider(providerId)
   const registry = providerCapabilityRegistry(provider.id)
   const surface = registry.commandSurfaces.find((candidate) => candidate.id === surfaceId)
@@ -3259,16 +3262,17 @@ export async function runProviderCommandSurfaceAsync(providerId: string, surface
     }
   }
   if (provider.id === 'codex' && surface.runtime === 'app-server') {
-    return await runCodexAppServerCommandSurface(provider, surface.id, binary)
+    return await runCodexAppServerCommandSurface(provider, surface.id, binary, cwd)
   }
   if (provider.id === 'claude' && surface.id === 'mcp-details') {
-    return await runClaudeMcpDetailsAsync(provider.id, surface.id, binary)
+    return await runClaudeMcpDetailsAsync(provider.id, surface.id, binary, cwd)
   }
 
   try {
     const { stdout } = await execFileAsync(binary, surface.command, {
       encoding: 'utf8',
       timeout: PROVIDER_COMMAND_SURFACE_TIMEOUT_MS,
+      cwd,
       env: providerSpawnEnv(provider.id),
       maxBuffer: 512 * 1024
     })

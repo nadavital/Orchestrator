@@ -113,7 +113,7 @@ test('resource parsing filters provider command noise and gives fallback names',
   assert.equal(codexAgentConfig[0].description, 'Migrate /Users/navital/.claude/settings.json into /Users/navital/.codex/config.toml')
 })
 
-test('local provider resources normalize file-backed rules and MCP configs', () => {
+test('local provider resources expose global capabilities without project instruction files', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'orchestrator-resources-cwd-'))
   const home = mkdtempSync(join(tmpdir(), 'orchestrator-resources-home-'))
   try {
@@ -121,6 +121,8 @@ test('local provider resources normalize file-backed rules and MCP configs', () 
     writeFileSync(join(cwd, '.claude', 'skills', 'debug', 'SKILL.md'), '---\ndescription: Debug failures\n---\n# Debug\n')
     mkdirSync(join(cwd, '.claude', 'commands'), { recursive: true })
     writeFileSync(join(cwd, '.claude', 'commands', 'ship.md'), '# Ship\nRelease checklist')
+    mkdirSync(join(home, '.claude', 'skills', 'global-debug'), { recursive: true })
+    writeFileSync(join(home, '.claude', 'skills', 'global-debug', 'SKILL.md'), '---\ndescription: Global debug failures\n---\n# Debug\n')
     mkdirSync(join(cwd, '.cursor', 'rules'), { recursive: true })
     writeFileSync(join(cwd, '.cursor', 'rules', 'frontend.mdc'), '# Frontend rules\n')
     mkdirSync(join(cwd, '.github', 'instructions'), { recursive: true })
@@ -136,14 +138,15 @@ test('local provider resources normalize file-backed rules and MCP configs', () 
     const cursor = discoverLocalProviderResources('cursor', cwd, home)
     const copilot = discoverLocalProviderResources('copilot', cwd, home)
 
-    assert.ok(claude.some((resource) => resource.kind === 'skill' && resource.name === 'debug'))
-    assert.ok(claude.some((resource) => resource.kind === 'command' && resource.name === '/ship'))
-    assert.ok(cursor.some((resource) => resource.kind === 'rule' && resource.name === '.cursor/rules/frontend'))
+    assert.ok(claude.some((resource) => resource.kind === 'skill' && resource.name === 'global-debug' && resource.scope === 'global'))
+    assert.ok(!claude.some((resource) => resource.kind === 'skill' && resource.name === 'debug'))
+    assert.ok(!claude.some((resource) => resource.kind === 'command' && resource.name === '/ship'))
+    assert.ok(!cursor.some((resource) => resource.kind === 'rule' && resource.name === '.cursor/rules/frontend'))
     assert.ok(cursor.some((resource) => resource.kind === 'mcp_server' && resource.name === 'browser'))
     assert.ok(copilot.some((resource) => resource.kind === 'mcp_server' && resource.name === 'github'))
     assert.ok(copilot.some((resource) => resource.kind === 'mcp_server' && resource.name === 'playwright'))
-    assert.ok(copilot.some((resource) => resource.kind === 'rule' && resource.name === '.github/copilot-instructions'))
-    assert.ok(copilot.some((resource) => resource.kind === 'rule' && resource.name === 'AGENTS'))
+    assert.ok(!copilot.some((resource) => resource.kind === 'rule' && resource.name === '.github/copilot-instructions'))
+    assert.ok(!copilot.some((resource) => resource.kind === 'rule' && resource.name === 'AGENTS'))
   } finally {
     rmSync(cwd, { recursive: true, force: true })
     rmSync(home, { recursive: true, force: true })

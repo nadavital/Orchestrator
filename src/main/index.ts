@@ -93,20 +93,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
           }
           await sleep(100);
-          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets') {
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets') {
             const settingsButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.trim() === 'Settings' || button.getAttribute('title') === 'Settings');
             settingsButton?.click();
             await sleep(450);
           }
-          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources') {
-            const resourcesButton = [...document.querySelectorAll('button')]
-              .find((button) => button.textContent?.includes('Resources'));
-            resourcesButton?.click();
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
+            const capabilitiesButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('Capabilities'));
+            capabilitiesButton?.click();
             await sleep(450);
             for (let index = 0; index < 20; index += 1) {
               const text = document.body.innerText;
-              if (!text.includes('Refreshing provider inventory') && !text.includes('Loading resources')) break;
+              if (!text.includes('Refreshing') && !text.includes('Loading capabilities')) break;
               await sleep(500);
             }
           }

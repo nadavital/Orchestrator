@@ -23,7 +23,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     setShowEvents,
     setShowPlan,
     setShowSettings,
-    setSettingsSection,
+    setShowCapabilities,
     setShowSideQuestions,
     setShowTerminal,
     appendSideQuestion,
@@ -312,8 +312,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       if (command.id === 'plan-sidebar') setShowPlan(session.id, !currentUi.showPlan)
       if (command.id === 'agents') setShowEvents(session.id, !currentUi.showEvents)
       if (command.id === 'skills' || command.id === 'extensions') {
-        setSettingsSection('resources')
-        setShowSettings(true)
+        setShowCapabilities(true)
       }
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)
       if (command.id === 'btw') setShowSideQuestions(session.id, true)

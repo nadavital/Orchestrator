@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
 import Titlebar from './components/Titlebar'
 import SettingsPage from './components/SettingsModal'
+import CapabilitiesPage from './components/CapabilitiesPage'
 import { applyAppearance, type Appearance } from './theme'
 
 export default function App(): JSX.Element {
@@ -14,6 +15,7 @@ export default function App(): JSX.Element {
     addSession,
     updateStatus,
     updateName,
+    updatePinned,
     updateSession,
     updateSettings,
     appendMessages,
@@ -27,8 +29,8 @@ export default function App(): JSX.Element {
     setProviderModels,
     setShowSettings,
     showSettings,
+    showCapabilities,
     settingsSection,
-    setSettingsSection,
     activeSessionId
   } = useSessionStore()
 
@@ -150,6 +152,8 @@ export default function App(): JSX.Element {
         appendRaw(event.id, event.data)
       } else if (event.type === 'renamed') {
         updateName(event.id, event.name)
+      } else if (event.type === 'pinned') {
+        updatePinned(event.id, event.pinned)
       } else if (event.type === 'updated') {
         updateSession(event.id, { workDir: event.workDir, useWorktree: event.useWorktree })
       } else if (event.type === 'settingsUpdated') {
@@ -170,9 +174,19 @@ export default function App(): JSX.Element {
         <section className="content-shell flex-1 flex flex-col min-w-0 min-h-0">
           <SettingsPage
             section={settingsSection}
-            onSectionChange={setSettingsSection}
             onClose={() => setShowSettings(false)}
           />
+        </section>
+      </div>
+    )
+  }
+
+  if (showCapabilities) {
+    return (
+      <div className="app-shell flex flex-1 overflow-hidden">
+        <Sidebar />
+        <section className="content-shell flex-1 flex flex-col min-w-0 min-h-0">
+          <CapabilitiesPage />
         </section>
       </div>
     )

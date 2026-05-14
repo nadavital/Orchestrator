@@ -17,8 +17,10 @@ export default function Sidebar(): JSX.Element {
   const {
     sessions,
     showSettings,
+    showCapabilities,
     settingsSection,
     setSettingsSection,
+    setShowCapabilities,
     setShowSettings
   } = useSessionStore()
 
@@ -62,13 +64,6 @@ export default function Sidebar(): JSX.Element {
               onClick={() => setSettingsSection('providers')}
             />
             <SidebarNavItem
-              icon="extensions"
-              label="Resources"
-              detail="MCP, apps, plugins, skills"
-              active={settingsSection === 'resources'}
-              onClick={() => setSettingsSection('resources')}
-            />
-            <SidebarNavItem
               icon="book"
               label="Pets"
               active={settingsSection === 'pets'}
@@ -78,6 +73,18 @@ export default function Sidebar(): JSX.Element {
         </>
       ) : (
         <>
+          <div className="px-2.5 pb-3">
+            <SidebarNavItem
+              icon="plug"
+              label="Capabilities"
+              active={showCapabilities}
+              onClick={() => {
+                setShowCapabilities(true)
+                setShowSettings(false)
+              }}
+            />
+          </div>
+
           <div className="flex items-center justify-between px-4 pb-1">
             <span className="text-sm" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
               Projects
@@ -102,7 +109,9 @@ export default function Sidebar(): JSX.Element {
 
           <div className="flex-1 overflow-y-auto px-2.5 py-1">
             {projects.map((project) => {
-              const projectSessions = sessions.filter((s) => s.projectId === project.id)
+              const projectSessions = sessions
+                .filter((s) => s.projectId === project.id)
+                .sort((a, b) => b.createdAt - a.createdAt)
               return (
                 <ProjectSection
                   key={project.id}
@@ -120,7 +129,13 @@ export default function Sidebar(): JSX.Element {
         className="shrink-0 px-2.5 py-2.5"
       >
         <button
-          onClick={() => setShowSettings(!showSettings)}
+          onClick={() => {
+            if (showCapabilities) {
+              setShowCapabilities(false)
+              return
+            }
+            setShowSettings(!showSettings)
+          }}
           className="flex items-center gap-3 w-full text-sm transition-colors"
           style={{
             color: 'var(--text-secondary)',
@@ -137,8 +152,8 @@ export default function Sidebar(): JSX.Element {
             e.currentTarget.style.color = 'var(--text-secondary)'
           }}
         >
-          <Icon name={showSettings ? 'chat' : 'settings'} size={17} />
-          {showSettings ? 'Back to chats' : 'Settings'}
+          <Icon name={showSettings || showCapabilities ? 'chat' : 'settings'} size={17} />
+          {showSettings || showCapabilities ? 'Back to chats' : 'Settings'}
         </button>
       </div>
     </aside>

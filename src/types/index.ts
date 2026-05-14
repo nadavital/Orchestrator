@@ -674,7 +674,7 @@ export interface ProviderResource {
   fingerprint: string
   status: 'available' | 'enabled' | 'disabled' | 'missing' | 'error' | 'unknown'
   scope: 'global' | 'project' | 'workspace' | 'session' | 'provider'
-  actions: Array<'refresh' | 'inspect' | 'open_config' | 'import' | 'migrate' | 'enable' | 'disable'>
+  actions: Array<'refresh' | 'inspect' | 'open_config' | 'import' | 'migrate' | 'enable' | 'disable' | 'edit' | 'remove'>
   raw?: unknown
 }
 
@@ -684,6 +684,51 @@ export interface ProviderResourceSnapshot {
   lastRefreshedAt: number
   resources: ProviderResource[]
   errors: Array<{ surfaceId: string; message: string }>
+}
+
+export type CapabilityCreateKind = 'skill' | 'plugin' | 'mcp_server'
+export type CapabilityCreateScope = 'project' | 'global'
+export type CapabilityMcpTransport = 'stdio' | 'http'
+
+export interface CapabilityCreateRequest {
+  kind: CapabilityCreateKind
+  scope: CapabilityCreateScope
+  workDir: string
+  name: string
+  description?: string
+  body?: string
+  transport?: CapabilityMcpTransport
+  command?: string
+  args?: string[]
+  url?: string
+}
+
+export interface CapabilityCreateResult {
+  ok: boolean
+  files: string[]
+  warnings: string[]
+  resources: ProviderResource[]
+}
+
+export interface CapabilityUpdateRequest {
+  resources: ProviderResource[]
+  name: string
+  description?: string
+  body?: string
+  transport?: CapabilityMcpTransport
+  command?: string
+  args?: string[]
+  url?: string
+}
+
+export interface CapabilityDeleteRequest {
+  resources: ProviderResource[]
+}
+
+export interface CapabilityMutationResult {
+  ok: boolean
+  files: string[]
+  warnings: string[]
 }
 
 export interface RunRequest {
@@ -786,6 +831,7 @@ export type SessionStatus =
 export interface Session {
   id: string
   name: string
+  pinned?: boolean
   projectId: string
   workDir: string
   useWorktree: boolean
