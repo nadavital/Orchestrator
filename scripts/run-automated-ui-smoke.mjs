@@ -6,7 +6,11 @@ import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const captureView = process.argv.includes('--settings') ? 'settings' : 'main'
+const captureView = process.argv.includes('--settings')
+  ? 'settings'
+  : process.argv.includes('--terminal')
+    ? 'terminal'
+    : 'main'
 const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', profile)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
@@ -63,7 +67,7 @@ child.on('exit', (code) => {
     profileBadge: result.hasProfileBadge === true,
     composer: result.hasComposer === true,
     sidebarRail: result.hasSidebarRail === true,
-    sideQuestionCommand: result.hasSideQuestionCommandText === true,
+    sideQuestionCommand: captureView === 'terminal' || result.hasSideQuestionCommandText === true,
     buttons: Number(result.buttonCount ?? 0) > 0
   }
   const failed = Object.entries(checks).filter(([, ok]) => !ok)

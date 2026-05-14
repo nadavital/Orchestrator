@@ -20,6 +20,7 @@ import {
 } from '../types'
 import { useSessionStore } from '../store/sessions'
 import ProviderIcon from './shared/ProviderIcon'
+import Icon from './shared/Icon'
 import { applyAppearance, type Accent, type Appearance, type Density, type TranscriptStyle } from '../theme'
 
 type NavSection = 'general' | 'providers' | 'pets'
@@ -133,55 +134,60 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: 'var(--app-bg)' }}>
-      {/* Titlebar */}
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: 'var(--canvas-bg)' }}>
       <div
         style={{
-          height: 38, flexShrink: 0, display: 'flex', alignItems: 'center',
-          background: 'var(--panel-bg)', borderBottom: '1px solid var(--border-subtle)',
-          userSelect: 'none', WebkitAppRegion: 'drag'
+          height: 52,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          padding: '0 14px 0 20px',
+          background: 'var(--surface-bg)',
+          borderBottom: '1px solid var(--border-subtle)',
+          userSelect: 'none',
+          WebkitAppRegion: 'drag'
         } as React.CSSProperties}
       >
-        <div style={{ width: 80, flexShrink: 0 }} />
-        <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-secondary)' }}>Settings</span>
+        <span style={{ fontSize: 15, fontWeight: 650, color: 'var(--text-primary)' }}>Settings</span>
+        <button
+          onClick={onClose}
+          title="Back to chat"
+          className="flex items-center gap-1.5 text-xs"
+          style={{
+            WebkitAppRegion: 'no-drag',
+            background: 'var(--control-bg)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: '7px 10px',
+            fontWeight: 600
+          } as React.CSSProperties}
+        >
+          <Icon name="chat" size={14} />
+          Chat
+        </button>
       </div>
 
-      {/* Body */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        {/* Sidebar nav */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', background: 'var(--canvas-bg)' }}>
         <div
           style={{
-            width: 180, flexShrink: 0, display: 'flex', flexDirection: 'column',
-            background: 'var(--panel-bg)', borderRight: '1px solid var(--border-subtle)',
-            padding: '20px 0'
+            width: 196,
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'var(--surface-bg)',
+            borderRight: '1px solid var(--border-subtle)',
+            padding: '14px 10px'
           }}
         >
           <NavItem active={activeSection === 'general'} onClick={() => setActiveSection('general')}>General</NavItem>
           <NavItem active={activeSection === 'providers'} onClick={() => setActiveSection('providers')}>Providers</NavItem>
           <NavItem active={activeSection === 'pets'} onClick={() => setActiveSection('pets')}>Pets</NavItem>
-          <div style={{ flex: 1 }} />
-          <div style={{ padding: '0 8px 8px' }}>
-            <button
-              onClick={onClose}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                width: '100%', padding: '8px 12px', borderRadius: 'var(--radius-md)',
-                background: 'transparent', border: 'none',
-                color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', textAlign: 'left'
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--control-bg)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M7.78 12.53a.75.75 0 0 1-1.06 0L2.47 8.28a.75.75 0 0 1 0-1.06l4.25-4.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L4.81 7h7.44a.75.75 0 0 1 0 1.5H4.81l2.97 2.97a.75.75 0 0 1 0 1.06Z" />
-              </svg>
-              Back
-            </button>
-          </div>
         </div>
 
-        {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
           {activeSection === 'general' && (
             <GeneralSection
               appearance={appearance}
@@ -231,9 +237,9 @@ function NavItem({ active, onClick, children }: {
     <button
       onClick={onClick}
       style={{
-        display: 'block', width: 'calc(100% - 16px)', margin: '1px 8px',
-        padding: '9px 12px', borderRadius: 'var(--radius-md)',
-        background: active ? 'var(--surface-bg)' : 'transparent',
+        display: 'block', width: '100%', margin: '1px 0',
+        padding: '8px 10px', borderRadius: 'var(--radius-md)',
+        background: active ? 'var(--control-bg-active)' : 'transparent',
         border: 'none', color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
         fontSize: 13, fontWeight: active ? 650 : 500, cursor: 'pointer', textAlign: 'left'
       }}
@@ -293,8 +299,8 @@ function GeneralSection({
   ]
 
   return (
-    <div style={{ padding: '40px 48px', maxWidth: 900 }}>
-      <h2 style={{ fontSize: 30, fontWeight: 650, color: 'var(--text-primary)', marginBottom: 8 }}>General</h2>
+    <div style={{ padding: '34px 44px 56px', maxWidth: 960, margin: '0 auto' }}>
+      <h2 style={{ fontSize: 28, fontWeight: 650, color: 'var(--text-primary)', marginBottom: 8 }}>General</h2>
       <div style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 30 }}>
         Tune Orchestrator for long coding sessions without changing how your agents work.
       </div>
@@ -507,10 +513,10 @@ function ProvidersSection({
   }
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: 980 }}>
+    <div style={{ padding: '34px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <h2 style={{ fontSize: 15, fontWeight: 650, color: 'var(--color-text)', margin: 0 }}>Providers</h2>
+          <h2 style={{ fontSize: 28, fontWeight: 650, color: 'var(--color-text)', margin: 0 }}>Providers</h2>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
             Pick a provider, choose models, and keep local CLI config separate.
           </div>

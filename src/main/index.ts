@@ -105,6 +105,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsButton?.click();
             await sleep(450);
           }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'terminal') {
+            const terminalButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Toggle terminal');
+            terminalButton?.click();
+            await sleep(700);
+          }
           return {
             profile,
             title: document.title,

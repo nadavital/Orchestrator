@@ -116,78 +116,93 @@ export default function SessionPane(): JSX.Element | null {
       {/* Terminal bottom panel */}
       {ui.showTerminal && (
         <>
-          {/* Drag handle */}
           <div
             onMouseDown={handleResizeStart}
             style={{
-              height: 6,
-              background: 'var(--border-subtle)',
+              height: 4,
+              background: 'var(--surface-bg)',
               cursor: 'ns-resize',
               flexShrink: 0,
               transition: 'background 0.1s'
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--border-subtle)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--control-bg-hover)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-bg)')}
           />
 
-          {/* Tab bar */}
           <div
             className="flex items-center shrink-0"
             style={{
-              height: 36,
-              background: 'var(--panel-bg)',
-              borderBottom: '1px solid var(--border-subtle)',
+              height: 42,
+              background: 'var(--surface-bg)',
               borderTop: '1px solid var(--border-subtle)'
             }}
           >
-            {/* Tabs */}
-            <div className="flex items-stretch flex-1 overflow-x-auto h-full">
+            <div className="flex items-center gap-1 flex-1 overflow-x-auto h-full px-3">
               {tabs.map((tabId, idx) => {
                 const active = tabId === activeTab
                 return (
                   <div
                     key={tabId}
-                    className="flex items-center shrink-0"
+                    className="flex items-center shrink-0 rounded-lg"
                     style={{
-                      borderRight: '1px solid var(--border-subtle)',
-                      background: active ? 'var(--control-bg-active)' : 'transparent'
+                      height: 30,
+                      background: active ? 'var(--control-bg)' : 'transparent'
                     }}
                   >
                     <button
                       onClick={() => setActiveTab(tabId)}
-                      className="flex items-center gap-1.5 px-3 h-full text-xs"
-                      style={{ color: active ? 'var(--color-text)' : 'var(--color-text-muted)' }}
+                      className="flex items-center gap-2 h-full text-sm"
+                      style={{
+                        padding: '0 12px',
+                        color: active ? 'var(--color-text)' : 'var(--color-text-muted)',
+                        fontWeight: active ? 500 : 400
+                      }}
                     >
-                      <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.6 }}>
-                        <path d="M0 2.75C0 1.784.784 1 1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25ZM4.28 5.22a.75.75 0 0 0-1.06 1.06L5.44 8.5 3.22 10.72a.75.75 0 1 0 1.06 1.06l2.75-2.75a.75.75 0 0 0 0-1.06Zm3.47 5.28a.75.75 0 0 1 0-1.5h3a.75.75 0 0 1 0 1.5Z" />
-                      </svg>
-                      Shell {idx + 1}
+                      <Icon name="terminal" size={15} />
+                      {tabs.length === 1 ? 'Terminal' : `Terminal ${idx + 1}`}
                     </button>
                     {tabs.length > 1 && (
                       <button
                         onClick={() => closeTab(tabId)}
-                        className="px-1.5 h-full flex items-center"
+                        className="h-full flex items-center"
                         style={{ color: 'var(--color-text-muted)' }}
                         title="Close terminal"
                         onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
                         onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
                       >
-                        <svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor">
-                          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-                        </svg>
+                        <Icon name="close" size={12} />
                       </button>
                     )}
                   </div>
                 )
               })}
+              <button
+                onClick={addTab}
+                title="New terminal"
+                className="rounded-lg flex items-center justify-center"
+                style={{
+                  width: 30,
+                  height: 30,
+                  color: 'var(--color-text-muted)'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text)'
+                  e.currentTarget.style.background = 'var(--control-bg-hover)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-muted)'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <Icon name="plus" size={16} />
+              </button>
             </div>
 
-            {/* Right-side actions */}
             <div className="flex items-center gap-0.5 px-2 shrink-0">
               <button
                 onClick={() => window.api.terminal.clear(terminalId(activeTab))}
                 title="Clear"
-                className="rounded-md px-2 py-1 text-xs"
+                className="rounded-lg px-2 py-1 text-xs"
                 style={{ color: 'var(--color-text-muted)' }}
                 onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
@@ -195,19 +210,19 @@ export default function SessionPane(): JSX.Element | null {
                 Clear
               </button>
               <button
-                onClick={addTab}
-                title="New terminal"
-                className="rounded-md px-2 py-1 text-xs"
+                onClick={() => setShowTerminal(session.id, false)}
+                title="Hide terminal"
+                className="rounded-lg flex items-center justify-center"
                 style={{ color: 'var(--color-text-muted)' }}
                 onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
               >
-                +
+                <Icon name="close" size={15} />
               </button>
             </div>
           </div>
 
-          <div style={{ height: terminalHeight, flexShrink: 0, overflow: 'hidden' }}>
+          <div style={{ height: terminalHeight, flexShrink: 0, overflow: 'hidden', background: 'var(--surface-bg)' }}>
             <TerminalView terminalId={terminalId(activeTab)} workDir={session.workDir} />
           </div>
         </>

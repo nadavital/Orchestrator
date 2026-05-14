@@ -155,8 +155,11 @@ export default function App(): JSX.Element {
 
   if (showSettings) {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden" style={{ background: 'var(--app-bg)' }}>
-        <SettingsPage onClose={() => setShowSettings(false)} />
+      <div className="app-shell flex flex-1 overflow-hidden">
+        <Sidebar />
+        <section className="content-shell flex-1 flex flex-col min-w-0 min-h-0">
+          <SettingsPage onClose={() => setShowSettings(false)} />
+        </section>
       </div>
     )
   }

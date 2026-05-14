@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -12,24 +12,23 @@ export default function TerminalView({ terminalId, workDir }: Props): JSX.Elemen
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const [plainOutput, setPlainOutput] = useState('')
-  const [commandText, setCommandText] = useState('')
 
   useEffect(() => {
     setPlainOutput('')
     const vars = getComputedStyle(document.documentElement)
-    const bg = '#0f0f0f'
-    const fg = '#e5e7eb'
-    const accent = vars.getPropertyValue('--color-accent').trim() || '#38bdf8'
+    const bg = vars.getPropertyValue('--surface-bg').trim() || '#ffffff'
+    const fg = vars.getPropertyValue('--text-primary').trim() || '#111111'
+    const accent = vars.getPropertyValue('--color-accent').trim() || '#8ab4f8'
     const term = new Terminal({
       theme: {
         background: bg,
         foreground: fg,
         cursor: accent,
-        selectionBackground: 'rgba(56,189,248,0.3)'
+        selectionBackground: vars.getPropertyValue('--accent-bg').trim() || 'rgba(10,124,255,0.16)'
       },
       fontFamily: "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace",
-      fontSize: 12,
-      lineHeight: 1.4,
+      fontSize: 13,
+      lineHeight: 1.45,
       scrollback: 5000,
       cursorBlink: true,
       convertEol: true,
@@ -85,84 +84,39 @@ export default function TerminalView({ terminalId, workDir }: Props): JSX.Elemen
     }
   }, [terminalId, workDir])
 
-  const submitCommand = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault()
-    const value = commandText.trim()
-    if (!value) return
-    void window.api.terminal.runCommand(terminalId, value)
-    setCommandText('')
-    termRef.current?.focus()
-  }
-
   return (
-    <div style={{ height: '100%', width: '100%', position: 'relative', background: '#0f0f0f', display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        height: '100%',
+        width: '100%',
+        position: 'relative',
+        background: 'var(--surface-bg)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}
+    >
       <div
         ref={containerRef}
         onClick={() => termRef.current?.focus()}
         aria-label="Terminal"
-        style={{ flex: 1, minHeight: 0, width: '100%', boxSizing: 'border-box' }}
-      />
-      <form
-        onSubmit={submitCommand}
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '7px 10px',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
-          background: 'rgba(15,15,15,0.96)'
+          flex: 1,
+          minHeight: 0,
+          width: '100%',
+          boxSizing: 'border-box',
+          padding: '8px 12px 14px'
         }}
-      >
-        <span
-          aria-hidden="true"
-          style={{
-            color: 'var(--color-text-muted)',
-            fontFamily: "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace",
-            fontSize: 12
-          }}
-        >
-          $
-        </span>
-        <input
-          value={commandText}
-          onChange={(event) => setCommandText(event.target.value)}
-          aria-label="Terminal command"
-          placeholder="Run a shell command"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            border: 'none',
-            outline: 'none',
-            background: 'transparent',
-            color: 'var(--color-text)',
-            fontFamily: "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace",
-            fontSize: 12
-          }}
-        />
-        <button
-          type="submit"
-          disabled={!commandText.trim()}
-          className="rounded px-2 py-1 text-xs font-medium"
-          style={{
-            background: commandText.trim() ? 'var(--color-accent)' : 'rgba(255,255,255,0.06)',
-            color: commandText.trim() ? '#fff' : 'var(--color-text-muted)'
-          }}
-        >
-          Run
-        </button>
-      </form>
+      />
       {!plainOutput.trim() && (
         <div
           style={{
             position: 'absolute',
-            top: 10,
+            top: 12,
             left: 12,
             fontFamily: "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace",
-            fontSize: 12,
-            color: 'var(--color-text-muted)',
+            fontSize: 13,
+            color: 'var(--text-tertiary)',
             pointerEvents: 'none'
           }}
         >
