@@ -22,6 +22,15 @@ export function eventsToMessages(events: RunEvent[]): ChatMessage[] {
         subtype: 'status',
         timestamp: Date.now()
       })
+    } else if (event.type === 'diff.updated') {
+      messages.push({
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: `Diff updated (${event.content.length.toLocaleString()} chars)`,
+        subtype: 'status',
+        timestamp: Date.now()
+      })
     } else if (event.type === 'tool.started') {
       messages.push({
         id: event.id,
@@ -60,6 +69,29 @@ export function eventsToMessages(events: RunEvent[]): ChatMessage[] {
         subtype: 'waiting_for_user',
         timestamp: Date.now(),
         userInputQuestions: event.questions
+      })
+    } else if (event.type === 'goal.updated') {
+      const usage = [
+        typeof event.goal.tokensUsed === 'number' ? `${event.goal.tokensUsed} tokens` : undefined,
+        typeof event.goal.tokenBudget === 'number' ? `${event.goal.tokenBudget} budget` : undefined,
+        typeof event.goal.timeUsedSeconds === 'number' ? `${event.goal.timeUsedSeconds}s` : undefined
+      ].filter(Boolean).join(' · ')
+      messages.push({
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: `Goal: ${event.goal.objective}${event.goal.status ? ` (${event.goal.status})` : ''}${usage ? ` · ${usage}` : ''}`,
+        subtype: 'status',
+        timestamp: Date.now()
+      })
+    } else if (event.type === 'goal.cleared') {
+      messages.push({
+        id: uuidv4(),
+        role: 'system',
+        type: 'result',
+        content: 'Goal cleared',
+        subtype: 'status',
+        timestamp: Date.now()
       })
     } else if (event.type === 'run.completed') {
       messages.push({

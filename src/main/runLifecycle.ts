@@ -11,7 +11,7 @@ export interface RunLifecycleDecision {
   providerSessionId?: string
   claudeSessionId?: string
   status?: SessionStatus
-  shouldKillPty: boolean
+  shouldInterruptProcess: boolean
   systemMessages: ChatMessage[]
 }
 
@@ -55,7 +55,7 @@ export function decideRunLifecycle(
   events: RunEvent[]
 ): RunLifecycleDecision {
   const decision: RunLifecycleDecision = {
-    shouldKillPty: false,
+    shouldInterruptProcess: false,
     systemMessages: []
   }
 
@@ -71,7 +71,7 @@ export function decideRunLifecycle(
     event.attempt >= 2
   )
   if (session?.provider === 'cursor' && repeatedReconnect) {
-    decision.shouldKillPty = true
+    decision.shouldInterruptProcess = true
     decision.status = 'provider_error'
     decision.systemMessages.push({
       id: `provider-reconnect-${Date.now()}`,
@@ -91,7 +91,7 @@ export function decideRunLifecycle(
 
   if (events.some((event) => event.type === 'user_input.requested')) {
     decision.status = 'waiting_for_user'
-    decision.shouldKillPty = session?.runtime !== 'interactive'
+    decision.shouldInterruptProcess = session?.runtime !== 'interactive'
     return decision
   }
 
@@ -103,14 +103,14 @@ export function decideRunLifecycle(
   const failed = [...events].reverse().find((event) => event.type === 'run.failed')
   if (failed?.type === 'run.failed') {
     if (session?.status === 'waiting_for_user') return decision
-    decision.shouldKillPty = true
+    decision.shouldInterruptProcess = true
     decision.status = classifyFailure(failed.content)
     return decision
   }
 
   const completed = [...events].reverse().find((event) => event.type === 'run.completed')
   if (completed?.type === 'run.completed') {
-    decision.shouldKillPty = true
+    decision.shouldInterruptProcess = true
     decision.status = 'idle'
   }
 

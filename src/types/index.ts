@@ -718,6 +718,7 @@ export type RunEvent =
   | { type: 'assistant.status'; content: string }
   | { type: 'assistant.text.delta'; streamId: string; content: string }
   | { type: 'assistant.text.completed'; streamId: string }
+  | { type: 'diff.updated'; content: string }
   | { type: 'tool.started'; id: string; toolName: string; toolInput: Record<string, unknown> }
   | { type: 'tool.completed'; id: string; toolUseId: string; content: string; isError: boolean }
   | { type: 'agent.started'; agent: AgentNode }
@@ -727,6 +728,8 @@ export type RunEvent =
   | { type: 'agent.text.delta'; agentId: string; streamId: string; content: string }
   | { type: 'agent.text.completed'; agentId: string; streamId: string }
   | { type: 'plan.updated'; plan: PlanState }
+  | { type: 'goal.updated'; goal: { providerId: string; sessionId: string; objective: string; status?: string; tokenBudget?: number | null; tokensUsed?: number; timeUsedSeconds?: number } }
+  | { type: 'goal.cleared'; providerId: string; sessionId: string }
   | { type: 'permission.requested'; denials: PermissionDenial[]; content?: string }
   | { type: 'user_input.requested'; content: string; questions?: UserInputQuestion[] }
   | { type: 'connection.reconnecting'; attempt?: number; content?: string }
@@ -846,6 +849,7 @@ export interface UserInputOption {
 }
 
 export interface UserInputQuestion {
+  id?: string
   question: string
   header?: string
   options?: UserInputOption[]

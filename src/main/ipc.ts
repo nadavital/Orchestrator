@@ -144,7 +144,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('fs:openPath', (_, filePath: string): Promise<string> => shell.openPath(filePath))
   ipcMain.handle('fs:showInFolder', (_, filePath: string): void => shell.showItemInFolder(filePath))
 
-  // User shell terminal (separate from provider PTYs)
+  // User shell terminal (separate from provider subprocesses)
   ipcMain.handle('terminal:spawn', (_, sessionId: string, workDir: string) =>
     terminalManager.spawn(sessionId, workDir)
   )

@@ -1,8 +1,8 @@
 import { spawn as ptySpawn } from 'node-pty'
 import type { IPty } from 'node-pty'
-import type { RunEvent, RunRequest, Session, ProviderRuntimeKind } from '../types'
+import type { RunEvent, RunRequest, Session } from '../types'
 import { approvalBroker } from './approvalBroker'
-import { claudeProjectDir, createJsonlTailer, type JsonlTailer } from './jsonlTailer'
+import { CodexAppServerRuntimeManager } from './codexAppServerRuntime'
 import {
   buildProviderCommandForRuntime,
   providerSpawnEnv,
@@ -65,16 +65,20 @@ function defaultSpawn(
 
 export class ProviderRuntimeManager {
   private readonly activeProcesses = new Map<string, ProviderRuntimeProcess>()
-  private readonly activeJsonlTailers = new Map<string, JsonlTailer>()
   private readonly activeRunCleanups = new Map<string, () => void>()
+  private readonly appServerRuntime = new CodexAppServerRuntimeManager()
 
   constructor(private readonly spawnProcess: ProviderRuntimeSpawn = defaultSpawn) {}
 
   hasActiveRun(sessionId: string): boolean {
-    return this.activeProcesses.has(sessionId)
+    return this.activeProcesses.has(sessionId) || this.appServerRuntime.has(sessionId)
   }
 
   write(sessionId: string, data: string): void {
+    if (this.appServerRuntime.has(sessionId)) {
+      this.appServerRuntime.write(sessionId, data)
+      return
+    }
     this.activeProcesses.get(sessionId)?.write(data)
   }
 
@@ -102,12 +106,30 @@ export class ProviderRuntimeManager {
   }
 
   startRun(options: StartProviderRunOptions): ProviderRunStartResult {
+    if (options.provider.id === 'codex' && options.request.runtime === 'app-server') {
+      const result = this.appServerRuntime.start({
+        sessionId: options.sessionId,
+        session: options.session,
+        provider: options.provider,
+        request: options.request,
+        mode: options.mode ?? 'start',
+        onRawData: options.onRawData,
+        onParsedEvents: options.onParsedEvents,
+        onExit: options.onExit
+      })
+      if (result.ok) return { ok: true }
+      return {
+        ok: false,
+        error: result.message?.includes('not available') ? 'missing-binary' : 'spawn-failed',
+        message: result.message
+      }
+    }
+
     const command = resolveProviderCommand(
       options.provider,
       buildProviderCommandForRuntime(options.provider, options.request, options.mode ?? 'start')
     )
     if (!command) {
-      this.stopJsonlTailer(options.sessionId)
       this.cleanupBridge(options.sessionId)
       return {
         ok: false,
@@ -115,14 +137,6 @@ export class ProviderRuntimeManager {
         message: `${options.provider.id} CLI is not available. Check provider settings or install ${options.provider.binary}.`
       }
     }
-
-    this.startJsonlTailerIfSupported(
-      options.sessionId,
-      options.session,
-      options.provider,
-      options.request.runtime ?? 'headless',
-      options.onParsedEvents
-    )
 
     let process: ProviderRuntimeProcess
     try {
@@ -134,7 +148,6 @@ export class ProviderRuntimeManager {
         rows: 50
       })
     } catch (error) {
-      this.stopJsonlTailer(options.sessionId)
       this.cleanupBridge(options.sessionId)
       return {
         ok: false,
@@ -160,7 +173,6 @@ export class ProviderRuntimeManager {
     process.onExit(() => {
       if (this.activeProcesses.get(options.sessionId) !== process) return
       this.activeProcesses.delete(options.sessionId)
-      this.flushAndStopJsonlTailer(options.sessionId)
       this.cleanupBridge(options.sessionId)
       options.onExit()
     })
@@ -169,6 +181,10 @@ export class ProviderRuntimeManager {
   }
 
   stop(sessionId: string): boolean {
+    if (this.appServerRuntime.stop(sessionId)) {
+      this.cleanupSession(sessionId)
+      return true
+    }
     const process = this.activeProcesses.get(sessionId)
     if (!process) return false
     this.activeProcesses.delete(sessionId)
@@ -178,25 +194,19 @@ export class ProviderRuntimeManager {
   }
 
   interrupt(sessionId: string): boolean {
+    if (this.appServerRuntime.has(sessionId)) return this.appServerRuntime.interrupt(sessionId)
     const process = this.activeProcesses.get(sessionId)
     if (!process) return false
     requestProcessStop(process)
     return true
   }
 
-  stopJsonlTailer(sessionId: string): void {
-    const tailer = this.activeJsonlTailers.get(sessionId)
-    if (!tailer) return
-    tailer.stop()
-    this.activeJsonlTailers.delete(sessionId)
+  resolvePermission(sessionId: string, allow: boolean, persistGrant: boolean): boolean {
+    return this.appServerRuntime.resolvePermission(sessionId, allow, persistGrant)
   }
 
-  flushAndStopJsonlTailer(sessionId: string): void {
-    const tailer = this.activeJsonlTailers.get(sessionId)
-    if (!tailer) return
-    tailer.poll()
-    tailer.stop()
-    this.activeJsonlTailers.delete(sessionId)
+  answerUserInput(sessionId: string, answer: string): boolean {
+    return this.appServerRuntime.answerUserInput(sessionId, answer)
   }
 
   cleanupBridge(sessionId: string): void {
@@ -206,27 +216,7 @@ export class ProviderRuntimeManager {
   }
 
   cleanupSession(sessionId: string): void {
-    this.stopJsonlTailer(sessionId)
     this.cleanupBridge(sessionId)
-  }
-
-  private startJsonlTailerIfSupported(
-    sessionId: string,
-    session: Session,
-    provider: ProviderAdapter,
-    runtime: ProviderRuntimeKind,
-    onParsedEvents: (events: RunEvent[]) => void
-  ): void {
-    if (provider.id !== 'claude' || runtime !== 'interactive') return
-    this.stopJsonlTailer(sessionId)
-
-    const dir = claudeProjectDir(session.workDir)
-    const tailer = createJsonlTailer(dir, (line) => {
-      onParsedEvents(provider.parseOutputLine(line))
-    })
-    tailer.start()
-
-    this.activeJsonlTailers.set(sessionId, tailer)
   }
 }
 

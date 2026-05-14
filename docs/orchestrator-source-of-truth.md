@@ -15,7 +15,7 @@ The goal is a first-class desktop GUI for local coding agents, with Claude Code 
 - Do not add a user-visible runtime picker for normal chat. Users choose the provider and task; Orchestrator chooses the right runtime path.
 - Provider-specific behavior must translate at the provider edge into Orchestrator concepts. Shared UI should not become Claude-shaped, Codex-shaped, or Copilot-shaped.
 - Every new live provider transcript shape that we rely on should be saved as a fixture before being called supported.
-- Mutating provider-state commands, destructive commands, account/login/logout flows, and quota-spending diagnostics must be gated by confirmation or routed to the native terminal overlay.
+- Mutating provider-state commands, destructive commands, account/login/logout flows, and quota-spending diagnostics must be gated by confirmation or routed to explicit settings/user-terminal handoff.
 
 ## Status Vocabulary
 
@@ -35,7 +35,7 @@ The goal is a first-class desktop GUI for local coding agents, with Claude Code 
 | Decision | Current answer |
 | --- | --- |
 | Primary Claude path | Structured Claude CLI print mode: `claude -p --output-format stream-json --verbose --include-partial-messages`, with Sonnet by default and per-run hook settings for approvals. |
-| Native Claude terminal | Deprecated as a chat runtime. Keep the PTY bridge only for explicit terminal handoff/provider-management flows and rare TUI-only prompts that structured mode cannot expose. |
+| Native Claude terminal | Removed from the normal chat runtime. Use structured Claude JSON for chat; provider-management actions should use Orchestrator-native settings or the separate user terminal, not the old Claude-native chat parser. |
 | Runtime choice | Hidden from normal users. Advanced diagnostics may show runtime health, but chat should not ask users to choose JSON vs CLI. |
 | Provider abstractions | Use Orchestrator-native `session`, `assistant.text`, `tool`, `permission`, `user_input`, `plan`, `agent`, `diff`, `command`, `workspace`, `attachment`, and `usage` concepts. |
 | Claude slash commands | App-owned slash commands run in Orchestrator. Prompt-like project/global commands and skills should be discovered and expanded where possible. True provider TUI commands route to terminal overlay. |
@@ -77,7 +77,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 
 | Abstraction | Purpose | Provider examples |
 | --- | --- | --- |
-| `ProviderRuntime` | Starts, streams, resumes, stops, and cleans up a provider run. | Claude structured CLI, Claude PTY overlay, Codex exec, future Copilot SDK/ACP. |
+| `ProviderRuntime` | Starts, streams, resumes, stops, and cleans up a provider run. | Claude structured CLI, Codex exec automation, Codex app-server, future Copilot SDK/ACP. |
 | `Session` | Durable chat/task state, provider session id, cwd, model, effort, permission policy, queued input. | Claude `session_id`, Codex resume id, Cursor chat id. |
 | `Message` | User/assistant transcript text and compact cards. | Assistant deltas/finals, user prompts, queued steering. |
 | `ToolActivity` | Normalized tool start/progress/completion/failure. | Claude `tool_use`, Codex tool call, Copilot tool events. |
@@ -99,10 +99,10 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | --- | --- | --- | --- | --- |
 | Claude structured session | Default Claude chat streams from structured CLI with hook bridge. | `Implemented` | `src/main/sessions.ts`, `src/main/providers.ts`, provider tests, live structured smoke. | Verify multi-turn behavior and make status here match code after each runtime change. |
 | Claude bidirectional input | Send queued/steer/user-question replies into the same provider process where possible. | `Research` | P1-002 through P1-007 pass with current structured resume/interrupt path; Claude supports `--input-format stream-json`, but P1 does not require replacing one-prompt-per-process. | Revisit only if P3 user-question/plan flows require same-process stdin semantics. |
-| Claude PTY overlay | Terminal handoff only for provider-management flows and rare TUI-only prompts; not a normal chat runtime. | `Implemented` | Native prompt bridge and 2026-05-13 dev UI smoke proved the lane works, then product direction changed to structured-first. | Remove user-facing runtime selection; keep PTY code behind explicit handoff surfaces. |
-| Claude selectable native chat runtime | Users choose Native Terminal for normal Claude chats. | `Won't Do` | Structured JSON supports core Claude Code tools/subagents/MCP/slash prompt flows with cleaner events; native warm follow-up was fragile in UI smoke. | Preserve only internal/diagnostic support for terminal handoffs. |
-| Provider runtime abstraction | One interface for start/send/resolve/stop across structured, PTY, SDK, app-server. | `Partial` | `src/main/providerRuntime.ts` owns PTY process start/stdout parsing/cleanup, JSONL tailing, Claude hook prep, stop, and interrupt-for-steer for current CLI lanes. | Extend the runtime contract for future SDK/app-server lanes. |
-| Resume/continue | Continue provider sessions with preserved provider session ids and user-visible continuity. | `Partial` | Claude resume command construction, fixtures, and 2026-05-13 dev UI smoke: a native interactive session follow-up resumed through the structured lane and returned `INTERACTIVE_UI_CLEAN_SECOND_OK`. | Live test permission continuation and user-question answer. |
+| Claude PTY overlay | Old Claude-native chat parser and prompt bridge. | `Won't Do` | Structured JSON supports the needed Claude chat surfaces with cleaner events. | Removed the Claude-native parser/prompt bridge; use structured JSON for chat and the separate user terminal for manual provider management. |
+| Claude selectable native chat runtime | Users choose Native Terminal for normal Claude chats. | `Won't Do` | Structured JSON supports core Claude Code tools/subagents/MCP/slash prompt flows with cleaner events; native warm follow-up was fragile in UI smoke. | No chat-runtime support remains; use Orchestrator settings or the separate user terminal for provider management. |
+| Provider runtime abstraction | One interface for start/send/resolve/stop across structured CLI, exec automation, SDK, and app-server transports. | `Partial` | `src/main/providerRuntime.ts` owns current subprocess lifecycle, Claude hook prep, Codex app-server dispatch, stop, and interrupt-for-steer. | Keep broadening only as Cursor/Copilot structured runtimes are added. |
+| Resume/continue | Continue provider sessions with preserved provider session ids and user-visible continuity. | `Partial` | Claude resume command construction, fixtures, and installed-app continuity smoke. | Live test permission continuation and user-question answer. |
 | Stop | Stop consistently interrupts current run and leaves composer usable. | `Complete` | Installed-app smokes cover assistant text, tool execution, and permission pause; tests cover interrupted message settlement and stop availability. | Keep covered when approval or provider runtime changes. |
 | Queue next message | Users can type while a run is active; message sends immediately after the current run completes. | `Complete` | Installed-app P1-006 queued follow-up ran to `P1_QUEUE_FOLLOWUP_OK`; composer state and queued card were visible. | Add lower-level state-machine coverage if queue logic broadens beyond one pending follow-up. |
 | Steer after current tool | Queued message has a `Steer` action that injects at the next sensible boundary. | `Complete` | Installed-app P1-007 retry interrupted the active text stream and ran the follow-up to `P1_STEER_RETRY_OK`; provider runtime and lifecycle tests cover the intentional interrupt path. | Re-test with an active tool boundary during P2 Bash smokes. |
@@ -112,7 +112,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
-| Streaming assistant text | Text appears as soon as provider emits it, with no artificial throttling unless needed for paint stability. | `Implemented` | Partial-message parser and terminal fallback parser. | Add regression test for no duplicate final text and visible streaming in dev app. |
+| Streaming assistant text | Text appears as soon as provider emits it, with no artificial throttling unless needed for paint stability. | `Implemented` | Structured partial-message parser. | Add regression test for no duplicate final text and visible streaming in dev app. |
 | No horizontal app scroll | Main pane, markdown, code blocks, tables, cards, and sidebar content never force page-level horizontal scroll. | `Partial` | Several fixes landed; user still found table/sidebar cases earlier. | Add Playwright/Computer Use visual checks for code blocks, tables, long paths, agent cards, and tool cards. |
 | Code block behavior | Long code scrolls inside the block, not the whole app. | `Implemented` | Renderer CSS changes from prior pass. | Add snapshot/screenshot fixture with long code. |
 | Markdown tables | Table cell text wraps responsively instead of forcing horizontal scroll. | `Implemented` | Prior CSS changes. | Add screenshot fixture at narrow and wide widths. |
@@ -192,7 +192,7 @@ The product target is first-class Orchestrator UI on top of Claude structured JS
 | `--agents <json>` custom agents | Future agent editor/importer with validation. | `Planned` | Design only after built-in configured agents stay stable. |
 | Project/global slash commands | Discover prompt-like commands and expand/send through structured runs. | `Complete` | Add cache invalidation only if repeated scans are visible. |
 | Claude skills as slash commands | Skills panel plus slash palette entries for project/global skills. | `Complete` | Add variable semantics beyond `$ARGUMENTS` after confirming Claude behavior. |
-| Built-in interactive slash commands | Orchestrator-native surfaces where safe; explicit terminal handoff for real TUI commands. | `Implemented` | `/btw` probe with `claude -p --output-format json --max-budget-usd 0.02 "/btw ..."` returned `/btw isn't available in this environment.` with zero turns/cost, confirming it is not a structured `-p` surface. Orchestrator now owns `/btw` side questions instead of depending on provider TUI state. |
+| Built-in interactive slash commands | Orchestrator-native surfaces where safe; manual provider-management stays out of normal chat. | `Implemented` | `/btw` probe with `claude -p --output-format json --max-budget-usd 0.02 "/btw ..."` returned `/btw isn't available in this environment.` with zero turns/cost, confirming it is not a structured `-p` surface. Orchestrator now owns `/btw` side questions instead of depending on provider TUI state. |
 | MCP list/get | Settings inventory and details without raw JSON spam. | `Complete` | Keep failed-local-server states readable. |
 | MCP add/remove/reset/config mutations | Gated provider-management handoff. | `Gated` | Confirmation/terminal handoff only; never silently mutate provider config. |
 | Plugin list | Settings inventory without raw JSON spam. | `Complete` | Recheck when local Claude plugins exist. |
@@ -213,7 +213,7 @@ The product target is first-class Orchestrator UI on top of Claude structured JS
 | Claude login/logout | Explicit terminal handoff or confirmation; never silent. | `Gated` | CLI help verified. | Design confirmation/terminal flow. |
 | Claude MCP list/get | Settings renders servers/tools compactly. | `Complete` | Installed-app P5 smoke rendered compact `git` and `wiki-server` failed-to-connect rows, and `MCP details` expanded structured scope/status/type/command/args without raw JSON spam. | Keep local failure states readable and non-blocking. |
 | Claude MCP add/remove/reset | Confirmation or terminal handoff only. | `Gated` | CLI help verified. | Add gated command flow in settings. |
-| Native `.mcp.json` prompt | Compact Answer Required card. | `Implemented` | Native prompt tests/live suite. | Manual UI smoke for enable/reject. |
+| Claude `.mcp.json` prompt | Provider-management prompt outside normal chat. | `Won't Do` | Removed with the Claude-native parser/prompt bridge. | If needed later, implement as an explicit Settings or terminal-handoff flow. |
 | Claude plugin list | Settings renders plugins compactly. | `Complete` | Installed-app P5 smoke rendered plugin list as compact `None` output. | Recheck if local Claude plugins are later configured. |
 | Claude plugin mutations | Explicit confirmation or terminal handoff. | `Gated` | CLI help verified. | Add gated flow or mark terminal-only. |
 | Claude agents list | Settings shows configured agents compactly. | `Complete` | Installed-app P5 smoke showed `4 active agents`: `Explore · haiku`, `general-purpose · inherit`, `Plan · inherit`, `statusline-setup · sonnet`; P4-006 reused the same native list in the composer. | Keep parser tolerant of CLI heading/count formatting. |
@@ -236,8 +236,8 @@ The product target is first-class Orchestrator UI on top of Claude structured JS
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
 | Codex exec automation | Deterministic structured lane for smoke/automation. | `Partial` | Live `codex exec --json` on 2026-05-13 emitted `item.completed` / `agent_message`; `exec-item-agent-message.jsonl` now covers that shape. | Keep exec as automation; do not fake interactive approvals through exec. |
-| Codex interactive approvals | Real approval UX via PTY/app-server/other protocol. | `Partial` | Interactive CLI trust prompt verified; generated app-server v2 schema exposes command/file approvals, `acceptForSession`, and `approvalsReviewer: auto_review`; app-server fixture maps approval requests. | Wire PTY or app-server runtime before claiming live in-app approval handling. |
-| Codex MCP elicitation | Map to `user_input.requested`. | `Partial` | `app-server-approval-question.jsonl` covers `mcpServer/elicitation/request` and normalizes it to user input. | Verify with a live app-server/PTY transcript before marking complete. |
+| Codex app-server approvals | Real approval UX via Codex app-server protocol. | `Implemented` | `src/main/codexAppServerRuntime.ts` starts stdio app-server, opens/resumes threads, starts turns, and answers command/file/permission approval requests; `npm run live:codex-appserver` passed against Codex 0.128.0. | Live-smoke an approval-producing Codex run from the installed UI before promoting auto-review as a default. |
+| Codex MCP elicitation | Map to `user_input.requested` and answer through app-server. | `Implemented` | `app-server-approval-question.jsonl` covers `mcpServer/elicitation/request`; `CodexAppServerRuntimeManager` responds to elicitation requests. | Capture a real MCP elicitation transcript when a local MCP server asks for form input. |
 | Cursor print mode | Structured stream lane. | `Partial` | Adapter/tests; keychain caveats. | Add partial-output parsing and keychain-aware diagnostics. |
 | Cursor plan/ask/worktree/MCP/rules | Shared plan/workspace/extension surfaces. | `Research` | Help verified. | Implement after Claude/Codex core. |
 | Copilot prompt/interactive/SDK | Map rich SDK/CLI events to Orchestrator abstractions. | `Research` | Package/CLI research. | Defer until Claude is complete; keep diagnostics honest. |
@@ -267,7 +267,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-003 | Claude command and skill discovery exists for project and global scopes. | `Complete` | `src/main/claudeExtensions.ts`; slash command tests; live project command/skill discovery smoke on `/private/tmp/orchestrator-agent-ui-smoke`. |
 | V-004 | Compact settings surfaces exist for Claude MCP, plugins, agents, auth, and auto-mode defaults. | `Implemented` | `src/renderer/src/components/SettingsModal.tsx`; provider tests; needs installed-app settings smoke. |
 | V-005 | Permission cards support allow once, allow session, and deny without confusing user questions. | `Implemented` | `src/main/approvalBroker.ts`; `src/main/sessions.ts`; live Write allow-once, deny, and allow-session smoke in installed app. |
-| V-006 | Plan approval reaches Claude native plan flow instead of prompting for `~/.claude/plans/*.md`. | `Implemented` | Live installed-app smoke: native plan artifact write auto-allowed, `Plan Ready` card shown, real workspace file write still prompted. |
+| V-006 | Plan approval reaches Claude plan flow instead of prompting for `~/.claude/plans/*.md`. | `Implemented` | Live installed-app smoke: Claude plan artifact write auto-allowed, `Plan Ready` card shown, real workspace file write still prompted. |
 | V-007 | Completed subagents appear in the Agents sidebar with cleaned transcript text. | `Implemented` | Live installed-app smoke on Task subagent; raw `agentId`/`<usage>` trailer removed by `src/types/activityView.ts`. |
 | V-008 | Project skills render directory-backed Claude skills in the Skills panel. | `Implemented` | Live installed-app smoke showed `.claude/skills/tiny-skill/SKILL.md` as `Project skills 1 file`. |
 | V-009 | Latest source/test checkpoint committed. | `Complete` | Commit `97d30c39` (`Polish Claude agent UI flows`); working tree clean afterward. |
@@ -277,8 +277,8 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-013 | P7 fixture refresh and failure classification verified. | `Complete` | Added `hook-approval.jsonl`, `plan-approval-live.jsonl`, `project-command.jsonl`, `project-skill.jsonl`, `sidechain-real.jsonl`, `mcp-web-approval.jsonl`, and `failure-categories.jsonl`; `npm run test:providers` passed. |
 | V-014 | P4 selected Claude agent launch verified in installed app. | `Complete` | Composer listed configured Claude agents, selecting `Explore` changed the run label to `Claude · Explore · Sonnet 4.6 · High`, and the installed-app run returned `P4_SELECTED_AGENT_OK`. |
 | V-015 | Isolated UI verification profile exists. | `Complete` | `src/main/appProfile.ts` selects `ORCHESTRATOR_PROFILE` / `ORCHESTRATOR_USER_DATA_DIR` before stores open; `npm run smoke:app` launches a separate dev Electron profile with a visible titlebar badge, clean user data, and pet overlay disabled by default. Packaged smoke copies `dist/mac-arm64/Orchestrator.app` to a temp renamed bundle. |
-| V-016 | Claude native interactive first-turn UI smoke works for clean assistant text and file creation, with follow-up continuation routed through structured resume. | `Complete` | Dev Electron profile `interactivecua5` on 2026-05-13: native first turn returned `INTERACTIVE_UI_CLEAN_FIRST_OK`; follow-up returned `INTERACTIVE_UI_CLEAN_SECOND_OK`; new native first-turn Write created `/private/tmp/orchestrator-interactive-ui-smoke/interactive-native-smoke.txt` with `INTERACTIVE_NATIVE_FILE_OK` and rendered `Wrote 1 file` plus `INTERACTIVE_UI_FILE_DONE`. |
-| V-017 | Selectable Claude native chat runtime deprecated. | `Complete` | Composer no longer exposes a Structured/Native runtime picker; stale Claude chat sessions normalize back to structured/headless before sending. Native PTY remains only for terminal handoff internals. |
+| V-016 | Claude native chat runtime retired. | `Complete` | Composer no longer exposes a Structured/Native runtime picker; stale Claude chat sessions normalize back to structured/headless before sending; Claude-native terminal parser/prompt code and runtime-parity script were removed. |
+| V-017 | Codex app-server chosen as the rich Codex runtime target. | `Complete` | Local Codex 0.128.0 app-server help and generated v2 schema expose structured approvals, questions, diffs, plans, agents, plugins, skills, MCP, account, model, filesystem, hooks, and terminal APIs. |
 | V-018 | Brief/status events, usage metadata, attachments, `/btw` side questions, and automated detached UI smoke landed. | `Complete` | `brief-usage.jsonl`; `npx tsc -p tsconfig.node.json --noEmit`; `npx tsc -p tsconfig.web.json --noEmit`; `npm run test:providers`; `npm run smoke:ui:auto`; live Claude 2.1.140 `--brief` probes showed usage/cost fields but no `SendUserMessage` tool. |
 
 ### P0: Re-establish Installed-App Verification
@@ -332,7 +332,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | P3-006 | Plan approve. | `Complete` | Installed-app smoke showed plan artifact auto-allow, native `Plan Ready`, `Plan approved`, real Write permission, `Allowed once`, file content `P3_PLAN_APPROVE_OK`, and final `P3_PLAN_APPROVE_DONE`. | Fixture capture remains P7-002, not a P3 blocker. |
 | P3-007 | Plan keep-planning. | `Complete` | Installed-app smoke clicked `Keep Planning`, showed `Kept planning`, answered follow-up with `Keep planning`, and verified `p3-plan-keep-planning.txt` remained missing. | No workspace edit occurred. |
 | P3-008 | Permission scope details. | `Complete` | Installed-app Write permission card showed full path scope; parser tests cover Write/Edit/Bash/ExitPlanMode/WebFetch/MCP and long-path truncation. | Add screenshots later if permission-card CSS changes. |
-| P3-009 | Permission mode picker. | `Complete` | Installed-app smoke previously verified Claude native modes; follow-up CUA verified Settings default Auto, primary composer choices Auto/Plan/Ask first, and advanced disclosure for Auto-edit/Preapproved only/raw tool fields/Bypass unsafe. | Existing sessions can retain their saved mode. |
+| P3-009 | Permission mode picker. | `Complete` | Installed-app smoke previously verified Claude permission modes; follow-up CUA verified Settings default Auto, primary composer choices Auto/Plan/Ask first, and advanced disclosure for Auto-edit/Preapproved only/raw tool fields/Bypass unsafe. | Existing sessions can retain their saved mode. |
 
 ### P4: Agents And Subagents
 
@@ -389,7 +389,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | ID | Task | Status | Verification Required | Notes |
 | --- | --- | --- | --- | --- |
 | P8-001 | Shared runtime event contract cleanup. | `Planned` | Common types cover session/message/tool/permission/user_input/plan/agent/diff/usage across providers. | Do not start broad refactor until Claude UX is stable. |
-| P8-002 | Codex interactive/app-server approval spike. | `Partial` | `codex --help`, `codex exec --help`, `features list`, app-server generated schema, live exec JSON, and parser fixtures verified. | Runtime wiring remains: choose PTY bridge or app-server transport for live in-app approval handling. |
+| P8-002 | Codex app-server approval runtime. | `Complete` | `codex --help`, `codex app-server --help`, generated schema, parser fixtures, fake transport test, and `npm run live:codex-appserver` verified. | Follow-up only for richer settings surfaces: app/plugin/skill/model/account browsers. |
 | P8-003 | Cursor diagnostics and partial-output fixture. | `Research` | Keychain/auth/partial-output cases are captured and classified. | Defer until Claude completion gates pass. |
 | P8-004 | Copilot CLI/SDK fixture capture. | `Research` | No-quota fixture or SDK event capture maps user input/permission/subagent events. | Defer until Claude completion gates pass. |
 
@@ -440,7 +440,7 @@ Current Claude fixture files that back the implemented rows:
 - [x] Claude skill fixture.
 - [x] Claude rate limit/quota/auth error.
 - [x] Claude SendUserMessage/brief usage fixture.
-- [x] Codex interactive approval or app-server fixture.
+- [x] Codex app-server approval fixture.
 - [x] Codex MCP elicitation fixture.
 - [ ] Cursor partial-output fixture.
 - [ ] Copilot user-input/permission/subagent fixture.
@@ -618,22 +618,22 @@ When implementing against this plan:
 ### 2026-05-11
 
 - Created this canonical source-of-truth file.
-- Current code default for Claude sessions is structured/headless CLI mode with hook approval bridge. Native interactive PTY remains an escape hatch.
+- Current code default for Claude sessions is structured/headless CLI mode with hook approval bridge. The old Claude-native chat parser/prompt bridge has been removed from the app runtime.
 - Older docs now point here for active status. Some historical notes still describe native CLI experiments, but their active runtime-decision sections have been aligned to the structured Claude default.
 - Removed superseded plan/checklist docs from the remote-bound tree so this file remains the only active product specification.
 
 ### 2026-05-12
 
-- Added `ProviderRuntimeManager` as the process lifecycle owner for current CLI lanes, including Claude hook prep, PTY stdout parsing, JSONL tailer cleanup, stop, and interrupt-for-steer behavior.
+- Added `ProviderRuntimeManager` as the process lifecycle owner for current CLI lanes, including Claude hook prep, stdout parsing, stop, and interrupt-for-steer behavior.
 - Added project/global Claude command and skill discovery with frontmatter descriptions, source-scoped slash palette grouping, and `$ARGUMENTS` expansion.
 - Settings Native surfaces now include compact MCP list/details, plugin JSON list, and agents list rendering while mutating/quota commands remain terminal/confirmation handoffs.
-- Fixed live Claude capability capture to parse structured `-p stream-json` PTY stdout and use the structured runtime for normal Claude capability scenarios.
-- Last verified: `CLAUDE_CAPABILITY_STRICT_EMPTY_MCP=1 npm run live:claude-capabilities` passed with Sonnet (`claude-sonnet-4-6`, low effort), covering plain answer, file ops, plan mode, streaming, slash help, auth status, MCP list, plugin JSON list, auto-mode defaults, and agents list.
+- Fixed live Claude capability capture to parse structured `-p stream-json` stdout and use the structured runtime for normal Claude capability scenarios.
+- Last verified: `CLAUDE_CAPABILITY_STRICT_EMPTY_MCP=1 npm run live:claude-capabilities` passed with Sonnet (`claude-sonnet-4-6`, low effort), covering plain answer, file ops, plan mode, streaming, auth status, MCP list, plugin JSON list, auto-mode defaults, and agents list.
 - Last verified: `LIVE_PROVIDERS=claude npm run live:providers` passed with Sonnet (`claude-sonnet-4-6`, low effort), capturing `session.started`, assistant streaming, and `run.completed`.
 - `npm run pack:mac` rebuilt `dist/mac-arm64/Orchestrator.app`; packaged resources include the bundled pets, and the packaged app launch was confirmed by process list. It was not copied over `/Applications/Orchestrator.app`.
 - Verified `npm run test:providers`, `npx tsc -p tsconfig.web.json --noEmit`, `npm run test:smoke-config`, `npm run smoke:providers`, `npm run build`, `npm run pack:mac`, and `git diff --check`.
 - Checkpoint commit `97d30c39` (`Polish Claude agent UI flows`) landed the live-tested permission, plan, subagent, skills, settings, slash, and terminal polish pass.
-- Live installed-app GUI smoke before the final label-only polish verified Write allow once, Write allow session, Write deny, AskUserQuestion choices, slash palette grouping, Diff for a real smoke git repo, project command discovery, project skill directory rendering, completed subagent sidebar transcript, and plan approval flow through Claude native `Plan Ready`.
+- Live installed-app GUI smoke before the final label-only polish verified Write allow once, Write allow session, Write deny, AskUserQuestion choices, slash palette grouping, Diff for a real smoke git repo, project command discovery, project skill directory rendering, completed subagent sidebar transcript, and plan approval flow through Claude structured `Plan Ready`.
 - The final installed-app Computer Use attach timeout no longer reproduces after restart/reinstall. `get_app_state` returned the `/Applications/Orchestrator.app/.../out/renderer/index.html` accessibility tree in 0.5-2.3 seconds.
 - Final installed app plain Claude smoke passed: `Reply exactly FINAL_INSTALLED_APP_SMOKE_OK. Do not use tools.` returned `FINAL_INSTALLED_APP_SMOKE_OK` using Claude Sonnet 4.6 High in Ask mode.
 - Packaged resource smoke passed: `npm run test:smoke-config` passed, installed pet resources include ditto/orchestrator/pika/psyduck `pet.json` and `spritesheet.webp`, and `/pet` applied without visible missing-resource errors.

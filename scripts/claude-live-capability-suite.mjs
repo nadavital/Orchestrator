@@ -9,22 +9,16 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = join(__dirname, '..')
 const providersModulePath = join(repoRoot, 'out-test/src/main/providers.js')
 const jsonlTailerModulePath = join(repoRoot, 'out-test/src/main/jsonlTailer.js')
-const nativePromptsModulePath = join(repoRoot, 'out-test/src/types/nativeCliPrompts.js')
-const nativeTerminalControlModulePath = join(repoRoot, 'out-test/src/types/nativeTerminalControl.js')
-const nativeTerminalModulePath = join(repoRoot, 'out-test/src/types/nativeTerminalEvents.js')
 
 const { PROVIDERS, buildProviderCommandForRuntime, resolveProviderCommand, providerSpawnEnv } = await import(providersModulePath)
 const { claudeProjectDir, collectJsonlFiles, createJsonlTailer } = await import(jsonlTailerModulePath)
-const { detectNativeCliPrompt, nativeCliPromptSubmitSequence } = await import(nativePromptsModulePath)
-const { nativeTerminalControlResponses } = await import(nativeTerminalControlModulePath)
-const { parseClaudeTerminalSnapshot, terminalSnapshotToRunEvents } = await import(nativeTerminalModulePath)
 
 const provider = PROVIDERS.claude
 const timeoutMs = Number(process.env.CLAUDE_CAPABILITY_TIMEOUT_MS ?? 120_000)
 const artifactRoot = process.env.CLAUDE_CAPABILITY_ARTIFACT_DIR
   ? process.env.CLAUDE_CAPABILITY_ARTIFACT_DIR
   : join(repoRoot, 'tmp', 'claude-live-capabilities')
-const selectedScenarioIds = (process.env.CLAUDE_CAPABILITY_SCENARIOS ?? 'plain,file_ops,plan_mode,streaming,slash_help')
+const selectedScenarioIds = (process.env.CLAUDE_CAPABILITY_SCENARIOS ?? 'plain,file_ops,plan_mode,streaming')
   .split(',')
   .map((id) => id.trim())
   .filter(Boolean)
@@ -79,10 +73,6 @@ function assistantText(events) {
     .join('')
 }
 
-function answerTerminalCapabilityRequests(pty, data) {
-  for (const response of nativeTerminalControlResponses(data)) pty.write(response)
-}
-
 function collectJsonlArtifacts(cwd) {
   const dir = claudeProjectDir(cwd)
   return collectJsonlFiles(dir).map((file) => ({
@@ -113,7 +103,7 @@ function commandForLiveScenario(command, prompt) {
   return { ...command, args }
 }
 
-async function runNativeScenario(scenario) {
+async function runStructuredScenario(scenario) {
   const cwd = makeWorkspace(scenario.id)
   scenario.setup?.(cwd)
   const request = makeRequest(cwd, scenario.prompt, scenario.request)
@@ -124,8 +114,6 @@ async function runNativeScenario(scenario) {
   const events = []
   let raw = ''
   let stdoutLineBuffer = ''
-  const answeredNativePrompts = new Set()
-  let terminalStreamState
   let finished = false
   const tailer = createJsonlTailer(claudeProjectDir(cwd), (line) => {
     events.push(...provider.parseOutputLine(line))
@@ -182,26 +170,8 @@ async function runNativeScenario(scenario) {
       const lines = stdoutLineBuffer.split('\n')
       stdoutLineBuffer = lines.pop() ?? ''
       for (const line of lines) events.push(...provider.parseOutputLine(line))
-      answerTerminalCapabilityRequests(pty, data)
-      const nativePrompt = detectNativeCliPrompt('claude', raw)
-      if (nativePrompt && !answeredNativePrompts.has(nativePrompt)) {
-        answeredNativePrompts.add(nativePrompt)
-        console.log(`  answering native prompt: ${nativePrompt}`)
-        setTimeout(() => {
-          if (!finished) pty.write(nativeCliPromptSubmitSequence(nativePrompt, 'Enable selected'))
-        }, 300)
-      }
-      const snapshot = parseClaudeTerminalSnapshot(raw)
-      const terminalEvents = terminalSnapshotToRunEvents(snapshot, terminalStreamState, `live-terminal:${scenario.id}`)
-      terminalStreamState = terminalEvents.state
-      if (terminalEvents.events.length > 0) {
-        events.push(...terminalEvents.events)
-      }
       if (scenario.finishWhen?.({ raw, events, cwd })) {
         finish('scenario finish condition met')
-      }
-      if (snapshot.completed && snapshot.assistantText) {
-        finish('completed from terminal fallback')
       }
     })
     pty.onExit(() => finish('pty exited'))
@@ -270,17 +240,8 @@ const scenarios = [
     ].join(' '),
     assert: ({ text, events }) => [
       { ok: text.includes('ORCHESTRATOR_STREAMING_OK'), message: 'streaming assistant response was not captured' },
-      { ok: events.some((event) => event.type === 'assistant.text.delta'), message: 'native terminal assistant deltas were not emitted' },
-      { ok: events.some((event) => event.type === 'assistant.text.completed'), message: 'native terminal assistant completion was not emitted' }
-    ]
-  },
-  {
-    id: 'slash_help',
-    request: { runtime: 'interactive' },
-    prompt: '/help',
-    finishWhen: ({ raw }) => /(?:slash commands|available commands|\/(?:clear|help|model|status))/i.test(raw),
-    assert: ({ raw }) => [
-      { ok: /(?:slash commands|available commands|\/(?:clear|help|model|status))/i.test(raw), message: 'slash help output was not observed' }
+      { ok: events.some((event) => event.type === 'assistant.text.delta'), message: 'structured assistant deltas were not emitted' },
+      { ok: events.some((event) => event.type === 'assistant.text.completed' || event.type === 'assistant.text'), message: 'structured assistant completion was not emitted' }
     ]
   }
 ]
@@ -304,7 +265,7 @@ function runNoQuotaProbe(id, args) {
 
 resetArtifacts()
 
-console.log('Running live Claude capability suite. Native scenarios may use Claude quota.')
+console.log('Running live Claude capability suite. Structured scenarios may use Claude quota.')
 console.log(`  model=${liveSmokeModel('claude')} effort=${liveSmokeEffort('claude')}`)
 console.log(`  scenarios=${selectedScenarioIds.join(', ')}`)
 console.log(`  artifacts=${artifactRoot}`)
@@ -313,7 +274,7 @@ console.log('')
 const selectedScenarios = scenarios.filter((scenario) => selectedScenarioIds.includes(scenario.id))
 const scenarioResults = []
 for (const scenario of selectedScenarios) {
-  const result = await runNativeScenario(scenario)
+  const result = await runStructuredScenario(scenario)
   scenarioResults.push(result)
   console.log(`${result.ok ? 'PASS' : 'FAIL'} ${result.id}: ${result.reason}`)
   console.log(`  events: ${summarizeEvents(result.events)}`)

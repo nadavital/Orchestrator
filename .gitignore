@@ -4,6 +4,7 @@ node_modules/
 # Build output
 out/
 out-test/
+out-test-*/
 dist/
 
 # TypeScript build info

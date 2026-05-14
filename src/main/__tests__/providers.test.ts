@@ -137,7 +137,11 @@ test('runtime info exposes provider-specific capability registry and no-quota pr
   assert.ok(runtimeInfo.claude.registry.gaps.some((gap) => gap.id === 'claude-rich-permission-controls' && gap.status === 'partial'))
   assert.ok(runtimeInfo.claude.registry.gaps.some((gap) => gap.id === 'claude-cli-management' && gap.status === 'partial'))
   assert.ok(runtimeInfo.claude.registry.gaps.some((gap) => gap.id === 'claude-worktree-launch' && gap.status === 'partial'))
-  assert.ok(runtimeInfo.codex.registry.gaps.some((gap) => gap.id === 'codex-interactive-approvals' && gap.status === 'partial'))
+  assert.ok(runtimeInfo.codex.registry.features.some((feature) => feature.id === 'app-server' && feature.support === 'supported'))
+  assert.ok(runtimeInfo.codex.registry.features.some((feature) => feature.id === 'mcp-elicitation' && feature.support === 'supported'))
+  assert.ok(runtimeInfo.codex.registry.commandSurfaces.some((surface) => surface.id === 'appserver-models' && surface.runtime === 'app-server'))
+  assert.ok(runtimeInfo.codex.registry.commandSurfaces.some((surface) => surface.id === 'appserver-skills' && surface.quota === 'none'))
+  assert.ok(runtimeInfo.codex.registry.commandSurfaces.some((surface) => surface.id === 'appserver-mcp-status' && surface.area === 'mcp'))
   assert.ok(runtimeInfo.codex.registry.gaps.some((gap) => gap.id === 'codex-auto-review-mode' && gap.status === 'partial'))
   assert.ok(runtimeInfo.copilot.registry.gaps.some((gap) => gap.id === 'copilot-cli-keychain' && gap.status === 'partial'))
   assert.ok(runtimeInfo.cursor.registry.gaps.some((gap) => gap.id === 'cursor-keychain-models' && gap.status === 'blocked'))
@@ -193,6 +197,7 @@ test('provider command surfaces only auto-run no-quota non-mutating commands', (
   const mutating = runProviderCommandSurface('claude', 'project-purge')
   const quota = runProviderCommandSurface('claude', 'ultrareview-json')
   const unknown = runProviderCommandSurface('claude', 'missing-surface')
+  const codexAppServer = runProviderCommandSurface('codex', 'appserver-models')
 
   assert.equal(mutating.status, 'blocked')
   assert.match(mutating.output, /not safe/i)
@@ -200,6 +205,8 @@ test('provider command surfaces only auto-run no-quota non-mutating commands', (
   assert.match(quota.output, /not safe/i)
   assert.equal(unknown.status, 'blocked')
   assert.match(unknown.output, /unknown provider command/i)
+  assert.equal(codexAppServer.status, 'blocked')
+  assert.match(codexAppServer.output, /async command runner/i)
 })
 
 test('claude mcp details parser ignores health banners and keeps server names', () => {
@@ -343,8 +350,8 @@ test('runtime info distinguishes interactive permission support from forced unat
   )
   assert.equal(
     runtimeInfo.codex.abstractCapabilities.find((capability) => capability.key === 'interactivePermissions')?.support,
-    'unsupported',
-    'Codex exec does not expose an interactive approval prompt surface'
+    'supported',
+    'Codex app-server exposes structured approval prompts'
   )
   assert.equal(
     runtimeInfo.cursor.abstractCapabilities.find((capability) => capability.key === 'interactivePermissions')?.support,
@@ -359,13 +366,13 @@ test('runtime info distinguishes interactive permission support from forced unat
 test('interactive CLI capability is exposed separately from structured output', () => {
   const runtimeInfo = getProviderRuntimeInfo()
 
-  assert.equal(runtimeInfo.claude.capabilities.interactiveCli, true)
+  assert.equal(runtimeInfo.claude.capabilities.interactiveCli, false)
   assert.equal(runtimeInfo.codex.capabilities.interactiveCli, true)
   assert.equal(runtimeInfo.cursor.capabilities.interactiveCli, true)
   assert.equal(runtimeInfo.copilot.capabilities.interactiveCli, true)
   assert.equal(
     runtimeInfo.claude.abstractCapabilities.find((capability) => capability.key === 'interactiveCli')?.support,
-    'supported'
+    'unsupported'
   )
   assert.equal(
     runtimeInfo.copilot.abstractCapabilities.find((capability) => capability.key === 'interactiveCli')?.support,
@@ -374,18 +381,7 @@ test('interactive CLI capability is exposed separately from structured output', 
 })
 
 test('providers expose native interactive CLI launch commands without headless output flags', () => {
-  const claudeCommand = PROVIDERS.claude.buildInteractiveCommand(request({
-    prompt: 'hello',
-    executionPolicy: 'default',
-    model: 'claude-sonnet-4-6'
-  }))
-  assert.equal(claudeCommand.args.includes('-p'), false)
-  assert.equal(claudeCommand.args.includes('--output-format'), false)
-  assert.equal(claudeCommand.args.at(-1), 'hello')
-  assert.equal(claudeCommand.args.includes('--permission-mode'), true)
-  assert.equal(claudeCommand.args[claudeCommand.args.indexOf('--permission-mode') + 1], 'default')
-
-  const codexCommand = PROVIDERS.codex.buildInteractiveCommand(request({
+  const codexCommand = PROVIDERS.codex.buildInteractiveCommand!(request({
     prompt: 'hello',
     executionPolicy: 'untrusted',
     model: 'gpt-5.4'
@@ -396,7 +392,7 @@ test('providers expose native interactive CLI launch commands without headless o
   assert.equal(codexCommand.args.includes('--ask-for-approval'), true)
   assert.equal(codexCommand.args[codexCommand.args.indexOf('--ask-for-approval') + 1], 'untrusted')
 
-  const cursorCommand = PROVIDERS.cursor.buildInteractiveCommand(request({
+  const cursorCommand = PROVIDERS.cursor.buildInteractiveCommand!(request({
     prompt: 'hello',
     executionPolicy: 'default',
     model: 'auto'
@@ -406,7 +402,7 @@ test('providers expose native interactive CLI launch commands without headless o
   assert.equal(cursorCommand.args.includes('--trust'), false)
   assert.equal(cursorCommand.args.includes('--workspace'), true)
 
-  const copilotCommand = PROVIDERS.copilot.buildInteractiveCommand(request({
+  const copilotCommand = PROVIDERS.copilot.buildInteractiveCommand!(request({
     prompt: 'hello',
     executionPolicy: 'default',
     model: 'gpt-5.4-mini'
@@ -417,7 +413,7 @@ test('providers expose native interactive CLI launch commands without headless o
   assert.deepEqual(copilotCommand.args.slice(-2), ['-i', 'hello'])
 })
 
-test('runtime command selection keeps interactive sessions on the native CLI lane', () => {
+test('runtime command selection keeps Claude on structured output and other interactive sessions on native lanes', () => {
   const interactiveClaude = buildProviderCommandForRuntime(
     PROVIDERS.claude,
     request({
@@ -427,8 +423,8 @@ test('runtime command selection keeps interactive sessions on the native CLI lan
       model: 'claude-sonnet-4-6'
     })
   )
-  assert.equal(interactiveClaude.args.includes('-p'), false)
-  assert.equal(interactiveClaude.args.includes('--output-format'), false)
+  assert.equal(interactiveClaude.args.includes('-p'), true)
+  assert.equal(interactiveClaude.args.includes('--output-format'), true)
 
   const headlessClaude = buildProviderCommandForRuntime(
     PROVIDERS.claude,
@@ -483,8 +479,8 @@ test('claude explicit acceptEdits remains opt-in', () => {
 
 test('claude exposes every native safe permission mode in command construction', () => {
   for (const mode of ['default', 'acceptEdits', 'auto', 'dontAsk', 'plan', 'bypassPermissions']) {
-    const command = PROVIDERS.claude.buildInteractiveCommand(
-      request({ runtime: 'interactive', executionPolicy: mode })
+    const command = PROVIDERS.claude.buildStartCommand(
+      request({ runtime: 'headless', executionPolicy: mode })
     )
     const permissionIndex = command.args.indexOf('--permission-mode')
 
@@ -903,7 +899,7 @@ test('claude auth retry output fails fast instead of spinning through retries', 
   assert.match(retryFailure.content ?? '', /authentication failed/i)
 })
 
-test('claude interactive turn duration marks the run complete', () => {
+test('claude structured turn duration marks the run complete', () => {
   const events = PROVIDERS.claude.parseOutputLine(JSON.stringify({
     type: 'system',
     subtype: 'turn_duration',
@@ -1085,6 +1081,168 @@ test('codex app-server protocol messages normalize approval and question semanti
   assert.equal(questions[1]?.questions?.[0]?.header, 'deploy')
 })
 
+test('codex app-server protocol messages normalize plan, goal, and subagent semantics', () => {
+  const lines = [
+    {
+      jsonrpc: '2.0',
+      method: 'turn/plan/updated',
+      params: {
+        threadId: 'codex-thread-rich',
+        turnId: 'turn-1',
+        explanation: 'I will do this in two steps.',
+        plan: [
+          { step: 'Inspect the repo', status: 'completed' },
+          { step: 'Patch the runtime', status: 'inProgress' }
+        ]
+      }
+    },
+    {
+      jsonrpc: '2.0',
+      method: 'thread/goal/updated',
+      params: {
+        threadId: 'codex-thread-rich',
+        turnId: 'turn-1',
+        goal: {
+          threadId: 'codex-thread-rich',
+          objective: 'Finish the app-server integration',
+          status: 'active',
+          tokenBudget: 100000,
+          tokensUsed: 1234,
+          timeUsedSeconds: 42,
+          createdAt: 1,
+          updatedAt: 2
+        }
+      }
+    },
+    {
+      jsonrpc: '2.0',
+      method: 'item/started',
+      params: {
+        threadId: 'codex-thread-rich',
+        turnId: 'turn-1',
+        item: {
+          type: 'collabAgentToolCall',
+          id: 'agent-call-1',
+          tool: { type: 'spawn_agent' },
+          status: 'inProgress',
+          senderThreadId: 'codex-thread-rich',
+          receiverThreadIds: ['child-thread-1'],
+          prompt: 'Inspect provider wiring',
+          model: 'gpt-5.4',
+          reasoningEffort: 'high',
+          agentsStates: {}
+        }
+      }
+    },
+    {
+      jsonrpc: '2.0',
+      method: 'item/completed',
+      params: {
+        threadId: 'codex-thread-rich',
+        turnId: 'turn-1',
+        item: {
+          type: 'collabAgentToolCall',
+          id: 'agent-call-1',
+          tool: { type: 'spawn_agent' },
+          status: 'completed',
+          senderThreadId: 'codex-thread-rich',
+          receiverThreadIds: ['child-thread-1'],
+          prompt: 'Inspect provider wiring',
+          model: 'gpt-5.4',
+          reasoningEffort: 'high',
+          agentsStates: {}
+        }
+      }
+    }
+  ]
+  const events = lines.flatMap((line) => PROVIDERS.codex.parseOutputLine(JSON.stringify(line)))
+  const plan = firstEvent(events, 'plan.updated')
+  const goal = firstEvent(events, 'goal.updated')
+  const started = firstEvent(events, 'agent.started')
+  const completed = firstEvent(events, 'agent.completed')
+
+  assert.equal(plan.plan.providerId, 'codex')
+  assert.equal(plan.plan.items[1]?.status, 'in_progress')
+  assert.equal(goal.goal.objective, 'Finish the app-server integration')
+  assert.equal(goal.goal.tokensUsed, 1234)
+  assert.equal(started.agent.id, 'agent-call-1')
+  assert.equal(started.agent.status, 'running')
+  assert.equal(completed.agent.id, 'agent-call-1')
+  assert.equal(completed.agent.status, 'completed')
+})
+
+test('codex app-server protocol messages normalize lifecycle, review, diff, and rich item semantics', () => {
+  const lines = [
+    { jsonrpc: '2.0', method: 'thread/status/changed', params: { threadId: 'codex-thread-rich', status: 'running' } },
+    { jsonrpc: '2.0', method: 'turn/started', params: { threadId: 'codex-thread-rich', turn: { id: 'turn-1', status: 'running' } } },
+    { jsonrpc: '2.0', method: 'hook/started', params: { threadId: 'codex-thread-rich', turnId: 'turn-1', name: 'preToolUse' } },
+    { jsonrpc: '2.0', method: 'hook/completed', params: { threadId: 'codex-thread-rich', turnId: 'turn-1', name: 'preToolUse' } },
+    { jsonrpc: '2.0', method: 'turn/diff/updated', params: { threadId: 'codex-thread-rich', turnId: 'turn-1', diff: 'diff --git a/a b/a' } },
+    { jsonrpc: '2.0', method: 'item/autoApprovalReview/started', params: { threadId: 'codex-thread-rich', turnId: 'turn-1', reviewId: 'review-1' } },
+    { jsonrpc: '2.0', method: 'item/autoApprovalReview/completed', params: { threadId: 'codex-thread-rich', turnId: 'turn-1', reviewId: 'review-1', action: { type: 'approve' } } },
+    { jsonrpc: '2.0', method: 'item/started', params: { item: { type: 'webSearch', id: 'web-1', query: 'codex app server', action: null } } },
+    { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'webSearch', id: 'web-1', query: 'codex app server', action: { type: 'search' } } } },
+    { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'imageGeneration', id: 'img-1', status: 'completed', revisedPrompt: 'a diagram', result: 'ok', savedPath: '/tmp/image.png' } } },
+    { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'enteredReviewMode', id: 'review-mode-1', review: 'Review current diff' } } },
+    { jsonrpc: '2.0', method: 'item/completed', params: { item: { type: 'contextCompaction', id: 'compact-1' } } },
+    { jsonrpc: '2.0', method: 'command/exec/outputDelta', params: { callId: 'cmd-1', delta: 'stdout chunk' } },
+    { jsonrpc: '2.0', method: 'item/reasoning/summaryTextDelta', params: { itemId: 'reasoning-1', delta: 'thinking summary' } },
+    { jsonrpc: '2.0', method: 'mcpServer/startupStatus/updated', params: { server: 'jira', status: 'ready' } },
+    { jsonrpc: '2.0', method: 'warning', params: { threadId: 'codex-thread-rich', message: 'watch out' } },
+    { jsonrpc: '2.0', method: 'thread/closed', params: { threadId: 'codex-thread-rich' } }
+  ]
+  const events = lines.flatMap((line) => PROVIDERS.codex.parseOutputLine(JSON.stringify(line)))
+  const messages = eventsToMessages(events)
+
+  assert.ok(eventTypes(events).includes('diff.updated'))
+  assert.ok(events.some((event) => event.type === 'tool.started' && event.toolName === 'web_search'))
+  assert.ok(events.some((event) => event.type === 'tool.completed' && event.toolUseId === 'img-1'))
+  assert.ok(events.some((event) => event.type === 'assistant.text.delta' && event.content === 'stdout chunk'))
+  assert.ok(events.some((event) => event.type === 'assistant.text.delta' && event.content === 'thinking summary'))
+  assert.ok(messages.some((message) => 'content' in message && message.content.includes('Diff updated')))
+  assert.ok(messages.some((message) => 'content' in message && message.content.includes('Auto-review completed')))
+  assert.ok(messages.some((message) => 'content' in message && message.content.includes('watch out')))
+  assert.ok(messages.some((message) => 'content' in message && message.content.includes('Thread closed')))
+})
+
+test('codex app-server legacy approval requests normalize to Orchestrator permissions', () => {
+  const lines = [
+    {
+      jsonrpc: '2.0',
+      id: 'exec-approval',
+      method: 'execCommandApproval',
+      params: {
+        conversationId: 'codex-thread-rich',
+        callId: 'cmd-legacy',
+        approvalId: 'approval-legacy',
+        command: ['git', 'status'],
+        cwd: '/tmp/project',
+        reason: 'Need status',
+        parsedCmd: []
+      }
+    },
+    {
+      jsonrpc: '2.0',
+      id: 'patch-approval',
+      method: 'applyPatchApproval',
+      params: {
+        conversationId: 'codex-thread-rich',
+        callId: 'patch-legacy',
+        fileChanges: { 'a.txt': { type: 'add' } },
+        reason: 'Need patch',
+        grantRoot: '/tmp/project'
+      }
+    }
+  ]
+  const events = lines.flatMap((line) => PROVIDERS.codex.parseOutputLine(JSON.stringify(line)))
+  const permissions = events.filter((event): event is Extract<RunEvent, { type: 'permission.requested' }> => event.type === 'permission.requested')
+
+  assert.equal(permissions[0]?.denials[0]?.tool_name, 'shell')
+  assert.equal(permissions[0]?.denials[0]?.tool_input.command, 'git status')
+  assert.equal(permissions[1]?.denials[0]?.tool_name, 'apply_patch')
+  assert.equal(permissions[1]?.denials[0]?.tool_input.grantRoot, '/tmp/project')
+})
+
 test('cursor reconnecting fixture preserves retry attempts', () => {
   const events = parseFixture('cursor', 'reconnecting.jsonl')
   const retry = firstEvent(events, 'connection.retrying')
@@ -1179,7 +1337,7 @@ test('codex approval modes map to native approval policy config', () => {
   assert.equal(autoReviewCommand.args.includes('approval_policy="on-request"'), true)
   assert.equal(autoReviewCommand.args.includes('approvals_reviewer="auto_review"'), true)
 
-  const interactiveAutoReviewCommand = PROVIDERS.codex.buildInteractiveCommand(
+  const interactiveAutoReviewCommand = PROVIDERS.codex.buildInteractiveCommand!(
     request({ model: 'gpt-5.4', executionPolicy: 'autoReview' })
   )
   assert.equal(interactiveAutoReviewCommand.args.includes('--ask-for-approval'), true)
@@ -1197,15 +1355,15 @@ test('codex approval modes map to native approval policy config', () => {
   assert.equal(yoloCommand.args.includes('--dangerously-bypass-approvals-and-sandbox'), true)
 })
 
-test('codex exec policy does not claim interactive approval prompting', () => {
+test('codex policy supports app-server approvals while exec stays config-driven', () => {
   const resolved = PROVIDERS.codex.resolveExecutionPolicy('default')
   const command = PROVIDERS.codex.buildStartCommand(request({ executionPolicy: 'default' }))
 
   assert.equal(resolved.support, 'approximate')
-  assert.match(resolved.warning ?? '', /interactive CLI lane/)
+  assert.match(resolved.warning ?? '', /app-server surfaces native approvals/)
   assert.equal(command.args.includes('--ask-for-approval'), false)
   assert.equal(command.args.includes('approval_policy="on-request"'), true)
-  assert.equal(PROVIDERS.codex.capabilities.interactivePermissions, false)
+  assert.equal(PROVIDERS.codex.capabilities.interactivePermissions, true)
   assert.equal(PROVIDERS.codex.binaryCandidates?.includes('/Applications/Codex.app/Contents/Resources/codex'), true)
 })
 

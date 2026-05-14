@@ -103,7 +103,7 @@ test('approval broker auto-allows tools granted for the active session', async (
   assert.equal(events.length, 0)
 })
 
-test('approval broker auto-allows Claude native plan artifact writes only under ~/.claude/plans', async () => {
+test('approval broker auto-allows Claude plan artifact writes only under ~/.claude/plans', async () => {
   const broker = new ApprovalBroker()
   const events: RunEvent[] = []
   broker.setEventSink((_sessionId, nextEvents) => events.push(...nextEvents))

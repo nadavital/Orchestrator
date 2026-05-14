@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import { accessSync, constants, readFileSync } from 'fs'
-import { execFile, execFileSync } from 'child_process'
+import { execFile, execFileSync, spawn } from 'child_process'
 import { delimiter, join } from 'path'
 import { homedir } from 'os'
 import { promisify } from 'util'
@@ -145,7 +145,7 @@ export interface ProviderAdapter {
   resolveExecutionPolicy(policy: string): ResolvedExecutionPolicy
   buildStartCommand(request: RunRequest): ProviderCommand
   buildResumeCommand(request: RunRequest): ProviderCommand
-  buildInteractiveCommand(request: RunRequest): ProviderCommand
+  buildInteractiveCommand?(request: RunRequest): ProviderCommand
   parseOutputLine(line: string): RunEvent[]
 }
 
@@ -154,7 +154,7 @@ export function buildProviderCommandForRuntime(
   request: RunRequest,
   mode: 'start' | 'resume' = 'start'
 ): ProviderCommand {
-  if (request.runtime === 'interactive' && provider.capabilities.interactiveCli) {
+  if (request.runtime === 'interactive' && provider.capabilities.interactiveCli && provider.buildInteractiveCommand) {
     return provider.buildInteractiveCommand(request)
   }
   return mode === 'resume'
@@ -889,46 +889,19 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
     providerId: 'codex',
     features: [
       feature('exec-json', 'Exec JSON', 'runtime', 'supported', 'adapter', ['headless']),
-      feature('interactive', 'Interactive CLI', 'runtime', 'partial', 'local-cli', ['interactive'], 'Launch command and trust prompt are verified; native approval capture still needs a PTY runtime pass.'),
-      feature('app-server', 'App server', 'runtime', 'partial', 'local-cli', ['app-server'], 'Protocol schema exposes approvals, questions, MCP elicitation, diffs, and agents; runtime wiring is still deferred.'),
-      feature('mcp-elicitation', 'Elicitation', 'permissions', 'partial', 'local-cli', ['interactive']),
-      feature('sandbox', 'Sandbox', 'permissions', 'supported', 'adapter', ['headless', 'interactive']),
-      feature('slash-commands', 'Commands', 'commands', 'partial', 'local-cli', ['interactive']),
-      feature('multi-agent', 'Multi-agent', 'agents', 'supported', 'local-cli', ['interactive']),
-      feature('mcp', 'MCP', 'mcp', 'supported', 'local-cli', ['headless', 'interactive']),
-      feature('plugins', 'Plugins', 'extensions', 'supported', 'local-cli', ['interactive']),
+      feature('interactive', 'Interactive CLI', 'runtime', 'partial', 'local-cli', ['interactive'], 'Launch command and trust prompt are verified, but Orchestrator targets app-server for rich Codex UI instead of PTY scraping.'),
+      feature('app-server', 'App server', 'runtime', 'supported', 'adapter', ['app-server'], 'Orchestrator starts the Codex app-server protocol, opens/resumes threads, starts turns, handles approvals/questions/MCP elicitation, streams deltas, and normalizes plans/tools/agents.'),
+      feature('mcp-elicitation', 'Elicitation', 'permissions', 'supported', 'adapter', ['app-server']),
+      feature('sandbox', 'Sandbox', 'permissions', 'supported', 'adapter', ['headless', 'app-server', 'interactive']),
+      feature('slash-commands', 'Commands', 'commands', 'partial', 'local-cli', ['app-server']),
+      feature('multi-agent', 'Multi-agent', 'agents', 'supported', 'local-cli', ['app-server']),
+      feature('mcp', 'MCP', 'mcp', 'supported', 'local-cli', ['headless', 'app-server']),
+      feature('plugins', 'Plugins', 'extensions', 'supported', 'local-cli', ['app-server']),
       feature('review', 'Review', 'review', 'supported', 'local-cli', ['headless']),
       feature('local-providers', 'Local models', 'runtime', 'supported', 'local-cli', ['headless', 'interactive']),
-      feature('images', 'Images', 'attachments', 'supported', 'local-cli', ['interactive'])
+      feature('images', 'Images', 'attachments', 'supported', 'local-cli', ['app-server'])
     ],
     gaps: [
-      gap(
-        'codex-interactive-approvals',
-        'Interactive approvals',
-        'permissions',
-        'high',
-        'partial',
-        'codex exec is deterministic and does not expose native approval UI; the interactive CLI trust prompt and app-server approval protocol are now verified.',
-        'Add a PTY-backed interactive lane or app-server runtime so approval requests can be answered from Orchestrator instead of only parsed from fixtures.'
-      ),
-      gap(
-        'codex-mcp-elicitation',
-        'MCP elicitation',
-        'permissions',
-        'high',
-        'partial',
-        'The CLI advertises MCP elicitation and app-server schema exposes mcpServer/elicitation/request; the adapter normalizes protocol fixtures to user_input.requested.',
-        'Wire a live app-server or PTY transcript before marking this complete.'
-      ),
-      gap(
-        'codex-app-server',
-        'App server protocol',
-        'runtime',
-        'low',
-        'partial',
-        'codex app-server and exec-server exist, and generated v2 bindings show first-class approvals, questions, diffs, and agent items.',
-        'Prototype app-server transport only if PTY cannot provide enough native CLI state.'
-      ),
       gap(
         'codex-backend-variants',
         'OSS/local providers',
@@ -957,7 +930,24 @@ const providerRegistries: Record<string, ProviderCapabilityRegistry> = {
       probe('sandbox-help', 'Sandbox', ['sandbox', '--help'], 'features'),
       probe('features-list', 'Features', ['features', 'list'], 'features')
     ],
-    commandSurfaces: [],
+    commandSurfaces: [
+      commandSurface('appserver-models', 'Models', 'runtime', ['app-server', 'model/list'], 'app-server', 'none', false, 'settings', { featureId: 'local-providers' }),
+      commandSurface('appserver-model-provider-capabilities', 'Model provider capabilities', 'runtime', ['app-server', 'modelProvider/capabilities/read'], 'app-server', 'none', false, 'settings', { featureId: 'local-providers' }),
+      commandSurface('appserver-features', 'Feature flags', 'runtime', ['app-server', 'experimentalFeature/list'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
+      commandSurface('appserver-config', 'Effective config', 'runtime', ['app-server', 'config/read'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
+      commandSurface('appserver-config-requirements', 'Config requirements', 'permissions', ['app-server', 'configRequirements/read'], 'app-server', 'none', false, 'settings', { featureId: 'sandbox' }),
+      commandSurface('appserver-account', 'Account', 'usage', ['app-server', 'account/read'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
+      commandSurface('appserver-rate-limits', 'Rate limits', 'usage', ['app-server', 'account/rateLimits/read'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
+      commandSurface('appserver-auth-status', 'Auth status', 'runtime', ['app-server', 'getAuthStatus'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
+      commandSurface('appserver-skills', 'Skills', 'extensions', ['app-server', 'skills/list'], 'app-server', 'none', false, 'settings', { featureId: 'plugins' }),
+      commandSurface('appserver-hooks', 'Hooks', 'extensions', ['app-server', 'hooks/list'], 'app-server', 'none', false, 'settings', { featureId: 'plugins' }),
+      commandSurface('appserver-plugins', 'Plugins', 'extensions', ['app-server', 'plugin/list'], 'app-server', 'none', false, 'settings', { featureId: 'plugins' }),
+      commandSurface('appserver-apps', 'Apps', 'extensions', ['app-server', 'app/list'], 'app-server', 'none', false, 'settings', { featureId: 'plugins' }),
+      commandSurface('appserver-mcp-status', 'MCP status', 'mcp', ['app-server', 'mcpServerStatus/list'], 'app-server', 'none', false, 'settings', { featureId: 'mcp' }),
+      commandSurface('appserver-external-agent-config', 'External agent configs', 'agents', ['app-server', 'externalAgentConfig/detect'], 'app-server', 'none', false, 'settings', { featureId: 'multi-agent' }),
+      commandSurface('appserver-threads', 'Threads', 'runtime', ['app-server', 'thread/list'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' }),
+      commandSurface('appserver-loaded-threads', 'Loaded threads', 'runtime', ['app-server', 'thread/loaded/list'], 'app-server', 'none', false, 'settings', { featureId: 'app-server' })
+    ],
     slashCommands: [
       slashCommand('/review', 'Review uncommitted changes with Codex', 'provider', 'headless', 'insert-prompt', {
         featureId: 'review',
@@ -1679,7 +1669,7 @@ const claudeProvider: ProviderAdapter = {
   capabilities: {
     resume: true,
     streamingJson: true,
-    interactiveCli: true,
+    interactiveCli: false,
     interactivePermissions: true,
     allowedTools: true,
     workspaceSandbox: false,
@@ -1708,23 +1698,6 @@ const claudeProvider: ProviderAdapter = {
 
   buildResumeCommand(request) {
     return this.buildStartCommand({ ...request, prompt: request.prompt || 'Please continue.' })
-  },
-
-  buildInteractiveCommand(request) {
-    const args: string[] = []
-    if (request.providerSessionId) args.push('--resume', request.providerSessionId)
-    if (request.agentName && !request.providerSessionId) args.push('--agent', request.agentName)
-    args.push('--model', request.model || 'sonnet')
-    if (request.effort && request.effort !== 'normal') args.push('--effort', request.effort)
-    args.push(...interactivePolicyArgs(this, request.executionPolicy || 'default'))
-    if (request.allowedTools.length > 0) args.push('--allowedTools', request.allowedTools.join(','))
-    if (request.disallowedTools?.length) args.push('--disallowedTools', request.disallowedTools.join(','))
-    if (request.availableTools?.length) args.push('--tools', request.availableTools.join(','))
-    if (request.additionalDirs?.length) args.push('--add-dir', ...request.additionalDirs)
-    const fileSpecs = claudeFileSpecs(request.attachments)
-    if (fileSpecs.length > 0) args.push('--file', ...fileSpecs)
-    if (request.prompt) args.push(request.prompt)
-    return command(this.binary, args)
   },
 
   parseOutputLine: parseAnthropicStyleLine
@@ -1929,10 +1902,10 @@ function codexPolicy(policyId: string): ResolvedExecutionPolicy {
       ['--sandbox', 'workspace-write', '-c', `approval_policy="${approvalPolicy.value}"`],
       approvalPolicy.label,
       approvalPolicy.description,
-      'The current Orchestrator runtime uses codex exec, so approval policy is passed as config; native prompt surfacing needs the interactive CLI lane.',
+      'Codex app-server surfaces native approvals in Orchestrator; codex exec still receives the same policy as config for headless automation.',
       {
         intent: approvalPolicy.intent,
-        interaction: 'headless',
+        interaction: 'structured',
         controls: codexPermissionControls
       }
     )
@@ -1944,10 +1917,10 @@ function codexPolicy(policyId: string): ResolvedExecutionPolicy {
       ['--sandbox', 'workspace-write', '-c', 'approval_policy="on-request"', '-c', 'approvals_reviewer="auto_review"'],
       'Auto-review',
       'Routes approval requests through Codex auto-review while keeping workspace sandboxing.',
-      'Verified in the Codex app-server v2 schema; current headless exec still cannot surface native approval prompts in Orchestrator.',
+      'Available through the Codex app-server runtime; use live approval-producing runs before promoting it to the default mode.',
       {
         intent: 'ask',
-        interaction: 'headless',
+        interaction: 'structured',
         controls: codexPermissionControls
       }
     )
@@ -2072,6 +2045,7 @@ function codexAppServerUserInput(params: Record<string, unknown>): RunEvent | nu
         })
       : undefined
     return [{
+      id: stringValue(rec.id),
       question: questionText,
       header: stringValue(rec.header, rec.title),
       options: options && options.length > 0 ? options : undefined,
@@ -2126,6 +2100,26 @@ function codexAppServerPermissionRequest(
     }
   }
 
+  if (method === 'execCommandApproval') {
+    const toolUseId = stringValue(params.approvalId, params.callId, requestId) ?? uuidv4()
+    const rawCommand = Array.isArray(params.command) ? params.command.filter((part): part is string => typeof part === 'string') : []
+    const command = rawCommand.join(' ')
+    return {
+      type: 'permission.requested',
+      content: stringValue(params.reason) ?? (command ? `Approve command: ${command}` : 'Approve command?'),
+      denials: [{
+        tool_name: 'shell',
+        tool_use_id: toolUseId,
+        tool_input: compactToolInput({
+          command,
+          cwd: stringValue(params.cwd),
+          reason: stringValue(params.reason),
+          parsedCmd: params.parsedCmd
+        })
+      }]
+    }
+  }
+
   if (method === 'item/fileChange/requestApproval') {
     const toolUseId = stringValue(params.itemId, requestId) ?? uuidv4()
     return {
@@ -2142,14 +2136,79 @@ function codexAppServerPermissionRequest(
     }
   }
 
+  if (method === 'applyPatchApproval') {
+    const toolUseId = stringValue(params.callId, requestId) ?? uuidv4()
+    return {
+      type: 'permission.requested',
+      content: stringValue(params.reason) ?? 'Approve patch?',
+      denials: [{
+        tool_name: 'apply_patch',
+        tool_use_id: toolUseId,
+        tool_input: compactToolInput({
+          reason: stringValue(params.reason),
+          grantRoot: stringValue(params.grantRoot),
+          fileChanges: params.fileChanges
+        })
+      }]
+    }
+  }
+
+  if (method === 'item/permissions/requestApproval') {
+    const toolUseId = stringValue(params.itemId, requestId) ?? uuidv4()
+    return {
+      type: 'permission.requested',
+      content: stringValue(params.reason) ?? 'Approve additional permissions?',
+      denials: [{
+        tool_name: 'permissions',
+        tool_use_id: toolUseId,
+        tool_input: compactToolInput({
+          cwd: stringValue(params.cwd),
+          reason: stringValue(params.reason),
+          permissions: params.permissions
+        })
+      }]
+    }
+  }
+
   return null
 }
 
-function parseCodexAppServerItem(item: Record<string, unknown>): RunEvent[] {
+function contentItemsText(value: unknown): string {
+  if (!Array.isArray(value)) return stringifyContent(value)
+  return value.map((item) => {
+    const rec = asRecord(item)
+    if (!rec) return stringifyContent(item)
+    return stringValue(rec.text, rec.imageUrl, rec.type) ?? stringifyContent(rec)
+  }).filter(Boolean).join('\n')
+}
+
+function parseCodexAppServerItem(item: Record<string, unknown>, phase?: 'started' | 'completed'): RunEvent[] {
   const itemType = stringValue(item.type)
   if (itemType === 'agentMessage') {
     const text = stringValue(item.text)
     return text ? [{ type: 'assistant.text', content: text }] : []
+  }
+
+  if (itemType === 'plan') {
+    const text = stringValue(item.text)
+    return text ? [{ type: 'assistant.status', content: `Plan: ${text}` }] : []
+  }
+
+  if (itemType === 'reasoning') {
+    const summary = Array.isArray(item.summary) ? item.summary.filter((part): part is string => typeof part === 'string') : []
+    const content = Array.isArray(item.content) ? item.content.filter((part): part is string => typeof part === 'string') : []
+    const text = summary.join('\n') || content.join('\n')
+    return text ? [{ type: 'assistant.status', content: `Reasoning: ${text}` }] : []
+  }
+
+  if (itemType === 'hookPrompt') {
+    const id = stringValue(item.id) ?? uuidv4()
+    return [{
+      type: phase === 'completed' ? 'tool.completed' : 'tool.started',
+      ...(phase === 'completed'
+        ? { id: uuidv4(), toolUseId: id, content: stringifyContent(item.fragments ?? ''), isError: false }
+        : { id, toolName: 'hook', toolInput: { fragments: item.fragments ?? [] } })
+    } as RunEvent]
   }
 
   if (itemType === 'commandExecution') {
@@ -2181,8 +2240,25 @@ function parseCodexAppServerItem(item: Record<string, unknown>): RunEvent[] {
       type: 'tool.completed',
       id: uuidv4(),
       toolUseId: id,
-      content: stringifyContent(item.result ?? item.error ?? item.contentItems ?? ''),
+      content: itemType === 'dynamicToolCall'
+        ? contentItemsText(item.contentItems ?? item.error ?? '')
+        : stringifyContent(item.result ?? item.error ?? ''),
       isError: status === 'failed' || item.error != null
+    }]
+  }
+
+  if (itemType === 'fileChange') {
+    const id = stringValue(item.id) ?? uuidv4()
+    const status = stringValue(item.status)
+    if (status === 'inProgress') {
+      return [{ type: 'tool.started', id, toolName: 'apply_patch', toolInput: { changes: item.changes ?? [] } }]
+    }
+    return [{
+      type: 'tool.completed',
+      id: uuidv4(),
+      toolUseId: id,
+      content: stringifyContent(item.changes ?? ''),
+      isError: status === 'failed' || status === 'declined'
     }]
   }
 
@@ -2193,7 +2269,9 @@ function parseCodexAppServerItem(item: Record<string, unknown>): RunEvent[] {
       ? 'agent.completed'
       : status === 'failed'
         ? 'agent.failed'
-        : 'agent.updated'
+        : status === 'cancelled'
+          ? 'agent.failed'
+          : 'agent.started'
     return [{
       type: eventType,
       agent: {
@@ -2208,7 +2286,150 @@ function parseCodexAppServerItem(item: Record<string, unknown>): RunEvent[] {
     } as RunEvent]
   }
 
+  if (itemType === 'webSearch') {
+    const id = stringValue(item.id) ?? uuidv4()
+    const query = stringValue(item.query) ?? ''
+    if (phase === 'started') {
+      return [{ type: 'tool.started', id, toolName: 'web_search', toolInput: { query, action: item.action ?? null } }]
+    }
+    return [{ type: 'tool.completed', id: uuidv4(), toolUseId: id, content: stringifyContent(item.action ?? query), isError: false }]
+  }
+
+  if (itemType === 'imageView') {
+    const id = stringValue(item.id) ?? uuidv4()
+    if (phase === 'started') return [{ type: 'tool.started', id, toolName: 'image_view', toolInput: { path: stringValue(item.path) } }]
+    return [{ type: 'tool.completed', id: uuidv4(), toolUseId: id, content: stringValue(item.path) ?? '', isError: false }]
+  }
+
+  if (itemType === 'imageGeneration') {
+    const id = stringValue(item.id) ?? uuidv4()
+    const status = stringValue(item.status)
+    if (phase === 'started' || status === 'inProgress') {
+      return [{ type: 'tool.started', id, toolName: 'image_generation', toolInput: { revisedPrompt: stringValue(item.revisedPrompt) } }]
+    }
+    return [{
+      type: 'tool.completed',
+      id: uuidv4(),
+      toolUseId: id,
+      content: stringifyContent(item.savedPath ?? item.result ?? item.revisedPrompt ?? ''),
+      isError: status === 'failed'
+    }]
+  }
+
+  if (itemType === 'enteredReviewMode' || itemType === 'exitedReviewMode') {
+    return [{
+      type: 'assistant.status',
+      content: itemType === 'enteredReviewMode'
+        ? `Entered review mode${stringValue(item.review) ? `: ${stringValue(item.review)}` : ''}`
+        : `Exited review mode${stringValue(item.review) ? `: ${stringValue(item.review)}` : ''}`
+    }]
+  }
+
+  if (itemType === 'contextCompaction') {
+    return [{ type: 'assistant.status', content: 'Context compacted' }]
+  }
+
   return []
+}
+
+function codexAppServerGoal(params: Record<string, unknown>): RunEvent | null {
+  const goal = asRecord(params.goal)
+  const objective = stringValue(goal?.objective)
+  const threadId = stringValue(params.threadId, goal?.threadId)
+  if (!goal || !objective || !threadId) return null
+  return {
+    type: 'goal.updated',
+    goal: {
+      providerId: 'codex',
+      sessionId: threadId,
+      objective,
+      status: stringValue(goal.status),
+      tokenBudget: typeof goal.tokenBudget === 'number' ? goal.tokenBudget : null,
+      tokensUsed: typeof goal.tokensUsed === 'number' ? goal.tokensUsed : undefined,
+      timeUsedSeconds: typeof goal.timeUsedSeconds === 'number' ? goal.timeUsedSeconds : undefined
+    }
+  }
+}
+
+function codexAppServerPlan(params: Record<string, unknown>): RunEvent | null {
+  const plan = Array.isArray(params.plan) ? params.plan : []
+  const turnId = stringValue(params.turnId) ?? 'codex-plan'
+  return {
+    type: 'plan.updated',
+    plan: {
+      providerId: 'codex',
+      sessionId: stringValue(params.threadId) ?? '',
+      mode: 'execute',
+      title: 'Codex plan',
+      summary: stringValue(params.explanation),
+      items: plan.flatMap((item, index) => {
+        const rec = asRecord(item)
+        const content = stringValue(rec?.step, rec?.content, rec?.text)
+        if (!content) return []
+        const status = stringValue(rec?.status)
+        return [{
+          id: `${turnId}-${index}`,
+          content,
+          status: status === 'inProgress' ? 'in_progress' : status === 'completed' ? 'completed' : 'pending'
+        }]
+      })
+    }
+  }
+}
+
+function codexAppServerUsage(params: Record<string, unknown>): RunEvent | null {
+  const usage = asRecord(params.tokenUsage)
+  const total = asRecord(usage?.total)
+  if (!total) return null
+  return {
+    type: 'assistant.status',
+    content: `Token usage: ${Number(total.totalTokens ?? 0).toLocaleString()} total`
+  }
+}
+
+function codexStatusFromNotification(method: string, params: Record<string, unknown>): RunEvent | null {
+  const thread = asRecord(params.thread)
+  const turn = asRecord(params.turn)
+  const labels: Record<string, string> = {
+    'thread/status/changed': `Thread status: ${stringValue(params.status, thread?.status) ?? 'changed'}`,
+    'thread/archived': 'Thread archived',
+    'thread/unarchived': 'Thread unarchived',
+    'thread/closed': 'Thread closed',
+    'skills/changed': 'Skills changed',
+    'thread/name/updated': `Thread renamed${stringValue(params.name) ? `: ${stringValue(params.name)}` : ''}`,
+    'turn/started': `Turn started${stringValue(turn?.id, params.turnId) ? `: ${stringValue(turn?.id, params.turnId)}` : ''}`,
+    'hook/started': `Hook started${stringValue(params.name, params.hookName) ? `: ${stringValue(params.name, params.hookName)}` : ''}`,
+    'hook/completed': `Hook completed${stringValue(params.name, params.hookName) ? `: ${stringValue(params.name, params.hookName)}` : ''}`,
+    'rawResponseItem/completed': 'Raw response item completed',
+    'serverRequest/resolved': 'Server request resolved',
+    'mcpServer/oauthLogin/completed': 'MCP OAuth login completed',
+    'mcpServer/startupStatus/updated': 'MCP startup status updated',
+    'account/updated': 'Account updated',
+    'account/rateLimits/updated': 'Rate limits updated',
+    'app/list/updated': 'App list updated',
+    'remoteControl/status/changed': `Remote control: ${stringValue(params.status) ?? 'changed'}`,
+    'externalAgentConfig/import/completed': 'External agent config import completed',
+    'fs/changed': 'File system changed',
+    'thread/compacted': 'Thread compacted',
+    'model/rerouted': `Model rerouted${stringValue(params.model, params.targetModel) ? `: ${stringValue(params.model, params.targetModel)}` : ''}`,
+    'model/verification': `Model verification${stringValue(params.status, params.result) ? `: ${stringValue(params.status, params.result)}` : ''}`,
+    'warning': stringValue(params.message) ?? 'Codex warning',
+    'guardianWarning': stringValue(params.message) ?? 'Codex guardian warning',
+    'deprecationNotice': stringValue(params.message) ?? 'Codex deprecation notice',
+    'configWarning': stringValue(params.message) ?? 'Codex config warning',
+    'fuzzyFileSearch/sessionUpdated': 'Fuzzy file search updated',
+    'fuzzyFileSearch/sessionCompleted': 'Fuzzy file search completed',
+    'thread/realtime/started': 'Realtime session started',
+    'thread/realtime/itemAdded': 'Realtime item added',
+    'thread/realtime/transcript/done': 'Realtime transcript completed',
+    'thread/realtime/error': stringValue(params.message, params.error) ?? 'Realtime error',
+    'thread/realtime/closed': 'Realtime session closed',
+    'windows/worldWritableWarning': stringValue(params.message) ?? 'Windows world-writable path warning',
+    'windowsSandbox/setupCompleted': 'Windows sandbox setup completed',
+    'account/login/completed': 'Account login completed'
+  }
+  const content = labels[method]
+  return content ? { type: 'assistant.status', content } : null
 }
 
 function parseCodexAppServerMessage(obj: Record<string, unknown>): RunEvent[] {
@@ -2225,15 +2446,127 @@ function parseCodexAppServerMessage(obj: Record<string, unknown>): RunEvent[] {
     if (threadId) events.push({ type: 'session.started', providerSessionId: threadId })
   }
 
-  if (method === 'turn/completed') events.push({ type: 'run.completed' })
+  if (method === 'turn/completed') {
+    const turn = asRecord(params.turn)
+    const status = stringValue(turn?.status)
+    if (status === 'failed' || status === 'interrupted') {
+      const error = asRecord(turn?.error)
+      events.push({ type: 'run.failed', content: stringifyContent(error?.message ?? error ?? status) })
+    } else {
+      events.push({ type: 'run.completed' })
+    }
+  }
   if (method === 'error') events.push({ type: 'run.failed', content: stringifyContent(params.message ?? params.error ?? obj.error) })
+
+  if (method === 'item/agentMessage/delta') {
+    const itemId = stringValue(params.itemId)
+    const delta = stringValue(params.delta)
+    if (itemId && delta) events.push({ type: 'assistant.text.delta', streamId: itemId, content: delta })
+  }
+
+  if (method === 'item/plan/delta') {
+    const itemId = stringValue(params.itemId)
+    const delta = stringValue(params.delta)
+    if (itemId && delta) events.push({ type: 'assistant.text.delta', streamId: itemId, content: delta })
+  }
+
+  if (method === 'turn/plan/updated') {
+    const plan = codexAppServerPlan(params)
+    if (plan) events.push(plan)
+  }
+
+  if (method === 'thread/goal/updated') {
+    const goal = codexAppServerGoal(params)
+    if (goal) events.push(goal)
+  }
+
+  if (method === 'thread/goal/cleared') {
+    const threadId = stringValue(params.threadId)
+    if (threadId) events.push({ type: 'goal.cleared', providerId: 'codex', sessionId: threadId })
+  }
+
+  if (method === 'thread/tokenUsage/updated') {
+    const usage = codexAppServerUsage(params)
+    if (usage) events.push(usage)
+  }
+
+  if (method === 'turn/diff/updated' && typeof params.diff === 'string') {
+    events.push({ type: 'diff.updated', content: params.diff })
+  }
+
+  if (method === 'item/autoApprovalReview/started') {
+    events.push({
+      type: 'assistant.status',
+      content: `Auto-review started${stringValue(params.reviewId) ? `: ${stringValue(params.reviewId)}` : ''}`
+    })
+  }
+
+  if (method === 'item/autoApprovalReview/completed') {
+    const action = asRecord(params.action)
+    events.push({
+      type: 'assistant.status',
+      content: `Auto-review completed${stringValue(action?.type, params.reviewId) ? `: ${stringValue(action?.type, params.reviewId)}` : ''}`
+    })
+  }
+
+  if (
+    method === 'command/exec/outputDelta' ||
+    method === 'item/commandExecution/outputDelta' ||
+    method === 'item/fileChange/outputDelta'
+  ) {
+    const streamId = stringValue(params.callId, params.itemId, params.commandId, params.processId) ?? method
+    const delta = stringValue(params.delta, params.text, params.output)
+    if (delta) events.push({ type: 'assistant.text.delta', streamId, content: delta })
+  }
+
+  if (method === 'item/fileChange/patchUpdated') {
+    events.push({
+      type: 'assistant.status',
+      content: `Patch updated${stringValue(params.itemId) ? `: ${stringValue(params.itemId)}` : ''}`
+    })
+  }
+
+  if (method === 'item/mcpToolCall/progress') {
+    const message = stringValue(params.message, params.progress, params.status)
+    events.push({
+      type: 'assistant.status',
+      content: message ? `MCP progress: ${message}` : 'MCP progress updated'
+    })
+  }
+
+  if (
+    method === 'item/reasoning/summaryTextDelta' ||
+    method === 'item/reasoning/textDelta' ||
+    method === 'thread/realtime/transcript/delta'
+  ) {
+    const streamId = stringValue(params.itemId, params.responseId, params.threadId) ?? method
+    const delta = stringValue(params.delta, params.text)
+    if (delta) events.push({ type: 'assistant.text.delta', streamId, content: delta })
+  }
+
+  if (method === 'item/reasoning/summaryPartAdded') {
+    events.push({
+      type: 'assistant.status',
+      content: `Reasoning summary updated${stringValue(params.itemId) ? `: ${stringValue(params.itemId)}` : ''}`
+    })
+  }
+
+  if (method === 'thread/realtime/outputAudio/delta' || method === 'thread/realtime/sdp') {
+    events.push({ type: 'assistant.status', content: method === 'thread/realtime/sdp' ? 'Realtime SDP updated' : 'Realtime audio updated' })
+  }
 
   if (method === 'item/started' || method === 'item/completed') {
     const item = asRecord(params.item)
-    if (item) events.push(...parseCodexAppServerItem(item))
+    if (item) events.push(...parseCodexAppServerItem(item, method === 'item/started' ? 'started' : 'completed'))
   }
 
-  if (method === 'item/commandExecution/requestApproval' || method === 'item/fileChange/requestApproval') {
+  if (
+    method === 'item/commandExecution/requestApproval' ||
+    method === 'item/fileChange/requestApproval' ||
+    method === 'item/permissions/requestApproval' ||
+    method === 'applyPatchApproval' ||
+    method === 'execCommandApproval'
+  ) {
     const permission = codexAppServerPermissionRequest(method, requestId, params)
     if (permission) events.push(permission)
   }
@@ -2247,6 +2580,9 @@ function parseCodexAppServerMessage(obj: Record<string, unknown>): RunEvent[] {
     const elicitation = codexAppServerMcpElicitation(params)
     if (elicitation) events.push(elicitation)
   }
+
+  const status = codexStatusFromNotification(method, params)
+  if (status) events.push(status)
 
   return events
 }
@@ -2263,7 +2599,7 @@ const codexProvider: ProviderAdapter = {
     resume: true,
     streamingJson: true,
     interactiveCli: true,
-    interactivePermissions: false,
+    interactivePermissions: true,
     allowedTools: false,
     workspaceSandbox: true,
     fullAccessMode: true
@@ -2666,6 +3002,166 @@ async function runClaudeMcpDetailsAsync(providerId: string, surfaceId: string, b
   }
 }
 
+type CodexAppServerSurfaceRequest = {
+  method: string
+  params?: Record<string, unknown>
+}
+
+function codexAppServerSurfaceRequest(surfaceId: string): CodexAppServerSurfaceRequest | null {
+  const cwd = process.cwd()
+  const requests: Record<string, CodexAppServerSurfaceRequest> = {
+    'appserver-models': { method: 'model/list', params: { limit: 100, includeHidden: true } },
+    'appserver-model-provider-capabilities': { method: 'modelProvider/capabilities/read', params: {} },
+    'appserver-features': { method: 'experimentalFeature/list', params: { limit: 100 } },
+    'appserver-config': { method: 'config/read', params: { includeLayers: true, cwd } },
+    'appserver-config-requirements': { method: 'configRequirements/read' },
+    'appserver-account': { method: 'account/read', params: { refreshToken: false } },
+    'appserver-rate-limits': { method: 'account/rateLimits/read' },
+    'appserver-auth-status': { method: 'getAuthStatus', params: { includeToken: false, refreshToken: false } },
+    'appserver-skills': { method: 'skills/list', params: { cwds: [cwd], forceReload: false } },
+    'appserver-hooks': { method: 'hooks/list', params: { cwds: [cwd] } },
+    'appserver-plugins': { method: 'plugin/list', params: { cwds: [cwd] } },
+    'appserver-apps': { method: 'app/list', params: { limit: 100, forceRefetch: false } },
+    'appserver-mcp-status': { method: 'mcpServerStatus/list', params: { limit: 100 } },
+    'appserver-external-agent-config': { method: 'externalAgentConfig/detect', params: { includeHome: true, cwds: [cwd] } },
+    'appserver-threads': { method: 'thread/list', params: { limit: 50, cwd, useStateDbOnly: true } },
+    'appserver-loaded-threads': { method: 'thread/loaded/list', params: { limit: 50 } }
+  }
+  return requests[surfaceId] ?? null
+}
+
+async function runCodexAppServerSingleRequest(
+  provider: ProviderAdapter,
+  binary: string,
+  request: CodexAppServerSurfaceRequest
+): Promise<unknown> {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(binary, ['app-server', '--listen', 'stdio://'], {
+      cwd: process.cwd(),
+      env: providerSpawnEnv(provider.id),
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+    let nextId = 1
+    let stdoutBuffer = ''
+    let stderrBuffer = ''
+    const pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
+    let finished = false
+    let timeout: ReturnType<typeof setTimeout>
+
+    const finish = (error: Error | null, value?: unknown): void => {
+      if (finished) return
+      finished = true
+      clearTimeout(timeout)
+      if (!child.killed) child.kill()
+      pending.clear()
+      if (error) reject(error)
+      else resolve(value)
+    }
+
+    const send = (method: string, params?: Record<string, unknown>): Promise<unknown> => {
+      const id = `surface-${nextId++}`
+      const payload = params === undefined ? { jsonrpc: '2.0', id, method } : { jsonrpc: '2.0', id, method, params }
+      const line = JSON.stringify(payload)
+      return new Promise((requestResolve, requestReject) => {
+        pending.set(id, { resolve: requestResolve, reject: requestReject })
+        child.stdin.write(`${line}\n`, (error) => {
+          if (error) {
+            pending.delete(id)
+            requestReject(error)
+          }
+        })
+      })
+    }
+
+    const notify = (method: string, params?: Record<string, unknown>): void => {
+      const payload = params === undefined ? { jsonrpc: '2.0', method } : { jsonrpc: '2.0', method, params }
+      child.stdin.write(`${JSON.stringify(payload)}\n`)
+    }
+
+    timeout = setTimeout(() => {
+      finish(new Error(`Codex app-server request timed out: ${request.method}${stderrBuffer ? `\n${stderrBuffer.trim()}` : ''}`))
+    }, PROVIDER_COMMAND_SURFACE_TIMEOUT_MS)
+
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stderr.on('data', (chunk) => {
+      stderrBuffer += String(chunk)
+    })
+    child.stdout.on('data', (chunk) => {
+      stdoutBuffer += String(chunk)
+      const lines = stdoutBuffer.split('\n')
+      stdoutBuffer = lines.pop() ?? ''
+      for (const line of lines) {
+        const message = parseJsonLine(line)
+        if (!message) continue
+        const id = stringValue(message.id)
+        if (!id) continue
+        const waiting = pending.get(id)
+        if (!waiting) continue
+        pending.delete(id)
+        if (message.error) {
+          waiting.reject(new Error(stringifyContent(message.error)))
+        } else {
+          waiting.resolve(message.result)
+        }
+      }
+    })
+    child.on('error', (error) => finish(error))
+    child.on('exit', (code, signal) => {
+      if (!finished && pending.size > 0) {
+        finish(new Error(`Codex app-server exited before responding (${signal ?? code ?? 'unknown'}).${stderrBuffer ? `\n${stderrBuffer.trim()}` : ''}`))
+      }
+    })
+
+    send('initialize', {
+      clientInfo: {
+        name: 'orchestrator',
+        title: 'Orchestrator',
+        version: '1.0.0'
+      },
+      capabilities: {
+        experimentalApi: true
+      }
+    }).then(async () => {
+      notify('initialized')
+      const result = await send(request.method, request.params)
+      finish(null, result)
+    }).catch((error) => finish(error instanceof Error ? error : new Error(String(error))))
+  })
+}
+
+async function runCodexAppServerCommandSurface(
+  provider: ProviderAdapter,
+  surfaceId: string,
+  binary: string
+): Promise<ProviderCommandSurfaceResult> {
+  const request = codexAppServerSurfaceRequest(surfaceId)
+  if (!request) {
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'blocked',
+      output: 'Unknown Codex app-server surface.'
+    }
+  }
+  try {
+    const result = await runCodexAppServerSingleRequest(provider, binary, request)
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'ok',
+      output: redactProviderCommandOutput(JSON.stringify(result, null, 2))
+    }
+  } catch (error) {
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'error',
+      output: redactProviderCommandOutput(error instanceof Error ? error.message : String(error))
+    }
+  }
+}
+
 export function runProviderCommandSurface(providerId: string, surfaceId: string): ProviderCommandSurfaceResult {
   const provider = getProvider(providerId)
   const registry = providerCapabilityRegistry(provider.id)
@@ -2694,6 +3190,14 @@ export function runProviderCommandSurface(providerId: string, surfaceId: string)
       surfaceId,
       status: 'error',
       output: `${provider.id} CLI is not available.`
+    }
+  }
+  if (provider.id === 'codex' && surface.runtime === 'app-server') {
+    return {
+      providerId: provider.id,
+      surfaceId,
+      status: 'blocked',
+      output: 'Codex app-server surfaces require the async command runner.'
     }
   }
   if (provider.id === 'claude' && surface.id === 'mcp-details') {
@@ -2753,6 +3257,9 @@ export async function runProviderCommandSurfaceAsync(providerId: string, surface
       status: 'error',
       output: `${provider.id} CLI is not available.`
     }
+  }
+  if (provider.id === 'codex' && surface.runtime === 'app-server') {
+    return await runCodexAppServerCommandSurface(provider, surface.id, binary)
   }
   if (provider.id === 'claude' && surface.id === 'mcp-details') {
     return await runClaudeMcpDetailsAsync(provider.id, surface.id, binary)

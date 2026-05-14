@@ -6,13 +6,10 @@ import { readFileSync } from 'fs'
 import { promisify } from 'util'
 import type { Attachment, Session, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus, UsageSummary } from '../types'
 import { PROVIDER_DEFS, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
-import { detectNativeCliPrompt, nativeCliPromptContent, nativeCliPromptSubmitSequence, type NativeCliPromptKind } from '../types/nativeCliPrompts'
-import { nativeTerminalControlResponses } from '../types/nativeTerminalControl'
-import { parseClaudeTerminalSnapshot, terminalSnapshotToRunEvents, type NativeTerminalStreamState } from '../types/nativeTerminalEvents'
 import { gitManager } from './git'
 import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand } from './providers'
 import type { ProviderAdapter } from './providers'
-import { providerRuntime, type ProviderRuntimeProcess } from './providerRuntime'
+import { providerRuntime } from './providerRuntime'
 import { eventsToMessages } from './runEvents'
 import { decideRunLifecycle, eventsForLifecycleDecision, isPausedOrFailed } from './runLifecycle'
 import { settingsStore } from './settings'
@@ -40,17 +37,8 @@ const pendingFollowUps = new Map<string, PendingFollowUp[]>()
 
 const activeToolUseIds = new Map<string, Set<string>>()
 
-const activeNativePrompts = new Map<string, NativeCliPromptKind>()
-
-const answeredNativePrompts = new Map<string, Set<NativeCliPromptKind>>()
-
-const nativeTerminalCompletions = new Set<string>()
-
-const nativeTerminalStreamStates = new Map<string, NativeTerminalStreamState>()
-
-const nativeTerminalBuffers = new Map<string, string>()
-
-function defaultRuntimeForProvider(_providerId: string): ProviderRuntimeKind {
+function defaultRuntimeForProvider(providerId: string): ProviderRuntimeKind {
+  if (providerId === 'codex') return 'app-server'
   return 'headless'
 }
 
@@ -220,69 +208,9 @@ function markLatestPermissionDecision(
   }
 }
 
-function nativePromptEventsForData(
-  sessionId: string,
-  provider: ProviderAdapter,
-  data: string
-): RunEvent[] {
-  if (activeNativePrompts.has(sessionId)) return []
-  const kind = detectNativeCliPrompt(provider.id, data)
-  if (!kind) return []
-  if (answeredNativePrompts.get(sessionId)?.has(kind)) return []
-
-  activeNativePrompts.set(sessionId, kind)
-  const prompt = nativeCliPromptContent(kind)
-  return [{
-    type: 'user_input.requested',
-    content: prompt.content,
-    questions: prompt.questions
-  }]
-}
-
-function nativeTerminalEventsForData(
-  sessionId: string,
-  provider: ProviderAdapter,
-  data: string
-): RunEvent[] {
-  if (provider.id !== 'claude') return []
-  if (activeNativePrompts.has(sessionId)) return []
-  if (nativeTerminalCompletions.has(sessionId)) return []
-
-  const snapshot = parseClaudeTerminalSnapshot(data)
-  const previous = nativeTerminalStreamStates.get(sessionId)
-  const streamId = `native-terminal:${sessionId}`
-  const result = terminalSnapshotToRunEvents(snapshot, previous, streamId)
-  if (result.state) nativeTerminalStreamStates.set(sessionId, result.state)
-  if (snapshot.completed && snapshot.assistantText) nativeTerminalCompletions.add(sessionId)
-  return result.events
-}
-
-function answerNativeTerminalControlRequests(process: ProviderRuntimeProcess, data: string): void {
-  for (const response of nativeTerminalControlResponses(data)) {
-    try { process.write(response) } catch { /* ignore terminal query races */ }
-  }
-}
-
-function answerForNativePrompt(sessionId: string, answer: string): string | null {
-  const prompt = activeNativePrompts.get(sessionId)
-  if (!prompt) return null
-  activeNativePrompts.delete(sessionId)
-  const answered = answeredNativePrompts.get(sessionId) ?? new Set<NativeCliPromptKind>()
-  answered.add(prompt)
-  answeredNativePrompts.set(sessionId, answered)
-
-  return nativeCliPromptSubmitSequence(prompt, answer)
-}
-
 function appendPendingFollowUp(sessionId: string, followUp: PendingFollowUp): void {
   const current = pendingFollowUps.get(sessionId) ?? []
   pendingFollowUps.set(sessionId, [...current, followUp])
-}
-
-function appendNativeTerminalBuffer(sessionId: string, data: string): string {
-  const buffer = `${nativeTerminalBuffers.get(sessionId) ?? ''}${data}`.slice(-5000)
-  nativeTerminalBuffers.set(sessionId, buffer)
-  return buffer
 }
 
 function shiftPendingFollowUp(sessionId: string): PendingFollowUp | null {
@@ -328,19 +256,7 @@ function updateToolBoundaryState(sessionId: string, events: RunEvent[]): void {
 function clearRuntimeState(sessionId: string): void {
   pendingFollowUps.delete(sessionId)
   activeToolUseIds.delete(sessionId)
-  activeNativePrompts.delete(sessionId)
-  answeredNativePrompts.delete(sessionId)
-  nativeTerminalCompletions.delete(sessionId)
-  nativeTerminalStreamStates.delete(sessionId)
-  nativeTerminalBuffers.delete(sessionId)
   providerRuntime.cleanupSession(sessionId)
-}
-
-function resetNativeTerminalState(sessionId: string): void {
-  answeredNativePrompts.delete(sessionId)
-  nativeTerminalCompletions.delete(sessionId)
-  nativeTerminalStreamStates.delete(sessionId)
-  nativeTerminalBuffers.delete(sessionId)
 }
 
 export const sessionManager = {
@@ -481,12 +397,7 @@ export const sessionManager = {
       onParsedEvents: (events) => {
         this.applyRunEvents(sessionId, events)
       },
-      onData: (data, process) => {
-        answerNativeTerminalControlRequests(process, data)
-        const nativePromptBuffer = appendNativeTerminalBuffer(sessionId, data)
-        this.applyRunEvents(sessionId, nativePromptEventsForData(sessionId, provider, nativePromptBuffer))
-        this.applyRunEvents(sessionId, nativeTerminalEventsForData(sessionId, provider, nativePromptBuffer))
-
+      onData: (data) => {
         if (/\[y\/n\]/i.test(data) || /\[yes\/no\]/i.test(data)) {
           this.updateStatus(sessionId, 'waiting_for_user')
           send('session:needsInput', { id: sessionId })
@@ -494,7 +405,6 @@ export const sessionManager = {
       },
       onExit: () => {
         activeToolUseIds.delete(sessionId)
-        activeNativePrompts.delete(sessionId)
         const followUp = shiftPendingFollowUp(sessionId)
         if (followUp) {
           for (const message of this.get(sessionId)?.messages ?? []) {
@@ -530,8 +440,9 @@ export const sessionManager = {
   async sendMessage(sessionId: string, prompt: string, useWorktree?: boolean, attachments: Attachment[] = []): Promise<void> {
     const session = this.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
+    const activeProviderId = session.provider ?? 'claude'
     const effectivePrompt = promptWithLocalAttachments(prompt, attachments)
-    const providerAttachments = claudeResourceAttachmentSpecs(attachments)
+    const runtimeAttachments = activeProviderId === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
     if (providerRuntime.hasActiveRun(sessionId)) {
       if (session.runtime === 'interactive' && session.status === 'idle') {
         const userMsg: ChatMessage = {
@@ -544,7 +455,6 @@ export const sessionManager = {
         }
         this.appendMessage(sessionId, [userMsg])
         this.updateStatus(sessionId, 'running')
-        resetNativeTerminalState(sessionId)
         providerRuntime.write(sessionId, `${effectivePrompt}\r`)
       } else {
         const messageId = uuidv4()
@@ -558,7 +468,7 @@ export const sessionManager = {
           timestamp: Date.now()
         }
         this.appendMessage(sessionId, [userMsg])
-        appendPendingFollowUp(sessionId, { id: messageId, prompt: effectivePrompt, mode: 'queued', attachments: providerAttachments })
+        appendPendingFollowUp(sessionId, { id: messageId, prompt: effectivePrompt, mode: 'queued', attachments: runtimeAttachments })
         this.updateStatus(sessionId, 'running')
       }
       return
@@ -590,7 +500,6 @@ export const sessionManager = {
     }
 
     this.updateStatus(sessionId, 'running')
-    resetNativeTerminalState(sessionId)
 
     const userMsg: ChatMessage = {
       id: uuidv4(),
@@ -606,7 +515,7 @@ export const sessionManager = {
     const provider = getProvider(currentSession.provider ?? 'claude')
     let runRequest: RunRequest = {
       ...requestFromSession(currentSession, effectivePrompt),
-      attachments: providerAttachments
+      attachments: provider.id === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
     }
     await this.startProviderRun(sessionId, currentSession, provider, runRequest)
   },
@@ -638,7 +547,7 @@ export const sessionManager = {
       }
     }
 
-    if (decision.shouldKillPty) {
+    if (decision.shouldInterruptProcess) {
       providerRuntime.stop(sessionId)
     }
 
@@ -757,7 +666,6 @@ export const sessionManager = {
     }
 
     this.updateStatus(sessionId, 'running')
-    resetNativeTerminalState(sessionId)
 
     const provider = getProvider(session.provider ?? 'claude')
     const mode = session.providerSessionId ? 'resume' : 'start'
@@ -799,6 +707,19 @@ export const sessionManager = {
       return
     }
 
+    if (providerRuntime.resolvePermission(sessionId, true, persistGrant)) {
+      if (persistGrant) {
+        const sessions = store.get('sessions', [])
+        const s = sessions.find((candidate) => candidate.id === sessionId)
+        if (s) {
+          s.allowedTools = mergeToolNames(s.allowedTools, toolNames)
+          store.set('sessions', sessions)
+        }
+      }
+      this.updateStatus(sessionId, 'running')
+      return
+    }
+
     if (!session.providerSessionId) return
     if (providerRuntime.hasActiveRun(sessionId)) providerRuntime.stop(sessionId)
 
@@ -810,7 +731,6 @@ export const sessionManager = {
     }
 
     this.updateStatus(sessionId, 'running')
-    resetNativeTerminalState(sessionId)
 
     const currentSession = this.get(sessionId)!
     const resumeProvider = getProvider(currentSession.provider ?? 'claude')
@@ -831,8 +751,7 @@ export const sessionManager = {
     if (!trimmed) return
     if (session.status === 'waiting_for_permission') markLatestPermissionDecision(sessionId, 'kept_planning')
 
-    if (providerRuntime.hasActiveRun(sessionId) && session.runtime === 'interactive') {
-      const nativeAnswer = answerForNativePrompt(sessionId, trimmed)
+    if (providerRuntime.answerUserInput(sessionId, trimmed)) {
       this.appendMessage(sessionId, [{
         id: uuidv4(),
         role: 'user',
@@ -841,7 +760,19 @@ export const sessionManager = {
         timestamp: Date.now()
       }])
       this.updateStatus(sessionId, 'running')
-      providerRuntime.write(sessionId, nativeAnswer ?? `${trimmed}\r`)
+      return
+    }
+
+    if (providerRuntime.hasActiveRun(sessionId) && session.runtime === 'interactive') {
+      this.appendMessage(sessionId, [{
+        id: uuidv4(),
+        role: 'user',
+        type: 'text',
+        content: trimmed,
+        timestamp: Date.now()
+      }])
+      this.updateStatus(sessionId, 'running')
+      providerRuntime.write(sessionId, `${trimmed}\r`)
       return
     }
 
@@ -857,7 +788,6 @@ export const sessionManager = {
       timestamp: Date.now()
     }])
     this.updateStatus(sessionId, 'running')
-    resetNativeTerminalState(sessionId)
 
     const currentSession = this.get(sessionId)!
     const resumeProvider = getProvider(currentSession.provider ?? 'claude')
@@ -873,6 +803,10 @@ export const sessionManager = {
 
   denyPermission(sessionId: string): void {
     markLatestPermissionDecision(sessionId, 'denied')
+    if (providerRuntime.resolvePermission(sessionId, false, false)) {
+      this.updateStatus(sessionId, 'running')
+      return
+    }
     if (approvalBroker.hasPendingApproval(sessionId)) {
       approvalBroker.resolveSessionApprovals(sessionId, false, 'Denied by user.')
       this.updateStatus(sessionId, 'running')
@@ -986,7 +920,6 @@ export const sessionManager = {
 
   async remove(sessionId: string): Promise<void> {
     this.stop(sessionId)
-    providerRuntime.stopJsonlTailer(sessionId)
     const session = this.get(sessionId)
     if (session?.useWorktree && session.repoRoot && session.workDir) {
       try {

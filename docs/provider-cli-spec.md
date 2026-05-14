@@ -9,9 +9,9 @@ This file is the provider CLI evidence reference for Orchestrator's provider sup
 Current implementation baseline:
 
 - Provider adapters expose separate structured automation commands and interactive CLI commands.
-- Claude, Codex, Cursor, and Copilot are marked `interactiveCli=supported` in diagnostics.
+- Codex, Cursor, and Copilot are marked `interactiveCli=supported` in diagnostics. Claude's installed CLI can run interactively, but Orchestrator marks the Claude adapter's interactive chat lane unsupported so normal chat cannot drift back to the retired native parser.
 - Cursor and Copilot account-sensitive probes may need a non-sandbox app process for macOS Keychain access.
-- Orchestrator's normal Claude product path uses the structured `claude -p --output-format stream-json` CLI lane with per-run hook settings for approval UI. Native PTY remains an escape hatch for true TUI-only commands and prompt flows.
+- Orchestrator's normal Claude product path uses the structured `claude -p --output-format stream-json` CLI lane with per-run hook settings for approval UI. The old Claude-native chat parser/prompt bridge has been removed; provider management should be handled by Orchestrator settings or the separate user terminal.
 
 Evidence levels:
 
@@ -41,7 +41,7 @@ Runtime modes:
 
 | Feature | Evidence | Details | Orchestrator status |
 | --- | --- | --- | --- |
-| Interactive session | `verified-cli` | Default `claude [prompt]` starts interactive mode and may show the workspace trust prompt. | Deprecated for normal Claude chat; keep only for explicit terminal handoff/provider-management flows and rare native prompts. |
+| Interactive session | `verified-cli` | Default `claude [prompt]` starts interactive mode and may show the workspace trust prompt. | Historical only for Orchestrator chat; the app adapter does not expose Claude interactive chat support. Provider-management work should use settings or a separate terminal handoff. |
 | Non-interactive print | `verified-cli` | `-p/--print`; output formats `text`, `json`, `stream-json`. | Normal Orchestrator session path. |
 | Streaming input | `verified-cli` | `--input-format stream-json`; `--replay-user-messages`. | Not implemented. |
 | Partial messages | `verified-cli` | `--include-partial-messages` with print stream JSON. | Implemented for assistant and subagent text streaming. |
@@ -109,13 +109,13 @@ Runtime modes:
 
 | Feature | Evidence | Details | Orchestrator status |
 | --- | --- | --- | --- |
-| Interactive TUI | `verified-cli` | Top-level `codex [prompt]` starts interactive CLI; `--no-alt-screen` probe showed the native workspace trust prompt. | Needs PTY runtime for live approval capture. |
+| Interactive TUI | `verified-cli` | Top-level `codex [prompt]` starts interactive CLI; `--no-alt-screen` probe showed the native workspace trust prompt. | Verified fallback only; do not build a Codex PTY approval lane unless app-server proves insufficient. |
 | Non-interactive exec | `verified-cli` | `codex exec --json`; live 2026-05-13 smoke emitted `item.completed` with `item.type = agent_message`. | Implemented as current automation lane. |
 | Review command | `verified-cli` | `codex review --uncommitted`, `--base`, `--commit`, `--title`. | Partial. |
 | Resume/fork | `verified-cli` | Top-level `resume`, `fork`; exec has `exec resume`. | Partial. |
-| App/app-server/exec-server | `verified-cli` | Experimental app/server commands exist; generated v2 schema includes command/file approvals, user-input requests, MCP elicitation, turn diffs, and agent items. | Parser fixtures added; runtime transport deferred. |
+| App/app-server/exec-server | `verified-cli` | Experimental app/server commands exist; generated v2 schema includes command/file/general approvals, user-input requests, MCP elicitation, turn diffs, plans, agents, skills, plugins, MCP, account, model, filesystem, hooks, and terminal APIs. | App-server is the normal rich Codex runtime; `npm run live:codex-appserver` verifies live thread/turn completion. |
 | Remote app server | `verified-cli` | Top-level `--remote` and `--remote-auth-token-env`. | Deferred. |
-| Inline terminal scrollback | `verified-cli` | `--no-alt-screen`. | Useful for PTY lane; not implemented. |
+| Inline terminal scrollback | `verified-cli` | `--no-alt-screen`. | Verified CLI fallback only; app-server is the planned UI integration path. |
 | Apply latest diff | `verified-cli` | `codex apply`. | Not surfaced. |
 | Cloud tasks | `verified-cli` | Experimental `cloud`. | Not surfaced. |
 
@@ -155,8 +155,8 @@ Provider features:
 | Apps/connectors | `verified-cli` | Feature flags `apps`, `enable_mcp_apps`, `tool_search`, `tool_suggest`. | Partial. |
 | Multi-agent | `verified-cli` | Feature flags `multi_agent` true, `multi_agent_v2` under development. | Partial activity parser. |
 | Computer/browser use | `verified-cli` | Feature flags `computer_use`, `browser_use`, `in_app_browser` true. | Not provider-surfaced. |
-| MCP elicitation | `verified-cli` | Feature flag `tool_call_mcp_elicitation` true; app-server protocol has `mcpServer/elicitation/request`. | Partial parser/UI with Codex fixture. |
-| Request user input | `verified-cli` | Feature flag `default_mode_request_user_input` false; app-server protocol has `item/tool/requestUserInput`. | Partial parser/UI with Codex fixture. |
+| MCP elicitation | `verified-cli` | Feature flag `tool_call_mcp_elicitation` true; app-server protocol has `mcpServer/elicitation/request`. | Implemented through app-server user-input mapping and response handling. |
+| Request user input | `verified-cli` | Feature flag `default_mode_request_user_input` false; app-server protocol has `item/tool/requestUserInput`. | Implemented through app-server question mapping and response handling. |
 | Auto-review approvals | `verified-schema` | App-server v2 schema exposes `approvalsReviewer: "auto_review"` and config key `approvals_reviewer`. | Advanced Codex permission mode passes the config; live behavior still needs approval-producing verification. |
 | Hooks | `verified-cli` | Feature flag `codex_hooks` true. | Not surfaced. |
 | Runtime metrics | `verified-cli` | Feature flag `runtime_metrics` false/under development. | Not surfaced. |

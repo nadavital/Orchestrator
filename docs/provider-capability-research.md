@@ -17,8 +17,8 @@ Current high-priority gaps now tracked in code:
 | Claude Code | Rich permission controls: denied tools, scoped directories, persisted grants | Partial | Add compact GUI editing for tool/path rules and explicit allow-once vs allow-session behavior. |
 | Copilot | Keychain access differs between sandboxed shell and app/non-sandbox process | Partial | Run account-sensitive probes from the installed app process and show keychain errors separately from missing CLI errors. |
 | Copilot | Structured runtime parsing beyond basic JSON | Partial | Record CLI fixtures for command/user-input/permission/subagent events now that help/version are captured outside the sandbox. |
-| Codex | Interactive approval prompts | Missing | Add a PTY-backed Codex interactive CLI lane using `--ask-for-approval`; keep `codex exec` only for non-interactive automation. |
-| Codex | MCP elicitation | Partial | Add interactive CLI fixtures for `tool_call_mcp_elicitation` and normalize to `user_input.requested`. |
+| Codex | App-server approval prompts | Implemented | Codex app-server is now the rich runtime: start/resume thread, start turn, answer command/file/permission approvals, and keep `codex exec` for automation. |
+| Codex | MCP elicitation | Implemented | App-server `mcpServer/elicitation/request` is normalized to `user_input.requested` and answered through the live JSON-RPC response path. |
 | Cursor | Account/model probes can fail on keychain | Blocked | Keep model probes optional and preserve manual model overrides. |
 | Cursor | Worktree and MCP/rules controls | Missing | Add shared worktree launch controls and compact provider-specific MCP/rules actions. |
 
@@ -40,7 +40,7 @@ These repos are architecture references only. Do not copy implementation code; u
 | `farion1231/cc-switch` | A desktop app can manage multiple coding CLI configs, MCP, prompts, skills, provider presets, usage, proxy/failover, and session browsing across apps. | Add a native-config management layer: import/backfill live provider config, switch provider profiles safely, use atomic writes/backups, and separate provider config management from agent runtime rendering. | Do not turn Orchestrator into a provider-proxy-first product. Proxy/takeover can be optional later; our core product remains real CLI sessions with clean GUI rendering. |
 | `johannesjo/parallel-code` | Multi-agent coding can be modeled as isolated branches/worktrees with separate terminals, diffs, notes, CI status, and merge decisions. | Make worktree/session provenance first-class: branch, base, task notes, per-task terminal, diff review, merge/push controls, and optional Docker sandboxing. | Do not make every session a worktree by default. Keep direct/local sessions available and make isolation an explicit task mode. |
 | `withcrux/claudia` | A narrow Claude Code desktop wrapper can still add value through session history, cost tracking, markdown rendering, tool-call viewers, export, and global stats. | Treat transcript quality as a product feature: searchable history, collapsed tool calls, cost/token summaries, export, and simple session stats. | It is Claude-only and very early, so do not use it as evidence for multi-provider behavior or mature parser coverage. |
-| `markes76/claude-code-gui` | Useful evidence for fallback terminal/session-log behavior, but no longer the target runtime shape for normal Claude chat. | Prefer Claude structured JSON/JSONL for first-class Orchestrator UI; keep PTY/xterm ideas for explicit terminal handoffs and provider-management flows. | It is Claude-only and small/early, so treat the pattern as useful but verify every config/log shape against the installed Claude CLI before encoding behavior. |
+| `markes76/claude-code-gui` | Useful historical evidence for fallback terminal/session-log behavior, but no longer the target runtime shape for normal Claude chat. | Prefer Claude structured JSON/JSONL for first-class Orchestrator UI; keep xterm ideas only for explicit terminal handoffs and provider-management flows. | It is Claude-only and small/early, so treat the pattern as historical and verify every config/log shape against the installed Claude CLI before encoding behavior. |
 | `xintaofei/codeg` | A broader multi-agent workspace can aggregate local sessions across Claude Code, Codex, OpenCode, Gemini CLI, OpenClaw, Cline, and more while adding worktrees, MCP/skills, git/file/terminal flows, and remote chat channels. | Use it as a reference for long-term multi-provider session ingestion, permission notifications, remote control surfaces, and worktree-aware engineering loops. | Do not let remote/server/channel breadth distract from the local desktop CLI-first core. |
 | `sombraio/claudecodeui` | A CloudCLI/ClaudeCodeUI variant reinforces the same web/mobile session UI pattern: chat, integrated shell terminal, file/git explorer, session management, and native Claude MCP config sync. | Treat as corroborating evidence for the `claudecodeui` pattern rather than a separate architecture direction. | It appears to overlap heavily with CloudCLI; do not count it as independent proof of provider coverage. |
 
@@ -53,13 +53,13 @@ Immediate architecture implication:
 - `cc-switch` mostly informs the config/provider-management layer.
 - `parallel-code` mostly informs the multi-session worktree/orchestration layer.
 - `claudia` mostly informs the transcript/history/cost-rendering layer.
-- `claude-code-gui` mostly informs the concrete Claude PTY-plus-JSONL implementation pattern.
+- `claude-code-gui` mostly explains the retired Claude terminal experiment and the limited value of explicit terminal handoffs.
 - `codeg` mostly informs longer-term multi-provider session aggregation and remote control.
 - Together, they reinforce the same principle: provider-native files and CLI semantics should remain the source of truth.
 
 ## 2026-05-06 SDK Runtime Spike Addendum
 
-Update: this spike is background evidence only. The product direction is CLI-first; SDKs and app-server protocols should not lead the implementation unless a native CLI surface cannot support a feature we need.
+Update: this spike is background evidence only. The product direction is provider-native but not terminal-scraping-first; for Codex specifically, app-server should lead the rich runtime because it exposes the native app protocol directly.
 
 This pass inspected current public SDK surfaces and did local no-prompt import/status probes. No agent prompts were sent, so this did not spend model quota.
 
@@ -110,10 +110,10 @@ Evaluation:
 | Runtime path | Difficulty | Value | Main risk | Recommendation |
 | --- | --- | --- | --- | --- |
 | Current headless JSON CLIs | Low | Stable baseline for automation, smoke tests, prompt/result, tools, diffs, permissions where emitted | Provider-specific gaps remain; weaker for rich subagents/commands | Keep for automation and tests, not as the primary product experience. |
-| PTY/terminal overlay | Medium | Preserves native provider behavior, permissions, slash commands, and interactive flows | Harder to parse reliably; permission states can become text-scraping | Primary next runtime path for provider features that only exist in the CLI. |
+| PTY/terminal overlay | Medium | Preserves native provider behavior when no structured protocol exists | Harder to parse reliably; permission states can become text-scraping | Fallback only when a provider has no app-server, SDK, ACP, or other structured protocol for the feature. |
 | Cursor SDK runtime | Medium | Local/cloud runs, stream events, artifacts, MCP, skills, hooks, subagents | Requires `CURSOR_API_KEY` for account/cloud calls; adds native-ish dependency tree | Spike behind optional runtime flag after runtime abstraction exists. |
 | Copilot SDK runtime | Medium-high | Best structured event surface; solves current CLI keychain failure for status/auth/models; rich permissions/subagents/commands | Large dependency/package footprint; protocol is preview and may shift | Defer; first fix/observe the native CLI path. |
-| Codex app-server/runtime | Medium-high | Potentially Codex.app-like approvals/events/features | Protocol discovery still needed | Defer until the CLI/PTY path proves insufficient. |
+| Codex app-server/runtime | High | Codex-native approvals/events/features without terminal scraping | Rich settings browsers still need product UI | Primary rich Codex runtime; keep exec for automation and avoid a Codex PTY approval lane. |
 
 Implementation proposal:
 
@@ -131,8 +131,8 @@ interface ProviderRuntimeAdapter {
 ```
 
 2. Keep current adapters as `*-headless-json` implementations.
-3. Add provider-specific interactive CLI/PTY runtime lanes for native permission prompts, slash commands, questions, and session controls.
-4. Keep SDK/app-server paths as fallback research only when the CLI cannot expose a feature cleanly.
+3. Add provider-specific structured/server runtime lanes for native permission prompts, slash commands, questions, and session controls.
+4. Use Codex app-server as the rich Codex runtime target; keep SDK/PTY paths only when a provider has no structured protocol for the needed feature.
 5. Superseded on 2026-05-13: do not make runtime selection a normal user setting for Claude. Prefer structured JSON for user-facing Claude coding sessions; keep native CLI only for explicit terminal handoff/provider-management flows.
 
 Hardness estimate:
@@ -214,7 +214,7 @@ Newly verified CLI details:
 UI implications:
 
 - Keep `codex exec` as the deterministic headless lane.
-- Add a Codex "interactive/app server" spike before trying to fake approval prompts through `exec`.
+- Keep the Codex app-server transport as the rich runtime; do not fake approval prompts through `exec`.
 - Add review task creation UI.
 - Add feature flag diagnostics, but keep it tucked away from normal users.
 - Add local/OSS provider support as a provider backend variant.
@@ -328,7 +328,7 @@ UI surfaces:
 4. Add provider probe commands that are no-quota by default: help/version/features/MCP list/models list where safe.
 5. Add fixture types for command events, subagent events, elicitation, rich permissions, partial messages, and MCP events.
 6. Add Copilot SDK spike separately from CLI prompt mode.
-7. Add Codex interactive/app-server spike separately from `exec`.
+7. Keep Codex app-server transport separate from `exec`.
 8. Add provider-specific settings tabs: Models, Modes, Commands, Agents, MCP/Plugins, Advanced.
 
 ## Product Goal
@@ -396,16 +396,16 @@ Useful capabilities from local help:
 
 Current app implication:
 
-The current adapter uses `codex exec`, so the GUI can reliably parse JSONL and control sandboxing. However, `codex exec` does not expose `--ask-for-approval`; that flag belongs to the interactive CLI surface. To support Codex approval modes properly, we likely need either:
+The current product split is now explicit: Codex app-server is the rich GUI runtime, while `codex exec` remains the deterministic automation lane. `codex exec` does not expose the live approval UI, so approval prompts must stay on app-server.
 
 1. Keep `exec` for headless runs and label it honestly as sandbox-based, non-interactive automation.
-2. Add an interactive PTY-backed Codex mode that drives the TUI/inline CLI and parses screen/stdout enough to surface approval prompts.
-3. Investigate `app-server`, `exec-server`, or `mcp-server` for a more structured GUI integration path.
+2. Use Codex app-server for the structured approval/question/diff/thread protocol.
+3. Keep the interactive TUI path as a fallback only if app-server lacks a required native feature.
 
 Practical split:
 
 - Use `codex exec` when the GUI already chose a sandbox scope up front: workspace write, full access, or bypass. This is the right fit for cheap integration smoke tests, deterministic background tasks, CI-like checks, and "run this with this policy" jobs.
-- Use a future `codex interactive` runtime when the user expects a coding-session feel: approve/deny tools as they happen, answer questions, and keep a conversational loop alive.
+- Use a future `codex app-server` runtime when the user expects a coding-session feel: approve/deny tools as they happen, answer questions, and keep a conversational loop alive.
 
 So the `exec` sandbox mode is not wrong; it is just the automation/runtime-sandbox lane. Interactive coding needs a second Codex runtime bridge instead of overloading `exec`.
 
@@ -643,7 +643,7 @@ If a provider changes output shape, we should learn that through one failing fix
 - Claude: complete permission-card flow with allow once, allow tool for session, deny with instruction, and resume.
 - Copilot: add permission policy mapping for `--allow-tool`, `--deny-tool`, `--available-tools`, URL/path controls, and `--allow-all`.
 - Cursor: generate per-session CLI config for allow/deny `Shell`, `Read`, and `Write` tokens.
-- Codex: separate `exec` sandbox mode from interactive approval mode.
+- Codex: separate `exec` sandbox mode from app-server approval mode.
 
 ### Phase 3: Interactive Runtime Bridges
 
@@ -658,7 +658,7 @@ Priority:
 1. Claude print/stream-json plus permission prompt tool investigation.
 2. Copilot ACP or interactive PTY for real ask/permission/subagent features.
 3. Cursor config-backed permissions plus optional interactive PTY.
-4. Codex interactive approval via PTY or app/exec server investigation.
+4. Codex richer settings browsers for app-server skills/plugins/apps/models/account surfaces.
 
 ### Phase 4: Orchestration UX
 

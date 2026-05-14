@@ -14,7 +14,7 @@ interface HarnessResult {
   }
   events: RunEvent[]
   messages: ChatMessage[]
-  killedPty: boolean
+  interruptedProcess: boolean
 }
 
 function readFixture(providerId: string, fixtureName: string): string[] {
@@ -48,7 +48,7 @@ function runLifecycleHarness(
   }
   const events: RunEvent[] = []
   const messages: ChatMessage[] = []
-  let killedPty = false
+  let interruptedProcess = false
 
   for (const line of lines) {
     const parsed = provider.parseOutputLine(line)
@@ -59,37 +59,37 @@ function runLifecycleHarness(
       state.providerSessionId = decision.providerSessionId
       state.claudeSessionId = decision.claudeSessionId ?? decision.providerSessionId
     }
-    if (decision.shouldKillPty) killedPty = true
+    if (decision.shouldInterruptProcess) interruptedProcess = true
     if (decision.status) state.status = decision.status
 
     messages.push(...decision.systemMessages)
     messages.push(...eventsToMessages(parsed))
   }
 
-  return { state, events, messages, killedPty }
+  return { state, events, messages, interruptedProcess }
 }
 
 function hasEvent(events: RunEvent[], type: RunEvent['type']): boolean {
   return events.some((event) => event.type === type)
 }
 
-test('harness proves fast Claude interactive JSONL reaches assistant text and idle', () => {
+test('harness proves fast Claude structured JSON reaches assistant text and idle', () => {
   const result = runLifecycleHarness('claude', [
     '{"type":"permission-mode","permissionMode":"default","sessionId":"claude-fast-session"}',
     '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"orchestrator smoke ok"}]}}',
     '{"type":"system","subtype":"turn_duration","durationMs":2910,"messageCount":3}'
-  ], { runtime: 'interactive' })
+  ], { runtime: 'headless' })
 
   assert.equal(result.state.providerSessionId, 'claude-fast-session')
   assert.equal(result.state.status, 'idle')
-  assert.equal(result.killedPty, true)
+  assert.equal(result.interruptedProcess, true)
   assert.equal(hasEvent(result.events, 'assistant.text'), true)
   assert.equal(hasEvent(result.events, 'run.completed'), true)
   assert.ok(result.messages.some((message) => message.type === 'text' && message.content === 'orchestrator smoke ok'))
   assert.ok(result.messages.some((message) => message.type === 'result' && message.subtype === 'success'))
 })
 
-test('harness keeps interactive user questions alive but stops headless runs', () => {
+test('harness pauses structured Claude user questions and interrupts the completed subprocess', () => {
   const lines = [
     JSON.stringify({
       type: 'assistant',
@@ -105,21 +105,31 @@ test('harness keeps interactive user questions alive but stops headless runs', (
     })
   ]
 
-  const interactive = runLifecycleHarness('claude', lines, { runtime: 'interactive' })
   const headless = runLifecycleHarness('claude', lines, { runtime: 'headless' })
 
-  assert.equal(interactive.state.status, 'waiting_for_user')
-  assert.equal(interactive.killedPty, false)
   assert.equal(headless.state.status, 'waiting_for_user')
-  assert.equal(headless.killedPty, true)
-  assert.ok(interactive.messages.some((message) => message.type === 'result' && message.subtype === 'waiting_for_user'))
+  assert.equal(headless.interruptedProcess, true)
+  assert.ok(headless.messages.some((message) => message.type === 'result' && message.subtype === 'waiting_for_user'))
 })
 
-test('harness maps permission requests to waiting_for_permission without killing PTY', () => {
+test('lifecycle keeps generic interactive user questions alive', () => {
+  const state: RunLifecycleSession = {
+    id: 'session-under-test',
+    provider: 'cursor',
+    runtime: 'interactive',
+    status: 'running'
+  }
+  const decision = decideRunLifecycle(state, [{ type: 'user_input.requested', content: 'Which branch?' }])
+
+  assert.equal(decision.status, 'waiting_for_user')
+  assert.equal(decision.shouldInterruptProcess, false)
+})
+
+test('harness maps permission requests to waiting_for_permission without interrupting the interactive process', () => {
   const result = runLifecycleHarness('codex', readFixture('codex', 'permission-request.jsonl'))
 
   assert.equal(result.state.status, 'waiting_for_permission')
-  assert.equal(result.killedPty, false)
+  assert.equal(result.interruptedProcess, false)
   assert.equal(hasEvent(result.events, 'permission.requested'), true)
   assert.ok(result.messages.some((message) => message.type === 'result' && message.permissionDenials?.[0]?.tool_name === 'shell'))
 })
@@ -133,9 +143,9 @@ test('harness classifies auth failures and model failures from provider output',
   ])
 
   assert.equal(auth.state.status, 'auth_error')
-  assert.equal(auth.killedPty, true)
+  assert.equal(auth.interruptedProcess, true)
   assert.equal(model.state.status, 'model_error')
-  assert.equal(model.killedPty, true)
+  assert.equal(model.interruptedProcess, true)
 })
 
 test('failure classifier distinguishes quota and rate-limit failures', () => {
@@ -147,7 +157,7 @@ test('harness stops repeated Cursor reconnect loops with a user-visible message'
   const result = runLifecycleHarness('cursor', readFixture('cursor', 'reconnecting.jsonl'))
 
   assert.equal(result.state.status, 'provider_error')
-  assert.equal(result.killedPty, true)
+  assert.equal(result.interruptedProcess, true)
   assert.ok(result.messages.some((message) =>
     message.type === 'result' &&
     /reconnecting repeatedly/i.test(message.content)
@@ -158,7 +168,7 @@ test('steered follow-up suppresses expected interrupt failure events', () => {
   const state: RunLifecycleSession = {
     id: 'session-under-test',
     provider: 'claude',
-    runtime: 'interactive',
+    runtime: 'headless',
     status: 'running'
   }
   const interrupted: RunEvent[] = [{ type: 'run.failed', content: 'Interrupted by user' }]
@@ -167,6 +177,6 @@ test('steered follow-up suppresses expected interrupt failure events', () => {
 
   assert.equal(lifecycleEvents.length, 0)
   assert.equal(decision.status, undefined)
-  assert.equal(decision.shouldKillPty, false)
+  assert.equal(decision.shouldInterruptProcess, false)
   assert.equal(eventsToMessages(lifecycleEvents).some((message) => message.type === 'result' && message.subtype === 'error_during_execution'), false)
 })

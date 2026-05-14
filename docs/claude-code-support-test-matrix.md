@@ -1,148 +1,71 @@
 # Claude Code Support Test Matrix
 
-Date: 2026-05-13
+This document is supporting evidence for `docs/orchestrator-source-of-truth.md`. The active Claude product path is structured print mode:
 
-Canonical active plan: `docs/orchestrator-source-of-truth.md`.
+```text
+claude -p --output-format stream-json --verbose --include-partial-messages
+```
 
-This matrix tracks Claude Code capability evidence inside Orchestrator. A feature is not first-class until it has a product mapping, parser/runtime handling, UI behavior, and at least fixture or live coverage. Active implementation status and completion gates live in the source-of-truth plan.
+The old Claude-native chat parser/prompt bridge has been removed from the app runtime. Historical native PTY experiments remain useful only as evidence for why Orchestrator should prefer structured JSON for Claude chat.
 
 ## Status Legend
 
 | Status | Meaning |
 | --- | --- |
-| Verified | Covered by automated tests and at least one live/no-quota CLI verification where applicable. |
-| Fixture-covered | Covered by parser/runtime fixtures, but not recently exercised live. |
-| Implemented | Wired in the app, but needs stronger verification. |
-| Inventory-only | Confirmed from local CLI help, not yet implemented as product behavior. |
-| Blocked / gated | Should require explicit user confirmation, may mutate provider state, or may spend model quota. |
+| Complete | Implemented, fixture/test covered, and live or no-quota verified where applicable. |
+| Implemented | Wired in code but still needs stronger live/GUI verification. |
+| Research | Requires more provider verification before product design. |
+| Gated | Provider-state mutation, destructive action, or quota-spending action that needs explicit confirmation. |
+| Won't Do | Intentionally out of scope for normal Claude chat. |
 
-## Runtime And Session Core
+## Active Claude Matrix
 
-| Claude surface | Expected Orchestrator UX | Current coverage | Tests still needed |
+| Claude surface | Expected Orchestrator UX | Current coverage | Next check |
 | --- | --- | --- | --- |
-| Native interactive session: `claude [prompt]` | Deprecated for normal chat. Keep only for explicit terminal handoff/provider-management flows and rare TUI-only prompts. | Verified live with Sonnet through the native CLI path for plain response, file create/delete, plan mode, terminal streaming fallback, and `/help`; this evidence is now fallback-only. Provider PTYs answer Claude terminal capability queries when the terminal lane is used. | Do not expand normal chat coverage here; prefer structured JSON fixtures and live smokes. |
-| Workspace trust prompt | Show compact Answer Required card with `Trust workspace` / `Exit`; send selected answer back to PTY. | Implemented and covered by `nativeCliPrompts` tests. Native prompt submit now sends Claude's enhanced Enter key sequence. | Manual UI smoke in a fresh workspace. |
-| Structured print stream: `-p --output-format stream-json` | Default Claude product path and internal smoke/automation path. Not a user-visible runtime choice. | Verified by live structured smoke and parser fixtures. | Multi-turn/queued/steer verification and bidirectional input spike. |
-| Partial messages / native terminal fallback | Stream assistant text incrementally without duplicating final text. | Fixture-covered for structured partials; live native Sonnet suite now emits `assistant.text.delta` and `assistant.text.completed` from terminal fallback. | Promote more live terminal repaint shapes into fixtures as discovered. |
-| Hook events: `--include-hook-events` | Activity/diagnostic events, not main transcript noise. | Inventory-only. | Capture fixture with hook events, normalize useful states, decide UI placement. |
-| Streaming input: `--input-format stream-json`, `--replay-user-messages` | Potential future bidirectional structured bridge. | Inventory-only. | Spike whether this can replace terminal scraping while preserving native behavior. |
-| Resume: `--resume`, `--continue`, `--session-id` | Continue existing Claude session from Orchestrator through structured JSON. | Implemented for provider session id; fixture-covered. 2026-05-13 dev UI smoke verified structured resume avoided native warm TUI prompt loss. | Live permission continuation and user question answer. |
-| Fork/from PR/name: `--fork-session`, `--from-pr`, `--name` | Advanced launch/session controls. | Inventory-only. | Add launch UI, no-quota command construction tests, live smoke for non-destructive flows. |
-| Worktrees/tmux: `--worktree`, `--tmux` | Prefer app-managed worktrees; provider-native extras advanced. | App-managed worktrees implemented. | Native worktree/tmux spike, decide whether to surface. |
-| Remote control: `--remote-control` | Possible future remote session control. | Inventory-only. | Research protocol and decide whether it fits Orchestrator. |
+| Structured print stream | Default Claude chat/runtime path; not a user-visible runtime choice. | Complete via provider fixtures, installed-app smokes, and live structured capability suite. | Keep `plain`, `file_ops`, `plan_mode`, and `streaming` live scenarios current. |
+| Partial assistant messages | Stream deltas without duplicating final text. | Complete via `partial-message.jsonl` and provider tests. | Refresh fixture if Claude stream event shape changes. |
+| Hook approvals | Approval cards resolve without replaying the process. | Complete for current hook event bridge and installed-app smokes. | Keep `hook-approval.jsonl` current. |
+| Resume/continue | Preserve Claude session id and visible continuity. | Complete for normal multi-turn structured sessions. | Re-test after runtime/app-server refactors. |
+| File tools | Compact summaries, file cards, and Diff ownership. | Complete via repo-action fixtures and installed-app workspace smokes. | Keep parser/card tests current. |
+| Bash | Permission-aware command card with bounded output. | Complete for allow once/session/deny. | Refresh if Claude denial payload changes. |
+| AskUserQuestion tool | User-input card, separate from permissions. | Complete via fixture and installed-app choice/free-form smokes. | Polish answered-card copy if needed. |
+| Plan mode | Plan sidebar/card plus Approve Plan / Keep Planning. | Complete via structured plan fixture and installed-app plan smokes. | Keep `plan-approval-live.jsonl` current. |
+| `Task` tool subagents | Agent chips and sidebar transcript tabs. | Complete via fixtures and installed-app Task smokes. | Refresh sidechain fixture if event names change. |
+| Skills as slash commands | Discover and run prompt-like commands/skills through structured chat. | Complete via command/skill fixtures and installed-app smokes. | Add cache invalidation only if scans become visible. |
+| `claude mcp list/get` | Compact settings MCP surface, no raw JSON noise. | Complete for non-mutating list/detail flows. | Keep failed-local-server states readable. |
+| `claude plugin list --json` | Compact settings plugin surface, no raw JSON noise. | Complete for non-mutating list flow. | Recheck when local plugins exist. |
+| Queue/steer | Queue a follow-up or steer at a safe boundary without duplicate/stuck messages. | Complete via installed-app P1 smokes and lifecycle tests. | Re-test when runtime lifecycle changes. |
+| Mutating provider management | Explicit confirmation or manual terminal/settings handoff. | Gated by product policy. | Add only scoped flows with confirmation. |
 
-## Conversation, Tools, And Safety
+## Out Of Scope For Normal Chat
 
-| Claude surface | Expected Orchestrator UX | Current coverage | Tests still needed |
-| --- | --- | --- | --- |
-| Plain assistant answer | Flat assistant row, streaming when possible. | Verified native smoke and structured smoke. 2026-05-13 dev UI smoke rendered `INTERACTIVE_UI_CLEAN_FIRST_OK` and `INTERACTIVE_UI_CLEAN_SECOND_OK` without leaking Claude native mode banner text. | Keep live UI smoke current after terminal parser changes. |
-| Read/write/edit/delete tools | Concise tool summaries; Diff panel owns review. | Verified by live native disposable file create/delete smoke plus fixture coverage. 2026-05-13 dev UI smoke created `interactive-native-smoke.txt`, rendered `Wrote 1 file`, and verified file contents on disk. | Add UI screenshot smoke for Diff/file-reference cards in a git-backed workspace after live file operation. |
-| Bash/shell tool | Summarize command; permission card for risky commands. | Fixture-covered. | Live native shell permission flow with harmless command. |
-| Search/list/web/MCP tools | Normalize to shared action vocabulary. | Fixture-covered for common actions. | Live native MCP/search/web fixtures. |
-| Permission modes: `default`, `acceptEdits`, `auto`, `dontAsk`, `plan`, `bypassPermissions` | Mode picker maps to Claude native policy without runtime complexity. | Command construction and policy tests cover supported modes. | Live native run for each non-dangerous mode; explicit gated test for bypass. |
-| Tool allow/deny: `--allowedTools`, `--disallowedTools`, `--tools` | Session rules and permission cards stay in sync. | Command construction tests. | Live permission request, Allow Once, Allow Session, Deny, and persisted deny test. |
-| Additional dirs: `--add-dir` | Settings row for extra roots. | Command construction tests. | Live file-read test from additional dir. |
-| Dangerous skip flags | Only explicit unsafe flow, never accidental default. | Command construction coverage. | Manual gated verification only. |
-| AskUserQuestion tool | User-input card, not permission UI. | Fixture-covered. | Live native AskUserQuestion session. |
-| SendUserMessage / `--brief` | Agent-to-user question/update card. | Inventory-only. | Capture live/fixture output and map to `user_input.requested` or assistant update. |
-| Plan mode / `EnterPlanMode` / `ExitPlanMode` / `TodoWrite` | Plan state UI and Approve Plan / Keep Planning card. | Fixture-covered; live native attempt observed plan mode and `/plan to preview`; native wrapper now shows a placeholder instead of a false plan body. | Capture native plan body or route `/plan` preview into the sidebar, then run live native plan approval flow. |
+| Surface | Status | Reason |
+| --- | --- | --- |
+| Selectable Claude native chat runtime | Won't Do | Structured JSON covers the needed Claude Code surfaces with cleaner, testable events. |
+| Claude native terminal text parser | Won't Do | Removed as dead code after structured-first verification. |
+| Claude native workspace trust / `.mcp.json` prompt bridge | Won't Do | Removed with the native chat lane; future provider-management flows should use explicit settings or terminal handoff. |
+| Workspace trust prompt | Won't Do | Avoided in normal chat by using structured print mode; do not revive native chat parsing for this. |
+| Built-in TUI-only slash commands | Gated | Use Orchestrator-native surfaces where safe; route provider-state actions through settings/manual terminal flows. |
 
-## Agents And Subagents
+## Verification Gates
 
-| Claude surface | Expected Orchestrator UX | Current coverage | Tests still needed |
-| --- | --- | --- | --- |
-| `Task` tool subagents | Running-agent chips; click opens agent transcript/sidebar tab. | Fixture-covered for start/progress/completion and transcripts. | Live native task-agent run and sidebar transcript verification. |
-| `Agent` tool | Same shared agent-node model as `Task`. | Fixture-covered. | Live native agent run if locally available. |
-| Sidechain/nested agent JSONL | Agent transcript state without raw event spam. | Fixture-covered. | Live native nested-agent session. |
-| `--agent <agent>` | Launch with selected agent. | Inventory-only. | Agent picker UI, command construction, live selected-agent smoke. |
-| `--agents <json>` | Launch with custom agents. | Inventory-only. | Custom-agent editor/validation, command construction, fixture/live smoke. |
-| `claude agents` | Settings/agents management surface. | No-quota help probed. | Safe list rendering, mutating flows with confirmation. |
-| Ultrareview | Review command surface; quota warning. | Help probed, command surface exists. | Live gated ultrareview JSON test and UI mapping. |
+Do not call Claude support complete unless:
 
-## Slash Commands, Skills, Plugins, MCP
+1. Structured assistant text streams and completes.
+2. Multi-turn continuity works.
+3. Stop works during text, tool, permission, and queued-message states.
+4. Queue and steer work without duplicate or stuck messages.
+5. File create/edit/delete/read/search produce transcript summaries, file cards, and Diff state.
+6. Bash permission flow supports allow once, allow session, and deny.
+7. AskUserQuestion resumes through user-input UI.
+8. Plan mode supports approve and keep-planning.
+9. Task/subagent runs show chips, sidebar tabs, transcript, and failure state.
+10. Slash commands, skills, MCP, plugins, and agents remain compact and non-noisy.
+11. Mutating provider commands remain gated.
+12. Automated tests and structured live smokes pass when auth/quota allow.
 
-| Claude surface | Expected Orchestrator UX | Current coverage | Tests still needed |
-| --- | --- | --- | --- |
-| Built-in slash commands | Prompt-like commands run through structured JSON when useful; true TUI/provider-management commands use Orchestrator settings or explicit terminal handoff. | Slash palette no longer split by runtime; project/global commands and skills have structured fixtures/live smokes. | Classify each new built-in command as structured prompt, Orchestrator-native surface, gated provider-management, or terminal-only. |
-| Skills as slash commands | Skills panel plus slash palette discovery where possible. | Skills panel exists; CLI support confirmed by help text. | Inventory real global/project skills, run one safe skill live, verify UI. |
-| `--disable-slash-commands` | Advanced run option. | Inventory-only. | Decide whether to surface. |
-| `--plugin-dir`, `--plugin-url` | Session-scoped plugin loading. | Inventory-only. | Plugin picker/validation and safe local plugin smoke. |
-| `claude plugin list --json` | Settings plugin inventory. | No-quota live probe passes. | Render compact plugin table and avoid raw JSON noise. |
-| Plugin install/enable/disable/update/uninstall | Explicit confirmation; provider-state mutating. | Inventory-only; should be gated. | Confirmation UI and dry/no-op validation where possible. |
-| Plugin marketplace add/list/remove/update | Marketplace management surface. | Help probed. | List first; mutating commands gated. |
-| `claude mcp list/get` | Settings MCP inventory. | No-quota `mcp list` live probe passes; command surface exists. | Add `get` coverage and render compact MCP state. |
-| `claude mcp add/add-json/add-from-claude-desktop/remove/reset-project-choices` | Explicit confirmation; provider-state mutating. | Inventory-only; should be gated. | Confirmation UI and reversible test workspace. |
-| `claude mcp serve` | Developer/server mode. | Help probed. | Decide whether Orchestrator needs to surface this. |
-| Native `.mcp.json` enable prompt | Show compact Answer Required card with `Enable selected` / `Reject all`; keep raw MCP warning out of the main transcript. | Implemented, covered by `nativeCliPrompts` tests, and exercised live by the Claude capability suite. | Manual UI smoke for both enable and reject. |
-| `--mcp-config`, `--strict-mcp-config` | Session-scoped MCP config. | Inventory-only; live harness attempt showed argument ordering and setting-source behavior needs a dedicated command test before use as a gate. | File picker, command construction, safe local server smoke. |
+## Latest Notes
 
-## Config, Auth, Project, And Environment
-
-| Claude surface | Expected Orchestrator UX | Current coverage | Tests still needed |
-| --- | --- | --- | --- |
-| Auth status/login/logout | Status in settings; login/logout externally visible and gated. | No-quota `auth status` live probe passes; diagnostics report auth readiness indirectly. | Design login/logout confirmation or terminal handoff. |
-| `doctor` | Diagnostic action. | Inventory-only. | Safe no-quota probe and compact results UI. |
-| `install`, `update`, `upgrade`, `setup-token` | Not normal chat actions; explicit system/provider management. | Inventory-only; should be gated. | Decide whether to omit or terminal-only. |
-| Project purge | Destructive provider-state action. | Help probed and marked mutating. | Confirmation flow only; no automatic execution. |
-| Auto mode `config/defaults/critique` | Settings diagnostics for auto mode. | No-quota `auto-mode defaults` live probe passes. | Render JSON summary; gate `critique` due AI usage. |
-| Settings file/source: `--settings`, `--setting-sources` | Advanced config source control. | Inventory-only. | Decide whether to surface or keep provider-native. |
-| System prompt and append prompt | Advanced launch controls. | Inventory-only. | Prompt editor, command tests, live safe smoke. |
-| `--bare` | Minimal mode preset. | Inventory-only. | Decide if useful for clean/repro runs. |
-| Debug/debug file | Diagnostics only. | Inventory-only. | Developer-only toggle if needed. |
-| Chrome/IDE integration | Optional external integration. | Inventory-only. | Decide if out of scope or settings-only. |
-| `--file` downloaded resources | Attachment/resource support. | Inventory-only. | Attachment model and safe file resource test. |
-| JSON schema output | Structured response mode. | Inventory-only. | Decide if useful for slash/tools; command tests. |
-| Budget/fallback/betas/no session persistence | Advanced run controls. | Inventory-only. | Surface only if product value is clear. |
-
-## Required Verification Gates Before Calling Claude Support Complete
-
-1. Native CLI plain-response smoke passes in a fresh trusted/untrusted workspace.
-2. Native CLI workspace trust prompt appears as a card and both `Trust workspace` and `Exit` work.
-3. Native CLI file create/edit/delete flow updates transcript summaries, file-reference cards, and Diff.
-4. Native CLI Bash flow requests/handles permission and resumes correctly.
-5. AskUserQuestion produces the user-input card and resumes correctly.
-6. Plan mode enters plan, updates todos, shows plan approval, and supports approve/keep-planning.
-7. Task/subagent run produces chips, sidebar tab, transcript, completion/failure states.
-8. Slash commands have structured-first mappings or explicit terminal/provider-management handoffs without requiring a runtime switch.
-9. At least one skill slash command is discovered and run safely.
-10. MCP list/get and plugin list render in settings without raw JSON noise.
-11. Mutating provider commands require explicit confirmation or terminal handoff.
-12. Queue/steer works while native Claude is running and resumes at a sensible boundary.
-13. Stop consistently interrupts the native PTY and lets the user send/queue the next message.
-14. Structured stream smoke remains available as internal regression coverage.
-15. Every new live Claude transcript shape is saved as a fixture before being claimed as supported.
-
-## Latest Live Pass Notes
-
-2026-05-11:
-
-- Native plain response passed with Sonnet via `npm run live:claude-capabilities`.
-- Native disposable file operations passed after fixing terminal fallback parsing so corrupted tool-status rows like `Writ(...)`, `Wrte(...)`, and line-numbered tool output do not count as assistant completion.
-- Native plan-mode attempt reached Claude plan mode and showed `/plan to preview`; Orchestrator now treats that as a placeholder completion, but still does not capture the plan body from the native terminal path.
-- Native terminal fallback streaming passed: the live suite observed `assistant.text.delta` and `assistant.text.completed` from the real Claude TUI.
-- Native slash-command smoke passed for `/help`.
-- No-quota probes passed for `auth status`, `mcp list`, `plugin list --json`, `auto-mode defaults`, and `agents`.
-- Artifacts from the latest live run are written under `tmp/claude-live-capabilities` for fixture promotion.
-
-Follow-up later on 2026-05-11:
-
-- A fresh raw PTY rerun exposed that Claude's startup prompts depend on terminal capability responses and can block before any JSONL/session output is written.
-- The app bridge was patched for the workspace trust prompt to send Enter for the selected default instead of the literal `1`.
-- The app bridge now detects Claude's native `.mcp.json` enable prompt and maps it to a compact Answer Required card.
-- The live harness now exercises native prompt handling directly; network/auth access must run outside the sandbox because Claude's API key helper may need the corporate registry.
-
-Final pass on 2026-05-11:
-
-- Provider PTYs now answer Claude terminal capability requests from the main process, independent of whether a visible terminal panel is mounted.
-- Native prompt answers now use Claude's enhanced Enter key sequence, which lets the live suite pass through the `.mcp.json` enable prompt.
-- Live Sonnet suite passes for native plain response, native file create/delete, native plan mode placeholder, native terminal streaming, `/help`, and no-quota probes for auth, MCP, plugins, auto-mode, and agents.
-- Terminal fallback parsing now ignores compact tool progress rows, tool-output rows, token/status footers, MCP status fragments, and corrupted plan status fragments instead of treating them as assistant completion.
-
-2026-05-13 dev UI interactive pass:
-
-- Fresh isolated Electron profile `interactivecua5` was driven with Computer Use against `/private/tmp/orchestrator-interactive-ui-smoke`, leaving the user's main Orchestrator window untouched.
-- Advanced permissions exposed the native runtime selector and switching `Structured` to `Native terminal` worked from the composer popover.
-- Native first-turn plain response returned `INTERACTIVE_UI_CLEAN_FIRST_OK`; the main transcript did not include the Claude auto-mode banner.
-- Follow-up on the same native interactive session returned `INTERACTIVE_UI_CLEAN_SECOND_OK` through structured resume, confirming the warm native TUI prompt-loss workaround.
-- Native first-turn Write in a fresh chat created `interactive-native-smoke.txt`, showed `Wrote 1 file`, returned `INTERACTIVE_UI_FILE_DONE`, and filesystem verification read `INTERACTIVE_NATIVE_FILE_OK`.
-- Product follow-up on 2026-05-13: native runtime selection was deprecated for normal chat; this pass remains evidence that the fallback PTY lane works, not a target UX.
+- 2026-05-13: Claude native runtime selection was removed from normal chat and stale Claude sessions normalize back to structured/headless before sending.
+- 2026-05-13: Structured plan sidebar, subagent tabs, attachments, usage, and side questions were verified in isolated dev UI profiles.
+- 2026-05-13: The old Claude-native terminal parser, native prompt bridge, and runtime-parity script were removed so Claude support stays structured-first.
