@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilityUpdateRequest, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../types'
 
 interface AppSettings {
   defaultProvider: string
@@ -128,6 +128,10 @@ const api = {
       ipcRenderer.invoke('providers:updateCapability', request),
     deleteCapability: (request: CapabilityDeleteRequest): Promise<CapabilityMutationResult> =>
       ipcRenderer.invoke('providers:deleteCapability', request),
+    previewCapabilitySync: (request: CapabilitySyncRequest): Promise<CapabilitySyncPlan> =>
+      ipcRenderer.invoke('providers:previewCapabilitySync', request),
+    syncCapability: (request: CapabilitySyncRequest): Promise<CapabilityMutationResult> =>
+      ipcRenderer.invoke('providers:syncCapability', request),
     discoverClaudeExtensions: (workDir: string): Promise<{ commands: ProviderSlashCommand[]; skills: ProviderSlashCommand[] }> =>
       ipcRenderer.invoke('providers:discoverClaudeExtensions', workDir)
   },

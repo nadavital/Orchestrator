@@ -4,6 +4,9 @@ import {
   type CapabilityCreateKind,
   type CapabilityCreateRequest,
   type CapabilityMcpTransport,
+  type CapabilitySyncMode,
+  type CapabilitySyncPlan,
+  type CapabilitySyncRequest,
   type CapabilityUpdateRequest,
   type ProviderResource,
   type ProviderResourceKind,
@@ -79,6 +82,11 @@ export default function CapabilitiesPage(): JSX.Element {
   const [editMcpCommand, setEditMcpCommand] = useState('')
   const [editMcpArgs, setEditMcpArgs] = useState('')
   const [editMcpUrl, setEditMcpUrl] = useState('')
+  const [syncGroup, setSyncGroup] = useState<ResourceGroup | null>(null)
+  const [syncPlan, setSyncPlan] = useState<CapabilitySyncPlan | null>(null)
+  const [syncTargets, setSyncTargets] = useState<string[]>([])
+  const [syncMode, setSyncMode] = useState<CapabilitySyncMode>('backfill-missing-providers')
+  const [syncLoading, setSyncLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -218,6 +226,55 @@ export default function CapabilitiesPage(): JSX.Element {
     }
   }
 
+  const previewSync = async (group: ResourceGroup, targets: string[], mode: CapabilitySyncMode): Promise<void> => {
+    if (!workDir) {
+      setMessage('Open a project before syncing capabilities.')
+      return
+    }
+    setSyncLoading(true)
+    try {
+      const plan = await window.api.providers.previewCapabilitySync(syncRequest(group, workDir, targets, mode))
+      setSyncPlan(plan)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
+  const openSync = (group: ResourceGroup): void => {
+    const targets = defaultSyncTargets(group)
+    const mode: CapabilitySyncMode = 'backfill-missing-providers'
+    setSyncGroup(group)
+    setSyncTargets(targets)
+    setSyncMode(mode)
+    setSyncPlan(null)
+    void previewSync(group, targets, mode)
+  }
+
+  const updateSyncTargets = (targets: string[]): void => {
+    setSyncTargets(targets)
+    if (syncGroup) void previewSync(syncGroup, targets, syncMode)
+  }
+
+  const updateSyncMode = (mode: CapabilitySyncMode): void => {
+    setSyncMode(mode)
+    if (syncGroup) void previewSync(syncGroup, syncTargets, mode)
+  }
+
+  const submitSync = async (): Promise<void> => {
+    if (!syncGroup || syncTargets.length === 0 || !workDir) return
+    try {
+      const result = await window.api.providers.syncCapability(syncRequest(syncGroup, workDir, syncTargets, syncMode))
+      setMessage(`Synced ${syncGroup.name}. ${result.files.length} file${result.files.length === 1 ? '' : 's'} changed.${result.warnings.length ? ` ${result.warnings[0]}` : ''}`)
+      setSyncGroup(null)
+      setSyncPlan(null)
+      await refresh()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    }
+  }
+
   return (
     <div className="capabilities-page">
       <header className="capabilities-header">
@@ -333,6 +390,7 @@ export default function CapabilitiesPage(): JSX.Element {
               loading={loading}
               onEdit={openEdit}
               onRemove={(group) => void removeGroup(group)}
+              onSync={openSync}
             />
           )}
         </section>
@@ -382,6 +440,23 @@ export default function CapabilitiesPage(): JSX.Element {
           onSubmit={() => void submitEdit()}
         />
       )}
+
+      {syncGroup && (
+        <SyncCapabilitySheet
+          group={syncGroup}
+          plan={syncPlan}
+          mode={syncMode}
+          targets={syncTargets}
+          loading={syncLoading}
+          onModeChange={updateSyncMode}
+          onTargetsChange={updateSyncTargets}
+          onClose={() => {
+            setSyncGroup(null)
+            setSyncPlan(null)
+          }}
+          onSubmit={() => void submitSync()}
+        />
+      )}
     </div>
   )
 }
@@ -391,13 +466,15 @@ function CapabilityList({
   groups,
   loading,
   onEdit,
-  onRemove
+  onRemove,
+  onSync
 }: {
   activeTab: CapabilityTabDef
   groups: ResourceGroup[]
   loading: boolean
   onEdit: (group: ResourceGroup) => void
   onRemove: (group: ResourceGroup) => void
+  onSync: (group: ResourceGroup) => void
 }): JSX.Element {
   if (groups.length === 0) {
     return (
@@ -419,6 +496,7 @@ function CapabilityList({
             group={group}
             onEdit={() => onEdit(group)}
             onRemove={() => onRemove(group)}
+            onSync={() => onSync(group)}
           />
         ))}
       </div>
@@ -429,19 +507,22 @@ function CapabilityList({
 function CapabilityRow({
   group,
   onEdit,
-  onRemove
+  onRemove,
+  onSync
 }: {
   group: ResourceGroup
   onEdit: () => void
   onRemove: () => void
+  onSync: () => void
 }): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const tone = resourceStatusTone(group.status)
   const sources = Array.from(new Set(group.resources.map((resource) => resource.source).filter(Boolean)))
   const canEdit = group.resources.some((resource) => resource.actions.includes('edit'))
   const canRemove = group.resources.some((resource) => resource.actions.includes('remove'))
-  const hasActions = canEdit || canRemove
-  const compatibility = pluginCompatibilityLabel(group)
+  const canSync = syncableKind(group.kind)
+  const hasActions = canEdit || canRemove || canSync
+  const coverage = providerCoverageLabel(group)
   return (
     <article className="capability-row">
       <div className="capability-row-main">
@@ -455,7 +536,7 @@ function CapabilityRow({
         <span>{resourceKindLabel(group.kind).replace(/s$/, '')}</span>
         {sources[0] && <span title={sources.join(', ')}>{sources[0]}</span>}
         <span>{scopeSummary(group)}</span>
-        {compatibility && <span>{compatibility}</span>}
+        {coverage && <span>{coverage}</span>}
       </div>
       <div className="provider-chip-row">
         {group.resources.slice(0, 4).map((resource) => {
@@ -481,6 +562,16 @@ function CapabilityRow({
         )}
         {hasActions && menuOpen && (
           <div className="capability-row-menu">
+            <button
+              disabled={!canSync}
+              onClick={() => {
+                setMenuOpen(false)
+                onSync()
+              }}
+            >
+              <Icon name="refresh" size={13} />
+              <span>Sync</span>
+            </button>
             <button
               disabled={!canEdit}
               onClick={() => {
@@ -745,6 +836,122 @@ function EditCapabilitySheet({
   )
 }
 
+function SyncCapabilitySheet({
+  group,
+  plan,
+  mode,
+  targets,
+  loading,
+  onModeChange,
+  onTargetsChange,
+  onClose,
+  onSubmit
+}: {
+  group: ResourceGroup
+  plan: CapabilitySyncPlan | null
+  mode: CapabilitySyncMode
+  targets: string[]
+  loading: boolean
+  onModeChange: (mode: CapabilitySyncMode) => void
+  onTargetsChange: (targets: string[]) => void
+  onClose: () => void
+  onSubmit: () => void
+}): JSX.Element {
+  const providerOptions = syncProviderOptions(group.kind)
+  const blockers = plan?.blockers ?? []
+  const warnings = plan?.warnings ?? []
+  const disabled = loading || targets.length === 0 || blockers.length > 0 || !plan
+
+  const toggleTarget = (providerId: string): void => {
+    const next = targets.includes(providerId)
+      ? targets.filter((id) => id !== providerId)
+      : [...targets, providerId]
+    onTargetsChange(next)
+  }
+
+  return (
+    <div className="capability-sheet-backdrop">
+      <section className="capability-sheet cap-sync-sheet">
+        <div className="capability-sheet-header">
+          <div>
+            <h2>Sync capability</h2>
+            <p>{group.name}</p>
+          </div>
+          <button onClick={onClose} title="Close"><Icon name="close" size={15} /></button>
+        </div>
+
+        <div className="cap-segmented">
+          {syncModeOptions(group.kind).map((option) => (
+            <button key={option.id} className={mode === option.id ? 'active' : ''} onClick={() => onModeChange(option.id)}>
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="cap-sync-provider-grid">
+          {providerOptions.map((providerId) => {
+            const provider = PROVIDER_DEFS[providerId]
+            return (
+              <label key={providerId} className={targets.includes(providerId) ? 'selected' : ''}>
+                <input
+                  type="checkbox"
+                  checked={targets.includes(providerId)}
+                  onChange={() => toggleTarget(providerId)}
+                />
+                {provider && <ProviderIcon providerId={provider.id} size={14} color={provider.color} />}
+                <span>{provider?.name ?? providerId}</span>
+              </label>
+            )
+          })}
+        </div>
+
+        <section className="cap-sync-plan">
+          <div className="cap-sync-plan-header">
+            <strong>{loading ? 'Planning...' : syncModeLabel(mode)}</strong>
+            {plan && <span>{plan.operations.length} operation{plan.operations.length === 1 ? '' : 's'}</span>}
+          </div>
+
+          {blockers.map((blocker) => (
+            <div key={blocker} className="cap-sync-message blocker">{blocker}</div>
+          ))}
+          {warnings.map((warning) => (
+            <div key={warning} className="cap-sync-message warning">{warning}</div>
+          ))}
+
+          {plan && plan.operations.length > 0 ? (
+            <div className="cap-sync-operations">
+              {plan.operations.map((operation, index) => {
+                const provider = PROVIDER_DEFS[operation.providerId]
+                return (
+                  <article key={`${operation.providerId}:${operation.action}:${index}`} className={`cap-sync-operation risk-${operation.risk}`}>
+                    <div>
+                      <strong>{operation.summary}</strong>
+                      <span>{provider?.name ?? operation.providerId} · {operation.action}</span>
+                    </div>
+                    {operation.path && <code title={operation.path}>{operation.path}</code>}
+                    {operation.command && <code>{operation.command.join(' ')}</code>}
+                    {operation.appServerMethod && <code>{operation.appServerMethod}</code>}
+                  </article>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="cap-sync-empty">
+              {loading ? 'Checking provider projections.' : 'No file changes are needed for the selected providers.'}
+            </div>
+          )}
+        </section>
+
+        <div className="capability-sheet-footer">
+          <span className="capability-scope-note">{scopeSummary(group)}</span>
+          <button className="cap-button ghost" onClick={onClose}>Cancel</button>
+          <button className="cap-button primary" onClick={onSubmit} disabled={disabled}>Apply</button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function mcpConfigFromGroup(group: ResourceGroup): {
   transport: CapabilityMcpTransport
   command?: string
@@ -766,6 +973,59 @@ function mcpConfigFromGroup(group: ResourceGroup): {
     }
   }
   return null
+}
+
+function syncRequest(group: ResourceGroup, workDir: string, targets: string[], mode: CapabilitySyncMode): CapabilitySyncRequest {
+  return {
+    resources: group.resources,
+    workDir,
+    scope: syncScopeFromGroup(group),
+    targetProviders: targets,
+    mode
+  }
+}
+
+function syncScopeFromGroup(group: ResourceGroup): CapabilitySyncRequest['scope'] {
+  return group.resources.some((resource) => resource.scope === 'project' || resource.scope === 'workspace')
+    ? 'project'
+    : 'global'
+}
+
+function defaultSyncTargets(group: ResourceGroup): string[] {
+  const providers = syncProviderOptions(group.kind)
+  const present = new Set(group.resources.map((resource) => resource.providerId))
+  const missing = providers.filter((providerId) => !present.has(providerId))
+  return missing.length > 0 ? missing : providers
+}
+
+function syncProviderOptions(kind: ProviderResourceKind): string[] {
+  if (kind === 'mcp_server') return ['claude', 'codex', 'cursor', 'copilot']
+  if (kind === 'skill' || kind === 'command' || kind === 'plugin') return ['claude', 'codex']
+  return ['claude', 'codex']
+}
+
+function syncModeOptions(kind: ProviderResourceKind): Array<{ id: CapabilitySyncMode; label: string }> {
+  const options: Array<{ id: CapabilitySyncMode; label: string }> = [
+    { id: 'backfill-missing-providers', label: 'Backfill' },
+    { id: 'sync-selected-providers', label: 'Overwrite selected' }
+  ]
+  if (kind === 'plugin') {
+    options.push({ id: 'import-as-portable-copy', label: 'Portable copy' })
+    options.push({ id: 'install-native', label: 'Native install' })
+  }
+  return options
+}
+
+function syncModeLabel(mode: CapabilitySyncMode): string {
+  if (mode === 'backfill-missing-providers') return 'Backfill missing provider projections'
+  if (mode === 'sync-selected-providers') return 'Sync selected provider projections'
+  if (mode === 'import-as-portable-copy') return 'Import as portable Orchestrator package'
+  if (mode === 'install-native') return 'Native provider install plan'
+  return 'Provider projection removal plan'
+}
+
+function syncableKind(kind: ProviderResourceKind): boolean {
+  return kind === 'skill' || kind === 'command' || kind === 'plugin' || kind === 'mcp_server' || kind === 'agent' || kind === 'hook' || kind === 'rule' || kind === 'app'
 }
 
 function filterGroups(groups: ResourceGroup[], query: string, providerFilter: string): ResourceGroup[] {
@@ -810,13 +1070,28 @@ function mergeResourceStatus(a: ProviderResource['status'], b: ProviderResource[
   return rank.indexOf(a) <= rank.indexOf(b) ? a : b
 }
 
-function pluginCompatibilityLabel(group: ResourceGroup): string | null {
-  if (group.kind !== 'plugin') return null
+function providerCoverageLabel(group: ResourceGroup): string | null {
+  if (!syncableKind(group.kind)) return null
+  const expected = syncProviderOptions(group.kind)
   const providers = new Set(group.resources.map((resource) => resource.providerId))
-  if (providers.has('claude') && providers.has('codex')) return 'Claude + Codex package'
-  if (providers.has('claude')) return 'Claude package'
-  if (providers.has('codex')) return 'Codex package'
-  return null
+  const missing = expected.filter((providerId) => !providers.has(providerId))
+  if (missing.length === 0) {
+    const names = expected.map((providerId) => shortProviderName(providerId))
+    return group.kind === 'plugin' ? `${names.join(' + ')} package` : names.join(' + ')
+  }
+  if (providers.size === 1) {
+    const providerId = [...providers][0]
+    return `${shortProviderName(providerId)} only`
+  }
+  return `Missing ${missing.map((providerId) => shortProviderName(providerId)).join(', ')}`
+}
+
+function shortProviderName(providerId: string): string {
+  if (providerId === 'claude') return 'Claude'
+  if (providerId === 'codex') return 'Codex'
+  if (providerId === 'cursor') return 'Cursor'
+  if (providerId === 'copilot') return 'Copilot'
+  return PROVIDER_DEFS[providerId]?.name ?? providerId
 }
 
 function scopeSummary(group: ResourceGroup): string {

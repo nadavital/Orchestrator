@@ -731,6 +731,41 @@ export interface CapabilityMutationResult {
   warnings: string[]
 }
 
+export type CapabilitySyncMode =
+  | 'backfill-missing-providers'
+  | 'sync-selected-providers'
+  | 'import-as-portable-copy'
+  | 'install-native'
+  | 'remove-provider-projection'
+
+export interface CapabilitySyncRequest {
+  resources: ProviderResource[]
+  workDir: string
+  scope: CapabilityCreateScope
+  targetProviders: string[]
+  mode: CapabilitySyncMode
+  allowProviderMutations?: boolean
+}
+
+export interface CapabilitySyncOperation {
+  providerId: string
+  action: 'write-file' | 'update-json' | 'update-toml' | 'run-command' | 'app-server-call' | 'manual'
+  summary: string
+  risk: 'low' | 'medium' | 'gated'
+  path?: string
+  command?: string[]
+  appServerMethod?: string
+}
+
+export interface CapabilitySyncPlan {
+  ok: boolean
+  capabilityName: string
+  kind: ProviderResourceKind
+  operations: CapabilitySyncOperation[]
+  warnings: string[]
+  blockers: string[]
+}
+
 export interface RunRequest {
   prompt: string
   cwd: string

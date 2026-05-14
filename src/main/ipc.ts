@@ -2,7 +2,7 @@ import type { IpcMain } from 'electron'
 import { dialog, app, shell } from 'electron'
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
 import { basename, dirname } from 'path'
-import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilityUpdateRequest } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
 import { gitManager } from './git'
@@ -16,6 +16,7 @@ import { discoverClaudeExtensions } from './claudeExtensions'
 import { listProviderResources } from './providerResources'
 import { createCapability } from './capabilityCreator'
 import { deleteCapability, updateCapability } from './capabilityManager'
+import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   // App profile
@@ -116,6 +117,12 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('providers:deleteCapability', (_, request: CapabilityDeleteRequest) =>
     deleteCapability(request)
+  )
+  ipcMain.handle('providers:previewCapabilitySync', (_, request: CapabilitySyncRequest) =>
+    previewCapabilitySync(request)
+  )
+  ipcMain.handle('providers:syncCapability', (_, request: CapabilitySyncRequest) =>
+    applyCapabilitySync(request)
   )
   ipcMain.handle('providers:discoverClaudeExtensions', (_, workDir: string) =>
     discoverClaudeExtensions(workDir)

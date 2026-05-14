@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilityUpdateRequest, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../../types'
 
 export interface AppSettings {
   defaultProvider: string
@@ -120,6 +120,8 @@ declare global {
         createCapability: (request: CapabilityCreateRequest) => Promise<CapabilityCreateResult>
         updateCapability: (request: CapabilityUpdateRequest) => Promise<CapabilityMutationResult>
         deleteCapability: (request: CapabilityDeleteRequest) => Promise<CapabilityMutationResult>
+        previewCapabilitySync: (request: CapabilitySyncRequest) => Promise<CapabilitySyncPlan>
+        syncCapability: (request: CapabilitySyncRequest) => Promise<CapabilityMutationResult>
         discoverClaudeExtensions: (workDir: string) => Promise<{ commands: ProviderSlashCommand[]; skills: ProviderSlashCommand[] }>
       }
       settings: {

@@ -762,6 +762,10 @@
     box-shadow: var(--shadow-dialog);
   }
 
+  .capability-sheet.cap-sync-sheet {
+    width: min(560px, calc(100vw - 320px));
+  }
+
   .capability-sheet-header {
     display: flex;
     align-items: flex-start;
@@ -823,6 +827,127 @@
     padding-top: 9px;
     line-height: 1.45;
     user-select: text;
+  }
+
+  .cap-sync-provider-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .cap-sync-provider-grid label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    min-height: 38px;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 680;
+  }
+
+  .cap-sync-provider-grid label.selected {
+    border-color: color-mix(in srgb, var(--accent) 34%, var(--border-subtle));
+    background: color-mix(in srgb, var(--accent) 10%, var(--control-bg));
+    color: var(--text-primary);
+  }
+
+  .cap-sync-provider-grid input {
+    margin: 0;
+  }
+
+  .cap-sync-plan {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .cap-sync-plan-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .cap-sync-operations {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    gap: 8px;
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  .cap-sync-operation {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid var(--border-subtle);
+    border-left-width: 3px;
+    border-radius: var(--radius-md);
+    background: var(--surface-bg-raised);
+    padding: 10px;
+  }
+
+  .cap-sync-operation.risk-low {
+    border-left-color: var(--state-success);
+  }
+
+  .cap-sync-operation.risk-medium {
+    border-left-color: var(--state-warning);
+  }
+
+  .cap-sync-operation.risk-gated {
+    border-left-color: var(--state-danger);
+  }
+
+  .cap-sync-operation strong {
+    display: block;
+    color: var(--text-primary);
+    font-size: 12px;
+  }
+
+  .cap-sync-operation span {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+
+  .cap-sync-operation code {
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    padding: 5px 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cap-sync-message,
+  .cap-sync-empty {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 9px 10px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .cap-sync-message.warning {
+    border-color: color-mix(in srgb, var(--state-warning) 28%, var(--border-subtle));
+    background: color-mix(in srgb, var(--state-warning) 8%, transparent);
+  }
+
+  .cap-sync-message.blocker {
+    border-color: color-mix(in srgb, var(--state-danger) 28%, var(--border-subtle));
+    background: color-mix(in srgb, var(--state-danger) 8%, transparent);
   }
 
   .capability-sheet-footer {
