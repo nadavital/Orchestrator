@@ -85,7 +85,7 @@ child.on('exit', (code) => {
         isolatedProfile: result.profile?.isIsolated === true,
         profileBadge: ['settings', 'resources', 'capabilities', 'pets'].includes(captureView) || result.hasProfileBadge === true,
         composer: result.hasComposer === true,
-        sidebarNavigation: captureView === 'capabilities' || result.hasSidebarNavigation === true,
+        sidebarNavigation: ['capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector'].includes(captureView) || result.hasSideQuestionCommandText === true,
         buttons: Number(result.buttonCount ?? 0) > 0
