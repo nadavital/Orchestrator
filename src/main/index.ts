@@ -49,10 +49,14 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  const rendererHash = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'design-system'
+    ? 'design-system'
+    : undefined
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}${rendererHash ? `#${rendererHash}` : ''}`)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'), rendererHash ? { hash: rendererHash } : undefined)
   }
 
   maybeRunAutomatedUiSmoke(mainWindow)
@@ -143,6 +147,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             profile,
             title: document.title,
             bodyText,
+            hasDesignSystemPreview: Boolean(document.querySelector('[data-testid="design-system-preview"]')),
+            motionRowCount: document.querySelectorAll('.motion-row').length,
+            surfaceRowCount: document.querySelectorAll('.surface-row').length,
             hasProfileBadge: bodyText.includes(profile.displayName + ' profile'),
             hasComposer: Boolean(textarea),
             hasSidebarNavigation: buttons.some((button) =>

@@ -1,10 +1,15 @@
 import {
+  AlertTriangle,
   ArrowUp,
   BarChart3,
   BookOpen,
   Boxes,
   Check,
+  CheckCircle2,
   ChevronDown,
+  ChevronRight,
+  Clock3,
+  Copy,
   CircleDot,
   Ellipsis,
   File,
@@ -37,7 +42,11 @@ export type IconName =
   | 'branch'
   | 'chat'
   | 'check'
+  | 'checkCircle'
   | 'chevronDown'
+  | 'chevronRight'
+  | 'clock'
+  | 'copy'
   | 'close'
   | 'dot'
   | 'ellipsis'
@@ -59,6 +68,7 @@ export type IconName =
   | 'terminal'
   | 'usage'
   | 'wrench'
+  | 'warning'
 
 const icons: Record<IconName, LucideIcon> = {
   agents: Users,
@@ -67,7 +77,11 @@ const icons: Record<IconName, LucideIcon> = {
   branch: GitBranch,
   chat: MessageSquare,
   check: Check,
+  checkCircle: CheckCircle2,
   chevronDown: ChevronDown,
+  chevronRight: ChevronRight,
+  clock: Clock3,
+  copy: Copy,
   close: X,
   dot: CircleDot,
   ellipsis: Ellipsis,
@@ -88,7 +102,8 @@ const icons: Record<IconName, LucideIcon> = {
   sparkles: Sparkles,
   terminal: Terminal,
   usage: BarChart3,
-  wrench: Wrench
+  wrench: Wrench,
+  warning: AlertTriangle
 }
 
 export default function Icon({ name, size = 16 }: { name: IconName; size?: number }): JSX.Element {

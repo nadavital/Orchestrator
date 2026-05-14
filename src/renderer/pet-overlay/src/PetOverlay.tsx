@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import PetAvatar, { type AnimState } from './PetAvatar'
 import { PROVIDER_DEFS } from '../../../types'
 import type { PetConfig, PetEntry, PetLayout } from './env'
@@ -28,8 +28,12 @@ const MAX_THROW_SPEED = 1600
 const MIN_THROW_SPEED = 320
 const MASCOT_MIN_WIDTH = 80
 const MASCOT_MAX_WIDTH = 224
+const CHEVRON_RIGHT = 'M8.5 4.5 13.5 10 8.5 15.5'
 const CHEVRON_DOWN = 'M4.5 8.5 10 13.5 15.5 8.5'
 const X_ICON = 'M5 5 15 15 M15 5 5 15'
+const CLOCK_ICON = 'M10 5.25V10L13 11.75 M17.25 10A7.25 7.25 0 1 1 2.75 10A7.25 7.25 0 0 1 17.25 10Z'
+const WARNING_ICON = 'M10 3.25 18 16.75H2L10 3.25Z M10 8V11 M10 14H10.01'
+const CHECK_CIRCLE_ICON = 'M17.25 10A7.25 7.25 0 1 1 2.75 10A7.25 7.25 0 0 1 17.25 10Z M6.75 10.25 9 12.5 13.5 8'
 
 interface SessionState {
   id: string
@@ -184,6 +188,7 @@ export default function PetOverlay(): JSX.Element | null {
   const dragAnimStateRef = useRef<AnimState | null>(null)
   const [dragAnimState, setDragAnimState] = useState<AnimState | null>(null)
   const [mascotWidthPx, setMascotWidthPx] = useState<number | null>(null)
+  const [isResizingVisual, setIsResizingVisual] = useState(false)
   const trayRef = useRef<HTMLDivElement>(null)
   const trayListRef = useRef<HTMLDivElement>(null)
   const mascotRef = useRef<HTMLDivElement>(null)
@@ -420,6 +425,7 @@ export default function PetOverlay(): JSX.Element | null {
       ? (mascotWidthPx ?? state.startWidthPx)
       : clampMascotWidth(state.startWidthPx + screenX - state.startScreenX)
     resizeState.current = null
+    setIsResizingVisual(false)
     setMascotWidthPx(width)
     window.petApi.pet.setMascotWidth(width)
     if (target instanceof HTMLElement && target.hasPointerCapture?.(pointerId)) {
@@ -493,6 +499,7 @@ export default function PetOverlay(): JSX.Element | null {
       startScreenX: e.screenX,
       startWidthPx: clampMascotWidth(width),
     }
+    setIsResizingVisual(true)
   }
 
   const handleResizePointerMove = (e: React.PointerEvent<HTMLButtonElement>): void => {
@@ -552,53 +559,31 @@ export default function PetOverlay(): JSX.Element | null {
         {notifications.length > 0 && isNotificationTrayOpen && (
           <div
             style={{
+              position: 'relative',
               display: 'flex',
               flexDirection: 'column',
-              gap: 5,
+              overflow: 'hidden',
+              borderRadius: 18,
             }}
           >
-            {(trayScrollState.hiddenOlderNotificationCount > 0 || trayScrollState.hasLatestNotificationsAbove) && (
-              <div
-                data-avatar-overlay-size="notification-tray-header"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  gap: 6,
-                  minHeight: 18,
-                  alignItems: 'center',
-                }}
-              >
-                {trayScrollState.hiddenOlderNotificationCount > 0 && (
-                  <TrayButton
-                    label={`+${trayScrollState.hiddenOlderNotificationCount}`}
-                    title="Show older notifications"
-                    onClick={() => {
-                      const el = trayListRef.current
-                      if (!el) return
-                      el.scrollTo({ top: el.scrollTop + el.clientHeight, behavior: 'smooth' })
-                    }}
-                  />
-                )}
-                {trayScrollState.hasLatestNotificationsAbove && (
-                  <TrayButton
-                    label="Latest"
-                    title="Show latest notifications"
-                    onClick={() => trayListRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-                  />
-                )}
-              </div>
-            )}
+            <div
+              data-avatar-overlay-size="notification-tray-header"
+              style={{ height: 0, overflow: 'hidden' }}
+            />
             <div
               ref={trayListRef}
               data-avatar-overlay-size="notification-tray-list"
+              role="list"
+              aria-label="Activity notifications"
               onScroll={(ev) => setTrayScrollState(measureTrayScrollState(ev.currentTarget))}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 5,
+                gap: 6,
                 maxHeight: 226,
                 overflowY: trayScrollState.hasScrollableContent ? 'auto' : 'hidden',
                 scrollbarWidth: 'none',
+                padding: '4px 6px 0',
               }}
             >
               {notifications.map((notification) => (
@@ -649,6 +634,26 @@ export default function PetOverlay(): JSX.Element | null {
                 />
               ))}
             </div>
+            {trayScrollState.hasLatestNotificationsAbove && (
+              <TrayButton
+                label="Latest"
+                title="Show latest activity"
+                placement="top"
+                onClick={() => trayListRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+              />
+            )}
+            {trayScrollState.hiddenOlderNotificationCount > 0 && (
+              <TrayButton
+                label={`+${trayScrollState.hiddenOlderNotificationCount}`}
+                title={`Show ${trayScrollState.hiddenOlderNotificationCount} older activity item${trayScrollState.hiddenOlderNotificationCount === 1 ? '' : 's'}`}
+                placement="bottom"
+                onClick={() => {
+                  const el = trayListRef.current
+                  if (!el) return
+                  el.scrollTo({ top: el.scrollTop + el.clientHeight, behavior: 'smooth' })
+                }}
+              />
+            )}
           </div>
         )}
       </div>
@@ -680,6 +685,7 @@ export default function PetOverlay(): JSX.Element | null {
         <button
           type="button"
           data-interactive="true"
+          data-testid="avatar-overlay-resize-handle"
           className="no-drag"
           aria-label="Resize pet"
           title="Resize pet"
@@ -694,10 +700,11 @@ export default function PetOverlay(): JSX.Element | null {
             bottom: 0,
             width: 48,
             height: 48,
+            borderRadius: 8,
             border: 0,
             padding: 0,
             background: 'transparent',
-            color: 'rgba(255,255,255,0.86)',
+            color: 'var(--color-token-text-secondary, rgba(255,255,255,0.72))',
             cursor: 'nwse-resize',
             touchAction: 'none',
             zIndex: 4,
@@ -713,16 +720,19 @@ export default function PetOverlay(): JSX.Element | null {
               height: 10,
               borderRight: '2px solid currentColor',
               borderBottom: '2px solid currentColor',
-              opacity: 0.72,
+              opacity: isHovering || isResizingVisual ? 0.85 : 0,
+              transition: 'opacity 120ms ease-out',
             }}
           />
         </button>
         {notifications.length > 0 && (
           <button
+            type="button"
             data-interactive="true"
+            data-testid="avatar-overlay-notification-badge"
             className="no-drag"
-            aria-label={isNotificationTrayOpen ? 'Collapse notifications' : `Show ${notifications.length} notifications`}
-            title={isNotificationTrayOpen ? 'Collapse notifications' : 'Show notifications'}
+            aria-label={isNotificationTrayOpen ? 'Collapse activity' : `Open activity tray, ${notifications.length} item${notifications.length === 1 ? '' : 's'}`}
+            title={isNotificationTrayOpen ? 'Collapse activity' : 'Open activity tray'}
             onPointerDown={(ev) => ev.stopPropagation()}
             onClick={(ev) => {
               ev.stopPropagation()
@@ -730,26 +740,27 @@ export default function PetOverlay(): JSX.Element | null {
             }}
             style={{
               position: 'absolute',
-              top: 2,
-              right: 4,
-              minWidth: isNotificationTrayOpen ? 28 : 26,
+              top: 0,
+              right: 0,
+              zIndex: 20,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 28,
+              minHeight: 28,
               width: isNotificationTrayOpen ? 28 : undefined,
-              height: 28,
-              padding: isNotificationTrayOpen ? 0 : '0 8px',
+              padding: isNotificationTrayOpen ? 0 : '4px 8px',
               borderRadius: 999,
-              border: '1px solid rgba(255,255,255,0.22)',
-              background: isNotificationTrayOpen ? 'rgba(18,18,18,0.82)' : topVisual.badgeBackgroundColor,
-              color: isNotificationTrayOpen ? 'rgba(255,255,255,0.72)' : topVisual.badgeForegroundColor,
-              boxShadow: '0 8px 22px rgba(0,0,0,0.28)',
-              backdropFilter: 'blur(10px)',
-              fontSize: isNotificationTrayOpen ? 15 : 11,
-              fontWeight: 700,
-              lineHeight: '26px',
+              border: '1px solid var(--color-token-border-default, rgba(255,255,255,0.18))',
+              background: isNotificationTrayOpen ? 'var(--color-token-bg-primary, rgba(18,18,18,0.82))' : topVisual.badgeBackgroundColor,
+              color: isNotificationTrayOpen ? 'var(--color-token-text-secondary, rgba(255,255,255,0.72))' : topVisual.badgeForegroundColor,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.18)',
+              fontSize: 12,
+              fontWeight: 500,
+              lineHeight: 1,
               cursor: 'pointer',
               transform: 'translate(6px, -4px)',
-              display: 'grid',
-              placeItems: 'center',
-              transition: 'transform 160ms ease-out, background-color 160ms ease-out, color 160ms ease-out',
+              transition: 'transform 160ms ease-out, background-color 160ms ease-out, color 160ms ease-out, scale 160ms ease-out',
             }}
           >
             {isNotificationTrayOpen ? (
@@ -767,10 +778,12 @@ export default function PetOverlay(): JSX.Element | null {
 function TrayButton({
   label,
   title,
+  placement,
   onClick,
 }: {
   label: string
   title: string
+  placement: 'top' | 'bottom'
   onClick: () => void
 }): JSX.Element {
   return (
@@ -783,15 +796,23 @@ function TrayButton({
         onClick()
       }}
       style={{
-        minWidth: 22,
-        height: 18,
-        padding: '0 7px',
+        position: 'absolute',
+        left: '50%',
+        top: placement === 'top' ? 4 : undefined,
+        bottom: placement === 'bottom' ? 4 : undefined,
+        transform: 'translateX(-50%)',
+        zIndex: 10,
+        minWidth: placement === 'top' ? 48 : 36,
+        height: 20,
+        padding: '0 8px',
         borderRadius: 999,
-        border: '1px solid rgba(255,255,255,0.12)',
-        background: 'rgba(18,18,18,0.72)',
-        color: 'rgba(255,255,255,0.64)',
+        border: '1px solid var(--color-token-border-default, rgba(255,255,255,0.16))',
+        background: 'var(--color-token-main-surface-primary, rgba(24,24,24,0.86))',
+        color: 'var(--color-token-text-secondary, rgba(255,255,255,0.70))',
+        boxShadow: '0 5px 10px -7px rgba(0,0,0,0.22)',
         fontSize: 10,
-        lineHeight: '16px',
+        lineHeight: '18px',
+        fontWeight: 560,
         cursor: 'pointer',
         backdropFilter: 'blur(8px)',
       }}
@@ -814,15 +835,18 @@ function NotificationCard({
   onAction: (action: PetWaitingRequestAction) => Promise<void>
   onReply: (text: string) => Promise<void>
 }): JSX.Element {
+  const [rowActive, setRowActive] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)
   const [replyText, setReplyText] = useState('')
   const [busy, setBusy] = useState(false)
-  const providerColor = PROVIDER_DEFS[notification.provider]?.color ?? '#9CA3AF'
-  const providerName = PROVIDER_DEFS[notification.provider]?.name ?? notification.provider
   const displayBody = notification.body.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '').trim()
   const visual = statusVisualForNotification(notification)
-  const actions = notification.waitingRequest?.actions ?? []
+  const actions = (notification.waitingRequest?.actions ?? []).filter((action) => action.kind !== 'reply')
   const canReply = Boolean(notification.replyTarget)
+  const bodyText = displayBody || visual.fallbackBodyMessage
+  const hasWaitingRequest = Boolean(notification.waitingRequest)
+  const expandable = bodyText.length > 92 || hasWaitingRequest
 
   useEffect(() => {
     window.petApi.pet.setKeyboardInteractive(replyOpen)
@@ -863,197 +887,283 @@ function NotificationCard({
     <div
       data-interactive="true"
       data-avatar-overlay-measure="notification-tray-row"
-      onClick={onClick}
+      role="listitem"
       style={{
-        background: 'var(--color-token-bg-secondary, rgba(31,31,31,0.94))',
-        border: '1px solid var(--color-token-border-default, rgba(255,255,255,0.12))',
-        boxShadow: '0 12px 24px rgba(0,0,0,0.26)',
-        borderRadius: 8,
-        padding: '9px 10px',
-        cursor: 'pointer',
         position: 'relative',
-        color: 'var(--color-token-text-primary, rgba(255,255,255,0.92))',
-        backdropFilter: 'blur(12px)',
+        width: '100%',
+        scrollMarginTop: 8,
+        textAlign: 'left',
+      }}
+      onPointerEnter={() => setRowActive(true)}
+      onPointerLeave={() => setRowActive(false)}
+      onFocusCapture={() => setRowActive(true)}
+      onBlurCapture={(ev) => {
+        const next = ev.relatedTarget
+        if (!(next instanceof Node) || !ev.currentTarget.contains(next)) setRowActive(false)
       }}
     >
-      <button
-        type="button"
-        title="Dismiss"
-        aria-label="Dismiss notification"
-        onClick={(ev) => {
-          ev.stopPropagation()
-          onDismiss()
-        }}
-        disabled={!notification.canDismiss}
+      <div
         style={{
-          position: 'absolute',
-          top: 7,
-          right: 7,
-          width: 20,
-          height: 20,
-          padding: 0,
-          border: 0,
-          borderRadius: 5,
-          background: 'transparent',
-          color: 'var(--color-token-text-secondary, rgba(255,255,255,0.48))',
-          cursor: notification.canDismiss ? 'pointer' : 'default',
-          opacity: notification.canDismiss ? 1 : 0,
+          position: 'relative',
+          zIndex: 1,
+          overflow: 'hidden',
+          borderRadius: 18,
+          border: '1px solid var(--color-token-border-default, rgba(255,255,255,0.18))',
+          background: 'var(--color-token-main-surface-primary, rgba(31,31,31,0.94))',
+          boxShadow: rowActive
+            ? 'inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.18)'
+            : 'inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -1px 0 rgba(0,0,0,0.18)',
+          color: 'var(--color-token-text-primary, rgba(255,255,255,0.92))',
+          backdropFilter: 'blur(18px)',
+          transition: 'border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease',
         }}
       >
-        <ChevronIcon path={X_ICON} />
-      </button>
-
-      <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start', paddingRight: 20 }}>
-        <StatusIcon visual={visual} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 11.5,
-              fontWeight: 650,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {notification.title}
-          </div>
-          <div
+        <div
+          role={notification.action ? 'button' : undefined}
+          tabIndex={notification.action ? 0 : undefined}
+          aria-label={`${notification.title}. ${visual.labelMessage}. ${bodyText}`}
+          onClick={(ev) => {
+            ev.stopPropagation()
+            onClick()
+          }}
+          onKeyDown={(ev) => {
+            if (ev.key !== 'Enter' && ev.key !== ' ') return
+            ev.preventDefault()
+            onClick()
+          }}
+          style={{
+            display: 'block',
+            width: '100%',
+            minWidth: 0,
+            background: 'transparent',
+            color: 'inherit',
+            padding: '6px 12px',
+            textAlign: 'left',
+            cursor: notification.action ? 'pointer' : 'default',
+            font: 'inherit',
+          }}
+        >
+          <span
             style={{
               display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              marginTop: 2,
               minWidth: 0,
-              color: 'var(--color-token-text-secondary, rgba(255,255,255,0.58))',
-              fontSize: 10,
-              fontWeight: 560,
+              alignItems: 'center',
+              paddingRight: 28,
             }}
           >
-            <span>{visual.labelMessage}</span>
-            <span aria-hidden="true">·</span>
             <span
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
                 minWidth: 0,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
+                fontSize: 12,
+                fontWeight: 650,
+                lineHeight: '17px',
               }}
             >
-              <span
-                aria-hidden="true"
+              {notification.title}
+            </span>
+          </span>
+          <div
+            data-avatar-overlay-measure-body="true"
+            style={{
+              color: 'var(--color-token-text-primary, rgba(255,255,255,0.86))',
+              fontSize: 11,
+              lineHeight: '16px',
+              marginTop: 2,
+              overflow: 'hidden',
+              maxHeight: expanded ? 512 : hasWaitingRequest ? 84 : 32,
+              whiteSpace: expanded ? 'pre-wrap' : undefined,
+              display: expanded ? 'block' : '-webkit-box',
+              WebkitLineClamp: expanded ? undefined : hasWaitingRequest ? 5 : 2,
+              WebkitBoxOrient: 'vertical',
+              fontFamily: bodyText.startsWith('$') ? 'ui-monospace, SFMono-Regular, monospace' : 'inherit',
+              transition: 'max-height 180ms ease-out',
+            }}
+          >
+            {bodyText}
+            {actions.length > 0 && (
+              <div
                 style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: providerColor,
-                  flexShrink: 0,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  marginTop: 8,
+                }}
+              >
+                {actions.map((action) => (
+                  <ActionButton
+                    key={`${action.kind}:${action.label}`}
+                    label={action.label}
+                    busy={busy}
+                    onClick={() => runAction(action)}
+                    tone={action.primary ? 'primary' : undefined}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <span
+          role="img"
+          aria-label={visual.labelMessage}
+          style={{
+            pointerEvents: 'none',
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            zIndex: 0,
+            display: 'flex',
+            width: 24,
+            height: 24,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: expandable && rowActive ? 0 : 1,
+            transition: 'opacity 150ms ease-out',
+          }}
+        >
+          <StatusIcon visual={visual} />
+        </span>
+
+        {expandable && (
+          <div
+            data-avatar-overlay-control="expand"
+            style={{
+              position: 'absolute',
+              top: 4,
+              right: 4,
+              zIndex: 10,
+              opacity: rowActive ? 1 : 0,
+              pointerEvents: rowActive ? 'auto' : 'none',
+              transform: rowActive ? 'translateX(0)' : 'translateX(6px)',
+              transition: 'opacity 150ms ease-out, transform 150ms ease-out',
+            }}
+          >
+            <IconButton
+              title={expanded ? 'Collapse' : 'Expand'}
+              ariaLabel={`${expanded ? 'Collapse' : 'Expand'} ${notification.title}`}
+              onClick={() => setExpanded((value) => !value)}
+            >
+              <span style={{ transform: `rotate(${expanded ? 90 : 0}deg)`, transition: 'transform 120ms ease-out' }}>
+                <ChevronIcon path={CHEVRON_RIGHT} />
+              </span>
+            </IconButton>
+          </div>
+        )}
+
+        {canReply && !replyOpen && (
+          <div
+            data-avatar-overlay-control="reply"
+            className="no-drag"
+            style={{
+              position: 'absolute',
+              right: 8,
+              bottom: 4,
+              zIndex: 10,
+              opacity: rowActive ? 1 : 0,
+              pointerEvents: rowActive ? 'auto' : 'none',
+              transform: rowActive ? 'translateX(0)' : 'translateX(6px)',
+              transition: 'opacity 150ms ease-out, transform 150ms ease-out',
+            }}
+          >
+            <ActionButton
+              label="Reply"
+              busy={busy}
+              onClick={() => {
+                setReplyText('')
+                setReplyOpen(true)
+                setRowActive(true)
+              }}
+            />
+          </div>
+        )}
+
+        {replyOpen && (
+          <form
+            className="no-drag"
+            onClick={(ev) => ev.stopPropagation()}
+            onPointerDown={(ev) => ev.stopPropagation()}
+            onSubmit={(ev) => {
+              ev.preventDefault()
+              void submitReply()
+            }}
+            style={{
+              margin: '0 12px 8px',
+              borderTop: '1px solid var(--color-token-border-default, rgba(255,255,255,0.18))',
+              paddingTop: 8,
+            }}
+          >
+            <div style={{ display: 'flex', minWidth: 0, alignItems: 'center', gap: 6 }}>
+              <input
+                value={replyText}
+                disabled={busy}
+                onChange={(ev) => setReplyText(ev.target.value)}
+                onKeyDown={(ev) => {
+                  if (ev.key === 'Escape' && !busy) {
+                    ev.stopPropagation()
+                    setReplyOpen(false)
+                  }
+                }}
+                autoFocus
+                placeholder="Reply"
+                style={{
+                  minWidth: 0,
+                  flex: 1,
+                  height: 24,
+                  borderRadius: 6,
+                  border: '1px solid var(--color-token-border-default, rgba(255,255,255,0.18))',
+                  background: 'var(--color-token-main-surface-primary, rgba(31,31,31,0.94))',
+                  color: 'var(--color-token-text-primary, rgba(255,255,255,0.92))',
+                  padding: '0 8px',
+                  fontSize: 11,
+                  outline: 'none',
                 }}
               />
-              {providerName}
-            </span>
-          </div>
+              <ActionButton
+                label="Reply"
+                busy={busy || !replyText.trim()}
+                onClick={() => void submitReply()}
+                tone="primary"
+              />
+            </div>
+          </form>
+        )}
+
+        {notification.canDismiss && (
           <div
+            data-avatar-overlay-control="dismiss"
             style={{
-              color: 'var(--color-token-text-secondary, rgba(255,255,255,0.66))',
-              fontSize: 10.5,
-              lineHeight: '14px',
-              marginTop: 5,
-              overflow: 'hidden',
-              display: '-webkit-box',
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: 'vertical',
-              fontFamily: displayBody.startsWith('$') ? 'ui-monospace, SFMono-Regular, monospace' : 'inherit',
+              position: 'absolute',
+              top: 4,
+              left: 4,
+              zIndex: 20,
+              opacity: rowActive ? 1 : 0,
+              pointerEvents: rowActive ? 'auto' : 'none',
+              transform: rowActive ? 'translateX(0)' : 'translateX(-6px)',
+              transition: 'opacity 150ms ease-out, transform 150ms ease-out',
             }}
           >
-            {displayBody || visual.fallbackBodyMessage}
+            <IconButton title="Dismiss" ariaLabel={`Dismiss ${notification.title}`} onClick={onDismiss}>
+              <ChevronIcon path={X_ICON} />
+            </IconButton>
           </div>
-        </div>
+        )}
       </div>
-
-      {(actions.length > 0 || canReply) && (
-        <div
-          style={{
-            display: 'flex',
-            gap: 6,
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            marginTop: 8,
-          }}
-        >
-          {actions.map((action) => (
-            <ActionButton
-              key={`${action.kind}:${action.label}`}
-              label={action.kind === 'reply' && replyOpen ? 'Hide' : action.label}
-              busy={busy}
-              onClick={() => runAction(action)}
-              tone={action.primary ? 'primary' : undefined}
-            />
-          ))}
-          {canReply && !actions.some((action) => action.kind === 'reply') && (
-            <ActionButton label={replyOpen ? 'Hide' : 'Reply'} busy={busy} onClick={() => setReplyOpen((v) => !v)} />
-          )}
-        </div>
-      )}
-
-      {replyOpen && (
-        <form
-          onClick={(ev) => ev.stopPropagation()}
-          onSubmit={(ev) => {
-            ev.preventDefault()
-            void submitReply()
-          }}
-          style={{ display: 'flex', gap: 6, marginTop: 8 }}
-        >
-          <input
-            value={replyText}
-            disabled={busy}
-            onChange={(ev) => setReplyText(ev.target.value)}
-            autoFocus
-            placeholder="Reply…"
-            style={{
-              minWidth: 0,
-              flex: 1,
-              height: 26,
-              borderRadius: 9,
-              border: '1px solid rgba(28,28,24,0.2)',
-              background: 'rgba(255,255,255,0.72)',
-              color: '#1f1f1b',
-              padding: '0 8px',
-              fontSize: 11,
-              outline: 'none',
-            }}
-          />
-          <button
-            type="submit"
-            disabled={busy || !replyText.trim()}
-            title="Send reply"
-            aria-label="Send reply"
-            style={{
-              width: 28,
-              height: 26,
-              borderRadius: 9,
-              border: '1px solid rgba(28,28,24,0.18)',
-              background: providerColor,
-              color: '#fff',
-              cursor: busy || !replyText.trim() ? 'default' : 'pointer',
-              opacity: busy || !replyText.trim() ? 0.55 : 1,
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            ↵
-          </button>
-        </form>
-      )}
     </div>
   )
 }
 
 function StatusIcon({ visual }: { visual: ReturnType<typeof statusVisualForNotification> }): JSX.Element {
   const color = visual.badgeBackgroundColor
+  const iconPath = visual.iconType === 'clock'
+    ? CLOCK_ICON
+    : visual.iconType === 'warning'
+      ? WARNING_ICON
+      : visual.iconType === 'check-circle'
+        ? CHECK_CIRCLE_ICON
+        : null
   return (
     <div
       aria-label={visual.labelMessage}
@@ -1081,12 +1191,51 @@ function StatusIcon({ visual }: { visual: ReturnType<typeof statusVisualForNotif
             display: 'block',
           }}
         />
+      ) : iconPath ? (
+        <ChevronIcon path={iconPath} size={16} />
       ) : (
-        <span style={{ fontSize: 12, fontWeight: 760, lineHeight: 1 }}>
-          {visual.iconType === 'warning' ? '!' : visual.iconType === 'danger' ? 'x' : visual.iconType === 'success' ? '✓' : 'i'}
-        </span>
+        null
       )}
     </div>
+  )
+}
+
+function IconButton({
+  title,
+  ariaLabel,
+  children,
+  onClick,
+}: {
+  title: string
+  ariaLabel: string
+  children: ReactNode
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={ariaLabel}
+      onClick={(ev) => {
+        ev.stopPropagation()
+        onClick()
+      }}
+      style={{
+        width: 24,
+        height: 24,
+        display: 'grid',
+        placeItems: 'center',
+        padding: 0,
+        borderRadius: 7,
+        border: '1px solid var(--color-token-border-default, rgba(255,255,255,0.14))',
+        background: 'var(--color-token-main-surface-primary, rgba(31,31,31,0.92))',
+        color: 'var(--color-token-text-secondary, rgba(255,255,255,0.70))',
+        boxShadow: '0 5px 10px -7px rgba(0,0,0,0.22)',
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -1126,9 +1275,9 @@ function ActionButton({
   )
 }
 
-function ChevronIcon({ path }: { path: string }): JSX.Element {
+function ChevronIcon({ path, size = 16 }: { path: string; size?: number }): JSX.Element {
   return (
-    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true" focusable="false">
       <path
         d={path}
         fill="none"

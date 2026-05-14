@@ -3,6 +3,7 @@ import { useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
+import { IconButton, SurfaceRow } from '../shared/designSystem'
 import { useState } from 'react'
 
 interface Props {
@@ -76,22 +77,15 @@ export default function SessionItem({ session }: Props): JSX.Element {
 
   return (
     <>
-      <div
+      <SurfaceRow
         className="group flex items-start gap-2 cursor-pointer select-none"
+        active={isActive}
         style={{
-          background: isActive ? 'var(--control-bg)' : 'transparent',
-          border: '1px solid transparent',
           borderRadius: 'var(--radius-md)',
           padding: '5px 7px 5px 28px'
         }}
         onClick={handleClick}
         onContextMenu={openMenu}
-        onMouseEnter={(e) => {
-          if (!isActive) e.currentTarget.style.background = 'var(--control-bg-hover)'
-        }}
-        onMouseLeave={(e) => {
-          if (!isActive) e.currentTarget.style.background = 'transparent'
-        }}
       >
         <div className="mt-1.5 shrink-0 flex items-center justify-center" style={{ width: 11 }}>
           <div
@@ -135,15 +129,17 @@ export default function SessionItem({ session }: Props): JSX.Element {
             </span>
           )}
         </div>
-        <button
-          onClick={openMenu}
-          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5"
-          style={{ color: 'var(--text-tertiary)' }}
-          title="Chat actions"
-        >
-          <Icon name="ellipsis" size={14} />
-        </button>
-      </div>
+        <span className="surface-row-secondary shrink-0 mt-0.5">
+          <IconButton
+            icon="ellipsis"
+            label="Chat actions"
+            size="sm"
+            tooltip={false}
+            onClick={openMenu}
+            style={{ color: 'var(--text-tertiary)' }}
+          />
+        </span>
+      </SurfaceRow>
       {menuPoint && (
         <SessionActionsMenu
           session={session}

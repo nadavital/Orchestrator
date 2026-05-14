@@ -3,6 +3,7 @@ import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
 import ProjectSection from './ProjectSection'
 import Icon from '../shared/Icon'
+import { IconButton, SurfaceRow } from '../shared/designSystem'
 
 export async function pickAndAddProject(addProject: (p: Project) => void): Promise<void> {
   const dir = await window.api.dialog.openDirectory()
@@ -89,22 +90,11 @@ export default function Sidebar(): JSX.Element {
             <span className="text-sm" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
               Projects
             </span>
-            <button
+            <IconButton
+              icon="plus"
+              label="Add project"
               onClick={handleAddProject}
-              className="grid place-items-center transition-colors"
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-secondary)',
-                background: 'transparent'
-              }}
-              title="Add project"
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--control-bg-hover)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            >
-              <Icon name="plus" size={15} />
-            </button>
+            />
           </div>
 
           <div className="flex-1 overflow-y-auto px-2.5 py-1">
@@ -128,7 +118,8 @@ export default function Sidebar(): JSX.Element {
       <div
         className="shrink-0 px-2.5 py-2.5"
       >
-        <button
+        <SurfaceRow
+          as="button"
           onClick={() => {
             if (showCapabilities) {
               setShowCapabilities(false)
@@ -136,25 +127,17 @@ export default function Sidebar(): JSX.Element {
             }
             setShowSettings(!showSettings)
           }}
-          className="flex items-center gap-3 w-full text-sm transition-colors"
+          className="flex items-center gap-3 w-full text-sm"
           style={{
             color: 'var(--text-secondary)',
-            background: 'transparent',
             borderRadius: 'var(--radius-lg)',
-            padding: '8px 10px'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--control-bg-hover)'
-            e.currentTarget.style.color = 'var(--text-primary)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = 'var(--text-secondary)'
+            padding: '8px 10px',
+            textAlign: 'left'
           }}
         >
           <Icon name={showSettings || showCapabilities ? 'chat' : 'settings'} size={17} />
           {showSettings || showCapabilities ? 'Back to chats' : 'Settings'}
-        </button>
+        </SurfaceRow>
       </div>
     </aside>
   )
@@ -174,24 +157,17 @@ function SidebarNavItem({
   onClick: () => void
 }): JSX.Element {
   return (
-    <button
+    <SurfaceRow
+      as="button"
       onClick={onClick}
-      className="flex min-w-0 items-center gap-2.5 w-full text-sm transition-colors"
+      active={active}
+      className="flex min-w-0 items-center gap-2.5 w-full text-sm"
       style={{
         color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-        background: active ? 'var(--control-bg-active)' : 'transparent',
         borderRadius: 'var(--radius-lg)',
         padding: '8px 10px',
         fontWeight: active ? 650 : 500,
         textAlign: 'left'
-      }}
-      onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.background = 'var(--control-bg-hover)'
-        e.currentTarget.style.color = 'var(--text-primary)'
-      }}
-      onMouseLeave={(e) => {
-        if (!active) e.currentTarget.style.background = 'transparent'
-        e.currentTarget.style.color = active ? 'var(--text-primary)' : 'var(--text-secondary)'
       }}
     >
       <Icon name={icon} size={15} />
@@ -201,6 +177,6 @@ function SidebarNavItem({
           {detail}
         </span>
       )}
-    </button>
+    </SurfaceRow>
   )
 }

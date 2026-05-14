@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { Session } from '../../types'
 import Icon from './Icon'
+import { PopoverSurface } from './designSystem'
 
 interface Props {
   session: Session
@@ -57,20 +59,15 @@ export default function SessionActionsMenu({
     onClose()
   }
 
-  return (
-    <div
+  const menu = (
+    <PopoverSurface
+      className="fixed p-[5px]"
       ref={ref}
-      className="fixed z-50"
       style={{
-        left: Math.min(x, window.innerWidth - 208),
-        top: Math.min(y, window.innerHeight - 146),
+        left: Math.max(8, Math.min(x, window.innerWidth - 208)),
+        top: Math.max(8, Math.min(y, window.innerHeight - 146)),
         width: 196,
-        padding: 5,
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-subtle)',
-        background: 'var(--surface-bg)',
-        boxShadow: 'var(--shadow-menu)',
-        color: 'var(--text-primary)'
+        zIndex: 10000,
       }}
     >
       <MenuItem icon="pencil" label="Rename" onClick={() => void rename()} />
@@ -85,8 +82,10 @@ export default function SessionActionsMenu({
           <MenuItem icon="close" label="Delete chat" tone="danger" onClick={() => void remove()} />
         </>
       )}
-    </div>
+    </PopoverSurface>
   )
+
+  return createPortal(menu, document.body)
 }
 
 function MenuItem({
@@ -103,14 +102,16 @@ function MenuItem({
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-center gap-2 text-left"
+      className="motion-button flex w-full items-center gap-2 text-left"
       style={{
         height: 30,
         padding: '0 8px',
         borderRadius: 'var(--radius-md)',
         color: tone === 'danger' ? 'var(--state-danger)' : 'var(--text-primary)',
         fontSize: 12.5,
-        fontWeight: 560
+        fontWeight: 560,
+        background: 'transparent',
+        border: '1px solid transparent',
       }}
       onMouseEnter={(event) => {
         event.currentTarget.style.background = 'var(--control-bg-hover)'

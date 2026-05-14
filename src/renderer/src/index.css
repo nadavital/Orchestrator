@@ -51,6 +51,18 @@
     --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.06);
     --shadow-menu: 0 18px 48px rgba(15, 23, 42, 0.16);
     --shadow-dialog: 0 28px 90px rgba(15, 23, 42, 0.22);
+    --motion-duration-edge: 140ms;
+    --motion-duration-row: 180ms;
+    --motion-duration-control: 280ms;
+    --motion-duration-overlay: 180ms;
+    --motion-ease-standard: ease-out;
+    --motion-ease-control: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-scale-badge-hover: 1.06;
+    --motion-scale-edge-hover: 1.03;
+    --motion-scale-tap-strong: 0.94;
+    --motion-scale-tap-soft: 0.96;
+    --motion-row-enter-y: 4px;
+    --motion-control-offset: 6px;
 
     --color-bg: var(--app-bg);
     --color-surface: var(--surface-bg);
@@ -208,6 +220,188 @@
   @keyframes statusPulse {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  @keyframes motionRowIn {
+    from { opacity: 0; transform: translateY(var(--motion-row-enter-y)); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes motionOverlayIn {
+    from { opacity: 0; transform: translateY(4px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes motionFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes motionSpinner {
+    to { transform: rotate(360deg); }
+  }
+
+  .motion-row {
+    animation: motionRowIn var(--motion-duration-row) var(--motion-ease-standard) both;
+  }
+
+  .motion-fade-in {
+    animation: motionFadeIn var(--motion-duration-row) var(--motion-ease-standard) both;
+  }
+
+  .motion-overlay-backdrop {
+    animation: motionFadeIn var(--motion-duration-overlay) var(--motion-ease-standard) both;
+  }
+
+  .motion-overlay-surface,
+  .motion-popover-surface {
+    animation: motionOverlayIn var(--motion-duration-overlay) var(--motion-ease-standard) both;
+    transform-origin: top center;
+  }
+
+  .motion-button,
+  .motion-icon-button,
+  .motion-edge-button,
+  .motion-disclosure-trigger {
+    transition:
+      background-color var(--motion-duration-edge) var(--motion-ease-standard),
+      border-color var(--motion-duration-edge) var(--motion-ease-standard),
+      color var(--motion-duration-edge) var(--motion-ease-standard),
+      opacity var(--motion-duration-edge) var(--motion-ease-standard),
+      transform var(--motion-duration-edge) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-edge) var(--motion-ease-standard);
+  }
+
+  .motion-button:hover,
+  .motion-icon-button:hover {
+    transform: scale(var(--motion-scale-edge-hover));
+  }
+
+  .motion-button:active,
+  .motion-icon-button:active,
+  .motion-edge-button:active {
+    transform: scale(var(--motion-scale-tap-soft));
+  }
+
+  .motion-badge-button:hover {
+    transform: scale(var(--motion-scale-badge-hover));
+  }
+
+  .motion-badge-button:active {
+    transform: scale(var(--motion-scale-tap-strong));
+  }
+
+  .motion-spinner {
+    animation: motionSpinner 900ms linear infinite;
+  }
+
+  .motion-status-pulse {
+    animation: statusPulse 1.5s ease-in-out infinite;
+  }
+
+  .surface-row {
+    position: relative;
+    border: 1px solid transparent;
+    transition:
+      background-color var(--motion-duration-edge) var(--motion-ease-standard),
+      border-color var(--motion-duration-edge) var(--motion-ease-standard),
+      color var(--motion-duration-edge) var(--motion-ease-standard),
+      transform var(--motion-duration-edge) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-edge) var(--motion-ease-standard);
+  }
+
+  .surface-row:hover,
+  .surface-row:focus-visible {
+    background: var(--control-bg-hover);
+  }
+
+  .surface-row[data-active='true'] {
+    background: var(--control-bg-active);
+  }
+
+  .surface-row-secondary {
+    opacity: 0;
+    transform: translateX(var(--motion-control-offset));
+    transition:
+      opacity var(--motion-duration-control) var(--motion-ease-control),
+      transform var(--motion-duration-control) var(--motion-ease-control);
+  }
+
+  .surface-row:hover .surface-row-secondary,
+  .surface-row:focus-within .surface-row-secondary,
+  .surface-row-secondary[data-visible='true'] {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .motion-disclosure-content {
+    animation: motionRowIn var(--motion-duration-row) var(--motion-ease-standard) both;
+  }
+
+  .motion-chevron {
+    transition: transform var(--motion-duration-edge) var(--motion-ease-standard);
+  }
+
+  .orchestrator-tooltip {
+    position: absolute;
+    z-index: 80;
+    pointer-events: none;
+    white-space: nowrap;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface-bg);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-menu);
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0;
+    padding: 6px 7px;
+    transform: translateY(3px);
+    transition:
+      opacity var(--motion-duration-edge) var(--motion-ease-standard),
+      transform var(--motion-duration-edge) var(--motion-ease-standard);
+  }
+
+  .orchestrator-tooltip-anchor {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .orchestrator-tooltip-anchor:hover .orchestrator-tooltip,
+  .orchestrator-tooltip-anchor:focus-within .orchestrator-tooltip {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --motion-duration-edge: 0ms;
+      --motion-duration-row: 0ms;
+      --motion-duration-control: 0ms;
+      --motion-duration-overlay: 0ms;
+      --motion-row-enter-y: 0px;
+      --motion-control-offset: 0px;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0ms !important;
+    }
+
+    .motion-button:hover,
+    .motion-icon-button:hover,
+    .motion-edge-button:hover,
+    .motion-badge-button:hover,
+    .motion-button:active,
+    .motion-icon-button:active,
+    .motion-edge-button:active,
+    .motion-badge-button:active {
+      transform: none !important;
+    }
   }
 
   .capabilities-page {

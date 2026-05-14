@@ -61,7 +61,7 @@ export interface PetNotificationVisual {
   badgeBackgroundColor: string
   badgeForegroundColor: string
   fallbackBodyMessage: string
-  iconType: 'spinner' | 'warning' | 'danger' | 'success' | 'info'
+  iconType: 'spinner' | 'clock' | 'warning' | 'check-circle'
   labelMessage: string
   mascotState: PetNotificationStatus
 }
@@ -149,7 +149,7 @@ export function statusVisualForNotification(notification: PetNotification | null
       badgeBackgroundColor: 'var(--color-token-activity-bar-badge-background, #3B82F6)',
       badgeForegroundColor: 'var(--color-token-activity-bar-badge-foreground, #FFFFFF)',
       fallbackBodyMessage: '',
-      iconType: 'info',
+      iconType: 'clock',
       labelMessage: '',
       mascotState: 'idle',
     }
@@ -169,7 +169,7 @@ export function statusVisualForNotification(notification: PetNotification | null
       badgeBackgroundColor: 'var(--color-token-editor-warning-foreground, #FBBF24)',
       badgeForegroundColor: 'var(--color-token-bg-primary, #111827)',
       fallbackBodyMessage: 'Waiting for your response',
-      iconType: 'warning',
+      iconType: 'clock',
       labelMessage: 'Needs input',
       mascotState: 'waiting',
     }
@@ -179,7 +179,7 @@ export function statusVisualForNotification(notification: PetNotification | null
       badgeBackgroundColor: 'var(--color-token-error-foreground, #F87171)',
       badgeForegroundColor: 'var(--color-token-bg-primary, #111827)',
       fallbackBodyMessage: 'Run blocked',
-      iconType: 'danger',
+      iconType: 'warning',
       labelMessage: 'Blocked',
       mascotState: 'failed',
     }
@@ -189,7 +189,7 @@ export function statusVisualForNotification(notification: PetNotification | null
       badgeBackgroundColor: 'var(--color-token-charts-green, #22C55E)',
       badgeForegroundColor: 'var(--color-token-bg-primary, #111827)',
       fallbackBodyMessage: 'Ready to review',
-      iconType: 'success',
+      iconType: 'check-circle',
       labelMessage: 'Ready',
       mascotState: 'review',
     }
@@ -198,7 +198,7 @@ export function statusVisualForNotification(notification: PetNotification | null
     badgeBackgroundColor: 'var(--color-token-activity-bar-badge-background, #3B82F6)',
     badgeForegroundColor: 'var(--color-token-activity-bar-badge-foreground, #FFFFFF)',
     fallbackBodyMessage: 'Running',
-    iconType: 'info',
+    iconType: 'clock',
     labelMessage: 'Running',
     mascotState: 'running',
   }

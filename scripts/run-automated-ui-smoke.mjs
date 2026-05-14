@@ -14,13 +14,15 @@ const captureView = process.argv.includes('--settings')
       ? 'resources'
       : process.argv.includes('--pets')
         ? 'pets'
-        : process.argv.includes('--scroll')
-          ? 'scroll'
-          : process.argv.includes('--inspector')
-            ? 'inspector'
-            : process.argv.includes('--terminal')
-              ? 'terminal'
-              : 'main'
+        : process.argv.includes('--design-system')
+          ? 'design-system'
+          : process.argv.includes('--scroll')
+            ? 'scroll'
+            : process.argv.includes('--inspector')
+              ? 'inspector'
+              : process.argv.includes('--terminal')
+                ? 'terminal'
+                : 'main'
 const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', profile)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
@@ -81,6 +83,14 @@ child.on('exit', (code) => {
         jumpToLatestReached: result.jumpToLatestReached === true,
         jumpHiddenAfterClick: result.jumpVisibleAfterClick === false
       }
+    : captureView === 'design-system'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          designPreview: result.hasDesignSystemPreview === true,
+          motionRows: Number(result.motionRowCount ?? 0) >= 3,
+          surfaceRows: Number(result.surfaceRowCount ?? 0) >= 3,
+          buttons: Number(result.buttonCount ?? 0) > 0
+        }
     : {
         isolatedProfile: result.profile?.isIsolated === true,
         profileBadge: ['settings', 'resources', 'capabilities', 'pets'].includes(captureView) || result.hasProfileBadge === true,

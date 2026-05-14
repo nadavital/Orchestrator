@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ToolUseMessage } from '../../types'
+import { SurfaceRow } from './designSystem'
 
 const toolIcons: Record<string, string> = {
   Bash: '$',
@@ -33,7 +34,7 @@ export default function ToolCallCard({ msg }: Props): JSX.Element {
 
   return (
     <div className="flex justify-start pl-8">
-      <div
+      <SurfaceRow
         className="overflow-hidden text-xs"
         style={{
           background: 'var(--surface-bg)',
@@ -76,7 +77,7 @@ export default function ToolCallCard({ msg }: Props): JSX.Element {
         </button>
         {expanded && (
           <div
-            className="overflow-y-auto overflow-x-hidden px-3 pb-3 font-mono"
+            className="motion-disclosure-content overflow-y-auto overflow-x-hidden px-3 pb-3 font-mono"
             style={{ borderTop: '1px solid var(--border-subtle)', maxHeight: 220, color: 'var(--color-text-muted)', overscrollBehavior: 'contain' }}
           >
             <pre className="mt-2 whitespace-pre-wrap break-words text-xs">
@@ -84,7 +85,7 @@ export default function ToolCallCard({ msg }: Props): JSX.Element {
             </pre>
           </div>
         )}
-      </div>
+      </SurfaceRow>
     </div>
   )
 }

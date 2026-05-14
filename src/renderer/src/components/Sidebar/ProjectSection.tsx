@@ -4,6 +4,7 @@ import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
 import SessionItem from './SessionItem'
 import Icon from '../shared/Icon'
+import { IconButton, SurfaceRow } from '../shared/designSystem'
 
 interface Props {
   project: Project
@@ -72,12 +73,12 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   return (
     <div style={{ marginBottom: 8 }}>
       {/* Project header */}
-      <div
+      <SurfaceRow
         className="group flex items-center gap-2 cursor-pointer select-none"
         style={{
           padding: '5px 7px',
           borderRadius: 'var(--radius-md)',
-          color: 'var(--text-secondary)'
+          color: 'var(--text-secondary)',
         }}
         onClick={() => setCollapsed((c) => !c)}
         onContextMenu={(e) => {
@@ -85,29 +86,24 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
           if (confirm(`Remove project "${project.name}"?`)) handleRemoveProject()
         }}
       >
-        <span className="shrink-0 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+        <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
           <Icon name="chevronDown" size={12} />
         </span>
         <Icon name="folder" size={14} />
         <span className="flex-1 truncate text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
           {project.name}
         </span>
-        <button
-          onClick={(e) => { e.stopPropagation(); handleNewSession() }}
-          disabled={creating}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
-          style={{ color: 'var(--text-secondary)', borderRadius: 'var(--radius-sm)' }}
-          title="New chat"
-        >
-          {creating ? (
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" style={{ animation: 'spin 1s linear infinite' }}>
-              <path d="M8 1.5a6.5 6.5 0 1 0 6.5 6.5.75.75 0 0 1 1.5 0 8 8 0 1 1-8-8 .75.75 0 0 1 0 1.5Z" />
-            </svg>
-          ) : (
-            <Icon name="plus" size={12} />
-          )}
-        </button>
-      </div>
+        <span className="surface-row-secondary">
+          <IconButton
+            icon={creating ? 'refresh' : 'plus'}
+            label={creating ? 'Creating chat' : 'New chat'}
+            disabled={creating}
+            size="sm"
+            tooltip={false}
+            onClick={(e) => { e.stopPropagation(); void handleNewSession() }}
+          />
+        </span>
+      </SurfaceRow>
 
       {/* Sessions */}
       {!collapsed && (
@@ -126,7 +122,6 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
           ))}
         </div>
       )}
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }

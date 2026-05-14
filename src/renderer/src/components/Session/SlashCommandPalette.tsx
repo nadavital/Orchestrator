@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { ProviderRuntimeInfo, ProviderSlashCommand, SlashPaletteCommand } from '../../types'
 import { availableSlashCommands } from '../../types'
+import { Badge, PopoverSurface, SurfaceRow } from '../shared/designSystem'
 
 interface Props {
   query: string
@@ -59,26 +60,23 @@ export default function SlashCommandPalette({
   if (matches.length === 0) return null
 
   return (
-    <div
+    <PopoverSurface
       className="absolute left-0 right-0 bottom-full mb-2 overflow-hidden z-50"
       style={{
-        background: 'var(--surface-bg)',
-        border: '1px solid var(--border-strong)',
         borderRadius: 'var(--radius-xl)',
-        boxShadow: 'var(--shadow-menu)',
         maxHeight: 240,
         overflowY: 'auto'
       }}
     >
       <div ref={listRef}>
         {matches.map((command, i) => (
-          <button
+          <SurfaceRow
+            as="button"
             key={`${command.group}-${command.id}`}
-            aria-label={`${command.name} ${command.description ?? ''} ${command.group}`.trim()}
-            className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
-            style={{
-              background: i === selectedIndex ? 'var(--control-bg-active)' : 'transparent'
-            }}
+            active={i === selectedIndex}
+            index={i}
+            title={`${command.name} ${command.description ?? ''} ${command.group}`.trim()}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-none"
             onMouseEnter={() => onSelectedIndexChange(i)}
             onClick={() => onSelect(command)}
           >
@@ -91,19 +89,13 @@ export default function SlashCommandPalette({
             <span className="text-xs truncate flex-1" style={{ color: 'var(--color-text-muted)' }}>
               {command.description}
             </span>
-            <span
-              className="text-xs shrink-0"
-              style={{
-                color: command.group === 'App' ? 'var(--color-text-muted)' : 'var(--color-accent)',
-                fontSize: 10
-              }}
-            >
+            <Badge tone={command.group === 'App' ? 'neutral' : 'accent'}>
               {command.group}
-            </span>
-          </button>
+            </Badge>
+          </SurfaceRow>
         ))}
       </div>
-    </div>
+    </PopoverSurface>
   )
 }
 

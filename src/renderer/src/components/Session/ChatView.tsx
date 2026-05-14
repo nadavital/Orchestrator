@@ -5,6 +5,13 @@ import rehypeHighlight from 'rehype-highlight'
 import type { Components } from 'react-markdown'
 import Icon from '../shared/Icon'
 import {
+  Button,
+  DisclosureSection,
+  IconButton,
+  StatusBadge,
+  SurfaceRow,
+} from '../shared/designSystem'
+import {
   describeToolAction,
   describeToolActivity,
   extractFileReferences,
@@ -15,6 +22,8 @@ import {
 } from '../../types'
 import type { Session, ChatMessage, FileReference, ResultMessage, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
 import type { Attachment } from '../../types'
+
+type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
 
 interface Props {
   session: Session
@@ -41,6 +50,7 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   const shouldFollowBottomRef = useRef(true)
   const pendingScrollFrameRef = useRef<number | null>(null)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
+  const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
   const transcriptItems = groupTranscriptMessages(session.messages)
   const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
   const lastMessage = session.messages[session.messages.length - 1]
@@ -52,6 +62,15 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     }
     return null
   }, [session.messages])
+
+  useEffect(() => {
+    let cancelled = false
+    window.api.settings.get().then((settings) => {
+      if (cancelled) return
+      setPreferredEditor(normalizePreferredEditor(settings.preferredEditor))
+    })
+    return () => { cancelled = true }
+  }, [])
 
   const setFollowingBottom = useCallback((isFollowing: boolean) => {
     const shouldShowJumpButton = !isFollowing
@@ -107,11 +126,13 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
           {projectName ? `What do you want to build in ${projectName}?` : 'What do you want to build?'}
         </h1>
         <div className="grid grid-cols-2 gap-2.5 w-full" style={{ maxWidth: 500 }}>
-          {SUGGESTED_PROMPTS.map((prompt) => (
-            <button
+          {SUGGESTED_PROMPTS.map((prompt, index) => (
+            <SurfaceRow
+              as="button"
               key={prompt}
               onClick={() => onSuggestedPrompt?.(prompt)}
-              className="text-left px-4 py-3 text-sm transition-colors"
+              index={index}
+              className="text-left px-4 py-3 text-sm"
               style={{
                 background: 'var(--surface-bg)',
                 border: '1px solid var(--border-subtle)',
@@ -119,17 +140,9 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
                 color: 'var(--text-secondary)',
                 lineHeight: 1.4
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-accent)'
-                e.currentTarget.style.color = 'var(--text-primary)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-subtle)'
-                e.currentTarget.style.color = 'var(--text-secondary)'
-              }}
             >
               {prompt}
-            </button>
+            </SurfaceRow>
           ))}
         </div>
       </div>
@@ -173,19 +186,17 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
         </div>
       </div>
       {showJumpToLatest && (
-        <button
-          data-testid="jump-to-latest"
-          type="button"
+        <Button
+          dataTestId="jump-to-latest"
           onClick={() => scrollToBottom(true)}
-          className="absolute bottom-4 right-6 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm transition-opacity hover:opacity-90"
+          variant="primary"
+          className="absolute bottom-4 right-6 rounded-full shadow-sm"
           style={{
-            background: 'var(--color-accent)',
-            color: '#fff',
             border: '1px solid rgba(255,255,255,0.16)'
           }}
         >
           Jump to latest
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -237,29 +248,16 @@ function CopyButton({ getText }: { getText: () => string }): JSX.Element {
   }, [getText])
 
   return (
-    <button
+    <IconButton
+      icon={copied ? 'check' : 'copy'}
+      label={copied ? 'Copied' : 'Copy'}
+      size="sm"
+      tone={copied ? 'success' : 'neutral'}
       onClick={handleCopy}
-      title={copied ? 'Copied' : 'Copy'}
-      aria-label={copied ? 'Copied' : 'Copy'}
-      className="inline-flex h-6 w-6 items-center justify-center rounded-md transition-opacity hover:opacity-100 focus-visible:opacity-100"
       style={{
-        background: 'transparent',
-        color: copied ? 'var(--color-green)' : 'var(--color-text-muted)',
-        border: 'none',
         opacity: copied ? 1 : 0.55
       }}
-    >
-      {copied ? (
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-        </svg>
-      ) : (
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z" />
-          <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z" />
-        </svg>
-      )}
-    </button>
+    />
   )
 }
 
@@ -524,7 +522,7 @@ function MessageRow({
                 |
               </span>
             )}
-            {fileReferences.length > 0 && <FileReferenceList files={fileReferences} cwd={session.workDir} searchRoots={fileReferenceRoots} />}
+            {fileReferences.length > 0 && <FileReferenceList files={fileReferences} cwd={session.workDir} searchRoots={fileReferenceRoots} preferredEditor={preferredEditor} />}
             {isUser && msg.attachments && msg.attachments.length > 0 && <MessageAttachmentList attachments={msg.attachments} />}
             {shouldCollapseUserMessage && (
               <div className="mt-2 flex justify-end">
@@ -629,7 +627,7 @@ function StatusCard({ content }: { content: string }): JSX.Element {
   const meta = statusMeta(content)
   return (
     <div className="flex justify-start min-w-0 w-full">
-      <div
+      <SurfaceRow
         className="flex min-w-0 items-start gap-2 rounded-md px-3 py-2 text-xs"
         style={{
           maxWidth: 'min(680px, 100%)',
@@ -649,7 +647,7 @@ function StatusCard({ content }: { content: string }): JSX.Element {
             {statusBody(content)}
           </div>
         </div>
-      </div>
+      </SurfaceRow>
     </div>
   )
 }
@@ -711,17 +709,17 @@ function MessageAttachmentList({ attachments }: { attachments: Attachment[] }): 
   )
 }
 
-function FileReferenceList({ files, cwd, searchRoots }: { files: FileReference[]; cwd: string; searchRoots: string[] }): JSX.Element {
+function FileReferenceList({ files, cwd, searchRoots, preferredEditor }: { files: FileReference[]; cwd: string; searchRoots: string[]; preferredEditor: PreferredEditor }): JSX.Element {
   return (
     <div className="mt-3 space-y-1.5" aria-label="Referenced files">
       {files.map((file) => (
-        <FileReferenceCard key={file.path} file={file} cwd={cwd} searchRoots={searchRoots} />
+        <FileReferenceCard key={file.path} file={file} cwd={cwd} searchRoots={searchRoots} preferredEditor={preferredEditor} />
       ))}
     </div>
   )
 }
 
-function FileReferenceCard({ file, cwd, searchRoots }: { file: FileReference; cwd: string; searchRoots: string[] }): JSX.Element {
+function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: FileReference; cwd: string; searchRoots: string[]; preferredEditor: PreferredEditor }): JSX.Element {
   const [exists, setExists] = useState<boolean | null>(null)
   const [resolvedPath, setResolvedPath] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -811,7 +809,7 @@ function FileReferenceCard({ file, cwd, searchRoots }: { file: FileReference; cw
             opacity: exists === false ? 0.5 : 1
           }}
         >
-          Open
+          {openButtonLabel(preferredEditor)}
         </button>
         <button
           type="button"
@@ -841,6 +839,27 @@ function fileName(filePath: string): string {
   return filePath.split('/').filter(Boolean).at(-1) ?? filePath
 }
 
+function normalizePreferredEditor(value: unknown): PreferredEditor {
+  return value === 'vscode' || value === 'vscode-insiders' || value === 'cursor' || value === 'zed'
+    ? value
+    : 'system'
+}
+
+function openButtonLabel(editor: PreferredEditor): string {
+  switch (editor) {
+    case 'cursor':
+      return 'Open in Cursor'
+    case 'vscode':
+      return 'Open in VS Code'
+    case 'vscode-insiders':
+      return 'Open in Insiders'
+    case 'zed':
+      return 'Open in Zed'
+    case 'system':
+      return 'Open'
+  }
+}
+
 function uniqueRoots(cwd: string, roots: string[]): string[] {
   return [...new Set([cwd, ...roots].filter(Boolean).map((root) => root.replace(/\/+$/, '')))]
 }
@@ -868,7 +887,6 @@ function fileReferenceSearchContent(message: ChatMessage): string | null {
 }
 
 function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | ToolResultMessage> }): JSX.Element {
-  const [expanded, setExpanded] = useState(false)
   const activities = pairToolActivities(messages)
   const orphanResults = messages.filter((message): message is ToolResultMessage => message.type === 'tool_result' && !activities.some((activity) => activity.result?.id === message.id))
   const hasErrors = activities.some((activity) => activity.result?.isError) || orphanResults.some((result) => result.isError)
@@ -879,25 +897,9 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
   return (
     <div className="flex justify-start min-w-0 w-full">
       <div className="w-full min-w-0" style={{ maxWidth: 'min(760px, 100%)' }}>
-        <button
-          type="button"
-          className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-xs transition-colors"
-          onClick={() => setExpanded((value) => !value)}
-          style={{ color: hasErrors ? 'var(--color-red)' : 'var(--color-text-muted)' }}
+        <DisclosureSection
+          title={<span style={{ color: hasErrors ? 'var(--color-red)' : 'var(--color-text-muted)' }}>{summary}</span>}
         >
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 10 10"
-            fill="currentColor"
-            className="shrink-0 transition-transform"
-            style={{ transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
-          >
-            <path d="M5 7 L1 3 L9 3 Z" />
-          </svg>
-          <span className="truncate">{summary}</span>
-        </button>
-        {expanded && (
           <div
             className="min-w-0 overflow-y-auto overflow-x-hidden pl-5 pr-1 pb-1 text-xs"
             style={{
@@ -932,7 +934,7 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
               ))}
             </div>
           </div>
-        )}
+        </DisclosureSection>
       </div>
     </div>
   )
@@ -968,7 +970,7 @@ function UserInputCard({
 
   return (
     <div className="flex justify-center my-1">
-      <div
+      <SurfaceRow
         className="rounded-xl px-4 py-3 w-full"
         style={{
           maxWidth: 560,
@@ -984,9 +986,7 @@ function UserInputCard({
               <path d="M8 1.5A6.5 6.5 0 1 0 8 14.5 6.5 6.5 0 0 0 8 1.5ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm7.25 4.25a.75.75 0 0 1 1.5 0v.01a.75.75 0 0 1-1.5 0v-.01ZM6.5 5.75A1.5 1.5 0 0 1 8 4.25c.828 0 1.5.67 1.5 1.49 0 .54-.277.86-.897 1.296l-.335.23C7.55 7.76 7.25 8.29 7.25 9.25a.75.75 0 0 0 1.5 0c0-.34.043-.427.367-.65l.35-.24C10.101 7.914 11 7.28 11 5.74a3 3 0 0 0-6 .01.75.75 0 0 0 1.5 0Z" />
             )}
           </svg>
-          <span className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
-            {isAnswered ? 'Answer Sent' : 'Answer Required'}
-          </span>
+          <StatusBadge label={isAnswered ? 'Answer sent' : 'Answer required'} tone={isAnswered ? 'success' : 'warning'} />
         </div>
         <div className="space-y-3">
           {questions.map((question, index) => (
@@ -1017,14 +1017,14 @@ function UserInputCard({
                 border: '1px solid var(--color-border)'
               }}
             />
-            <button
+            <Button
               type="submit"
               disabled={!answer.trim()}
-              className="rounded-lg px-4 py-2 text-xs font-medium transition-opacity disabled:opacity-50"
-              style={{ background: 'var(--color-accent)', color: '#fff' }}
+              variant="primary"
+              className="px-4 py-2"
             >
               Send
-            </button>
+            </Button>
           </form>
         )}
         {isAnswered && (
@@ -1032,7 +1032,7 @@ function UserInputCard({
             {submitted ? 'Answer sent - resuming...' : 'Answered'}
           </div>
         )}
-      </div>
+      </SurfaceRow>
     </div>
   )
 }
@@ -1059,17 +1059,17 @@ function QuestionBlock({
       {question.options && question.options.length > 0 && (
         <div className="mt-2 grid gap-1.5">
           {question.options.map((option) => (
-            <button
+            <SurfaceRow
+              as="button"
               key={option.label}
-              type="button"
               disabled={disabled}
-              className="rounded-lg px-3 py-2 text-left transition-colors disabled:opacity-50"
+              className="rounded-lg px-3 py-2 text-left disabled:opacity-50"
               style={{
                 background: 'var(--color-surface)',
                 color: 'var(--color-text)',
                 border: '1px solid var(--color-border)'
               }}
-              onClick={() => { void onAnswer(option.label) }}
+              onClick={() => { if (!disabled) void onAnswer(option.label) }}
             >
               <div className="text-sm">{option.label}</div>
               {option.description && (
@@ -1077,7 +1077,7 @@ function QuestionBlock({
                   {option.description}
                 </div>
               )}
-            </button>
+            </SurfaceRow>
           ))}
         </div>
       )}
@@ -1118,7 +1118,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
 
   return (
     <div className="flex justify-center my-1">
-      <div
+      <SurfaceRow
         className="rounded-xl px-4 py-3 w-full"
         style={{
           maxWidth: 560,
@@ -1130,9 +1130,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ color: 'var(--color-accent)', flexShrink: 0 }}>
             <path d="M8 0a5 5 0 0 0-5 5v1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V5a5 5 0 0 0-5-5Zm-3 5a3 3 0 1 1 6 0v1H5V5Zm3 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
           </svg>
-          <span className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
-            {isPlanApproval ? 'Plan Ready' : 'Permission Required'}
-          </span>
+          <StatusBadge label={isPlanApproval ? 'Plan ready' : 'Permission required'} tone="accent" pulse={requestIsActive && decision === 'pending'} />
         </div>
         <div className="mb-3 space-y-1">
           {denials.map((d, i) => (
@@ -1153,44 +1151,42 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
         {decision === 'pending' && requestIsActive ? (
           isPlanApproval ? (
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={handleAllowOnce}
-                className="flex-1 rounded-lg py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
-                style={{ background: 'var(--color-accent)', color: '#fff' }}
+                variant="primary"
+                className="flex-1"
               >
                 Approve Plan
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleDeny}
-                className="rounded-lg px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
-                style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+                variant="secondary"
+                className="px-4"
               >
                 Keep Planning
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="grid gap-2" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) auto' }}>
-              <button
+              <Button
                 onClick={handleAllowOnce}
-                className="rounded-lg py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
-                style={{ background: 'var(--color-accent)', color: '#fff' }}
+                variant="primary"
               >
                 Allow Once
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleAllowSession}
-                className="rounded-lg py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
-                style={{ background: 'var(--color-surface)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
+                variant="secondary"
               >
                 Allow Session
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleDeny}
-                className="rounded-lg px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
-                style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}
+                variant="secondary"
+                className="px-4"
               >
                 Deny
-              </button>
+              </Button>
             </div>
           )
         ) : (
@@ -1206,7 +1202,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
                     : 'Handled'}
           </div>
         )}
-      </div>
+      </SurfaceRow>
     </div>
   )
 }

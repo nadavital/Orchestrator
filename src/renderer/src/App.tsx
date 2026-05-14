@@ -6,9 +6,11 @@ import SessionPane from './components/Session/SessionPane'
 import Titlebar from './components/Titlebar'
 import SettingsPage from './components/SettingsModal'
 import CapabilitiesPage from './components/CapabilitiesPage'
+import DesignSystemPreview from './components/DesignSystemPreview'
 import { applyAppearance, type Appearance } from './theme'
 
 export default function App(): JSX.Element {
+  const isDesignSystemPreview = window.location.hash === '#design-system'
   const { setProjects, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const {
     setSessions,
@@ -166,6 +168,10 @@ export default function App(): JSX.Element {
 
     return () => { unsub(); unsubNav(); media.removeEventListener('change', onSystemThemeChanged) }
   }, [])
+
+  if (isDesignSystemPreview) {
+    return <DesignSystemPreview />
+  }
 
   if (showSettings) {
     return (
