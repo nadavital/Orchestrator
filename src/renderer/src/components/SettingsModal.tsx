@@ -39,7 +39,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
   const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
   const [diagnosticsLoading, setDiagnosticsLoading] = useState<Record<string, boolean>>({})
-  const [appearance, setAppearance] = useState<Appearance>('system')
+  const [appearance, setAppearance] = useState<Appearance>('mist')
   const [accent, setAccent] = useState<Accent>('blue')
   const [density, setDensity] = useState<Density>('comfortable')
   const [sidebarTint, setSidebarTint] = useState(true)
@@ -53,7 +53,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
       setDefaultEfforts((rec.defaultEfforts as Record<string, string>) ?? {})
       setDefaultPermissionModes((rec.defaultPermissionModes as Record<string, string>) ?? {})
       setProviderModels((rec.providerModels as Record<string, string[]>) ?? {})
-      setAppearance((rec.appearance as Appearance) ?? 'system')
+      setAppearance((rec.appearance as Appearance) ?? 'mist')
       setAccent((rec.accent as Accent) ?? 'blue')
       setDensity((rec.density as Density) ?? 'comfortable')
       setSidebarTint((rec.sidebarTint as boolean | undefined) ?? true)
@@ -272,7 +272,7 @@ function GeneralSection({
 }): JSX.Element {
   const appearanceOptions: Array<{ id: Appearance; label: string; desc: string }> = [
     { id: 'system', label: 'System', desc: 'Follow macOS' },
-    { id: 'mist', label: 'Mist Light', desc: 'Soft Codex-like light canvas' },
+    { id: 'mist', label: 'Mist Light', desc: 'Soft light canvas' },
     { id: 'graphite', label: 'Graphite Dark', desc: 'Low-glare dark workspace' },
     { id: 'high-contrast', label: 'High Contrast', desc: 'Maximum contrast' },
   ]
@@ -378,7 +378,7 @@ function GeneralSection({
           >
             <span>
               <span style={{ display: 'block', fontSize: 13, fontWeight: 650, color: 'var(--text-primary)' }}>Tint sidebar</span>
-              <span style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Use the soft Codex-style rail material.</span>
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Use the soft tinted rail material.</span>
             </span>
             <Switch checked={sidebarTint} onChange={onSetSidebarTint} />
           </label>

@@ -24,7 +24,7 @@ export const settingsStore = new Store<AppSettings>({
     defaultEfforts: {},
     defaultPermissionModes: {},
     providerModels: {},
-    appearance: 'system',
+    appearance: 'mist',
     accent: 'blue',
     density: 'comfortable',
     sidebarTint: true,

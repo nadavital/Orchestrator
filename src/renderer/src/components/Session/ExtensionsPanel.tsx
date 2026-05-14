@@ -69,12 +69,12 @@ const CODEX_EXTENSION_SURFACES: CodexExtensionSurface[] = [
   {
     id: 'appserver-mcp-status',
     label: 'MCP',
-    description: 'Connected tool servers available to Codex.'
+    description: 'Connected tool servers available in this workspace.'
   },
   {
     id: 'appserver-apps',
     label: 'Apps',
-    description: 'Installed app connectors exposed through Codex.'
+    description: 'Installed app connectors exposed to the agent.'
   },
   {
     id: 'appserver-plugins',
@@ -84,7 +84,7 @@ const CODEX_EXTENSION_SURFACES: CodexExtensionSurface[] = [
   {
     id: 'appserver-skills',
     label: 'Skills',
-    description: 'Skill instructions Codex can load for this workspace.'
+    description: 'Skill instructions available for this workspace.'
   },
   {
     id: 'appserver-hooks',
@@ -466,7 +466,7 @@ function CodexExtensionsView({
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Native Codex Extensions
+              Native Extensions
             </div>
             <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               MCP, apps, plugins, skills, hooks, and agent config in one place.

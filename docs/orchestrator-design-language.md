@@ -4,7 +4,7 @@
 
 Make Orchestrator feel like a calm multi-agent workspace: clean enough for long coding sessions, structured enough for many providers and agents, and customizable without becoming theme chaos.
 
-The direction should borrow the best parts of the Codex desktop app screenshots:
+The direction should emphasize the qualities that make a native coding workspace pleasant:
 
 - a soft translucent navigation rail
 - large, quiet working canvases
@@ -12,7 +12,7 @@ The direction should borrow the best parts of the Codex desktop app screenshots:
 - rounded controls that feel native to macOS
 - color used sparingly for state, provider identity, and primary actions
 
-But Orchestrator should not become a Codex clone. Our product has more concurrent state: projects, sessions, providers, subagents, plan/diff/extensions panels, and terminal surfaces. The design system needs to support density and clarity when the app gets busy.
+Orchestrator has more concurrent state than a single-agent chat surface: projects, sessions, providers, subagents, plan/diff/extensions panels, and terminal surfaces. The design system needs to support density and clarity when the app gets busy.
 
 ## Current Issues
 
@@ -20,7 +20,7 @@ The app already has good structure, but the visual language is still mostly impl
 
 - Color tokens are minimal: `bg`, `surface`, `surface2`, `border`, text, accent, and state colors.
 - Many components hardcode radius, padding, borders, and hover states directly.
-- The default dark theme reads utilitarian and heavy; Codex's screenshots feel lighter and more spacious.
+- The default dark theme reads utilitarian and heavy; the product needs a lighter, more spacious baseline.
 - Sidebar, composer, settings, panels, transcript cards, and diff surfaces each solve similar UI problems slightly differently.
 - There is no clear customization model beyond light/dark/system.
 
@@ -58,11 +58,11 @@ Replace the current flat surface stack with semantic tokens:
 - `--state-success`
 - `--state-warning`
 - `--state-danger`
-- `--provider-claude`, `--provider-codex`, `--provider-cursor`, `--provider-copilot`
+- provider identity tokens for each supported agent
 
 Suggested default palettes:
 
-- **Mist Light**: Codex-like, pale blue/gray sidebar, white canvas, black primary text.
+- **Mist Light**: pale blue/gray sidebar, white canvas, black primary text.
 - **Graphite Dark**: dark but softer than current, with warm graphite panels instead of pure black.
 - **System**: follows OS.
 - **High Contrast**: accessibility-oriented.
@@ -137,7 +137,7 @@ The shell should become three stable zones:
 2. **Work canvas**: active conversation, terminal, or diff.
 3. **Context rail**: plan, agents, extensions, diff, usage, side questions.
 
-The Codex screenshots make the left rail feel pleasant because it is lower contrast than the canvas. Orchestrator should adopt that:
+The left rail should feel pleasant because it is lower contrast than the canvas:
 
 - left rail uses `panel-bg`, slightly tinted
 - active session uses a rounded active row, not a hard left border
@@ -179,7 +179,7 @@ The right rail should feel like a drawer:
 
 Settings should become a full app section, not a modal-feeling form:
 
-- left settings nav like Codex
+- left settings nav with clear section selection
 - content column with max width
 - settings rows as structured list rows
 - grouped controls for providers, account, models, permissions, appearance
@@ -258,7 +258,7 @@ Avoid per-component customization at first. It will make the app harder to reaso
 
 ### Phase 5: Settings And Customization
 
-- Rework Settings into a Codex-style sectioned settings surface.
+- Rework Settings into a sectioned settings surface.
 - Add theme/accent/density controls.
 - Move operational extension state out of provider details and link to Extensions.
 - Add provider/account/models as clean settings groups.

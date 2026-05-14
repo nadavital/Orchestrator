@@ -1,8 +1,6 @@
 import type { Session } from '../../types'
-import { PROVIDER_DEFS } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
-import ProviderIcon from '../shared/ProviderIcon'
 
 interface Props {
   session: Session
@@ -61,11 +59,10 @@ export default function SessionItem({ session }: Props): JSX.Element {
     <div
       className="group flex items-start gap-2 cursor-pointer select-none"
       style={{
-        background: isActive ? 'var(--control-bg-active)' : 'transparent',
-        border: `1px solid ${isActive ? 'var(--border-subtle)' : 'transparent'}`,
-        borderRadius: 'var(--radius-lg)',
-        padding: '8px 8px 8px 30px',
-        boxShadow: isActive ? 'var(--shadow-card)' : 'none'
+        background: isActive ? 'var(--control-bg)' : 'transparent',
+        border: '1px solid transparent',
+        borderRadius: 'var(--radius-md)',
+        padding: '7px 8px 7px 30px'
       }}
       onClick={handleClick}
       onMouseEnter={(e) => {
@@ -75,18 +72,12 @@ export default function SessionItem({ session }: Props): JSX.Element {
         if (!isActive) e.currentTarget.style.background = 'transparent'
       }}
     >
-      {/* Provider icon + status dot */}
-      <div className="mt-0.5 shrink-0 flex flex-col items-center gap-1">
-        <ProviderIcon
-          providerId={session.provider ?? 'claude'}
-          size={13}
-          color={session.status === 'idle' ? undefined : PROVIDER_DEFS[session.provider ?? 'claude']?.color}
-        />
+      <div className="mt-2 shrink-0 flex items-center justify-center" style={{ width: 12 }}>
         <div
           className="rounded-full"
           style={{
-            width: 4,
-            height: 4,
+            width: 5,
+            height: 5,
             background: hasUnread ? 'var(--color-accent)' : statusColor[session.status],
             opacity: session.status === 'idle' && !hasUnread ? 0.4 : 1,
             boxShadow: session.status === 'running'

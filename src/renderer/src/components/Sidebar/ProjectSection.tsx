@@ -3,6 +3,7 @@ import type { Project, Session } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
 import SessionItem from './SessionItem'
+import Icon from '../shared/Icon'
 
 interface Props {
   project: Project
@@ -70,16 +71,10 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
           if (confirm(`Remove project "${project.name}"?`)) handleRemoveProject()
         }}
       >
-        <svg
-          width="10" height="10" viewBox="0 0 10 10" fill="currentColor"
-          className="shrink-0 transition-transform"
-          style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
-        >
-          <path d="M5 7 L1 3 L9 3 Z" />
-        </svg>
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" className="shrink-0" style={{ color: 'var(--text-secondary)' }}>
-          <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
-        </svg>
+        <span className="shrink-0 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+          <Icon name="chevronDown" size={12} />
+        </span>
+        <Icon name="folder" size={15} />
         <span className="flex-1 truncate text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
           {project.name}
         </span>
@@ -95,9 +90,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
               <path d="M8 1.5a6.5 6.5 0 1 0 6.5 6.5.75.75 0 0 1 1.5 0 8 8 0 1 1-8-8 .75.75 0 0 1 0 1.5Z" />
             </svg>
           ) : (
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2Z" />
-            </svg>
+            <Icon name="plus" size={12} />
           )}
         </button>
       </div>

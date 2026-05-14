@@ -35,7 +35,7 @@ export default function App(): JSX.Element {
     window.api.sessions.checkProviders().then(setProviderAvailability)
     window.api.settings.get().then((s) => {
       applyAppearance(
-        s.appearance ?? 'system',
+        s.appearance ?? 'mist',
         s.accent ?? 'blue',
         s.density ?? 'comfortable',
         s.sidebarTint ?? true,
@@ -48,7 +48,7 @@ export default function App(): JSX.Element {
     const media = window.matchMedia('(prefers-color-scheme: light)')
     const onSystemThemeChanged = (): void => {
       window.api.settings.get().then((s) => applyAppearance(
-        (s.appearance ?? 'system') as Appearance,
+        (s.appearance ?? 'mist') as Appearance,
         s.accent ?? 'blue',
         s.density ?? 'comfortable',
         s.sidebarTint ?? true,
