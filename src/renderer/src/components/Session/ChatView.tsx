@@ -30,9 +30,14 @@ const SUGGESTED_PROMPTS = [
 
 const TOOL_SUMMARY_SCROLL_THRESHOLD = 8
 const TOOL_SUMMARY_MAX_HEIGHT = 220
+const FOLLOW_BOTTOM_THRESHOLD = 80
 
 export default function ChatView({ session, projectName, onSuggestedPrompt }: Props): JSX.Element {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const shouldFollowBottomRef = useRef(true)
+  const pendingScrollFrameRef = useRef<number | null>(null)
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const transcriptItems = groupTranscriptMessages(session.messages)
   const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
   const lastMessage = session.messages[session.messages.length - 1]
@@ -45,9 +50,48 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     return null
   }, [session.messages])
 
+  const setFollowingBottom = useCallback((isFollowing: boolean) => {
+    const shouldShowJumpButton = !isFollowing
+    shouldFollowBottomRef.current = isFollowing
+    setShowJumpToLatest((current) => current === shouldShowJumpButton ? current : shouldShowJumpButton)
+  }, [])
+
+  const scrollToBottom = useCallback((force = false) => {
+    if (force) setFollowingBottom(true)
+    if (pendingScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(pendingScrollFrameRef.current)
+    }
+    pendingScrollFrameRef.current = window.requestAnimationFrame(() => {
+      pendingScrollFrameRef.current = null
+      if (!force && !shouldFollowBottomRef.current) return
+      bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
+    })
+  }, [setFollowingBottom])
+
+  const handleScroll = useCallback(() => {
+    const scroller = scrollContainerRef.current
+    if (!scroller) return
+    const distanceFromBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+    setFollowingBottom(distanceFromBottom <= FOLLOW_BOTTOM_THRESHOLD)
+  }, [setFollowingBottom])
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [session.messages.length, lastTextLength])
+    setFollowingBottom(true)
+    scrollToBottom(true)
+  }, [scrollToBottom, session.id, setFollowingBottom])
+
+  useEffect(() => {
+    if (!shouldFollowBottomRef.current) return
+    scrollToBottom()
+  }, [session.messages.length, lastTextLength, scrollToBottom])
+
+  useEffect(() => {
+    return () => {
+      if (pendingScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(pendingScrollFrameRef.current)
+      }
+    }
+  }, [])
 
   // Hero state: no messages yet
   if (session.messages.length === 0 && session.status !== 'running') {
@@ -91,32 +135,55 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
 
   return (
     <div
-      className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-6 py-5"
-      style={{ userSelect: 'text', background: 'var(--canvas-bg)' }}
+      className="relative flex-1 min-h-0 min-w-0"
+      style={{ background: 'var(--canvas-bg)' }}
     >
       <div
-        className="mx-auto flex min-w-0 flex-col"
-        style={{
-          maxWidth: 'min(920px, 100%)',
-          gap: 'var(--transcript-gap, 14px)'
-        }}
+        data-testid="transcript-scroll"
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-6 py-5"
+        style={{ userSelect: 'text' }}
       >
-        {transcriptItems.map((item) => (
-          item.type === 'tool_group'
-            ? <ToolActivitySummary key={item.id} messages={item.messages} />
-            : (
-              <MessageRow
-                key={item.message.id}
-                msg={item.message}
-                session={session}
-                fileReferenceRoots={fileReferenceRoots}
-                canCopy={item.message.id === lastAssistantTextId}
-              />
-            )
-        ))}
-        {session.status === 'running' && <ThinkingIndicator />}
-        <div ref={bottomRef} />
+        <div
+          className="mx-auto flex min-w-0 flex-col"
+          style={{
+            maxWidth: 'min(920px, 100%)',
+            gap: 'var(--transcript-gap, 14px)'
+          }}
+        >
+          {transcriptItems.map((item) => (
+            item.type === 'tool_group'
+              ? <ToolActivitySummary key={item.id} messages={item.messages} />
+              : (
+                <MessageRow
+                  key={item.message.id}
+                  msg={item.message}
+                  session={session}
+                  fileReferenceRoots={fileReferenceRoots}
+                  canCopy={item.message.id === lastAssistantTextId}
+                />
+              )
+          ))}
+          {session.status === 'running' && <ThinkingIndicator />}
+          <div ref={bottomRef} />
+        </div>
       </div>
+      {showJumpToLatest && (
+        <button
+          data-testid="jump-to-latest"
+          type="button"
+          onClick={() => scrollToBottom(true)}
+          className="absolute bottom-4 right-6 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm transition-opacity hover:opacity-90"
+          style={{
+            background: 'var(--color-accent)',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.16)'
+          }}
+        >
+          Jump to latest
+        </button>
+      )}
     </div>
   )
 }
