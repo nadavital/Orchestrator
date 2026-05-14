@@ -58,10 +58,13 @@ test('permission notifications expose a waiting card with explicit allow/deny ac
 
   assert.ok(notification)
   assert.equal(notification.status, 'waiting')
-  assert.equal(notification.label, 'Needs input')
+  assert.equal(notification.level, 'warning')
+  assert.equal(notification.title, 'File Approval · Implement feature')
   assert.equal(notification.body, 'Permission: Edit tmp/example.ts')
-  assert.deepEqual(notification.permissionAction?.toolNames, ['Edit'])
-  assert.equal(notification.canReply, false)
+  assert.equal(notification.replyTarget, null)
+  assert.equal(notification.waitingRequest?.kind, 'patch')
+  assert.deepEqual(notification.waitingRequest?.toolNames, ['Edit'])
+  assert.deepEqual(notification.waitingRequest?.actions.map((action) => action.label), ['Allow', 'Deny'])
   assert.equal(notification.canDismiss, true)
 })
 
@@ -78,8 +81,9 @@ test('user input notifications can reply without pretending to resolve permissio
   assert.ok(notification)
   assert.equal(notification.status, 'waiting')
   assert.equal(notification.body, 'Which file should I update?')
-  assert.equal(notification.canReply, true)
-  assert.equal(notification.permissionAction, null)
+  assert.deepEqual(notification.replyTarget, { conversationId: 'session-1' })
+  assert.equal(notification.waitingRequest?.kind, 'question')
+  assert.deepEqual(notification.waitingRequest?.actions.map((action) => action.kind), ['reply'])
 })
 
 test('running notifications prefer normalized tool activity over generic text', () => {
@@ -99,6 +103,7 @@ test('running notifications prefer normalized tool activity over generic text', 
 
   assert.ok(notification)
   assert.equal(notification.status, 'running')
+  assert.equal(notification.isLoading, true)
   assert.equal(notification.body, 'Running $ npm test -- --runInBand')
   assert.equal(notification.canDismiss, false)
 })
@@ -118,7 +123,7 @@ test('review notifications use unread assistant turns and keep stable dismiss ke
   assert.ok(notification)
   assert.equal(notification.status, 'review')
   assert.equal(notification.body, 'Done. I updated the provider picker.')
-  assert.equal(notification.dismissKey, 'session-1:review:msg-1')
+  assert.equal(notification.dismissKey, 'session-1:msg-1')
 })
 
 test('notification expiry follows Codex-style status TTLs', () => {

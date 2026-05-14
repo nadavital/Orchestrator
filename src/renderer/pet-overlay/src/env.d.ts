@@ -16,7 +16,6 @@ export interface PetManifest {
   description: string
   spritesheetPath: string
   kind: string
-  animFrames?: Partial<Record<string, number>>
 }
 
 export interface PetEntry extends PetManifest {
@@ -37,6 +36,7 @@ export interface PetConfig {
   isOpen: boolean
   sessions: Session[]
   initialLayout: PetLayout
+  mascotWidthPx: number | null
 }
 
 declare global {
@@ -61,11 +61,13 @@ declare global {
         dragEnd: () => void
         dragRelease: (vx: number, vy: number) => void
         setPointerInteractive: (v: boolean) => void
+        setKeyboardInteractive: (v: boolean) => void
         setTrayCount: (count: number) => void
         setTrayHeight: (h: number) => void
         setTraySize: (size: { width: number; height: number }) => void
         setMascotSize: (size: { width: number; height: number }) => void
-        onConfigUpdated: (cb: (update: { selectedPetId?: string }) => void) => () => void
+        setMascotWidth: (width: number) => void
+        onConfigUpdated: (cb: (update: { selectedPetId?: string; mascotWidthPx?: number }) => void) => () => void
         onLayout: (cb: (layout: PetLayout) => void) => () => void
       }
     }

@@ -1,6 +1,8 @@
-import type { ChatMessage, PermissionDenial, RunEvent, Session, SessionRunEventRecord } from './index'
+import type { ChatMessage, PermissionDenial, RunEvent, Session, SessionRunEventRecord, UserInputQuestion } from './index'
 
 export type PetNotificationStatus = 'waiting' | 'failed' | 'review' | 'running' | 'idle'
+export type PetNotificationLevel = 'warning' | 'danger' | 'success' | 'info'
+export type PetWaitingRequestKind = 'question' | 'exec' | 'network' | 'patch' | 'permission' | 'plan' | 'tool'
 
 export interface PetSessionSnapshot {
   id: string
@@ -14,25 +16,54 @@ export interface PetSessionSnapshot {
   activitySeq: number
 }
 
-export interface PetPermissionAction {
-  toolNames: string[]
-  denials: PermissionDenial[]
+export type PetWaitingRequestAction =
+  | { kind: 'permission-response'; response: 'allow' | 'deny'; label: string; toolNames: string[]; primary?: boolean }
+  | { kind: 'question-option'; label: string; value: string; primary?: boolean }
+  | { kind: 'reply'; label: string; primary?: boolean }
+  | { kind: 'open'; label: string; primary?: boolean }
+
+export interface PetWaitingRequest {
+  kind: PetWaitingRequestKind
+  requestId: string
+  title: string
+  prompt: string
+  actions: PetWaitingRequestAction[]
+  denials?: PermissionDenial[]
+  questions?: UserInputQuestion[]
+  toolNames?: string[]
 }
 
 export interface PetNotification {
+  id: string
   key: string
   dismissKey: string
-  sessionId: string
+  action: { path: string } | null
+  body: string
+  expiresAtMs: number
+  isLoading: boolean
+  level: PetNotificationLevel
+  localConversationId: string
+  replyTarget: { conversationId: string } | null
+  source: 'local'
   provider: string
   title: string
+  turnKey: string
+  updatedAtMs: number
+  waitingRequest: PetWaitingRequest | null
+
+  // Orchestrator extensions around Codex's status buckets.
   status: PetNotificationStatus
-  label: string
-  body: string
-  timestamp: number
-  priority: number
-  canReply: boolean
+  notificationPriority: number
   canDismiss: boolean
-  permissionAction: PetPermissionAction | null
+}
+
+export interface PetNotificationVisual {
+  badgeBackgroundColor: string
+  badgeForegroundColor: string
+  fallbackBodyMessage: string
+  iconType: 'spinner' | 'warning' | 'danger' | 'success' | 'info'
+  labelMessage: string
+  mascotState: PetNotificationStatus
 }
 
 export const PET_STATUS_PRIORITY: Record<PetNotificationStatus, number> = {
@@ -43,20 +74,20 @@ export const PET_STATUS_PRIORITY: Record<PetNotificationStatus, number> = {
   idle: 4,
 }
 
-export const PET_STATUS_LABEL: Record<PetNotificationStatus, string> = {
-  waiting: 'Needs input',
-  failed: 'Blocked',
-  review: 'Ready',
-  running: 'Running',
-  idle: '',
-}
-
 export const PET_NOTIFICATION_TTL_MS: Record<PetNotificationStatus, number> = {
   running: 180_000,
   failed: 3_600_000,
   waiting: 86_400_000,
   review: 604_800_000,
   idle: 0,
+}
+
+const PET_NOTIFICATION_LEVEL: Record<PetNotificationStatus, PetNotificationLevel> = {
+  waiting: 'warning',
+  failed: 'danger',
+  review: 'success',
+  running: 'info',
+  idle: 'info',
 }
 
 export function petStatusForSession(session: Pick<PetSessionSnapshot, 'status' | 'hasUnread'>): PetNotificationStatus {
@@ -78,38 +109,107 @@ export function buildPetNotification(session: PetSessionSnapshot): PetNotificati
   const status = petStatusForSession(session)
   if (status === 'idle') return null
 
-  const latestActivity = latestActivityForStatus(session, status)
-  const timestamp = latestActivity.timestamp || session.lastActivityAt
-  const turnKey = latestActivity.id || `${session.activitySeq}`
-  const permissionAction = status === 'waiting' ? latestPermissionAction(session.events) : null
+  const waitingRequest = status === 'waiting' ? latestWaitingRequest(session) : null
+  const latestActivity = latestActivityForStatus(session, status, waitingRequest)
+  const updatedAtMs = latestActivity.timestamp || session.lastActivityAt
+  const turnKey = `${session.id}:${latestActivity.id || session.activitySeq}`
+  const title = status === 'waiting' && waitingRequest ? `${waitingRequest.title} · ${session.name}` : session.name
 
   return {
+    id: `${session.id}:${status}:${turnKey}`,
     key: `${session.id}:${status}:${turnKey}`,
-    dismissKey: `${session.id}:${status}:${turnKey}`,
-    sessionId: session.id,
-    provider: session.provider,
-    title: session.name,
-    status,
-    label: PET_STATUS_LABEL[status],
+    dismissKey: turnKey,
+    action: { path: `session/${session.id}` },
     body: latestActivity.body,
-    timestamp,
-    priority: PET_STATUS_PRIORITY[status],
-    canReply: session.status === 'waiting_for_user',
+    expiresAtMs: updatedAtMs + PET_NOTIFICATION_TTL_MS[status],
+    isLoading: status === 'running',
+    level: PET_NOTIFICATION_LEVEL[status],
+    localConversationId: session.id,
+    replyTarget: session.status === 'waiting_for_user' ? { conversationId: session.id } : null,
+    source: 'local',
+    provider: session.provider,
+    title,
+    turnKey,
+    updatedAtMs,
+    waitingRequest,
+    status,
+    notificationPriority: PET_STATUS_PRIORITY[status],
     canDismiss: status !== 'running',
-    permissionAction,
   }
 }
 
 export function isPetNotificationExpired(notification: PetNotification, nowMs: number): boolean {
   const ttl = PET_NOTIFICATION_TTL_MS[notification.status]
-  return ttl > 0 && nowMs - notification.timestamp > ttl
+  return ttl > 0 && nowMs > notification.expiresAtMs
+}
+
+export function statusVisualForNotification(notification: PetNotification | null): PetNotificationVisual {
+  if (!notification) {
+    return {
+      badgeBackgroundColor: 'var(--color-token-activity-bar-badge-background, #3B82F6)',
+      badgeForegroundColor: 'var(--color-token-activity-bar-badge-foreground, #FFFFFF)',
+      fallbackBodyMessage: '',
+      iconType: 'info',
+      labelMessage: '',
+      mascotState: 'idle',
+    }
+  }
+  if (notification.isLoading) {
+    return {
+      badgeBackgroundColor: 'var(--color-token-activity-bar-badge-background, #3B82F6)',
+      badgeForegroundColor: 'var(--color-token-activity-bar-badge-foreground, #FFFFFF)',
+      fallbackBodyMessage: 'Running',
+      iconType: 'spinner',
+      labelMessage: 'Running',
+      mascotState: 'running',
+    }
+  }
+  if (notification.level === 'warning') {
+    return {
+      badgeBackgroundColor: 'var(--color-token-editor-warning-foreground, #FBBF24)',
+      badgeForegroundColor: 'var(--color-token-bg-primary, #111827)',
+      fallbackBodyMessage: 'Waiting for your response',
+      iconType: 'warning',
+      labelMessage: 'Needs input',
+      mascotState: 'waiting',
+    }
+  }
+  if (notification.level === 'danger') {
+    return {
+      badgeBackgroundColor: 'var(--color-token-error-foreground, #F87171)',
+      badgeForegroundColor: 'var(--color-token-bg-primary, #111827)',
+      fallbackBodyMessage: 'Run blocked',
+      iconType: 'danger',
+      labelMessage: 'Blocked',
+      mascotState: 'failed',
+    }
+  }
+  if (notification.level === 'success') {
+    return {
+      badgeBackgroundColor: 'var(--color-token-charts-green, #22C55E)',
+      badgeForegroundColor: 'var(--color-token-bg-primary, #111827)',
+      fallbackBodyMessage: 'Ready to review',
+      iconType: 'success',
+      labelMessage: 'Ready',
+      mascotState: 'review',
+    }
+  }
+  return {
+    badgeBackgroundColor: 'var(--color-token-activity-bar-badge-background, #3B82F6)',
+    badgeForegroundColor: 'var(--color-token-activity-bar-badge-foreground, #FFFFFF)',
+    fallbackBodyMessage: 'Running',
+    iconType: 'info',
+    labelMessage: 'Running',
+    mascotState: 'running',
+  }
 }
 
 function latestActivityForStatus(
   session: PetSessionSnapshot,
-  status: PetNotificationStatus
+  status: PetNotificationStatus,
+  waitingRequest: PetWaitingRequest | null
 ): { id: string; timestamp: number; body: string } {
-  const eventActivity = latestEventActivity(session.events, status)
+  const eventActivity = latestEventActivity(session.events, status, waitingRequest)
   if (eventActivity) return eventActivity
 
   const messageActivity = latestMessageActivity(session.messages, status)
@@ -118,28 +218,29 @@ function latestActivityForStatus(
   return {
     id: `${session.activitySeq}`,
     timestamp: session.lastActivityAt,
-    body: fallbackBody(session.status, status),
+    body: waitingRequest?.prompt || fallbackBody(session.status, status),
   }
 }
 
 function latestEventActivity(
   records: SessionRunEventRecord[],
-  status: PetNotificationStatus
+  status: PetNotificationStatus,
+  waitingRequest: PetWaitingRequest | null
 ): { id: string; timestamp: number; body: string } | null {
   for (const record of [...records].reverse()) {
-    const body = eventBody(record.event, status)
+    const body = eventBody(record.event, status, waitingRequest)
     if (body) return { id: record.id, timestamp: record.timestamp, body }
   }
   return null
 }
 
-function eventBody(event: RunEvent, status: PetNotificationStatus): string | null {
+function eventBody(event: RunEvent, status: PetNotificationStatus, waitingRequest: PetWaitingRequest | null): string | null {
   if (status === 'waiting') {
     if (event.type === 'permission.requested') {
       const denial = event.denials[0]
-      return event.content || (denial ? `Permission: ${describeDenial(denial)}` : 'Permission required')
+      return event.content || waitingRequest?.prompt || (denial ? `Permission: ${describeDenial(denial)}` : 'Permission required')
     }
-    if (event.type === 'user_input.requested') return compact(event.content) || 'Waiting for your response'
+    if (event.type === 'user_input.requested') return compact(event.content) || waitingRequest?.prompt || 'Waiting for your response'
   }
 
   if (status === 'failed') {
@@ -164,6 +265,99 @@ function eventBody(event: RunEvent, status: PetNotificationStatus): string | nul
   }
 
   return null
+}
+
+function latestWaitingRequest(session: PetSessionSnapshot): PetWaitingRequest | null {
+  for (const record of [...session.events].reverse()) {
+    const event = record.event
+    if (event.type === 'user_input.requested') return userInputWaitingRequest(record.id, event)
+    if (event.type === 'permission.requested') return permissionWaitingRequest(record.id, event)
+  }
+  if (session.status === 'waiting_for_user') {
+    return {
+      kind: 'question',
+      requestId: `${session.id}:user-input`,
+      title: 'Answer Required',
+      prompt: 'Waiting for your response',
+      actions: [{ kind: 'reply', label: 'Reply', primary: true }],
+    }
+  }
+  if (session.status === 'waiting_for_permission') {
+    return {
+      kind: 'permission',
+      requestId: `${session.id}:permission`,
+      title: 'Approval Required',
+      prompt: 'Permission required',
+      actions: [
+        { kind: 'permission-response', response: 'allow', label: 'Allow', toolNames: [], primary: true },
+        { kind: 'permission-response', response: 'deny', label: 'Deny', toolNames: [] },
+      ],
+    }
+  }
+  return null
+}
+
+function userInputWaitingRequest(
+  id: string,
+  event: Extract<RunEvent, { type: 'user_input.requested' }>
+): PetWaitingRequest {
+  const question = event.questions?.[0]
+  const title = compact(question?.header) || 'Answer Required'
+  const prompt = compact(event.content) || compact(question?.question) || 'Waiting for your response'
+  const optionActions: PetWaitingRequestAction[] = question?.options?.map((option, index) => ({
+    kind: 'question-option',
+    label: option.label,
+    value: option.label,
+    primary: index === 0,
+  })) ?? []
+  return {
+    kind: 'question',
+    requestId: id,
+    title,
+    prompt,
+    actions: optionActions.length > 0 ? optionActions : [{ kind: 'reply', label: 'Reply', primary: true }],
+    questions: event.questions,
+  }
+}
+
+function permissionWaitingRequest(
+  id: string,
+  event: Extract<RunEvent, { type: 'permission.requested' }>
+): PetWaitingRequest {
+  const toolNames = [...new Set(event.denials.map((denial) => denial.tool_name))]
+  const primaryDenial = event.denials[0]
+  const kind = waitingKindForDenials(event.denials)
+  const title = waitingTitleForKind(kind)
+  const prompt = event.content || (primaryDenial ? `Permission: ${describeDenial(primaryDenial)}` : 'Permission required')
+  return {
+    kind,
+    requestId: id,
+    title,
+    prompt,
+    actions: [
+      { kind: 'permission-response', response: 'allow', label: 'Allow', toolNames, primary: true },
+      { kind: 'permission-response', response: 'deny', label: 'Deny', toolNames },
+    ],
+    denials: event.denials,
+    toolNames,
+  }
+}
+
+function waitingKindForDenials(denials: PermissionDenial[]): PetWaitingRequestKind {
+  if (denials.some((denial) => /^(Bash|Shell|Command)$/i.test(denial.tool_name))) return 'exec'
+  if (denials.some((denial) => /^(WebFetch|WebSearch|Fetch|Network)$/i.test(denial.tool_name))) return 'network'
+  if (denials.some((denial) => /^(Write|Edit|MultiEdit|Patch)$/i.test(denial.tool_name))) return 'patch'
+  return 'permission'
+}
+
+function waitingTitleForKind(kind: PetWaitingRequestKind): string {
+  if (kind === 'exec') return 'Command Approval'
+  if (kind === 'network') return 'Network Approval'
+  if (kind === 'patch') return 'File Approval'
+  if (kind === 'plan') return 'Plan Review'
+  if (kind === 'tool') return 'Tool Approval'
+  if (kind === 'question') return 'Answer Required'
+  return 'Approval Required'
 }
 
 function planActivity(plan: Extract<RunEvent, { type: 'plan.updated' }>['plan']): string {
@@ -212,18 +406,6 @@ function fallbackBody(sessionStatus: string, status: PetNotificationStatus): str
   if (status === 'review') return 'Ready to review'
   if (status === 'failed') return 'Run blocked'
   return ''
-}
-
-function latestPermissionAction(records: SessionRunEventRecord[]): PetPermissionAction | null {
-  for (const record of [...records].reverse()) {
-    const event = record.event
-    if (event.type !== 'permission.requested' || event.denials.length === 0) continue
-    return {
-      denials: event.denials,
-      toolNames: [...new Set(event.denials.map((denial) => denial.tool_name))],
-    }
-  }
-  return null
 }
 
 export function describeDenial(denial: PermissionDenial): string {

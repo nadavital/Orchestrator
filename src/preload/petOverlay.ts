@@ -67,12 +67,17 @@ const petApi = {
     dragRelease: (vx: number, vy: number): void =>
       ipcRenderer.send('pet:drag:release', vx, vy),
     setPointerInteractive: (v: boolean): void => ipcRenderer.send('pet:pointer', v),
+    setKeyboardInteractive: (v: boolean): void => ipcRenderer.send('pet:keyboard', v),
     setTrayCount: (count: number): void => ipcRenderer.send('pet:trayCount', count),
     setTrayHeight: (h: number): void => ipcRenderer.send('pet:trayHeight', h),
     setTraySize: (size: { width: number; height: number }): void => ipcRenderer.send('pet:traySize', size),
     setMascotSize: (size: { width: number; height: number }): void => ipcRenderer.send('pet:mascotSize', size),
-    onConfigUpdated: (cb: (update: { selectedPetId?: string }) => void): (() => void) => {
-      const handler = (_: Electron.IpcRendererEvent, update: { selectedPetId?: string }): void => cb(update)
+    setMascotWidth: (width: number): void => ipcRenderer.send('pet:mascotWidth', width),
+    onConfigUpdated: (cb: (update: { selectedPetId?: string; mascotWidthPx?: number }) => void): (() => void) => {
+      const handler = (
+        _: Electron.IpcRendererEvent,
+        update: { selectedPetId?: string; mascotWidthPx?: number }
+      ): void => cb(update)
       ipcRenderer.on('pet:configUpdated', handler)
       return () => ipcRenderer.off('pet:configUpdated', handler)
     },

@@ -223,8 +223,10 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.on('pet:drag:release', (_, vx: number, vy: number) =>
     petOverlayManager.dragRelease(vx, vy))
   ipcMain.on('pet:pointer', (_, v: boolean) => petOverlayManager.setPointerInteractive(v))
+  ipcMain.on('pet:keyboard', (_, v: boolean) => petOverlayManager.setKeyboardInteractive(v))
   ipcMain.on('pet:trayCount', (_, count: number) => petOverlayManager.setTrayCount(count))
   ipcMain.on('pet:trayHeight', (_, h: number) => petOverlayManager.setTrayHeight(h))
   ipcMain.on('pet:traySize', (_, size: { width: number; height: number }) => petOverlayManager.setTraySize(size))
   ipcMain.on('pet:mascotSize', (_, size: { width: number; height: number }) => petOverlayManager.setMascotSize(size))
+  ipcMain.on('pet:mascotWidth', (_, width: number) => petOverlayManager.setMascotWidth(width))
 }

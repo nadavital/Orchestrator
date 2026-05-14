@@ -51,20 +51,13 @@ type FrameSeq = { frames: Frame[]; loopStartIndex: number | null }
 // reducedMotion → single static frame, no timer
 // For idle:     frames = N (slow idle), loopStartIndex = 0
 // For non-idle: frames = [M×3, N], loopStartIndex = M.length×3 — plays 3× then loops slow idle
-function buildSequence(state: AnimState, overrides?: Partial<Record<string, number>>, reducedMotion = false): FrameSeq {
+function buildSequence(state: AnimState, reducedMotion = false): FrameSeq {
   if (reducedMotion) {
     return { frames: [{ durationMs: 0, col: 0, row: ANIM_ROW[state] }], loopStartIndex: null }
   }
-  function getTimings(s: AnimState): number[] {
-    const timing = BASE_TIMING[s]
-    const count = overrides?.[s]
-    if (count === undefined || count >= timing.length) return timing
-    if (count <= 0) return [timing[timing.length - 1]]
-    return [...timing.slice(0, count - 1), timing[timing.length - 1]]
-  }
 
   const idleRow = ANIM_ROW['idle']
-  const N: Frame[] = getTimings('idle').map((d, i) => ({
+  const N: Frame[] = BASE_TIMING.idle.map((d, i) => ({
     durationMs: d * IDLE_MULTIPLIER,
     col: i,
     row: idleRow,
@@ -75,7 +68,7 @@ function buildSequence(state: AnimState, overrides?: Partial<Record<string, numb
   }
 
   const stateRow = ANIM_ROW[state]
-  const M: Frame[] = getTimings(state).map((d, i) => ({ durationMs: d, col: i, row: stateRow }))
+  const M: Frame[] = BASE_TIMING[state].map((d, i) => ({ durationMs: d, col: i, row: stateRow }))
   const tripled: Frame[] = [...M, ...M, ...M]
 
   return {
@@ -94,15 +87,15 @@ function bgPos(col: number, row: number): string {
 interface Props {
   animState: AnimState
   spritesheetSrc: string
-  frameOverrides?: Partial<Record<string, number>>
   isAnimationEnabled?: boolean
+  displayWidthPx?: number | null
 }
 
 export default function PetAvatar({
   animState,
   spritesheetSrc,
-  frameOverrides,
   isAnimationEnabled = true,
+  displayWidthPx = null,
 }: Props): JSX.Element {
   const divRef = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = usePrefersReducedMotion()
@@ -110,7 +103,7 @@ export default function PetAvatar({
   useEffect(() => {
     const el = divRef.current
     if (!el) return
-    const sequence = buildSequence(animState, frameOverrides, prefersReducedMotion || !isAnimationEnabled)
+    const sequence = buildSequence(animState, prefersReducedMotion || !isAnimationEnabled)
     const { frames, loopStartIndex } = sequence
     if (frames.length === 0) return
 
@@ -145,7 +138,7 @@ export default function PetAvatar({
         window.clearTimeout(timeout)
       }
     }
-  }, [animState, frameOverrides, isAnimationEnabled, prefersReducedMotion])
+  }, [animState, isAnimationEnabled, prefersReducedMotion])
 
   const initialRow = ANIM_ROW[animState]
 
@@ -155,7 +148,7 @@ export default function PetAvatar({
       data-interactive="true"
       data-avatar-state={animState}
       style={{
-        width: `${DISPLAY_W_REM}rem`,
+        width: displayWidthPx === null ? `${DISPLAY_W_REM}rem` : `${displayWidthPx}px`,
         aspectRatio: '192 / 208',
         backgroundImage: `url(${spritesheetSrc})`,
         backgroundSize: `${SHEET_COLS * 100}% ${SHEET_ROWS * 100}%`,

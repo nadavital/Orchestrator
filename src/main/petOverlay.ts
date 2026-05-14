@@ -13,7 +13,6 @@ export interface PetManifest {
   description: string
   spritesheetPath: string
   kind: string
-  animFrames?: Partial<Record<string, number>>
 }
 
 export interface PetEntry extends PetManifest {
@@ -46,6 +45,7 @@ export interface PetConfig {
   isOpen: boolean
   sessions: ReturnType<typeof sessionManager.list>
   initialLayout: PetLayout
+  mascotWidthPx: number | null
 }
 
 export interface CodexPetImportResult {
@@ -69,6 +69,8 @@ const THROW_FRICTION = 0.88
 const MIN_COAST_SPEED = 65
 const MAX_COAST_MS = 900
 const SCREEN_MARGIN = 24
+const MASCOT_MIN_WIDTH = 80
+const MASCOT_MAX_WIDTH = 224
 
 const CODEX_PET_NAMES: Record<string, string> = {
   bsod: 'BSOD',
@@ -93,6 +95,7 @@ let traySize: Size = { ...FALLBACK_TRAY }
 let mascotSize: Size = { ...FALLBACK_MASCOT }
 let throwTimer: ReturnType<typeof setTimeout> | null = null
 let pointerInteractive = false
+let keyboardInteractive = false
 let mainWindowRef: BrowserWindow | null = null
 let createMainWindowFn: (() => void) | null = null
 let lastLayout: (PetLayout & { windowBounds: Rect }) | null = null
@@ -264,7 +267,6 @@ function codexCustomPetEntries(): Array<{ id: string; manifest: PetManifest; sou
             description: sourceManifest.description ?? 'Imported from Codex custom pets.',
             spritesheetPath: 'spritesheet.webp',
             kind: 'codex-custom',
-            animFrames: sourceManifest.animFrames,
           },
         })
       } catch {
@@ -402,6 +404,12 @@ function defaultAnchor(): { x: number; y: number } {
   }
 }
 
+function clampMascotWidth(width: unknown): number | null {
+  return typeof width === 'number' && Number.isFinite(width)
+    ? Math.round(Math.min(MASCOT_MAX_WIDTH, Math.max(MASCOT_MIN_WIDTH, width)))
+    : null
+}
+
 function applyLayout(): void {
   if (!petWin || petWin.isDestroyed()) return
   const layout = computeLayout(anchor, trayCount)
@@ -466,6 +474,8 @@ export function createPetOverlayWindow(mainWin: BrowserWindow): void {
     petWin = null
   }
   mainWindowRef = mainWin
+  pointerInteractive = false
+  keyboardInteractive = false
   const isOpen = settingsStore.get('petOpen', true) as boolean
   const saved = settingsStore.get('petPosition', null) as { x: number; y: number } | null
   placement = settingsStore.get('petPlacement', 'top-end') as PetPlacement
@@ -520,7 +530,11 @@ export function createPetOverlayWindow(mainWin: BrowserWindow): void {
     }
   })
 
-  petWin.on('closed', () => { petWin = null })
+  petWin.on('closed', () => {
+    petWin = null
+    pointerInteractive = false
+    keyboardInteractive = false
+  })
 }
 
 export const petOverlayManager = {
@@ -538,6 +552,7 @@ export const petOverlayManager = {
         trayTop: layout.trayTop,
         placement: layout.placement,
       },
+      mascotWidthPx: clampMascotWidth(settingsStore.get('petMascotWidthPx', null)),
     }
   },
 
@@ -553,6 +568,8 @@ export const petOverlayManager = {
       petWin.moveTop()
       petWin.showInactive()
     } else {
+      keyboardInteractive = false
+      petWin.setFocusable(false)
       petWin.hide()
     }
   },
@@ -725,5 +742,26 @@ export const petOverlayManager = {
       petWin.setIgnoreMouseEvents(true, { forward: true })
     }
     refreshCursorAtCurrentMousePosition()
+  },
+
+  setKeyboardInteractive(v: boolean): void {
+    if (!petWin || v === keyboardInteractive) return
+    keyboardInteractive = v
+    if (v) {
+      petWin.setFocusable(true)
+      petWin.show()
+      if (process.platform === 'darwin') app.focus({ steal: true })
+      petWin.focus()
+      petWin.webContents.focus()
+    } else {
+      petWin.setFocusable(false)
+    }
+  },
+
+  setMascotWidth(width: number): void {
+    const clamped = clampMascotWidth(width)
+    if (clamped === null) return
+    settingsStore.set('petMascotWidthPx', clamped)
+    petWin?.webContents.send('pet:configUpdated', { mascotWidthPx: clamped })
   }
 }

@@ -3,16 +3,5 @@
   "displayName": "Pika",
   "description": "A tiny yellow electric mouse digital pet based on the uploaded Pika sprite.",
   "spritesheetPath": "spritesheet.webp",
-  "kind": "creature",
-  "animFrames": {
-    "idle": 6,
-    "running-right": 8,
-    "running-left": 8,
-    "waving": 4,
-    "jumping": 5,
-    "failed": 8,
-    "waiting": 6,
-    "running": 6,
-    "review": 6
-  }
+  "kind": "creature"
 }
