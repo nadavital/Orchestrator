@@ -431,6 +431,7 @@ function CapabilityRow({
   const canEdit = group.resources.some((resource) => resource.actions.includes('edit'))
   const canRemove = group.resources.some((resource) => resource.actions.includes('remove'))
   const hasActions = canEdit || canRemove
+  const compatibility = pluginCompatibilityLabel(group)
   return (
     <article className="capability-row">
       <div className="capability-row-main">
@@ -443,6 +444,7 @@ function CapabilityRow({
       <div className="capability-row-meta">
         <span>{resourceKindLabel(group.kind).replace(/s$/, '')}</span>
         {sources[0] && <span title={sources.join(', ')}>{sources[0]}</span>}
+        {compatibility && <span>{compatibility}</span>}
       </div>
       <div className="provider-chip-row">
         {group.resources.slice(0, 4).map((resource) => {
@@ -795,6 +797,15 @@ function mergeResourceGroups(resources: ProviderResource[]): ResourceGroup[] {
 function mergeResourceStatus(a: ProviderResource['status'], b: ProviderResource['status']): ProviderResource['status'] {
   const rank: ProviderResource['status'][] = ['enabled', 'available', 'unknown', 'disabled', 'missing', 'error']
   return rank.indexOf(a) <= rank.indexOf(b) ? a : b
+}
+
+function pluginCompatibilityLabel(group: ResourceGroup): string | null {
+  if (group.kind !== 'plugin') return null
+  const providers = new Set(group.resources.map((resource) => resource.providerId))
+  if (providers.has('claude') && providers.has('codex')) return 'Claude + Codex package'
+  if (providers.has('claude')) return 'Claude package'
+  if (providers.has('codex')) return 'Codex package'
+  return null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

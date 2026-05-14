@@ -42,6 +42,8 @@ Create a normalized `ProviderResource` model:
 - The left-nav Capabilities page is centralized by resource kind, then merged by fingerprint, with provider badges as provenance.
 - `providers:createCapability` can create global portable skills, portable plugin packages, and MCP server configs from the same screen.
 - `providers:updateCapability` and `providers:deleteCapability` manage file-backed global skills, portable plugins, and MCP JSON config entries.
+- Portable plugin packages write both provider manifests: `.claude-plugin/plugin.json` for Claude and `.codex-plugin/plugin.json` for Codex. Shared `skills/` content can live at the plugin root, but marketplace registration is provider-specific.
+- Claude local marketplace metadata is written under `.orchestrator/capabilities/.claude-plugin/marketplace.json`; Codex local marketplace metadata is written under `.agents/plugins/marketplace.json`.
 - Safe provider command surfaces are still used where they exist; file/config-backed provider resources are discovered locally when the provider has no stable read-only inventory command.
 - Mutation actions are limited to file-backed global capabilities Orchestrator can safely edit; provider-native marketplace install/uninstall/update flows remain gated until confirmation UX is added.
 
@@ -57,7 +59,9 @@ Create a normalized `ProviderResource` model:
 ## Research Notes
 
 - Claude Code skills live in personal/project/plugin skill directories, and Claude plugins can package skills, agents, hooks, MCP servers, LSP servers, and monitors.
+- Claude plugin docs and local CLI help use `.claude-plugin/plugin.json`, `claude plugin validate`, and marketplace install/enable/update commands.
 - Codex app-server provides read APIs for skills, hooks, plugins, apps, MCP status, config, account, models, and thread state; Resources consumes only the extension/MCP/agent-config surfaces.
+- Codex plugin docs and local CLI help use `.codex-plugin/plugin.json` plus curated marketplace files; the current local CLI exposes marketplace add/upgrade/remove rather than a symmetric plugin install command.
 - Cursor CLI documents MCP listing and tool listing, while rules are file-backed project resources.
 - GitHub Copilot CLI documents MCP configuration in `~/.copilot/mcp-config.json` and `/mcp show`; GitHub also documents repository custom instructions, path-specific instructions, and `AGENTS.md`.
 

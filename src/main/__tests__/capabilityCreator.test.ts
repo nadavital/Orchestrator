@@ -43,3 +43,25 @@ test('custom MCP creation writes provider-readable project config files', () => 
   assert.match(readFileSync(join(cwd, '.codex', 'config.toml'), 'utf8'), /\[mcp_servers\.docs-search\]/)
   assert.deepEqual([...new Set(result.resources.map((resource) => resource.providerId))].sort(), ['claude', 'codex', 'copilot', 'cursor'])
 })
+
+test('custom plugin creation writes Claude and Codex marketplace entries', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'orchestrator-capability-plugin-'))
+  const result = createCapability({
+    kind: 'plugin',
+    scope: 'project',
+    workDir: cwd,
+    name: 'Release Helper',
+    description: 'Reusable release workflow',
+    body: 'Prepare the release notes and risk checklist.'
+  })
+
+  const pluginRoot = join(cwd, '.orchestrator', 'capabilities', 'plugins', 'release-helper')
+  assert.ok(result.files.includes(join(pluginRoot, '.claude-plugin', 'plugin.json')))
+  assert.ok(result.files.includes(join(pluginRoot, '.codex-plugin', 'plugin.json')))
+  assert.match(readFileSync(join(cwd, '.orchestrator', 'capabilities', '.claude-plugin', 'marketplace.json'), 'utf8'), /"source": "\.\/plugins\/release-helper"/)
+  assert.match(readFileSync(join(cwd, '.agents', 'plugins', 'marketplace.json'), 'utf8'), /"\.\/\.orchestrator\/capabilities\/plugins\/release-helper"/)
+  assert.deepEqual(
+    result.resources.filter((resource) => resource.kind === 'plugin').map((resource) => resource.providerId).sort(),
+    ['claude', 'codex']
+  )
+})

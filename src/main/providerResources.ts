@@ -321,12 +321,16 @@ function portablePlugins(
   scope: ProviderResource['scope']
 ): ProviderResource[] {
   const root = join(base, '.orchestrator', 'capabilities', 'plugins')
+  const marketplacePath = providerId === 'claude'
+    ? join(base, '.orchestrator', 'capabilities', '.claude-plugin', 'marketplace.json')
+    : join(base, '.agents', 'plugins', 'marketplace.json')
   const stat = safeStat(root)
   if (!stat?.isDirectory()) return []
   return readdirSync(root).sort().flatMap((name) => {
     const pluginRoot = join(root, name)
     if (!safeStat(pluginRoot)?.isDirectory()) return []
-    const manifest = readJsonObject(join(pluginRoot, providerId === 'claude' ? '.claude-plugin' : '.codex-plugin', 'plugin.json'))
+    const manifestPath = join(pluginRoot, providerId === 'claude' ? '.claude-plugin' : '.codex-plugin', 'plugin.json')
+    const manifest = readJsonObject(manifestPath)
     if (!manifest && providerId !== 'claude' && providerId !== 'codex') return []
     return makeResource({
       providerId,
@@ -336,7 +340,12 @@ function portablePlugins(
       description: stringValue(manifest?.description),
       status: 'available',
       scope,
-      raw: { path: pluginRoot }
+      raw: {
+        path: pluginRoot,
+        manifestPath,
+        marketplacePath,
+        compatibility: providerId === 'claude' ? 'claude-plugin' : 'codex-plugin'
+      }
     })
   })
 }

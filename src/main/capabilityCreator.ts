@@ -40,7 +40,7 @@ function createSkillCapability(request: CapabilityCreateRequest): CapabilityCrea
 function createPluginCapability(request: CapabilityCreateRequest): CapabilityCreateResult {
   const files: string[] = []
   const warnings = [
-    'Created portable plugin manifests and mirrored the plugin skill as standalone provider skills so it is usable immediately. Native plugin install/enable flows still need provider-specific confirmation.'
+    'Created Claude and Codex plugin manifests plus local marketplace entries. Mirrored the plugin skill as standalone provider skills so it is usable immediately; native install/enable still needs provider-specific confirmation.'
   ]
   const slug = slugify(request.name)
   const skillMarkdown = buildSkillMarkdown(request)
@@ -62,6 +62,8 @@ function createPluginCapability(request: CapabilityCreateRequest): CapabilityCre
     writeText(join(pluginRoot, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
     writeText(join(root.claude, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
     writeText(join(root.codex, 'skills', slug, 'SKILL.md'), skillMarkdown, files)
+    upsertClaudePluginMarketplace(root, slug, request, files)
+    upsertCodexPluginMarketplace(root, slug, request, files)
   }
 
   return {
@@ -220,6 +222,59 @@ function upsertCodexMcpToml(
   writeText(path, next, files)
 }
 
+function upsertClaudePluginMarketplace(
+  root: ReturnType<typeof capabilityRoots>[number],
+  slug: string,
+  request: CapabilityCreateRequest,
+  files: string[]
+): void {
+  const path = join(root.orchestrator, '.claude-plugin', 'marketplace.json')
+  const current = readJson(path)
+  const plugins = arrayValue(current.plugins)
+  writeJson(path, {
+    name: stringValue(current.name) || 'orchestrator-capabilities',
+    owner: isRecord(current.owner) ? current.owner : { name: 'Orchestrator' },
+    plugins: upsertNamedEntry(plugins, slug, {
+      name: slug,
+      source: `./plugins/${slug}`,
+      description: request.description || `${request.name} plugin`
+    })
+  }, files)
+}
+
+function upsertCodexPluginMarketplace(
+  root: ReturnType<typeof capabilityRoots>[number],
+  slug: string,
+  request: CapabilityCreateRequest,
+  files: string[]
+): void {
+  const path = join(root.base, '.agents', 'plugins', 'marketplace.json')
+  const current = readJson(path)
+  const plugins = arrayValue(current.plugins)
+  writeJson(path, {
+    name: stringValue(current.name) || 'orchestrator-capabilities',
+    interface: isRecord(current.interface) ? current.interface : { displayName: 'Orchestrator Capabilities' },
+    plugins: upsertNamedEntry(plugins, slug, {
+      name: slug,
+      source: {
+        source: 'local',
+        path: `./.orchestrator/capabilities/plugins/${slug}`
+      },
+      policy: {
+        installation: 'AVAILABLE',
+        authentication: 'ON_INSTALL'
+      },
+      category: 'Productivity',
+      description: request.description || `${request.name} plugin`
+    })
+  }, files)
+}
+
+function upsertNamedEntry(entries: unknown[], name: string, next: JsonObject): unknown[] {
+  const filtered = entries.filter((entry) => !isRecord(entry) || entry.name !== name)
+  return [...filtered, next]
+}
+
 function portableResources(
   request: CapabilityCreateRequest,
   slug: string,
@@ -255,6 +310,14 @@ function readJson(path: string): JsonObject {
   } catch {
     return {}
   }
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined
 }
 
 function writeJson(path: string, value: unknown, files: string[]): void {

@@ -140,6 +140,7 @@ function updatePlugin(
     files.push(oldPluginSkillRoot)
   }
   syncPluginSkillMirrors(path, nextPath, oldSlug, nextSlug, input, files)
+  syncPluginMarketplaces(nextPath, oldSlug, nextSlug, input, files)
   if (nextPath !== path) files.push(path)
   void resource
 }
@@ -181,11 +182,97 @@ function removePlugin(path: string, files: string[]): void {
     rmSync(mirrorRoot, { recursive: true, force: true })
     files.push(mirrorRoot)
   }
+  removePluginMarketplaceEntries(base, slug, files)
 }
 
 function capabilityBaseFromPluginPath(pluginPath: string): string | null {
   const capabilitiesDir = dirname(dirname(dirname(pluginPath)))
   return basename(capabilitiesDir) === '.orchestrator' ? dirname(capabilitiesDir) : null
+}
+
+function syncPluginMarketplaces(
+  pluginPath: string,
+  oldSlug: string,
+  nextSlug: string,
+  input: CapabilityUpdateRequest,
+  files: string[]
+): void {
+  const base = capabilityBaseFromPluginPath(pluginPath)
+  if (!base) return
+  upsertClaudeMarketplaceEntry(base, oldSlug, nextSlug, input, files)
+  upsertCodexMarketplaceEntry(base, oldSlug, nextSlug, input, files)
+}
+
+function upsertClaudeMarketplaceEntry(
+  base: string,
+  oldSlug: string,
+  nextSlug: string,
+  input: CapabilityUpdateRequest,
+  files: string[]
+): void {
+  const path = join(base, '.orchestrator', 'capabilities', '.claude-plugin', 'marketplace.json')
+  const current = readJson(path)
+  const plugins = arrayValue(current.plugins)
+    .filter((entry) => !isRecord(entry) || (entry.name !== oldSlug && entry.name !== nextSlug))
+  writeJson(path, {
+    name: stringValue(current.name) || 'orchestrator-capabilities',
+    owner: isRecord(current.owner) ? current.owner : { name: 'Orchestrator' },
+    plugins: [
+      ...plugins,
+      {
+        name: nextSlug,
+        source: `./plugins/${nextSlug}`,
+        description: input.description || `${input.name} plugin`
+      }
+    ]
+  }, files)
+}
+
+function upsertCodexMarketplaceEntry(
+  base: string,
+  oldSlug: string,
+  nextSlug: string,
+  input: CapabilityUpdateRequest,
+  files: string[]
+): void {
+  const path = join(base, '.agents', 'plugins', 'marketplace.json')
+  const current = readJson(path)
+  const plugins = arrayValue(current.plugins)
+    .filter((entry) => !isRecord(entry) || (entry.name !== oldSlug && entry.name !== nextSlug))
+  writeJson(path, {
+    name: stringValue(current.name) || 'orchestrator-capabilities',
+    interface: isRecord(current.interface) ? current.interface : { displayName: 'Orchestrator Capabilities' },
+    plugins: [
+      ...plugins,
+      {
+        name: nextSlug,
+        source: {
+          source: 'local',
+          path: `./.orchestrator/capabilities/plugins/${nextSlug}`
+        },
+        policy: {
+          installation: 'AVAILABLE',
+          authentication: 'ON_INSTALL'
+        },
+        category: 'Productivity',
+        description: input.description || `${input.name} plugin`
+      }
+    ]
+  }, files)
+}
+
+function removePluginMarketplaceEntries(base: string, slug: string, files: string[]): void {
+  removeMarketplaceEntry(join(base, '.orchestrator', 'capabilities', '.claude-plugin', 'marketplace.json'), slug, files)
+  removeMarketplaceEntry(join(base, '.agents', 'plugins', 'marketplace.json'), slug, files)
+}
+
+function removeMarketplaceEntry(path: string, slug: string, files: string[]): void {
+  if (!existsSync(path)) return
+  const current = readJson(path)
+  const plugins = arrayValue(current.plugins)
+  const nextPlugins = plugins.filter((entry) => !isRecord(entry) || entry.name !== slug)
+  if (nextPlugins.length === plugins.length) return
+  writeJson(path, { ...current, plugins: nextPlugins }, files)
 }
 
 function updateMcpServer(
@@ -330,6 +417,10 @@ function stringValue(value: unknown): string {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
 }
 
 function readJson(path: string): JsonObject {

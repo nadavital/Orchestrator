@@ -66,6 +66,23 @@ test('capability manager keeps portable plugin mirrors in sync', () => {
   writeFileSync(pluginSkillPath, '# Release Helper\n\nOld body\n')
   writeFileSync(claudeSkillPath, '# Release Helper\n\nOld body\n')
   writeFileSync(codexSkillPath, '# Release Helper\n\nOld body\n')
+  mkdirSync(join(home, '.orchestrator', 'capabilities', '.claude-plugin'), { recursive: true })
+  mkdirSync(join(home, '.agents', 'plugins'), { recursive: true })
+  writeFileSync(join(home, '.orchestrator', 'capabilities', '.claude-plugin', 'marketplace.json'), JSON.stringify({
+    name: 'orchestrator-capabilities',
+    owner: { name: 'Orchestrator' },
+    plugins: [{ name: 'release-helper', source: './plugins/release-helper', description: 'Old' }]
+  }))
+  writeFileSync(join(home, '.agents', 'plugins', 'marketplace.json'), JSON.stringify({
+    name: 'orchestrator-capabilities',
+    interface: { displayName: 'Orchestrator Capabilities' },
+    plugins: [{
+      name: 'release-helper',
+      source: { source: 'local', path: './.orchestrator/capabilities/plugins/release-helper' },
+      policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
+      category: 'Productivity'
+    }]
+  }))
   const resource = resourceFor('claude', 'plugin', 'release-helper', pluginRoot)
 
   updateCapability({
@@ -80,6 +97,10 @@ test('capability manager keeps portable plugin mirrors in sync', () => {
   assert.match(readFileSync(join(nextPluginRoot, 'skills', 'ship-helper', 'SKILL.md'), 'utf8'), /Updated plugin workflow/)
   assert.match(readFileSync(join(home, '.claude', 'skills', 'ship-helper', 'SKILL.md'), 'utf8'), /Updated plugin workflow/)
   assert.match(readFileSync(join(home, '.codex', 'skills', 'ship-helper', 'SKILL.md'), 'utf8'), /Updated plugin workflow/)
+  assert.match(readFileSync(join(home, '.orchestrator', 'capabilities', '.claude-plugin', 'marketplace.json'), 'utf8'), /ship-helper/)
+  assert.doesNotMatch(readFileSync(join(home, '.orchestrator', 'capabilities', '.claude-plugin', 'marketplace.json'), 'utf8'), /release-helper/)
+  assert.match(readFileSync(join(home, '.agents', 'plugins', 'marketplace.json'), 'utf8'), /\.orchestrator\/capabilities\/plugins\/ship-helper/)
+  assert.doesNotMatch(readFileSync(join(home, '.agents', 'plugins', 'marketplace.json'), 'utf8'), /release-helper/)
   assert.equal(existsSync(join(home, '.claude', 'skills', 'release-helper')), false)
   assert.equal(existsSync(join(home, '.codex', 'skills', 'release-helper')), false)
 
@@ -87,6 +108,8 @@ test('capability manager keeps portable plugin mirrors in sync', () => {
   assert.equal(existsSync(nextPluginRoot), false)
   assert.equal(existsSync(join(home, '.claude', 'skills', 'ship-helper')), false)
   assert.equal(existsSync(join(home, '.codex', 'skills', 'ship-helper')), false)
+  assert.doesNotMatch(readFileSync(join(home, '.orchestrator', 'capabilities', '.claude-plugin', 'marketplace.json'), 'utf8'), /ship-helper/)
+  assert.doesNotMatch(readFileSync(join(home, '.agents', 'plugins', 'marketplace.json'), 'utf8'), /ship-helper/)
 })
 
 function resourceFor(
