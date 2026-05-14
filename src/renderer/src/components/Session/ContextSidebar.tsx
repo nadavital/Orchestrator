@@ -73,7 +73,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           <RailTab active={activeTab === 'plan'} label="Plan" icon="plan" onClick={() => toggleTab('plan')} />
           <RailTab active={activeTab === 'agents'} label="Agents" icon="agents" onClick={() => toggleTab('agents')} />
           <RailTab active={activeTab === 'diff'} label="Diff" icon="diff" onClick={() => toggleTab('diff')} />
-          <RailTab active={activeTab === 'extensions'} label="Extensions" icon="book" onClick={() => toggleTab('extensions')} />
+          <RailTab active={activeTab === 'extensions'} label="Extensions" icon="extensions" onClick={() => toggleTab('extensions')} />
           <RailTab active={activeTab === 'side'} label="Side questions" icon="chat" onClick={() => toggleTab('side')} />
           <RailTab active={effectiveTab === 'usage'} label="Usage" icon="usage" onClick={() => toggleTab('usage')} />
         </div>
@@ -146,10 +146,18 @@ function RailTab({
       aria-label={label}
       className="h-9 w-9 grid place-items-center"
       style={{
-        background: active ? 'var(--accent-bg)' : 'transparent',
-        color: active ? 'var(--accent)' : 'var(--text-secondary)',
-        border: active ? '1px solid var(--accent)' : '1px solid transparent',
+        background: active ? 'var(--control-bg-active)' : 'transparent',
+        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+        border: active ? '1px solid var(--border-subtle)' : '1px solid transparent',
         borderRadius: 'var(--radius-md)'
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.background = 'var(--control-bg-hover)'
+        e.currentTarget.style.color = 'var(--text-primary)'
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.background = 'transparent'
+        e.currentTarget.style.color = active ? 'var(--text-primary)' : 'var(--text-secondary)'
       }}
     >
       <Icon name={icon} size={16} />

@@ -1,11 +1,15 @@
 export type IconName =
   | 'agents'
+  | 'arrowUp'
   | 'book'
+  | 'branch'
   | 'chat'
   | 'check'
   | 'chevronDown'
   | 'close'
   | 'diff'
+  | 'extensions'
+  | 'file'
   | 'folder'
   | 'menu'
   | 'paperclip'
@@ -19,16 +23,32 @@ export type IconName =
 const paths: Record<IconName, JSX.Element> = {
   agents: (
     <>
-      <circle cx="8" cy="5.5" r="2.25" />
-      <path d="M4.5 14a3.5 3.5 0 0 1 7 0" />
-      <path d="M2.75 12.5a2.25 2.25 0 0 1 2-2.23" />
-      <path d="M13.25 10.27a2.25 2.25 0 0 1 2 2.23" />
+      <circle cx="8" cy="4.25" r="1.75" />
+      <circle cx="4" cy="11.25" r="1.75" />
+      <circle cx="12" cy="11.25" r="1.75" />
+      <path d="M7.15 5.8 4.85 9.7" />
+      <path d="m8.85 5.8 2.3 3.9" />
+    </>
+  ),
+  arrowUp: (
+    <>
+      <path d="M8 13V3" />
+      <path d="M4 7 8 3l4 4" />
     </>
   ),
   book: (
     <>
       <path d="M3 3.25A2.25 2.25 0 0 1 5.25 1H14v12.5H5.25A2.25 2.25 0 0 0 3 15.75V3.25Z" />
       <path d="M3 3.25A2.25 2.25 0 0 0 .75 1H.5v12.5h.25A2.25 2.25 0 0 1 3 15.75" />
+    </>
+  ),
+  branch: (
+    <>
+      <circle cx="4.5" cy="4" r="1.5" />
+      <circle cx="11.5" cy="4" r="1.5" />
+      <circle cx="8" cy="12" r="1.5" />
+      <path d="M4.5 5.5v1.25A3.25 3.25 0 0 0 7.75 10H8" />
+      <path d="M11.5 5.5v1.25A3.25 3.25 0 0 1 8.25 10H8" />
     </>
   ),
   chat: (
@@ -48,11 +68,25 @@ const paths: Record<IconName, JSX.Element> = {
   ),
   diff: (
     <>
-      <path d="M8 2v12" />
-      <path d="M3 5h3" />
-      <path d="M10 5h3" />
-      <path d="M3 11h3" />
-      <path d="M10 11h3" />
+      <path d="M8 2.5v11" />
+      <path d="M3.5 5h2.75" />
+      <path d="M9.75 5h2.75" />
+      <path d="M3.5 11h2.75" />
+      <path d="M9.75 11h2.75" />
+    </>
+  ),
+  extensions: (
+    <>
+      <rect x="3" y="3" width="3.5" height="3.5" rx="0.75" />
+      <rect x="9.5" y="3" width="3.5" height="3.5" rx="0.75" />
+      <rect x="3" y="9.5" width="3.5" height="3.5" rx="0.75" />
+      <rect x="9.5" y="9.5" width="3.5" height="3.5" rx="0.75" />
+    </>
+  ),
+  file: (
+    <>
+      <path d="M4 2.25h5.25L12 5v8.75H4V2.25Z" />
+      <path d="M9.25 2.25V5H12" />
     </>
   ),
   folder: <path d="M1.75 4.25A1.75 1.75 0 0 1 3.5 2.5h3.05l1.25 1.75h4.7a1.75 1.75 0 0 1 1.75 1.75v5.5a1.75 1.75 0 0 1-1.75 1.75h-9A1.75 1.75 0 0 1 1.75 11.5V4.25Z" />,
@@ -81,15 +115,12 @@ const paths: Record<IconName, JSX.Element> = {
   send: <path d="M3 13 13.5 8 3 3v4l5.5 1L3 9v4Z" />,
   settings: (
     <>
-      <circle cx="8" cy="8" r="2.25" />
-      <path d="M8 1.75v1.5" />
-      <path d="M8 12.75v1.5" />
-      <path d="M1.75 8h1.5" />
-      <path d="M12.75 8h1.5" />
-      <path d="m3.58 3.58 1.06 1.06" />
-      <path d="m11.36 11.36 1.06 1.06" />
-      <path d="m12.42 3.58-1.06 1.06" />
-      <path d="m4.64 11.36-1.06 1.06" />
+      <path d="M3 4.5h10" />
+      <path d="M3 8h10" />
+      <path d="M3 11.5h10" />
+      <circle cx="6" cy="4.5" r="1.25" />
+      <circle cx="10.5" cy="8" r="1.25" />
+      <circle cx="7.5" cy="11.5" r="1.25" />
     </>
   ),
   terminal: (

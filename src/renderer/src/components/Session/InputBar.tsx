@@ -5,6 +5,7 @@ import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPer
 import { useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
+import Icon from '../shared/Icon'
 
 interface Props {
   session: Session
@@ -423,15 +424,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                 muted={!isGitRepo}
                 title={!isGitRepo ? 'Not a git repository' : undefined}
               >
-                {effectiveMode ? (
-                  <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm0 2.122a2.25 2.25 0 1 0-1.5 0v.878A2.25 2.25 0 0 0 5.75 8.5h1.5v2.128a2.251 2.251 0 1 0 1.5 0V8.5h1.5a2.25 2.25 0 0 0 2.25-2.25v-.878a2.25 2.25 0 1 0-1.5 0v.878a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 5 6.25v-.878Zm3.75 7.378a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm3-8.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
-                  </svg>
-                ) : (
-                  <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8Z" />
-                  </svg>
-                )}
+                <Icon name={effectiveMode ? 'branch' : 'folder'} size={13} />
                 {effectiveMode ? 'Branch' : 'Local'}
                 {isGitRepo && <Chevron />}
               </ToolbarBtn>
@@ -466,9 +459,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           <div className="flex-1" />
 
           <ToolbarBtn active={attachments.length > 0} onClick={attachFiles} title="Attach files">
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M7.775 3.275a2.75 2.75 0 0 1 3.889 3.889l-5.657 5.657a1.75 1.75 0 0 1-2.475-2.475l5.303-5.303a.75.75 0 0 1 1.061 1.061l-5.303 5.303a.25.25 0 1 0 .354.354l5.657-5.657a1.25 1.25 0 0 0-1.768-1.768L3.179 9.993a3.25 3.25 0 0 0 4.596 4.596l5.657-5.657a.75.75 0 0 1 1.061 1.061l-5.657 5.657A4.75 4.75 0 0 1 2.118 8.932Z" />
-            </svg>
+            <Icon name="paperclip" size={13} />
           </ToolbarBtn>
 
           {/* New session: combined agent picker */}
@@ -733,18 +724,13 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
               className="flex items-center justify-center rounded-lg transition-colors"
               style={{
                 width: 30, height: 30,
-                background: canSend ? 'var(--color-accent)' : 'var(--color-surface)',
-                color: canSend ? '#fff' : 'var(--color-text-muted)',
+                background: canSend ? 'var(--text-primary)' : 'var(--color-surface)',
+                color: canSend ? 'var(--canvas-bg)' : 'var(--color-text-muted)',
                 cursor: canSend ? 'pointer' : 'default'
               }}
               title={sendTitle}
             >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-                <path
-                  d="M8 2.75a.75.75 0 0 1 .75.75v7.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06L7.25 11.19V3.5A.75.75 0 0 1 8 2.75Z"
-                  style={{ transform: 'rotate(180deg)', transformOrigin: '8px 8px' }}
-                />
-              </svg>
+              <Icon name="arrowUp" size={14} />
             </button>
           )}
         </div>
@@ -809,9 +795,7 @@ function AttachmentChip({
       }}
       title={attachment.kind === 'local_file' ? attachment.path : `${attachment.fileId}:${attachment.relativePath}`}
     >
-      <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" className="shrink-0">
-        <path d="M2 1.75C2 .784 2.784 0 3.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 12.25 16h-8.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 8 3.25V1.5Z" />
-      </svg>
+      <Icon name="file" size={12} />
       <span className="min-w-0 truncate">{label}</span>
       {attachment.kind === 'local_file' && attachment.size !== undefined && (
         <span className="shrink-0" style={{ opacity: 0.7 }}>{formatBytes(attachment.size)}</span>
@@ -823,9 +807,7 @@ function AttachmentChip({
         className="grid h-4 w-4 shrink-0 place-items-center rounded"
         style={{ color: 'var(--color-text-muted)' }}
       >
-        <svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-        </svg>
+        <Icon name="close" size={10} />
       </button>
     </span>
   )
@@ -859,8 +841,9 @@ function ToolbarBtn({
   title?: string
   providerColor?: string
 }): JSX.Element {
-  const borderColor = providerColor ?? (active ? 'var(--color-accent)' : 'transparent')
-  const textColor = providerColor ?? (muted ? 'var(--text-tertiary)' : active ? 'var(--color-accent)' : 'var(--text-secondary)')
+  const borderColor = active ? 'var(--border-subtle)' : 'transparent'
+  const textColor = muted ? 'var(--text-tertiary)' : active ? 'var(--text-primary)' : 'var(--text-secondary)'
+  void providerColor
   return (
     <button
       onClick={onClick}
@@ -883,9 +866,9 @@ function ToolbarBtn({
 
 function Chevron(): JSX.Element {
   return (
-    <svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor" style={{ opacity: 0.5 }}>
-      <path d="M5 7 L1 3 L9 3 Z" />
-    </svg>
+    <span style={{ opacity: 0.55, display: 'inline-flex' }}>
+      <Icon name="chevronDown" size={12} />
+    </span>
   )
 }
 
@@ -936,9 +919,9 @@ function DropdownRow({
         {children}
       </div>
       {active && (
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" className="shrink-0 mt-0.5" style={{ color: 'var(--color-accent)' }}>
-          <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-        </svg>
+        <span className="shrink-0 mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+          <Icon name="check" size={13} />
+        </span>
       )}
     </button>
   )
