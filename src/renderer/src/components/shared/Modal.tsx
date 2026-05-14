@@ -8,20 +8,21 @@ export default function Modal({ title, onClose, children }: Props): JSX.Element 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+      style={{ background: 'rgba(16, 24, 40, 0.28)', backdropFilter: 'blur(16px)' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="rounded-2xl w-full max-w-md mx-4"
+        className="w-full max-w-md mx-4"
         style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.6)'
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-strong)',
+          borderRadius: 'var(--radius-xl)',
+          boxShadow: 'var(--shadow-dialog)'
         }}
       >
         <div
           className="flex items-center justify-between px-5 py-4"
-          style={{ borderBottom: '1px solid var(--color-border)' }}
+          style={{ borderBottom: '1px solid var(--border-subtle)' }}
         >
           <span className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>
             {title}

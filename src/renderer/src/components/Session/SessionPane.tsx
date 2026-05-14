@@ -88,7 +88,7 @@ export default function SessionPane(): JSX.Element | null {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
       {/* Project label shown when new */}
       {isNew && project && (
         <div
@@ -122,24 +122,24 @@ export default function SessionPane(): JSX.Element | null {
           <div
             onMouseDown={handleResizeStart}
             style={{
-              height: 5,
-              background: 'var(--color-border)',
+              height: 6,
+              background: 'var(--border-subtle)',
               cursor: 'ns-resize',
               flexShrink: 0,
               transition: 'background 0.1s'
             }}
             onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-border)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--border-subtle)')}
           />
 
           {/* Tab bar */}
           <div
             className="flex items-center shrink-0"
             style={{
-              height: 30,
-              background: 'var(--color-surface)',
-              borderBottom: '1px solid var(--color-border)',
-              borderTop: '1px solid var(--color-border)'
+              height: 36,
+              background: 'var(--panel-bg)',
+              borderBottom: '1px solid var(--border-subtle)',
+              borderTop: '1px solid var(--border-subtle)'
             }}
           >
             {/* Tabs */}
@@ -151,8 +151,8 @@ export default function SessionPane(): JSX.Element | null {
                     key={tabId}
                     className="flex items-center shrink-0"
                     style={{
-                      borderRight: '1px solid var(--color-border)',
-                      background: active ? 'var(--color-bg)' : 'transparent'
+                      borderRight: '1px solid var(--border-subtle)',
+                      background: active ? 'var(--control-bg-active)' : 'transparent'
                     }}
                   >
                     <button
@@ -189,7 +189,7 @@ export default function SessionPane(): JSX.Element | null {
               <button
                 onClick={() => window.api.terminal.clear(terminalId(activeTab))}
                 title="Clear"
-                className="rounded px-2 py-0.5 text-xs"
+                className="rounded-md px-2 py-1 text-xs"
                 style={{ color: 'var(--color-text-muted)' }}
                 onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
@@ -199,7 +199,7 @@ export default function SessionPane(): JSX.Element | null {
               <button
                 onClick={addTab}
                 title="New terminal"
-                className="rounded px-1.5 py-0.5 text-xs"
+                className="rounded-md px-2 py-1 text-xs"
                 style={{ color: 'var(--color-text-muted)' }}
                 onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}

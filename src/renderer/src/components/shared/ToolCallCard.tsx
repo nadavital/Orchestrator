@@ -2,17 +2,17 @@ import { useState } from 'react'
 import type { ToolUseMessage } from '../../types'
 
 const toolIcons: Record<string, string> = {
-  Bash: '⚡',
-  Read: '📖',
-  Write: '✏️',
-  Edit: '✏️',
-  Glob: '🔍',
-  Grep: '🔍',
-  WebFetch: '🌐',
-  WebSearch: '🌐',
-  Agent: '🤖',
-  TodoWrite: '📋',
-  Task: '📋'
+  Bash: '$',
+  Read: 'R',
+  Write: 'W',
+  Edit: 'E',
+  Glob: 'G',
+  Grep: 'G',
+  WebFetch: 'W',
+  WebSearch: 'S',
+  Agent: 'A',
+  TodoWrite: 'T',
+  Task: 'T'
 }
 
 interface Props {
@@ -21,7 +21,7 @@ interface Props {
 
 export default function ToolCallCard({ msg }: Props): JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const icon = toolIcons[msg.toolName] ?? '🔧'
+  const icon = toolIcons[msg.toolName] ?? '•'
 
   const inputPreview = (() => {
     const entries = Object.entries(msg.toolInput)
@@ -34,10 +34,11 @@ export default function ToolCallCard({ msg }: Props): JSX.Element {
   return (
     <div className="flex justify-start pl-8">
       <div
-        className="rounded-xl overflow-hidden text-xs"
+        className="overflow-hidden text-xs"
         style={{
-          background: 'var(--color-surface2)',
-          border: '1px solid var(--color-border)',
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-lg)',
           maxWidth: '80%'
         }}
       >
@@ -45,7 +46,12 @@ export default function ToolCallCard({ msg }: Props): JSX.Element {
           className="flex items-center gap-2 px-3 py-2 w-full text-left"
           onClick={() => setExpanded((v) => !v)}
         >
-          <span>{icon}</span>
+          <span
+            className="grid h-5 w-5 shrink-0 place-items-center rounded-md font-mono text-[10px] font-bold"
+            style={{ background: 'var(--control-bg)', color: 'var(--accent)' }}
+          >
+            {icon}
+          </span>
           <span className="font-semibold" style={{ color: 'var(--color-text)' }}>
             {msg.toolName}
           </span>
@@ -71,7 +77,7 @@ export default function ToolCallCard({ msg }: Props): JSX.Element {
         {expanded && (
           <div
             className="overflow-y-auto overflow-x-hidden px-3 pb-3 font-mono"
-            style={{ borderTop: '1px solid var(--color-border)', maxHeight: 220, color: 'var(--color-text-muted)', overscrollBehavior: 'contain' }}
+            style={{ borderTop: '1px solid var(--border-subtle)', maxHeight: 220, color: 'var(--color-text-muted)', overscrollBehavior: 'contain' }}
           >
             <pre className="mt-2 whitespace-pre-wrap break-words text-xs">
               {JSON.stringify(msg.toolInput, null, 2)}

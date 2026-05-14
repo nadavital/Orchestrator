@@ -354,19 +354,22 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
   return (
     <div
-      className="shrink-0 px-4 py-3"
+      className="shrink-0 px-6 py-4"
       style={{
-        borderTop: isNew ? 'none' : '1px solid var(--color-border)',
-        background: 'var(--color-surface)'
+        borderTop: isNew ? 'none' : '1px solid var(--border-subtle)',
+        background: 'var(--canvas-bg)'
       }}
     >
       <div
-        className="rounded-2xl overflow-visible"
+        className="overflow-visible mx-auto"
         style={{
-          background: 'var(--color-surface2)',
-          border: '1px solid var(--color-border)',
-          boxShadow: isNew ? '0 4px 24px rgba(0,0,0,0.3)' : 'none',
-          position: 'relative'
+          maxWidth: isNew ? 760 : 920,
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-strong)',
+          borderRadius: 'var(--radius-xl)',
+          boxShadow: isNew ? 'var(--shadow-composer)' : '0 8px 26px rgba(15, 23, 42, 0.07)',
+          position: 'relative',
+          transition: 'box-shadow 140ms ease, border-color 140ms ease'
         }}
       >
         {showSlash && (
@@ -391,8 +394,8 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
             placeholder={isNew ? 'What do you want to build?' : 'Message…'}
             rows={1}
             autoFocus={isNew}
-            className="flex-1 resize-none bg-transparent outline-none text-sm"
-            style={{ color: 'var(--color-text)', lineHeight: 1.6, maxHeight: 200, userSelect: 'text' }}
+            className="flex-1 resize-none bg-transparent outline-none"
+            style={{ color: 'var(--text-primary)', lineHeight: 1.6, maxHeight: 200, userSelect: 'text', fontSize: 15 }}
           />
         </div>
         {attachments.length > 0 && (
@@ -856,18 +859,21 @@ function ToolbarBtn({
   title?: string
   providerColor?: string
 }): JSX.Element {
-  const borderColor = providerColor ?? (active ? 'var(--color-accent)' : 'var(--color-border)')
-  const textColor = providerColor ?? (muted ? 'var(--color-text-muted)' : active ? 'var(--color-accent)' : 'var(--color-text-muted)')
+  const borderColor = providerColor ?? (active ? 'var(--color-accent)' : 'transparent')
+  const textColor = providerColor ?? (muted ? 'var(--text-tertiary)' : active ? 'var(--color-accent)' : 'var(--text-secondary)')
   return (
     <button
       onClick={onClick}
       title={title}
-      className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs transition-colors"
+      className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? 'var(--color-accent-dim)' : 'var(--color-surface)',
+        background: active ? 'var(--color-accent-dim)' : 'var(--control-bg)',
         color: textColor,
         border: '1px solid ' + borderColor,
-        cursor: onClick ? 'pointer' : 'default'
+        borderRadius: 'var(--radius-lg)',
+        padding: '6px 9px',
+        cursor: onClick ? 'pointer' : 'default',
+        fontWeight: 600
       }}
     >
       {children}
@@ -891,11 +897,12 @@ function DropdownPanel({
 }): JSX.Element {
   return (
     <div
-      className="absolute rounded-xl overflow-hidden z-50"
+      className="absolute overflow-hidden z-50"
       style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: 'var(--radius-xl)',
+        boxShadow: 'var(--shadow-popover)',
         ...style
       }}
     >
@@ -917,12 +924,12 @@ function DropdownRow({
       disabled={disabled}
       className="w-full flex items-start gap-2 px-3 py-2 text-left"
       style={{
-        background: active ? 'var(--color-surface2)' : 'transparent',
+        background: active ? 'var(--control-bg-active)' : 'transparent',
         opacity: disabled ? 0.5 : 1,
         cursor: disabled ? 'default' : 'pointer'
       }}
       onClick={() => { if (!disabled) onClick() }}
-      onMouseEnter={(e) => { if (!active && !disabled) e.currentTarget.style.background = 'var(--color-surface2)' }}
+      onMouseEnter={(e) => { if (!active && !disabled) e.currentTarget.style.background = 'var(--control-bg-hover)' }}
       onMouseLeave={(e) => { if (!active && !disabled) e.currentTarget.style.background = 'transparent' }}
     >
       <div className="flex-1">
@@ -1108,14 +1115,16 @@ function Chip({
       onClick={onClick}
       title={title}
       disabled={disabled}
-      className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs transition-colors"
+      className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? activeColor : 'var(--color-surface2)',
-        color: active ? '#fff' : disabled ? 'var(--color-text-muted)' : 'var(--color-text)',
-        border: '1px solid ' + (active ? activeColor : 'var(--color-border)'),
+        background: active ? activeColor : 'var(--control-bg)',
+        color: active ? '#fff' : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
+        border: '1px solid ' + (active ? activeColor : 'var(--border-subtle)'),
+        borderRadius: 'var(--radius-pill)',
+        padding: '5px 9px',
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.5 : 1,
-        fontWeight: active ? 500 : 400
+        fontWeight: active ? 650 : 500
       }}
     >
       {children}

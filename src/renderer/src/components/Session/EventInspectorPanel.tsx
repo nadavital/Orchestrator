@@ -31,16 +31,16 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
         width: embedded ? '100%' : 420,
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
-        background: 'var(--color-surface)'
+        background: 'var(--panel-bg)'
       }}
     >
-      <div className="shrink-0 px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
+      <div className="shrink-0 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <div className="flex items-center justify-between gap-2">
           <div>
-            <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               Agent Activity
             </div>
-            <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               Subagents, side tasks, and transcript handoffs.
             </div>
           </div>
@@ -48,8 +48,8 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
             className="shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase"
             style={{
               color: stats.active > 0 ? 'var(--color-green)' : 'var(--color-text-muted)',
-              background: 'var(--color-surface2)',
-              border: '1px solid var(--color-border)'
+              background: 'var(--control-bg)',
+              border: '1px solid var(--border-subtle)'
             }}
           >
             {stats.total} total
@@ -65,7 +65,7 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
         <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
             className="shrink-0 overflow-x-auto overflow-y-hidden px-2 py-2"
-            style={{ borderBottom: '1px solid var(--color-border)' }}
+            style={{ borderBottom: '1px solid var(--border-subtle)' }}
           >
             <div className="flex min-w-0 gap-1.5">
               {visibleAgents.map((agent) => (
@@ -93,7 +93,7 @@ function AgentOverview({
   stats: ReturnType<typeof agentStats>
 }): JSX.Element {
   return (
-    <div className="shrink-0 grid grid-cols-4 gap-1.5 px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
+    <div className="shrink-0 grid grid-cols-4 gap-1.5 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
       <AgentStat label="Active" value={stats.active} tone="var(--color-green)" />
       <AgentStat label="Waiting" value={stats.waiting} tone="var(--color-yellow)" />
       <AgentStat label="Done" value={stats.completed} tone="var(--color-accent)" />
@@ -106,7 +106,11 @@ function AgentStat({ label, value, tone }: { label: string; value: number; tone:
   return (
     <div
       className="rounded-md px-2 py-1.5 min-w-0"
-      style={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}
+      style={{
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)'
+      }}
     >
       <div className="text-[10px] font-bold uppercase truncate" style={{ color: 'var(--color-text-muted)' }}>
         {label}
@@ -123,7 +127,11 @@ function EmptyState({ providerId }: { providerId: string }): JSX.Element {
     <div className="flex-1 min-h-0 p-3">
       <div
         className="rounded-md p-3"
-        style={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}
+        style={{
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-lg)'
+        }}
       >
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
           No agent activity yet
@@ -168,8 +176,9 @@ function AgentTab({
     <div
       className="group inline-flex h-8 min-w-0 max-w-[220px] shrink-0 items-center gap-1.5 rounded-md px-2 text-left"
       style={{
-        background: active ? 'var(--color-accent-dim)' : 'var(--color-surface2)',
-        border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)'
+        background: active ? 'var(--accent-muted)' : 'var(--surface-bg)',
+        border: active ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)'
       }}
     >
       <button
@@ -218,8 +227,8 @@ function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
               className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
               style={{
                 color: agentStatusColor(agent.status),
-                background: 'var(--color-surface2)',
-                border: '1px solid var(--color-border)'
+                background: 'var(--control-bg)',
+                border: '1px solid var(--border-subtle)'
               }}
             >
               {agent.status}
@@ -253,8 +262,9 @@ function TranscriptBlock({ content, muted = false }: { content: string; muted?: 
         minWidth: 0,
         boxSizing: 'border-box',
         color: muted ? 'var(--color-text-muted)' : 'var(--color-text)',
-        background: 'var(--color-bg)',
-        border: '1px solid var(--color-border)',
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)',
         lineHeight: 1.5,
         whiteSpace: 'pre-wrap',
         overflowWrap: 'anywhere',

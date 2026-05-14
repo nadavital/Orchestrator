@@ -59,24 +59,27 @@ export default function SessionItem({ session }: Props): JSX.Element {
 
   return (
     <div
-      className="group flex items-start gap-2 pl-6 pr-2 py-1.5 cursor-pointer select-none"
+      className="group flex items-start gap-2 cursor-pointer select-none"
       style={{
-        background: isActive ? 'var(--color-surface2)' : 'transparent',
-        borderLeft: isActive ? '2px solid var(--color-accent)' : '2px solid transparent'
+        background: isActive ? 'var(--control-bg-active)' : 'transparent',
+        border: `1px solid ${isActive ? 'var(--border-subtle)' : 'transparent'}`,
+        borderRadius: 'var(--radius-lg)',
+        padding: '8px 8px 8px 30px',
+        boxShadow: isActive ? 'var(--shadow-card)' : 'none'
       }}
       onClick={handleClick}
       onMouseEnter={(e) => {
-        if (!isActive) e.currentTarget.style.background = 'var(--color-surface2)'
+        if (!isActive) e.currentTarget.style.background = 'var(--control-bg-hover)'
       }}
       onMouseLeave={(e) => {
         if (!isActive) e.currentTarget.style.background = 'transparent'
       }}
     >
       {/* Provider icon + status dot */}
-      <div className="mt-0.5 shrink-0 flex flex-col items-center gap-0.5">
+      <div className="mt-0.5 shrink-0 flex flex-col items-center gap-1">
         <ProviderIcon
           providerId={session.provider ?? 'claude'}
-          size={12}
+          size={13}
           color={session.status === 'idle' ? undefined : PROVIDER_DEFS[session.provider ?? 'claude']?.color}
         />
         <div
@@ -95,19 +98,19 @@ export default function SessionItem({ session }: Props): JSX.Element {
         />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-medium truncate" style={{ color: 'var(--color-text)' }}>
+        <div className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>
           {session.name}
         </div>
         {preview && (
-          <div className="text-xs truncate mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+          <div className="text-xs truncate mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             {preview}
           </div>
         )}
         {/* Only show worktree badge — local is the default and doesn't need labelling */}
         {session.useWorktree && (
           <span
-            className="text-xs px-1 rounded mt-0.5 inline-block"
-            style={{ background: 'var(--color-accent-dim)', color: 'var(--color-accent)', fontSize: 10 }}
+            className="text-xs px-1.5 py-0.5 mt-1 inline-block"
+            style={{ background: 'var(--color-accent-dim)', color: 'var(--color-accent)', fontSize: 10, borderRadius: 'var(--radius-pill)' }}
           >
             worktree
           </span>
@@ -116,7 +119,7 @@ export default function SessionItem({ session }: Props): JSX.Element {
       <button
         onClick={handleRemove}
         className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5"
-        style={{ color: 'var(--color-text-muted)' }}
+        style={{ color: 'var(--text-tertiary)' }}
         title="Remove session"
       >
         <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">

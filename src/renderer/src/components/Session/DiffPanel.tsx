@@ -32,15 +32,15 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
         width: embedded ? '100%' : 440,
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
-        borderLeft: embedded ? 'none' : '1px solid var(--color-border)',
-        background: 'var(--color-surface)',
+        borderLeft: embedded ? 'none' : '1px solid var(--border-subtle)',
+        background: 'var(--panel-bg)',
         fontFamily: "'SF Mono', 'JetBrains Mono', Menlo, monospace"
       }}
     >
       {/* Header */}
       <div
-        className="flex items-center justify-between px-3 py-2 shrink-0 text-xs font-semibold"
-        style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}
+        className="flex items-center justify-between px-4 py-3 shrink-0 text-sm font-semibold"
+        style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
       >
         <span>Changes {files.length > 0 ? `(${files.length})` : ''}</span>
         <button
@@ -69,7 +69,7 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
           <div
             className="px-3 py-2 text-xs"
             style={{
-              borderBottom: '1px solid var(--color-border)',
+              borderBottom: '1px solid var(--border-subtle)',
               color: summary.risk === 'high' ? 'var(--color-red)' : 'var(--color-text-muted)'
             }}
           >
@@ -84,7 +84,7 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
           {/* File list */}
           <div
             className="overflow-y-auto overflow-x-hidden shrink-0"
-            style={{ maxHeight: 200, borderBottom: '1px solid var(--color-border)' }}
+            style={{ maxHeight: 200, borderBottom: '1px solid var(--border-subtle)' }}
           >
             {files.map((f) => (
               <FileRow
@@ -132,10 +132,10 @@ function FileRow({ file, selected, onClick }: { file: FileChange; selected: bool
       onClick={onClick}
       className="w-full min-w-0 max-w-full overflow-hidden flex items-center gap-2 px-3 py-1.5 text-left transition-colors"
       style={{
-        background: selected ? 'var(--color-accent-dim)' : 'transparent',
-        borderLeft: selected ? '2px solid var(--color-accent)' : '2px solid transparent'
+        background: selected ? 'var(--accent-muted)' : 'transparent',
+        borderLeft: selected ? '2px solid var(--accent)' : '2px solid transparent'
       }}
-      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = 'var(--color-surface2)' }}
+      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = 'var(--control-bg)' }}
       onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent' }}
     >
       <span

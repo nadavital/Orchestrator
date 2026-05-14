@@ -28,12 +28,15 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
         width: embedded ? '100%' : 420,
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
-        background: 'var(--color-surface)'
+        background: 'var(--panel-bg)'
       }}
     >
-      <div className="shrink-0 px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
-        <div className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-          Goal, plan, and tasks
+      <div className="shrink-0 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Plan
+        </div>
+        <div className="mt-0.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+          Goal, task state, and plan mode updates.
         </div>
       </div>
 
@@ -75,8 +78,10 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
     <div
       className="min-w-0 rounded-md p-3"
       style={{
-        background: 'var(--color-bg)',
-        border: '1px solid var(--color-border)'
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-soft)'
       }}
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
@@ -95,8 +100,8 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
                   className="rounded px-2 py-0.5 text-[10px] font-semibold"
                   style={{
                     color: 'var(--color-text-muted)',
-                    background: 'var(--color-surface2)',
-                    border: '1px solid var(--color-border)'
+                  background: 'var(--control-bg)',
+                  border: '1px solid var(--border-subtle)'
                   }}
                 >
                   {stat}
@@ -119,7 +124,7 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
         )}
       </div>
       {pct !== null && (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--color-surface2)' }}>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--control-bg)' }}>
           <div
             className="h-full rounded-full"
             style={{
@@ -147,8 +152,10 @@ function PlanBlock({ plan, current = false }: { plan: PlanState; current?: boole
     <div
       className="min-w-0 rounded-md p-3"
       style={{
-        background: current ? 'var(--color-bg)' : 'var(--color-surface2)',
-        border: '1px solid var(--color-border)'
+        background: current ? 'var(--surface-bg)' : 'var(--control-bg)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: current ? 'var(--shadow-soft)' : 'none'
       }}
     >
       <div className="flex min-w-0 items-center justify-between gap-2">
@@ -188,8 +195,8 @@ function PlanBlock({ plan, current = false }: { plan: PlanState; current?: boole
                 <code
                   className="rounded px-1"
                   style={{
-                    background: 'var(--color-surface2)',
-                    border: '1px solid var(--color-border)',
+                    background: 'var(--control-bg)',
+                    border: '1px solid var(--border-subtle)',
                     fontSize: '0.86em',
                     overflowWrap: 'anywhere'
                   }}

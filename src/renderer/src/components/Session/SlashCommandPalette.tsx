@@ -60,11 +60,12 @@ export default function SlashCommandPalette({
 
   return (
     <div
-      className="absolute left-0 right-0 bottom-full mb-1 rounded-xl overflow-hidden z-50"
+      className="absolute left-0 right-0 bottom-full mb-2 overflow-hidden z-50"
       style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: 'var(--radius-xl)',
+        boxShadow: 'var(--shadow-menu)',
         maxHeight: 240,
         overflowY: 'auto'
       }}
@@ -74,16 +75,16 @@ export default function SlashCommandPalette({
           <button
             key={`${command.group}-${command.id}`}
             aria-label={`${command.name} ${command.description ?? ''} ${command.group}`.trim()}
-            className="w-full flex items-center gap-3 px-3 py-2 text-left"
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
             style={{
-              background: i === selectedIndex ? 'var(--color-surface2)' : 'transparent'
+              background: i === selectedIndex ? 'var(--control-bg-active)' : 'transparent'
             }}
             onMouseEnter={() => onSelectedIndexChange(i)}
             onClick={() => onSelect(command)}
           >
             <span
               className="text-xs font-mono shrink-0"
-              style={{ color: 'var(--color-accent)', minWidth: 108 }}
+              style={{ color: 'var(--accent)', minWidth: 108 }}
             >
               {command.name}
             </span>

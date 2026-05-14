@@ -45,32 +45,33 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   // Hero state: no messages yet
   if (session.messages.length === 0 && session.status !== 'running') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-8 pb-4">
+      <div className="flex-1 flex flex-col items-center justify-center px-8 pb-8" style={{ background: 'var(--canvas-bg)' }}>
         <h1
-          className="text-3xl font-semibold text-center mb-8 leading-tight"
-          style={{ color: 'var(--color-text)', maxWidth: 520 }}
+          className="text-3xl font-semibold text-center mb-7 leading-tight"
+          style={{ color: 'var(--text-primary)', maxWidth: 560, fontSize: 30 }}
         >
           {projectName ? `What do you want to build in ${projectName}?` : 'What do you want to build?'}
         </h1>
-        <div className="grid grid-cols-2 gap-2 w-full" style={{ maxWidth: 480 }}>
+        <div className="grid grid-cols-2 gap-2.5 w-full" style={{ maxWidth: 500 }}>
           {SUGGESTED_PROMPTS.map((prompt) => (
             <button
               key={prompt}
               onClick={() => onSuggestedPrompt?.(prompt)}
-              className="text-left rounded-xl px-4 py-3 text-sm transition-colors"
+              className="text-left px-4 py-3 text-sm transition-colors"
               style={{
-                background: 'var(--color-surface2)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-muted)',
+                background: 'var(--surface-bg)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-lg)',
+                color: 'var(--text-secondary)',
                 lineHeight: 1.4
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'var(--color-accent)'
-                e.currentTarget.style.color = 'var(--color-text)'
+                e.currentTarget.style.color = 'var(--text-primary)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-border)'
-                e.currentTarget.style.color = 'var(--color-text-muted)'
+                e.currentTarget.style.borderColor = 'var(--border-subtle)'
+                e.currentTarget.style.color = 'var(--text-secondary)'
               }}
             >
               {prompt}
@@ -82,14 +83,25 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   }
 
   return (
-    <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-3" style={{ userSelect: 'text' }}>
-      {transcriptItems.map((item) => (
-        item.type === 'tool_group'
-          ? <ToolActivitySummary key={item.id} messages={item.messages} />
-          : <MessageRow key={item.message.id} msg={item.message} session={session} fileReferenceRoots={fileReferenceRoots} />
-      ))}
-      {session.status === 'running' && <ThinkingIndicator />}
-      <div ref={bottomRef} />
+    <div
+      className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-6 py-5"
+      style={{ userSelect: 'text', background: 'var(--canvas-bg)' }}
+    >
+      <div
+        className="mx-auto flex min-w-0 flex-col"
+        style={{
+          maxWidth: 'min(920px, 100%)',
+          gap: 'var(--transcript-gap, 14px)'
+        }}
+      >
+        {transcriptItems.map((item) => (
+          item.type === 'tool_group'
+            ? <ToolActivitySummary key={item.id} messages={item.messages} />
+            : <MessageRow key={item.message.id} msg={item.message} session={session} fileReferenceRoots={fileReferenceRoots} />
+        ))}
+        {session.status === 'running' && <ThinkingIndicator />}
+        <div ref={bottomRef} />
+      </div>
     </div>
   )
 }
@@ -177,7 +189,7 @@ function makeMarkdownComponents(isUser: boolean): Components {
         return (
           <code
             style={{
-              background: isUser ? 'rgba(0,0,0,0.2)' : 'var(--color-surface)',
+              background: isUser ? 'rgba(0,0,0,0.08)' : 'var(--control-bg)',
               borderRadius: 3,
               padding: '1px 4px',
               fontSize: '0.85em',
@@ -375,18 +387,22 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
         <div
           className="min-w-0"
           style={{
-            maxWidth: isUser ? '80%' : 'min(760px, 100%)',
+            maxWidth: isUser ? '78%' : '100%',
             width: isUser ? 'auto' : '100%',
             position: 'relative',
             overflow: 'hidden'
           }}
         >
           <div
-            className={`text-sm min-w-0 break-words ${isUser ? 'rounded-2xl px-4 py-2.5 pr-9' : 'pr-8 py-1'}`}
+            className={`min-w-0 break-words ${isUser ? 'px-4 py-3 pr-9' : 'pr-8 py-1'}`}
             style={{
-              background: isUser ? 'var(--color-accent)' : 'transparent',
-              color: isUser ? '#fff' : 'var(--color-text)',
-              overflowWrap: 'anywhere'
+              background: isUser ? 'var(--control-bg-active)' : 'transparent',
+              color: 'var(--text-primary)',
+              overflowWrap: 'anywhere',
+              borderRadius: isUser ? 'var(--radius-xl)' : undefined,
+              border: isUser ? '1px solid var(--border-subtle)' : 'none',
+              fontSize: 'var(--transcript-font-size, 14px)',
+              lineHeight: 1.65
             }}
           >
             <ReactMarkdown

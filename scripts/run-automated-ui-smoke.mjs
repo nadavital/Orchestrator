@@ -6,10 +6,12 @@ import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
+const captureView = process.argv.includes('--settings') ? 'settings' : 'main'
 const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', profile)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
-const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${Date.now()}.json`)
+const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
+const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
 
 rmSync(userDataDir, { recursive: true, force: true })
 mkdirSync(userDataDir, { recursive: true })
@@ -23,7 +25,9 @@ const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'd
     ORCHESTRATOR_USER_DATA_DIR: userDataDir,
     ORCHESTRATOR_SMOKE_WORKSPACE_DIR: workspaceDir,
     ORCHESTRATOR_DISABLE_PET_OVERLAY: '1',
-    ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT: outputPath
+    ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT: outputPath,
+    ORCHESTRATOR_AUTOMATED_UI_SMOKE_SCREENSHOT: screenshotPath,
+    ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW: captureView
   },
   stdio: ['ignore', 'pipe', 'pipe']
 })
@@ -68,5 +72,5 @@ child.on('exit', (code) => {
     process.exit(1)
   }
 
-  console.log(JSON.stringify({ outputPath, checks, profile: result.profile }, null, 2))
+  console.log(JSON.stringify({ outputPath, screenshotPath: report.screenshotPath, view: captureView, checks, profile: result.profile }, null, 2))
 })

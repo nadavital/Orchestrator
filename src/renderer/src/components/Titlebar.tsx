@@ -18,9 +18,11 @@ export default function Titlebar(): JSX.Element {
     <div
       className="flex items-center shrink-0 w-full"
       style={{
-        height: 38,
-        background: 'var(--color-surface)',
-        borderBottom: '1px solid var(--color-border)',
+        height: 44,
+        background: 'var(--panel-bg)',
+        borderBottom: '1px solid var(--border-subtle)',
+        backdropFilter: 'blur(22px)',
+        WebkitBackdropFilter: 'blur(22px)',
         userSelect: 'none',
         position: 'relative'
       }}
@@ -36,12 +38,12 @@ export default function Titlebar(): JSX.Element {
           style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
         >
           <span
-            className="text-xs font-medium rounded px-2 py-0.5"
+            className="text-xs font-medium rounded-md px-2 py-0.5"
             title={`User data: ${profile.userDataDir}`}
             style={{
-              color: 'var(--color-yellow)',
-              border: '1px solid var(--color-yellow)',
-              background: 'rgba(250, 204, 21, 0.08)'
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--control-bg)'
             }}
           >
             {profile.displayName} profile
@@ -69,7 +71,7 @@ export default function Titlebar(): JSX.Element {
           <>
             <span
               className="text-xs font-medium truncate"
-              style={{ color: 'var(--color-text-muted)', maxWidth: 280 }}
+              style={{ color: 'var(--text-secondary)', maxWidth: 360, fontSize: 13 }}
               title={session.name}
             >
               {session.name}
@@ -77,7 +79,7 @@ export default function Titlebar(): JSX.Element {
             <StatusDot status={session.status} />
           </>
         ) : (
-          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
             Orchestrator
           </span>
         )}
@@ -166,11 +168,14 @@ function TitleBtn({
     <button
       onClick={onClick}
       title={title}
-      className="flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors"
+      className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? 'var(--color-accent-dim)' : 'transparent',
-        color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
-        border: active ? '1px solid var(--color-accent)' : '1px solid transparent'
+        background: active ? 'var(--color-accent-dim)' : 'var(--control-bg)',
+        color: active ? 'var(--color-accent)' : 'var(--text-secondary)',
+        border: `1px solid ${active ? 'var(--color-accent)' : 'var(--border-subtle)'}`,
+        borderRadius: 'var(--radius-lg)',
+        padding: '6px 10px',
+        fontWeight: 600
       }}
     >
       {children}

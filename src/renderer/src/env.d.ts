@@ -8,7 +8,11 @@ export interface AppSettings {
   defaultEfforts: Record<string, string>
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
-  appearance: 'system' | 'dark' | 'light'
+  appearance: 'system' | 'mist' | 'graphite' | 'high-contrast' | 'dark' | 'light'
+  accent: 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system'
+  density: 'comfortable' | 'compact'
+  sidebarTint: boolean
+  transcriptStyle: 'relaxed' | 'dense'
 }
 
 export interface AppProfile {

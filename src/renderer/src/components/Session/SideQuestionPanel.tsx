@@ -38,22 +38,31 @@ export default function SideQuestionPanel({ session, embedded }: Props): JSX.Ele
 
   return (
     <div
-      className={embedded ? 'h-full min-h-0 flex flex-col p-3' : 'flex flex-col'}
+      className={embedded ? 'h-full min-h-0 flex flex-col p-4' : 'flex flex-col'}
       style={{ color: 'var(--color-text)' }}
     >
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
         {messages.length === 0 ? (
-          <div className="rounded-lg p-3 text-xs" style={{ color: 'var(--color-text-muted)', background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}>
+          <div
+            className="p-3 text-xs"
+            style={{
+              color: 'var(--text-secondary)',
+              background: 'var(--surface-bg)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-lg)'
+            }}
+          >
             No side questions yet.
           </div>
         ) : (
           messages.map((message) => (
             <div
               key={message.id}
-              className="rounded-lg p-3 text-sm"
+              className="p-3 text-sm"
               style={{
-                background: message.role === 'user' ? 'var(--color-accent-dim)' : 'var(--color-surface2)',
-                border: '1px solid var(--color-border)',
+                background: message.role === 'user' ? 'var(--accent-muted)' : 'var(--surface-bg)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-lg)',
                 color: message.status === 'error' ? 'var(--color-red)' : 'var(--color-text)'
               }}
             >
@@ -71,7 +80,7 @@ export default function SideQuestionPanel({ session, embedded }: Props): JSX.Ele
         )}
       </div>
       <form
-        className="mt-3 flex gap-2"
+        className="mt-4 flex gap-2"
         onSubmit={(event) => {
           event.preventDefault()
           void submit()
@@ -82,18 +91,19 @@ export default function SideQuestionPanel({ session, embedded }: Props): JSX.Ele
           onChange={(event) => setQuestion(event.target.value)}
           placeholder="Ask a side question..."
           disabled={pending}
-          className="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+          className="min-w-0 flex-1 px-3 py-2 text-sm outline-none"
           style={{
-            background: 'var(--color-surface)',
+            background: 'var(--control-bg)',
             color: 'var(--color-text)',
-            border: '1px solid var(--color-border)'
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-lg)'
           }}
         />
         <button
           type="submit"
           disabled={!question.trim() || pending}
-          className="rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-50"
-          style={{ background: 'var(--color-accent)', color: '#fff' }}
+          className="px-3 py-2 text-xs font-medium disabled:opacity-50"
+          style={{ background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius-lg)' }}
         >
           Ask
         </button>

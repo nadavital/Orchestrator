@@ -55,16 +55,18 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       className="shrink-0 flex flex-col overflow-hidden"
       style={{
         width: effectiveTab ? 492 : 52,
-        background: 'var(--color-surface)',
-        borderLeft: '1px solid var(--color-border)'
+        background: 'var(--panel-bg)',
+        borderLeft: '1px solid var(--border-subtle)',
+        backdropFilter: 'blur(22px)',
+        WebkitBackdropFilter: 'blur(22px)'
       }}
     >
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <div
           className="w-[52px] shrink-0 flex flex-col items-center gap-2 py-2"
           style={{
-            background: 'var(--color-surface)',
-            borderRight: effectiveTab ? '1px solid var(--color-border)' : 'none'
+            background: 'transparent',
+            borderRight: effectiveTab ? '1px solid var(--border-subtle)' : 'none'
           }}
         >
           <RailTab active={activeTab === 'plan'} label="Plan" onClick={() => toggleTab('plan')}>
@@ -91,7 +93,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           <div className="w-[440px] min-w-0 flex flex-col min-h-0 overflow-hidden">
             <div
               className="shrink-0 flex items-center justify-between gap-2 px-3 py-2"
-              style={{ borderBottom: '1px solid var(--color-border)' }}
+              style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
             >
               <div className="text-xs font-semibold min-w-0 truncate" style={{ color: 'var(--color-text)' }}>
                 {effectiveTab === 'plan'
@@ -110,7 +112,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
                 onClick={close}
                 title="Close sidebar"
                 aria-label="Close sidebar"
-                className="h-7 w-7 rounded-md grid place-items-center"
+                className="h-7 w-7 grid place-items-center"
                 style={{ color: 'var(--color-text-muted)' }}
                 onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text)' }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)' }}
@@ -155,11 +157,12 @@ function RailTab({
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="h-9 w-9 rounded-md grid place-items-center"
+      className="h-9 w-9 grid place-items-center"
       style={{
         background: active ? 'var(--color-accent-dim)' : 'transparent',
         color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
-        border: active ? '1px solid var(--color-accent)' : '1px solid transparent'
+        border: active ? '1px solid var(--color-accent)' : '1px solid transparent',
+        borderRadius: 'var(--radius-lg)'
       }}
     >
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">

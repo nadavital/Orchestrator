@@ -14,15 +14,20 @@ export default function UsagePanel({ session, embedded }: Props): JSX.Element {
 
   return (
     <div
-      className={embedded ? 'h-full overflow-y-auto p-3 space-y-3' : 'space-y-3'}
+      className={embedded ? 'h-full overflow-y-auto p-4 space-y-3' : 'space-y-3'}
       style={{ color: 'var(--color-text)' }}
     >
       <UsageBlock title="Session" usage={total} empty="No usage reported yet." />
       <UsageBlock title="Latest run" usage={last} empty="The latest run has not reported usage." />
       {total?.modelUsage && Object.keys(total.modelUsage).length > 0 && (
         <div
-          className="rounded-lg p-3 text-xs"
-          style={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}
+          className="p-3 text-xs"
+          style={{
+            background: 'var(--surface-bg)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-soft)'
+          }}
         >
           <div className="mb-2 font-semibold">Models</div>
           <div className="space-y-1.5">
@@ -44,8 +49,13 @@ export default function UsagePanel({ session, embedded }: Props): JSX.Element {
 function UsageBlock({ title, usage, empty }: { title: string; usage?: UsageSummary; empty: string }): JSX.Element {
   return (
     <div
-      className="rounded-lg p-3 text-xs"
-      style={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}
+      className="p-3 text-xs"
+      style={{
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-soft)'
+      }}
     >
       <div className="mb-2 font-semibold">{title}</div>
       {!usage ? (

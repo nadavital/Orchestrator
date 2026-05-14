@@ -24,8 +24,8 @@ export default function RunningAgentsStrip({ session }: Props): JSX.Element | nu
     <div
       className="shrink-0 flex items-center gap-2 px-4 py-2 overflow-x-auto"
       style={{
-        background: 'var(--color-surface)',
-        borderTop: '1px solid var(--color-border)'
+        background: 'var(--panel-bg)',
+        borderTop: '1px solid var(--border-subtle)'
       }}
     >
       <span className="text-xs shrink-0" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
@@ -50,9 +50,9 @@ function AgentPill({ agent, active, onClick }: { agent: AgentNode; active: boole
       title={agent.summary ?? agent.role ?? agent.name ?? agent.id}
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs shrink-0"
       style={{
-        background: active ? 'var(--color-accent-dim)' : 'var(--color-surface2)',
-        color: active ? 'var(--color-accent)' : 'var(--color-text)',
-        border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+        background: active ? 'var(--accent-muted)' : 'var(--surface-bg)',
+        color: active ? 'var(--accent)' : 'var(--color-text)',
+        border: active ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
         maxWidth: 220
       }}
     >

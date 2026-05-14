@@ -34,14 +34,26 @@ export default function App(): JSX.Element {
   useEffect(() => {
     window.api.sessions.checkProviders().then(setProviderAvailability)
     window.api.settings.get().then((s) => {
-      applyAppearance(s.appearance ?? 'system')
+      applyAppearance(
+        s.appearance ?? 'system',
+        s.accent ?? 'blue',
+        s.density ?? 'comfortable',
+        s.sidebarTint ?? true,
+        s.transcriptStyle ?? 'relaxed'
+      )
       const pm = (s as unknown as Record<string, unknown>).providerModels
       if (pm && typeof pm === 'object') setProviderModels(pm as Record<string, string[]>)
     })
 
     const media = window.matchMedia('(prefers-color-scheme: light)')
     const onSystemThemeChanged = (): void => {
-      window.api.settings.get().then((s) => applyAppearance((s.appearance ?? 'system') as Appearance))
+      window.api.settings.get().then((s) => applyAppearance(
+        (s.appearance ?? 'system') as Appearance,
+        s.accent ?? 'blue',
+        s.density ?? 'comfortable',
+        s.sidebarTint ?? true,
+        s.transcriptStyle ?? 'relaxed'
+      ))
     }
     media.addEventListener('change', onSystemThemeChanged)
 
@@ -144,7 +156,7 @@ export default function App(): JSX.Element {
 
   if (showSettings) {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden" style={{ background: 'var(--color-bg)' }}>
+      <div className="flex flex-col flex-1 overflow-hidden" style={{ background: 'var(--app-bg)' }}>
         <SettingsPage onClose={() => setShowSettings(false)} />
       </div>
     )
@@ -153,7 +165,7 @@ export default function App(): JSX.Element {
   return (
     <div
       className="flex flex-col flex-1 overflow-hidden"
-      style={{ background: 'var(--color-bg)' }}
+      style={{ background: 'var(--app-bg)' }}
     >
       <Titlebar />
       <div className="flex flex-1 min-h-0 overflow-hidden">

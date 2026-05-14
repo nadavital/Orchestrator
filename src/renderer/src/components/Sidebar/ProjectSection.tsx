@@ -55,10 +55,15 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   }
 
   return (
-    <div>
+    <div style={{ marginBottom: 12 }}>
       {/* Project header */}
       <div
-        className="group flex items-center gap-1.5 px-2 py-1.5 cursor-pointer select-none"
+        className="group flex items-center gap-2 cursor-pointer select-none"
+        style={{
+          padding: '7px 8px',
+          borderRadius: 'var(--radius-md)',
+          color: 'var(--text-secondary)'
+        }}
         onClick={() => setCollapsed((c) => !c)}
         onContextMenu={(e) => {
           e.preventDefault()
@@ -68,21 +73,21 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
         <svg
           width="10" height="10" viewBox="0 0 10 10" fill="currentColor"
           className="shrink-0 transition-transform"
-          style={{ color: 'var(--color-text-muted)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+          style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
         >
           <path d="M5 7 L1 3 L9 3 Z" />
         </svg>
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" className="shrink-0" style={{ color: 'var(--color-accent)' }}>
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" className="shrink-0" style={{ color: 'var(--text-secondary)' }}>
           <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
         </svg>
-        <span className="flex-1 truncate text-xs font-medium" style={{ color: 'var(--color-text)' }}>
+        <span className="flex-1 truncate text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
           {project.name}
         </span>
         <button
           onClick={(e) => { e.stopPropagation(); handleNewSession() }}
           disabled={creating}
-          className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5"
-          style={{ color: 'var(--color-text-muted)' }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+          style={{ color: 'var(--text-secondary)', borderRadius: 'var(--radius-sm)' }}
           title="New chat"
         >
           {creating ? (
@@ -99,11 +104,11 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
 
       {/* Sessions */}
       {!collapsed && (
-        <div>
+        <div className="space-y-0.5">
           {sessions.length === 0 && (
             <div
-              className="pl-8 pr-3 py-1.5 text-xs cursor-pointer"
-              style={{ color: 'var(--color-text-muted)' }}
+              className="cursor-pointer"
+              style={{ color: 'var(--text-secondary)', padding: '7px 10px 7px 31px', fontSize: 13 }}
               onClick={handleNewSession}
             >
               New chat

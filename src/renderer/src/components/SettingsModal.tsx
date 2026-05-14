@@ -20,7 +20,7 @@ import {
 } from '../types'
 import { useSessionStore } from '../store/sessions'
 import ProviderIcon from './shared/ProviderIcon'
-import { applyAppearance, type Appearance } from '../theme'
+import { applyAppearance, type Accent, type Appearance, type Density, type TranscriptStyle } from '../theme'
 
 type NavSection = 'general' | 'providers' | 'pets'
 
@@ -30,7 +30,7 @@ interface Props {
 
 export default function SettingsPage({ onClose }: Props): JSX.Element {
   const { providerAvailability, setProviderModels: storeSetProviderModels } = useSessionStore()
-  const [activeSection, setActiveSection] = useState<NavSection>('providers')
+  const [activeSection, setActiveSection] = useState<NavSection>('general')
   const [defaultProvider, setDefaultProvider] = useState('claude')
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
   const [defaultEfforts, setDefaultEfforts] = useState<Record<string, string>>({})
@@ -40,6 +40,10 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
   const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
   const [diagnosticsLoading, setDiagnosticsLoading] = useState<Record<string, boolean>>({})
   const [appearance, setAppearance] = useState<Appearance>('system')
+  const [accent, setAccent] = useState<Accent>('blue')
+  const [density, setDensity] = useState<Density>('comfortable')
+  const [sidebarTint, setSidebarTint] = useState(true)
+  const [transcriptStyle, setTranscriptStyle] = useState<TranscriptStyle>('relaxed')
 
   useEffect(() => {
     window.api.settings.get().then((s) => {
@@ -50,6 +54,10 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
       setDefaultPermissionModes((rec.defaultPermissionModes as Record<string, string>) ?? {})
       setProviderModels((rec.providerModels as Record<string, string[]>) ?? {})
       setAppearance((rec.appearance as Appearance) ?? 'system')
+      setAccent((rec.accent as Accent) ?? 'blue')
+      setDensity((rec.density as Density) ?? 'comfortable')
+      setSidebarTint((rec.sidebarTint as boolean | undefined) ?? true)
+      setTranscriptStyle((rec.transcriptStyle as TranscriptStyle) ?? 'relaxed')
     })
     window.api.providers.getRuntimeInfo().then(setProviderRuntime)
   }, [])
@@ -96,22 +104,46 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
 
   const saveAppearance = (value: Appearance): void => {
     setAppearance(value)
-    applyAppearance(value)
+    applyAppearance(value, accent, density, sidebarTint, transcriptStyle)
     window.api.settings.set('appearance', value)
   }
 
+  const saveAccent = (value: Accent): void => {
+    setAccent(value)
+    applyAppearance(appearance, value, density, sidebarTint, transcriptStyle)
+    window.api.settings.set('accent', value)
+  }
+
+  const saveDensity = (value: Density): void => {
+    setDensity(value)
+    applyAppearance(appearance, accent, value, sidebarTint, transcriptStyle)
+    window.api.settings.set('density', value)
+  }
+
+  const saveSidebarTint = (value: boolean): void => {
+    setSidebarTint(value)
+    applyAppearance(appearance, accent, density, value, transcriptStyle)
+    window.api.settings.set('sidebarTint', value)
+  }
+
+  const saveTranscriptStyle = (value: TranscriptStyle): void => {
+    setTranscriptStyle(value)
+    applyAppearance(appearance, accent, density, sidebarTint, value)
+    window.api.settings.set('transcriptStyle', value)
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: 'var(--color-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: 'var(--app-bg)' }}>
       {/* Titlebar */}
       <div
         style={{
           height: 38, flexShrink: 0, display: 'flex', alignItems: 'center',
-          background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)',
+          background: 'var(--panel-bg)', borderBottom: '1px solid var(--border-subtle)',
           userSelect: 'none', WebkitAppRegion: 'drag'
         } as React.CSSProperties}
       >
         <div style={{ width: 80, flexShrink: 0 }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)' }}>Settings</span>
+        <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-secondary)' }}>Settings</span>
       </div>
 
       {/* Body */}
@@ -120,8 +152,8 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
         <div
           style={{
             width: 180, flexShrink: 0, display: 'flex', flexDirection: 'column',
-            background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)',
-            padding: '16px 0'
+            background: 'var(--panel-bg)', borderRight: '1px solid var(--border-subtle)',
+            padding: '20px 0'
           }}
         >
           <NavItem active={activeSection === 'general'} onClick={() => setActiveSection('general')}>General</NavItem>
@@ -133,11 +165,11 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
               onClick={onClose}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                width: '100%', padding: '6px 12px', borderRadius: 6,
+                width: '100%', padding: '8px 12px', borderRadius: 'var(--radius-md)',
                 background: 'transparent', border: 'none',
-                color: 'var(--color-text-muted)', fontSize: 12, cursor: 'pointer', textAlign: 'left'
+                color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', textAlign: 'left'
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface2)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--control-bg)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
@@ -150,7 +182,20 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {activeSection === 'general' && <GeneralSection appearance={appearance} onSetAppearance={saveAppearance} />}
+          {activeSection === 'general' && (
+            <GeneralSection
+              appearance={appearance}
+              accent={accent}
+              density={density}
+              sidebarTint={sidebarTint}
+              transcriptStyle={transcriptStyle}
+              onSetAppearance={saveAppearance}
+              onSetAccent={saveAccent}
+              onSetDensity={saveDensity}
+              onSetSidebarTint={saveSidebarTint}
+              onSetTranscriptStyle={saveTranscriptStyle}
+            />
+          )}
           {activeSection === 'pets' && <PetsSection />}
           {activeSection === 'providers' && (
             <ProvidersSection
@@ -187,12 +232,12 @@ function NavItem({ active, onClick, children }: {
       onClick={onClick}
       style={{
         display: 'block', width: 'calc(100% - 16px)', margin: '1px 8px',
-        padding: '6px 12px', borderRadius: 6,
-        background: active ? 'var(--color-surface2)' : 'transparent',
-        border: 'none', color: active ? 'var(--color-text)' : 'var(--color-text-muted)',
-        fontSize: 12, fontWeight: active ? 500 : 400, cursor: 'pointer', textAlign: 'left'
+        padding: '9px 12px', borderRadius: 'var(--radius-md)',
+        background: active ? 'var(--surface-bg)' : 'transparent',
+        border: 'none', color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+        fontSize: 13, fontWeight: active ? 650 : 500, cursor: 'pointer', textAlign: 'left'
       }}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--color-surface2)' }}
+      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--control-bg)' }}
       onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
     >
       {children}
@@ -204,46 +249,210 @@ function NavItem({ active, onClick, children }: {
 
 function GeneralSection({
   appearance,
+  accent,
+  density,
+  sidebarTint,
+  transcriptStyle,
   onSetAppearance,
+  onSetAccent,
+  onSetDensity,
+  onSetSidebarTint,
+  onSetTranscriptStyle,
 }: {
   appearance: Appearance
+  accent: Accent
+  density: Density
+  sidebarTint: boolean
+  transcriptStyle: TranscriptStyle
   onSetAppearance: (value: Appearance) => void
+  onSetAccent: (value: Accent) => void
+  onSetDensity: (value: Density) => void
+  onSetSidebarTint: (value: boolean) => void
+  onSetTranscriptStyle: (value: TranscriptStyle) => void
 }): JSX.Element {
-  const options: Array<{ id: Appearance; label: string }> = [
-    { id: 'system', label: 'System' },
-    { id: 'dark', label: 'Dark' },
-    { id: 'light', label: 'Light' },
+  const appearanceOptions: Array<{ id: Appearance; label: string; desc: string }> = [
+    { id: 'system', label: 'System', desc: 'Follow macOS' },
+    { id: 'mist', label: 'Mist Light', desc: 'Soft Codex-like light canvas' },
+    { id: 'graphite', label: 'Graphite Dark', desc: 'Low-glare dark workspace' },
+    { id: 'high-contrast', label: 'High Contrast', desc: 'Maximum contrast' },
+  ]
+  const accentOptions: Array<{ id: Accent; label: string; color: string }> = [
+    { id: 'blue', label: 'Blue', color: '#0a7cff' },
+    { id: 'teal', label: 'Teal', color: '#14a6a1' },
+    { id: 'purple', label: 'Purple', color: '#7c5cff' },
+    { id: 'green', label: 'Green', color: '#16a35b' },
+    { id: 'rose', label: 'Rose', color: '#d84b7c' },
+  ]
+  const densityOptions: Array<{ id: Density; label: string; desc: string }> = [
+    { id: 'comfortable', label: 'Comfortable', desc: 'Airier rows and panels' },
+    { id: 'compact', label: 'Compact', desc: 'More state in view' }
+  ]
+  const transcriptOptions: Array<{ id: TranscriptStyle; label: string; desc: string }> = [
+    { id: 'relaxed', label: 'Relaxed', desc: 'Readable chat rhythm' },
+    { id: 'dense', label: 'Dense', desc: 'Tighter transcript spacing' }
   ]
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 640 }}>
-      <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', marginBottom: 24 }}>General</h2>
-      <SettingGroup title="Appearance" description="Choose how Orchestrator should look.">
-        <div style={{ display: 'flex', gap: 8 }}>
-          {options.map((option) => {
+    <div style={{ padding: '40px 48px', maxWidth: 900 }}>
+      <h2 style={{ fontSize: 30, fontWeight: 650, color: 'var(--text-primary)', marginBottom: 8 }}>General</h2>
+      <div style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 30 }}>
+        Tune Orchestrator for long coding sessions without changing how your agents work.
+      </div>
+
+      <SettingGroup title="Appearance" description="Choose the overall app material and contrast.">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+          {appearanceOptions.map((option) => {
             const active = appearance === option.id
             return (
               <button
                 key={option.id}
                 onClick={() => onSetAppearance(option.id)}
                 style={{
-                  padding: '7px 14px',
-                  borderRadius: 8,
+                  padding: '12px 14px',
+                  borderRadius: 'var(--radius-lg)',
                   border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
                   background: active ? 'var(--color-accent-dim)' : 'var(--color-surface)',
                   color: active ? 'var(--color-accent)' : 'var(--color-text)',
                   fontSize: 12,
                   fontWeight: active ? 600 : 500,
                   cursor: 'pointer',
+                  textAlign: 'left',
+                  boxShadow: active ? 'var(--shadow-card)' : 'none'
                 }}
               >
-                {option.label}
+                <div>{option.label}</div>
+                <div style={{ color: active ? 'var(--color-accent)' : 'var(--text-secondary)', fontWeight: 450, marginTop: 3 }}>
+                  {option.desc}
+                </div>
               </button>
             )
           })}
         </div>
       </SettingGroup>
+
+      <SettingGroup title="Accent" description="Used for primary actions, focus rings, and active states.">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {accentOptions.map((option) => (
+            <button
+              key={option.id}
+              onClick={() => onSetAccent(option.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-pill)',
+                background: accent === option.id ? 'var(--control-bg-active)' : 'var(--control-bg)',
+                border: `1px solid ${accent === option.id ? option.color : 'var(--border-subtle)'}`,
+                color: 'var(--text-primary)',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: option.color }} />
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </SettingGroup>
+
+      <SettingGroup title="Density" description="Choose between a calm default and a tighter power-user layout.">
+        <SegmentedChoice items={densityOptions} value={density} onChange={onSetDensity} />
+      </SettingGroup>
+
+      <SettingGroup title="Reading" description="Control transcript rhythm and the sidebar material.">
+        <div style={{ display: 'grid', gap: 12 }}>
+          <SegmentedChoice items={transcriptOptions} value={transcriptStyle} onChange={onSetTranscriptStyle} />
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--surface-bg)'
+            }}
+          >
+            <span>
+              <span style={{ display: 'block', fontSize: 13, fontWeight: 650, color: 'var(--text-primary)' }}>Tint sidebar</span>
+              <span style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Use the soft Codex-style rail material.</span>
+            </span>
+            <Switch checked={sidebarTint} onChange={onSetSidebarTint} />
+          </label>
+        </div>
+      </SettingGroup>
     </div>
+  )
+}
+
+function SegmentedChoice<T extends string>({
+  items,
+  value,
+  onChange
+}: {
+  items: Array<{ id: T; label: string; desc: string }>
+  value: T
+  onChange: (value: T) => void
+}): JSX.Element {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 8 }}>
+      {items.map((item) => {
+        const active = item.id === value
+        return (
+          <button
+            key={item.id}
+            onClick={() => onChange(item.id)}
+            style={{
+              padding: '11px 12px',
+              borderRadius: 'var(--radius-lg)',
+              border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+              background: active ? 'var(--accent-bg)' : 'var(--surface-bg)',
+              color: active ? 'var(--accent)' : 'var(--text-primary)',
+              textAlign: 'left',
+              cursor: 'pointer'
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{item.label}</div>
+            <div style={{ fontSize: 12, color: active ? 'var(--accent)' : 'var(--text-secondary)', marginTop: 2 }}>{item.desc}</div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function Switch({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      aria-pressed={checked}
+      style={{
+        width: 44,
+        height: 26,
+        borderRadius: 'var(--radius-pill)',
+        border: '1px solid var(--border-subtle)',
+        background: checked ? 'var(--accent)' : 'var(--control-bg-active)',
+        padding: 2,
+        cursor: 'pointer',
+        flexShrink: 0
+      }}
+    >
+      <span
+        style={{
+          display: 'block',
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          background: '#fff',
+          transform: checked ? 'translateX(18px)' : 'translateX(0)',
+          transition: 'transform 140ms ease'
+        }}
+      />
+    </button>
   )
 }
 
@@ -1351,9 +1560,10 @@ function SettingsPanel({ children }: { children: React.ReactNode }): JSX.Element
         flexDirection: 'column',
         gap: 16,
         padding: 16,
-        borderRadius: 10,
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: 'var(--shadow-soft)',
         marginTop: 14,
       }}
     >
@@ -1365,7 +1575,7 @@ function SettingsPanel({ children }: { children: React.ReactNode }): JSX.Element
 function CompactSetting({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
-      <div style={{ fontSize: 12, fontWeight: 650, color: 'var(--color-text)', paddingTop: 7 }}>{title}</div>
+      <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)', paddingTop: 7 }}>{title}</div>
       <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   )
@@ -2236,9 +2446,18 @@ function SettingGroup({ title, description, children }: {
   title: string; description?: string; children: React.ReactNode
 }): JSX.Element {
   return (
-    <div style={{ marginBottom: 26 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>{title}</div>
-      {description && <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 12 }}>{description}</div>}
+    <div
+      style={{
+        marginBottom: 16,
+        padding: 18,
+        borderRadius: 'var(--radius-lg)',
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: 'var(--shadow-soft)'
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{title}</div>
+      {description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>{description}</div>}
       {children}
     </div>
   )

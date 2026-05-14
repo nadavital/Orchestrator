@@ -16,12 +16,14 @@ export default function EmptyState(): JSX.Element {
         style={{ color: 'var(--color-text-muted)' }}
       >
         <div
-          className="flex items-center justify-center rounded-2xl"
+          className="flex items-center justify-center"
           style={{
             width: 64,
             height: 64,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)'
+            background: 'var(--surface-bg)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-xl)',
+            boxShadow: 'var(--shadow-soft)'
           }}
         >
           <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor" style={{ color: 'var(--color-accent)' }}>
@@ -37,8 +39,8 @@ export default function EmptyState(): JSX.Element {
           </div>
           <button
             onClick={handleAddProject}
-            className="px-5 py-2.5 rounded-xl text-sm font-medium transition-opacity hover:opacity-90"
-            style={{ background: 'var(--color-accent)', color: '#fff' }}
+            className="px-5 py-2.5 text-sm font-medium transition-opacity hover:opacity-90"
+            style={{ background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius-lg)' }}
           >
             Add Project
           </button>

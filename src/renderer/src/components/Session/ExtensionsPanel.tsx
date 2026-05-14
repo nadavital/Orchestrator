@@ -353,14 +353,14 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
         width: embedded ? '100%' : 360,
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
-        borderLeft: embedded ? 'none' : '1px solid var(--color-border)',
-        background: 'var(--color-surface)'
+        borderLeft: embedded ? 'none' : '1px solid var(--border-subtle)',
+        background: 'var(--panel-bg)'
       }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
+      <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <ProviderIcon providerId={provider} size={12} color={providerDef.color} />
-        <span className="text-xs font-semibold flex-1" style={{ color: 'var(--color-text)' }}>
+        <span className="text-sm font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>
           {providerDef.name} Extensions
         </span>
         {onClose && (
@@ -384,7 +384,7 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
 
         {/* Dir file editor (inline at top when a command file is open) */}
         {selectedDir && (
-          <div style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface2)' }}>
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
             <div className="flex items-center justify-between px-4 py-2">
               <div className="flex items-center gap-1.5">
                 <button
@@ -421,7 +421,7 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
               style={{
                 background: 'var(--color-surface2)',
                 border: 'none',
-                borderTop: '1px solid var(--color-border)',
+                borderTop: '1px solid var(--border-subtle)',
                 color: 'var(--color-text)',
                 padding: '8px 16px',
                 outline: 'none',
@@ -461,14 +461,14 @@ function CodexExtensionsView({
   const totalItems = groups.reduce((count, group) => count + group.items.length, 0)
 
   return (
-    <div style={{ borderBottom: '1px solid var(--color-border)' }}>
+    <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
       <div className="px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               Native Codex Extensions
             </div>
-            <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               MCP, apps, plugins, skills, hooks, and agent config in one place.
             </div>
           </div>
@@ -514,8 +514,9 @@ function MetricPill({ label, value, tone }: { label: string; value: string; tone
     <div
       className="rounded-md px-2 py-1.5 min-w-0"
       style={{
-        background: 'var(--color-surface2)',
-        border: '1px solid var(--color-border)'
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)'
       }}
     >
       <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--color-text-muted)' }}>{label}</div>
@@ -545,7 +546,12 @@ function ExtensionGroupCard({
   return (
     <div
       className="rounded-md overflow-hidden"
-      style={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}
+      style={{
+        background: 'var(--surface-bg)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-soft)'
+      }}
     >
       <button
         type="button"
@@ -578,8 +584,8 @@ function ExtensionGroupCard({
           className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
           style={{
             color: group.status === 'error' ? '#EF4444' : 'var(--color-text-muted)',
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)'
+            background: 'var(--control-bg)',
+            border: '1px solid var(--border-subtle)'
           }}
         >
           {statusText}
@@ -589,7 +595,7 @@ function ExtensionGroupCard({
       {open && (
         <div className="px-3 pb-3">
           {group.error ? (
-            <div className="text-xs rounded px-2 py-1.5" style={{ color: '#EF4444', background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: 11 }}>
+            <div className="text-xs rounded-md px-2 py-1.5" style={{ color: '#EF4444', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', fontSize: 11 }}>
               {group.error}
             </div>
           ) : group.items.length === 0 ? (
@@ -601,8 +607,8 @@ function ExtensionGroupCard({
               {group.items.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded px-2.5 py-2 min-w-0"
-                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+                  className="rounded-md px-2.5 py-2 min-w-0"
+                  style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span
@@ -760,7 +766,7 @@ function AgentSectionView({
 
   return (
     <div>
-      <div className="px-4 py-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+      <div className="px-4 py-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
           Local Instructions
         </div>

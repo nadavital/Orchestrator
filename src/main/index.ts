@@ -57,6 +57,7 @@ function createWindow(): void {
 function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
   const outputPath = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT
   if (!outputPath) return
+  const screenshotPath = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_SCREENSHOT
 
   win.webContents.once('did-finish-load', () => {
     setTimeout(() => {
@@ -95,6 +96,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
           }
           await sleep(100);
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
+            const settingsButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.trim() === 'Settings' || button.getAttribute('title') === 'Settings');
+            settingsButton?.click();
+            await sleep(450);
+          }
           return {
             profile,
             title: document.title,
@@ -107,8 +114,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             buttons: buttons.slice(0, 30)
           };
         })()
-      `).then((result) => {
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result }, null, 2))
+      `).then(async (result) => {
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
         app.quit()
       }).catch((error) => {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
