@@ -24,20 +24,21 @@ export default function Sidebar(): JSX.Element {
     <aside
       className="flex flex-col overflow-hidden shrink-0"
       style={{
-        width: 282,
+        width: 302,
         background: 'var(--panel-bg)',
-        borderRight: '1px solid var(--border-subtle)',
         backdropFilter: 'blur(22px)',
         WebkitBackdropFilter: 'blur(22px)'
       }}
     >
-      {/* Header */}
       <div
-        className="flex items-center justify-between px-5 shrink-0"
-        style={{ height: 48 }}
-      >
-        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Orchestrator
+        className="shrink-0"
+        style={{ height: 74, WebkitAppRegion: 'drag' } as React.CSSProperties}
+      />
+
+      {/* Project list */}
+      <div className="flex items-center justify-between px-5 pb-2">
+        <span className="text-sm" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+          Projects
         </span>
         <button
           onClick={handleAddProject}
@@ -50,15 +51,14 @@ export default function Sidebar(): JSX.Element {
             background: 'transparent'
           }}
           title="Add project"
-          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--control-bg-hover)')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
         >
           <Icon name="plus" size={15} />
         </button>
       </div>
 
-      {/* Project list */}
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div className="flex-1 overflow-y-auto px-3 py-1">
         {projects.map((project) => {
           const projectSessions = sessions.filter((s) => s.projectId === project.id)
           return (

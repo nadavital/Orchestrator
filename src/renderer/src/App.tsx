@@ -3,7 +3,6 @@ import { useProjectStore } from './store/projects'
 import { useSessionStore } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
-import EmptyState from './components/shared/EmptyState'
 import Titlebar from './components/Titlebar'
 import SettingsPage from './components/SettingsModal'
 import { applyAppearance, type Appearance } from './theme'
@@ -164,16 +163,15 @@ export default function App(): JSX.Element {
 
   return (
     <div
-      className="flex flex-col flex-1 overflow-hidden"
-      style={{ background: 'var(--app-bg)' }}
+      className="app-shell flex flex-1 overflow-hidden"
     >
-      <Titlebar />
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        <Sidebar />
+      <Sidebar />
+      <section className="content-shell flex-1 flex flex-col min-w-0 min-h-0">
+        <Titlebar />
         <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {activeSessionId ? <SessionPane /> : <EmptyState />}
+          {activeSessionId ? <SessionPane /> : null}
         </main>
-      </div>
+      </section>
     </div>
   )
 }

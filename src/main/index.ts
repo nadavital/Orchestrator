@@ -23,8 +23,11 @@ function createWindow(): void {
     show: false,
     title: appProfile.isIsolated ? `Orchestrator - ${appProfile.displayName}` : 'Orchestrator',
     titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 12, y: 11 },
-    backgroundColor: '#0f0f0f',
+    trafficLightPosition: { x: 20, y: 24 },
+    backgroundColor: '#00000000',
+    transparent: true,
+    vibrancy: 'sidebar',
+    visualEffectState: 'active',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

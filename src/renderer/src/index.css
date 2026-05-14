@@ -21,10 +21,10 @@
     --space-6: 24px;
     --space-8: 32px;
 
-    --app-bg: #f6f7f8;
-    --panel-bg: rgba(247, 248, 249, 0.82);
-    --panel-bg-solid: #f7f8f9;
-    --canvas-bg: #fdfdfc;
+    --app-bg: transparent;
+    --panel-bg: rgba(220, 240, 247, 0.38);
+    --panel-bg-solid: rgba(226, 241, 247, 0.68);
+    --canvas-bg: #ffffff;
     --surface-bg: #ffffff;
     --surface-bg-raised: #f4f4f2;
     --control-bg: rgba(0, 0, 0, 0.045);
@@ -154,7 +154,7 @@
   }
 
   body {
-    background: var(--color-bg);
+    background: transparent;
     color: var(--color-text);
     font-family: var(--font-ui);
     font-size: 13px;
@@ -170,6 +170,18 @@
     width: 100vw;
     display: flex;
     flex-direction: column;
+  }
+
+  .app-shell {
+    background: transparent;
+  }
+
+  .content-shell {
+    background: var(--canvas-bg);
+    border-left: 1px solid var(--border-subtle);
+    border-top-left-radius: 18px;
+    overflow: hidden;
+    box-shadow: -1px 0 0 rgba(255, 255, 255, 0.55);
   }
 
   pre, code {

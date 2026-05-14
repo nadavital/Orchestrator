@@ -19,23 +19,36 @@ export default function Titlebar(): JSX.Element {
     <div
       className="flex items-center shrink-0 w-full"
       style={{
-        height: 44,
-        background: 'var(--panel-bg)',
+        height: 46,
+        background: 'var(--surface-bg)',
         borderBottom: '1px solid var(--border-subtle)',
-        backdropFilter: 'blur(22px)',
-        WebkitBackdropFilter: 'blur(22px)',
         userSelect: 'none',
-        position: 'relative'
+        position: 'relative',
+        WebkitAppRegion: 'drag'
       }}
     >
-      {/* Traffic light zone — drag, 80px left */}
-      <div
-        style={{ width: 80, flexShrink: 0, height: '100%', WebkitAppRegion: 'drag' } as React.CSSProperties}
-      />
+      <div className="flex min-w-0 items-center gap-2 px-4" style={{ flex: 1 }}>
+        {session ? (
+          <>
+            <span
+              className="truncate"
+              style={{ color: 'var(--text-primary)', maxWidth: 520, fontSize: 15, fontWeight: 520 }}
+              title={session.name}
+            >
+              {session.name}
+            </span>
+            <StatusDot status={session.status} />
+          </>
+        ) : (
+          <span style={{ color: 'var(--text-primary)', fontSize: 15, fontWeight: 520 }}>
+            Orchestrator
+          </span>
+        )}
+      </div>
 
       {profile?.isIsolated && (
         <div
-          className="flex items-center gap-2 pl-1"
+          className="flex items-center gap-2"
           style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
         >
           <span
@@ -52,46 +65,9 @@ export default function Titlebar(): JSX.Element {
         </div>
       )}
 
-      {/* Center — absolutely positioned so it spans the full width for true centering */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-          pointerEvents: 'none',
-          WebkitAppRegion: 'drag'
-        } as React.CSSProperties}
-      >
-        {session ? (
-          <>
-            <span
-              className="text-xs font-medium truncate"
-              style={{ color: 'var(--text-secondary)', maxWidth: 360, fontSize: 13 }}
-              title={session.name}
-            >
-              {session.name}
-            </span>
-            <StatusDot status={session.status} />
-          </>
-        ) : (
-          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-            Orchestrator
-          </span>
-        )}
-      </div>
-
-      {/* Spacer so buttons push to right */}
-      <div className="flex-1" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
-
       {/* Right: toggle buttons — no-drag */}
       <div
-        className="flex items-center gap-1 pr-3"
+        className="flex items-center gap-2 px-3"
         style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
       >
         {session && ui && (
@@ -102,7 +78,6 @@ export default function Titlebar(): JSX.Element {
               title="Toggle terminal"
             >
               <Icon name="terminal" size={14} />
-              Terminal
             </TitleBtn>
           </>
         )}
@@ -169,11 +144,14 @@ function TitleBtn({
       title={title}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? 'var(--color-accent-dim)' : 'var(--control-bg)',
-        color: active ? 'var(--color-accent)' : 'var(--text-secondary)',
-        border: `1px solid ${active ? 'var(--color-accent)' : 'var(--border-subtle)'}`,
-        borderRadius: 'var(--radius-lg)',
-        padding: '6px 10px',
+        width: 30,
+        height: 30,
+        justifyContent: 'center',
+        background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
+        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+        border: `1px solid ${active ? 'var(--border-strong)' : 'var(--border-subtle)'}`,
+        borderRadius: 'var(--radius-md)',
+        padding: 0,
         fontWeight: 600
       }}
     >
