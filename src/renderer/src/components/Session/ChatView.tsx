@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import type { Components } from 'react-markdown'
+import Icon from '../shared/Icon'
 import {
   describeToolAction,
   describeToolActivity,
@@ -31,6 +32,8 @@ const SUGGESTED_PROMPTS = [
 const TOOL_SUMMARY_SCROLL_THRESHOLD = 8
 const TOOL_SUMMARY_MAX_HEIGHT = 220
 const FOLLOW_BOTTOM_THRESHOLD = 80
+const USER_MESSAGE_COLLAPSE_LENGTH = 1400
+const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
 
 export default function ChatView({ session, projectName, onSuggestedPrompt }: Props): JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -451,6 +454,8 @@ function MessageRow({
   fileReferenceRoots: string[]
   canCopy: boolean
 }): JSX.Element | null {
+  const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
+
   if (msg.type === 'text') {
     const isUser = msg.role === 'user'
     const isSystem = msg.role === 'system'
@@ -466,6 +471,10 @@ function MessageRow({
     }
 
     const content = msg.content
+    const shouldCollapseUserMessage = isUser && content.length > USER_MESSAGE_COLLAPSE_LENGTH
+    const displayContent = shouldCollapseUserMessage && !isUserMessageExpanded
+      ? collapsedUserMessageContent(content)
+      : content
     const queueState = isUser ? msg.queueState : undefined
     const fileReferences = !isUser && !isSystem
       ? extractFileReferences(content, session.workDir).slice(0, 8)
@@ -495,13 +504,17 @@ function MessageRow({
               lineHeight: 1.65
             }}
           >
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeHighlight]}
-              components={isUser ? userComponents : assistantComponents}
-            >
-              {content}
-            </ReactMarkdown>
+            {shouldCollapseUserMessage && !isUserMessageExpanded ? (
+              <div style={{ whiteSpace: 'pre-wrap' }}>{displayContent}</div>
+            ) : (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={isUser ? userComponents : assistantComponents}
+              >
+                {displayContent}
+              </ReactMarkdown>
+            )}
             {msg.isStreaming && (
               <span
                 aria-label="Streaming"
@@ -513,6 +526,26 @@ function MessageRow({
             )}
             {fileReferences.length > 0 && <FileReferenceList files={fileReferences} cwd={session.workDir} searchRoots={fileReferenceRoots} />}
             {isUser && msg.attachments && msg.attachments.length > 0 && <MessageAttachmentList attachments={msg.attachments} />}
+            {shouldCollapseUserMessage && (
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsUserMessageExpanded((expanded) => !expanded)}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                  style={{
+                    background: 'color-mix(in srgb, var(--accent) 10%, var(--control-bg))',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-secondary)'
+                  }}
+                  aria-expanded={isUserMessageExpanded}
+                >
+                  <span>{isUserMessageExpanded ? 'Show less' : 'Show more'}</span>
+                  <span style={{ transform: isUserMessageExpanded ? 'rotate(180deg)' : undefined, display: 'inline-flex' }}>
+                    <Icon name="chevronDown" size={12} />
+                  </span>
+                </button>
+              </div>
+            )}
             {queueState && (
               <div className="mt-2 flex items-center justify-end gap-2">
                 <span
@@ -575,6 +608,15 @@ function MessageRow({
   }
 
   return null
+}
+
+function collapsedUserMessageContent(content: string): string {
+  const hardCut = content.slice(0, USER_MESSAGE_COLLAPSE_LENGTH)
+  const lastNewline = hardCut.lastIndexOf('\n')
+  const lastSpace = hardCut.lastIndexOf(' ')
+  const breakIndex = Math.max(lastNewline, lastSpace)
+  const cutIndex = breakIndex >= USER_MESSAGE_COLLAPSE_MIN_BREAK ? breakIndex : USER_MESSAGE_COLLAPSE_LENGTH
+  return `${content.slice(0, cutIndex).trimEnd()}\n...`
 }
 
 type StatusMeta = {
