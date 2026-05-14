@@ -22,6 +22,7 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
     () => visibleAgents.find((agent) => agent.id === activeAgentId) ?? visibleAgents.at(-1) ?? null,
     [activeAgentId, visibleAgents]
   )
+  const stats = useMemo(() => agentStats(agents), [agents])
 
   return (
     <section
@@ -34,17 +35,32 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
       }}
     >
       <div className="shrink-0 px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
-        <div className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-          Agent transcripts
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+              Agent Activity
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+              Subagents, side tasks, and transcript handoffs.
+            </div>
+          </div>
+          <span
+            className="shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase"
+            style={{
+              color: stats.active > 0 ? 'var(--color-green)' : 'var(--color-text-muted)',
+              background: 'var(--color-surface2)',
+              border: '1px solid var(--color-border)'
+            }}
+          >
+            {stats.total} total
+          </span>
         </div>
       </div>
 
+      <AgentOverview stats={stats} />
+
       {visibleAgents.length === 0 ? (
-        <EmptyText>
-          {agents.length === 0
-            ? 'Agent transcripts will appear here when a subagent starts.'
-            : 'Completed agent transcripts will appear here.'}
-        </EmptyText>
+        <EmptyState providerId={session.provider ?? 'provider'} />
       ) : (
         <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
@@ -69,6 +85,72 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
       )}
     </section>
   )
+}
+
+function AgentOverview({
+  stats
+}: {
+  stats: ReturnType<typeof agentStats>
+}): JSX.Element {
+  return (
+    <div className="shrink-0 grid grid-cols-4 gap-1.5 px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
+      <AgentStat label="Active" value={stats.active} tone="var(--color-green)" />
+      <AgentStat label="Waiting" value={stats.waiting} tone="var(--color-yellow)" />
+      <AgentStat label="Done" value={stats.completed} tone="var(--color-accent)" />
+      <AgentStat label="Issues" value={stats.issues} tone="#EF4444" />
+    </div>
+  )
+}
+
+function AgentStat({ label, value, tone }: { label: string; value: number; tone: string }): JSX.Element {
+  return (
+    <div
+      className="rounded-md px-2 py-1.5 min-w-0"
+      style={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}
+    >
+      <div className="text-[10px] font-bold uppercase truncate" style={{ color: 'var(--color-text-muted)' }}>
+        {label}
+      </div>
+      <div className="text-xs font-semibold" style={{ color: value > 0 ? tone : 'var(--color-text-muted)' }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function EmptyState({ providerId }: { providerId: string }): JSX.Element {
+  return (
+    <div className="flex-1 min-h-0 p-3">
+      <div
+        className="rounded-md p-3"
+        style={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}
+      >
+        <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+          No agent activity yet
+        </div>
+        <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)', lineHeight: 1.45 }}>
+          When {providerId} starts a subagent or side task, its status and transcript will appear here.
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function agentStats(agents: AgentNode[]): {
+  total: number
+  active: number
+  waiting: number
+  completed: number
+  issues: number
+} {
+  return agents.reduce((current, agent) => {
+    current.total += 1
+    if (agent.status === 'running' || agent.status === 'queued') current.active += 1
+    if (agent.status === 'waiting' || agent.status === 'blocked') current.waiting += 1
+    if (agent.status === 'completed') current.completed += 1
+    if (agent.status === 'failed' || agent.status === 'cancelled') current.issues += 1
+    return current
+  }, { total: 0, active: 0, waiting: 0, completed: 0, issues: 0 })
 }
 
 function AgentTab({
@@ -132,6 +214,16 @@ function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
             <h3 className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
               {agent.name ?? agent.role ?? agent.id}
             </h3>
+            <span
+              className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
+              style={{
+                color: agentStatusColor(agent.status),
+                background: 'var(--color-surface2)',
+                border: '1px solid var(--color-border)'
+              }}
+            >
+              {agent.status}
+            </span>
           </div>
           {(agent.role || agent.model || agent.providerId) && (
             <div className="text-xs mt-1 truncate" style={{ color: 'var(--color-text-muted)' }}>

@@ -6,7 +6,7 @@ export default function Titlebar(): JSX.Element {
   const { sessions, activeSessionId, uiState, setShowTerminal } = useSessionStore()
   const session = sessions.find((s) => s.id === activeSessionId)
   const ui = activeSessionId
-    ? (uiState[activeSessionId] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showSkills: false, showSideQuestions: false, showUsage: false, hasUnread: false })
+    ? (uiState[activeSessionId] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, showUsage: false, hasUnread: false })
     : null
   const [profile, setProfile] = useState<AppProfile | null>(null)
 

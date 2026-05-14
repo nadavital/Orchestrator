@@ -3,18 +3,18 @@ import type { Session } from '../../types'
 import DiffPanel from './DiffPanel'
 import EventInspectorPanel from './EventInspectorPanel'
 import PlanPanel from './PlanPanel'
-import SkillsPanel from './SkillsPanel'
+import ExtensionsPanel from './ExtensionsPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import UsagePanel from './UsagePanel'
 
-type ContextTab = 'plan' | 'diff' | 'agents' | 'skills' | 'usage' | 'side'
+type ContextTab = 'plan' | 'diff' | 'agents' | 'extensions' | 'usage' | 'side'
 
 interface Props {
   session: Session
 }
 
 export default function ContextSidebar({ session }: Props): JSX.Element | null {
-  const { uiState, setShowDiff, setShowEvents, setShowPlan, setShowSkills, setShowSideQuestions, setShowUsage } = useSessionStore()
+  const { uiState, setShowDiff, setShowEvents, setShowPlan, setShowExtensions, setShowSideQuestions, setShowUsage } = useSessionStore()
   const ui = uiState[session.id]
   const activeTab: ContextTab | null = ui?.showPlan
     ? 'plan'
@@ -22,8 +22,8 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       ? 'diff'
       : ui?.showEvents
         ? 'agents'
-        : ui?.showSkills
-          ? 'skills'
+        : ui?.showExtensions
+          ? 'extensions'
           : ui?.showSideQuestions
             ? 'side'
             : ui?.showUsage
@@ -36,7 +36,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     setShowPlan(session.id, nextTab === 'plan')
     setShowDiff(session.id, nextTab === 'diff')
     setShowEvents(session.id, nextTab === 'agents')
-    setShowSkills(session.id, nextTab === 'skills')
+    setShowExtensions(session.id, nextTab === 'extensions')
     setShowSideQuestions(session.id, nextTab === 'side')
     setShowUsage(session.id, nextTab === 'usage')
   }
@@ -45,7 +45,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     setShowPlan(session.id, false)
     setShowDiff(session.id, false)
     setShowEvents(session.id, false)
-    setShowSkills(session.id, false)
+    setShowExtensions(session.id, false)
     setShowSideQuestions(session.id, false)
     setShowUsage(session.id, false)
   }
@@ -76,7 +76,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           <RailTab active={activeTab === 'diff'} label="Diff" onClick={() => toggleTab('diff')}>
             <path d="M8.75 1.75a.75.75 0 0 0-1.5 0V7H1.75a.75.75 0 0 0 0 1.5H7.25v5.25a.75.75 0 0 0 1.5 0V8.5h5.25a.75.75 0 0 0 0-1.5H8.75V1.75Z" />
           </RailTab>
-          <RailTab active={activeTab === 'skills'} label="Skills" onClick={() => toggleTab('skills')}>
+          <RailTab active={activeTab === 'extensions'} label="Extensions" onClick={() => toggleTab('extensions')}>
             <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.004-5.073-.002-2.253A2.25 2.25 0 0 0 5.003 2.5H1.5v9h3.757a3.75 3.75 0 0 1 1.994.574ZM8.755 4.75l-.004 7.322a3.752 3.752 0 0 1 1.992-.572H14.5v-9h-3.495a2.25 2.25 0 0 0-2.25 2.25Z" />
           </RailTab>
           <RailTab active={activeTab === 'side'} label="Side questions" onClick={() => toggleTab('side')}>
@@ -100,8 +100,8 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
                     ? 'Agents'
                     : effectiveTab === 'diff'
                       ? 'Diff'
-                      : effectiveTab === 'skills'
-                        ? 'Skills'
+                      : effectiveTab === 'extensions'
+                        ? 'Extensions'
                         : effectiveTab === 'side'
                           ? 'Side questions'
                           : 'Usage'}
@@ -126,8 +126,8 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
                 <EventInspectorPanel session={session} embedded activeAgentId={ui?.activeAgentId ?? null} />
               )}
               {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} embedded />}
-              {effectiveTab === 'skills' && (
-                <SkillsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} embedded />
+              {effectiveTab === 'extensions' && (
+                <ExtensionsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} embedded />
               )}
               {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
               {effectiveTab === 'usage' && <UsagePanel session={session} embedded />}

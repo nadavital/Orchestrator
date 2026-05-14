@@ -23,7 +23,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     setShowPlan,
     setShowSettings,
     setShowSideQuestions,
-    setShowSkills,
+    setShowExtensions,
     setShowTerminal,
     appendSideQuestion,
     updateSideQuestion
@@ -118,7 +118,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const permissionMode = session.permissionMode ?? defaultPermissionMode
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
-  const currentUi = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showSkills: false, showSideQuestions: false, showUsage: false, hasUnread: false }
+  const currentUi = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, showUsage: false, hasUnread: false }
   const resolvedPermission = providerRuntime?.policies[permissionMode] ?? (providerRuntime
     ? {
         policy: permissionMode,
@@ -310,7 +310,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       if (command.id === 'diff') setShowDiff(session.id, !currentUi.showDiff)
       if (command.id === 'plan-sidebar') setShowPlan(session.id, !currentUi.showPlan)
       if (command.id === 'agents') setShowEvents(session.id, !currentUi.showEvents)
-      if (command.id === 'skills') setShowSkills(session.id, !currentUi.showSkills)
+      if (command.id === 'skills' || command.id === 'extensions') setShowExtensions(session.id, !currentUi.showExtensions)
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)
       if (command.id === 'btw') setShowSideQuestions(session.id, true)
       if (command.id === 'pet') {

@@ -283,6 +283,7 @@ function ProvidersSection({
   const diagnostics = providerDiagnostics[selectedId]
   const loadingDiagnostics = diagnosticsLoading[selectedId] === true
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
   const modelForPicker = visibleIds.includes(currentModel)
     ? currentModel
     : visibleModels[0]?.id ?? currentModel
@@ -370,13 +371,13 @@ function ProvidersSection({
           )}
         </SettingsPanel>
 
-        {runtime && runtime.registry.commandSurfaces.length > 0 && (
+        {settingsCommandSurfaces.length > 0 && (
           <SettingsPanel>
-            <CompactSetting title="Native">
+            <CompactSetting title="Provider details">
               <ProviderCommandSurfaces
                 providerId={selectedId}
                 color={providerDef.color}
-                surfaces={runtime.registry.commandSurfaces}
+                surfaces={settingsCommandSurfaces}
               />
             </CompactSetting>
           </SettingsPanel>
@@ -435,6 +436,22 @@ function ProvidersSection({
       </div>
     </div>
   )
+}
+
+const CODEX_SETTINGS_COMMAND_SURFACE_IDS = new Set([
+  'appserver-models',
+  'appserver-model-provider-capabilities',
+  'appserver-features',
+  'appserver-config',
+  'appserver-config-requirements',
+  'appserver-account',
+  'appserver-rate-limits',
+  'appserver-auth-status'
+])
+
+function visibleSettingsCommandSurfaces(providerId: string, surfaces: ProviderCommandSurface[]): ProviderCommandSurface[] {
+  if (providerId !== 'codex') return surfaces
+  return surfaces.filter((surface) => CODEX_SETTINGS_COMMAND_SURFACE_IDS.has(surface.id))
 }
 
 function ProviderSidePicker({

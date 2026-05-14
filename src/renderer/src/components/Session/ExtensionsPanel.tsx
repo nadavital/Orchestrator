@@ -27,12 +27,76 @@ interface McpServer {
   args?: string[]
 }
 
+type CodexExtensionSurfaceId =
+  | 'appserver-mcp-status'
+  | 'appserver-apps'
+  | 'appserver-plugins'
+  | 'appserver-skills'
+  | 'appserver-hooks'
+  | 'appserver-external-agent-config'
+
+interface CodexExtensionSurface {
+  id: CodexExtensionSurfaceId
+  label: string
+  description: string
+}
+
+interface ExtensionItem {
+  id: string
+  title: string
+  subtitle?: string
+  meta?: string
+  tone?: string
+}
+
+interface ExtensionGroup {
+  id: CodexExtensionSurfaceId
+  label: string
+  description: string
+  status: 'idle' | 'ok' | 'error'
+  items: ExtensionItem[]
+  error?: string
+}
+
 interface AgentSection {
   providerId: string
   files: SkillFile[]
   dirs: CommandsDir[]
   mcpServers?: Record<string, McpServer>
 }
+
+const CODEX_EXTENSION_SURFACES: CodexExtensionSurface[] = [
+  {
+    id: 'appserver-mcp-status',
+    label: 'MCP',
+    description: 'Connected tool servers available to Codex.'
+  },
+  {
+    id: 'appserver-apps',
+    label: 'Apps',
+    description: 'Installed app connectors exposed through Codex.'
+  },
+  {
+    id: 'appserver-plugins',
+    label: 'Plugins',
+    description: 'Plugin bundles and packaged capabilities.'
+  },
+  {
+    id: 'appserver-skills',
+    label: 'Skills',
+    description: 'Skill instructions Codex can load for this workspace.'
+  },
+  {
+    id: 'appserver-hooks',
+    label: 'Hooks',
+    description: 'Configured extension hooks.'
+  },
+  {
+    id: 'appserver-external-agent-config',
+    label: 'Agent Config',
+    description: 'Agent instruction files detected for this workspace.'
+  }
+]
 
 interface Props {
   provider: string
@@ -43,12 +107,20 @@ interface Props {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function SkillsPanel({ provider, workDir, onClose, embedded = false }: Props): JSX.Element {
+export default function ExtensionsPanel({ provider, workDir, onClose, embedded = false }: Props): JSX.Element {
   const [sections, setSections] = useState<AgentSection[]>([])
   const [selectedDir, setSelectedDir] = useState<{ dirPath: string; fileName: string } | null>(null)
   const [dirFileContent, setDirFileContent] = useState<string | null>(null)
   const [dirFileDirty, setDirFileDirty] = useState(false)
   const [dirFileSaving, setDirFileSaving] = useState(false)
+  const [extensionGroups, setExtensionGroups] = useState<ExtensionGroup[]>(
+    CODEX_EXTENSION_SURFACES.map((surface) => ({
+      ...surface,
+      status: 'idle',
+      items: []
+    }))
+  )
+  const [extensionsLoading, setExtensionsLoading] = useState(false)
 
   useEffect(() => {
     const load = async (): Promise<void> => {
@@ -184,6 +256,49 @@ export default function SkillsPanel({ provider, workDir, onClose, embedded = fal
     load()
   }, [workDir, provider])
 
+  const refreshCodexExtensions = async (): Promise<void> => {
+    if (provider !== 'codex') return
+    setExtensionsLoading(true)
+    setExtensionGroups(CODEX_EXTENSION_SURFACES.map((surface) => ({
+      ...surface,
+      status: 'idle',
+      items: []
+    })))
+    const nextGroups = await Promise.all(
+      CODEX_EXTENSION_SURFACES.map(async (surface) => {
+        try {
+          const result = await window.api.providers.runCommandSurface('codex', surface.id)
+          if (result.status !== 'ok') {
+            return {
+              ...surface,
+              status: 'error' as const,
+              items: [],
+              error: summarizeOutput(result.output)
+            }
+          }
+          return {
+            ...surface,
+            status: 'ok' as const,
+            items: codexExtensionItems(surface.id, result.output)
+          }
+        } catch (error) {
+          return {
+            ...surface,
+            status: 'error' as const,
+            items: [],
+            error: error instanceof Error ? error.message : String(error)
+          }
+        }
+      })
+    )
+    setExtensionGroups(nextGroups)
+    setExtensionsLoading(false)
+  }
+
+  useEffect(() => {
+    if (provider === 'codex') void refreshCodexExtensions()
+  }, [provider])
+
   const updateFile = (sectionIdx: number, fileIdx: number, value: string): void => {
     setSections((prev) => prev.map((s, si) =>
       si !== sectionIdx ? s : {
@@ -246,7 +361,7 @@ export default function SkillsPanel({ provider, workDir, onClose, embedded = fal
       <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
         <ProviderIcon providerId={provider} size={12} color={providerDef.color} />
         <span className="text-xs font-semibold flex-1" style={{ color: 'var(--color-text)' }}>
-          {providerDef.name} Skills
+          {providerDef.name} Extensions
         </span>
         {onClose && (
           <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}>
@@ -258,6 +373,15 @@ export default function SkillsPanel({ provider, workDir, onClose, embedded = fal
       </div>
 
       <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+        {provider === 'codex' && (
+          <CodexExtensionsView
+            groups={extensionGroups}
+            loading={extensionsLoading}
+            accentColor={providerDef.color}
+            onRefresh={refreshCodexExtensions}
+          />
+        )}
+
         {/* Dir file editor (inline at top when a command file is open) */}
         {selectedDir && (
           <div style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface2)' }}>
@@ -321,6 +445,307 @@ export default function SkillsPanel({ provider, workDir, onClose, embedded = fal
   )
 }
 
+// ─── Codex app-server extensions ─────────────────────────────────────────────
+
+function CodexExtensionsView({
+  groups,
+  loading,
+  accentColor,
+  onRefresh
+}: {
+  groups: ExtensionGroup[]
+  loading: boolean
+  accentColor: string
+  onRefresh: () => void
+}): JSX.Element {
+  const totalItems = groups.reduce((count, group) => count + group.items.length, 0)
+
+  return (
+    <div style={{ borderBottom: '1px solid var(--color-border)' }}>
+      <div className="px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+              Native Codex Extensions
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
+              MCP, apps, plugins, skills, hooks, and agent config in one place.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading}
+            className="h-7 w-7 rounded-md grid place-items-center shrink-0"
+            title="Refresh extensions"
+            aria-label="Refresh extensions"
+            style={{
+              border: `1px solid ${loading ? 'var(--color-border)' : accentColor}`,
+              background: loading ? 'var(--color-surface2)' : `${accentColor}12`,
+              color: loading ? 'var(--color-text-muted)' : accentColor,
+              cursor: loading ? 'default' : 'pointer',
+              opacity: loading ? 0.7 : 1
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M1.705 8.005a6.303 6.303 0 0 1 10.741-4.46L10.75 3.5a.75.75 0 0 0-.02 1.5l3.5.093a.75.75 0 0 0 .77-.75v-3.5a.75.75 0 0 0-1.5 0v1.44A7.803 7.803 0 0 0 .205 8.005a.75.75 0 0 0 1.5 0Zm12.59-.01a6.303 6.303 0 0 1-10.741 4.46l1.696.045a.75.75 0 0 0 .04-1.5l-3.5-.093a.75.75 0 0 0-.77.75v3.5a.75.75 0 0 0 1.5 0v-1.44a7.803 7.803 0 0 0 13.295-5.722.75.75 0 0 0-1.5 0Z" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-1.5">
+          <MetricPill label="Groups" value={String(groups.length)} />
+          <MetricPill label="Items" value={loading ? '...' : String(totalItems)} />
+          <MetricPill label="Errors" value={String(groups.filter((group) => group.status === 'error').length)} tone="#EF4444" />
+        </div>
+      </div>
+
+      <div className="px-4 pb-3 grid grid-cols-1 gap-2">
+        {groups.map((group) => (
+          <ExtensionGroupCard key={group.id} group={group} loading={loading && group.status === 'idle'} accentColor={accentColor} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MetricPill({ label, value, tone }: { label: string; value: string; tone?: string }): JSX.Element {
+  return (
+    <div
+      className="rounded-md px-2 py-1.5 min-w-0"
+      style={{
+        background: 'var(--color-surface2)',
+        border: '1px solid var(--color-border)'
+      }}
+    >
+      <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--color-text-muted)' }}>{label}</div>
+      <div className="text-xs font-semibold truncate" style={{ color: tone ?? 'var(--color-text)' }}>{value}</div>
+    </div>
+  )
+}
+
+function ExtensionGroupCard({
+  group,
+  loading,
+  accentColor
+}: {
+  group: ExtensionGroup
+  loading: boolean
+  accentColor: string
+}): JSX.Element {
+  const [open, setOpen] = useState(true)
+  const statusText = loading
+    ? 'loading'
+    : group.status === 'error'
+      ? 'error'
+      : group.items.length === 0
+        ? 'empty'
+        : `${group.items.length}`
+
+  return (
+    <div
+      className="rounded-md overflow-hidden"
+      style={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex items-center gap-2 w-full px-3 py-2 text-left"
+        style={{ background: 'transparent' }}
+      >
+        <svg
+          width="8" height="8" viewBox="0 0 10 10" fill="currentColor"
+          style={{ opacity: 0.4, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s', flexShrink: 0 }}
+        >
+          <path d="M5 7 L1 3 L9 3 Z" />
+        </svg>
+        <span
+          className="rounded-full shrink-0"
+          style={{
+            width: 7,
+            height: 7,
+            background: group.status === 'error' ? '#EF4444' : accentColor,
+            opacity: loading || group.items.length === 0 ? 0.55 : 1
+          }}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>{group.label}</div>
+          <div className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+            {group.description}
+          </div>
+        </div>
+        <span
+          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
+          style={{
+            color: group.status === 'error' ? '#EF4444' : 'var(--color-text-muted)',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)'
+          }}
+        >
+          {statusText}
+        </span>
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3">
+          {group.error ? (
+            <div className="text-xs rounded px-2 py-1.5" style={{ color: '#EF4444', background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: 11 }}>
+              {group.error}
+            </div>
+          ) : group.items.length === 0 ? (
+            <div className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
+              {loading ? 'Loading...' : 'No entries reported by Codex.'}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {group.items.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded px-2.5 py-2 min-w-0"
+                  style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className="rounded-full shrink-0"
+                      style={{ width: 6, height: 6, background: item.tone ?? accentColor }}
+                    />
+                    <span className="text-xs font-medium truncate flex-1" style={{ color: 'var(--color-text)' }} title={item.title}>
+                      {item.title}
+                    </span>
+                    {item.meta && (
+                      <span className="text-[10px] rounded px-1 shrink-0" style={{ background: 'var(--color-surface2)', color: item.tone ?? 'var(--color-text-muted)' }}>
+                        {item.meta}
+                      </span>
+                    )}
+                  </div>
+                  {item.subtitle && (
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 10, overflowWrap: 'anywhere', paddingLeft: 14 }}>
+                      {item.subtitle}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function codexExtensionItems(surfaceId: CodexExtensionSurfaceId, output: string): ExtensionItem[] {
+  const value = parseJsonOutput(output)
+  const data = appServerDataArray(value)
+  const record = objectValue(value)
+  const source = data.length > 0
+    ? data
+    : arrayValue(
+      record?.plugins ??
+      record?.apps ??
+      record?.skills ??
+      record?.hooks ??
+      record?.servers ??
+      record?.configs ??
+      record?.configFiles ??
+      record?.files
+    )
+
+  if (surfaceId === 'appserver-external-agent-config' && source.length === 0 && record) {
+    return Object.entries(record)
+      .filter(([, entry]) => entry !== null && entry !== undefined)
+      .slice(0, 16)
+      .map(([key, entry]) => ({
+        id: key,
+        title: formatObjectKey(key),
+        subtitle: compactScalar(entry),
+        tone: 'var(--color-accent)'
+      }))
+  }
+
+  return source.slice(0, 40).map((entry, index) => {
+    const item = objectValue(entry)
+    const title = compactScalar(
+      item?.name ??
+      item?.title ??
+      item?.id ??
+      item?.server ??
+      item?.path ??
+      item?.pluginId ??
+      item?.appId ??
+      item?.skillId ??
+      `Item ${index + 1}`
+    )
+    const subtitle = compactScalar(
+      item?.description ??
+      item?.summary ??
+      item?.provider ??
+      item?.source ??
+      item?.command ??
+      item?.cwd ??
+      item?.path ??
+      entry
+    )
+    const meta = compactScalar(item?.status ?? item?.state ?? item?.availability ?? item?.kind ?? item?.type)
+    const isBad = /error|failed|disabled|unavailable/i.test(meta)
+    const isGood = /ready|ok|enabled|available|active|installed/i.test(meta)
+    return {
+      id: compactScalar(item?.id ?? item?.name ?? item?.path ?? index),
+      title,
+      subtitle: subtitle && subtitle !== title ? subtitle : undefined,
+      meta: meta && meta !== title ? meta : undefined,
+      tone: isBad ? '#EF4444' : isGood ? 'var(--color-green)' : undefined
+    }
+  })
+}
+
+function parseJsonOutput(output: string): unknown {
+  const trimmed = output.trim()
+  if (!trimmed) return []
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return trimmed
+  }
+}
+
+function appServerDataArray(value: unknown): unknown[] {
+  const record = objectValue(value)
+  return arrayValue(record?.data ?? record?.items ?? record?.results ?? value)
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function compactScalar(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value.replace(/\s+/g, ' ').trim() || 'Not set'
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.length === 0 ? 'None' : `${value.length} item${value.length === 1 ? '' : 's'}`
+  const record = objectValue(value)
+  if (!record) return String(value)
+  const preferred = record.message ?? record.label ?? record.name ?? record.id ?? record.status
+  if (preferred !== undefined) return compactScalar(preferred)
+  const json = JSON.stringify(value)
+  return json.length > 140 ? `${json.slice(0, 137)}...` : json
+}
+
+function summarizeOutput(output: string): string {
+  const summary = compactScalar(parseJsonOutput(output))
+  return summary.length > 180 ? `${summary.slice(0, 177)}...` : summary || 'Unable to load this extension group.'
+}
+
+function formatObjectKey(key: string): string {
+  return key
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 // ─── Agent section ───────────────────────────────────────────────────────────
 
 function AgentSectionView({
@@ -335,6 +760,14 @@ function AgentSectionView({
 
   return (
     <div>
+      <div className="px-4 py-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+        <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+          Local Instructions
+        </div>
+        <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
+          Files and folders this provider reads from the workspace or home directory.
+        </div>
+      </div>
       {section.files.map((file, fi) => (
         <FileEditor
           key={file.path}
