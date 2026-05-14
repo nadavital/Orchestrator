@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../types'
+import type { Attachment, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../types'
 
 interface AppSettings {
   defaultProvider: string
@@ -117,6 +117,8 @@ const api = {
       ipcRenderer.invoke('providers:getDiagnostics', providerId),
     runCommandSurface: (providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> =>
       ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId),
+    listResources: (providerId?: string): Promise<Record<string, ProviderResourceSnapshot>> =>
+      ipcRenderer.invoke('providers:listResources', providerId),
     discoverClaudeExtensions: (workDir: string): Promise<{ commands: ProviderSlashCommand[]; skills: ProviderSlashCommand[] }> =>
       ipcRenderer.invoke('providers:discoverClaudeExtensions', workDir)
   },

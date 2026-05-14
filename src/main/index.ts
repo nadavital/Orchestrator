@@ -104,6 +104,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               .find((button) => button.textContent?.includes('Resources'));
             resourcesButton?.click();
             await sleep(450);
+            for (let index = 0; index < 20; index += 1) {
+              const text = document.body.innerText;
+              if (!text.includes('Refreshing provider inventory') && !text.includes('Loading resources')) break;
+              await sleep(500);
+            }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets') {
             const petsButton = [...document.querySelectorAll('button')]

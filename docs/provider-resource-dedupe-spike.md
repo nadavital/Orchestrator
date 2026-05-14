@@ -35,31 +35,29 @@ Create a normalized `ProviderResource` model:
 - Show merged resources as one row with provider badges when the same resource is available through multiple providers.
 - Keep provider-specific detail in an expanded drawer so dedupe does not erase important runtime differences.
 
-## Migration Path
+## Implemented Shape
 
-1. Add a provider resource discovery service in main process that calls existing safe command surfaces.
-2. Cache resource snapshots by provider with `lastRefreshedAt`, status, and raw diagnostics.
-3. Convert Claude, Codex, Cursor, and Copilot surfaces into `ProviderResource[]`.
-4. Replace Resources page direct command-surface rendering with grouped normalized resources.
-5. Add conflict UI for suggested duplicates: `Keep separate`, `Treat as same`, `Prefer provider`.
-6. Store user decisions in settings as resource aliases, not by editing provider-native config.
-7. Add import/migration actions only after read-only discovery is stable.
+- `src/main/providerResources.ts` owns read-only discovery and normalization.
+- `providers:listResources` returns provider snapshots with normalized resources and raw provider diagnostics.
+- Settings -> Resources is centralized by resource kind, then merged by fingerprint, with provider badges as provenance.
+- Safe provider command surfaces are still used where they exist; file/config-backed provider resources are discovered locally when the provider has no stable read-only inventory command.
+- No mutation actions are exposed from the resource inventory yet.
 
-## Next Implementation Ticket
+## Provider Support Snapshot
 
-- Add `src/main/providerResources.ts` with a read-only `discoverProviderResources(providerId)` entrypoint.
-- Wire IPC methods for list and refresh, returning cached normalized resources plus raw provider diagnostics.
-- Move the renderer Resources section off direct provider command surfaces and onto grouped `ProviderResource` rows.
-- Add provider badges, duplicate suggestions, and an expanded native-detail drawer before exposing any mutation actions.
-
-## Provider Notes
-
-| Provider | Current useful surfaces | Normalized resources |
+| Provider | Discovery sources | Normalized resources |
 | --- | --- | --- |
-| Claude | `agents-list`, `mcp-list`, `mcp-details`, `plugin-list` | Agents, MCP servers/tools, plugins, project commands/skills when discoverable. |
-| Codex | app-server skills, hooks, plugins, apps, MCP status, external agent config | Skills, hooks, plugins, apps/connectors, MCP servers, external agents. |
-| Cursor | MCP and rules surfaces where available | MCP tools, rules, generated project conventions. |
-| Copilot | plugin/MCP/ask-user/tool surfaces where available | Plugins, MCP servers/tools, permission/tool policies. |
+| Claude | Safe CLI surfaces plus `.claude/skills` and `.claude/commands` discovery | Agents, MCP servers, plugins, skills, commands. |
+| Codex | App-server read APIs | Skills, hooks, plugins, apps, MCP servers, external agent configs. |
+| Cursor | `.cursor/rules`, `.cursorrules`, and Cursor MCP config files | Rules and MCP servers. |
+| Copilot | Built-in GitHub MCP, `~/.copilot/mcp-config.json`, `.github/copilot-instructions.md`, `.github/instructions`, `AGENTS.md`, root `CLAUDE.md`/`GEMINI.md` | MCP servers and repository/agent instruction rules. |
+
+## Research Notes
+
+- Claude Code skills live in personal/project/plugin skill directories, and Claude plugins can package skills, agents, hooks, MCP servers, LSP servers, and monitors.
+- Codex app-server provides read APIs for skills, hooks, plugins, apps, MCP status, config, account, models, and thread state; Resources consumes only the extension/MCP/agent-config surfaces.
+- Cursor CLI documents MCP listing and tool listing, while rules are file-backed project resources.
+- GitHub Copilot CLI documents MCP configuration in `~/.copilot/mcp-config.json` and `/mcp show`; GitHub also documents repository custom instructions, path-specific instructions, and `AGENTS.md`.
 
 ## Open Questions
 
@@ -68,6 +66,8 @@ Create a normalized `ProviderResource` model:
 - Should disabled or missing resources stay visible by default?
 - Which resource kinds should support one-click enable/disable versus terminal handoff?
 - How should conflicting versions of the same plugin or skill be shown?
+- Should Cursor MCP live status come from `cursor-agent mcp list` once we add a parser, or stay config-backed until the CLI output contract is fixture-backed?
+- Should Copilot `/mcp show` be run through an interactive/PTY bridge, or should we keep using `~/.copilot/mcp-config.json` for read-only inventory?
 
 ## Recommendation
 

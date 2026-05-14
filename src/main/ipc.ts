@@ -13,6 +13,7 @@ import { getAppProfile } from './appProfile'
 import { getProviderDiagnosticsAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
 import { resolveWorkspaceFileReference } from './workspaceResolver'
 import { discoverClaudeExtensions } from './claudeExtensions'
+import { listProviderResources } from './providerResources'
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   // App profile
@@ -98,6 +99,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('providers:getDiagnostics', (_, providerId?: string) => getProviderDiagnosticsAsync(providerId))
   ipcMain.handle('providers:runCommandSurface', (_, providerId: string, surfaceId: string) =>
     runProviderCommandSurfaceAsync(providerId, surfaceId)
+  )
+  ipcMain.handle('providers:listResources', (_, providerId?: string) =>
+    listProviderResources(providerId)
   )
   ipcMain.handle('providers:discoverClaudeExtensions', (_, workDir: string) =>
     discoverClaudeExtensions(workDir)

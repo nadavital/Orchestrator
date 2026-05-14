@@ -653,6 +653,39 @@ export interface ProviderCommandSurfaceResult {
   output: string
 }
 
+export type ProviderResourceKind =
+  | 'skill'
+  | 'plugin'
+  | 'app'
+  | 'mcp_server'
+  | 'mcp_tool'
+  | 'agent'
+  | 'hook'
+  | 'rule'
+  | 'command'
+
+export interface ProviderResource {
+  id: string
+  kind: ProviderResourceKind
+  providerId: string
+  source: string
+  name: string
+  description?: string
+  fingerprint: string
+  status: 'available' | 'enabled' | 'disabled' | 'missing' | 'error' | 'unknown'
+  scope: 'global' | 'project' | 'workspace' | 'session' | 'provider'
+  actions: Array<'refresh' | 'inspect' | 'open_config' | 'import' | 'migrate' | 'enable' | 'disable'>
+  raw?: unknown
+}
+
+export interface ProviderResourceSnapshot {
+  providerId: string
+  status: 'ok' | 'partial' | 'error'
+  lastRefreshedAt: number
+  resources: ProviderResource[]
+  errors: Array<{ surfaceId: string; message: string }>
+}
+
 export interface RunRequest {
   prompt: string
   cwd: string

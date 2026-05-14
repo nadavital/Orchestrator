@@ -16,6 +16,9 @@ import {
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
   type ProviderDiagnosticInfo,
+  type ProviderResource,
+  type ProviderResourceKind,
+  type ProviderResourceSnapshot,
   type ProviderRuntimeInfo
 } from '../types'
 import { useSessionStore } from '../store/sessions'
@@ -228,7 +231,6 @@ export default function SettingsPage({ section, onSectionChange, onClose }: Prop
           {section === 'pets' && <PetsSection />}
           {section === 'resources' && (
             <ResourcesSection
-              providerRuntime={providerRuntime}
               providerAvailability={providerAvailability}
               onOpenProviders={() => onSectionChange('providers')}
             />
@@ -735,82 +737,405 @@ const CODEX_SETTINGS_COMMAND_SURFACE_IDS = new Set([
   'appserver-auth-status'
 ])
 
-const RESOURCE_COMMAND_SURFACE_AREAS = new Set(['extensions', 'mcp', 'agents'])
-const RESOURCE_COMMAND_SURFACE_IDS = new Set([
-  'agents-list',
-  'mcp-list',
-  'mcp-details',
-  'plugin-list',
-  'appserver-skills',
-  'appserver-hooks',
-  'appserver-plugins',
-  'appserver-apps',
-  'appserver-mcp-status',
-  'appserver-external-agent-config'
-])
-
 function visibleSettingsCommandSurfaces(providerId: string, surfaces: ProviderCommandSurface[]): ProviderCommandSurface[] {
   if (providerId !== 'codex') return surfaces
   return surfaces.filter((surface) => CODEX_SETTINGS_COMMAND_SURFACE_IDS.has(surface.id))
 }
 
-function visibleResourceCommandSurfaces(surfaces: ProviderCommandSurface[]): ProviderCommandSurface[] {
-  return surfaces.filter((surface) =>
-    RESOURCE_COMMAND_SURFACE_IDS.has(surface.id) || RESOURCE_COMMAND_SURFACE_AREAS.has(surface.area)
-  )
-}
+const RESOURCE_PROVIDER_IDS = Object.keys(PROVIDER_DEFS)
 
 function ResourcesSection({
-  providerRuntime,
   providerAvailability,
+  onOpenProviders,
 }: {
-  providerRuntime: Record<string, ProviderRuntimeInfo>
   providerAvailability: Record<string, boolean>
   onOpenProviders: () => void
 }): JSX.Element {
-  const providerIds = Object.keys(PROVIDER_DEFS)
-  const [selectedId, setSelectedId] = useState(providerIds[0] ?? 'claude')
-  const provider = PROVIDER_DEFS[selectedId] ?? PROVIDER_DEFS.claude
-  const runtime = providerRuntime[selectedId]
-  const surfaces = visibleResourceCommandSurfaces(runtime?.registry.commandSurfaces ?? [])
+  const providerIds = RESOURCE_PROVIDER_IDS
+  const [snapshots, setSnapshots] = useState<Record<string, ProviderResourceSnapshot>>({})
+  const [loading, setLoading] = useState(false)
+
+  const refresh = useCallback(async (): Promise<void> => {
+    setLoading(true)
+    try {
+      await Promise.allSettled(providerIds.map(async (id) => {
+        const next = await window.api.providers.listResources(id)
+        setSnapshots((current) => ({ ...current, ...next }))
+      }))
+    } finally {
+      setLoading(false)
+    }
+  }, [providerIds])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  const allResources = Object.values(snapshots).flatMap((snapshot) => snapshot.resources)
+  const groups = mergeResourceGroups(allResources)
+  const providerCount = new Set(allResources.map((resource) => resource.providerId)).size
+  const errorCount = Object.values(snapshots).reduce((count, snapshot) => count + snapshot.errors.length, 0)
 
   return (
     <div style={{ padding: '30px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
       <SettingsIntro
         title="Resources"
-        description="Inspect MCP servers, apps, plugins, skills, hooks, and external agent configs from one place."
+        description="Inspect MCP servers, apps, plugins, skills, hooks, and external agent configs across providers from one place."
       />
-      <div style={{ display: 'grid', gridTemplateColumns: '210px minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
-        <ProviderSidePicker
-          providers={Object.values(PROVIDER_DEFS)}
-          selectedId={selectedId}
-          availability={providerAvailability}
-          onSelect={setSelectedId}
-        />
-        <div>
-          <ProviderHeaderCard
-            providerId={selectedId}
-            providerName={provider.name}
-            color={provider.color}
-            installed={providerAvailability[selectedId] !== false}
-            isDefault={false}
-            showDefaultControls={false}
-            installCmd={provider.installCmd}
-            onSetDefault={() => undefined}
+      <ResourceOverviewCard
+        resourceCount={allResources.length}
+        groupCount={groups.length}
+        providerCount={providerCount}
+        errorCount={errorCount}
+      />
+      <SettingsPanel>
+        <CompactSetting title="Coverage">
+          <ResourceProviderCoverage
+            providerIds={providerIds}
+            snapshots={snapshots}
+            availability={providerAvailability}
+            onOpenProviders={onOpenProviders}
           />
-          <SettingsPanel>
-            <CompactSetting title="Surfaces">
-              {surfaces.length > 0 ? (
-                <ProviderCommandSurfaces providerId={selectedId} color={provider.color} surfaces={surfaces} />
-              ) : (
-                <InlineMutedText>No resource surfaces are exposed by this provider runtime yet.</InlineMutedText>
-              )}
-            </CompactSetting>
-          </SettingsPanel>
-        </div>
-      </div>
+        </CompactSetting>
+        <CompactSetting title="Inventory">
+          <ResourceInventory
+            groups={groups}
+            loading={loading}
+            snapshots={snapshots}
+            onRefresh={() => void refresh()}
+            onOpenProviders={onOpenProviders}
+          />
+        </CompactSetting>
+      </SettingsPanel>
     </div>
   )
+}
+
+function ResourceOverviewCard({
+  resourceCount,
+  groupCount,
+  providerCount,
+  errorCount
+}: {
+  resourceCount: number
+  groupCount: number
+  providerCount: number
+  errorCount: number
+}): JSX.Element {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        gap: 8,
+        padding: 14,
+        borderRadius: 10,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
+        marginBottom: 18
+      }}
+    >
+      <ResourceStat label="Resources" value={resourceCount} />
+      <ResourceStat label="Merged" value={groupCount} />
+      <ResourceStat label="Providers" value={providerCount} />
+      <ResourceStat label="Issues" value={errorCount} tone={errorCount > 0 ? '#EF4444' : 'var(--color-green)'} />
+    </div>
+  )
+}
+
+function ResourceStat({ label, value, tone = 'var(--color-text)' }: { label: string; value: number; tone?: string }): JSX.Element {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 750, textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ color: tone, fontSize: 18, fontWeight: 750, marginTop: 2 }}>{value.toLocaleString()}</div>
+    </div>
+  )
+}
+
+function ResourceProviderCoverage({
+  providerIds,
+  snapshots,
+  availability,
+  onOpenProviders
+}: {
+  providerIds: string[]
+  snapshots: Record<string, ProviderResourceSnapshot>
+  availability: Record<string, boolean>
+  onOpenProviders: () => void
+}): JSX.Element {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+      {providerIds.map((id) => {
+        const provider = PROVIDER_DEFS[id]
+        const snapshot = snapshots[id]
+        const missing = availability[id] === false
+        const issueCount = snapshot?.errors.length ?? 0
+        return (
+          <button
+            key={id}
+            onClick={missing || issueCount > 0 ? onOpenProviders : undefined}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              minWidth: 0,
+              padding: '8px 9px',
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              cursor: missing || issueCount > 0 ? 'pointer' : 'default',
+              textAlign: 'left'
+            }}
+          >
+            <ProviderIcon providerId={provider.id} size={15} color={provider.color} />
+            <span className="truncate" style={{ minWidth: 0, flex: 1, fontSize: 12, fontWeight: 700 }}>
+              {provider.name}
+            </span>
+            <span
+              style={{
+                color: missing || issueCount > 0 ? '#EF4444' : provider.color,
+                fontSize: 10,
+                fontWeight: 800
+              }}
+            >
+              {missing ? 'Missing' : issueCount > 0 ? `${issueCount} issue${issueCount === 1 ? '' : 's'}` : snapshot ? snapshot.resources.length : '...'}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+type ResourceGroup = {
+  fingerprint: string
+  kind: ProviderResourceKind
+  name: string
+  description?: string
+  status: ProviderResource['status']
+  resources: ProviderResource[]
+}
+
+function ResourceInventory({
+  groups,
+  loading,
+  snapshots,
+  onRefresh,
+  onOpenProviders
+}: {
+  groups: ResourceGroup[]
+  loading: boolean
+  snapshots: Record<string, ProviderResourceSnapshot>
+  onRefresh: () => void
+  onOpenProviders: () => void
+}): JSX.Element {
+  const grouped = groupResourcesByKind(groups)
+  const errors = Object.values(snapshots).flatMap((snapshot) =>
+    snapshot.errors.map((error) => ({ ...error, providerId: snapshot.providerId }))
+  )
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+          {loading ? 'Refreshing provider inventory...' : `${groups.length.toLocaleString()} grouped resource${groups.length === 1 ? '' : 's'}`}
+        </div>
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '7px 11px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--control-bg)',
+            color: loading ? 'var(--color-text-muted)' : 'var(--color-text)',
+            cursor: loading ? 'default' : 'pointer',
+            fontSize: 12,
+            fontWeight: 650
+          }}
+        >
+          <Icon name="refresh" size={13} />
+          Refresh
+        </button>
+      </div>
+
+      {errors.length > 0 && (
+        <div
+          style={{
+            padding: 10,
+            borderRadius: 8,
+            border: '1px solid rgba(239,68,68,0.28)',
+            background: 'rgba(239,68,68,0.06)',
+            color: '#EF4444',
+            fontSize: 12,
+            lineHeight: 1.45
+          }}
+        >
+          {errors.length} resource surface{errors.length === 1 ? '' : 's'} could not refresh. Check provider setup or diagnostics.
+          <button
+            onClick={onOpenProviders}
+            style={{ marginLeft: 8, color: '#EF4444', fontWeight: 750, textDecoration: 'underline' }}
+          >
+            Open providers
+          </button>
+        </div>
+      )}
+
+      {groups.length === 0 ? (
+        <div
+          style={{
+            padding: 14,
+            borderRadius: 8,
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+            color: 'var(--color-text-muted)',
+            fontSize: 12
+          }}
+        >
+          {loading ? 'Loading resources...' : 'No provider resources were discovered yet.'}
+        </div>
+      ) : (
+        Object.entries(grouped).map(([kind, items]) => (
+          <div key={kind} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{ color: 'var(--color-text)', fontSize: 12, fontWeight: 800 }}>
+              {resourceKindLabel(kind as ProviderResourceKind)}
+              <span style={{ color: 'var(--color-text-muted)', marginLeft: 6, fontWeight: 700 }}>{items.length}</span>
+            </div>
+            {items.map((group) => <ResourceRow key={group.fingerprint} group={group} />)}
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+function ResourceRow({ group }: { group: ResourceGroup }): JSX.Element {
+  const tone = resourceStatusTone(group.status)
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        padding: 10,
+        borderRadius: 8,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
+        minWidth: 0
+      }}
+    >
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: tone, marginTop: 5, flexShrink: 0 }} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="truncate" style={{ color: 'var(--color-text)', fontSize: 12.5, fontWeight: 750 }} title={group.name}>
+          {group.name}
+        </div>
+        {group.description && (
+          <div style={{ color: 'var(--color-text-muted)', fontSize: 11, lineHeight: 1.35, overflowWrap: 'anywhere' }}>
+            {group.description}
+          </div>
+        )}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
+          {group.resources.map((resource) => {
+            const provider = PROVIDER_DEFS[resource.providerId]
+            return (
+              <span
+                key={resource.id}
+                title={`${provider?.name ?? resource.providerId} · ${resource.source}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '3px 7px',
+                  borderRadius: 'var(--radius-pill)',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--control-bg)',
+                  color: provider?.color ?? 'var(--color-text-muted)',
+                  fontSize: 10,
+                  fontWeight: 750
+                }}
+              >
+                {provider && <ProviderIcon providerId={provider.id} size={11} color={provider.color} />}
+                {provider?.name ?? resource.providerId}
+              </span>
+            )
+          })}
+        </div>
+      </div>
+      <span
+        className="shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase"
+        style={{
+          color: tone,
+          background: 'var(--color-surface2)',
+          border: '1px solid var(--color-border)'
+        }}
+      >
+        {group.status}
+      </span>
+    </div>
+  )
+}
+
+function mergeResourceGroups(resources: ProviderResource[]): ResourceGroup[] {
+  const groups = new Map<string, ResourceGroup>()
+  for (const resource of resources) {
+    const current = groups.get(resource.fingerprint)
+    if (!current) {
+      groups.set(resource.fingerprint, {
+        fingerprint: resource.fingerprint,
+        kind: resource.kind,
+        name: resource.name,
+        description: resource.description,
+        status: resource.status,
+        resources: [resource]
+      })
+      continue
+    }
+    current.resources.push(resource)
+    current.description = current.description ?? resource.description
+    current.status = mergeResourceStatus(current.status, resource.status)
+  }
+  return [...groups.values()].sort((a, b) => {
+    const kindCompare = resourceKindLabel(a.kind).localeCompare(resourceKindLabel(b.kind))
+    if (kindCompare !== 0) return kindCompare
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  })
+}
+
+function groupResourcesByKind(groups: ResourceGroup[]): Record<string, ResourceGroup[]> {
+  return groups.reduce<Record<string, ResourceGroup[]>>((current, group) => {
+    const label = group.kind
+    current[label] = [...(current[label] ?? []), group]
+    return current
+  }, {})
+}
+
+function mergeResourceStatus(a: ProviderResource['status'], b: ProviderResource['status']): ProviderResource['status'] {
+  const rank: ProviderResource['status'][] = ['enabled', 'available', 'unknown', 'disabled', 'missing', 'error']
+  return rank.indexOf(a) <= rank.indexOf(b) ? a : b
+}
+
+function resourceStatusTone(status: ProviderResource['status']): string {
+  if (status === 'enabled' || status === 'available') return 'var(--color-green)'
+  if (status === 'disabled' || status === 'unknown') return 'var(--color-text-muted)'
+  return '#EF4444'
+}
+
+function resourceKindLabel(kind: ProviderResourceKind): string {
+  const labels: Record<ProviderResourceKind, string> = {
+    skill: 'Skills',
+    plugin: 'Plugins',
+    app: 'Apps',
+    mcp_server: 'MCP Servers',
+    mcp_tool: 'MCP Tools',
+    agent: 'Agents',
+    hook: 'Hooks',
+    rule: 'Rules',
+    command: 'Commands'
+  }
+  return labels[kind]
 }
 
 function ProviderSidePicker({
