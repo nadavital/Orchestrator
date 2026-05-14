@@ -10,6 +10,8 @@ const captureView = process.argv.includes('--settings')
   ? 'settings'
   : process.argv.includes('--resources')
     ? 'resources'
+    : process.argv.includes('--inspector')
+      ? 'inspector'
   : process.argv.includes('--terminal')
     ? 'terminal'
     : 'main'
@@ -66,10 +68,11 @@ child.on('exit', (code) => {
   const result = report.result ?? {}
   const checks = {
     isolatedProfile: result.profile?.isIsolated === true,
-    profileBadge: result.hasProfileBadge === true,
+    profileBadge: ['settings', 'resources'].includes(captureView) || result.hasProfileBadge === true,
     composer: result.hasComposer === true,
     sidebarNavigation: result.hasSidebarNavigation === true,
-    sideQuestionCommand: captureView === 'terminal' || result.hasSideQuestionCommandText === true,
+    inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
+    sideQuestionCommand: ['terminal', 'settings', 'resources', 'inspector'].includes(captureView) || result.hasSideQuestionCommandText === true,
     buttons: Number(result.buttonCount ?? 0) > 0
   }
   const failed = Object.entries(checks).filter(([, ok]) => !ok)

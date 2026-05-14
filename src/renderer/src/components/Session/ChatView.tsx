@@ -37,6 +37,13 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
   const lastMessage = session.messages[session.messages.length - 1]
   const lastTextLength = lastMessage?.type === 'text' ? lastMessage.content.length : 0
+  const lastAssistantTextId = useMemo(() => {
+    for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+      const message = session.messages[index]
+      if (message.type === 'text' && message.role === 'assistant' && message.content.trim()) return message.id
+    }
+    return null
+  }, [session.messages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -97,7 +104,15 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
         {transcriptItems.map((item) => (
           item.type === 'tool_group'
             ? <ToolActivitySummary key={item.id} messages={item.messages} />
-            : <MessageRow key={item.message.id} msg={item.message} session={session} fileReferenceRoots={fileReferenceRoots} />
+            : (
+              <MessageRow
+                key={item.message.id}
+                msg={item.message}
+                session={session}
+                fileReferenceRoots={fileReferenceRoots}
+                canCopy={item.message.id === lastAssistantTextId}
+              />
+            )
         ))}
         {session.status === 'running' && <ThinkingIndicator />}
         <div ref={bottomRef} />
@@ -180,11 +195,10 @@ function CopyButton({ getText }: { getText: () => string }): JSX.Element {
 
 function makeMarkdownComponents(isUser: boolean): Components {
   return {
-    // Code blocks with copy button
+    // Code blocks
     code({ className, children, ...props }) {
       const isBlock = className?.startsWith('language-')
       const lang = className?.replace('language-', '') ?? ''
-      const code = String(children).replace(/\n$/, '')
       if (!isBlock) {
         return (
           <code
@@ -209,7 +223,7 @@ function makeMarkdownComponents(isUser: boolean): Components {
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              justifyContent: 'flex-start',
               minWidth: 0,
               padding: '4px 10px',
               background: 'var(--color-surface)',
@@ -220,7 +234,6 @@ function makeMarkdownComponents(isUser: boolean): Components {
             <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
               {lang || 'code'}
             </span>
-            <CopyButton getText={() => code} />
           </div>
           <pre
             style={{
@@ -360,7 +373,17 @@ function makeMarkdownComponents(isUser: boolean): Components {
 const assistantComponents = makeMarkdownComponents(false)
 const userComponents = makeMarkdownComponents(true)
 
-function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; session: Session; fileReferenceRoots: string[] }): JSX.Element | null {
+function MessageRow({
+  msg,
+  session,
+  fileReferenceRoots,
+  canCopy
+}: {
+  msg: ChatMessage
+  session: Session
+  fileReferenceRoots: string[]
+  canCopy: boolean
+}): JSX.Element | null {
   if (msg.type === 'text') {
     const isUser = msg.role === 'user'
     const isSystem = msg.role === 'system'
@@ -445,15 +468,17 @@ function MessageRow({ msg, session, fileReferenceRoots }: { msg: ChatMessage; se
               </div>
             )}
           </div>
-          <div
-            style={{
-              position: 'absolute',
-              top: isUser ? 6 : 2,
-              right: isUser ? 6 : 0
-            }}
-          >
-            <CopyButton getText={() => content} />
-          </div>
+          {canCopy && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 2,
+                right: 0
+              }}
+            >
+              <CopyButton getText={() => content} />
+            </div>
+          )}
         </div>
       </div>
     )

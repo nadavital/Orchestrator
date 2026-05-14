@@ -4,7 +4,18 @@ import type { AppProfile } from '../env'
 import Icon from './shared/Icon'
 
 export default function Titlebar(): JSX.Element {
-  const { sessions, activeSessionId, uiState, setShowTerminal } = useSessionStore()
+  const {
+    sessions,
+    activeSessionId,
+    uiState,
+    setShowTerminal,
+    setShowDiff,
+    setShowEvents,
+    setShowExtensions,
+    setShowPlan,
+    setShowSideQuestions,
+    setShowUsage
+  } = useSessionStore()
   const session = sessions.find((s) => s.id === activeSessionId)
   const ui = activeSessionId
     ? (uiState[activeSessionId] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, showUsage: false, hasUnread: false })
@@ -14,6 +25,21 @@ export default function Titlebar(): JSX.Element {
   useEffect(() => {
     window.api.app.getProfile().then(setProfile).catch(() => setProfile(null))
   }, [])
+
+  const inspectorOpen = Boolean(ui?.showDiff || ui?.showPlan || ui?.showEvents || ui?.showSideQuestions || ui?.showUsage)
+  const toggleInspector = (): void => {
+    if (!activeSessionId) return
+    if (inspectorOpen) {
+      setShowDiff(activeSessionId, false)
+      setShowPlan(activeSessionId, false)
+      setShowEvents(activeSessionId, false)
+      setShowExtensions(activeSessionId, false)
+      setShowSideQuestions(activeSessionId, false)
+      setShowUsage(activeSessionId, false)
+    } else {
+      setShowDiff(activeSessionId, true)
+    }
+  }
 
   return (
     <div
@@ -72,6 +98,13 @@ export default function Titlebar(): JSX.Element {
       >
         {session && ui && (
           <>
+            <TitleBtn
+              active={inspectorOpen}
+              onClick={toggleInspector}
+              title="Toggle sidebar"
+            >
+              <Icon name="diff" size={14} />
+            </TitleBtn>
             <TitleBtn
               active={ui.showTerminal}
               onClick={() => setShowTerminal(activeSessionId!, !ui.showTerminal)}

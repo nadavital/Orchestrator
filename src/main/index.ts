@@ -86,12 +86,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await window.api.projects.addSession(project.id, session.id);
           }
           await sleep(900);
-          const bodyText = document.body.innerText;
-          const buttons = [...document.querySelectorAll('button')].map((button) => ({
-            text: button.textContent?.trim() ?? '',
-            title: button.getAttribute('title') ?? '',
-            label: button.getAttribute('aria-label') ?? ''
-          }));
           const textarea = document.querySelector('textarea');
           textarea?.focus();
           if (textarea) {
@@ -117,6 +111,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalButton?.click();
             await sleep(700);
           }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
+            const sidebarButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Toggle sidebar');
+            sidebarButton?.click();
+            await sleep(700);
+          }
+          const bodyText = document.body.innerText;
+          const buttons = [...document.querySelectorAll('button')].map((button) => ({
+            text: button.textContent?.trim() ?? '',
+            title: button.getAttribute('title') ?? '',
+            label: button.getAttribute('aria-label') ?? ''
+          }));
           return {
             profile,
             title: document.title,
@@ -126,9 +132,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             hasSidebarNavigation: buttons.some((button) =>
               button.title === 'Settings' ||
               button.label === 'Settings' ||
+              button.text === 'Settings' ||
               button.label === 'Resources' ||
               button.text.includes('Resources')
             ),
+            hasInspectorTabs: bodyText.includes('Changes') && bodyText.includes('Plan') && bodyText.includes('Agents'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),
             buttonCount: buttons.length,
             buttons: buttons.slice(0, 30)

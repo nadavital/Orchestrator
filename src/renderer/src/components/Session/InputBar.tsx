@@ -23,8 +23,8 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     setShowEvents,
     setShowPlan,
     setShowSettings,
+    setSettingsSection,
     setShowSideQuestions,
-    setShowExtensions,
     setShowTerminal,
     appendSideQuestion,
     updateSideQuestion
@@ -311,7 +311,10 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       if (command.id === 'diff') setShowDiff(session.id, !currentUi.showDiff)
       if (command.id === 'plan-sidebar') setShowPlan(session.id, !currentUi.showPlan)
       if (command.id === 'agents') setShowEvents(session.id, !currentUi.showEvents)
-      if (command.id === 'skills' || command.id === 'extensions') setShowExtensions(session.id, !currentUi.showExtensions)
+      if (command.id === 'skills' || command.id === 'extensions') {
+        setSettingsSection('resources')
+        setShowSettings(true)
+      }
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)
       if (command.id === 'btw') setShowSideQuestions(session.id, true)
       if (command.id === 'pet') {
@@ -357,7 +360,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     <div
       className="shrink-0 px-6 py-3"
       style={{
-        borderTop: isNew ? 'none' : '1px solid var(--border-subtle)',
         background: 'var(--canvas-bg)'
       }}
     >

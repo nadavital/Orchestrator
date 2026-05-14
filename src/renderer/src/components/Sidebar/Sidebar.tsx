@@ -1,11 +1,8 @@
 import type { Project } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
-import type { SettingsSection } from '../../store/sessions'
-import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import ProjectSection from './ProjectSection'
 import Icon from '../shared/Icon'
-import { deriveSessionAgentNodes } from '../Session/agentNodes'
 
 export async function pickAndAddProject(addProject: (p: Project) => void): Promise<void> {
   const dir = await window.api.dialog.openDirectory()
@@ -19,32 +16,11 @@ export default function Sidebar(): JSX.Element {
   const { projects, addProject } = useProjectStore()
   const {
     sessions,
-    activeSessionId,
-    eventBuffers,
-    uiState,
     showSettings,
     settingsSection,
     setSettingsSection,
-    setShowSettings,
-    setShowDiff,
-    setShowEvents,
-    setShowExtensions,
-    setShowPlan,
-    setShowSideQuestions,
-    setShowUsage
+    setShowSettings
   } = useSessionStore()
-  const activeSession = sessions.find((session) => session.id === activeSessionId)
-  const activeUi = activeSession ? uiState[activeSession.id] : undefined
-  const activeEvents = activeSession ? eventBuffers[activeSession.id] ?? [] : []
-  const plans = activeSession
-    ? [
-        ...derivePlanStatesFromMessages(activeSession, activeSession.messages),
-        ...derivePlanStates(activeSession, activeEvents)
-      ]
-    : []
-  const agents = activeSession ? deriveSessionAgentNodes(activeSession, activeEvents) : []
-  const sideQuestionCount = activeUi?.sideQuestions?.length ?? 0
-  const hasSessionHistory = Boolean(activeSession && (activeSession.messages.length > 0 || activeSession.status !== 'idle'))
 
   const handleAddProject = (): void => {
     pickAndAddProject(addProject)
@@ -125,61 +101,6 @@ export default function Sidebar(): JSX.Element {
           </div>
 
           <div className="flex-1 overflow-y-auto px-2.5 py-1">
-            {activeSession && (
-              <div className="mb-3">
-                <SidebarSectionLabel>Context</SidebarSectionLabel>
-                {(plans.length > 0 || activeUi?.showPlan) && (
-                  <SidebarNavItem
-                    icon="plan"
-                    label="Plan"
-                    detail={`${plans.at(-1)?.items.length ?? 0} tasks`}
-                    active={activeUi?.showPlan === true}
-                    onClick={() => setShowPlan(activeSession.id, !activeUi?.showPlan)}
-                  />
-                )}
-                {(agents.length > 0 || activeUi?.showEvents) && (
-                  <SidebarNavItem
-                    icon="agents"
-                    label="Agents"
-                    detail={`${agents.length} ${agents.length === 1 ? 'agent' : 'agents'}`}
-                    active={activeUi?.showEvents === true}
-                    onClick={() => setShowEvents(activeSession.id, !activeUi?.showEvents)}
-                  />
-                )}
-                {hasSessionHistory && (
-                  <SidebarNavItem
-                    icon="diff"
-                    label="Changes"
-                    active={activeUi?.showDiff === true}
-                    onClick={() => setShowDiff(activeSession.id, !activeUi?.showDiff)}
-                  />
-                )}
-                <SidebarNavItem
-                  icon="extensions"
-                  label="Resources"
-                  detail={activeSession.provider}
-                  active={activeUi?.showExtensions === true}
-                  onClick={() => setShowExtensions(activeSession.id, !activeUi?.showExtensions)}
-                />
-                {(sideQuestionCount > 0 || activeUi?.showSideQuestions) && (
-                  <SidebarNavItem
-                    icon="chat"
-                    label="Side questions"
-                    detail={`${sideQuestionCount}`}
-                    active={activeUi?.showSideQuestions === true}
-                    onClick={() => setShowSideQuestions(activeSession.id, !activeUi?.showSideQuestions)}
-                  />
-                )}
-                {(activeSession.usageSummary || activeUi?.showUsage) && (
-                  <SidebarNavItem
-                    icon="usage"
-                    label="Usage"
-                    active={activeUi?.showUsage === true}
-                    onClick={() => setShowUsage(activeSession.id, !activeUi?.showUsage)}
-                  />
-                )}
-              </div>
-            )}
             {projects.map((project) => {
               const projectSessions = sessions.filter((s) => s.projectId === project.id)
               return (
@@ -221,14 +142,6 @@ export default function Sidebar(): JSX.Element {
         </button>
       </div>
     </aside>
-  )
-}
-
-function SidebarSectionLabel({ children }: { children: React.ReactNode }): JSX.Element {
-  return (
-    <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-normal" style={{ color: 'var(--text-tertiary)' }}>
-      {children}
-    </div>
   )
 }
 
