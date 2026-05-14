@@ -2510,20 +2510,26 @@ function PetsSection(): JSX.Element {
   }
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 640 }}>
-      <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)', marginBottom: 24 }}>Pets</h2>
+    <div style={{ padding: '30px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
+      <SettingsIntro
+        title="Pets"
+        description="Choose the overlay companion and import local or Codex-compatible pet bundles."
+      />
 
       {/* Toggle */}
       <SettingGroup title="Pet overlay" description="Floating companion that shows session activity above all windows.">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div
+          <button
+            type="button"
+            aria-pressed={isOpen}
             onClick={handleToggleOpen}
             style={{
               width: 40, height: 22, borderRadius: 11, cursor: 'pointer', position: 'relative',
-              background: isOpen ? 'var(--color-accent)' : 'var(--color-surface2)',
-              border: `1px solid ${isOpen ? 'var(--color-accent)' : 'var(--color-border)'}`,
+              background: isOpen ? 'var(--color-accent)' : 'var(--control-bg)',
+              border: `1px solid ${isOpen ? 'var(--color-accent)' : 'var(--border-subtle)'}`,
               transition: 'background 0.15s',
               flexShrink: 0,
+              padding: 0
             }}
           >
             <div style={{
@@ -2531,7 +2537,7 @@ function PetsSection(): JSX.Element {
               width: 16, height: 16, borderRadius: '50%', background: '#fff',
               transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
             }} />
-          </div>
+          </button>
           <span style={{ fontSize: 12, color: isOpen ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
             {isOpen ? 'Enabled' : 'Disabled'}
           </span>
@@ -2540,21 +2546,25 @@ function PetsSection(): JSX.Element {
 
       {/* Pet picker */}
       <SettingGroup title="Choose your pet" description="Select which companion appears in the overlay.">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))', gap: 12 }}>
           {pets.map((pet) => {
             const active = pet.id === selectedPetId
             return (
-              <div
+              <button
+                type="button"
                 key={pet.id}
                 onClick={() => handleSelect(pet.id)}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                  padding: '12px 16px', borderRadius: 12, cursor: 'pointer', minWidth: 120,
-                  background: active ? 'var(--color-surface2)' : 'var(--color-surface)',
-                  border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                  padding: '12px 14px', borderRadius: 'var(--radius-lg)', cursor: 'pointer',
+                  minHeight: 164,
+                  background: active ? 'var(--control-bg-active)' : 'var(--surface-bg)',
+                  border: `1px solid ${active ? 'var(--color-accent)' : 'var(--border-subtle)'}`,
+                  boxShadow: active ? 'var(--shadow-card)' : 'none',
+                  textAlign: 'center'
                 }}
-                onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--color-surface2)' }}
-                onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'var(--color-surface)' }}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--control-bg-hover)' }}
+                onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'var(--surface-bg)' }}
               >
                 {/* Idle frame thumbnail */}
                 <div
@@ -2566,19 +2576,35 @@ function PetsSection(): JSX.Element {
                     backgroundPosition: '0% 0%',
                     backgroundRepeat: 'no-repeat',
                     imageRendering: 'pixelated',
+                    flexShrink: 0
                   }}
                 />
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>
                     {pet.displayName}
                   </div>
                   {active && (
                     <div style={{ fontSize: 10, color: 'var(--color-accent)', marginTop: 2 }}>Selected</div>
                   )}
                 </div>
-              </div>
+              </button>
             )
           })}
+          {pets.length === 0 && (
+            <div
+              style={{
+                gridColumn: '1 / -1',
+                padding: 14,
+                borderRadius: 'var(--radius-lg)',
+                background: 'var(--surface-bg)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-secondary)',
+                fontSize: 12
+              }}
+            >
+              No pets are available yet.
+            </div>
+          )}
         </div>
       </SettingGroup>
 
@@ -2589,8 +2615,8 @@ function PetsSection(): JSX.Element {
             onClick={handleImportCodexPets}
             disabled={importingCodex}
             style={{
-              padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              padding: '7px 14px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              background: 'var(--control-bg)', border: '1px solid var(--border-subtle)',
               color: importingCodex ? 'var(--color-text-muted)' : 'var(--color-text)',
             }}
           >
@@ -2600,8 +2626,8 @@ function PetsSection(): JSX.Element {
             onClick={handleImport}
             disabled={importing}
             style={{
-              padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer',
-              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              padding: '7px 14px', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              background: 'var(--control-bg)', border: '1px solid var(--border-subtle)',
               color: importing ? 'var(--color-text-muted)' : 'var(--color-text)',
             }}
           >
