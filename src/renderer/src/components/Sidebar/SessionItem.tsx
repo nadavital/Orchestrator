@@ -62,7 +62,7 @@ export default function SessionItem({ session }: Props): JSX.Element {
         background: isActive ? 'var(--control-bg)' : 'transparent',
         border: '1px solid transparent',
         borderRadius: 'var(--radius-md)',
-        padding: '7px 8px 7px 30px'
+        padding: '5px 7px 5px 28px'
       }}
       onClick={handleClick}
       onMouseEnter={(e) => {
@@ -72,7 +72,7 @@ export default function SessionItem({ session }: Props): JSX.Element {
         if (!isActive) e.currentTarget.style.background = 'transparent'
       }}
     >
-      <div className="mt-2 shrink-0 flex items-center justify-center" style={{ width: 12 }}>
+      <div className="mt-1.5 shrink-0 flex items-center justify-center" style={{ width: 11 }}>
         <div
           className="rounded-full"
           style={{
@@ -89,11 +89,11 @@ export default function SessionItem({ session }: Props): JSX.Element {
         />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+        <div className="text-[13px] font-medium truncate leading-5" style={{ color: 'var(--text-primary)' }}>
           {session.name}
         </div>
         {preview && (
-          <div className="text-xs truncate mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+          <div className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
             {preview}
           </div>
         )}

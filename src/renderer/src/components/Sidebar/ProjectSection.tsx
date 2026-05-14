@@ -56,12 +56,12 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   }
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div style={{ marginBottom: 8 }}>
       {/* Project header */}
       <div
         className="group flex items-center gap-2 cursor-pointer select-none"
         style={{
-          padding: '7px 8px',
+          padding: '5px 7px',
           borderRadius: 'var(--radius-md)',
           color: 'var(--text-secondary)'
         }}
@@ -74,7 +74,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
         <span className="shrink-0 transition-transform" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
           <Icon name="chevronDown" size={12} />
         </span>
-        <Icon name="folder" size={15} />
+        <Icon name="folder" size={14} />
         <span className="flex-1 truncate text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
           {project.name}
         </span>
@@ -97,11 +97,11 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
 
       {/* Sessions */}
       {!collapsed && (
-        <div className="space-y-0.5">
+        <div className="space-y-px">
           {sessions.length === 0 && (
             <div
               className="cursor-pointer"
-              style={{ color: 'var(--text-secondary)', padding: '7px 10px 7px 31px', fontSize: 13 }}
+              style={{ color: 'var(--text-secondary)', padding: '5px 8px 5px 29px', fontSize: 13 }}
               onClick={handleNewSession}
             >
               New chat

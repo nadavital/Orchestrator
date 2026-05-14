@@ -24,7 +24,7 @@ export default function Sidebar(): JSX.Element {
     <aside
       className="flex flex-col overflow-hidden shrink-0"
       style={{
-        width: 302,
+        width: 282,
         background: 'var(--panel-bg)',
         backdropFilter: 'blur(22px)',
         WebkitBackdropFilter: 'blur(22px)'
@@ -32,11 +32,11 @@ export default function Sidebar(): JSX.Element {
     >
       <div
         className="shrink-0"
-        style={{ height: 74, WebkitAppRegion: 'drag' } as React.CSSProperties}
+        style={{ height: 64, WebkitAppRegion: 'drag' } as React.CSSProperties}
       />
 
       {/* Project list */}
-      <div className="flex items-center justify-between px-5 pb-2">
+      <div className="flex items-center justify-between px-4 pb-1">
         <span className="text-sm" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
           Projects
         </span>
@@ -58,7 +58,7 @@ export default function Sidebar(): JSX.Element {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-1">
+      <div className="flex-1 overflow-y-auto px-2.5 py-1">
         {projects.map((project) => {
           const projectSessions = sessions.filter((s) => s.projectId === project.id)
           return (
@@ -73,7 +73,7 @@ export default function Sidebar(): JSX.Element {
 
       {/* Footer */}
       <div
-        className="shrink-0 px-3 py-3"
+        className="shrink-0 px-2.5 py-2.5"
       >
         <button
           onClick={() => setShowSettings(true)}
@@ -82,7 +82,7 @@ export default function Sidebar(): JSX.Element {
             color: 'var(--text-secondary)',
             background: 'transparent',
             borderRadius: 'var(--radius-lg)',
-            padding: '10px 12px'
+            padding: '8px 10px'
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'var(--control-bg-hover)'
