@@ -18,7 +18,6 @@ interface SessionUIState {
   showTerminal: boolean
   showExtensions: boolean
   showSideQuestions: boolean
-  showUsage: boolean
   hasUnread: boolean
   activeAgentId?: string | null
   agentTabIds?: string[]
@@ -62,7 +61,6 @@ interface SessionState {
   setShowEvents: (id: string, v: boolean) => void
   setShowTerminal: (id: string, v: boolean) => void
   setShowExtensions: (id: string, v: boolean) => void
-  setShowUsage: (id: string, v: boolean) => void
   setActiveAgent: (id: string, agentId: string | null) => void
   closeAgentTab: (id: string, agentId: string) => void
   appendSideQuestion: (id: string, message: SideQuestionMessage) => void
@@ -86,7 +84,6 @@ const defaultUI: SessionUIState = {
   showTerminal: false,
   showExtensions: false,
   showSideQuestions: false,
-  showUsage: false,
   hasUnread: false,
   activeAgentId: null,
   agentTabIds: [],
@@ -165,8 +162,7 @@ export const useSessionStore = create<SessionState>((set) => ({
           showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
           showExtensions: v ? false : (s.uiState[id]?.showExtensions ?? false),
-          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false),
-          showUsage: v ? false : (s.uiState[id]?.showUsage ?? false)
+          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false)
         }
       }
     })),
@@ -181,8 +177,7 @@ export const useSessionStore = create<SessionState>((set) => ({
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
           showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
           showExtensions: v ? false : (s.uiState[id]?.showExtensions ?? false),
-          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false),
-          showUsage: v ? false : (s.uiState[id]?.showUsage ?? false)
+          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false)
         }
       }
     })),
@@ -197,8 +192,7 @@ export const useSessionStore = create<SessionState>((set) => ({
           showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
           showExtensions: v ? false : (s.uiState[id]?.showExtensions ?? false),
-          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false),
-          showUsage: v ? false : (s.uiState[id]?.showUsage ?? false)
+          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false)
         }
       }
     })),
@@ -218,8 +212,7 @@ export const useSessionStore = create<SessionState>((set) => ({
           showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
           showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
-          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false),
-          showUsage: v ? false : (s.uiState[id]?.showUsage ?? false)
+          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false)
         }
       }
     })),
@@ -236,28 +229,8 @@ export const useSessionStore = create<SessionState>((set) => ({
             showPlan: v ? false : current.showPlan,
             showDiff: v ? false : current.showDiff,
             showEvents: v ? false : current.showEvents,
-            showUsage: v ? false : current.showUsage,
             sideQuestions: current.sideQuestions ?? [],
             showSideQuestions: v
-          }
-        }
-      }
-    }),
-
-  setShowUsage: (id, v) =>
-    set((s) => {
-      const current = s.uiState[id] ?? defaultUI
-      return {
-        uiState: {
-          ...s.uiState,
-          [id]: {
-            ...current,
-            showExtensions: v ? false : current.showExtensions,
-            showPlan: v ? false : current.showPlan,
-            showDiff: v ? false : current.showDiff,
-            showEvents: v ? false : current.showEvents,
-            showSideQuestions: v ? false : current.showSideQuestions,
-            showUsage: v
           }
         }
       }
@@ -282,7 +255,6 @@ export const useSessionStore = create<SessionState>((set) => ({
             showDiff: false,
             showExtensions: false,
             showSideQuestions: false,
-            showUsage: false,
             agentTabIds
           }
         })()
@@ -321,7 +293,6 @@ export const useSessionStore = create<SessionState>((set) => ({
             showDiff: false,
             showEvents: false,
             showExtensions: false,
-            showUsage: false,
             showSideQuestions: true,
             sideQuestions: [...(current.sideQuestions ?? []), message]
           }

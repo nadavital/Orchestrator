@@ -1,21 +1,38 @@
 import { useSessionStore } from '../../store/sessions'
-import type { Session } from '../../types'
+import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
+import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
 import DiffPanel from './DiffPanel'
 import EventInspectorPanel from './EventInspectorPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
-import UsagePanel from './UsagePanel'
 import Icon from '../shared/Icon'
+import { deriveSessionAgentNodes } from './agentNodes'
 
-export type ContextTab = 'plan' | 'diff' | 'agents' | 'usage' | 'side'
+export type ContextTab = 'plan' | 'diff' | 'agents' | 'side'
 
 interface Props {
   session: Session
 }
 
 export default function ContextSidebar({ session }: Props): JSX.Element | null {
-  const { uiState, setShowDiff, setShowEvents, setShowPlan, setShowExtensions, setShowSideQuestions, setShowUsage } = useSessionStore()
+  const { eventBuffers, uiState, setShowDiff, setShowEvents, setShowPlan, setShowExtensions, setShowSideQuestions } = useSessionStore()
   const ui = uiState[session.id]
+  const events = eventBuffers[session.id] ?? []
+  const plans = [
+    ...derivePlanStatesFromMessages(session, session.messages),
+    ...derivePlanStates(session, events)
+  ]
+  const agents = deriveSessionAgentNodes(session, events)
+  const hasPlan = plans.length > 0 || hasActiveGoal(events)
+  const hasOpenAgent = (ui?.agentTabIds?.length ?? 0) > 0
+  const hasLiveAgent = agents.some(isLiveAgent)
+  const hasSideQuestions = (ui?.sideQuestions?.length ?? 0) > 0
+  const tabs = [
+    ui?.showDiff ? { id: 'diff' as const, label: 'Changes' } : null,
+    hasPlan ? { id: 'plan' as const, label: 'Plan' } : null,
+    (hasOpenAgent || hasLiveAgent) ? { id: 'agents' as const, label: 'Agents' } : null,
+    hasSideQuestions ? { id: 'side' as const, label: 'Side' } : null
+  ].filter((tab): tab is { id: ContextTab; label: string } => Boolean(tab))
   const activeTab: ContextTab | null = ui?.showPlan
     ? 'plan'
     : ui?.showDiff
@@ -24,10 +41,8 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         ? 'agents'
         : ui?.showSideQuestions
           ? 'side'
-          : ui?.showUsage
-            ? 'usage'
-            : null
-  const effectiveTab = activeTab
+          : null
+  const effectiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0]?.id ?? null
 
   const activate = (tab: ContextTab): void => {
     setShowPlan(session.id, tab === 'plan')
@@ -35,7 +50,6 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     setShowEvents(session.id, tab === 'agents')
     setShowExtensions(session.id, false)
     setShowSideQuestions(session.id, tab === 'side')
-    setShowUsage(session.id, tab === 'usage')
   }
 
   const close = (tab?: ContextTab): void => {
@@ -44,7 +58,6 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     if (tab === 'agents' || !tab) setShowEvents(session.id, false)
     setShowExtensions(session.id, false)
     if (tab === 'side' || !tab) setShowSideQuestions(session.id, false)
-    if (tab === 'usage' || !tab) setShowUsage(session.id, false)
   }
 
   if (!effectiveTab) return null
@@ -64,7 +77,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <InspectorTab
               key={tab.id}
               label={tab.label}
@@ -93,19 +106,23 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         )}
         {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} embedded />}
         {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
-        {effectiveTab === 'usage' && <UsagePanel session={session} embedded />}
       </div>
     </aside>
   )
 }
 
-const TABS: Array<{ id: ContextTab; label: string }> = [
-  { id: 'diff', label: 'Changes' },
-  { id: 'plan', label: 'Plan' },
-  { id: 'agents', label: 'Agents' },
-  { id: 'side', label: 'Side' },
-  { id: 'usage', label: 'Usage' }
-]
+function isLiveAgent(agent: AgentNode): boolean {
+  return agent.status === 'running' || agent.status === 'queued' || agent.status === 'waiting' || agent.status === 'blocked'
+}
+
+function hasActiveGoal(events: SessionRunEventRecord[]): boolean {
+  let active = false
+  for (const record of events) {
+    if (record.event.type === 'goal.updated') active = true
+    if (record.event.type === 'goal.cleared') active = false
+  }
+  return active
+}
 
 function InspectorTab({
   label,

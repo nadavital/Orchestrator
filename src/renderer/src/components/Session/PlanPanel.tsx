@@ -28,7 +28,7 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
         width: embedded ? '100%' : 420,
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
-        background: 'var(--panel-bg)'
+        background: 'var(--surface-bg)'
       }}
     >
       <div className="shrink-0 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>

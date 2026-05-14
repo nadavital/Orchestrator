@@ -136,7 +136,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               button.label === 'Resources' ||
               button.text.includes('Resources')
             ),
-            hasInspectorTabs: bodyText.includes('Changes') && bodyText.includes('Plan') && bodyText.includes('Agents'),
+            hasInspectorTabs: bodyText.includes('Changes') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),
             buttonCount: buttons.length,
             buttons: buttons.slice(0, 30)

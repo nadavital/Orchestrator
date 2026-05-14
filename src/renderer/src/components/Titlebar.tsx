@@ -13,12 +13,11 @@ export default function Titlebar(): JSX.Element {
     setShowEvents,
     setShowExtensions,
     setShowPlan,
-    setShowSideQuestions,
-    setShowUsage
+    setShowSideQuestions
   } = useSessionStore()
   const session = sessions.find((s) => s.id === activeSessionId)
   const ui = activeSessionId
-    ? (uiState[activeSessionId] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, showUsage: false, hasUnread: false })
+    ? (uiState[activeSessionId] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, hasUnread: false })
     : null
   const [profile, setProfile] = useState<AppProfile | null>(null)
 
@@ -26,7 +25,7 @@ export default function Titlebar(): JSX.Element {
     window.api.app.getProfile().then(setProfile).catch(() => setProfile(null))
   }, [])
 
-  const inspectorOpen = Boolean(ui?.showDiff || ui?.showPlan || ui?.showEvents || ui?.showSideQuestions || ui?.showUsage)
+  const inspectorOpen = Boolean(ui?.showDiff || ui?.showPlan || ui?.showEvents || ui?.showSideQuestions)
   const toggleInspector = (): void => {
     if (!activeSessionId) return
     if (inspectorOpen) {
@@ -35,7 +34,6 @@ export default function Titlebar(): JSX.Element {
       setShowEvents(activeSessionId, false)
       setShowExtensions(activeSessionId, false)
       setShowSideQuestions(activeSessionId, false)
-      setShowUsage(activeSessionId, false)
     } else {
       setShowDiff(activeSessionId, true)
     }

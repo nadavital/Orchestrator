@@ -119,7 +119,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const permissionMode = session.permissionMode ?? defaultPermissionMode
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
-  const currentUi = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, showUsage: false, hasUnread: false }
+  const currentUi = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, hasUnread: false }
   const resolvedPermission = providerRuntime?.policies[permissionMode] ?? (providerRuntime
     ? {
         policy: permissionMode,

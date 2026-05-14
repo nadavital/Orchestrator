@@ -60,7 +60,7 @@ export default function SessionPane(): JSX.Element | null {
 
   const isNew = session.messages.length === 0 && session.status !== 'running'
   const project = projects.find((p) => p.id === session.projectId)
-  const ui = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, showUsage: false, hasUnread: false }
+  const ui = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, hasUnread: false }
 
   const terminalId = (tab: number): string => `${session.id}-${tab}`
 

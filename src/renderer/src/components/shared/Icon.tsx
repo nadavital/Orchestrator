@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Paperclip,
   Plus,
+  RotateCw,
   Send,
   Settings,
   Terminal,
@@ -39,6 +40,7 @@ export type IconName =
   | 'paperclip'
   | 'plan'
   | 'plus'
+  | 'refresh'
   | 'send'
   | 'settings'
   | 'terminal'
@@ -61,6 +63,7 @@ const icons: Record<IconName, LucideIcon> = {
   paperclip: Paperclip,
   plan: ListChecks,
   plus: Plus,
+  refresh: RotateCw,
   send: Send,
   settings: Settings,
   terminal: Terminal,

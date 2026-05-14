@@ -6,7 +6,7 @@ Date: 2026-05-14
 
 Orchestrator currently discovers provider resources through provider-specific command surfaces. Claude exposes agents, MCP, plugins, and skills differently from Codex app-server, Cursor, and Copilot. The UI should not make users manage four separate ideas when several entries describe the same underlying capability.
 
-The Resources page should be a main settings surface, not a chat/session sidebar. Session sidebars should stay focused on live work: changes, plan, active subagent transcript, side questions, and usage.
+The Resources page should be a main settings surface, not a chat/session sidebar. Session sidebars should stay focused on live work: changes, plan, active subagent transcript, and side questions. Usage belongs in settings/provider diagnostics rather than per-session chrome.
 
 ## Target Shape
 
@@ -44,6 +44,13 @@ Create a normalized `ProviderResource` model:
 5. Add conflict UI for suggested duplicates: `Keep separate`, `Treat as same`, `Prefer provider`.
 6. Store user decisions in settings as resource aliases, not by editing provider-native config.
 7. Add import/migration actions only after read-only discovery is stable.
+
+## Next Implementation Ticket
+
+- Add `src/main/providerResources.ts` with a read-only `discoverProviderResources(providerId)` entrypoint.
+- Wire IPC methods for list and refresh, returning cached normalized resources plus raw provider diagnostics.
+- Move the renderer Resources section off direct provider command surfaces and onto grouped `ProviderResource` rows.
+- Add provider badges, duplicate suggestions, and an expanded native-detail drawer before exposing any mutation actions.
 
 ## Provider Notes
 

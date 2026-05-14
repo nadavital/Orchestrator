@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useSessionStore } from '../../store/sessions'
 import type { AgentNode, AgentStatus, Session } from '../../types'
+import Icon from '../shared/Icon'
 import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
@@ -31,7 +32,7 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
         width: embedded ? '100%' : 420,
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
-        background: 'var(--panel-bg)'
+        background: 'var(--surface-bg)'
       }}
     >
       <div className="shrink-0 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
@@ -200,9 +201,7 @@ function AgentTab({
           aria-label="Close transcript"
           style={{ color: 'var(--color-text-muted)' }}
         >
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-          </svg>
+          <Icon name="close" size={12} />
         </button>
       )}
     </div>

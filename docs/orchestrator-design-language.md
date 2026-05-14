@@ -43,7 +43,7 @@ It should feel:
 Replace the current flat surface stack with semantic tokens:
 
 - `--app-bg`: outer app/background material
-- `--panel-bg`: sidebars and persistent panels
+- `--panel-bg`: left navigation rail and soft elevated panels
 - `--canvas-bg`: main chat/content canvas
 - `--control-bg`: buttons, chips, inputs
 - `--control-bg-hover`
@@ -139,7 +139,7 @@ The shell should become three stable zones:
 
 The left rail should feel pleasant because it is lower contrast than the canvas:
 
-- left rail uses `panel-bg`, slightly tinted
+- left rail uses `panel-bg` with blur; the right contextual inspector uses `surface-bg` so diffs and transcripts read as white workspace chrome
 - active session uses a rounded active row, not a hard left border
 - sections use generous vertical rhythm
 - settings stays anchored at bottom
