@@ -133,7 +133,13 @@ function loadPets(): PetEntry[] {
     } catch {
       return []
     }
-  })
+  }).sort(comparePets)
+}
+
+function comparePets(a: PetEntry, b: PetEntry): number {
+  if (a.id === DEFAULT_PET_ID) return -1
+  if (b.id === DEFAULT_PET_ID) return 1
+  return a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })
 }
 
 function isSafeRelativePath(path: string): boolean {

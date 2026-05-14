@@ -23,6 +23,12 @@ test('built-in pet resources are valid and included in packaged installs', () =>
   const petIds = readdirSync(petsRoot).filter((entry) => statSync(join(petsRoot, entry)).isDirectory())
   assert.ok(petIds.includes('orchestrator'))
   assert.ok(petIds.includes('psyduck'))
+  const sortedPetIds = [...petIds].sort((a, b) => {
+    if (a === 'orchestrator') return -1
+    if (b === 'orchestrator') return 1
+    return a.localeCompare(b)
+  })
+  assert.equal(sortedPetIds[0], 'orchestrator')
 
   for (const id of petIds) {
     const petDir = join(petsRoot, id)
