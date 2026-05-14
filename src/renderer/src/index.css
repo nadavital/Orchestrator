@@ -3,8 +3,11 @@
 
 @layer base {
   :root {
-    --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
-    --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+    --font-ui-custom: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+    --font-mono-custom: 'SF Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+    --font-ui: var(--font-ui-custom);
+    --font-mono: var(--font-mono-custom);
+    --interface-scale: 1;
 
     --radius-xs: 4px;
     --radius-sm: 6px;
@@ -36,6 +39,7 @@
     --text-secondary: #656565;
     --text-tertiary: #8c8c8c;
     --accent: #0a7cff;
+    --custom-accent: #0a7cff;
     --accent-bg: rgba(10, 124, 255, 0.12);
     --accent-muted: var(--accent-bg);
     --state-success: #13a355;
@@ -122,6 +126,7 @@
   :root[data-accent='purple'] { --accent: #7c5cff; }
   :root[data-accent='green'] { --accent: #16a35b; }
   :root[data-accent='rose'] { --accent: #d84b7c; }
+  :root[data-accent='custom'] { --accent: var(--custom-accent); }
 
   :root[data-density='compact'] {
     --space-2: 6px;
@@ -157,7 +162,7 @@
     background: transparent;
     color: var(--color-text);
     font-family: var(--font-ui);
-    font-size: 13px;
+    font-size: calc(13px * var(--interface-scale));
     line-height: 1.5;
     user-select: none;
     overflow: hidden;

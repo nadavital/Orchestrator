@@ -9,10 +9,14 @@ export interface AppSettings {
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   appearance: 'system' | 'mist' | 'graphite' | 'high-contrast' | 'dark' | 'light'
-  accent: 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system'
+  accent: 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system' | 'custom'
+  customAccent: string
   density: 'comfortable' | 'compact'
   sidebarTint: boolean
   transcriptStyle: 'relaxed' | 'dense'
+  interfaceScale: number
+  uiFont: string
+  monoFont: string
 }
 
 export interface AppProfile {

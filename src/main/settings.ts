@@ -8,10 +8,14 @@ interface AppSettings {
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   appearance: 'system' | 'mist' | 'graphite' | 'high-contrast' | 'dark' | 'light'
-  accent: 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system'
+  accent: 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system' | 'custom'
+  customAccent: string
   density: 'comfortable' | 'compact'
   sidebarTint: boolean
   transcriptStyle: 'relaxed' | 'dense'
+  interfaceScale: number
+  uiFont: string
+  monoFont: string
 }
 
 migrateLegacyUserData()
@@ -26,8 +30,12 @@ export const settingsStore = new Store<AppSettings>({
     providerModels: {},
     appearance: 'mist',
     accent: 'blue',
+    customAccent: '#0a7cff',
     density: 'comfortable',
     sidebarTint: true,
     transcriptStyle: 'relaxed',
+    interfaceScale: 1,
+    uiFont: 'system',
+    monoFont: 'system',
   }
 })

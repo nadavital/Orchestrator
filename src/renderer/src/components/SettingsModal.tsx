@@ -19,19 +19,19 @@ import {
   type ProviderRuntimeInfo
 } from '../types'
 import { useSessionStore } from '../store/sessions'
+import type { SettingsSection } from '../store/sessions'
 import ProviderIcon from './shared/ProviderIcon'
 import Icon from './shared/Icon'
 import { applyAppearance, type Accent, type Appearance, type Density, type TranscriptStyle } from '../theme'
 
-type NavSection = 'general' | 'providers' | 'pets'
-
 interface Props {
+  section: SettingsSection
+  onSectionChange: (section: SettingsSection) => void
   onClose: () => void
 }
 
-export default function SettingsPage({ onClose }: Props): JSX.Element {
+export default function SettingsPage({ section, onSectionChange, onClose }: Props): JSX.Element {
   const { providerAvailability, setProviderModels: storeSetProviderModels } = useSessionStore()
-  const [activeSection, setActiveSection] = useState<NavSection>('general')
   const [defaultProvider, setDefaultProvider] = useState('claude')
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
   const [defaultEfforts, setDefaultEfforts] = useState<Record<string, string>>({})
@@ -45,6 +45,10 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
   const [density, setDensity] = useState<Density>('comfortable')
   const [sidebarTint, setSidebarTint] = useState(true)
   const [transcriptStyle, setTranscriptStyle] = useState<TranscriptStyle>('relaxed')
+  const [customAccent, setCustomAccent] = useState('#0a7cff')
+  const [interfaceScale, setInterfaceScale] = useState(1)
+  const [uiFont, setUiFont] = useState('system')
+  const [monoFont, setMonoFont] = useState('system')
 
   useEffect(() => {
     window.api.settings.get().then((s) => {
@@ -59,6 +63,10 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
       setDensity((rec.density as Density) ?? 'comfortable')
       setSidebarTint((rec.sidebarTint as boolean | undefined) ?? true)
       setTranscriptStyle((rec.transcriptStyle as TranscriptStyle) ?? 'relaxed')
+      setCustomAccent((rec.customAccent as string) ?? '#0a7cff')
+      setInterfaceScale((rec.interfaceScale as number) ?? 1)
+      setUiFont((rec.uiFont as string) ?? 'system')
+      setMonoFont((rec.monoFont as string) ?? 'system')
     })
     window.api.providers.getRuntimeInfo().then(setProviderRuntime)
   }, [])
@@ -105,39 +113,63 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
 
   const saveAppearance = (value: Appearance): void => {
     setAppearance(value)
-    applyAppearance(value, accent, density, sidebarTint, transcriptStyle)
+    applyAppearance(value, accent, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont)
     window.api.settings.set('appearance', value)
   }
 
   const saveAccent = (value: Accent): void => {
     setAccent(value)
-    applyAppearance(appearance, value, density, sidebarTint, transcriptStyle)
+    applyAppearance(appearance, value, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont)
     window.api.settings.set('accent', value)
   }
 
   const saveDensity = (value: Density): void => {
     setDensity(value)
-    applyAppearance(appearance, accent, value, sidebarTint, transcriptStyle)
+    applyAppearance(appearance, accent, value, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont)
     window.api.settings.set('density', value)
   }
 
   const saveSidebarTint = (value: boolean): void => {
     setSidebarTint(value)
-    applyAppearance(appearance, accent, density, value, transcriptStyle)
+    applyAppearance(appearance, accent, density, value, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont)
     window.api.settings.set('sidebarTint', value)
   }
 
   const saveTranscriptStyle = (value: TranscriptStyle): void => {
     setTranscriptStyle(value)
-    applyAppearance(appearance, accent, density, sidebarTint, value)
+    applyAppearance(appearance, accent, density, sidebarTint, value, customAccent, interfaceScale, uiFont, monoFont)
     window.api.settings.set('transcriptStyle', value)
+  }
+
+  const saveCustomAccent = (value: string): void => {
+    setCustomAccent(value)
+    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, value, interfaceScale, uiFont, monoFont)
+    window.api.settings.set('customAccent', value)
+  }
+
+  const saveInterfaceScale = (value: number): void => {
+    setInterfaceScale(value)
+    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, customAccent, value, uiFont, monoFont)
+    window.api.settings.set('interfaceScale', value)
+  }
+
+  const saveUiFont = (value: string): void => {
+    setUiFont(value)
+    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, value, monoFont)
+    window.api.settings.set('uiFont', value)
+  }
+
+  const saveMonoFont = (value: string): void => {
+    setMonoFont(value)
+    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, value)
+    window.api.settings.set('monoFont', value)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: 'var(--canvas-bg)' }}>
       <div
         style={{
-          height: 52,
+          height: 46,
           flexShrink: 0,
           display: 'flex',
           alignItems: 'center',
@@ -150,7 +182,7 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
           WebkitAppRegion: 'drag'
         } as React.CSSProperties}
       >
-        <span style={{ fontSize: 15, fontWeight: 650, color: 'var(--text-primary)' }}>Settings</span>
+        <span style={{ fontSize: 15, fontWeight: 650, color: 'var(--text-primary)' }}>{settingsTitle(section)}</span>
         <button
           onClick={onClose}
           title="Back to chat"
@@ -169,41 +201,39 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
           Chat
         </button>
       </div>
-
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', background: 'var(--canvas-bg)' }}>
-        <div
-          style={{
-            width: 196,
-            flexShrink: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'var(--surface-bg)',
-            borderRight: '1px solid var(--border-subtle)',
-            padding: '14px 10px'
-          }}
-        >
-          <NavItem active={activeSection === 'general'} onClick={() => setActiveSection('general')}>General</NavItem>
-          <NavItem active={activeSection === 'providers'} onClick={() => setActiveSection('providers')}>Providers</NavItem>
-          <NavItem active={activeSection === 'pets'} onClick={() => setActiveSection('pets')}>Pets</NavItem>
-        </div>
-
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
-          {activeSection === 'general' && (
+          {section === 'general' && (
             <GeneralSection
               appearance={appearance}
               accent={accent}
               density={density}
               sidebarTint={sidebarTint}
               transcriptStyle={transcriptStyle}
+              customAccent={customAccent}
+              interfaceScale={interfaceScale}
+              uiFont={uiFont}
+              monoFont={monoFont}
               onSetAppearance={saveAppearance}
               onSetAccent={saveAccent}
               onSetDensity={saveDensity}
               onSetSidebarTint={saveSidebarTint}
               onSetTranscriptStyle={saveTranscriptStyle}
+              onSetCustomAccent={saveCustomAccent}
+              onSetInterfaceScale={saveInterfaceScale}
+              onSetUiFont={saveUiFont}
+              onSetMonoFont={saveMonoFont}
             />
           )}
-          {activeSection === 'pets' && <PetsSection />}
-          {activeSection === 'providers' && (
+          {section === 'pets' && <PetsSection />}
+          {section === 'resources' && (
+            <ResourcesSection
+              providerRuntime={providerRuntime}
+              providerAvailability={providerAvailability}
+              onOpenProviders={() => onSectionChange('providers')}
+            />
+          )}
+          {section === 'providers' && (
             <ProvidersSection
               defaultProvider={defaultProvider}
               defaultModels={defaultModels}
@@ -228,27 +258,11 @@ export default function SettingsPage({ onClose }: Props): JSX.Element {
   )
 }
 
-// ─── Nav item ─────────────────────────────────────────────────────────────────
-
-function NavItem({ active, onClick, children }: {
-  active: boolean; onClick: () => void; children: React.ReactNode
-}): JSX.Element {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'block', width: '100%', margin: '1px 0',
-        padding: '8px 10px', borderRadius: 'var(--radius-md)',
-        background: active ? 'var(--control-bg-active)' : 'transparent',
-        border: 'none', color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-        fontSize: 13, fontWeight: active ? 650 : 500, cursor: 'pointer', textAlign: 'left'
-      }}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--control-bg)' }}
-      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
-    >
-      {children}
-    </button>
-  )
+function settingsTitle(section: SettingsSection): string {
+  if (section === 'providers') return 'Providers & models'
+  if (section === 'resources') return 'Resources'
+  if (section === 'pets') return 'Pets'
+  return 'General'
 }
 
 // ─── General section (app-wide) ───────────────────────────────────────────────
@@ -259,22 +273,38 @@ function GeneralSection({
   density,
   sidebarTint,
   transcriptStyle,
+  customAccent,
+  interfaceScale,
+  uiFont,
+  monoFont,
   onSetAppearance,
   onSetAccent,
   onSetDensity,
   onSetSidebarTint,
   onSetTranscriptStyle,
+  onSetCustomAccent,
+  onSetInterfaceScale,
+  onSetUiFont,
+  onSetMonoFont,
 }: {
   appearance: Appearance
   accent: Accent
   density: Density
   sidebarTint: boolean
   transcriptStyle: TranscriptStyle
+  customAccent: string
+  interfaceScale: number
+  uiFont: string
+  monoFont: string
   onSetAppearance: (value: Appearance) => void
   onSetAccent: (value: Accent) => void
   onSetDensity: (value: Density) => void
   onSetSidebarTint: (value: boolean) => void
   onSetTranscriptStyle: (value: TranscriptStyle) => void
+  onSetCustomAccent: (value: string) => void
+  onSetInterfaceScale: (value: number) => void
+  onSetUiFont: (value: string) => void
+  onSetMonoFont: (value: string) => void
 }): JSX.Element {
   const appearanceOptions: Array<{ id: Appearance; label: string; desc: string }> = [
     { id: 'system', label: 'System', desc: 'Follow macOS' },
@@ -288,6 +318,7 @@ function GeneralSection({
     { id: 'purple', label: 'Purple', color: '#7c5cff' },
     { id: 'green', label: 'Green', color: '#16a35b' },
     { id: 'rose', label: 'Rose', color: '#d84b7c' },
+    { id: 'custom', label: 'Custom', color: customAccent },
   ]
   const densityOptions: Array<{ id: Density; label: string; desc: string }> = [
     { id: 'comfortable', label: 'Comfortable', desc: 'Airier rows and panels' },
@@ -297,13 +328,22 @@ function GeneralSection({
     { id: 'relaxed', label: 'Relaxed', desc: 'Readable chat rhythm' },
     { id: 'dense', label: 'Dense', desc: 'Tighter transcript spacing' }
   ]
+  const fontOptions = [
+    { id: 'system', label: 'System', desc: 'Native macOS text' },
+    { id: 'rounded', label: 'Rounded', desc: 'Softer interface tone' },
+    { id: 'serif', label: 'Serif', desc: 'Editorial headings and labels' }
+  ]
+  const monoOptions = [
+    { id: 'system', label: 'System mono', desc: 'SF Mono where available' },
+    { id: 'mono', label: 'Developer mono', desc: 'Code-first stack' }
+  ]
 
   return (
-    <div style={{ padding: '34px 44px 56px', maxWidth: 960, margin: '0 auto' }}>
-      <h2 style={{ fontSize: 28, fontWeight: 650, color: 'var(--text-primary)', marginBottom: 8 }}>General</h2>
-      <div style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 30 }}>
-        Tune Orchestrator for long coding sessions without changing how your agents work.
-      </div>
+    <div style={{ padding: '30px 44px 56px', maxWidth: 960, margin: '0 auto' }}>
+      <SettingsIntro
+        title="General"
+        description="Tune the app shell, typography, and density without changing how your agents work."
+      />
 
       <SettingGroup title="Appearance" description="Choose the overall app material and contrast.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
@@ -315,10 +355,10 @@ function GeneralSection({
                 onClick={() => onSetAppearance(option.id)}
                 style={{
                   padding: '12px 14px',
-                  borderRadius: 'var(--radius-lg)',
+                  borderRadius: 'var(--radius-md)',
                   border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                  background: active ? 'var(--color-accent-dim)' : 'var(--color-surface)',
-                  color: active ? 'var(--color-accent)' : 'var(--color-text)',
+                  background: active ? 'var(--control-bg-active)' : 'var(--color-surface)',
+                  color: 'var(--color-text)',
                   fontSize: 12,
                   fontWeight: active ? 600 : 500,
                   cursor: 'pointer',
@@ -327,7 +367,7 @@ function GeneralSection({
                 }}
               >
                 <div>{option.label}</div>
-                <div style={{ color: active ? 'var(--color-accent)' : 'var(--text-secondary)', fontWeight: 450, marginTop: 3 }}>
+                <div style={{ color: 'var(--text-secondary)', fontWeight: 450, marginTop: 3 }}>
                   {option.desc}
                 </div>
               </button>
@@ -337,29 +377,64 @@ function GeneralSection({
       </SettingGroup>
 
       <SettingGroup title="Accent" description="Used for primary actions, focus rings, and active states.">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {accentOptions.map((option) => (
-            <button
-              key={option.id}
-              onClick={() => onSetAccent(option.id)}
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {accentOptions.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => onSetAccent(option.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-pill)',
+                  background: accent === option.id ? 'var(--control-bg-active)' : 'var(--control-bg)',
+                  border: `1px solid ${accent === option.id ? option.color : 'var(--border-subtle)'}`,
+                  color: 'var(--text-primary)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: option.color }} />
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Custom accent
+            <input
+              type="color"
+              value={customAccent}
+              onChange={(event) => onSetCustomAccent(event.currentTarget.value)}
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 12px',
-                borderRadius: 'var(--radius-pill)',
-                background: accent === option.id ? 'var(--control-bg-active)' : 'var(--control-bg)',
-                border: `1px solid ${accent === option.id ? option.color : 'var(--border-subtle)'}`,
-                color: 'var(--text-primary)',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer'
+                width: 34,
+                height: 28,
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                background: 'transparent'
               }}
-            >
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: option.color }} />
-              {option.label}
-            </button>
-          ))}
+            />
+          </label>
+        </div>
+      </SettingGroup>
+
+      <SettingGroup title="Typography" description="Choose app and terminal type independently.">
+        <div style={{ display: 'grid', gap: 12 }}>
+          <SegmentedChoice items={fontOptions} value={uiFont} onChange={onSetUiFont} />
+          <SegmentedChoice items={monoOptions} value={monoFont} onChange={onSetMonoFont} />
+          <label style={{ display: 'grid', gap: 6, color: 'var(--text-secondary)', fontSize: 12 }}>
+            Interface scale
+            <input
+              type="range"
+              min="0.9"
+              max="1.12"
+              step="0.01"
+              value={interfaceScale}
+              onChange={(event) => onSetInterfaceScale(Number(event.currentTarget.value))}
+            />
+          </label>
         </div>
       </SettingGroup>
 
@@ -404,7 +479,7 @@ function SegmentedChoice<T extends string>({
   onChange: (value: T) => void
 }): JSX.Element {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 8 }}>
       {items.map((item) => {
         const active = item.id === value
         return (
@@ -412,17 +487,17 @@ function SegmentedChoice<T extends string>({
             key={item.id}
             onClick={() => onChange(item.id)}
             style={{
-              padding: '11px 12px',
-              borderRadius: 'var(--radius-lg)',
+              padding: '9px 11px',
+              borderRadius: 'var(--radius-md)',
               border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-              background: active ? 'var(--accent-bg)' : 'var(--surface-bg)',
-              color: active ? 'var(--accent)' : 'var(--text-primary)',
+              background: active ? 'var(--control-bg-active)' : 'var(--surface-bg)',
+              color: 'var(--text-primary)',
               textAlign: 'left',
               cursor: 'pointer'
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 700 }}>{item.label}</div>
-            <div style={{ fontSize: 12, color: active ? 'var(--accent)' : 'var(--text-secondary)', marginTop: 2 }}>{item.desc}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{item.desc}</div>
           </button>
         )
       })}
@@ -514,14 +589,10 @@ function ProvidersSection({
 
   return (
     <div style={{ padding: '34px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div>
-          <h2 style={{ fontSize: 28, fontWeight: 650, color: 'var(--color-text)', margin: 0 }}>Providers</h2>
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
-            Pick a provider, choose models, and keep local CLI config separate.
-          </div>
-        </div>
-      </div>
+      <SettingsIntro
+        title="Providers & models"
+        description="Pick defaults for provider, model, thinking, and permission mode."
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: '190px minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
         <ProviderSidePicker
@@ -664,9 +735,82 @@ const CODEX_SETTINGS_COMMAND_SURFACE_IDS = new Set([
   'appserver-auth-status'
 ])
 
+const RESOURCE_COMMAND_SURFACE_AREAS = new Set(['extensions', 'mcp', 'agents'])
+const RESOURCE_COMMAND_SURFACE_IDS = new Set([
+  'agents-list',
+  'mcp-list',
+  'mcp-details',
+  'plugin-list',
+  'appserver-skills',
+  'appserver-hooks',
+  'appserver-plugins',
+  'appserver-apps',
+  'appserver-mcp-status',
+  'appserver-external-agent-config'
+])
+
 function visibleSettingsCommandSurfaces(providerId: string, surfaces: ProviderCommandSurface[]): ProviderCommandSurface[] {
   if (providerId !== 'codex') return surfaces
   return surfaces.filter((surface) => CODEX_SETTINGS_COMMAND_SURFACE_IDS.has(surface.id))
+}
+
+function visibleResourceCommandSurfaces(surfaces: ProviderCommandSurface[]): ProviderCommandSurface[] {
+  return surfaces.filter((surface) =>
+    RESOURCE_COMMAND_SURFACE_IDS.has(surface.id) || RESOURCE_COMMAND_SURFACE_AREAS.has(surface.area)
+  )
+}
+
+function ResourcesSection({
+  providerRuntime,
+  providerAvailability,
+}: {
+  providerRuntime: Record<string, ProviderRuntimeInfo>
+  providerAvailability: Record<string, boolean>
+  onOpenProviders: () => void
+}): JSX.Element {
+  const providerIds = Object.keys(PROVIDER_DEFS)
+  const [selectedId, setSelectedId] = useState(providerIds[0] ?? 'claude')
+  const provider = PROVIDER_DEFS[selectedId] ?? PROVIDER_DEFS.claude
+  const runtime = providerRuntime[selectedId]
+  const surfaces = visibleResourceCommandSurfaces(runtime?.registry.commandSurfaces ?? [])
+
+  return (
+    <div style={{ padding: '30px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
+      <SettingsIntro
+        title="Resources"
+        description="Inspect MCP servers, apps, plugins, skills, hooks, and external agent configs from one place."
+      />
+      <div style={{ display: 'grid', gridTemplateColumns: '210px minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
+        <ProviderSidePicker
+          providers={Object.values(PROVIDER_DEFS)}
+          selectedId={selectedId}
+          availability={providerAvailability}
+          onSelect={setSelectedId}
+        />
+        <div>
+          <ProviderHeaderCard
+            providerId={selectedId}
+            providerName={provider.name}
+            color={provider.color}
+            installed={providerAvailability[selectedId] !== false}
+            isDefault={false}
+            showDefaultControls={false}
+            installCmd={provider.installCmd}
+            onSetDefault={() => undefined}
+          />
+          <SettingsPanel>
+            <CompactSetting title="Surfaces">
+              {surfaces.length > 0 ? (
+                <ProviderCommandSurfaces providerId={selectedId} color={provider.color} surfaces={surfaces} />
+              ) : (
+                <InlineMutedText>No resource surfaces are exposed by this provider runtime yet.</InlineMutedText>
+              )}
+            </CompactSetting>
+          </SettingsPanel>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ProviderSidePicker({
@@ -756,6 +900,7 @@ function ProviderHeaderCard({
   color,
   installed,
   isDefault,
+  showDefaultControls = true,
   installCmd,
   onSetDefault,
 }: {
@@ -764,6 +909,7 @@ function ProviderHeaderCard({
   color: string
   installed: boolean
   isDefault: boolean
+  showDefaultControls?: boolean
   installCmd: string
   onSetDefault: () => void
 }): JSX.Element {
@@ -798,7 +944,7 @@ function ProviderHeaderCard({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--color-text)' }}>{providerName}</div>
           <StatusPill label={installed ? 'Ready' : 'Missing'} color={installed ? 'var(--color-green)' : '#F87171'} />
-          {isDefault && <StatusPill label="Default" color={color} />}
+          {showDefaultControls && isDefault && <StatusPill label="Default" color={color} />}
         </div>
         {!installed && (
           <div style={{ marginTop: 8, maxWidth: 420 }}>
@@ -806,7 +952,7 @@ function ProviderHeaderCard({
           </div>
         )}
       </div>
-      {!isDefault && (
+      {showDefaultControls && !isDefault && (
         <button
           onClick={onSetDefault}
           disabled={!installed}
@@ -1564,13 +1710,12 @@ function SettingsPanel({ children }: { children: React.ReactNode }): JSX.Element
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 16,
-        padding: 16,
-        borderRadius: 'var(--radius-lg)',
+        gap: 0,
+        padding: '2px 0',
+        borderRadius: 0,
         background: 'var(--surface-bg)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: 'var(--shadow-soft)',
-        marginTop: 14,
+        borderTop: '1px solid var(--border-subtle)',
+        marginTop: 18,
       }}
     >
       {children}
@@ -1578,9 +1723,29 @@ function SettingsPanel({ children }: { children: React.ReactNode }): JSX.Element
   )
 }
 
+function SettingsIntro({ title, description }: { title: string; description: string }): JSX.Element {
+  void title
+  return (
+    <div style={{ marginBottom: 22, maxWidth: 760 }}>
+      <div style={{ color: 'var(--text-secondary)', fontSize: 13.5, lineHeight: 1.45 }}>
+        {description}
+      </div>
+    </div>
+  )
+}
+
 function CompactSetting({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 14, alignItems: 'start' }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '132px minmax(0, 1fr)',
+        gap: 18,
+        alignItems: 'start',
+        padding: '14px 0',
+        borderBottom: '1px solid var(--border-subtle)'
+      }}
+    >
       <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)', paddingTop: 7 }}>{title}</div>
       <div style={{ minWidth: 0 }}>{children}</div>
     </div>
@@ -2454,17 +2619,22 @@ function SettingGroup({ title, description, children }: {
   return (
     <div
       style={{
-        marginBottom: 16,
-        padding: 18,
-        borderRadius: 'var(--radius-lg)',
+        display: 'grid',
+        gridTemplateColumns: '180px minmax(0, 1fr)',
+        gap: 24,
+        alignItems: 'start',
+        padding: '18px 0',
+        marginBottom: 0,
+        borderRadius: 0,
         background: 'var(--surface-bg)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: 'var(--shadow-soft)'
+        borderTop: '1px solid var(--border-subtle)'
       }}
     >
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{title}</div>
-      {description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>{description}</div>}
-      {children}
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{title}</div>
+        {description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>{description}</div>}
+      </div>
+      <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   )
 }

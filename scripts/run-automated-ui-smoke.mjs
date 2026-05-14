@@ -8,6 +8,8 @@ import { fileURLToPath } from 'url'
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const captureView = process.argv.includes('--settings')
   ? 'settings'
+  : process.argv.includes('--resources')
+    ? 'resources'
   : process.argv.includes('--terminal')
     ? 'terminal'
     : 'main'
@@ -66,7 +68,7 @@ child.on('exit', (code) => {
     isolatedProfile: result.profile?.isIsolated === true,
     profileBadge: result.hasProfileBadge === true,
     composer: result.hasComposer === true,
-    sidebarRail: result.hasSidebarRail === true,
+    sidebarNavigation: result.hasSidebarNavigation === true,
     sideQuestionCommand: captureView === 'terminal' || result.hasSideQuestionCommandText === true,
     buttons: Number(result.buttonCount ?? 0) > 0
   }

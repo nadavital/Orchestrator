@@ -99,10 +99,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
           }
           await sleep(100);
-          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources') {
             const settingsButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.trim() === 'Settings' || button.getAttribute('title') === 'Settings');
             settingsButton?.click();
+            await sleep(450);
+          }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources') {
+            const resourcesButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('Resources'));
+            resourcesButton?.click();
             await sleep(450);
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'terminal') {
@@ -117,7 +123,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             bodyText,
             hasProfileBadge: bodyText.includes(profile.displayName + ' profile'),
             hasComposer: Boolean(textarea),
-            hasSidebarRail: buttons.some((button) => button.title === 'Plan' || button.label === 'Plan'),
+            hasSidebarNavigation: buttons.some((button) =>
+              button.title === 'Settings' ||
+              button.label === 'Settings' ||
+              button.label === 'Resources' ||
+              button.text.includes('Resources')
+            ),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),
             buttonCount: buttons.length,
             buttons: buttons.slice(0, 30)

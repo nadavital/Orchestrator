@@ -355,7 +355,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
   return (
     <div
-      className="shrink-0 px-6 py-4"
+      className="shrink-0 px-6 py-3"
       style={{
         borderTop: isNew ? 'none' : '1px solid var(--border-subtle)',
         background: 'var(--canvas-bg)'
@@ -364,11 +364,11 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       <div
         className="overflow-visible mx-auto"
         style={{
-          maxWidth: isNew ? 760 : 920,
+          maxWidth: isNew ? 740 : 900,
           background: 'var(--surface-bg)',
-          border: '1px solid var(--border-strong)',
+          border: '1px solid var(--border-subtle)',
           borderRadius: 'var(--radius-xl)',
-          boxShadow: isNew ? 'var(--shadow-composer)' : '0 8px 26px rgba(15, 23, 42, 0.07)',
+          boxShadow: isNew ? '0 12px 34px rgba(15, 23, 42, 0.085)' : '0 6px 18px rgba(15, 23, 42, 0.055)',
           position: 'relative',
           transition: 'box-shadow 140ms ease, border-color 140ms ease'
         }}
@@ -386,7 +386,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
         )}
 
         {/* Text input */}
-        <div className="flex items-end px-4 pt-3 pb-2 gap-2">
+        <div className="flex items-end px-4 pt-3 pb-1.5 gap-2">
           <textarea
             ref={textareaRef}
             value={text}
@@ -396,7 +396,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
             rows={1}
             autoFocus={isNew}
             className="flex-1 resize-none bg-transparent outline-none"
-            style={{ color: 'var(--text-primary)', lineHeight: 1.6, maxHeight: 200, userSelect: 'text', fontSize: 15 }}
+            style={{ color: 'var(--text-primary)', lineHeight: 1.55, maxHeight: 180, userSelect: 'text', fontSize: 14.5 }}
           />
         </div>
         {attachments.length > 0 && (
@@ -412,7 +412,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
         )}
 
         {/* Bottom toolbar */}
-        <div className="flex items-center px-3 pb-2 gap-1.5">
+        <div className="flex items-center px-3 pb-2.5 gap-1.5">
 
           {/* Left side */}
           {isNew ? (
@@ -450,9 +450,9 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
             </div>
           ) : (
             /* Active session: read-only agent label */
-            <div className="flex items-center gap-1.5 px-1" style={{ color: 'var(--color-text-muted)' }}>
+            <div className="flex items-center gap-1.5 px-1" style={{ color: 'var(--color-text-muted)', minWidth: 0 }}>
               <ProviderIcon providerId={provider.id} size={11} color="var(--color-text-muted)" />
-              <span className="text-xs">{agentLabel}</span>
+              <span className="text-xs truncate" style={{ maxWidth: 360 }}>{agentLabel}</span>
             </div>
           )}
 
@@ -495,7 +495,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
                           title={!available ? 'not installed' : undefined}
                           activeColor={opt.color}
                         >
-                          <ProviderIcon providerId={opt.id} size={10} color={isActive ? '#fff' : available ? opt.color : 'var(--color-text-muted)'} />
+                          <ProviderIcon providerId={opt.id} size={10} color={available ? opt.color : 'var(--color-text-muted)'} />
                           {opt.name}
                         </Chip>
                       )
@@ -724,8 +724,8 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
               className="flex items-center justify-center rounded-lg transition-colors"
               style={{
                 width: 30, height: 30,
-                background: canSend ? 'var(--text-primary)' : 'var(--color-surface)',
-                color: canSend ? 'var(--canvas-bg)' : 'var(--color-text-muted)',
+            background: canSend ? 'var(--text-primary)' : 'var(--control-bg)',
+            color: canSend ? 'var(--canvas-bg)' : 'var(--color-text-muted)',
                 cursor: canSend ? 'pointer' : 'default'
               }}
               title={sendTitle}
@@ -735,12 +735,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           )}
         </div>
       </div>
-
-      {isNew && effectiveMode && (
-        <div className="text-center mt-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          New branch
-        </div>
-      )}
     </div>
   )
 }
@@ -841,7 +835,7 @@ function ToolbarBtn({
   title?: string
   providerColor?: string
 }): JSX.Element {
-  const borderColor = active ? 'var(--border-subtle)' : 'transparent'
+  const borderColor = active ? 'var(--border-strong)' : 'transparent'
   const textColor = muted ? 'var(--text-tertiary)' : active ? 'var(--text-primary)' : 'var(--text-secondary)'
   void providerColor
   return (
@@ -850,13 +844,14 @@ function ToolbarBtn({
       title={title}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? 'var(--color-accent-dim)' : 'var(--control-bg)',
+        background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
         color: textColor,
         border: '1px solid ' + borderColor,
         borderRadius: 'var(--radius-lg)',
-        padding: '6px 9px',
+        padding: '5px 8px',
         cursor: onClick ? 'pointer' : 'default',
-        fontWeight: 600
+        fontWeight: 600,
+        minHeight: 28
       }}
     >
       {children}
@@ -1100,8 +1095,8 @@ function Chip({
       disabled={disabled}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
-        background: active ? activeColor : 'var(--control-bg)',
-        color: active ? '#fff' : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
+        background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
+        color: active ? activeColor : disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
         border: '1px solid ' + (active ? activeColor : 'var(--border-subtle)'),
         borderRadius: 'var(--radius-pill)',
         padding: '5px 9px',

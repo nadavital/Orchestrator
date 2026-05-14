@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import type { Session, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, UsageSummary } from '../types'
 
+export type SettingsSection = 'general' | 'providers' | 'resources' | 'pets'
+
 export interface SideQuestionMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -32,6 +34,7 @@ interface SessionState {
   providerAvailability: Record<string, boolean>
   providerModels: Record<string, string[]>
   showSettings: boolean
+  settingsSection: SettingsSection
   setSessions: (sessions: Session[]) => void
   addSession: (session: Session) => void
   removeSession: (id: string) => void
@@ -69,6 +72,7 @@ interface SessionState {
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
   setShowSettings: (v: boolean) => void
+  setSettingsSection: (section: SettingsSection) => void
   appendMessages: (id: string, messages: ChatMessage[]) => void
   upsertMessage: (id: string, message: ChatMessage) => void
   appendEvents: (id: string, events: SessionRunEventRecord[]) => void
@@ -98,6 +102,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   providerAvailability: {},
   providerModels: {},
   showSettings: false,
+  settingsSection: 'general',
 
   setSessions: (sessions) => set({ sessions }),
 
@@ -350,6 +355,8 @@ export const useSessionStore = create<SessionState>((set) => ({
   setProviderModels: (v) => set({ providerModels: v }),
 
   setShowSettings: (v) => set({ showSettings: v }),
+
+  setSettingsSection: (section) => set({ settingsSection: section }),
 
   appendMessages: (id, messages) =>
     set((s) => ({

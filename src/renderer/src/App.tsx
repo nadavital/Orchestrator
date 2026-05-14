@@ -27,6 +27,8 @@ export default function App(): JSX.Element {
     setProviderModels,
     setShowSettings,
     showSettings,
+    settingsSection,
+    setSettingsSection,
     activeSessionId
   } = useSessionStore()
 
@@ -38,7 +40,11 @@ export default function App(): JSX.Element {
         s.accent ?? 'blue',
         s.density ?? 'comfortable',
         s.sidebarTint ?? true,
-        s.transcriptStyle ?? 'relaxed'
+        s.transcriptStyle ?? 'relaxed',
+        s.customAccent ?? '#0a7cff',
+        s.interfaceScale ?? 1,
+        s.uiFont ?? 'system',
+        s.monoFont ?? 'system'
       )
       const pm = (s as unknown as Record<string, unknown>).providerModels
       if (pm && typeof pm === 'object') setProviderModels(pm as Record<string, string[]>)
@@ -51,7 +57,11 @@ export default function App(): JSX.Element {
         s.accent ?? 'blue',
         s.density ?? 'comfortable',
         s.sidebarTint ?? true,
-        s.transcriptStyle ?? 'relaxed'
+        s.transcriptStyle ?? 'relaxed',
+        s.customAccent ?? '#0a7cff',
+        s.interfaceScale ?? 1,
+        s.uiFont ?? 'system',
+        s.monoFont ?? 'system'
       ))
     }
     media.addEventListener('change', onSystemThemeChanged)
@@ -158,7 +168,11 @@ export default function App(): JSX.Element {
       <div className="app-shell flex flex-1 overflow-hidden">
         <Sidebar />
         <section className="content-shell flex-1 flex flex-col min-w-0 min-h-0">
-          <SettingsPage onClose={() => setShowSettings(false)} />
+          <SettingsPage
+            section={settingsSection}
+            onSectionChange={setSettingsSection}
+            onClose={() => setShowSettings(false)}
+          />
         </section>
       </div>
     )
