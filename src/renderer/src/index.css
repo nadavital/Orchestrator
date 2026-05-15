@@ -517,6 +517,140 @@
     transform: translateX(16px);
   }
 
+  .settings-intro {
+    margin-bottom: 22px;
+    max-width: 760px;
+  }
+
+  .settings-intro-description {
+    color: var(--text-secondary);
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+
+  .settings-group {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+    padding: 18px 0;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--surface-bg);
+  }
+
+  .settings-group-title {
+    margin-bottom: 4px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .settings-group-description {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .settings-group-body,
+  .compact-setting-body {
+    min-width: 0;
+  }
+
+  .settings-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: 18px;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--surface-bg);
+    padding: 2px 0;
+  }
+
+  .compact-setting {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .compact-setting-title {
+    padding-top: 7px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  .setting-choice-card {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 8px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--surface-bg);
+    color: var(--text-primary);
+    padding: 10px 12px;
+    text-align: left;
+    transition:
+      border-color var(--motion-duration-edge) var(--motion-ease-standard),
+      background-color var(--motion-duration-edge) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-edge) var(--motion-ease-standard),
+      transform var(--motion-duration-edge) var(--motion-ease-standard);
+  }
+
+  .setting-choice-card:hover:not(:disabled),
+  .setting-choice-card:focus-visible {
+    border-color: var(--border-strong);
+    background: var(--control-bg-hover);
+    outline: none;
+  }
+
+  .setting-choice-card[data-active='true'] {
+    border-color: var(--accent);
+    background: var(--control-bg-active);
+    box-shadow: var(--shadow-card);
+  }
+
+  .setting-choice-card-leading {
+    margin-top: 3px;
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  .setting-choice-card-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .setting-choice-card-label {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .setting-choice-card-description {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid currentColor;
+    border-radius: var(--radius-pill);
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 650;
+    line-height: 1.2;
+  }
+
   .motion-sheet-backdrop {
     background: rgba(16, 24, 40, 0.22);
     backdrop-filter: blur(14px);

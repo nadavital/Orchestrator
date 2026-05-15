@@ -1277,10 +1277,13 @@ Completed in the latest implementation pass:
 - Capabilities create/row menus, edit/sync sheets, and delete confirmation now use shared primitives.
 - Session action rename/delete and project removal no longer use native browser prompt/confirm UI.
 - Capabilities smoke now verifies create-menu open, menu Escape dismissal, create-sheet open, and sheet Escape dismissal.
+- Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, and diagnostic pills.
+- Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior.
+- Composer smoke now verifies permission-menu Escape dismissal and agent-menu outside-click dismissal.
 
 The biggest remaining pieces are:
 
-1. Full settings migration to shared rows, cards, diagnostics pills, and form controls.
+1. Finish the remaining settings local controls: color swatches, provider picker, model list manager, config editor, import controls, and provider command output cards.
 2. Composer and transcript primitives beyond dropdown dismissal, especially attachment chips, command surfaces, file cards, scroll-to-bottom, and thinking/streaming states.
 3. Extensions panel migration.
 4. Focus restoration and focus trapping for sheets/dialogs.

@@ -12,6 +12,8 @@ const captureView = process.argv.includes('--settings')
     ? 'capabilities'
     : process.argv.includes('--resources')
     ? 'resources'
+      : process.argv.includes('--composer')
+        ? 'composer'
       : process.argv.includes('--pets')
         ? 'pets'
         : process.argv.includes('--pet-overlay')
@@ -121,11 +123,15 @@ child.on('exit', (code) => {
         composer: result.hasComposer === true,
         sidebarNavigation: ['settings', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
-        sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector'].includes(captureView) || result.hasSideQuestionCommandText === true,
+        sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer'].includes(captureView) || result.hasSideQuestionCommandText === true,
         capabilityCreateMenu: captureView !== 'capabilities' || result.capabilityMenuOpened === true,
         capabilityMenuEscape: captureView !== 'capabilities' || result.capabilityMenuClosedWithEscape === true,
         capabilityCreateSheet: captureView !== 'capabilities' || result.capabilitySheetOpened === true,
         capabilitySheetEscape: captureView !== 'capabilities' || result.capabilitySheetClosedWithEscape === true,
+        composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
+        composerPermissionEscape: captureView !== 'composer' || result.composerPermissionMenuClosedWithEscape === true,
+        composerAgentMenu: captureView !== 'composer' || result.composerAgentMenuOpened === true,
+        composerAgentOutsideClick: captureView !== 'composer' || result.composerAgentMenuClosedWithOutsideClick === true,
         buttons: Number(result.buttonCount ?? 0) > 0
       }
   const failed = Object.entries(checks).filter(([, ok]) => !ok)

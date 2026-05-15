@@ -354,6 +354,144 @@ export function PanelHeader({
   )
 }
 
+export function SettingsIntro({
+  description,
+}: {
+  description: ReactNode
+}): JSX.Element {
+  return (
+    <div className="settings-intro">
+      <div className="settings-intro-description">{description}</div>
+    </div>
+  )
+}
+
+export function SettingGroup({
+  title,
+  description,
+  children,
+}: {
+  title: ReactNode
+  description?: ReactNode
+  children: ReactNode
+}): JSX.Element {
+  return (
+    <section className="settings-group">
+      <div className="settings-group-label">
+        <div className="settings-group-title">{title}</div>
+        {description && <div className="settings-group-description">{description}</div>}
+      </div>
+      <div className="settings-group-body">{children}</div>
+    </section>
+  )
+}
+
+export function SettingsPanel({
+  children,
+  className = '',
+}: {
+  children: ReactNode
+  className?: string
+}): JSX.Element {
+  return (
+    <section className={`settings-panel ${className}`}>
+      {children}
+    </section>
+  )
+}
+
+export function CompactSetting({
+  title,
+  children,
+}: {
+  title: ReactNode
+  children: ReactNode
+}): JSX.Element {
+  return (
+    <div className="compact-setting">
+      <div className="compact-setting-title">{title}</div>
+      <div className="compact-setting-body">{children}</div>
+    </div>
+  )
+}
+
+export function SettingChoiceCard({
+  label,
+  description,
+  active,
+  onClick,
+  leading,
+  disabled = false,
+}: {
+  label: ReactNode
+  description?: ReactNode
+  active: boolean
+  onClick: () => void
+  leading?: ReactNode
+  disabled?: boolean
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      data-active={active ? 'true' : 'false'}
+      disabled={disabled}
+      className="setting-choice-card"
+      onClick={onClick}
+    >
+      {leading && <span className="setting-choice-card-leading">{leading}</span>}
+      <span className="setting-choice-card-copy">
+        <span className="setting-choice-card-label">{label}</span>
+        {description && <span className="setting-choice-card-description">{description}</span>}
+      </span>
+    </button>
+  )
+}
+
+export function StatusPill({
+  label,
+  color,
+}: {
+  label: ReactNode
+  color: string
+}): JSX.Element {
+  return (
+    <span className="status-pill" style={{ color, borderColor: color }}>
+      {label}
+    </span>
+  )
+}
+
+export function DiagnosticPill({
+  status,
+  color,
+}: {
+  status: string
+  color: string
+}): JSX.Element {
+  const normalized = status.toLowerCase()
+  const isGood = ['found', 'ok', 'available', 'configured', 'passed'].includes(normalized)
+  const isBad = ['missing', 'error', 'empty', 'failed'].includes(normalized)
+  const pillColor = isGood ? color : isBad ? 'var(--state-danger)' : 'var(--text-tertiary)'
+  const labels: Record<string, string> = {
+    found: 'OK',
+    ok: 'OK',
+    available: 'OK',
+    configured: 'OK',
+    passed: 'OK',
+    missing: 'Missing',
+    error: 'Error',
+    empty: 'Empty',
+    failed: 'Failed',
+    skipped: 'Skip',
+    unavailable: 'N/A',
+    unknown: 'Unknown',
+    'not-run': 'Off',
+  }
+  return (
+    <StatusPill color={pillColor} label={labels[normalized] ?? status.replace('-', ' ')} />
+  )
+}
+
 export function InspectorCard({
   children,
   active = false,

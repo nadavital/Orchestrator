@@ -22,7 +22,17 @@ import { useSessionStore } from '../store/sessions'
 import type { SettingsSection } from '../store/sessions'
 import ProviderIcon from './shared/ProviderIcon'
 import Icon from './shared/Icon'
-import { SegmentedControl as SystemSegmentedControl, SwitchControl } from './shared/designSystem'
+import {
+  CompactSetting,
+  DiagnosticPill,
+  SettingChoiceCard,
+  SettingGroup,
+  SegmentedControl as SystemSegmentedControl,
+  SettingsIntro,
+  SettingsPanel,
+  StatusPill,
+  SwitchControl
+} from './shared/designSystem'
 import { applyAppearance, type Accent, type Appearance, type Density, type TranscriptStyle } from '../theme'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
@@ -361,7 +371,6 @@ function GeneralSection({
   return (
     <div style={{ padding: '30px 44px 56px', maxWidth: 960, margin: '0 auto' }}>
       <SettingsIntro
-        title="General"
         description="Tune the app shell, typography, and density without changing how your agents work."
       />
 
@@ -370,27 +379,13 @@ function GeneralSection({
           {appearanceOptions.map((option) => {
             const active = appearance === option.id
             return (
-              <button
+              <SettingChoiceCard
                 key={option.id}
+                label={option.label}
+                description={option.desc}
+                active={active}
                 onClick={() => onSetAppearance(option.id)}
-                style={{
-                  padding: '12px 14px',
-                  borderRadius: 'var(--radius-md)',
-                  border: `1px solid ${active ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                  background: active ? 'var(--control-bg-active)' : 'var(--color-surface)',
-                  color: 'var(--color-text)',
-                  fontSize: 12,
-                  fontWeight: active ? 600 : 500,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  boxShadow: active ? 'var(--shadow-card)' : 'none'
-                }}
-              >
-                <div>{option.label}</div>
-                <div style={{ color: 'var(--text-secondary)', fontWeight: 450, marginTop: 3 }}>
-                  {option.desc}
-                </div>
-              </button>
+              />
             )
           })}
         </div>
@@ -463,22 +458,13 @@ function GeneralSection({
           {editorOptions.map((option) => {
             const active = preferredEditor === option.id
             return (
-              <button
+              <SettingChoiceCard
                 key={option.id}
+                label={option.label}
+                description={option.desc}
+                active={active}
                 onClick={() => onSetPreferredEditor(option.id)}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-                  background: active ? 'var(--control-bg-active)' : 'var(--surface-bg)',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{option.label}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{option.desc}</div>
-              </button>
+              />
             )
           })}
         </div>
@@ -525,26 +511,17 @@ function SegmentedChoice<T extends string>({
   onChange: (value: T) => void
 }): JSX.Element {
   return (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 8 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 8 }}>
       {items.map((item) => {
         const active = item.id === value
         return (
-          <button
+          <SettingChoiceCard
             key={item.id}
+            label={item.label}
+            description={item.desc}
+            active={active}
             onClick={() => onChange(item.id)}
-            style={{
-              padding: '9px 11px',
-              borderRadius: 'var(--radius-md)',
-              border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
-              background: active ? 'var(--control-bg-active)' : 'var(--surface-bg)',
-              color: 'var(--text-primary)',
-              textAlign: 'left',
-              cursor: 'pointer'
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 700 }}>{item.label}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{item.desc}</div>
-          </button>
+          />
         )
       })}
     </div>
@@ -608,7 +585,6 @@ function ProvidersSection({
   return (
     <div style={{ padding: '34px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
       <SettingsIntro
-        title="Providers & models"
         description="Pick defaults for provider, model, thinking, and permission mode."
       />
 
@@ -1649,54 +1625,6 @@ function formatObjectKey(key: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
-function SettingsPanel({ children }: { children: React.ReactNode }): JSX.Element {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 0,
-        padding: '2px 0',
-        borderRadius: 0,
-        background: 'var(--surface-bg)',
-        borderTop: '1px solid var(--border-subtle)',
-        marginTop: 18,
-      }}
-    >
-      {children}
-    </div>
-  )
-}
-
-function SettingsIntro({ title, description }: { title: string; description: string }): JSX.Element {
-  void title
-  return (
-    <div style={{ marginBottom: 22, maxWidth: 760 }}>
-      <div style={{ color: 'var(--text-secondary)', fontSize: 13.5, lineHeight: 1.45 }}>
-        {description}
-      </div>
-    </div>
-  )
-}
-
-function CompactSetting({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '132px minmax(0, 1fr)',
-        gap: 18,
-        alignItems: 'start',
-        padding: '14px 0',
-        borderBottom: '1px solid var(--border-subtle)'
-      }}
-    >
-      <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)', paddingTop: 7 }}>{title}</div>
-      <div style={{ minWidth: 0 }}>{children}</div>
-    </div>
-  )
-}
-
 function InlineMutedText({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <div style={{ fontSize: 12, color: 'var(--color-text-muted)', padding: '7px 0' }}>
@@ -1723,24 +1651,6 @@ function SegmentedControl({
       options={items.map((item) => ({ value: item.id, label: item.label }))}
       className="settings-segmented-control"
     />
-  )
-}
-
-function StatusPill({ label, color }: { label: string; color: string }): JSX.Element {
-  return (
-    <span
-      style={{
-        padding: '2px 7px',
-        borderRadius: 999,
-        border: `1px solid ${color}`,
-        color,
-        fontSize: 10,
-        fontWeight: 650,
-        lineHeight: 1.2,
-      }}
-    >
-      {label}
-    </span>
   )
 }
 
@@ -2075,44 +1985,6 @@ function ProviderProbeGrid({
   )
 }
 
-function DiagnosticPill({ status, color }: { status: string; color: string }): JSX.Element {
-  const normalized = status.toLowerCase()
-  const isGood = ['found', 'ok', 'available', 'configured', 'passed'].includes(normalized)
-  const isBad = ['missing', 'error', 'empty', 'failed'].includes(normalized)
-  const pillColor = isGood ? color : isBad ? '#F87171' : 'var(--color-text-muted)'
-  const labels: Record<string, string> = {
-    found: 'OK',
-    ok: 'OK',
-    available: 'OK',
-    configured: 'OK',
-    passed: 'OK',
-    missing: 'Missing',
-    error: 'Error',
-    empty: 'Empty',
-    failed: 'Failed',
-    skipped: 'Skip',
-    unavailable: 'N/A',
-    unknown: 'Unknown',
-    'not-run': 'Off'
-  }
-  return (
-    <span
-      style={{
-        justifySelf: 'start',
-        padding: '2px 7px',
-        borderRadius: 999,
-        border: `1px solid ${pillColor}`,
-        color: pillColor,
-        fontSize: 10,
-        fontWeight: 600,
-        lineHeight: 1.2
-      }}
-    >
-      {labels[normalized] ?? status.replace('-', ' ')}
-    </span>
-  )
-}
-
 // ─── Model list manager ────────────────────────────────────────────────────────
 
 function ModelListManager({
@@ -2431,7 +2303,6 @@ function PetsSection(): JSX.Element {
   return (
     <div style={{ padding: '30px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
       <SettingsIntro
-        title="Pets"
         description="Choose the overlay companion and import local or Codex-compatible pet bundles."
       />
 
@@ -2554,32 +2425,6 @@ function PetsSection(): JSX.Element {
           </button>
         </div>
       </SettingGroup>
-    </div>
-  )
-}
-
-function SettingGroup({ title, description, children }: {
-  title: string; description?: string; children: React.ReactNode
-}): JSX.Element {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '180px minmax(0, 1fr)',
-        gap: 24,
-        alignItems: 'start',
-        padding: '18px 0',
-        marginBottom: 0,
-        borderRadius: 0,
-        background: 'var(--surface-bg)',
-        borderTop: '1px solid var(--border-subtle)'
-      }}
-    >
-      <div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{title}</div>
-        {description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>{description}</div>}
-      </div>
-      <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   )
 }

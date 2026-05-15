@@ -6,6 +6,7 @@ import { useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
+import { DismissablePopoverSurface } from '../shared/designSystem'
 
 interface Props {
   session: Session
@@ -43,9 +44,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const [claudeAgents, setClaudeAgents] = useState<ProviderAgentDef[]>([])
   const [claudeAgentsStatus, setClaudeAgentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const modeMenuRef = useRef<HTMLDivElement>(null)
-  const agentMenuRef = useRef<HTMLDivElement>(null)
-  const permMenuRef = useRef<HTMLDivElement>(null)
 
   const resizeTextarea = (textarea: HTMLTextAreaElement): void => {
     textarea.style.height = 'auto'
@@ -108,16 +106,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       }, 0)
     }
   }, [injectedText])
-
-  useEffect(() => {
-    const handler = (e: MouseEvent): void => {
-      if (showModeMenu && modeMenuRef.current && !modeMenuRef.current.contains(e.target as Node)) setShowModeMenu(false)
-      if (showAgentMenu && agentMenuRef.current && !agentMenuRef.current.contains(e.target as Node)) setShowAgentMenu(false)
-      if (showPermMenu && permMenuRef.current && !permMenuRef.current.contains(e.target as Node)) setShowPermMenu(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showModeMenu, showAgentMenu, showPermMenu])
 
   useEffect(() => {
     if (!showPermMenu) setShowAdvancedPerms(false)
@@ -437,12 +425,13 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           {/* Left side */}
           {isNew ? (
             /* New session: worktree mode toggle */
-            <div className="relative" ref={modeMenuRef}>
+            <div className="relative">
               <ToolbarBtn
                 active={effectiveMode}
                 onClick={isGitRepo ? () => setShowModeMenu((v) => !v) : undefined}
                 muted={!isGitRepo}
                 title={!isGitRepo ? 'Not a git repository' : undefined}
+                dataTestId="composer-worktree-menu"
               >
                 <Icon name={effectiveMode ? 'branch' : 'folder'} size={13} />
                 {effectiveMode ? 'Branch' : 'Local'}
@@ -450,7 +439,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
               </ToolbarBtn>
 
               {showModeMenu && (
-                <DropdownPanel style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 160 }}>
+                <DropdownPanel onClose={() => setShowModeMenu(false)} style={{ bottom: '100%', marginBottom: 8, left: 0, minWidth: 160 }}>
                   {(['local', 'worktree'] as const).map((mode) => {
                     const active = mode === 'worktree' ? useWorktree : !useWorktree
                     return (
@@ -484,11 +473,12 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
           {/* New session: combined agent picker */}
           {isNew && (
-            <div className="relative" ref={agentMenuRef}>
+            <div className="relative">
               <ToolbarBtn
                 active={false}
                 onClick={() => setShowAgentMenu((v) => !v)}
                 providerColor={provider.color}
+                dataTestId="composer-agent-menu"
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
                 {agentLabel}
@@ -496,7 +486,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
               </ToolbarBtn>
 
               {showAgentMenu && (
-                <DropdownPanel style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 320 }}>
+                <DropdownPanel onClose={() => setShowAgentMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: 320 }}>
                   {/* Provider row */}
                   <TieredRow label="Provider">
                     {Object.values(PROVIDER_DEFS).sort((a, b) => {
@@ -616,15 +606,15 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
           )}
 
           {/* Permission mode picker — always shown */}
-          <div className="relative" ref={permMenuRef}>
-            <ToolbarBtn active={permissionMode !== defaultPermissionMode} onClick={() => setShowPermMenu((v) => !v)}>
+          <div className="relative">
+            <ToolbarBtn active={permissionMode !== defaultPermissionMode} onClick={() => setShowPermMenu((v) => !v)} dataTestId="composer-permission-menu">
               <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
               {permLabel}
               {resolvedPermission?.support === 'unsupported' && <PolicyBadge policy={resolvedPermission} compact />}
               <Chevron />
             </ToolbarBtn>
             {showPermMenu && (
-              <DropdownPanel style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: provider.id === 'claude' ? 260 : 190 }}>
+              <DropdownPanel onClose={() => setShowPermMenu(false)} style={{ bottom: '100%', marginBottom: 8, right: 0, minWidth: provider.id === 'claude' ? 260 : 190 }}>
                 <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--color-border)' }}>
                   <div className="flex items-center gap-2">
                     <ProviderIcon providerId={provider.id} size={12} color={provider.color} />
@@ -846,7 +836,7 @@ function formatBytes(value: number): string {
 }
 
 function ToolbarBtn({
-  children, active, onClick, muted, title, providerColor
+  children, active, onClick, muted, title, providerColor, dataTestId
 }: {
   children: React.ReactNode
   active: boolean
@@ -854,6 +844,7 @@ function ToolbarBtn({
   muted?: boolean
   title?: string
   providerColor?: string
+  dataTestId?: string
 }): JSX.Element {
   const borderColor = active ? 'var(--border-strong)' : 'transparent'
   const textColor = muted ? 'var(--text-tertiary)' : active ? 'var(--text-primary)' : 'var(--text-secondary)'
@@ -862,6 +853,7 @@ function ToolbarBtn({
     <button
       onClick={onClick}
       title={title}
+      data-testid={dataTestId}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
         background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
@@ -888,16 +880,17 @@ function Chevron(): JSX.Element {
 }
 
 function DropdownPanel({
-  children, style
+  children, onClose, style
 }: {
   children: React.ReactNode
+  onClose: () => void
   style: React.CSSProperties
 }): JSX.Element {
   return (
-    <div
+    <DismissablePopoverSurface
       className="absolute overflow-hidden z-50"
+      onClose={onClose}
       style={{
-        background: 'var(--surface-bg)',
         border: '1px solid var(--border-strong)',
         borderRadius: 'var(--radius-xl)',
         boxShadow: 'var(--shadow-popover)',
@@ -905,7 +898,7 @@ function DropdownPanel({
       }}
     >
       {children}
-    </div>
+    </DismissablePopoverSurface>
   )
 }
 

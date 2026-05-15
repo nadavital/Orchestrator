@@ -105,7 +105,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           await sleep(900);
           const textarea = document.querySelector('textarea');
           textarea?.focus();
-          if (textarea) {
+          if (textarea && ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} !== 'composer') {
             textarea.value = '/btw smoke check';
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
           }
@@ -165,6 +165,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(120);
             var capabilitySheetClosedWithEscape = !document.querySelector('.motion-sheet');
           }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'composer') {
+            const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
+            permissionButton?.click();
+            await sleep(140);
+            var composerPermissionMenuOpened = Boolean(document.querySelector('.motion-popover-surface'));
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(140);
+            var composerPermissionMenuClosedWithEscape = !document.querySelector('.motion-popover-surface');
+
+            const agentButton = document.querySelector('[data-testid="composer-agent-menu"]');
+            agentButton?.click();
+            await sleep(140);
+            var composerAgentMenuOpened = Boolean(document.querySelector('.motion-popover-surface'));
+            document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }));
+            await sleep(140);
+            var composerAgentMenuClosedWithOutsideClick = !document.querySelector('.motion-popover-surface');
+          }
           const bodyText = document.body.innerText;
           const buttons = [...document.querySelectorAll('button')].map((button) => ({
             text: button.textContent?.trim() ?? '',
@@ -193,6 +210,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilityMenuClosedWithEscape: typeof capabilityMenuClosedWithEscape === 'boolean' ? capabilityMenuClosedWithEscape : null,
             capabilitySheetOpened: typeof capabilitySheetOpened === 'boolean' ? capabilitySheetOpened : null,
             capabilitySheetClosedWithEscape: typeof capabilitySheetClosedWithEscape === 'boolean' ? capabilitySheetClosedWithEscape : null,
+            composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
+            composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,
+            composerAgentMenuOpened: typeof composerAgentMenuOpened === 'boolean' ? composerAgentMenuOpened : null,
+            composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
             buttonCount: buttons.length,
             buttons: buttons.slice(0, 30)
           };
