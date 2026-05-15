@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { Project } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
@@ -24,6 +25,21 @@ export default function Sidebar(): JSX.Element {
     setShowCapabilities,
     setShowSettings
   } = useSessionStore()
+  const sessionsByProject = useMemo(() => {
+    const grouped = new Map<string, typeof sessions>()
+    for (const session of sessions) {
+      const current = grouped.get(session.projectId)
+      if (current) current.push(session)
+      else grouped.set(session.projectId, [session])
+    }
+    for (const group of grouped.values()) {
+      group.sort((a, b) => {
+        if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1
+        return (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt)
+      })
+    }
+    return grouped
+  }, [sessions])
 
   const handleAddProject = (): void => {
     pickAndAddProject(addProject)
@@ -98,18 +114,13 @@ export default function Sidebar(): JSX.Element {
           </div>
 
           <div className="flex-1 overflow-y-auto px-2.5 py-1">
-            {projects.map((project) => {
-              const projectSessions = sessions
-                .filter((s) => s.projectId === project.id)
-                .sort((a, b) => b.createdAt - a.createdAt)
-              return (
-                <ProjectSection
-                  key={project.id}
-                  project={project}
-                  sessions={projectSessions}
-                />
-              )
-            })}
+            {projects.map((project) => (
+              <ProjectSection
+                key={project.id}
+                project={project}
+                sessions={sessionsByProject.get(project.id) ?? []}
+              />
+            ))}
           </div>
         </>
       )}

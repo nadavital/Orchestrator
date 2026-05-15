@@ -35,17 +35,18 @@ function SessionItem({ session }: Props): JSX.Element {
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
   const hasUnread = !isActive && unread
   const preview = useMemo(() => {
+    if (session.previewText) return compactPreview(session.previewText, session.name, session.status)
     const lastMessage = session.messages.findLast((m) => m.type === 'text' && m.role !== 'system')
     return lastMessage && lastMessage.type === 'text'
       ? compactPreview(lastMessage.content, session.name, session.status)
       : ''
-  }, [session.messages, session.name, session.status])
+  }, [session.messages, session.name, session.previewText, session.status])
 
   const cleanupSessionIfEmpty = async (sessionId: string | null): Promise<void> => {
     const { sessions, removeSession } = useSessionStore.getState()
     if (!sessionId || sessionId === session.id) return
     const active = sessions.find((s) => s.id === sessionId)
-    if (active && active.messages.length === 0 && active.status !== 'running') {
+    if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running') {
       await window.api.sessions.remove(active.id)
       await window.api.projects.removeSession(active.projectId, active.id)
       removeSession(active.id)
@@ -55,6 +56,22 @@ function SessionItem({ session }: Props): JSX.Element {
 
   const handleClick = async (): Promise<void> => {
     const previousActiveId = useSessionStore.getState().activeSessionId
+    const perfWindow = window as typeof window & {
+      __orchestratorSessionSwitchPerf?: {
+        sessionId: string
+        startedAt: number
+        messageCount: number
+        renderedMessages?: number
+        transcriptReadyAt?: number
+        transcriptReadyMs?: number
+      }
+      __orchestratorSessionSwitchLastPerf?: unknown
+    }
+    perfWindow.__orchestratorSessionSwitchPerf = {
+      sessionId: session.id,
+      startedAt: performance.now(),
+      messageCount: session.messageCount ?? session.messages.length
+    }
     setActiveSession(session.id)
     setShowCapabilities(false)
     setShowSettings(false)

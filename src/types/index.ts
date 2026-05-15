@@ -875,6 +875,10 @@ export interface Session {
   claudeSessionId?: string | null
   status: SessionStatus
   messages: ChatMessage[]
+  messageCount?: number
+  messagesLoaded?: boolean
+  previewText?: string
+  latestMessageAt?: number
   createdAt: number
   provider: string
   model: string
@@ -889,6 +893,13 @@ export interface Session {
   useThinking?: boolean
   useFast?: boolean
   usageSummary?: UsageSummary
+}
+
+export interface SessionListItem extends Session {
+  messageCount: number
+  messagesLoaded: boolean
+  previewText?: string
+  latestMessageAt?: number
 }
 
 export interface SessionRunEventRecord {

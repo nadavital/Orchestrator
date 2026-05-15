@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { promisify } from 'util'
-import type { Attachment, Session, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus, UsageSummary } from '../types'
+import type { Attachment, Session, SessionListItem, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus, UsageSummary } from '../types'
 import { PROVIDER_DEFS, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
 import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand } from './providers'
@@ -25,6 +25,7 @@ migrateLegacyUserData()
 const store = new Store<SessionStore>({ defaults: { sessions: [] } })
 const execFileAsync = promisify(execFile)
 const MAX_ATTACHMENT_CHARS = 80_000
+const SESSION_LIST_TAIL_MESSAGES = 8
 
 interface PendingFollowUp {
   id: string
@@ -64,6 +65,31 @@ function normalizeSession(session: Session): Session {
     messages: hasRuntime ? session.messages : finalizeInterruptedMessages(session.messages),
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
     runtime: sessionRuntimeForProvider(providerId, session.runtime)
+  }
+}
+
+function sessionPreviewText(messages: ChatMessage[], fallback: string): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.type === 'text' && message.role !== 'system') {
+      const compact = message.content.replace(/\s+/g, ' ').trim()
+      if (compact && compact !== fallback) return compact.length > 120 ? `${compact.slice(0, 117)}...` : compact
+    }
+  }
+  return ''
+}
+
+function sessionListItem(session: Session): SessionListItem {
+  const normalized = normalizeSession(session)
+  const messageCount = normalized.messages.length
+  const latestMessageAt = normalized.messages.at(-1)?.timestamp ?? normalized.createdAt
+  return {
+    ...normalized,
+    messages: normalized.messages.slice(-SESSION_LIST_TAIL_MESSAGES),
+    messageCount,
+    latestMessageAt,
+    messagesLoaded: messageCount <= SESSION_LIST_TAIL_MESSAGES,
+    previewText: sessionPreviewText(normalized.messages, normalized.name)
   }
 }
 
@@ -262,6 +288,10 @@ function clearRuntimeState(sessionId: string): void {
 export const sessionManager = {
   list(): Session[] {
     return store.get('sessions', []).map(normalizeSession)
+  },
+
+  listSummaries(): SessionListItem[] {
+    return store.get('sessions', []).map(sessionListItem)
   },
 
   get(id: string): Session | undefined {

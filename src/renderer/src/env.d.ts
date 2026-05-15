@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, SessionListItem, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../../types'
 
 export interface AppSettings {
   defaultProvider: string
@@ -73,6 +73,7 @@ declare global {
       }
       sessions: {
         list: () => Promise<Session[]>
+        listSummaries: () => Promise<SessionListItem[]>
         get: (id: string) => Promise<Session | undefined>
         create: (opts: {
           projectId: string

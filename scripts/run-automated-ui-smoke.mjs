@@ -33,6 +33,7 @@ const captureView = process.argv.includes('--settings')
                   : process.argv.includes('--terminal')
                     ? 'terminal'
                     : 'main'
+const runPackaged = process.argv.includes('--packaged')
 const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', profile)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
@@ -53,7 +54,12 @@ if (captureView === 'capabilities') {
   writeFileSync(join(smokeCommandDir, 'orchestrator-smoke.md'), '# Orchestrator smoke command\n\nRun the smoke fixture.\n')
 }
 
-const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], {
+const launch = runPackaged ? packagedLaunchCommand() : {
+  bin: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+  args: ['run', 'dev']
+}
+
+const child = spawn(launch.bin, launch.args, {
   cwd: root,
   env: {
     ...process.env,
@@ -102,7 +108,10 @@ child.on('exit', (code) => {
         firstTitleFound: result.firstTitleFound === true,
         secondTranscriptFound: result.secondTranscriptFound === true,
         secondTitleFound: result.secondTitleFound === true,
+        summaryTailBounded: result.summaryTailBounded === true,
         longHistoryDeferred: result.longHistoryDeferred === true,
+        fullHydratedAfterSwitch: result.fullHydratedAfterSwitch === true,
+        renderedWindowBounded: Number(result.renderedMessages ?? Number.POSITIVE_INFINITY) <= 40,
         titleWithinBudget: Number(result.titleElapsedMs ?? Number.POSITIVE_INFINITY) <= 150,
         transcriptWithinBudget: Number(result.switchElapsedMs ?? Number.POSITIVE_INFINITY) <= 900,
         sessionViewNotAnimated: result.sessionViewAnimated === false
@@ -213,3 +222,15 @@ child.on('exit', (code) => {
 
   console.log(JSON.stringify({ outputPath, screenshotPath: report.screenshotPath, view: captureView, checks, profile: result.profile }, null, 2))
 })
+
+function packagedLaunchCommand() {
+  const executable = process.platform === 'darwin'
+    ? join(root, 'dist', 'mac-arm64', 'Orchestrator.app', 'Contents', 'MacOS', 'Orchestrator')
+    : join(root, 'dist', 'Orchestrator')
+  if (!existsSync(executable)) {
+    console.error(`Packaged app not found at ${executable}`)
+    console.error('Run npm run pack:mac before --packaged smoke checks.')
+    process.exit(1)
+  }
+  return { bin: executable, args: [] }
+}

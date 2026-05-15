@@ -72,6 +72,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // Sessions
   ipcMain.handle('sessions:list', () => sessionManager.list())
+  ipcMain.handle('sessions:listSummaries', () => sessionManager.listSummaries())
   ipcMain.handle('sessions:get', (_, id: string) => sessionManager.get(id))
   ipcMain.handle('sessions:create', (_, opts) => sessionManager.create(opts))
   ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) =>

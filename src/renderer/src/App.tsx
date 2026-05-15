@@ -16,6 +16,7 @@ export default function App(): JSX.Element {
   const {
     setSessions,
     addSession,
+    hydrateSession,
     updateStatus,
     updateName,
     updatePinned,
@@ -74,7 +75,7 @@ export default function App(): JSX.Element {
     }
     media.addEventListener('change', onSystemThemeChanged)
 
-    Promise.all([window.api.projects.list(), window.api.sessions.list()]).then(
+    Promise.all([window.api.projects.list(), window.api.sessions.listSummaries()]).then(
       async ([projects, sessions]) => {
         setProjects(projects)
 
@@ -92,8 +93,8 @@ export default function App(): JSX.Element {
         }
 
         // Separate empty sessions (safe to clean up) from live ones
-        const emptySessions = sessions.filter((s) => s.messages.length === 0 && s.status !== 'running')
-        const liveSessions = sessions.filter((s) => s.messages.length > 0 || s.status === 'running')
+        const emptySessions = sessions.filter((s) => s.messageCount === 0 && s.status !== 'running')
+        const liveSessions = sessions.filter((s) => s.messageCount > 0 || s.status === 'running')
 
         // Keep one empty session in the target project to reuse; delete all others
         const reuseCandidate = emptySessions
@@ -172,6 +173,17 @@ export default function App(): JSX.Element {
 
     return () => { unsub(); unsubNav(); media.removeEventListener('change', onSystemThemeChanged) }
   }, [])
+
+  useEffect(() => {
+    if (!activeSessionId) return
+    const session = useSessionStore.getState().sessions.find((candidate) => candidate.id === activeSessionId)
+    if (!session || session.messagesLoaded) return
+    let cancelled = false
+    window.api.sessions.get(activeSessionId).then((fullSession) => {
+      if (!cancelled && fullSession) hydrateSession(fullSession)
+    })
+    return () => { cancelled = true }
+  }, [activeSessionId, hydrateSession])
 
   if (isDesignSystemPreview) {
     return <DesignSystemPreview />

@@ -340,6 +340,21 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           return
         }
 
+        const summaryResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const summaries = await window.api.sessions.listSummaries();
+            const first = summaries.find((session) => session.id === ${JSON.stringify(first.id)});
+            const second = summaries.find((session) => session.id === ${JSON.stringify(second.id)});
+            return {
+              summaryTailBounded: Boolean(first && second && first.messageCount > first.messages.length && second.messageCount > second.messages.length && first.messages.length <= 8 && second.messages.length <= 8),
+              firstSummaryMessageCount: first?.messageCount ?? null,
+              firstSummaryRenderedMessages: first?.messages.length ?? null,
+              secondSummaryMessageCount: second?.messageCount ?? null,
+              secondSummaryRenderedMessages: second?.messages.length ?? null
+            };
+          })()
+        `)
+
         win.webContents.send('pet:navigate', first.id)
         await new Promise((resolve) => setTimeout(resolve, 250))
         const before = await win.webContents.executeJavaScript(`
@@ -369,12 +384,26 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               await sleep(10);
             }
             const transcriptText = document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '';
+            const switchElapsedMs = performance.now() - window.__orchestratorSessionSwitchStart;
+            let fullHydratedAfterSwitch = false;
+            for (let index = 0; index < 120; index += 1) {
+              const loadEarlierText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
+              if (loadEarlierText.includes('381 earlier')) {
+                fullHydratedAfterSwitch = true;
+                break;
+              }
+              await sleep(10);
+            }
             return {
               secondTranscriptFound: transcriptText.includes('SESSION_SWITCH_SMOKE_TWO'),
               secondTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)}) ?? false,
               longHistoryDeferred: Boolean(document.querySelector('[data-testid="load-earlier-messages"]')),
+              fullHydratedAfterSwitch,
+              renderedMessages: window.__orchestratorSessionSwitchLastPerf?.renderedMessages ?? null,
+              messageCount: window.__orchestratorSessionSwitchLastPerf?.messageCount ?? null,
+              instrumentedTranscriptReadyMs: window.__orchestratorSessionSwitchLastPerf?.transcriptReadyMs ?? null,
               titleElapsedMs,
-              switchElapsedMs: performance.now() - window.__orchestratorSessionSwitchStart,
+              switchElapsedMs,
               sessionViewAnimated: document.querySelector('[data-motion-view="session"]')?.classList.contains('motion-view-animated') ?? null
             };
           })()
@@ -384,7 +413,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...before, ...after }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...summaryResult, ...before, ...after }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -1161,7 +1190,20 @@ async function createSessionSwitchFixture(
     id: `${marker.toLowerCase()}-assistant`,
     role: 'assistant',
     type: 'text',
-    content: `${marker}: seeded transcript content for immediate chat switching.`,
+    content: [
+      `${marker}: seeded transcript content for immediate chat switching.`,
+      '',
+      '```ts',
+      'export const largeChatFixture = true',
+      '```',
+      '',
+      '| Surface | Purpose |',
+      '| --- | --- |',
+      '| transcript | validates markdown render cost |',
+      '| sidebar | validates metadata-first loading |',
+      '',
+      Array.from({ length: 24 }, (_, line) => `Detailed fixture paragraph ${line + 1} keeps the active message realistic without relying on private user data.`).join('\n')
+    ].join('\n'),
     timestamp: baseTime + messages.length
   })
   sessionManager.appendMessage(session.id, messages)

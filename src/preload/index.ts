@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, SessionListItem, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../types'
 
 interface AppSettings {
   defaultProvider: string
@@ -61,6 +61,7 @@ const api = {
 
   sessions: {
     list: (): Promise<Session[]> => ipcRenderer.invoke('sessions:list'),
+    listSummaries: (): Promise<SessionListItem[]> => ipcRenderer.invoke('sessions:listSummaries'),
     get: (id: string): Promise<Session | undefined> => ipcRenderer.invoke('sessions:get', id),
     create: (opts: {
       projectId: string

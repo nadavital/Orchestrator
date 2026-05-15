@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { Project, Session } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
@@ -21,11 +21,6 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
-  const sortedSessions = useMemo(() => [...sessions].sort((a, b) => {
-    if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1
-    return b.createdAt - a.createdAt
-  }), [sessions])
-
   const handleNewSession = async (): Promise<void> => {
     if (creating) return
     setCreating(true)
@@ -34,7 +29,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
     const { activeSessionId, sessions: allSessions, removeSession } = useSessionStore.getState()
     if (activeSessionId) {
       const active = allSessions.find((s) => s.id === activeSessionId)
-      if (active && active.messages.length === 0 && active.status !== 'running') {
+      if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running') {
         await window.api.sessions.remove(active.id)
         await window.api.projects.removeSession(active.projectId, active.id)
         removeSession(active.id)
@@ -115,7 +110,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
               New chat
             </div>
           )}
-          {sortedSessions.map((session) => (
+          {sessions.map((session) => (
             <SessionItem key={session.id} session={session} />
           ))}
         </div>

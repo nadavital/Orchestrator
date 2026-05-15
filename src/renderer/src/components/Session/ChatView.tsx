@@ -61,7 +61,8 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     if (session.messages.length <= renderLimit) return session.messages
     return session.messages.slice(-renderLimit)
   }, [renderLimit, session.messages])
-  const hiddenMessageCount = Math.max(0, session.messages.length - visibleMessages.length)
+  const totalMessageCount = session.messageCount ?? session.messages.length
+  const hiddenMessageCount = Math.max(0, totalMessageCount - visibleMessages.length)
   const transcriptItems = useMemo(() => groupTranscriptMessages(visibleMessages), [visibleMessages])
   const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
   const lastMessage = session.messages[session.messages.length - 1]
@@ -122,12 +123,49 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     setFollowingBottom(true)
     setRenderLimit(Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
     scrollToBottom(true)
-  }, [scrollToBottom, session.id, setFollowingBottom])
+  }, [scrollToBottom, session.id, session.messagesLoaded, setFollowingBottom])
 
   useEffect(() => {
     if (!shouldFollowBottomRef.current) return
     scrollToBottom()
   }, [session.messages.length, lastTextLength, scrollToBottom])
+
+  useEffect(() => {
+    const perfWindow = window as typeof window & {
+      __orchestratorSessionSwitchPerf?: {
+        sessionId: string
+        startedAt: number
+        messageCount: number
+        renderedMessages?: number
+        transcriptReadyAt?: number
+        transcriptReadyMs?: number
+      }
+      __orchestratorSessionSwitchLastPerf?: unknown
+    }
+    const pending = perfWindow.__orchestratorSessionSwitchPerf
+    if (!pending || pending.sessionId !== session.id || pending.transcriptReadyAt) return
+    const frame = window.requestAnimationFrame(() => {
+      const transcriptReadyAt = performance.now()
+      const result = {
+        ...pending,
+        renderedMessages: visibleMessages.length,
+        transcriptReadyAt,
+        transcriptReadyMs: transcriptReadyAt - pending.startedAt
+      }
+      perfWindow.__orchestratorSessionSwitchPerf = result
+      perfWindow.__orchestratorSessionSwitchLastPerf = result
+      window.dispatchEvent(new CustomEvent('orchestrator:session-switch-perf', { detail: result }))
+      if (import.meta.env.DEV) {
+        console.info('[orchestrator] session switch', {
+          sessionId: result.sessionId,
+          messageCount: result.messageCount,
+          renderedMessages: result.renderedMessages,
+          transcriptReadyMs: Math.round(result.transcriptReadyMs)
+        })
+      }
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [session.id, visibleMessages.length])
 
   useEffect(() => {
     return () => {

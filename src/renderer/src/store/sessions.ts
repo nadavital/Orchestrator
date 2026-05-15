@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Session, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, UsageSummary } from '../types'
+import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, UsageSummary } from '../types'
 
 export type SettingsSection = 'general' | 'providers' | 'pets'
 
@@ -25,7 +25,7 @@ interface SessionUIState {
 }
 
 interface SessionState {
-  sessions: Session[]
+  sessions: SessionListItem[]
   activeSessionId: string | null
   rawBuffers: Record<string, string>
   eventBuffers: Record<string, SessionRunEventRecord[]>
@@ -35,8 +35,9 @@ interface SessionState {
   showSettings: boolean
   showCapabilities: boolean
   settingsSection: SettingsSection
-  setSessions: (sessions: Session[]) => void
+  setSessions: (sessions: SessionListItem[]) => void
   addSession: (session: Session) => void
+  hydrateSession: (session: Session) => void
   removeSession: (id: string) => void
   setActiveSession: (id: string | null) => void
   updateStatus: (id: string, status: Session['status']) => void
@@ -80,6 +81,8 @@ interface SessionState {
   appendRaw: (id: string, data: string) => void
 }
 
+const SESSION_STORE_TAIL_MESSAGES = 64
+
 const defaultUI: SessionUIState = {
   showPlan: false,
   showDiff: false,
@@ -111,7 +114,12 @@ export const useSessionStore = create<SessionState>((set) => ({
     set((s) => ({
       sessions: s.sessions.some((x) => x.id === session.id)
         ? s.sessions
-        : [...s.sessions, session]
+        : [...s.sessions, fullSessionItem(session)]
+    })),
+
+  hydrateSession: (session) =>
+    set((s) => ({
+      sessions: s.sessions.map((x) => x.id === session.id ? fullSessionItem(session) : x)
     })),
 
   removeSession: (id) =>
@@ -129,12 +137,18 @@ export const useSessionStore = create<SessionState>((set) => ({
     }),
 
   setActiveSession: (id) =>
-    set((s) => ({
-      activeSessionId: id,
-      uiState: id
-        ? { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), hasUnread: false } }
-        : s.uiState
-    })),
+    set((s) => {
+      if (id && id !== s.activeSessionId) {
+        const session = s.sessions.find((candidate) => candidate.id === id)
+        markSessionSwitchStart(id, session?.messageCount ?? session?.messages.length ?? 0)
+      }
+      return {
+        activeSessionId: id,
+        uiState: id
+          ? { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), hasUnread: false } }
+          : s.uiState
+      }
+    }),
 
   updateStatus: (id, status) =>
     set((s) => ({
@@ -342,7 +356,17 @@ export const useSessionStore = create<SessionState>((set) => ({
   appendMessages: (id, messages) =>
     set((s) => ({
       sessions: s.sessions.map((x) =>
-        x.id === id ? { ...x, messages: [...x.messages, ...messages] } : x
+        x.id === id
+          ? {
+              ...x,
+              messages: x.messagesLoaded
+                ? [...x.messages, ...messages]
+                : [...x.messages, ...messages].slice(-SESSION_STORE_TAIL_MESSAGES),
+              messageCount: (x.messageCount ?? x.messages.length) + messages.length,
+              previewText: sessionPreviewText([...x.messages, ...messages], x.name),
+              latestMessageAt: messages.at(-1)?.timestamp ?? x.latestMessageAt
+            }
+          : x
       )
     })),
 
@@ -353,8 +377,16 @@ export const useSessionStore = create<SessionState>((set) => ({
         const index = x.messages.findIndex((existing) => existing.id === message.id)
         const messages = index >= 0
           ? x.messages.map((existing, i) => i === index ? message : existing)
-          : [...x.messages, message]
-        return { ...x, messages }
+          : x.messagesLoaded
+            ? [...x.messages, message]
+            : [...x.messages, message].slice(-SESSION_STORE_TAIL_MESSAGES)
+        return {
+          ...x,
+          messages,
+          messageCount: index >= 0 ? (x.messageCount ?? x.messages.length) : (x.messageCount ?? x.messages.length) + 1,
+          previewText: sessionPreviewText(messages, x.name),
+          latestMessageAt: message.timestamp ?? x.latestMessageAt
+        }
       })
     })),
 
@@ -368,3 +400,45 @@ export const useSessionStore = create<SessionState>((set) => ({
       rawBuffers: { ...s.rawBuffers, [id]: (s.rawBuffers[id] ?? '') + data }
     }))
 }))
+
+function fullSessionItem(session: Session): SessionListItem {
+  return {
+    ...session,
+    messageCount: session.messages.length,
+    messagesLoaded: true,
+    previewText: sessionPreviewText(session.messages, session.name),
+    latestMessageAt: session.messages.at(-1)?.timestamp ?? session.createdAt
+  }
+}
+
+function sessionPreviewText(messages: ChatMessage[], fallback: string): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.type !== 'text' || message.role === 'system') continue
+    const compact = message.content.replace(/\s+/g, ' ').trim()
+    if (!compact || compact === fallback) continue
+    return compact.length > 120 ? `${compact.slice(0, 117)}...` : compact
+  }
+  return ''
+}
+
+function markSessionSwitchStart(sessionId: string, messageCount: number): void {
+  if (typeof window === 'undefined') return
+  const perfWindow = window as typeof window & {
+    __orchestratorSessionSwitchPerf?: {
+      sessionId: string
+      startedAt: number
+      messageCount: number
+      renderedMessages?: number
+      transcriptReadyAt?: number
+      transcriptReadyMs?: number
+    }
+  }
+  const existing = perfWindow.__orchestratorSessionSwitchPerf
+  if (existing?.sessionId === sessionId && !existing.transcriptReadyAt) return
+  perfWindow.__orchestratorSessionSwitchPerf = {
+    sessionId,
+    startedAt: performance.now(),
+    messageCount
+  }
+}
