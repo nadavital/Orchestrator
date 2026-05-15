@@ -119,7 +119,7 @@ child.on('exit', (code) => {
         isolatedProfile: result.profile?.isIsolated === true,
         profileBadge: ['settings', 'resources', 'capabilities', 'pets'].includes(captureView) || result.hasProfileBadge === true,
         composer: result.hasComposer === true,
-        sidebarNavigation: ['capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
+        sidebarNavigation: ['settings', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector'].includes(captureView) || result.hasSideQuestionCommandText === true,
         capabilityCreateMenu: captureView !== 'capabilities' || result.capabilityMenuOpened === true,

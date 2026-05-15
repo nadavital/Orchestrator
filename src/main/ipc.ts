@@ -1,5 +1,6 @@
 import type { IpcMain } from 'electron'
 import { dialog, app, shell } from 'electron'
+import { execFile } from 'child_process'
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
 import { basename, dirname } from 'path'
 import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest } from '../types'
@@ -17,6 +18,40 @@ import { listProviderResources } from './providerResources'
 import { createCapability } from './capabilityCreator'
 import { deleteCapability, updateCapability } from './capabilityManager'
 import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
+
+type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+
+const EDITOR_APPS: Record<Exclude<PreferredEditor, 'system'>, { label: string; macAppName: string }> = {
+  vscode: { label: 'VS Code', macAppName: 'Visual Studio Code' },
+  'vscode-insiders': { label: 'VS Code Insiders', macAppName: 'Visual Studio Code - Insiders' },
+  cursor: { label: 'Cursor', macAppName: 'Cursor' },
+  zed: { label: 'Zed', macAppName: 'Zed' }
+}
+
+function normalizePreferredEditor(value: unknown): PreferredEditor {
+  return value === 'vscode' || value === 'vscode-insiders' || value === 'cursor' || value === 'zed'
+    ? value
+    : 'system'
+}
+
+async function openPathWithPreferredEditor(filePath: string): Promise<string> {
+  const editor = normalizePreferredEditor(settingsStore.get('preferredEditor', 'system'))
+  if (editor === 'system') return shell.openPath(filePath)
+
+  const appInfo = EDITOR_APPS[editor]
+  if (process.platform !== 'darwin') return shell.openPath(filePath)
+
+  return new Promise((resolve) => {
+    execFile('/usr/bin/open', ['-a', appInfo.macAppName, filePath], (error, _stdout, stderr) => {
+      if (!error) {
+        resolve('')
+        return
+      }
+      const details = stderr.trim() || error.message
+      resolve(`Unable to open in ${appInfo.label}${details ? `: ${details}` : '.'}`)
+    })
+  })
+}
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   // App profile
@@ -166,7 +201,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('fs:resolveWorkspaceFileReference', (_, cwd: string, filePath: string): string | null =>
     resolveWorkspaceFileReference(cwd, filePath)
   )
-  ipcMain.handle('fs:openPath', (_, filePath: string): Promise<string> => shell.openPath(filePath))
+  ipcMain.handle('fs:openPath', (_, filePath: string): Promise<string> => openPathWithPreferredEditor(filePath))
   ipcMain.handle('fs:showInFolder', (_, filePath: string): void => shell.showItemInFolder(filePath))
 
   // User shell terminal (separate from provider subprocesses)

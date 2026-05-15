@@ -177,6 +177,7 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
                   msg={item.message}
                   session={session}
                   fileReferenceRoots={fileReferenceRoots}
+                  preferredEditor={preferredEditor}
                   canCopy={item.message.id === lastAssistantTextId}
                 />
               )
@@ -445,11 +446,13 @@ function MessageRow({
   msg,
   session,
   fileReferenceRoots,
+  preferredEditor,
   canCopy
 }: {
   msg: ChatMessage
   session: Session
   fileReferenceRoots: string[]
+  preferredEditor: PreferredEditor
   canCopy: boolean
 }): JSX.Element | null {
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)

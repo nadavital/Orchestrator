@@ -25,6 +25,8 @@ import Icon from './shared/Icon'
 import { SegmentedControl as SystemSegmentedControl, SwitchControl } from './shared/designSystem'
 import { applyAppearance, type Accent, type Appearance, type Density, type TranscriptStyle } from '../theme'
 
+type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+
 interface Props {
   section: SettingsSection
   onClose: () => void
@@ -40,6 +42,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
   const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
   const [diagnosticsLoading, setDiagnosticsLoading] = useState<Record<string, boolean>>({})
+  const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
   const [appearance, setAppearance] = useState<Appearance>('mist')
   const [accent, setAccent] = useState<Accent>('blue')
   const [density, setDensity] = useState<Density>('comfortable')
@@ -58,6 +61,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       setDefaultEfforts((rec.defaultEfforts as Record<string, string>) ?? {})
       setDefaultPermissionModes((rec.defaultPermissionModes as Record<string, string>) ?? {})
       setProviderModels((rec.providerModels as Record<string, string[]>) ?? {})
+      setPreferredEditor(normalizePreferredEditor(rec.preferredEditor))
       setAppearance((rec.appearance as Appearance) ?? 'mist')
       setAccent((rec.accent as Accent) ?? 'blue')
       setDensity((rec.density as Density) ?? 'comfortable')
@@ -109,6 +113,11 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     setProviderModels(next)
     storeSetProviderModels(next)
     window.api.settings.set('providerModels', next)
+  }
+
+  const savePreferredEditor = (value: PreferredEditor): void => {
+    setPreferredEditor(value)
+    window.api.settings.set('preferredEditor', value)
   }
 
   const saveAppearance = (value: Appearance): void => {
@@ -214,6 +223,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               interfaceScale={interfaceScale}
               uiFont={uiFont}
               monoFont={monoFont}
+              preferredEditor={preferredEditor}
               onSetAppearance={saveAppearance}
               onSetAccent={saveAccent}
               onSetDensity={saveDensity}
@@ -223,6 +233,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               onSetInterfaceScale={saveInterfaceScale}
               onSetUiFont={saveUiFont}
               onSetMonoFont={saveMonoFont}
+              onSetPreferredEditor={savePreferredEditor}
             />
           )}
           {section === 'pets' && <PetsSection />}
@@ -257,6 +268,12 @@ function settingsTitle(section: SettingsSection): string {
   return 'General'
 }
 
+function normalizePreferredEditor(value: unknown): PreferredEditor {
+  return value === 'vscode' || value === 'vscode-insiders' || value === 'cursor' || value === 'zed'
+    ? value
+    : 'system'
+}
+
 // ─── General section (app-wide) ───────────────────────────────────────────────
 
 function GeneralSection({
@@ -269,6 +286,7 @@ function GeneralSection({
   interfaceScale,
   uiFont,
   monoFont,
+  preferredEditor,
   onSetAppearance,
   onSetAccent,
   onSetDensity,
@@ -278,6 +296,7 @@ function GeneralSection({
   onSetInterfaceScale,
   onSetUiFont,
   onSetMonoFont,
+  onSetPreferredEditor,
 }: {
   appearance: Appearance
   accent: Accent
@@ -288,6 +307,7 @@ function GeneralSection({
   interfaceScale: number
   uiFont: string
   monoFont: string
+  preferredEditor: PreferredEditor
   onSetAppearance: (value: Appearance) => void
   onSetAccent: (value: Accent) => void
   onSetDensity: (value: Density) => void
@@ -297,6 +317,7 @@ function GeneralSection({
   onSetInterfaceScale: (value: number) => void
   onSetUiFont: (value: string) => void
   onSetMonoFont: (value: string) => void
+  onSetPreferredEditor: (value: PreferredEditor) => void
 }): JSX.Element {
   const appearanceOptions: Array<{ id: Appearance; label: string; desc: string }> = [
     { id: 'system', label: 'System', desc: 'Follow macOS' },
@@ -328,6 +349,13 @@ function GeneralSection({
   const monoOptions = [
     { id: 'system', label: 'System mono', desc: 'SF Mono where available' },
     { id: 'mono', label: 'Developer mono', desc: 'Code-first stack' }
+  ]
+  const editorOptions: Array<{ id: PreferredEditor; label: string; desc: string }> = [
+    { id: 'system', label: 'System default', desc: 'Use macOS file associations' },
+    { id: 'cursor', label: 'Cursor', desc: 'Open file cards in Cursor' },
+    { id: 'vscode', label: 'VS Code', desc: 'Open file cards in Visual Studio Code' },
+    { id: 'vscode-insiders', label: 'VS Code Insiders', desc: 'Use the Insiders app' },
+    { id: 'zed', label: 'Zed', desc: 'Open file cards in Zed' }
   ]
 
   return (
@@ -427,6 +455,32 @@ function GeneralSection({
               onChange={(event) => onSetInterfaceScale(Number(event.currentTarget.value))}
             />
           </label>
+        </div>
+      </SettingGroup>
+
+      <SettingGroup title="Files" description="Choose where referenced file cards open from chat.">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+          {editorOptions.map((option) => {
+            const active = preferredEditor === option.id
+            return (
+              <button
+                key={option.id}
+                onClick={() => onSetPreferredEditor(option.id)}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                  background: active ? 'var(--control-bg-active)' : 'var(--surface-bg)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{option.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{option.desc}</div>
+              </button>
+            )
+          })}
         </div>
       </SettingGroup>
 
