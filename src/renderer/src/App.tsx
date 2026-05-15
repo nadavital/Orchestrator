@@ -196,7 +196,7 @@ export default function App(): JSX.Element {
             <Titlebar />
             <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
               {activeSessionId ? (
-                <MotionView viewKey={`session:${activeSessionId}`} className="flex flex-col overflow-hidden">
+                <MotionView viewKey="session" animate={false} className="flex flex-col overflow-hidden">
                   <SessionPane />
                 </MotionView>
               ) : null}

@@ -261,7 +261,7 @@
     transform-origin: top center;
   }
 
-  .motion-view {
+  .motion-view-animated {
     animation: motionOverlayIn var(--motion-duration-panel) var(--motion-ease-emphasized) both;
   }
 

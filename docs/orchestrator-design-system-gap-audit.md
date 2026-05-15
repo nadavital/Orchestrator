@@ -2,11 +2,16 @@
 
 Date: 2026-05-14
 
+Focused update: 2026-05-15, after:
+
+- `1d665b70 Align Orchestrator motion system with Codex`
+- `f5585903 Migrate inspector panels to shared primitives`
+
 ## Scope
 
-This audit checks whether Orchestrator's renderer and pet overlay now match the local Codex app's UI, motion, navigation, banners, badges, and shared design-system behavior after `ec50ec4b Add Codex-style motion design system`.
+This audit checks whether Orchestrator's renderer and pet overlay now match the local Codex app's UI, motion, navigation, banners, badges, and shared design-system behavior after the first design-system spike and the follow-up Codex-alignment commits listed above.
 
-The answer is: not yet. Orchestrator now has a useful foundation, and the pets/banner/badge work is much closer than it was, but the implementation is not app-wide and is not 1:1 with Codex across navigation, panels, settings, capabilities, inspector surfaces, composer, or the pet overlay bundle.
+The answer is still: not yet. Orchestrator now has a much stronger app-wide foundation, and the highest-risk pet resize clipping issue has been fixed, but the system is not yet as mature as Codex across settings, the composer/transcript, extension panels, menu accessibility, pet-overlay automation, and reduced-motion verification.
 
 The intended end state should still allow Orchestrator-specific differences:
 
@@ -49,6 +54,240 @@ I ignored unrelated local dirty edits in:
 - `src/renderer/src/env.d.ts`
 
 Those appear to be separate preferred-editor and composer paste changes.
+
+## Current State After The Focused Implementation
+
+### Now In Good Shape
+
+These are no longer the primary blockers:
+
+- App mode transitions now use `MotionView`.
+- Right inspector and bottom terminal panels now use `MotionPanel`.
+- Right/bottom panel resizing now uses `PanelResizeHandle` instead of local hover-only handles.
+- Titlebar controls now use shared `ToolbarButton`.
+- Session status now uses shared badge behavior.
+- Context tabs and terminal tabs now use shared `TabButton`.
+- The capabilities page now uses shared `Button`, `Badge`, `SurfaceRow`, `SegmentedControl`, `PopoverSurface`, and `Sheet` for the first-pass create flow and rows.
+- Diff, plan, agent activity, running agents, and side-question panels now use shared panel/card/badge/metric/row primitives.
+- Settings now uses the shared switch and provider/model segmented-control primitive in the migrated spots.
+- Pet resize no longer waits for a renderer `ResizeObserver` round trip to resize the floating window; it sends live resize-preview width to the main process, which recomputes the window bounds immediately.
+- UI smoke coverage has been exercised for main, design-system, terminal, inspector, capabilities, and pets/settings views.
+
+### Still Not Codex-Level
+
+These remain the main gaps:
+
+- `SettingsModal.tsx` is still the largest bespoke UI surface.
+- `InputBar.tsx` and `ChatView.tsx` still own important transcript/composer surfaces locally.
+- `ExtensionsPanel.tsx` is still mostly local and has repeated disclosure/transition behavior.
+- Capabilities edit/sync sheets still use the old `capability-sheet-backdrop` and local sheet layout.
+- Menus/popovers still do not have a shared dismissable-layer/focus/keyboard model comparable to Codex's dropdown stack.
+- The pet overlay is visually closer, but it still uses overlay-local primitives and inline transition strings instead of a shared cross-renderer design layer.
+- There is no deterministic floating pet-overlay smoke harness for badge, banner, tray, hover controls, resize, and provider/custom states.
+- Reduced-motion is broadly present in the main renderer CSS, but not verified end-to-end across the pet overlay and every direct inline transition.
+- Session-switch transitions exist at the view wrapper level, but there is not yet a dedicated visual smoke/assertion for session switching.
+- Session switching must remain effectively instant. The first follow-up implementation keyed the session `MotionView` by `activeSessionId`, which could make chat-window switching feel like a slower page transition. That is not acceptable for Codex parity; session switching should prefer state preservation and immediate content swap over decorative transition.
+
+### Updated Renderer Inventory
+
+This inventory was regenerated after the two follow-up commits. It counts inline `style` refs, direct `transition` strings, hover handlers, and shared primitive references. It is directional, not a quality score.
+
+| File | Inline style refs | Transition refs | Hover handlers | Shared primitive refs | Current status |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `SettingsModal.tsx` | 167 | 4 | 2 | 6 | Biggest remaining migration |
+| `ChatView.tsx` | 73 | 2 | 0 | 38 | Partial; transcript primitives still missing |
+| `ExtensionsPanel.tsx` | 63 | 5 | 1 | 4 | Major remaining local surface |
+| `InputBar.tsx` | 47 | 4 | 1 | 2 | Composer still mostly local |
+| `PetOverlay.tsx` | 30 | 10 | 2 | 15 | Visually closer; not systematized/tested enough |
+| `PlanPanel.tsx` | 16 | 0 | 0 | 17 | Mostly migrated |
+| `DiffPanel.tsx` | 13 | 0 | 0 | 17 | Mostly migrated |
+| `EventInspectorPanel.tsx` | 12 | 0 | 0 | 18 | Mostly migrated |
+| `Titlebar.tsx` | 8 | 0 | 0 | 8 | Mostly migrated |
+| `SideQuestionPanel.tsx` | 7 | 0 | 0 | 8 | Mostly migrated |
+| `RunningAgentsStrip.tsx` | 4 | 0 | 0 | 6 | Mostly migrated |
+| `SessionPane.tsx` | 4 | 0 | 0 | 12 | Shell/terminal migrated |
+| `ContextSidebar.tsx` | 1 | 0 | 0 | 9 | Shell/tabs migrated |
+| `CapabilitiesPage.tsx` | 2 | 0 | 0 | 38 | Partial; edit/sync sheets and menu behavior remain |
+| `TerminalView.tsx` | 4 | 0 | 0 | 0 | Stable xterm shell; low priority |
+
+## Remaining Work
+
+### P0: Chat Switch Latency Guard
+
+Why it matters: motion is only acceptable if it does not make high-frequency workflows slower. Switching between chat windows is a core Orchestrator action and should not feel gated by animation.
+
+Current fix:
+
+- The session content wrapper should not be keyed by `activeSessionId`.
+- The session `MotionView` should not run the 360ms app-mode animation.
+- App-mode transitions can keep motion, but session-to-session switching should be immediate unless profiling proves a lightweight transition has no perceptible cost.
+
+Still needed:
+
+- Add a deterministic smoke or integration check for session switching latency.
+- Seed at least two sessions in the smoke profile.
+- Click between sessions and measure time until the active transcript/session title changes.
+- Fail the smoke if switching exceeds a tight threshold, for example 100-150ms for DOM-visible content under the smoke fixture.
+- Add screenshot or DOM assertions that the transcript is visible immediately and not blocked behind a view fade.
+
+Acceptance rule:
+
+- No route/page animation should be applied to rapid chat-session switching unless it is proven not to increase perceived latency.
+
+### P0: Pet Overlay Confidence
+
+Why it matters: this is the surface most likely to regress invisibly because the floating overlay is a separate renderer/window and current smokes do not exercise it directly.
+
+Still needed:
+
+- Add a deterministic pet-overlay harness or smoke route that can render the floating overlay with fixture sessions.
+- Verify badge collapsed/expanded states.
+- Verify notification banner/tray rows, dismiss, expand, reply, and action buttons.
+- Verify resize at min/default/max widths without clipping.
+- Verify hover-only resize affordance and notification expand affordance.
+- Verify custom provider statuses map to the intended badge/banner states.
+- Verify reduced-motion behavior inside the pet overlay, not only the main renderer.
+
+Suggested implementation:
+
+- Add a `--pet-overlay` smoke mode that opens the pet overlay with fixture config and fixture session events, or add a renderer-only `#pet-overlay-preview` route that uses the same `PetOverlay` components with mocked `window.petApi`.
+- Capture screenshots at default, max-size, collapsed tray, expanded tray, and waiting-for-input states.
+- Add DOM assertions for `data-testid="avatar-overlay-resize-handle"` and `data-testid="avatar-overlay-notification-badge"`.
+
+### P0: Menu, Popover, And Sheet Accessibility
+
+Why it matters: Codex's dropdowns and dialogs are not just visual. They centralize keyboard behavior, focus behavior, Escape handling, disabled/danger states, and exit animation.
+
+Still needed:
+
+- Shared dismissable-layer primitive.
+- Shared `Menu`, `MenuItem`, `MenuSeparator`, and optional submenu/disclosure behavior.
+- Keyboard navigation for menus.
+- Escape and outside-click behavior for every menu/popover.
+- Focus trap or focus restoration for sheets/dialogs.
+- Exit animation retention instead of immediate unmount for menus/sheets where feasible.
+
+Highest-value targets:
+
+- `CapabilitiesPage` create menu and row action menu.
+- `CapabilitiesPage` edit and sync sheets.
+- `SessionActionsMenu`, which is visually migrated but still has local item behavior.
+- Slash palette hover/keyboard model.
+
+### P0: Settings Migration
+
+Why it matters: settings is still the biggest non-system surface and carries provider, model, pets, diagnostics, and appearance controls.
+
+Still needed:
+
+- `SettingsPanel`.
+- `SettingsRow`.
+- `SettingsCard`.
+- `StatusPill`.
+- `ProviderCard`.
+- `DiagnosticPill`.
+- `SortableModelRow` or a reusable sortable row primitive.
+- Pet card controls using shared primitives.
+- General settings cards converted away from local inline card buttons.
+
+Constraints:
+
+- The file currently has unrelated local preferred-editor edits in the worktree. Keep future design-system staging hunk-scoped unless those edits are intentionally folded in.
+
+### P1: Composer And Transcript
+
+Why it matters: Codex's interaction feel depends heavily on the composer and transcript. Orchestrator still has many local styles here.
+
+Still needed:
+
+- `ComposerShell`.
+- `ComposerButton`.
+- `ComposerToolbar`.
+- `ComposerAttachmentChip`.
+- `ComposerStatusButton` for permission/model/runtime state.
+- `ScrollToBottomButton` modeled on Codex's scroll-to-bottom behavior.
+- `ThinkingIndicator`.
+- `AttachmentChip`.
+- `FileReferenceCard`.
+- `MarkdownSurface`.
+- Shared copy/action controls for message rows.
+
+Suggested verification:
+
+- Long transcript scroll smoke.
+- In-progress assistant smoke.
+- File-reference card smoke.
+- Attachment paste/drop smoke.
+- Composer overflow/paste smoke.
+
+### P1: Extensions Panel
+
+Why it matters: this is now the largest untouched session-side panel.
+
+Still needed:
+
+- Replace local extension cards with `InspectorCard`.
+- Replace local disclosure chevrons with `DisclosureSection` or a more Codex-like animated disclosure primitive.
+- Replace metric/status pills with `MetricPill`/`Badge`.
+- Replace file/command rows with `SurfaceRow`.
+- Add an extensions-panel smoke view.
+
+### P1: Capabilities Edit/Sync Sheets
+
+Why it matters: the create flow and rows are partially migrated, but edit/sync still use local sheet/backdrop layout.
+
+Still needed:
+
+- Convert `EditCapabilitySheet` to shared `Sheet`.
+- Convert `SyncCapabilitySheet` to shared `Sheet`.
+- Replace sync provider checkboxes with shared row/card primitives.
+- Replace sync plan operation cards with `InspectorCard`/`Badge`.
+- Add smoke assertions for opening edit/sync sheets, not just landing on the capabilities page.
+
+### P1: Reduced Motion
+
+Why it matters: Codex's motion is polished partly because reduced-motion behavior is predictable.
+
+Still needed:
+
+- Add `--motion-reduced` smoke mode.
+- Force `prefers-reduced-motion` in the smoke harness or add a CSS/test flag.
+- Assert panels still open/close without transform motion.
+- Assert pet overlay does not run direct inline transitions in reduced-motion mode.
+- Replace pet overlay direct transition strings with tokenized helpers or reduced-motion branches.
+
+### P2: App-Shell Maturity
+
+Why it matters: Orchestrator's shell is now structurally closer to Codex, but it is still CSS-transition based, not as mature as Codex's motion-value panel implementation.
+
+Still needed:
+
+- Decide whether CSS transitions are acceptable or whether to adopt a motion-value style implementation for panel width/height.
+- Add visual assertions for right panel open/close and terminal open/close.
+- Add session-switch smoke coverage.
+- Add resizing persistence if desired for inspector width and terminal height.
+- Check wide/narrow viewport screenshots for panel overlap and min-width behavior.
+
+### P2: Design-System Boundaries
+
+Why it matters: the shared primitives are growing in one file. That is fine for a spike, but not ideal long-term.
+
+Still needed:
+
+- Split `designSystem.tsx` once primitive ownership stabilizes:
+  - buttons
+  - badges/status
+  - panels
+  - menus/popovers
+  - forms
+  - settings
+  - transcript/composer
+- Move cross-renderer-safe tokens/primitives into a place the pet overlay can consume.
+- Keep feature-specific CSS out of `index.css` where practical.
+
+## Historical Baseline
+
+The original spike details below are retained as the baseline that led to the current implementation. The "missing" statuses in that historical section are superseded by the current-state and remaining-work sections above.
 
 ## What Already Exists
 
@@ -772,15 +1011,16 @@ Use this as the definition of done for the full migration.
 
 ## Bottom Line
 
-The current implementation is a good first slice, but it is not yet a whole-app 1:1 Codex UI/motion migration.
+The current implementation is no longer just a first slice. It now has a real app-shell, panel, resize, tab, toolbar, badge, and inspector primitive baseline. It is still not a whole-app 1:1 Codex UI/motion system.
 
-The biggest missing pieces are:
+The biggest remaining pieces are:
 
-1. App shell and navigation transitions.
-2. Right/bottom panel animation and resize behavior.
-3. Shared menu, popover, sheet, tabs, and settings primitives.
-4. Settings and capabilities migration.
-5. Pet overlay primitive sharing and smoke coverage.
-6. Full reduced-motion and accessibility coverage.
+1. Chat switching latency guard and smoke coverage.
+2. Floating pet-overlay visual smoke coverage and reduced-motion hardening.
+3. Shared dismissable menu/popover/sheet accessibility behavior.
+4. Full settings migration.
+5. Composer and transcript primitives.
+6. Extensions panel migration.
+7. Capabilities edit/sync sheet migration.
 
-The next best step is Phase 1: add the app shell/panel/navigation motion layer. That gives every later migration a stable place to plug in and answers the main concern that motion should apply beyond pets.
+The next best step is the latency/pet-overlay verification pass: prove chat switching is instant, then add the floating pet-overlay harness so resize, badge, tray, banner, and custom-state behavior can be checked automatically.

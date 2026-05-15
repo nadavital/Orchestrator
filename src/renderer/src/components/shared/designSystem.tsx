@@ -180,19 +180,20 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
 export function MotionView({
   viewKey,
   children,
+  animate = true,
   className = '',
   style,
 }: {
   viewKey: string
   children: ReactNode
+  animate?: boolean
   className?: string
   style?: CSSProperties
 }): JSX.Element {
   return (
     <div
-      key={viewKey}
       data-motion-view={viewKey}
-      className={`motion-view min-h-0 min-w-0 flex-1 ${className}`}
+      className={`motion-view ${animate ? 'motion-view-animated' : ''} min-h-0 min-w-0 flex-1 ${className}`}
       style={style}
     >
       {children}
