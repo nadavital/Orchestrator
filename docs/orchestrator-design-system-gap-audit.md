@@ -343,7 +343,7 @@ These remain the main gaps:
 - Capabilities edit/sync sheets still use the old `capability-sheet-backdrop` and local sheet layout.
 - Menus/popovers now have shared Escape/outside-click dismissal in the migrated composer surfaces, and sheets/dialogs have shared focus handling. Full Codex-level roving menu keyboard behavior and exit animation retention are still missing.
 - The pet overlay is visually closer, but it still uses overlay-local primitives instead of a shared cross-renderer design layer.
-- The deterministic floating pet-overlay smoke now covers badge, tray, mascot bounds, tray alignment, and min/max resize clipping. It still needs hover-control, reply-form, collapsed-tray, and provider/custom-state fixtures.
+- The deterministic floating pet-overlay smoke now covers badge, tray, mascot bounds, tray alignment, min/max resize clipping, row control reveal, row expansion, tray collapse/reopen, and reply-form focus/close behavior. It still needs custom-provider state fixtures and broader visual snapshots.
 - Reduced-motion is now verified for the main renderer CSS path and the pet-overlay badge/row inline transition paths. It still needs broader panel/sheet/popover screenshots in reduced-motion mode.
 - Session-switch transitions now have a dedicated latency smoke/assertion.
 - Session switching must remain effectively instant. The first follow-up implementation keyed the session `MotionView` by `activeSessionId`, which could make chat-window switching feel like a slower page transition. That is not acceptable for Codex parity; session switching should prefer state preservation and immediate content swap over decorative transition.
@@ -403,14 +403,14 @@ Still needed:
 - Verify badge collapsed/expanded states.
 - Verify notification banner/tray rows, dismiss, expand, reply, and action buttons.
 - Add richer screenshot states for expanded tray, collapsed tray, reply form, and waiting-for-input actions.
-- Verify hover-only resize affordance and notification expand affordance.
+- Verify hover-only resize affordance with direct pointer/visual assertions beyond geometry.
 - Verify custom provider statuses map to the intended badge/banner states.
 
 Suggested implementation:
 
-- Extend the existing `--pet-overlay` smoke mode with fixture events for waiting, review, failure, reply, and custom provider states.
+- Extend the existing `--pet-overlay` smoke mode with fixture events for review, running, permission actions, and custom provider states.
 - Capture screenshots for default, max-size, collapsed tray, expanded tray, reply form, and waiting-for-input states.
-- Add DOM assertions for the hover/focus-only controls, especially `data-testid="avatar-overlay-resize-handle"` and notification row controls.
+- Add DOM assertions for the hover/focus-only resize affordance, especially `data-testid="avatar-overlay-resize-handle"`.
 
 ### P0: Menu, Popover, And Sheet Accessibility
 
@@ -1275,7 +1275,7 @@ Completed in the latest implementation pass:
 - Floating pet-overlay badge and tray geometry now report measured mascot/tray metrics to the main-process layout manager.
 - Pet overlay pointer interactivity now covers the mascot, badge, resize handle, tray, rows, and controls instead of only checking generic `data-interactive` hits.
 - Pet overlay badge scaling now uses Codex-like hover/press motion and reduced-motion fallback.
-- Automated pet-overlay smoke now verifies overlay presence, badge/tray/mascot bounds, tray alignment, overflow, and min/max mascot resize clipping.
+- Automated pet-overlay smoke now verifies overlay presence, badge/tray/mascot bounds, tray alignment, overflow, min/max mascot resize clipping, row control reveal, row expansion, tray collapse/reopen, and reply-form focus/close behavior.
 - Automated session-switch smoke now verifies transcript switching within budget and confirms the session view is not replaying entrance motion.
 - Automated reduced-motion smoke now verifies forced reduced-motion profile propagation, zeroed main-renderer motion durations, and disabled pet-overlay badge/row transitions.
 - Shared `MenuSurface`, `MenuItem`, `DismissablePopoverSurface`, `ConfirmDialog`, and `TextInputDialog` primitives now cover Escape/outside-click behavior, disabled/danger states, and native dialog replacement.

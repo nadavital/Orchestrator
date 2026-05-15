@@ -116,7 +116,15 @@ child.on('exit', (code) => {
         noHorizontalOverflow: result.noHorizontalOverflow === true,
         noVerticalOverflow: result.noVerticalOverflow === true,
         resizeMaxInside: result.resizeMaxInside === true,
-        resizeMinInside: result.resizeMinInside === true
+        resizeMinInside: result.resizeMinInside === true,
+        rowControlsReveal: result.rowControlsReveal === true,
+        rowExpandControlVisible: result.rowExpandControlVisible === true,
+        rowExpanded: result.rowExpanded === true,
+        trayCollapsed: result.trayCollapsed === true,
+        trayReopened: result.trayReopened === true,
+        replyFormOpened: result.replyFormOpened === true,
+        replyInputFocused: result.replyInputFocused === true,
+        replyFormClosedWithEscape: result.replyFormClosedWithEscape === true
       }
     : captureView === 'scroll'
     ? {

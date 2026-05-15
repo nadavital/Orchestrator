@@ -333,13 +333,16 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
         if (session) sessionManager.updateStatus(session.id, 'provider_error')
         await new Promise((resolve) => setTimeout(resolve, 900))
 
-        const result = await overlayWindow.webContents.executeJavaScript(`
+        const geometryResult = await overlayWindow.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-            for (let index = 0; index < 240; index += 1) {
-              if (document.querySelector('[data-avatar-mascot="true"]') && document.querySelector('[data-testid="avatar-overlay-notification-badge"]')) break;
-              await sleep(50);
-            }
+            const waitForOverlay = async () => {
+              for (let index = 0; index < 240; index += 1) {
+                if (document.querySelector('[data-avatar-mascot="true"]') && document.querySelector('[data-testid="avatar-overlay-notification-badge"]')) return true;
+                await sleep(50);
+              }
+              return false;
+            };
             const config = await window.petApi.pet.getConfig();
             const rectFor = (selector) => {
               const el = document.querySelector(selector);
@@ -355,6 +358,27 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
               };
             };
             const tolerance = 3;
+            const overlayReady = await waitForOverlay();
+            if (!overlayReady) {
+              return {
+                overlayFound: true,
+                badgeFound: false,
+                trayFound: false,
+                mascotFound: false,
+                badgeInsideViewport: false,
+                trayAligned: false,
+                noHorizontalOverflow: true,
+                noVerticalOverflow: true,
+                resizeMaxInside: false,
+                resizeMinInside: false,
+                rowControlsReveal: false,
+                rowExpandControlVisible: false,
+                rowExpanded: false,
+                trayCollapsed: false,
+                trayReopened: false,
+                bodyText: document.body.innerText
+              };
+            }
             const geometrySnapshot = () => {
               const viewport = { width: window.innerWidth, height: window.innerHeight };
               const badge = rectFor('[data-testid="avatar-overlay-notification-badge"]');
@@ -387,6 +411,59 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
                 noVerticalOverflow,
               };
             };
+            const revealRowControls = async () => {
+              const row = document.querySelector('[data-avatar-overlay-measure="notification-tray-row"]');
+              const rowButton = document.querySelector('[data-avatar-overlay-measure="notification-tray-row"] [role="button"]');
+              if (row instanceof HTMLElement) {
+                const rect = row.getBoundingClientRect();
+                const eventInit = {
+                  bubbles: true,
+                  clientX: rect.left + Math.min(24, rect.width / 2),
+                  clientY: rect.top + Math.min(24, rect.height / 2),
+                  pointerType: 'mouse'
+                };
+                row.dispatchEvent(new PointerEvent('pointerover', eventInit));
+                row.dispatchEvent(new PointerEvent('pointerenter', { ...eventInit, bubbles: false }));
+                row.dispatchEvent(new MouseEvent('mouseover', eventInit));
+                row.dispatchEvent(new MouseEvent('mouseenter', { ...eventInit, bubbles: false }));
+                row.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: null }));
+              }
+              if (rowButton instanceof HTMLElement) {
+                rowButton.focus({ preventScroll: true });
+                rowButton.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: null }));
+              }
+              await sleep(120);
+              const dismiss = document.querySelector('[data-avatar-overlay-control="dismiss"]');
+              const expand = document.querySelector('[data-avatar-overlay-control="expand"]');
+              const activeRow = document.querySelector('[data-avatar-overlay-row-active="true"]');
+              return {
+                rowControlsReveal: Boolean(activeRow && dismiss),
+                rowExpandControlVisible: Boolean(activeRow && expand)
+              };
+            };
+            const clickExpand = async () => {
+              const body = document.querySelector('[data-avatar-overlay-measure-body="true"]');
+              const before = body?.getBoundingClientRect().height ?? 0;
+              const button = document.querySelector('[data-avatar-overlay-control="expand"] button');
+              if (button instanceof HTMLElement) button.click();
+              await sleep(180);
+              const after = document.querySelector('[data-avatar-overlay-measure-body="true"]')?.getBoundingClientRect().height ?? 0;
+              return { rowExpanded: after > before + 8, rowBodyBeforeHeight: before, rowBodyAfterHeight: after };
+            };
+            const toggleTray = async () => {
+              const badge = document.querySelector('[data-testid="avatar-overlay-notification-badge"]');
+              if (badge instanceof HTMLElement) badge.click();
+              await sleep(220);
+              const tray = document.querySelector('[data-avatar-overlay-size="notification-tray"]');
+              const trayCollapsed = !document.querySelector('[data-avatar-overlay-measure="notification-tray-row"]') &&
+                Boolean(document.querySelector('[data-testid="avatar-overlay-notification-badge"]')) &&
+                (tray?.getBoundingClientRect().height ?? 0) === 0;
+              const collapsedBadge = document.querySelector('[data-testid="avatar-overlay-notification-badge"]');
+              if (collapsedBadge instanceof HTMLElement) collapsedBadge.click();
+              await sleep(220);
+              const trayReopened = Boolean(document.querySelector('[data-avatar-overlay-measure="notification-tray-row"]'));
+              return { trayCollapsed, trayReopened };
+            };
             const measureAtWidth = async (width) => {
               window.petApi.pet.setMascotWidth(width);
               for (let index = 0; index < 80; index += 1) {
@@ -398,6 +475,9 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
               return geometrySnapshot();
             };
             const baseGeometry = geometrySnapshot();
+            const controlResult = await revealRowControls();
+            const expandResult = await clickExpand();
+            const trayToggleResult = await toggleTray();
             const maxGeometry = await measureAtWidth(224);
             const minGeometry = await measureAtWidth(80);
             const resizeMaxInside = maxGeometry.badgeInsideViewport && maxGeometry.noHorizontalOverflow && maxGeometry.noVerticalOverflow;
@@ -407,6 +487,9 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
               ...baseGeometry,
               resizeMaxInside,
               resizeMinInside,
+              ...controlResult,
+              ...expandResult,
+              ...trayToggleResult,
               maxGeometry,
               minGeometry,
               configPetCount: config.pets?.length ?? null,
@@ -420,11 +503,51 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
           })()
         `)
 
+        let replyResult: Record<string, unknown> = {
+          replyFormOpened: false,
+          replyInputFocused: false,
+          replyFormClosedWithEscape: false
+        }
+        if (session) {
+          sessionManager.updateStatus(session.id, 'waiting_for_user')
+          await new Promise((resolve) => setTimeout(resolve, 450))
+          replyResult = await overlayWindow.webContents.executeJavaScript(`
+            (async () => {
+              const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              for (let index = 0; index < 160; index += 1) {
+                if (document.body.innerText.includes('Waiting for your response') || document.body.innerText.includes('Answer Required')) break;
+                await sleep(50);
+              }
+              const rowButton = document.querySelector('[data-avatar-overlay-measure="notification-tray-row"] [role="button"]');
+              if (rowButton instanceof HTMLElement) {
+                rowButton.focus({ preventScroll: true });
+                rowButton.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: null }));
+              }
+              await sleep(120);
+              const replyButton = document.querySelector('[data-avatar-overlay-control="reply"] button');
+              if (replyButton instanceof HTMLElement) replyButton.click();
+              await sleep(160);
+              const input = document.querySelector('[data-avatar-overlay-reply-input]');
+              const replyFormOpened = input instanceof HTMLInputElement;
+              const replyInputFocused = replyFormOpened && document.activeElement === input;
+              if (input instanceof HTMLInputElement) {
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              }
+              await sleep(120);
+              return {
+                replyFormOpened,
+                replyInputFocused,
+                replyFormClosedWithEscape: !document.querySelector('[data-avatar-overlay-reply-input]')
+              };
+            })()
+          `)
+        }
+
         if (screenshotPath) {
           const image = await overlayWindow.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...geometryResult, ...replyResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -659,7 +782,7 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
       id: `${process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW}-pet-fixture`,
       role: 'assistant',
       type: 'text',
-      content: 'Pet overlay smoke fixture state.',
+      content: 'Pet overlay smoke fixture state with enough detail to exercise the hidden expand control, row-height measurement, and tray resizing path without relying on a live provider run.',
       timestamp: Date.now()
     }
     sessionManager.save({

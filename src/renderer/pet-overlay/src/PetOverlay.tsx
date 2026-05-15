@@ -1133,6 +1133,7 @@ function NotificationCard({
     <div
       data-interactive="true"
       data-avatar-overlay-measure="notification-tray-row"
+      data-avatar-overlay-row-active={rowActive ? 'true' : 'false'}
       role="listitem"
       style={{
         position: 'relative',
@@ -1195,6 +1196,7 @@ function NotificationCard({
               minWidth: 0,
               alignItems: 'center',
               paddingRight: 28,
+              paddingLeft: notification.canDismiss ? 28 : 0,
             }}
           >
             <span
@@ -1343,6 +1345,7 @@ function NotificationCard({
           >
             <div style={{ display: 'flex', minWidth: 0, alignItems: 'center', gap: 6 }}>
               <input
+                data-avatar-overlay-reply-input="true"
                 value={replyText}
                 disabled={busy}
                 onChange={(ev) => setReplyText(ev.target.value)}
