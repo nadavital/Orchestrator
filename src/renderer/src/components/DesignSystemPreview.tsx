@@ -10,6 +10,7 @@ import {
   SurfaceRow,
 } from './shared/designSystem'
 import { motionPresets, useReducedMotionPreference } from '../design/motion'
+import { designSystemContract } from '../design/contract'
 
 const rows = [
   { title: 'Running Codex session', body: 'Tool call in progress', tone: 'success' as const },
@@ -66,6 +67,16 @@ export default function DesignSystemPreview(): JSX.Element {
           <PreviewPanel title="Motion Spec">
             <pre className="overflow-auto rounded-lg p-3 text-[11px]" style={{ background: 'var(--control-bg)', color: 'var(--text-secondary)' }}>
               {JSON.stringify(motionPresets, null, 2)}
+            </pre>
+          </PreviewPanel>
+
+          <PreviewPanel title="Contract">
+            <pre
+              data-testid="design-system-contract"
+              className="max-h-56 overflow-auto rounded-lg p-3 text-[11px]"
+              style={{ background: 'var(--control-bg)', color: 'var(--text-secondary)' }}
+            >
+              {JSON.stringify(designSystemContract, null, 2)}
             </pre>
           </PreviewPanel>
         </div>

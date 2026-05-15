@@ -9,6 +9,7 @@ import CapabilitiesPage from './components/CapabilitiesPage'
 import DesignSystemPreview from './components/DesignSystemPreview'
 import { MotionView } from './components/shared/designSystem'
 import { applyAppearance, type Appearance } from './theme'
+import { markRendererStart, recordRendererMetric } from './performance'
 
 export default function App(): JSX.Element {
   const isDesignSystemPreview = window.location.hash === '#design-system'
@@ -16,7 +17,7 @@ export default function App(): JSX.Element {
   const {
     setSessions,
     addSession,
-    hydrateSession,
+    mergeTranscriptPage,
     updateStatus,
     updateName,
     updatePinned,
@@ -39,6 +40,7 @@ export default function App(): JSX.Element {
   } = useSessionStore()
 
   useEffect(() => {
+    const bootStartedAt = markRendererStart()
     window.api.app.getProfile().then((profile) => {
       document.documentElement.dataset.reducedMotion = profile.forceReducedMotion ? 'true' : 'false'
     })
@@ -112,6 +114,11 @@ export default function App(): JSX.Element {
           ? [...liveSessions, reuseCandidate]
           : liveSessions
         setSessions(cleanSessions)
+        recordRendererMetric('app.boot.session-index-ready', bootStartedAt, {
+          projects: projects.length,
+          sessions: cleanSessions.length,
+          messages: cleanSessions.reduce((sum, session) => sum + session.messageCount, 0)
+        })
 
         if (reuseCandidate) {
           setActiveSession(reuseCandidate.id)
@@ -177,13 +184,22 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (!activeSessionId) return
     const session = useSessionStore.getState().sessions.find((candidate) => candidate.id === activeSessionId)
-    if (!session || session.messagesLoaded) return
+    if (!session || session.messagesLoaded || session.messageCount === 0) return
     let cancelled = false
-    window.api.sessions.get(activeSessionId).then((fullSession) => {
-      if (!cancelled && fullSession) hydrateSession(fullSession)
+    const startedAt = markRendererStart()
+    window.api.sessions.getTranscriptPage(activeSessionId, { limit: 40 }).then((page) => {
+      if (!cancelled && page) {
+        mergeTranscriptPage(activeSessionId, page, 'replace')
+        recordRendererMetric('transcript.initial-page-ready', startedAt, {
+          sessionId: activeSessionId,
+          messages: page.messages.length,
+          messageCount: page.messageCount,
+          hasMoreBefore: page.hasMoreBefore
+        })
+      }
     })
     return () => { cancelled = true }
-  }, [activeSessionId, hydrateSession])
+  }, [activeSessionId, mergeTranscriptPage])
 
   if (isDesignSystemPreview) {
     return <DesignSystemPreview />

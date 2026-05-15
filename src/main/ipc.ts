@@ -3,7 +3,7 @@ import { dialog, app, shell } from 'electron'
 import { execFile } from 'child_process'
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
 import { basename, dirname } from 'path'
-import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, PerformanceMetric, TranscriptPageRequest } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
 import { gitManager } from './git'
@@ -18,6 +18,8 @@ import { listProviderResources } from './providerResources'
 import { createCapability } from './capabilityCreator'
 import { deleteCapability, updateCapability } from './capabilityManager'
 import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
+import { performanceSnapshot, recordPerformanceMetric, resetPerformanceMetrics } from './performanceTelemetry'
+import { providerManifests } from './providerManifest'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
 
@@ -74,6 +76,12 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:list', () => sessionManager.list())
   ipcMain.handle('sessions:listSummaries', () => sessionManager.listSummaries())
   ipcMain.handle('sessions:get', (_, id: string) => sessionManager.get(id))
+  ipcMain.handle('sessions:getTranscriptPage', (_, id: string, request?: TranscriptPageRequest) =>
+    sessionManager.getTranscriptPage(id, request ?? {})
+  )
+  ipcMain.handle('sessions:searchTranscript', (_, id: string, query: string, limit?: number) =>
+    sessionManager.searchTranscript(id, query, limit)
+  )
   ipcMain.handle('sessions:create', (_, opts) => sessionManager.create(opts))
   ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) =>
     sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
@@ -138,6 +146,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // Providers
   ipcMain.handle('providers:getRuntimeInfo', () => getProviderRuntimeInfo())
+  ipcMain.handle('providers:getManifest', () => providerManifests())
   ipcMain.handle('providers:getDiagnostics', (_, providerId?: string) => getProviderDiagnosticsAsync(providerId))
   ipcMain.handle('providers:runCommandSurface', (_, providerId: string, surfaceId: string) =>
     runProviderCommandSurfaceAsync(providerId, surfaceId)
@@ -163,6 +172,13 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('providers:discoverClaudeExtensions', (_, workDir: string) =>
     discoverClaudeExtensions(workDir)
   )
+
+  // Performance
+  ipcMain.handle('performance:record', (_, metric: Omit<PerformanceMetric, 'id'>) =>
+    recordPerformanceMetric(metric)
+  )
+  ipcMain.handle('performance:snapshot', () => performanceSnapshot())
+  ipcMain.handle('performance:reset', () => resetPerformanceMetrics())
 
   // Git
   ipcMain.handle('git:isGitRepo', (_, dir: string) => gitManager.isGitRepo(dir))

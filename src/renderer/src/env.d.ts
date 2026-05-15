@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, SessionListItem, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../../types'
 
 export interface AppSettings {
   defaultProvider: string
@@ -75,6 +75,8 @@ declare global {
         list: () => Promise<Session[]>
         listSummaries: () => Promise<SessionListItem[]>
         get: (id: string) => Promise<Session | undefined>
+        getTranscriptPage: (id: string, request?: TranscriptPageRequest) => Promise<TranscriptPage | undefined>
+        searchTranscript: (id: string, query: string, limit?: number) => Promise<TranscriptSearchResult[]>
         create: (opts: {
           projectId: string
           workDir: string
@@ -117,6 +119,7 @@ declare global {
       }
       providers: {
         getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>
+        getManifest: () => Promise<Record<string, ProviderManifest>>
         getDiagnostics: (providerId?: string) => Promise<Record<string, ProviderDiagnosticInfo>>
         runCommandSurface: (providerId: string, surfaceId: string) => Promise<ProviderCommandSurfaceResult>
         listResources: (providerId?: string, cwd?: string) => Promise<Record<string, ProviderResourceSnapshot>>
@@ -126,6 +129,11 @@ declare global {
         previewCapabilitySync: (request: CapabilitySyncRequest) => Promise<CapabilitySyncPlan>
         syncCapability: (request: CapabilitySyncRequest) => Promise<CapabilityMutationResult>
         discoverClaudeExtensions: (workDir: string) => Promise<{ commands: ProviderSlashCommand[]; skills: ProviderSlashCommand[] }>
+      }
+      performance: {
+        record: (metric: Omit<PerformanceMetric, 'id'>) => Promise<PerformanceMetric>
+        snapshot: () => Promise<PerformanceSnapshot>
+        reset: () => Promise<void>
       }
       settings: {
         get: () => Promise<AppSettings>

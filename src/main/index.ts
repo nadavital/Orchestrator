@@ -267,6 +267,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             title: document.title,
             bodyText,
             hasDesignSystemPreview: Boolean(document.querySelector('[data-testid="design-system-preview"]')),
+            hasDesignSystemContract: Boolean(document.querySelector('[data-testid="design-system-contract"]')),
             motionRowCount: document.querySelectorAll('.motion-row').length,
             surfaceRowCount: document.querySelectorAll('.surface-row').length,
             hasProfileBadge: bodyText.includes(profile.displayName + ' profile'),
@@ -394,14 +395,31 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               }
               await sleep(10);
             }
+            const search = document.querySelector('[data-testid="transcript-search"]');
+            let transcriptSearchFound = false;
+            if (search instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(search.constructor.prototype, 'value')?.set;
+              setter?.call(search, 'SESSION_SWITCH_SMOKE_TWO');
+              search.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let index = 0; index < 60; index += 1) {
+                if (document.body.innerText.includes('SESSION_SWITCH_SMOKE_TWO')) {
+                  transcriptSearchFound = true;
+                  break;
+                }
+                await sleep(20);
+              }
+            }
+            const telemetry = await window.api.performance.snapshot();
             return {
               secondTranscriptFound: transcriptText.includes('SESSION_SWITCH_SMOKE_TWO'),
               secondTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)}) ?? false,
               longHistoryDeferred: Boolean(document.querySelector('[data-testid="load-earlier-messages"]')),
               fullHydratedAfterSwitch,
+              transcriptSearchFound,
               renderedMessages: window.__orchestratorSessionSwitchLastPerf?.renderedMessages ?? null,
               messageCount: window.__orchestratorSessionSwitchLastPerf?.messageCount ?? null,
               instrumentedTranscriptReadyMs: window.__orchestratorSessionSwitchLastPerf?.transcriptReadyMs ?? null,
+              telemetryRecorded: telemetry.summaries.some((summary) => summary.name === 'session.switch.transcript-ready' || summary.name === 'transcript.initial-page-ready'),
               titleElapsedMs,
               switchElapsedMs,
               sessionViewAnimated: document.querySelector('[data-motion-view="session"]')?.classList.contains('motion-view-animated') ?? null

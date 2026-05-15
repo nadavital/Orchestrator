@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, UsageSummary } from '../types'
+import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, TranscriptPage, UsageSummary } from '../types'
 
 export type SettingsSection = 'general' | 'providers' | 'pets'
 
@@ -38,6 +38,7 @@ interface SessionState {
   setSessions: (sessions: SessionListItem[]) => void
   addSession: (session: Session) => void
   hydrateSession: (session: Session) => void
+  mergeTranscriptPage: (sessionId: string, page: TranscriptPage, mode?: 'replace' | 'prepend' | 'append') => void
   removeSession: (id: string) => void
   setActiveSession: (id: string | null) => void
   updateStatus: (id: string, status: Session['status']) => void
@@ -120,6 +121,26 @@ export const useSessionStore = create<SessionState>((set) => ({
   hydrateSession: (session) =>
     set((s) => ({
       sessions: s.sessions.map((x) => x.id === session.id ? fullSessionItem(session) : x)
+    })),
+
+  mergeTranscriptPage: (sessionId, page, mode = 'prepend') =>
+    set((s) => ({
+      sessions: s.sessions.map((session) => {
+        if (session.id !== sessionId) return session
+        const messages = mode === 'replace'
+          ? page.messages
+          : mode === 'append'
+            ? mergeMessages(session.messages, page.messages)
+            : mergeMessages(page.messages, session.messages)
+        return {
+          ...session,
+          messages,
+          messageCount: page.messageCount,
+          messagesLoaded: !page.hasMoreBefore && !page.hasMoreAfter && messages.length >= page.messageCount,
+          previewText: sessionPreviewText(messages, session.name),
+          latestMessageAt: messages.at(-1)?.timestamp ?? session.latestMessageAt
+        }
+      })
     })),
 
   removeSession: (id) =>
@@ -409,6 +430,12 @@ function fullSessionItem(session: Session): SessionListItem {
     previewText: sessionPreviewText(session.messages, session.name),
     latestMessageAt: session.messages.at(-1)?.timestamp ?? session.createdAt
   }
+}
+
+function mergeMessages(first: ChatMessage[], second: ChatMessage[]): ChatMessage[] {
+  const byId = new Map<string, ChatMessage>()
+  for (const message of [...first, ...second]) byId.set(message.id, message)
+  return [...byId.values()].sort((a, b) => a.timestamp - b.timestamp)
 }
 
 function sessionPreviewText(messages: ChatMessage[], fallback: string): string {

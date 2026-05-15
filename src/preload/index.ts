@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, SessionListItem, ChatMessage, FileChange, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, UsageSummary } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../types'
 
 interface AppSettings {
   defaultProvider: string
@@ -63,6 +63,10 @@ const api = {
     list: (): Promise<Session[]> => ipcRenderer.invoke('sessions:list'),
     listSummaries: (): Promise<SessionListItem[]> => ipcRenderer.invoke('sessions:listSummaries'),
     get: (id: string): Promise<Session | undefined> => ipcRenderer.invoke('sessions:get', id),
+    getTranscriptPage: (id: string, request?: TranscriptPageRequest): Promise<TranscriptPage | undefined> =>
+      ipcRenderer.invoke('sessions:getTranscriptPage', id, request ?? {}),
+    searchTranscript: (id: string, query: string, limit?: number): Promise<TranscriptSearchResult[]> =>
+      ipcRenderer.invoke('sessions:searchTranscript', id, query, limit),
     create: (opts: {
       projectId: string
       workDir: string
@@ -123,6 +127,8 @@ const api = {
   providers: {
     getRuntimeInfo: (): Promise<Record<string, ProviderRuntimeInfo>> =>
       ipcRenderer.invoke('providers:getRuntimeInfo'),
+    getManifest: (): Promise<Record<string, ProviderManifest>> =>
+      ipcRenderer.invoke('providers:getManifest'),
     getDiagnostics: (providerId?: string): Promise<Record<string, ProviderDiagnosticInfo>> =>
       ipcRenderer.invoke('providers:getDiagnostics', providerId),
     runCommandSurface: (providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> =>
@@ -141,6 +147,14 @@ const api = {
       ipcRenderer.invoke('providers:syncCapability', request),
     discoverClaudeExtensions: (workDir: string): Promise<{ commands: ProviderSlashCommand[]; skills: ProviderSlashCommand[] }> =>
       ipcRenderer.invoke('providers:discoverClaudeExtensions', workDir)
+  },
+
+  performance: {
+    record: (metric: Omit<PerformanceMetric, 'id'>): Promise<PerformanceMetric> =>
+      ipcRenderer.invoke('performance:record', metric),
+    snapshot: (): Promise<PerformanceSnapshot> =>
+      ipcRenderer.invoke('performance:snapshot'),
+    reset: (): Promise<void> => ipcRenderer.invoke('performance:reset')
   },
 
   settings: {

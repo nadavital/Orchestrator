@@ -3,8 +3,9 @@ import { BrowserWindow } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
+import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { Attachment, Session, SessionListItem, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus, UsageSummary } from '../types'
+import type { Attachment, Session, SessionListItem, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../types'
 import { PROVIDER_DEFS, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
 import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand } from './providers'
@@ -15,6 +16,8 @@ import { decideRunLifecycle, eventsForLifecycleDecision, isPausedOrFailed } from
 import { settingsStore } from './settings'
 import { migrateLegacyUserData } from './userDataMigration'
 import { approvalBroker } from './approvalBroker'
+import { searchTranscriptMessages, transcriptPageForMessages } from './transcriptIndex'
+import { recordPerformanceMetric } from './performanceTelemetry'
 
 interface SessionStore {
   sessions: Session[]
@@ -291,12 +294,64 @@ export const sessionManager = {
   },
 
   listSummaries(): SessionListItem[] {
-    return store.get('sessions', []).map(sessionListItem)
+    const startedAt = performance.now()
+    const summaries = store.get('sessions', []).map(sessionListItem)
+    recordPerformanceMetric({
+      name: 'sessions.listSummaries',
+      surface: 'main',
+      startedAt: Date.now() - (performance.now() - startedAt),
+      durationMs: performance.now() - startedAt,
+      metadata: {
+        sessions: summaries.length,
+        messages: summaries.reduce((sum, session) => sum + session.messageCount, 0)
+      }
+    })
+    return summaries
   },
 
   get(id: string): Session | undefined {
     const session = store.get('sessions', []).find((s) => s.id === id)
     return session ? normalizeSession(session) : undefined
+  },
+
+  getTranscriptPage(id: string, request: TranscriptPageRequest = {}): TranscriptPage | undefined {
+    const startedAt = performance.now()
+    const session = this.get(id)
+    if (!session) return undefined
+    const page = transcriptPageForMessages(id, session.messages, request)
+    recordPerformanceMetric({
+      name: 'transcript.page',
+      surface: 'main',
+      startedAt: Date.now() - (performance.now() - startedAt),
+      durationMs: performance.now() - startedAt,
+      metadata: {
+        sessionId: id,
+        messages: page.messages.length,
+        messageCount: page.messageCount,
+        hasMoreBefore: page.hasMoreBefore,
+        hasMoreAfter: page.hasMoreAfter
+      }
+    })
+    return page
+  },
+
+  searchTranscript(id: string, query: string, limit?: number): TranscriptSearchResult[] {
+    const startedAt = performance.now()
+    const session = this.get(id)
+    if (!session) return []
+    const results = searchTranscriptMessages(id, session.messages, query, limit)
+    recordPerformanceMetric({
+      name: 'transcript.search',
+      surface: 'main',
+      startedAt: Date.now() - (performance.now() - startedAt),
+      durationMs: performance.now() - startedAt,
+      metadata: {
+        sessionId: id,
+        results: results.length,
+        messageCount: session.messages.length
+      }
+    })
+    return results
   },
 
   save(session: Session): void {
@@ -419,6 +474,7 @@ export const sessionManager = {
     request: RunRequest,
     mode: 'start' | 'resume' = 'start'
   ): Promise<boolean> {
+    const startedAt = performance.now()
     const preparedRequest = await providerRuntime.prepareRunRequest(
       sessionId,
       provider,
@@ -461,6 +517,20 @@ export const sessionManager = {
         if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
           this.updateStatus(sessionId, 'idle')
         }
+      }
+    })
+
+    recordPerformanceMetric({
+      name: 'provider.run.start',
+      surface: 'main',
+      startedAt: Date.now() - (performance.now() - startedAt),
+      durationMs: performance.now() - startedAt,
+      metadata: {
+        sessionId,
+        provider: provider.id,
+        runtime: request.runtime ?? session.runtime ?? 'headless',
+        mode,
+        ok: result.ok
       }
     })
 

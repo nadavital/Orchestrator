@@ -26,6 +26,9 @@ import {
 } from '../../types'
 import type { Session, ChatMessage, FileReference, ResultMessage, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
 import type { Attachment } from '../../types'
+import type { TranscriptSearchResult } from '../../types'
+import { useSessionStore } from '../../store/sessions'
+import { markRendererStart, recordRendererMetric } from '../../performance'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
 
@@ -56,6 +59,10 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   const pendingScrollFrameRef = useRef<number | null>(null)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<TranscriptSearchResult[]>([])
+  const [searching, setSearching] = useState(false)
   const [renderLimit, setRenderLimit] = useState(() => Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
   const visibleMessages = useMemo(() => {
     if (session.messages.length <= renderLimit) return session.messages
@@ -74,6 +81,8 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     }
     return null
   }, [session.messages])
+  const loadedHiddenCount = Math.max(0, session.messages.length - visibleMessages.length)
+  const unloadedBeforeCount = Math.max(0, totalMessageCount - session.messages.length)
 
   useEffect(() => {
     let cancelled = false
@@ -154,6 +163,17 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
       }
       perfWindow.__orchestratorSessionSwitchPerf = result
       perfWindow.__orchestratorSessionSwitchLastPerf = result
+      void window.api.performance.record({
+        name: 'session.switch.transcript-ready',
+        surface: 'renderer',
+        startedAt: Date.now() - result.transcriptReadyMs,
+        durationMs: result.transcriptReadyMs,
+        metadata: {
+          sessionId: result.sessionId,
+          messageCount: result.messageCount,
+          renderedMessages: result.renderedMessages ?? 0
+        }
+      })
       window.dispatchEvent(new CustomEvent('orchestrator:session-switch-perf', { detail: result }))
       if (import.meta.env.DEV) {
         console.info('[orchestrator] session switch', {
@@ -168,12 +188,105 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   }, [session.id, visibleMessages.length])
 
   useEffect(() => {
+    const query = searchQuery.trim()
+    if (query.length < 2) {
+      setSearchResults([])
+      setSearching(false)
+      return
+    }
+    let cancelled = false
+    setSearching(true)
+    const timeout = window.setTimeout(() => {
+      const startedAt = markRendererStart()
+      window.api.sessions.searchTranscript(session.id, query, 8).then((results) => {
+        if (cancelled) return
+        setSearchResults(results)
+        setSearching(false)
+        recordRendererMetric('transcript.search.results-ready', startedAt, {
+          sessionId: session.id,
+          results: results.length
+        })
+      })
+    }, 180)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [searchQuery, session.id])
+
+  useEffect(() => {
+    if (session.messagesLoaded || session.messageCount === 0 || session.messages.length >= Math.min(totalMessageCount, TRANSCRIPT_RENDER_CHUNK)) return
+    let cancelled = false
+    const startedAt = markRendererStart()
+    window.api.sessions.getTranscriptPage(session.id, { limit: TRANSCRIPT_RENDER_CHUNK }).then((page) => {
+      if (cancelled || !page) return
+      useSessionStore.getState().mergeTranscriptPage(session.id, page, 'replace')
+      setRenderLimit(Math.min(page.messages.length, TRANSCRIPT_RENDER_CHUNK))
+      recordRendererMetric('transcript.visible-page-ready', startedAt, {
+        sessionId: session.id,
+        messages: page.messages.length,
+        messageCount: page.messageCount
+      })
+    })
+    return () => { cancelled = true }
+  }, [session.id, session.messageCount, session.messages.length, session.messagesLoaded, totalMessageCount])
+
+  useEffect(() => {
     return () => {
       if (pendingScrollFrameRef.current !== null) {
         window.cancelAnimationFrame(pendingScrollFrameRef.current)
       }
     }
   }, [])
+
+  const handleLoadEarlier = useCallback(async () => {
+    if (loadingEarlier) return
+    if (loadedHiddenCount > 0) {
+      setRenderLimit((current) => Math.min(session.messages.length, current + TRANSCRIPT_RENDER_CHUNK))
+      return
+    }
+    const beforeMessageId = session.messages[0]?.id
+    if (!beforeMessageId || unloadedBeforeCount <= 0) return
+    setLoadingEarlier(true)
+    const startedAt = markRendererStart()
+    try {
+      const page = await window.api.sessions.getTranscriptPage(session.id, { beforeMessageId, limit: TRANSCRIPT_RENDER_CHUNK })
+      if (page) {
+        useSessionStore.getState().mergeTranscriptPage(session.id, page, 'prepend')
+        setRenderLimit((current) => Math.min(current + page.messages.length, current + TRANSCRIPT_RENDER_CHUNK))
+        recordRendererMetric('transcript.page.prepend-ready', startedAt, {
+          sessionId: session.id,
+          messages: page.messages.length,
+          hasMoreBefore: page.hasMoreBefore
+        })
+      }
+    } finally {
+      setLoadingEarlier(false)
+    }
+  }, [loadedHiddenCount, loadingEarlier, session.id, session.messages, unloadedBeforeCount])
+
+  const handleLoadAllLoaded = useCallback(() => {
+    setRenderLimit(session.messages.length)
+  }, [session.messages.length])
+
+  const handleJumpToSearchResult = useCallback(async (result: TranscriptSearchResult) => {
+    const startedAt = markRendererStart()
+    const page = await window.api.sessions.getTranscriptPage(session.id, {
+      aroundMessageId: result.messageId,
+      limit: TRANSCRIPT_RENDER_CHUNK
+    })
+    if (!page) return
+    useSessionStore.getState().mergeTranscriptPage(session.id, page, 'replace')
+    setRenderLimit(page.messages.length)
+    recordRendererMetric('transcript.search.jump-ready', startedAt, {
+      sessionId: session.id,
+      messageIndex: result.messageIndex,
+      messages: page.messages.length
+    })
+    window.requestAnimationFrame(() => {
+      document.querySelector(`[data-message-id="${CSS.escape(result.messageId)}"]`)?.scrollIntoView({ block: 'center' })
+    })
+  }, [session.id])
 
   // Hero state: no messages yet
   if (session.messages.length === 0 && session.status !== 'running') {
@@ -231,10 +344,21 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
           {hiddenMessageCount > 0 && (
             <LoadEarlierMessages
               hiddenCount={hiddenMessageCount}
-              onLoad={() => setRenderLimit((current) => Math.min(session.messages.length, current + TRANSCRIPT_RENDER_CHUNK))}
-              onLoadAll={() => setRenderLimit(session.messages.length)}
+              loading={loadingEarlier}
+              onLoad={handleLoadEarlier}
+              onLoadAll={handleLoadAllLoaded}
             />
           )}
+          {unloadedBeforeCount > 0 && session.messages.length < Math.min(totalMessageCount, TRANSCRIPT_RENDER_CHUNK) && (
+            <TranscriptLoadingState />
+          )}
+          <TranscriptSearch
+            query={searchQuery}
+            results={searchResults}
+            searching={searching}
+            onQueryChange={setSearchQuery}
+            onJump={handleJumpToSearchResult}
+          />
           {transcriptItems.map((item) => (
             item.type === 'tool_group'
               ? <ToolActivitySummary key={item.id} messages={item.messages} />
@@ -267,12 +391,32 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   )
 }
 
+function TranscriptLoadingState(): JSX.Element {
+  return (
+    <div className="flex justify-center">
+      <SurfaceRow
+        className="items-center gap-2 rounded-full px-3 py-1.5 text-xs"
+        style={{
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--text-secondary)'
+        }}
+      >
+        <ThinkingDots />
+        <span>Loading recent transcript page</span>
+      </SurfaceRow>
+    </div>
+  )
+}
+
 function LoadEarlierMessages({
   hiddenCount,
+  loading,
   onLoad,
   onLoadAll
 }: {
   hiddenCount: number
+  loading: boolean
   onLoad: () => void
   onLoadAll: () => void
 }): JSX.Element {
@@ -288,9 +432,74 @@ function LoadEarlierMessages({
         }}
       >
         <span>{hiddenCount.toLocaleString()} earlier message{hiddenCount === 1 ? '' : 's'} hidden for faster chat switching</span>
-        <Button variant="ghost" className="px-2 py-0.5" onClick={onLoad}>Load earlier</Button>
-        <Button variant="ghost" className="px-2 py-0.5" onClick={onLoadAll}>All</Button>
+        <Button variant="ghost" className="px-2 py-0.5" onClick={onLoad} disabled={loading}>
+          {loading ? 'Loading' : 'Load earlier'}
+        </Button>
+        <Button variant="ghost" className="px-2 py-0.5" onClick={onLoadAll}>Show loaded</Button>
       </SurfaceRow>
+    </div>
+  )
+}
+
+function TranscriptSearch({
+  query,
+  results,
+  searching,
+  onQueryChange,
+  onJump
+}: {
+  query: string
+  results: TranscriptSearchResult[]
+  searching: boolean
+  onQueryChange: (query: string) => void
+  onJump: (result: TranscriptSearchResult) => void
+}): JSX.Element {
+  return (
+    <div className="sticky top-0 z-10 -mx-1 flex justify-end pb-1">
+      <div
+        className="motion-row w-full max-w-[360px] rounded-lg px-2 py-1"
+        style={{
+          background: 'color-mix(in srgb, var(--surface-bg) 92%, transparent)',
+          border: '1px solid var(--border-subtle)',
+          boxShadow: 'var(--shadow-soft)',
+          backdropFilter: 'blur(18px)'
+        }}
+      >
+        <label className="sr-only" htmlFor="transcript-search">Search transcript</label>
+        <input
+          id="transcript-search"
+          data-testid="transcript-search"
+          value={query}
+          onChange={(event) => onQueryChange(event.currentTarget.value)}
+          placeholder="Search transcript"
+          className="w-full rounded-md px-2 py-1 text-xs outline-none"
+          style={{
+            background: 'var(--control-bg)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-primary)'
+          }}
+        />
+        {(searching || results.length > 0) && (
+          <div className="mt-1 max-h-56 overflow-auto rounded-md" style={{ background: 'var(--canvas-bg)' }}>
+            {searching ? (
+              <div className="px-2 py-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>Searching...</div>
+            ) : (
+              results.map((result) => (
+                <button
+                  key={`${result.messageId}:${result.messageIndex}`}
+                  type="button"
+                  className="motion-menu-item block w-full rounded-md px-2 py-1.5 text-left text-xs"
+                  style={{ color: 'var(--text-secondary)' }}
+                  onClick={() => onJump(result)}
+                >
+                  <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{result.role}</span>
+                  <span className="ml-2">{result.snippet}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -574,6 +783,7 @@ function MessageRow({
       : []
     return (
       <div
+        data-message-id={msg.id}
         className={`flex min-w-0 w-full ${isUser ? 'justify-end' : 'justify-start'}`}
       >
         <div

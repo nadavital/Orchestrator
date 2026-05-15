@@ -902,6 +902,77 @@ export interface SessionListItem extends Session {
   latestMessageAt?: number
 }
 
+export interface TranscriptPageRequest {
+  limit?: number
+  beforeMessageId?: string
+  afterMessageId?: string
+  aroundMessageId?: string
+}
+
+export interface TranscriptPage {
+  sessionId: string
+  messages: ChatMessage[]
+  messageCount: number
+  pageStartIndex: number
+  pageEndIndex: number
+  hasMoreBefore: boolean
+  hasMoreAfter: boolean
+  beforeCursor?: string
+  afterCursor?: string
+}
+
+export interface TranscriptSearchResult {
+  sessionId: string
+  messageId: string
+  messageIndex: number
+  role: ChatMessage['role']
+  type: ChatMessage['type']
+  timestamp: number
+  snippet: string
+}
+
+export interface PerformanceMetric {
+  id: string
+  name: string
+  startedAt: number
+  durationMs: number
+  surface: 'main' | 'renderer' | 'smoke' | 'release'
+  metadata?: Record<string, string | number | boolean | null>
+}
+
+export interface PerformanceMetricSummary {
+  name: string
+  count: number
+  latestMs: number
+  averageMs: number
+  p50Ms: number
+  p95Ms: number
+  maxMs: number
+}
+
+export interface PerformanceSnapshot {
+  metrics: PerformanceMetric[]
+  summaries: PerformanceMetricSummary[]
+}
+
+export interface ProviderManifest {
+  id: string
+  name: string
+  runtimes: ProviderRuntimeKind[]
+  defaultRuntime: ProviderRuntimeKind
+  statusLifecycle: SessionStatus[]
+  capabilityKeys: ProviderCapability['key'][]
+  customStates: string[]
+}
+
+export interface DesignSystemContract {
+  version: number
+  motionTokens: string[]
+  requiredPrimitives: string[]
+  codexParitySurfaces: string[]
+  reducedMotionSelectors: string[]
+}
+
 export interface SessionRunEventRecord {
   id: string
   timestamp: number

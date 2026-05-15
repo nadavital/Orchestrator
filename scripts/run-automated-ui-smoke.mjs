@@ -111,7 +111,9 @@ child.on('exit', (code) => {
         summaryTailBounded: result.summaryTailBounded === true,
         longHistoryDeferred: result.longHistoryDeferred === true,
         fullHydratedAfterSwitch: result.fullHydratedAfterSwitch === true,
+        transcriptSearchFound: result.transcriptSearchFound === true,
         renderedWindowBounded: Number(result.renderedMessages ?? Number.POSITIVE_INFINITY) <= 40,
+        telemetryRecorded: result.telemetryRecorded === true,
         titleWithinBudget: Number(result.titleElapsedMs ?? Number.POSITIVE_INFINITY) <= 150,
         transcriptWithinBudget: Number(result.switchElapsedMs ?? Number.POSITIVE_INFINITY) <= 900,
         sessionViewNotAnimated: result.sessionViewAnimated === false
@@ -183,6 +185,7 @@ child.on('exit', (code) => {
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
           designPreview: result.hasDesignSystemPreview === true,
+          designContract: result.hasDesignSystemContract === true,
           motionRows: Number(result.motionRowCount ?? 0) >= 3,
           surfaceRows: Number(result.surfaceRowCount ?? 0) >= 3,
           buttons: Number(result.buttonCount ?? 0) > 0
