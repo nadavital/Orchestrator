@@ -25,6 +25,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     setShowPlan,
     setShowSettings,
     setShowCapabilities,
+    setShowExtensions,
     setShowSideQuestions,
     setShowTerminal,
     appendSideQuestion,
@@ -317,9 +318,10 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       if (command.id === 'diff') setShowDiff(session.id, !currentUi.showDiff)
       if (command.id === 'plan-sidebar') setShowPlan(session.id, !currentUi.showPlan)
       if (command.id === 'agents') setShowEvents(session.id, !currentUi.showEvents)
-      if (command.id === 'skills' || command.id === 'extensions') {
+      if (command.id === 'skills') {
         setShowCapabilities(true)
       }
+      if (command.id === 'extensions') setShowExtensions(session.id, true)
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)
       if (command.id === 'btw') setShowSideQuestions(session.id, true)
       if (command.id === 'pet') {
@@ -851,7 +853,10 @@ function ToolbarBtn({
   void providerColor
   return (
     <button
-      onClick={onClick}
+      onClick={(event) => {
+        event.currentTarget.focus({ preventScroll: true })
+        onClick?.()
+      }}
       title={title}
       data-testid={dataTestId}
       className="flex items-center gap-1.5 text-xs transition-colors"

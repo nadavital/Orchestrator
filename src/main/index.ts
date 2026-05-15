@@ -109,7 +109,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           await sleep(900);
           const textarea = document.querySelector('textarea');
           textarea?.focus();
-          if (textarea && ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} !== 'composer') {
+          if (textarea && !['composer', 'extensions'].includes(${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)})) {
             textarea.value = '/btw smoke check';
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
           }
@@ -149,15 +149,35 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sidebarButton?.click();
             await sleep(700);
           }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'extensions') {
+            const setNativeValue = (element, value) => {
+              const setter = Object.getOwnPropertyDescriptor(element.constructor.prototype, 'value')?.set;
+              setter?.call(element, value);
+            };
+            if (textarea) {
+              setNativeValue(textarea, '/extensions');
+              textarea.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(220);
+              const extensionCommand = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('/extensions'));
+              extensionCommand?.click();
+              await sleep(900);
+            }
+          }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
             const createButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.trim() === 'Create');
             createButton?.click();
             await sleep(120);
             var capabilityMenuOpened = Boolean(document.querySelector('.cap-create-menu [role="menu"]'));
+            var capabilityMenuArrowFocus = false;
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+            await sleep(40);
+            capabilityMenuArrowFocus = document.activeElement?.getAttribute('role') === 'menuitem';
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(120);
             var capabilityMenuClosedWithEscape = !document.querySelector('.cap-create-menu [role="menu"]');
+            var capabilityMenuFocusReturned = document.activeElement === createButton;
             createButton?.click();
             await sleep(120);
             const skillMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
@@ -182,6 +202,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(140);
             var composerPermissionMenuClosedWithEscape = !document.querySelector('.motion-popover-surface');
+            var composerPermissionFocusReturned = document.activeElement === permissionButton;
 
             const agentButton = document.querySelector('[data-testid="composer-agent-menu"]');
             agentButton?.click();
@@ -190,6 +211,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }));
             await sleep(140);
             var composerAgentMenuClosedWithOutsideClick = !document.querySelector('.motion-popover-surface');
+            var composerAgentFocusReturned = document.activeElement === agentButton;
           }
           const bodyText = document.body.innerText;
           const buttons = [...document.querySelectorAll('button')].map((button) => ({
@@ -214,17 +236,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               button.text.includes('Resources')
             ),
             hasInspectorTabs: bodyText.includes('Changes') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
+            hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
+            hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),
             capabilityMenuOpened: typeof capabilityMenuOpened === 'boolean' ? capabilityMenuOpened : null,
+            capabilityMenuArrowFocus: typeof capabilityMenuArrowFocus === 'boolean' ? capabilityMenuArrowFocus : null,
             capabilityMenuClosedWithEscape: typeof capabilityMenuClosedWithEscape === 'boolean' ? capabilityMenuClosedWithEscape : null,
+            capabilityMenuFocusReturned: typeof capabilityMenuFocusReturned === 'boolean' ? capabilityMenuFocusReturned : null,
             capabilitySheetOpened: typeof capabilitySheetOpened === 'boolean' ? capabilitySheetOpened : null,
             capabilitySheetFocused: typeof capabilitySheetFocused === 'boolean' ? capabilitySheetFocused : null,
             capabilitySheetFocusStayedInside: typeof capabilitySheetFocusStayedInside === 'boolean' ? capabilitySheetFocusStayedInside : null,
             capabilitySheetClosedWithEscape: typeof capabilitySheetClosedWithEscape === 'boolean' ? capabilitySheetClosedWithEscape : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,
+            composerPermissionFocusReturned: typeof composerPermissionFocusReturned === 'boolean' ? composerPermissionFocusReturned : null,
             composerAgentMenuOpened: typeof composerAgentMenuOpened === 'boolean' ? composerAgentMenuOpened : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
+            composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,
             buttonCount: buttons.length,
             buttons: buttons.slice(0, 30)
           };
@@ -270,6 +298,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
         const before = await win.webContents.executeJavaScript(`
           (() => ({
             firstTranscriptFound: document.body.innerText.includes('SESSION_SWITCH_SMOKE_ONE'),
+            firstTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(first.name)}) ?? false,
             sessionViewAnimated: document.querySelector('[data-motion-view="session"]')?.classList.contains('motion-view-animated') ?? null
           }))()
         `)
@@ -285,6 +314,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
             }
             return {
               secondTranscriptFound: document.body.innerText.includes('SESSION_SWITCH_SMOKE_TWO'),
+              secondTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)}) ?? false,
               switchElapsedMs: performance.now() - window.__orchestratorSessionSwitchStart,
               sessionViewAnimated: document.querySelector('[data-motion-view="session"]')?.classList.contains('motion-view-animated') ?? null
             };
@@ -376,6 +406,9 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
                 rowExpanded: false,
                 trayCollapsed: false,
                 trayReopened: false,
+                resizeHandleFound: false,
+                resizeGripHoverVisible: false,
+                resizeGripFocusVisible: false,
                 bodyText: document.body.innerText
               };
             }
@@ -464,6 +497,34 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
               const trayReopened = Boolean(document.querySelector('[data-avatar-overlay-measure="notification-tray-row"]'));
               return { trayCollapsed, trayReopened };
             };
+            const revealResizeAffordance = async () => {
+              const mascot = document.querySelector('[data-avatar-mascot="true"]');
+              const handle = document.querySelector('[data-testid="avatar-overlay-resize-handle"]');
+              const grip = document.querySelector('[data-testid="avatar-overlay-resize-grip"]');
+              if (mascot instanceof HTMLElement) {
+                const rect = mascot.getBoundingClientRect();
+                const eventInit = {
+                  bubbles: true,
+                  clientX: rect.right - 10,
+                  clientY: rect.bottom - 10,
+                  pointerType: 'mouse'
+                };
+                mascot.dispatchEvent(new PointerEvent('pointerover', eventInit));
+                mascot.dispatchEvent(new PointerEvent('pointerenter', { ...eventInit, bubbles: false }));
+                mascot.dispatchEvent(new MouseEvent('mouseover', eventInit));
+                mascot.dispatchEvent(new MouseEvent('mouseenter', { ...eventInit, bubbles: false }));
+              }
+              await sleep(140);
+              const hoverOpacity = grip ? Number.parseFloat(getComputedStyle(grip).opacity || '0') : 0;
+              if (handle instanceof HTMLElement) handle.focus({ preventScroll: true });
+              await sleep(80);
+              const focusOpacity = grip ? Number.parseFloat(getComputedStyle(grip).opacity || '0') : 0;
+              return {
+                resizeHandleFound: handle instanceof HTMLElement,
+                resizeGripHoverVisible: hoverOpacity > 0.5,
+                resizeGripFocusVisible: focusOpacity > 0.5
+              };
+            };
             const measureAtWidth = async (width) => {
               window.petApi.pet.setMascotWidth(width);
               for (let index = 0; index < 80; index += 1) {
@@ -478,6 +539,7 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
             const controlResult = await revealRowControls();
             const expandResult = await clickExpand();
             const trayToggleResult = await toggleTray();
+            const resizeAffordanceResult = await revealResizeAffordance();
             const maxGeometry = await measureAtWidth(224);
             const minGeometry = await measureAtWidth(80);
             const resizeMaxInside = maxGeometry.badgeInsideViewport && maxGeometry.noHorizontalOverflow && maxGeometry.noVerticalOverflow;
@@ -490,11 +552,12 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
               ...controlResult,
               ...expandResult,
               ...trayToggleResult,
+              ...resizeAffordanceResult,
               maxGeometry,
               minGeometry,
               configPetCount: config.pets?.length ?? null,
               configSelectedPetId: config.selectedPetId ?? null,
-              configSessions: (config.sessions ?? []).map((session) => ({ id: session.id, name: session.name, status: session.status, messages: session.messages?.length ?? 0 })),
+              configSessions: (config.sessions ?? []).map((session) => ({ id: session.id, name: session.name, provider: session.provider, status: session.status, messages: session.messages?.length ?? 0 })),
               readyState: document.readyState,
               rootHtmlLength: document.getElementById('root')?.innerHTML.length ?? null,
               scripts: [...document.scripts].map((script) => script.src || script.getAttribute('src') || ''),
@@ -543,11 +606,106 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
           `)
         }
 
+        let statusResult: Record<string, unknown> = {
+          permissionActionsVisible: false,
+          runningStatusMapped: false,
+          reviewStatusMapped: false,
+          failedStatusMapped: false,
+          customProviderStatusMapped: false
+        }
+        if (session) {
+          sessionManager.updateStatus(session.id, 'waiting_for_permission')
+          sessionManager.applyRunEvents(session.id, [{
+            type: 'permission.requested',
+            content: 'Allow this command to inspect the workspace?',
+            denials: [{
+              tool_name: 'Bash',
+              tool_use_id: 'pet-overlay-smoke-permission',
+              tool_input: { command: 'ls -la' }
+            }]
+          }])
+          await new Promise((resolve) => setTimeout(resolve, 420))
+          const permissionResult = await overlayWindow.webContents.executeJavaScript(`
+            (() => {
+              const bodyText = document.body.innerText;
+              return {
+                permissionActionsVisible: bodyText.includes('Allow') && bodyText.includes('Deny'),
+                permissionTitleMapped: bodyText.includes('Command Approval') || bodyText.includes('Approval Required'),
+                permissionStatusMapped: document.querySelector('[data-avatar-overlay-notification-status="waiting"]') !== null
+              };
+            })()
+          `)
+
+          sessionManager.updateStatus(session.id, 'running')
+          sessionManager.applyRunEvents(session.id, [{
+            type: 'tool.started',
+            id: 'pet-overlay-smoke-tool',
+            toolName: 'Bash',
+            toolInput: { command: 'npm run smoke:ui:auto -- --pet-overlay' }
+          }])
+          await new Promise((resolve) => setTimeout(resolve, 420))
+          const runningResult = await overlayWindow.webContents.executeJavaScript(`
+            (() => {
+              const bodyText = document.body.innerText;
+              return {
+                runningStatusMapped: document.querySelector('[data-avatar-overlay-notification-status="running"]') !== null &&
+                  (bodyText.includes('Running') || bodyText.includes('Running npm run smoke:ui:auto')),
+                runningDismissHidden: !document.querySelector('[data-avatar-overlay-control="dismiss"]')
+              };
+            })()
+          `)
+
+          sessionManager.updateStatus(session.id, 'idle')
+          sessionManager.appendMessage(session.id, [{
+            id: 'pet-overlay-review-smoke',
+            role: 'assistant',
+            type: 'text',
+            content: 'Ready to review: pet overlay custom provider state mapped correctly.',
+            timestamp: Date.now()
+          }])
+          await new Promise((resolve) => setTimeout(resolve, 420))
+          const reviewResult = await overlayWindow.webContents.executeJavaScript(`
+            (() => {
+              const bodyText = document.body.innerText;
+              return {
+                reviewStatusMapped: document.querySelector('[data-avatar-overlay-notification-status="review"]') !== null &&
+                  (bodyText.includes('Ready to review') || bodyText.includes('Ready'))
+              };
+            })()
+          `)
+
+          sessionManager.updateStatus(session.id, 'model_error')
+          await new Promise((resolve) => setTimeout(resolve, 420))
+          const failedResult = await overlayWindow.webContents.executeJavaScript(`
+            (() => {
+              const bodyText = document.body.innerText;
+              return {
+                failedStatusMapped: document.querySelector('[data-avatar-overlay-notification-status="failed"]') !== null &&
+                  (bodyText.includes('Run blocked') || bodyText.includes('Blocked') || bodyText.includes('Ready to review'))
+              };
+            })()
+          `)
+
+          const customConfig = await overlayWindow.webContents.executeJavaScript(`
+            window.petApi.pet.getConfig().then((config) => ({
+              customProviderStatusMapped: (config.sessions ?? []).some((session) => session.provider === 'custom-smoke' && session.status === 'model_error')
+            }))
+          `)
+
+          statusResult = {
+            ...permissionResult,
+            ...runningResult,
+            ...reviewResult,
+            ...failedResult,
+            ...customConfig
+          }
+        }
+
         if (screenshotPath) {
           const image = await overlayWindow.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...geometryResult, ...replyResult }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...geometryResult, ...replyResult, ...statusResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -613,16 +771,48 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
               }
               const badge = document.querySelector('[data-testid="avatar-overlay-notification-badge"]');
               const row = document.querySelector('[data-avatar-overlay-measure="notification-tray-row"] > div');
+              const resizeGrip = document.querySelector('[data-testid="avatar-overlay-resize-grip"]');
+              if (badge instanceof HTMLElement) badge.click();
+              await sleep(120);
+              const trayCollapsedReduced = !document.querySelector('[data-avatar-overlay-measure="notification-tray-row"]');
               return {
                 overlayFound: true,
                 overlayReducedDataset: document.documentElement.dataset.reducedMotion === 'true',
                 overlayBadgeTransition: badge ? badge.style.transition : null,
                 overlayRowTransition: row ? row.style.transition : null,
+                overlayResizeGripTransition: resizeGrip ? resizeGrip.style.transition : null,
                 overlayBadgeTransitionDisabled: badge ? badge.style.transition === 'none' : false,
-                overlayRowTransitionDisabled: row ? row.style.transition === 'none' : false
+                overlayRowTransitionDisabled: row ? row.style.transition === 'none' : false,
+                overlayResizeGripTransitionDisabled: resizeGrip ? resizeGrip.style.transition === 'none' : false,
+                trayCollapsedReduced
               };
             })()
           `)
+          if (session) {
+            sessionManager.updateStatus(session.id, 'waiting_for_user')
+            await new Promise((resolve) => setTimeout(resolve, 300))
+            const replyReducedResult = await overlayWindow.webContents.executeJavaScript(`
+              (async () => {
+                const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+                const badge = document.querySelector('[data-testid="avatar-overlay-notification-badge"]');
+                if (badge instanceof HTMLElement && !document.querySelector('[data-avatar-overlay-measure="notification-tray-row"]')) badge.click();
+                await sleep(120);
+                const rowButton = document.querySelector('[data-avatar-overlay-measure="notification-tray-row"] [role="button"]');
+                if (rowButton instanceof HTMLElement) rowButton.focus({ preventScroll: true });
+                await sleep(40);
+                const replyButton = document.querySelector('[data-avatar-overlay-control="reply"] button');
+                if (replyButton instanceof HTMLElement) replyButton.click();
+                await sleep(80);
+                return {
+                  replyFormReduced: Boolean(document.querySelector('[data-avatar-overlay-reply-input]')),
+                  replyInputReducedTransitionDisabled: document.querySelector('[data-avatar-overlay-reply-input]') instanceof HTMLElement
+                    ? getComputedStyle(document.querySelector('[data-avatar-overlay-reply-input]')).transitionDuration.split(',').every((value) => value.trim() === '0s' || value.trim() === '0ms')
+                    : false
+                };
+              })()
+            `)
+            overlayResult = { ...overlayResult, ...replyReducedResult }
+          }
           if (screenshotPath) {
             const image = await overlayWindow.webContents.capturePage()
             writeFileSync(screenshotPath, image.toPNG())
@@ -790,6 +980,7 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
       name: process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay'
         ? 'Overlay geometry smoke'
         : 'Reduced motion smoke',
+      provider: 'custom-smoke',
       status: 'provider_error',
       messages: [
         ...session.messages.filter((message) => message.id !== fixtureMessage.id),

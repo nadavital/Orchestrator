@@ -76,7 +76,7 @@ function useLayerFocus(
 
 interface ButtonProps {
   children: ReactNode
-  onClick?: () => void | Promise<void>
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void | Promise<void>
   type?: 'button' | 'submit'
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   disabled?: boolean
@@ -897,15 +897,27 @@ export function DismissablePopoverSurface({
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const restoreFocus = (): void => {
+      if (previouslyFocused && document.contains(previouslyFocused)) {
+        previouslyFocused.focus({ preventScroll: true })
+      }
+    }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.preventDefault()
+        restoreFocus()
         onClose()
       }
     }
     const onMouseDown = (event: MouseEvent): void => {
       if (ref.current && !ref.current.contains(event.target as Node)) {
-        window.setTimeout(onClose, 0)
+        window.setTimeout(() => {
+          restoreFocus()
+          onClose()
+        }, 0)
       }
     }
     window.addEventListener('keydown', onKeyDown, { capture: true })
@@ -913,6 +925,7 @@ export function DismissablePopoverSurface({
     return () => {
       window.removeEventListener('keydown', onKeyDown, { capture: true })
       document.removeEventListener('mousedown', onMouseDown, { capture: true })
+      restoreFocus()
     }
   }, [onClose])
 
@@ -939,16 +952,36 @@ export function MenuSurface({
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const restoreFocus = (): void => {
+      if (previouslyFocused && document.contains(previouslyFocused)) {
+        previouslyFocused.focus({ preventScroll: true })
+      }
+    }
+    const menuItems = (): HTMLButtonElement[] => (
+      Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])
+    )
     const focusMenuItem = (delta: 1 | -1): void => {
-      const items = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])
+      const items = menuItems()
       if (items.length === 0) return
-      const currentIndex = Math.max(0, items.findIndex((item) => item === document.activeElement))
-      const next = items[(currentIndex + delta + items.length) % items.length]
+      const currentIndex = items.findIndex((item) => item === document.activeElement)
+      const nextIndex = currentIndex === -1
+        ? (delta === 1 ? 0 : items.length - 1)
+        : (currentIndex + delta + items.length) % items.length
+      const next = items[nextIndex]
+      next?.focus()
+    }
+    const focusBoundaryItem = (boundary: 'first' | 'last'): void => {
+      const items = menuItems()
+      const next = boundary === 'first' ? items[0] : items[items.length - 1]
       next?.focus()
     }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.preventDefault()
+        restoreFocus()
         onClose()
       } else if (event.key === 'ArrowDown') {
         event.preventDefault()
@@ -956,18 +989,29 @@ export function MenuSurface({
       } else if (event.key === 'ArrowUp') {
         event.preventDefault()
         focusMenuItem(-1)
+      } else if (event.key === 'Home') {
+        event.preventDefault()
+        focusBoundaryItem('first')
+      } else if (event.key === 'End') {
+        event.preventDefault()
+        focusBoundaryItem('last')
       }
     }
     const onMouseDown = (event: MouseEvent): void => {
       if (ref.current && !ref.current.contains(event.target as Node)) {
-        window.setTimeout(onClose, 0)
+        window.setTimeout(() => {
+          restoreFocus()
+          onClose()
+        }, 0)
       }
     }
     window.addEventListener('keydown', onKeyDown, { capture: true })
     document.addEventListener('mousedown', onMouseDown, { capture: true })
+    window.setTimeout(() => focusBoundaryItem('first'), 0)
     return () => {
       window.removeEventListener('keydown', onKeyDown, { capture: true })
       document.removeEventListener('mousedown', onMouseDown, { capture: true })
+      restoreFocus()
     }
   }, [onClose])
 

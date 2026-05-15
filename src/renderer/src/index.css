@@ -1513,28 +1513,13 @@
     gap: 8px;
   }
 
-  .cap-sync-provider-grid label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    background: var(--control-bg);
-    color: var(--text-secondary);
-    min-height: 38px;
-    padding: 0 10px;
-    font-size: 12px;
-    font-weight: 680;
+  .cap-sync-provider-grid .setting-choice-card {
+    min-height: 50px;
+    padding: 8px 10px;
   }
 
-  .cap-sync-provider-grid label.selected {
-    border-color: color-mix(in srgb, var(--accent) 34%, var(--border-subtle));
-    background: color-mix(in srgb, var(--accent) 10%, var(--control-bg));
-    color: var(--text-primary);
-  }
-
-  .cap-sync-provider-grid input {
-    margin: 0;
+  .cap-sync-provider-grid .setting-choice-card-description {
+    font-size: 10.5px;
   }
 
   .cap-sync-plan {
@@ -1566,10 +1551,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    border: 1px solid var(--border-subtle);
     border-left-width: 3px;
-    border-radius: var(--radius-md);
-    background: var(--surface-bg-raised);
     padding: 10px;
   }
 

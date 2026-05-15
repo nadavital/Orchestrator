@@ -368,6 +368,7 @@ export default function PetOverlay(): JSX.Element | null {
   const [dragAnimState, setDragAnimState] = useState<AnimState | null>(null)
   const [mascotWidthPx, setMascotWidthPx] = useState<number | null>(null)
   const [isResizingVisual, setIsResizingVisual] = useState(false)
+  const [isResizeHandleFocused, setIsResizeHandleFocused] = useState(false)
   const [forceReducedMotion, setForceReducedMotion] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const trayRef = useRef<HTMLDivElement>(null)
@@ -920,6 +921,8 @@ export default function PetOverlay(): JSX.Element | null {
           onPointerUp={handleResizePointerUp}
           onPointerCancel={(e) => finishResize(e.pointerId, undefined, e.currentTarget)}
           onLostPointerCapture={(e) => finishResize(e.pointerId, undefined, e.currentTarget)}
+          onFocus={() => setIsResizeHandleFocused(true)}
+          onBlur={() => setIsResizeHandleFocused(false)}
           style={{
             position: 'absolute',
             right: 0,
@@ -937,6 +940,7 @@ export default function PetOverlay(): JSX.Element | null {
           }}
         >
           <span
+            data-testid="avatar-overlay-resize-grip"
             aria-hidden="true"
             style={{
               position: 'absolute',
@@ -946,7 +950,7 @@ export default function PetOverlay(): JSX.Element | null {
               height: 10,
               borderRight: '2px solid currentColor',
               borderBottom: '2px solid currentColor',
-              opacity: isHovering || isResizingVisual ? 0.85 : 0,
+              opacity: isHovering || isResizingVisual || isResizeHandleFocused ? 0.85 : 0,
               transition: transitionFor(prefersReducedMotion, 'opacity 120ms ease-out'),
             }}
           />
@@ -1134,6 +1138,7 @@ function NotificationCard({
       data-interactive="true"
       data-avatar-overlay-measure="notification-tray-row"
       data-avatar-overlay-row-active={rowActive ? 'true' : 'false'}
+      data-avatar-overlay-notification-status={notification.status}
       role="listitem"
       style={{
         position: 'relative',

@@ -16,7 +16,7 @@ import { useProjectStore } from '../store/projects'
 import { useSessionStore } from '../store/sessions'
 import Icon from './shared/Icon'
 import ProviderIcon from './shared/ProviderIcon'
-import { Badge, Button, ConfirmDialog, MenuItem, MenuSurface, SegmentedControl, Sheet, SurfaceRow, ToolbarButton } from './shared/designSystem'
+import { Badge, Button, ConfirmDialog, InspectorCard, MenuItem, MenuSurface, SegmentedControl, SettingChoiceCard, Sheet, SurfaceRow, ToolbarButton } from './shared/designSystem'
 
 type CapabilityTab = 'skill' | 'mcp' | 'plugin' | 'app' | 'agent' | 'instruction' | 'more'
 type CapabilityScopeFilter = 'all' | 'global' | 'project'
@@ -294,7 +294,13 @@ export default function CapabilitiesPage(): JSX.Element {
             {loading ? 'Refreshing' : 'Refresh'}
           </Button>
           <div className="cap-create-wrap">
-            <Button variant="primary" onClick={() => setCreateMenuOpen((open) => !open)}>
+            <Button
+              variant="primary"
+              onClick={(event) => {
+                event.currentTarget.focus({ preventScroll: true })
+                setCreateMenuOpen((open) => !open)
+              }}
+            >
               <Icon name="plus" size={14} />
               Create
             </Button>
@@ -907,15 +913,14 @@ function SyncCapabilitySheet({
           {providerOptions.map((providerId) => {
             const provider = PROVIDER_DEFS[providerId]
             return (
-              <label key={providerId} className={targets.includes(providerId) ? 'selected' : ''}>
-                <input
-                  type="checkbox"
-                  checked={targets.includes(providerId)}
-                  onChange={() => toggleTarget(providerId)}
-                />
-                {provider && <ProviderIcon providerId={provider.id} size={14} color={provider.color} />}
-                <span>{provider?.name ?? providerId}</span>
-              </label>
+              <SettingChoiceCard
+                key={providerId}
+                label={provider?.name ?? providerId}
+                description={targets.includes(providerId) ? 'Selected' : 'Not selected'}
+                active={targets.includes(providerId)}
+                onClick={() => toggleTarget(providerId)}
+                leading={provider && <ProviderIcon providerId={provider.id} size={14} color={provider.color} />}
+              />
             )
           })}
         </div>
@@ -938,7 +943,7 @@ function SyncCapabilitySheet({
               {plan.operations.map((operation, index) => {
                 const provider = PROVIDER_DEFS[operation.providerId]
                 return (
-                  <article key={`${operation.providerId}:${operation.action}:${index}`} className={`cap-sync-operation risk-${operation.risk}`}>
+                  <InspectorCard key={`${operation.providerId}:${operation.action}:${index}`} className={`cap-sync-operation risk-${operation.risk}`}>
                     <div>
                       <strong>{operation.summary}</strong>
                       <span>{provider?.name ?? operation.providerId} · {operation.action}</span>
@@ -946,7 +951,7 @@ function SyncCapabilitySheet({
                     {operation.path && <code title={operation.path}>{operation.path}</code>}
                     {operation.command && <code>{operation.command.join(' ')}</code>}
                     {operation.appServerMethod && <code>{operation.appServerMethod}</code>}
-                  </article>
+                  </InspectorCard>
                 )
               })}
             </div>

@@ -68,6 +68,7 @@ export default function Titlebar(): JSX.Element {
         {session ? (
           <>
             <span
+              data-testid="active-session-title"
               className="truncate"
               style={{ color: 'var(--text-primary)', maxWidth: 520, fontSize: 15, fontWeight: 520 }}
               title={session.name}

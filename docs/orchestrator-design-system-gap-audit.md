@@ -382,13 +382,14 @@ Current fix:
 - The session `MotionView` should not run the 360ms app-mode animation.
 - App-mode transitions can keep motion, but session-to-session switching should be immediate unless profiling proves a lightweight transition has no perceptible cost.
 
+Current verification:
+
+- `npm run smoke:ui:auto -- --session-switch` seeds two sessions, switches from the first to the second, and asserts both transcript text and title text become visible within the 150ms budget.
+- The same smoke asserts the session `MotionView` is not using the app-mode animation class, so chat-to-chat switching is protected from the slower page transition.
+
 Still needed:
 
-- Add a deterministic smoke or integration check for session switching latency.
-- Seed at least two sessions in the smoke profile.
-- Click between sessions and measure time until the active transcript/session title changes.
-- Fail the smoke if switching exceeds a tight threshold, for example 100-150ms for DOM-visible content under the smoke fixture.
-- Add screenshot or DOM assertions that the transcript is visible immediately and not blocked behind a view fade.
+- Keep this smoke in the regular UI verification set whenever motion/navigation changes.
 
 Acceptance rule:
 
@@ -398,13 +399,14 @@ Acceptance rule:
 
 Why it matters: this is the surface most likely to regress invisibly because the floating overlay is a separate renderer/window and current smokes do not exercise it directly.
 
+Current verification:
+
+- `npm run smoke:ui:auto -- --pet-overlay` now verifies badge/tray/mascot geometry, min/max pet resize bounds, tray collapse/reopen, row control reveal, row expansion, reply open/focus/Escape close, permission action buttons, running/review/failed status buckets, and custom-provider status mapping.
+- The resize handle now exposes a focus-visible grip as well as the hover-only grip, and the smoke asserts both states.
+
 Still needed:
 
-- Verify badge collapsed/expanded states.
-- Verify notification banner/tray rows, dismiss, expand, reply, and action buttons.
-- Add richer screenshot states for expanded tray, collapsed tray, reply form, and waiting-for-input actions.
-- Verify hover-only resize affordance with direct pointer/visual assertions beyond geometry.
-- Verify custom provider statuses map to the intended badge/banner states.
+- Add a persisted screenshot gallery for default, max-size, collapsed tray, expanded tray, reply form, permission, running, review, and failed states if reviewers need visual baselines in CI artifacts rather than the current per-smoke screenshot.
 
 Suggested implementation:
 
@@ -416,13 +418,16 @@ Suggested implementation:
 
 Why it matters: Codex's dropdowns and dialogs are not just visual. They centralize keyboard behavior, focus behavior, Escape handling, disabled/danger states, and exit animation.
 
+Current verification:
+
+- Shared `MenuSurface` now focuses the first menu item, supports ArrowUp/ArrowDown/Home/End, closes on Escape/outside click, and restores focus to the opener.
+- Shared `DismissablePopoverSurface` now restores focus to the opener after Escape or outside-click dismissal.
+- Capabilities smoke verifies create-menu open, arrow-key focus, Escape dismissal, and focus return.
+- Composer smoke verifies permission-menu Escape focus return and agent-menu outside-click focus return.
+
 Still needed:
 
-- Shared dismissable-layer primitive.
-- Shared `Menu`, `MenuItem`, `MenuSeparator`, and optional submenu/disclosure behavior.
-- Keyboard navigation for menus.
-- Escape and outside-click behavior for every menu/popover.
-- Focus behavior for legacy or feature-local sheets/dialogs as they migrate to shared primitives.
+- `MenuSeparator` and optional submenu/disclosure behavior.
 - Exit animation retention instead of immediate unmount for menus/sheets where feasible.
 
 Highest-value targets:
@@ -483,34 +488,41 @@ Suggested verification:
 
 Why it matters: this is now the largest untouched session-side panel.
 
+Current verification:
+
+- The session-side `ExtensionsPanel` is mounted again through the inspector path, and `/extensions` opens it directly.
+- `npm run smoke:ui:auto -- --extensions` verifies the panel is reachable and renders provider extension/local-instruction content.
+
 Still needed:
 
-- Replace local extension cards with `InspectorCard`.
-- Replace local disclosure chevrons with `DisclosureSection` or a more Codex-like animated disclosure primitive.
-- Replace metric/status pills with `MetricPill`/`Badge`.
-- Replace file/command rows with `SurfaceRow`.
-- Add an extensions-panel smoke view.
+- Replace the remaining local file/command rows and disclosure chevrons with shared primitives.
+- Replace remaining metric/status pills with shared `MetricPill`/`Badge`.
 
 ### P1: Capabilities Edit/Sync Sheets
 
 Why it matters: the create flow and rows are partially migrated, but edit/sync still use local sheet/backdrop layout.
 
+Current verification:
+
+- `CreateCapabilitySheet`, `EditCapabilitySheet`, and `SyncCapabilitySheet` use shared `Sheet`.
+- Sync provider targets now use shared `SettingChoiceCard`, and sync plan operations use `InspectorCard`.
+- Capabilities smoke covers create-sheet focus trapping and menu keyboard/focus behavior.
+
 Still needed:
 
-- Convert `EditCapabilitySheet` to shared `Sheet`.
-- Convert `SyncCapabilitySheet` to shared `Sheet`.
-- Replace sync provider checkboxes with shared row/card primitives.
-- Replace sync plan operation cards with `InspectorCard`/`Badge`.
-- Add smoke assertions for opening edit/sync sheets, not just landing on the capabilities page.
+- Add seeded capability rows so the smoke can open edit and sync sheets deterministically instead of depending on whichever provider resources are present locally.
 
 ### P1: Reduced Motion
 
 Why it matters: Codex's motion is polished partly because reduced-motion behavior is predictable.
 
+Current verification:
+
+- `npm run smoke:ui:auto -- --motion-reduced` verifies forced reduced-motion propagation, zeroed main-renderer motion durations, disabled pet-overlay badge/row/resize-grip transitions, collapsed tray behavior, and reply form behavior.
+
 Still needed:
 
 - Add reduced-motion screenshot assertions for right panel, terminal panel, shared sheet, and shared popover.
-- Expand pet-overlay reduced-motion coverage beyond badge/row transitions to collapsed tray, reply form, and resize affordances.
 - Continue replacing feature-local transition strings with shared motion helpers as each surface migrates.
 
 ### P2: App-Shell Maturity
@@ -521,7 +533,7 @@ Still needed:
 
 - Decide whether CSS transitions are acceptable or whether to adopt a motion-value style implementation for panel width/height.
 - Add visual assertions for right panel open/close and terminal open/close.
-- Add session-switch smoke coverage.
+- Keep session-switch smoke coverage in the required motion/navigation verification set.
 - Add resizing persistence if desired for inspector width and terminal height.
 - Check wide/narrow viewport screenshots for panel overlap and min-width behavior.
 
@@ -1283,15 +1295,18 @@ Completed in the latest implementation pass:
 - Session action rename/delete and project removal no longer use native browser prompt/confirm UI.
 - Capabilities smoke now verifies create-menu open, menu Escape dismissal, create-sheet open, and sheet Escape dismissal.
 - Settings now shares design-system primitives for intro text, groups, panels, compact rows, choice cards, status pills, and diagnostic pills.
-- Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior.
-- Composer smoke now verifies permission-menu Escape dismissal and agent-menu outside-click dismissal.
+- Composer provider/agent/permission dropdown panels now use shared dismissable popover behavior with focus return.
+- Composer smoke now verifies permission-menu Escape dismissal/focus return and agent-menu outside-click dismissal/focus return.
+- Pet overlay smoke now verifies custom provider state mapping, permission actions, running/review/failed buckets, tray collapse/reopen, row expansion, reply focus, and resize-handle hover/focus visibility.
+- Session-switch smoke now verifies transcript and title changes stay within the 150ms budget and are not hidden behind app-mode page animation.
+- Extensions panel is reachable again from `/extensions` and covered by an automated smoke.
 
 The biggest remaining pieces are:
 
 1. Finish the remaining settings local controls: color swatches, provider picker, model list manager, config editor, import controls, and provider command output cards.
 2. Composer and transcript primitives beyond dropdown dismissal, especially attachment chips, command surfaces, file cards, scroll-to-bottom, and thinking/streaming states.
-3. Extensions panel migration.
-4. Focus restoration and focus trapping for sheets/dialogs.
+3. Finish the remaining Extensions panel primitive migration for file/command rows, disclosures, and metrics.
+4. Add seeded edit/sync capability fixtures so those sheet flows are deterministic in smoke tests.
 5. Exit animation retention for menus/sheets/dialogs rather than immediate unmount.
-6. Reduced-motion automated coverage for the main renderer and pet overlay.
+6. Reduced-motion screenshot assertions for the right panel, terminal panel, sheets, and popovers.
 7. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.

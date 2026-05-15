@@ -4,12 +4,13 @@ import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
 import DiffPanel from './DiffPanel'
 import EventInspectorPanel from './EventInspectorPanel'
+import ExtensionsPanel from './ExtensionsPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import { MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 
-export type ContextTab = 'plan' | 'diff' | 'agents' | 'side'
+export type ContextTab = 'plan' | 'diff' | 'agents' | 'extensions' | 'side'
 
 interface Props {
   session: Session
@@ -39,6 +40,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     ui?.showDiff ? { id: 'diff' as const, label: 'Changes' } : null,
     hasPlan ? { id: 'plan' as const, label: 'Plan' } : null,
     (hasOpenAgent || hasLiveAgent) ? { id: 'agents' as const, label: 'Agents' } : null,
+    ui?.showExtensions ? { id: 'extensions' as const, label: 'Extensions' } : null,
     hasSideQuestions ? { id: 'side' as const, label: 'Side' } : null
   ].filter((tab): tab is { id: ContextTab; label: string } => Boolean(tab))
   const activeTab: ContextTab | null = ui?.showPlan
@@ -47,16 +49,18 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       ? 'diff'
       : ui?.showEvents
         ? 'agents'
-        : ui?.showSideQuestions
-          ? 'side'
-          : null
+        : ui?.showExtensions
+          ? 'extensions'
+          : ui?.showSideQuestions
+            ? 'side'
+            : null
   const effectiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0]?.id ?? null
 
   const activate = (tab: ContextTab): void => {
     setShowPlan(session.id, tab === 'plan')
     setShowDiff(session.id, tab === 'diff')
     setShowEvents(session.id, tab === 'agents')
-    setShowExtensions(session.id, false)
+    setShowExtensions(session.id, tab === 'extensions')
     setShowSideQuestions(session.id, tab === 'side')
   }
 
@@ -64,7 +68,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     if (tab === 'plan' || !tab) setShowPlan(session.id, false)
     if (tab === 'diff' || !tab) setShowDiff(session.id, false)
     if (tab === 'agents' || !tab) setShowEvents(session.id, false)
-    setShowExtensions(session.id, false)
+    if (tab === 'extensions' || !tab) setShowExtensions(session.id, false)
     if (tab === 'side' || !tab) setShowSideQuestions(session.id, false)
   }
 
@@ -131,6 +135,9 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         {effectiveTab === 'plan' && <PlanPanel session={session} embedded />}
         {effectiveTab === 'agents' && (
           <EventInspectorPanel session={session} embedded activeAgentId={ui?.activeAgentId ?? null} />
+        )}
+        {effectiveTab === 'extensions' && (
+          <ExtensionsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} embedded />
         )}
         {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} embedded />}
         {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}

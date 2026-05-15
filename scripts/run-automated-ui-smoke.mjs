@@ -22,6 +22,8 @@ const captureView = process.argv.includes('--settings')
           ? 'pet-overlay'
           : process.argv.includes('--session-switch')
             ? 'session-switch'
+            : process.argv.includes('--extensions')
+              ? 'extensions'
             : process.argv.includes('--design-system')
               ? 'design-system'
               : process.argv.includes('--scroll')
@@ -87,7 +89,9 @@ child.on('exit', (code) => {
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
         firstTranscriptFound: result.firstTranscriptFound === true,
+        firstTitleFound: result.firstTitleFound === true,
         secondTranscriptFound: result.secondTranscriptFound === true,
+        secondTitleFound: result.secondTitleFound === true,
         switchWithinBudget: Number(result.switchElapsedMs ?? Number.POSITIVE_INFINITY) <= 150,
         sessionViewNotAnimated: result.sessionViewAnimated === false
       }
@@ -102,7 +106,11 @@ child.on('exit', (code) => {
         overlayFound: result.overlayFound === true,
         overlayReducedDataset: result.overlayReducedDataset === true,
         overlayBadgeTransitionDisabled: result.overlayBadgeTransitionDisabled === true,
-        overlayRowTransitionDisabled: result.overlayRowTransitionDisabled === true
+        overlayRowTransitionDisabled: result.overlayRowTransitionDisabled === true,
+        overlayResizeGripTransitionDisabled: result.overlayResizeGripTransitionDisabled === true,
+        trayCollapsedReduced: result.trayCollapsedReduced === true,
+        replyFormReduced: result.replyFormReduced === true,
+        replyInputReducedTransitionDisabled: result.replyInputReducedTransitionDisabled === true
       }
     : captureView === 'pet-overlay'
     ? {
@@ -122,9 +130,20 @@ child.on('exit', (code) => {
         rowExpanded: result.rowExpanded === true,
         trayCollapsed: result.trayCollapsed === true,
         trayReopened: result.trayReopened === true,
+        resizeHandleFound: result.resizeHandleFound === true,
+        resizeGripHoverVisible: result.resizeGripHoverVisible === true,
+        resizeGripFocusVisible: result.resizeGripFocusVisible === true,
         replyFormOpened: result.replyFormOpened === true,
         replyInputFocused: result.replyInputFocused === true,
-        replyFormClosedWithEscape: result.replyFormClosedWithEscape === true
+        replyFormClosedWithEscape: result.replyFormClosedWithEscape === true,
+        permissionActionsVisible: result.permissionActionsVisible === true,
+        permissionTitleMapped: result.permissionTitleMapped === true,
+        permissionStatusMapped: result.permissionStatusMapped === true,
+        runningStatusMapped: result.runningStatusMapped === true,
+        runningDismissHidden: result.runningDismissHidden === true,
+        reviewStatusMapped: result.reviewStatusMapped === true,
+        failedStatusMapped: result.failedStatusMapped === true,
+        customProviderStatusMapped: result.customProviderStatusMapped === true
       }
     : captureView === 'scroll'
     ? {
@@ -149,17 +168,23 @@ child.on('exit', (code) => {
         composer: result.hasComposer === true,
         sidebarNavigation: ['settings', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
-        sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer'].includes(captureView) || result.hasSideQuestionCommandText === true,
+        extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
+        extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
+        sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,
         capabilityCreateMenu: captureView !== 'capabilities' || result.capabilityMenuOpened === true,
+        capabilityMenuArrowFocus: captureView !== 'capabilities' || result.capabilityMenuArrowFocus === true,
         capabilityMenuEscape: captureView !== 'capabilities' || result.capabilityMenuClosedWithEscape === true,
+        capabilityMenuFocusReturned: captureView !== 'capabilities' || result.capabilityMenuFocusReturned === true,
         capabilityCreateSheet: captureView !== 'capabilities' || result.capabilitySheetOpened === true,
         capabilitySheetFocus: captureView !== 'capabilities' || result.capabilitySheetFocused === true,
         capabilitySheetFocusTrap: captureView !== 'capabilities' || result.capabilitySheetFocusStayedInside === true,
         capabilitySheetEscape: captureView !== 'capabilities' || result.capabilitySheetClosedWithEscape === true,
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
         composerPermissionEscape: captureView !== 'composer' || result.composerPermissionMenuClosedWithEscape === true,
+        composerPermissionFocusReturned: captureView !== 'composer' || result.composerPermissionFocusReturned === true,
         composerAgentMenu: captureView !== 'composer' || result.composerAgentMenuOpened === true,
         composerAgentOutsideClick: captureView !== 'composer' || result.composerAgentMenuClosedWithOutsideClick === true,
+        composerAgentFocusReturned: captureView !== 'composer' || result.composerAgentFocusReturned === true,
         buttons: Number(result.buttonCount ?? 0) > 0
       }
   const failed = Object.entries(checks).filter(([, ok]) => !ok)
