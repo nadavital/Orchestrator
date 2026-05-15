@@ -127,6 +127,8 @@ child.on('exit', (code) => {
         capabilityCreateMenu: captureView !== 'capabilities' || result.capabilityMenuOpened === true,
         capabilityMenuEscape: captureView !== 'capabilities' || result.capabilityMenuClosedWithEscape === true,
         capabilityCreateSheet: captureView !== 'capabilities' || result.capabilitySheetOpened === true,
+        capabilitySheetFocus: captureView !== 'capabilities' || result.capabilitySheetFocused === true,
+        capabilitySheetFocusTrap: captureView !== 'capabilities' || result.capabilitySheetFocusStayedInside === true,
         capabilitySheetEscape: captureView !== 'capabilities' || result.capabilitySheetClosedWithEscape === true,
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
         composerPermissionEscape: captureView !== 'composer' || result.composerPermissionMenuClosedWithEscape === true,

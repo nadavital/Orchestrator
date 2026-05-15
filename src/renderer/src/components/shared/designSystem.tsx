@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { forwardRef, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import Icon, { type IconName } from './Icon'
 import { rowMotionStyle } from '../../design/motion'
 
@@ -10,6 +10,68 @@ const toneColor: Record<Tone, string> = {
   success: 'var(--state-success)',
   warning: 'var(--state-warning)',
   danger: 'var(--state-danger)',
+}
+
+const focusableSelector = [
+  'a[href]',
+  'button:not(:disabled)',
+  'input:not(:disabled)',
+  'select:not(:disabled)',
+  'textarea:not(:disabled)',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',')
+
+function useLayerFocus(
+  ref: RefObject<HTMLElement | null>,
+  onClose: () => void
+): void {
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+
+    const focusFirst = (): void => {
+      const focusable = Array.from(ref.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+        .filter((element) => element.offsetParent !== null || element === document.activeElement)
+      const target = focusable[0] ?? ref.current
+      target?.focus({ preventScroll: true })
+    }
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const focusable = Array.from(ref.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+        .filter((element) => element.offsetParent !== null)
+      if (focusable.length === 0) {
+        event.preventDefault()
+        ref.current?.focus({ preventScroll: true })
+        return
+      }
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus({ preventScroll: true })
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus({ preventScroll: true })
+      }
+    }
+
+    window.setTimeout(focusFirst, 0)
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, { capture: true })
+      if (previouslyFocused && document.contains(previouslyFocused)) {
+        previouslyFocused.focus({ preventScroll: true })
+      }
+    }
+  }, [onClose, ref])
 }
 
 interface ButtonProps {
@@ -729,13 +791,23 @@ export function MotionOverlay({
   surfaceClassName?: string
   surfaceStyle?: CSSProperties
 }): JSX.Element {
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  useLayerFocus(surfaceRef, onClose)
+
   return (
     <div
       className={`motion-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center ${className}`}
       style={{ background: 'rgba(16, 24, 40, 0.28)', backdropFilter: 'blur(16px)' }}
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div className={`motion-overlay-surface ${surfaceClassName}`} style={surfaceStyle}>
+      <div
+        ref={surfaceRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className={`motion-overlay-surface ${surfaceClassName}`}
+        style={surfaceStyle}
+      >
         {children}
       </div>
     </div>
@@ -755,20 +827,22 @@ export function Sheet({
   onClose: () => void
   width?: number
 }): JSX.Element {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  const sheetRef = useRef<HTMLElement>(null)
+  useLayerFocus(sheetRef, onClose)
 
   return (
     <div
       className="motion-sheet-backdrop fixed inset-0 z-50 flex justify-end"
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
-      <section className="motion-sheet flex h-full min-h-0 flex-col" style={{ width }}>
+      <section
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className="motion-sheet flex h-full min-h-0 flex-col"
+        style={{ width }}
+      >
         <header className="motion-sheet-header">
           <div className="min-w-0 flex-1">{title}</div>
           <IconButton icon="close" label="Close" onClick={onClose} />
@@ -955,14 +1029,6 @@ export function ConfirmDialog({
   onCancel: () => void
   onConfirm: () => void | Promise<void>
 }): JSX.Element {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onCancel])
-
   return (
     <MotionOverlay onClose={onCancel} surfaceClassName="w-[min(420px,calc(100vw-32px))] rounded-xl p-4">
       <div className="flex min-w-0 flex-col gap-3">

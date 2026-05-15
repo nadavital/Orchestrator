@@ -7,6 +7,8 @@ Focused update: 2026-05-15, after:
 - `1d665b70 Align Orchestrator motion system with Codex`
 - `f5585903 Migrate inspector panels to shared primitives`
 - `cf86219a Document remaining Codex design gaps`
+- `63366b0b Close Codex design parity gaps`
+- `544bbb71 Migrate settings and composer primitives`
 
 ## Scope
 
@@ -48,7 +50,7 @@ Important Codex bundle references:
 - `webview/assets/avatar-mascot-button-rs-0LxtH.js`
 - `webview/assets/use-floating-window-pointer-interactivity-DR7NmDuw.js`
 
-I ignored unrelated local dirty edits in:
+An earlier audit pass ignored unrelated local dirty edits in:
 
 - `src/main/ipc.ts`
 - `src/main/settings.ts`
@@ -57,7 +59,7 @@ I ignored unrelated local dirty edits in:
 - `src/renderer/src/components/SettingsModal.tsx`
 - `src/renderer/src/env.d.ts`
 
-Those appear to be separate preferred-editor and composer paste changes.
+Those were separate preferred-editor and composer paste changes at the time; the relevant parts have since been folded into focused commits.
 
 ## Focused Deep Dive: Concrete Current Gaps
 
@@ -323,6 +325,9 @@ These are no longer the primary blockers:
 - The capabilities page now uses shared `Button`, `Badge`, `SurfaceRow`, `SegmentedControl`, `PopoverSurface`, and `Sheet` for the first-pass create flow and rows.
 - Diff, plan, agent activity, running agents, and side-question panels now use shared panel/card/badge/metric/row primitives.
 - Settings now uses the shared switch and provider/model segmented-control primitive in the migrated spots.
+- Settings now has shared settings-section/card/pill primitives for the migrated general/provider/model/editor areas.
+- Composer dropdowns now use the shared dismissable popover surface and have smoke coverage for Escape and outside-click dismissal.
+- Shared sheets and modal overlays now use `role="dialog"`, `aria-modal`, initial focus, focus containment, focus restoration, and centralized Escape handling.
 - Pet resize no longer waits for a renderer `ResizeObserver` round trip to resize the floating window; it sends live resize-preview width to the main process, which recomputes the window bounds immediately.
 - UI smoke coverage has been exercised for main, design-system, terminal, inspector, capabilities, and pets/settings views.
 
@@ -334,7 +339,7 @@ These remain the main gaps:
 - `InputBar.tsx` and `ChatView.tsx` still own important transcript/composer surfaces locally.
 - `ExtensionsPanel.tsx` is still mostly local and has repeated disclosure/transition behavior.
 - Capabilities edit/sync sheets still use the old `capability-sheet-backdrop` and local sheet layout.
-- Menus/popovers still do not have a shared dismissable-layer/focus/keyboard model comparable to Codex's dropdown stack.
+- Menus/popovers now have shared Escape/outside-click dismissal in the migrated composer surfaces, and sheets/dialogs have shared focus handling. Full Codex-level roving menu keyboard behavior and exit animation retention are still missing.
 - The pet overlay is visually closer, but it still uses overlay-local primitives and inline transition strings instead of a shared cross-renderer design layer.
 - There is no deterministic floating pet-overlay smoke harness for badge, banner, tray, hover controls, resize, and provider/custom states.
 - Reduced-motion is broadly present in the main renderer CSS, but not verified end-to-end across the pet overlay and every direct inline transition.
@@ -417,7 +422,7 @@ Still needed:
 - Shared `Menu`, `MenuItem`, `MenuSeparator`, and optional submenu/disclosure behavior.
 - Keyboard navigation for menus.
 - Escape and outside-click behavior for every menu/popover.
-- Focus trap or focus restoration for sheets/dialogs.
+- Focus behavior for legacy or feature-local sheets/dialogs as they migrate to shared primitives.
 - Exit animation retention instead of immediate unmount for menus/sheets where feasible.
 
 Highest-value targets:
@@ -427,21 +432,22 @@ Highest-value targets:
 - `SessionActionsMenu`, which is visually migrated but still has local item behavior.
 - Slash palette hover/keyboard model.
 
+Current progress:
+
+- Shared `Sheet` and `MotionOverlay` now centralize dialog ARIA, initial focus, Tab containment, Escape close, and focus restoration.
+- Capabilities smoke now asserts that the create sheet opens with focus inside it, Tab remains inside it, and Escape closes it.
+
 ### P0: Settings Migration
 
 Why it matters: settings is still the biggest non-system surface and carries provider, model, pets, diagnostics, and appearance controls.
 
 Still needed:
 
-- `SettingsPanel`.
 - `SettingsRow`.
-- `SettingsCard`.
-- `StatusPill`.
 - `ProviderCard`.
-- `DiagnosticPill`.
 - `SortableModelRow` or a reusable sortable row primitive.
 - Pet card controls using shared primitives.
-- General settings cards converted away from local inline card buttons.
+- Remaining provider/model/pet/diagnostic rows converted away from local inline card styling.
 
 Constraints:
 

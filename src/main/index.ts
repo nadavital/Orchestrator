@@ -160,7 +160,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               .find((button) => button.textContent?.includes('Skill'));
             skillMenuItem?.click();
             await sleep(180);
-            var capabilitySheetOpened = Boolean(document.querySelector('.motion-sheet'));
+            const capabilitySheet = document.querySelector('.motion-sheet');
+            var capabilitySheetOpened = Boolean(capabilitySheet);
+            var capabilitySheetFocused = Boolean(capabilitySheet?.contains(document.activeElement));
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+            await sleep(40);
+            var capabilitySheetFocusStayedInside = Boolean(document.querySelector('.motion-sheet')?.contains(document.activeElement));
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(120);
             var capabilitySheetClosedWithEscape = !document.querySelector('.motion-sheet');
@@ -209,6 +214,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilityMenuOpened: typeof capabilityMenuOpened === 'boolean' ? capabilityMenuOpened : null,
             capabilityMenuClosedWithEscape: typeof capabilityMenuClosedWithEscape === 'boolean' ? capabilityMenuClosedWithEscape : null,
             capabilitySheetOpened: typeof capabilitySheetOpened === 'boolean' ? capabilitySheetOpened : null,
+            capabilitySheetFocused: typeof capabilitySheetFocused === 'boolean' ? capabilitySheetFocused : null,
+            capabilitySheetFocusStayedInside: typeof capabilitySheetFocusStayedInside === 'boolean' ? capabilitySheetFocusStayedInside : null,
             capabilitySheetClosedWithEscape: typeof capabilitySheetClosedWithEscape === 'boolean' ? capabilitySheetClosedWithEscape : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,
