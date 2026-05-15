@@ -47,6 +47,17 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const agentMenuRef = useRef<HTMLDivElement>(null)
   const permMenuRef = useRef<HTMLDivElement>(null)
 
+  const resizeTextarea = (textarea: HTMLTextAreaElement): void => {
+    textarea.style.height = 'auto'
+    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px'
+  }
+
+  const moveTextareaCursorToEnd = (textarea: HTMLTextAreaElement): void => {
+    const end = textarea.value.length
+    textarea.setSelectionRange(end, end)
+    textarea.scrollTop = textarea.scrollHeight
+  }
+
   useEffect(() => {
     window.api.git.isGitRepo(session.workDir).then(setIsGitRepo)
   }, [session.workDir])
@@ -91,8 +102,8 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       textareaRef.current?.focus()
       setTimeout(() => {
         if (textareaRef.current) {
-          textareaRef.current.style.height = 'auto'
-          textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'
+          resizeTextarea(textareaRef.current)
+          moveTextareaCursorToEnd(textareaRef.current)
         }
       }, 0)
     }
@@ -278,8 +289,15 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     setText(e.target.value)
     setSlashIndex(0)
-    e.target.style.height = 'auto'
-    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+    resizeTextarea(e.target)
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
+    const textarea = e.currentTarget
+    window.setTimeout(() => {
+      resizeTextarea(textarea)
+      moveTextareaCursorToEnd(textarea)
+    }, 0)
   }
 
   const setTextareaText = (next: string): void => {
@@ -288,8 +306,8 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     textareaRef.current?.focus()
     window.setTimeout(() => {
       if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto'
-        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'
+        resizeTextarea(textareaRef.current)
+        moveTextareaCursorToEnd(textareaRef.current)
       }
     }, 0)
   }
@@ -392,6 +410,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
             ref={textareaRef}
             value={text}
             onChange={handleInput}
+            onPaste={handlePaste}
             onKeyDown={handleKeyDown}
             placeholder={isNew ? 'What do you want to build?' : 'Message…'}
             rows={1}
