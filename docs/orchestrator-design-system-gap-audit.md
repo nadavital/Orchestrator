@@ -6,6 +6,7 @@ Focused update: 2026-05-15, after:
 
 - `1d665b70 Align Orchestrator motion system with Codex`
 - `f5585903 Migrate inspector panels to shared primitives`
+- `cf86219a Document remaining Codex design gaps`
 
 ## Scope
 
@@ -43,6 +44,9 @@ Important Codex bundle references:
 - `webview/assets/banner-Dkf3Meef.js`
 - `webview/assets/segmented-toggle-22ctH3eA.js`
 - `webview/assets/scroll-to-bottom-buton-BY5G-Ioq.js`
+- `webview/assets/avatar-overlay-page-NpEinaQb.js`
+- `webview/assets/avatar-mascot-button-rs-0LxtH.js`
+- `webview/assets/use-floating-window-pointer-interactivity-DR7NmDuw.js`
 
 I ignored unrelated local dirty edits in:
 
@@ -54,6 +58,255 @@ I ignored unrelated local dirty edits in:
 - `src/renderer/src/env.d.ts`
 
 Those appear to be separate preferred-editor and composer paste changes.
+
+## Focused Deep Dive: Concrete Current Gaps
+
+This section is the current source of truth for the next implementation pass. It is intentionally evidence-backed: every item below maps to an observed Codex bundle behavior or an observed Orchestrator source path, not a theoretical design preference.
+
+### 1. Pet Overlay Badge Is Not 1:1
+
+Codex evidence:
+
+- `avatar-mascot-button-rs-0LxtH.js` renders the notification badge inside a shared `codex-avatar-button`.
+- The badge is an animated motion button with `absolute top-0 right-0 z-20`.
+- Badge sizing is centralized through two shapes: icon-only `size-7 p-0`, or text badge `min-h-7 min-w-7 px-2 py-1`.
+- Badge motion uses spring behavior with hover/tap scale: `whileHover` scale `1.06`, `whileTap` scale `.94`, and spring `{ damping: 20, mass: .7, stiffness: 420 }`.
+
+Orchestrator evidence:
+
+- `src/renderer/pet-overlay/src/PetOverlay.tsx` renders the badge inline in the pet overlay file.
+- The badge uses `top: 0`, `right: 0`, and then adds `transform: translate(6px, -4px)`.
+- It uses a direct CSS transition string, including `scale` in the `transition` property.
+- It does not use a shared pet/avatar badge primitive or motion-token helper.
+
+Actual gap:
+
+- The translated offset is a real likely cause of the visible chip clipping the user noticed. Codex keeps the badge anchored at the mascot's top-right; Orchestrator pushes it outside that anchor and relies on outer window padding to save it.
+- Orchestrator also does not match Codex's badge motion. It has a color/transform transition but not the Codex spring hover/tap behavior.
+
+Implementation target:
+
+- Introduce an Orchestrator `AvatarMascotButton`/`AvatarNotificationBadge` primitive modeled on Codex.
+- Remove the badge translation unless a screenshot comparison proves Codex also offsets it in the current installed build.
+- Keep the Orchestrator provider/custom-state extensions in the notification model, but match Codex badge geometry and motion.
+- Add screenshot assertions that the badge bounding box is fully inside the pet-overlay viewport at min/default/max mascot sizes and at one-digit/two-digit notification counts.
+
+### 2. Pet Notification Tray Placement Is Not 1:1
+
+Codex evidence:
+
+- `avatar-overlay-page-NpEinaQb.js` has a fallback layout shaped as:
+  - mascot: `left: 244`, `top: 191`, `width: 112`, `height: 121`
+  - tray: `left: 80`, `top: 56`, `width: 276`, `height: 131`
+  - viewport: `width: 356`, `height: 320`
+  - placement: `top-end`
+- For the fallback top-end layout, tray right edge and mascot right edge align at `356`.
+- Codex sends `avatar-overlay-element-size-changed` with `isTrayVisible`, measured `mascot`, and measured `tray`.
+- Codex computes tray size from the tray container plus header and list scroll height, not only the visible content box.
+
+Orchestrator evidence:
+
+- `src/main/petOverlay.ts` computes tray placement in `trayRectForPlacement()`, but wraps the union in `WINDOW_PAD = 16`, so renderer-relative coordinates differ from the Codex fallback.
+- `src/renderer/pet-overlay/src/PetOverlay.tsx` initializes local layout to `mascotLeft: 176`, `trayLeft: 8`, `trayTop: 120` before config arrives.
+- The tray is measured through a `ResizeObserver` on `trayRef` and reports `entry.contentRect.width/height`.
+- The list has `maxHeight: 226`; the reported tray height can be the visible clipped height rather than the full list scroll height Codex uses for layout decisions.
+
+Actual gap:
+
+- Orchestrator can be visually close in simple cases, but it is not using the same measurement contract Codex uses. This matters for tray placement around screen edges, multiple notifications, expanded notification rows, reply forms, and scroll affordances.
+- The user-observed notification location mismatch is consistent with the current implementation: Orchestrator's renderer coordinates, window padding, fallback layout, and tray measurement path are all different from Codex's.
+
+Implementation target:
+
+- Switch the overlay contract closer to Codex: renderer reports `{ isTrayVisible, mascot, tray }` from measured DOM nodes; main computes window bounds from those exact dimensions.
+- Measure the same selector set Codex measures: mascot root, notification tray, tray header, tray list, and tray rows.
+- For tray height, include header height plus list `scrollHeight` when deciding layout, while still allowing the visible list to scroll.
+- Add fixture screenshots for top-end, top-start, bottom-end, and edge-clamped placements.
+
+### 3. Pet Overlay Pointer Interactivity Is Less Robust Than Codex
+
+Codex evidence:
+
+- `use-floating-window-pointer-interactivity-DR7NmDuw.js` watches mousemove, resize, scroll, mouseleave, DOM mutations, and hover state across selectors.
+- It can include an interactive region ref plus child selectors and floating element selectors.
+- It re-evaluates interactivity with `document.elementsFromPoint()`, visibility checks, and requestAnimationFrame scheduling.
+
+Orchestrator evidence:
+
+- `PetOverlay.tsx` only checks `document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-interactive]')` on mousemove.
+- It does not use a MutationObserver, resize/scroll invalidation, document mouseleave handling, or multi-selector hover fallback.
+
+Actual gap:
+
+- Orchestrator can leave pointer passthrough in the wrong state after DOM changes, tray expansion, reply-form focus, scroll affordance changes, or edge movement.
+- This is especially risky because the overlay is transparent and `setIgnoreMouseEvents(true, { forward: true })` makes missed hit regions feel like broken controls.
+
+Implementation target:
+
+- Port Codex's selector-driven pointer-interactivity hook concept.
+- Treat resize handle, badge, tray, tray buttons, notification rows, reply form, and context menu as named interactive selectors.
+- Add smoke coverage for pointer interactivity before and after opening/closing the tray and reply form.
+
+### 4. Pet Notification Semantics Are Missing Codex Cases
+
+Codex evidence:
+
+- `avatar-overlay-page-NpEinaQb.js` builds waiting requests for user input, exec approvals, patch approvals, permission requests, implement-plan requests, MCP server elicitations, tool suggestions, connector auth, URL actions, and generic tool approvals.
+- It has compact titles/actions such as `Allow once`, `Apply`, `Review`, `Implement plan`, `Open link`, `Sign in {target}`, `Reconnect {target}`, and `Allow {target}`.
+- It supports local and cloud sessions and tracks whether running sessions are local or cloud.
+
+Orchestrator evidence:
+
+- `src/types/petNotifications.ts` supports Orchestrator-specific provider states and has waiting kinds for question, exec, network, patch, permission, plan, and tool.
+- The actual action handling in `PetOverlay.tsx` only implements `permission-response`, `question-option`, `open`, and reply.
+- There is no concrete MCP elicitation, connector-auth, plugin/tool install/enable, URL action, or plan-start action handling path in the overlay.
+
+Actual gap:
+
+- The Orchestrator model has a broader type vocabulary than its overlay action implementation. That means some Codex-like notification cases would render as generic rows or non-functional actions if introduced.
+- This is acceptable only as an explicitly tracked provider-extension gap, not as "1:1 except multiple providers."
+
+Implementation target:
+
+- Define an explicit Orchestrator waiting-action matrix: Codex parity actions, provider-specific actions, and intentionally unsupported actions.
+- Add tests for each waiting kind that the overlay claims to support.
+- Add visual fixture rows for each action family, not just running/waiting/review/failure.
+
+### 5. Pet Overlay Verification Is Still The Biggest Blind Spot
+
+Actual evidence:
+
+- `scripts/run-automated-ui-smoke.mjs` always launches with `ORCHESTRATOR_DISABLE_PET_OVERLAY: '1'`.
+- The `--pets` smoke view opens the settings Pets section, not the floating pet overlay.
+- The current smoke assertions check broad UI presence: profile badge, composer, sidebar navigation, button count, etc.
+- There is no automated screenshot path for the floating overlay, badge clipping, tray placement, tray expansion, reply form, resize handle, or max-size mascot.
+
+Actual gap:
+
+- The exact problems the user noticed are not currently testable in CI or smoke. Main UI smoke can pass while the floating pet UI is visibly wrong.
+
+Implementation target:
+
+- Add a real pet-overlay fixture harness.
+- It should run with the overlay enabled, seed sessions/events, and capture overlay screenshots.
+- It should assert:
+  - badge is not clipped
+  - tray aligns with mascot the same way Codex does
+  - tray scroll buttons appear in the right positions
+  - expand/collapse and dismiss controls appear only on hover/focus
+  - reply form toggles keyboard interactivity
+  - resize at 80/112/224 px does not clip mascot or badge
+
+### 6. Shared Interaction Layer Is Still Not Codex-Level
+
+Codex evidence:
+
+- `dropdown-BkHM69Th.js`, `dialog-layout-7MMZLqhQ.js`, `context-menu-5WduLoHb.js`, and `popover-D2JieFfY.js` centralize interaction behavior.
+- Codex dropdown/dialog surfaces include Escape handling, focus behavior, disabled/danger states, submenu/disclosure behavior, and exit animation retention.
+
+Orchestrator evidence:
+
+- `src/renderer/src/components/shared/designSystem.tsx` has `Sheet` and `PopoverSurface`, but `PopoverSurface` is visual only.
+- `Sheet` handles Escape and outside-click, but does not trap focus or restore focus.
+- `InputBar.tsx` closes menus on document `mousedown`, but not Escape, roving keyboard navigation, or focus restoration.
+- `CapabilitiesPage.tsx` uses `PopoverSurface` for create/row menus, but `EditCapabilitySheet` and `SyncCapabilitySheet` still use `capability-sheet-backdrop`.
+- `removeGroup()` still uses native `confirm()`, which is not Codex-like and bypasses the design system entirely.
+
+Actual gap:
+
+- Orchestrator now has visual primitives, but it does not yet have the interaction primitives Codex relies on. This is why surfaces can look closer while still feeling less robust.
+
+Implementation target:
+
+- Add shared `DismissableLayer`, `Menu`, `MenuItem`, `Dialog`, and focus utilities before migrating more visual surfaces.
+- Convert InputBar menus, capability menus, edit/sync sheets, and native confirms to those primitives.
+- Add keyboard tests for Escape, arrow navigation, Enter/Space selection, focus return, and outside-click dismissal.
+
+### 7. Motion Exists, But It Is CSS-Based And Under-Tested
+
+Codex evidence:
+
+- Codex app shell uses motion-value style panel animation in `app-shell-panel-animation-COicGkL7.js`.
+- Codex avatar badge uses spring motion.
+- Codex dropdowns retain exit animations through animation wrappers.
+
+Orchestrator evidence:
+
+- `index.css` defines `motion-view`, `motion-panel`, `motion-sheet`, `motion-popover`, row animation, badge hover, and reduced-motion overrides.
+- `MotionPanel` animates width/height/opacity with CSS transitions.
+- The session view had to be changed to `animate={false}` because keying it by session id made chat switching feel slower.
+- Pet overlay still has direct inline transition strings and is not covered by the main renderer reduced-motion CSS.
+
+Actual gap:
+
+- Motion is present, but it is not yet a robust app-wide system. We already hit one real latency regression around chat switching.
+- Pet motion is still separate from the main renderer motion system.
+
+Implementation target:
+
+- Keep session switching non-animated unless a latency smoke proves otherwise.
+- Add a session-switch latency smoke with two seeded sessions and a 100-150 ms DOM-visible threshold.
+- Move pet overlay transitions behind cross-renderer motion tokens or reduced-motion-aware helpers.
+- Add screenshot/DOM smokes for right panel, terminal panel, sheet, popover, and pet overlay in normal and reduced-motion modes.
+
+### 8. Composer And Transcript Are Still High-Risk Local Surfaces
+
+Actual evidence:
+
+- `InputBar.tsx` owns provider/model/agent/permission menus locally.
+- Its menus are manually positioned `DropdownPanel`s with inline styles.
+- It uses document `mousedown` outside-click handling but not shared menu keyboard behavior.
+- `ChatView.tsx` still owns transcript row presentation, user-message expansion, scroll-to-bottom behavior, message actions, and inline animation styles.
+
+Actual gap:
+
+- These are the highest-frequency app surfaces. Even if settings and capabilities are migrated, the app will not feel Codex-level until composer and transcript behavior are systematized and tested.
+
+Implementation target:
+
+- Build `ComposerShell`, `ComposerToolbar`, `ComposerMenu`, `ComposerAttachmentChip`, `TranscriptMessage`, `MessageActionButton`, and `ScrollToBottomButton` primitives.
+- Migrate menus to the shared interaction layer before changing visual styling.
+- Add smokes for slash palette, provider switcher, permission menu, attachment chips, long transcript scroll, streaming assistant text, and scroll-to-bottom behavior.
+
+### 9. Settings Remains The Largest Bespoke Area
+
+Actual evidence:
+
+- The latest static inventory still found `SettingsModal.tsx` with the highest local styling count.
+- Settings contains provider cards, model management, drag-sort rows, diagnostic pills, pet cards, catalog toggles, custom model inputs, and local hover behavior.
+- It currently also has unrelated local dirty edits in the worktree, so broad rewrites are risky unless staged carefully.
+
+Actual gap:
+
+- Settings is not Codex-level yet. It has some migrated controls, but not the same component architecture as Codex settings (`settings-row`, `settings-surface`, `settings-group`, shared buttons/toggles, and avatar settings surface).
+
+Implementation target:
+
+- Split settings migration into provider, model, general, pets, diagnostics, and editor sections.
+- Introduce settings primitives first, then migrate each section in small commits.
+- Keep hunk staging strict while unrelated preferred-editor edits are present.
+
+### 10. Current Smoke Coverage Is Too Shallow For Design Parity
+
+Actual evidence:
+
+- Main UI smoke validates that broad elements exist, not that layout/motion/interactions match Codex.
+- The pet overlay is disabled during automated UI smoke.
+- There are no screenshot comparisons or geometry assertions for pet overlay badge/tray placement.
+- There are no keyboard interaction tests for menus/popovers/sheets.
+- There is no reduced-motion smoke mode.
+- There is no session-switch latency assertion.
+
+Actual gap:
+
+- Orchestrator can regress in the exact areas that define Codex polish while still passing current smoke.
+
+Implementation target:
+
+- Add three verification lanes:
+  - Geometry/visual smokes: pet overlay, shell panels, sheets, menus, transcript.
+  - Interaction smokes: keyboard navigation, focus return, Escape, outside click, reply form, resize.
+  - Performance/latency smokes: session switching and panel open/close without perceived delay.
 
 ## Current State After The Focused Implementation
 
