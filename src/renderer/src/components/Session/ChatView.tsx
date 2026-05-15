@@ -5,11 +5,15 @@ import rehypeHighlight from 'rehype-highlight'
 import type { Components } from 'react-markdown'
 import Icon from '../shared/Icon'
 import {
+  AttachmentPill,
   Button,
   DisclosureSection,
   IconButton,
+  MarkdownSurface,
+  ScrollEdgeButton,
   StatusBadge,
   SurfaceRow,
+  ThinkingDots,
 } from '../shared/designSystem'
 import {
   describeToolAction,
@@ -79,14 +83,24 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   }, [])
 
   const scrollToBottom = useCallback((force = false) => {
-    if (force) setFollowingBottom(true)
+    if (force) {
+      const scroller = scrollContainerRef.current
+      if (scroller) scroller.scrollTop = scroller.scrollHeight
+      setFollowingBottom(true)
+      return
+    }
     if (pendingScrollFrameRef.current !== null) {
       window.cancelAnimationFrame(pendingScrollFrameRef.current)
     }
     pendingScrollFrameRef.current = window.requestAnimationFrame(() => {
       pendingScrollFrameRef.current = null
       if (!force && !shouldFollowBottomRef.current) return
-      bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
+      const scroller = scrollContainerRef.current
+      if (scroller) {
+        scroller.scrollTop = scroller.scrollHeight
+      } else {
+        bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
+      }
     })
   }, [setFollowingBottom])
 
@@ -187,17 +201,14 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
         </div>
       </div>
       {showJumpToLatest && (
-        <Button
-          dataTestId="jump-to-latest"
+        <ScrollEdgeButton
           onClick={() => scrollToBottom(true)}
-          variant="primary"
-          className="absolute bottom-4 right-6 rounded-full shadow-sm"
-          style={{
-            border: '1px solid rgba(255,255,255,0.16)'
-          }}
+          ariaLabel="Jump to latest"
+          dataTestId="jump-to-latest"
+          className="absolute bottom-4 right-6"
         >
           Jump to latest
-        </Button>
+        </ScrollEdgeButton>
       )}
     </div>
   )
@@ -505,17 +516,19 @@ function MessageRow({
               lineHeight: 1.65
             }}
           >
-            {shouldCollapseUserMessage && !isUserMessageExpanded ? (
-              <div style={{ whiteSpace: 'pre-wrap' }}>{displayContent}</div>
-            ) : (
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeHighlight]}
-                components={isUser ? userComponents : assistantComponents}
-              >
-                {displayContent}
-              </ReactMarkdown>
-            )}
+            <MarkdownSurface user={isUser}>
+              {shouldCollapseUserMessage && !isUserMessageExpanded ? (
+                <div style={{ whiteSpace: 'pre-wrap' }}>{displayContent}</div>
+              ) : (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
+                  components={isUser ? userComponents : assistantComponents}
+                >
+                  {displayContent}
+                </ReactMarkdown>
+              )}
+            </MarkdownSurface>
             {msg.isStreaming && (
               <span
                 aria-label="Streaming"
@@ -696,17 +709,12 @@ function MessageAttachmentList({ attachments }: { attachments: Attachment[] }): 
   return (
     <div className="mt-2 flex flex-wrap gap-1">
       {attachments.map((attachment) => (
-        <span
+        <AttachmentPill
           key={attachment.id}
-          className="inline-flex max-w-full items-center gap-1 rounded-md px-2 py-1 text-[10px]"
-          style={{ background: 'rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.84)' }}
+          label={attachment.kind === 'local_file' ? attachment.name : attachment.name ?? attachment.relativePath}
           title={attachment.kind === 'local_file' ? attachment.path : `${attachment.fileId}:${attachment.relativePath}`}
-        >
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" className="shrink-0">
-            <path d="M2 1.75C2 .784 2.784 0 3.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 12.25 16h-8.5A1.75 1.75 0 0 1 2 14.25Z" />
-          </svg>
-          <span className="min-w-0 truncate">{attachment.kind === 'local_file' ? attachment.name : attachment.name ?? attachment.relativePath}</span>
-        </span>
+          className="text-[10px]"
+        />
       ))}
     </div>
   )
@@ -1218,21 +1226,6 @@ function permissionDecisionColor(decision: ResultMessage['permissionDecision'] |
 
 function ThinkingIndicator(): JSX.Element {
   return (
-    <div className="flex items-center gap-2 pl-8">
-      <div className="flex gap-1">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="rounded-full"
-            style={{
-              width: 6, height: 6,
-              background: 'var(--color-text-muted)',
-              animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`
-            }}
-          />
-        ))}
-      </div>
-      <style>{`@keyframes pulse { 0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)} }`}</style>
-    </div>
+    <ThinkingDots />
   )
 }

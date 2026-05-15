@@ -247,6 +247,39 @@
     animation: motionRowIn var(--motion-duration-row) var(--motion-ease-standard) both;
   }
 
+  .attachment-pill {
+    min-height: 24px;
+    max-width: 100%;
+  }
+
+  .markdown-surface {
+    min-width: 0;
+  }
+
+  .markdown-surface[data-user='true'] {
+    color: var(--text-primary);
+  }
+
+  .thinking-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 32px;
+  }
+
+  .thinking-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--text-tertiary);
+    animation: thinkingPulse 1.4s var(--motion-ease-standard) infinite;
+  }
+
+  @keyframes thinkingPulse {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1); }
+  }
+
   .motion-fade-in {
     animation: motionFadeIn var(--motion-duration-row) var(--motion-ease-standard) both;
   }

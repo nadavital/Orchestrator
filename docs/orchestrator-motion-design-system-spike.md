@@ -10,6 +10,12 @@ Orchestrator has a useful visual foundation: theme tokens, density settings, sha
 
 Codex uses motion as part of its component grammar, not just decoration. Notification trays spring in and out, badges scale on hover/tap, row entrances are gently staggered, secondary controls reveal on hover/focus, expandable content animates height/opacity, and reduced-motion handling removes transform-heavy behavior. Orchestrator can match that behavior by adding a small shared motion layer, then migrating high-traffic surfaces to those primitives in stages.
 
+## Implementation Checkpoint
+
+Status as of 2026-05-15: the first implementation bridge is complete. Orchestrator now has shared motion tokens, reduced-motion CSS, `Button`, `IconButton`, `Badge`, `StatusBadge`, `SurfaceRow`, `DisclosureSection`, `MotionOverlay`, `Sheet`, `MenuSurface`, `DismissablePopoverSurface`, `ScrollEdgeButton`, shared attachment/markdown/thinking primitives, and focused smoke coverage for pet overlay, scroll/jump behavior, capabilities edit/sync, extensions, session switching, and reduced motion.
+
+Future work should treat this document as design rationale, not as an open task list. New provider-specific UI should reuse the shared primitives first; only add new primitives when a repeated pattern appears in more than one surface.
+
 ## Current Orchestrator State
 
 Evidence from the renderer:

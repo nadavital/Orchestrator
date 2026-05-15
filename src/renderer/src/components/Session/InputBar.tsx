@@ -6,7 +6,7 @@ import { useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
-import { DismissablePopoverSurface } from '../shared/designSystem'
+import { AttachmentPill, DismissablePopoverSurface } from '../shared/designSystem'
 
 interface Props {
   session: Session
@@ -792,30 +792,12 @@ function AttachmentChip({
     ? attachment.name
     : attachment.name ?? attachment.relativePath
   return (
-    <span
-      className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs"
-      style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        color: 'var(--color-text-muted)'
-      }}
+    <AttachmentPill
+      label={label}
       title={attachment.kind === 'local_file' ? attachment.path : `${attachment.fileId}:${attachment.relativePath}`}
-    >
-      <Icon name="file" size={12} />
-      <span className="min-w-0 truncate">{label}</span>
-      {attachment.kind === 'local_file' && attachment.size !== undefined && (
-        <span className="shrink-0" style={{ opacity: 0.7 }}>{formatBytes(attachment.size)}</span>
-      )}
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${label}`}
-        className="grid h-4 w-4 shrink-0 place-items-center rounded"
-        style={{ color: 'var(--color-text-muted)' }}
-      >
-        <Icon name="close" size={10} />
-      </button>
-    </span>
+      meta={attachment.kind === 'local_file' && attachment.size !== undefined ? formatBytes(attachment.size) : undefined}
+      onRemove={onRemove}
+    />
   )
 }
 

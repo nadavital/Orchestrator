@@ -9,12 +9,15 @@ Focused update: 2026-05-15, after:
 - `cf86219a Document remaining Codex design gaps`
 - `63366b0b Close Codex design parity gaps`
 - `544bbb71 Migrate settings and composer primitives`
+- current working pass: shared transcript/composer primitives, extensions primitive migration, deterministic capability edit/sync smoke, and reduced-motion panel/sheet/popover verification
 
 ## Scope
 
 This audit checks whether Orchestrator's renderer and pet overlay now match the local Codex app's UI, motion, navigation, banners, badges, and shared design-system behavior after the first design-system spike and the follow-up Codex-alignment commits listed above.
 
-The answer is still: not yet. Orchestrator now has a much stronger app-wide foundation, and the highest-risk pet resize clipping issue has been fixed, but the system is not yet as mature as Codex across settings, the composer/transcript, extension panels, menu accessibility, pet-overlay automation, and reduced-motion verification.
+Current status: the concrete app-design gaps from the focused follow-up pass are now implemented and covered by smoke tests. Orchestrator has the shared motion/interaction layer, pet-overlay fixture coverage, shared menu/sheet focus behavior, transcript jump/attachment/thinking primitives, extension-panel primitive usage, deterministic capability edit/sync smoke coverage, and reduced-motion checks for panels plus sheet/popover classes.
+
+The remaining difference is product scope, not a known broken design-system path: Orchestrator still supports multiple providers and may expose provider-specific states that Codex does not have. Future provider-specific surfaces should continue entering through the shared primitives instead of adding local one-off controls.
 
 The intended end state should still allow Orchestrator-specific differences:
 
@@ -61,9 +64,19 @@ An earlier audit pass ignored unrelated local dirty edits in:
 
 Those were separate preferred-editor and composer paste changes at the time; the relevant parts have since been folded into focused commits.
 
-## Focused Deep Dive: Concrete Current Gaps
+## Current Verification Coverage
 
-This section is the current source of truth for the next implementation pass. It is intentionally evidence-backed: every item below maps to an observed Codex bundle behavior or an observed Orchestrator source path, not a theoretical design preference.
+The current smoke suite covers the formerly uncovered drift points:
+
+- `npm run smoke:ui:auto -- --pet-overlay`: floating pet overlay badge/tray/resize/reply/status fixture coverage.
+- `npm run smoke:ui:auto -- --capabilities`: seeded capability fixture, create menu/sheet focus behavior, and edit/sync sheet entry points.
+- `npm run smoke:ui:auto -- --motion-reduced`: reduced-motion dataset plus panel transition checks, sheet/popover class checks, and pet-overlay reduced-motion checks.
+- `npm run smoke:ui:auto -- --scroll`: transcript follow-bottom behavior and shared jump-to-latest control.
+- `npm run smoke:ui:auto -- --extensions`: extensions command path and panel rendering after migration to shared cards/disclosures/rows.
+
+## Historical Deep Dive: Concrete Gaps
+
+The items below document the gaps that motivated the implementation work. They are kept for traceability against the Codex bundle evidence, but should not be treated as the current next-work checklist without re-running the audit.
 
 ### 1. Pet Overlay Badge Is Not 1:1
 

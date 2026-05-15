@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
@@ -42,6 +42,16 @@ const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${capture
 rmSync(userDataDir, { recursive: true, force: true })
 mkdirSync(userDataDir, { recursive: true })
 mkdirSync(workspaceDir, { recursive: true })
+
+if (captureView === 'capabilities') {
+  const smokeSkillDir = join(workspaceDir, '.claude', 'skills', 'orchestrator-smoke-skill')
+  const smokeCommandDir = join(workspaceDir, '.claude', 'commands')
+  mkdirSync(smokeSkillDir, { recursive: true })
+  mkdirSync(smokeCommandDir, { recursive: true })
+  writeFileSync(join(workspaceDir, 'AGENTS.md'), '# Automated UI smoke\n\nProject instruction fixture.\n')
+  writeFileSync(join(smokeSkillDir, 'SKILL.md'), '# Orchestrator Smoke Skill\n\nA deterministic fixture used by UI smoke tests.\n')
+  writeFileSync(join(smokeCommandDir, 'orchestrator-smoke.md'), '# Orchestrator smoke command\n\nRun the smoke fixture.\n')
+}
 
 const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], {
   cwd: root,
@@ -103,6 +113,10 @@ child.on('exit', (code) => {
         mainPanelDurationZero: result.mainPanelDurationZero === true,
         mainTransitionsZero: result.mainTransitionsZero === true,
         mainAnimationsZero: result.mainAnimationsZero === true,
+        mainRightPanelReduced: result.mainRightPanelReduced === true,
+        mainBottomPanelReduced: result.mainBottomPanelReduced === true,
+        mainPopoverReduced: result.mainPopoverReduced === true,
+        mainSheetReduced: result.mainSheetReduced === true,
         overlayFound: result.overlayFound === true,
         overlayReducedDataset: result.overlayReducedDataset === true,
         overlayBadgeTransitionDisabled: result.overlayBadgeTransitionDisabled === true,
@@ -179,6 +193,8 @@ child.on('exit', (code) => {
         capabilitySheetFocus: captureView !== 'capabilities' || result.capabilitySheetFocused === true,
         capabilitySheetFocusTrap: captureView !== 'capabilities' || result.capabilitySheetFocusStayedInside === true,
         capabilitySheetEscape: captureView !== 'capabilities' || result.capabilitySheetClosedWithEscape === true,
+        capabilityEditSheet: captureView !== 'capabilities' || result.capabilityEditSheetOpened === true,
+        capabilitySyncSheet: captureView !== 'capabilities' || result.capabilitySyncSheetOpened === true,
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
         composerPermissionEscape: captureView !== 'composer' || result.composerPermissionMenuClosedWithEscape === true,
         composerPermissionFocusReturned: captureView !== 'composer' || result.composerPermissionFocusReturned === true,

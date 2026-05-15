@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
 import { PROVIDER_DEFS } from '../../types'
 import ProviderIcon from '../shared/ProviderIcon'
+import {
+  Badge,
+  Button,
+  DisclosureSection,
+  IconButton,
+  InspectorCard,
+  MetricPill as SystemMetricPill,
+  SurfaceRow,
+} from '../shared/designSystem'
 
 const join = (...parts: string[]): string => parts.join('/').replace(/\/+/g, '/')
 
@@ -364,11 +373,7 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
           {providerDef.name} Extensions
         </span>
         {onClose && (
-          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}>
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-            </svg>
-          </button>
+          <IconButton icon="close" label="Close extensions" onClick={onClose} size="sm" />
         )}
       </div>
 
@@ -387,31 +392,19 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
           <div style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
             <div className="flex items-center justify-between px-4 py-2">
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setSelectedDir(null)}
-                  style={{ color: 'var(--color-text-muted)' }}
-                  title="Back"
-                >
-                  <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M7.78 12.53a.75.75 0 0 1-1.06 0L2.47 8.28a.75.75 0 0 1 0-1.06l4.25-4.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L4.81 7h7.44a.75.75 0 0 1 0 1.5H4.81l2.97 2.97a.75.75 0 0 1 0 1.06Z" />
-                  </svg>
-                </button>
+                <IconButton icon="chevronDown" label="Back" onClick={() => setSelectedDir(null)} size="sm" style={{ transform: 'rotate(90deg)' }} />
                 <span className="text-xs font-mono" style={{ color: 'var(--color-text)', fontSize: 11 }}>
                   {selectedDir.fileName}
                 </span>
               </div>
-              <button
+              <Button
                 onClick={saveDirFile}
                 disabled={!dirFileDirty || dirFileSaving}
-                className="rounded px-2 py-0.5 text-xs font-medium"
-                style={{
-                  background: dirFileDirty ? 'var(--color-accent)' : 'var(--color-surface)',
-                  color: dirFileDirty ? '#fff' : 'var(--color-text-muted)',
-                  cursor: dirFileDirty ? 'pointer' : 'default'
-                }}
+                variant={dirFileDirty ? 'primary' : 'secondary'}
+                className="px-2 py-0.5"
               >
                 {dirFileSaving ? 'Saving…' : 'Save'}
-              </button>
+              </Button>
             </div>
             <textarea
               value={dirFileContent ?? ''}
@@ -472,31 +465,13 @@ function CodexExtensionsView({
               MCP, apps, plugins, skills, hooks, and agent config in one place.
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={loading}
-            className="h-7 w-7 rounded-md grid place-items-center shrink-0"
-            title="Refresh extensions"
-            aria-label="Refresh extensions"
-            style={{
-              border: `1px solid ${loading ? 'var(--color-border)' : accentColor}`,
-              background: loading ? 'var(--color-surface2)' : `${accentColor}12`,
-              color: loading ? 'var(--color-text-muted)' : accentColor,
-              cursor: loading ? 'default' : 'pointer',
-              opacity: loading ? 0.7 : 1
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M1.705 8.005a6.303 6.303 0 0 1 10.741-4.46L10.75 3.5a.75.75 0 0 0-.02 1.5l3.5.093a.75.75 0 0 0 .77-.75v-3.5a.75.75 0 0 0-1.5 0v1.44A7.803 7.803 0 0 0 .205 8.005a.75.75 0 0 0 1.5 0Zm12.59-.01a6.303 6.303 0 0 1-10.741 4.46l1.696.045a.75.75 0 0 0 .04-1.5l-3.5-.093a.75.75 0 0 0-.77.75v3.5a.75.75 0 0 0 1.5 0v-1.44a7.803 7.803 0 0 0 13.295-5.722.75.75 0 0 0-1.5 0Z" />
-            </svg>
-          </button>
+          <IconButton icon="refresh" label="Refresh extensions" onClick={onRefresh} disabled={loading} tone="accent" />
         </div>
 
         <div className="mt-3 grid grid-cols-3 gap-1.5">
-          <MetricPill label="Groups" value={String(groups.length)} />
-          <MetricPill label="Items" value={loading ? '...' : String(totalItems)} />
-          <MetricPill label="Errors" value={String(groups.filter((group) => group.status === 'error').length)} tone="#EF4444" />
+          <SystemMetricPill><span>Groups</span><strong>{groups.length}</strong></SystemMetricPill>
+          <SystemMetricPill><span>Items</span><strong>{loading ? '...' : totalItems}</strong></SystemMetricPill>
+          <SystemMetricPill tone="danger"><span>Errors</span><strong>{groups.filter((group) => group.status === 'error').length}</strong></SystemMetricPill>
         </div>
       </div>
 
@@ -505,22 +480,6 @@ function CodexExtensionsView({
           <ExtensionGroupCard key={group.id} group={group} loading={loading && group.status === 'idle'} accentColor={accentColor} />
         ))}
       </div>
-    </div>
-  )
-}
-
-function MetricPill({ label, value, tone }: { label: string; value: string; tone?: string }): JSX.Element {
-  return (
-    <div
-      className="rounded-md px-2 py-1.5 min-w-0"
-      style={{
-        background: 'var(--surface-bg)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-lg)'
-      }}
-    >
-      <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--color-text-muted)' }}>{label}</div>
-      <div className="text-xs font-semibold truncate" style={{ color: tone ?? 'var(--color-text)' }}>{value}</div>
     </div>
   )
 }
@@ -534,7 +493,6 @@ function ExtensionGroupCard({
   loading: boolean
   accentColor: string
 }): JSX.Element {
-  const [open, setOpen] = useState(true)
   const statusText = loading
     ? 'loading'
     : group.status === 'error'
@@ -543,99 +501,67 @@ function ExtensionGroupCard({
         ? 'empty'
         : `${group.items.length}`
 
-  return (
-    <div
-      className="rounded-md overflow-hidden"
-      style={{
-        background: 'var(--surface-bg)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: 'var(--shadow-soft)'
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-left"
-        style={{ background: 'transparent' }}
-      >
-        <svg
-          width="8" height="8" viewBox="0 0 10 10" fill="currentColor"
-          style={{ opacity: 0.4, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s', flexShrink: 0 }}
-        >
-          <path d="M5 7 L1 3 L9 3 Z" />
-        </svg>
-        <span
-          className="rounded-full shrink-0"
-          style={{
-            width: 7,
-            height: 7,
-            background: group.status === 'error' ? '#EF4444' : accentColor,
-            opacity: loading || group.items.length === 0 ? 0.55 : 1
-          }}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>{group.label}</div>
-          <div className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-            {group.description}
-          </div>
-        </div>
-        <span
-          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
-          style={{
-            color: group.status === 'error' ? '#EF4444' : 'var(--color-text-muted)',
-            background: 'var(--control-bg)',
-            border: '1px solid var(--border-subtle)'
-          }}
-        >
-          {statusText}
-        </span>
-      </button>
+  const title = (
+    <span className="flex min-w-0 items-center gap-2">
+      <span
+        className="shrink-0 rounded-full"
+        style={{
+          width: 7,
+          height: 7,
+          background: group.status === 'error' ? 'var(--state-danger)' : accentColor,
+          opacity: loading || group.items.length === 0 ? 0.55 : 1
+        }}
+      />
+      <span className="min-w-0">
+        <span className="block truncate text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{group.label}</span>
+        <span className="block truncate text-[10px]" style={{ color: 'var(--text-secondary)' }}>{group.description}</span>
+      </span>
+    </span>
+  )
 
-      {open && (
-        <div className="px-3 pb-3">
-          {group.error ? (
-            <div className="text-xs rounded-md px-2 py-1.5" style={{ color: '#EF4444', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', fontSize: 11 }}>
-              {group.error}
-            </div>
-          ) : group.items.length === 0 ? (
-            <div className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
-              {loading ? 'Loading...' : 'No entries reported by Codex.'}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {group.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-md px-2.5 py-2 min-w-0"
-                  style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
-                >
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="rounded-full shrink-0"
-                      style={{ width: 6, height: 6, background: item.tone ?? accentColor }}
-                    />
-                    <span className="text-xs font-medium truncate flex-1" style={{ color: 'var(--color-text)' }} title={item.title}>
-                      {item.title}
-                    </span>
-                    {item.meta && (
-                      <span className="text-[10px] rounded px-1 shrink-0" style={{ background: 'var(--color-surface2)', color: item.tone ?? 'var(--color-text-muted)' }}>
-                        {item.meta}
-                      </span>
-                    )}
-                  </div>
+  return (
+    <InspectorCard className="overflow-hidden p-2">
+      <DisclosureSection
+        title={title}
+        defaultOpen
+        meta={<Badge tone={group.status === 'error' ? 'danger' : 'neutral'}>{statusText}</Badge>}
+        bodyClassName="pt-2"
+      >
+        {group.error ? (
+          <div className="rounded-md px-2 py-1.5 text-xs" style={{ color: 'var(--state-danger)', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', fontSize: 11 }}>
+            {group.error}
+          </div>
+        ) : group.items.length === 0 ? (
+          <div className="text-xs" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+            {loading ? 'Loading...' : 'No entries reported by Codex.'}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {group.items.map((item, index) => (
+              <SurfaceRow
+                key={item.id}
+                index={index}
+                className="items-start gap-2 rounded-md px-2.5 py-2"
+                style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
+              >
+                <span className="mt-1 shrink-0 rounded-full" style={{ width: 6, height: 6, background: item.tone ?? accentColor }} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-medium" style={{ color: 'var(--text-primary)' }} title={item.title}>
+                    {item.title}
+                  </span>
                   {item.subtitle && (
-                    <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 10, overflowWrap: 'anywhere', paddingLeft: 14 }}>
+                    <span className="mt-0.5 block text-[10px]" style={{ color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
                       {item.subtitle}
-                    </div>
+                    </span>
                   )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+                </span>
+                {item.meta && <Badge tone={item.tone?.includes('EF4444') ? 'danger' : 'neutral'}>{item.meta}</Badge>}
+              </SurfaceRow>
+            ))}
+          </div>
+        )}
+      </DisclosureSection>
+    </InspectorCard>
   )
 }
 
@@ -803,72 +729,48 @@ function McpServersView({ servers, accentColor }: {
   servers: Record<string, McpServer>
   accentColor?: string
 }): JSX.Element {
-  const [open, setOpen] = useState(true)
   const entries = Object.entries(servers)
 
   return (
-    <div style={{ borderTop: '1px solid var(--color-border)' }}>
-      <button
-        className="flex items-center gap-2 w-full px-4 py-1.5 text-left"
-        onClick={() => setOpen((v) => !v)}
-        style={{ background: 'transparent' }}
-      >
-        <svg
-          width="8" height="8" viewBox="0 0 10 10" fill="currentColor"
-          style={{ opacity: 0.3, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s', flexShrink: 0 }}
+    <div className="px-4 py-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className="p-2">
+        <DisclosureSection
+          title={<span className="font-mono">MCP servers</span>}
+          defaultOpen
+          meta={<Badge>{entries.length === 0 ? 'none' : entries.length}</Badge>}
+          bodyClassName="pt-2"
         >
-          <path d="M5 7 L1 3 L9 3 Z" />
-        </svg>
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.5, flexShrink: 0 }}>
-          <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z" />
-        </svg>
-        <span className="text-xs flex-1 font-mono" style={{ color: 'var(--color-text)', fontSize: 11 }}>
-          MCP servers
-        </span>
-        <span className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-          {entries.length === 0 ? 'none' : `${entries.length}`}
-        </span>
-      </button>
-
-      {open && (
-        <div className="px-4 pb-3">
           {entries.length === 0 ? (
-            <div className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
+            <div className="text-xs" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
               No MCP servers configured in ~/.claude/settings.json
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
-              {entries.map(([name, srv]) => {
-                const cmd = srv.command ?? srv.url ?? srv.type ?? '—'
+              {entries.map(([name, srv], index) => {
+                const cmd = srv.command ?? srv.url ?? srv.type ?? '-'
                 const args = srv.args?.join(' ') ?? ''
                 return (
-                  <div
+                  <SurfaceRow
                     key={name}
-                    className="rounded px-2.5 py-2"
-                    style={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)' }}
+                    index={index}
+                    className="items-start gap-2 rounded-md px-2.5 py-2"
+                    style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
                   >
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <div
-                        className="rounded-full shrink-0"
-                        style={{ width: 6, height: 6, background: accentColor ?? 'var(--color-accent)' }}
-                      />
-                      <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>{name}</span>
-                      {srv.type && (
-                        <span className="text-xs rounded px-1" style={{ background: 'var(--color-surface)', color: 'var(--color-text-muted)', fontSize: 10 }}>
-                          {srv.type}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs font-mono truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10, paddingLeft: 14 }}>
-                      {cmd}{args ? ` ${args}` : ''}
-                    </div>
-                  </div>
+                    <span className="mt-1 shrink-0 rounded-full" style={{ width: 6, height: 6, background: accentColor ?? 'var(--accent)' }} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{name}</span>
+                      <span className="block truncate font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                        {cmd}{args ? ` ${args}` : ''}
+                      </span>
+                    </span>
+                    {srv.type && <Badge>{srv.type}</Badge>}
+                  </SurfaceRow>
                 )
               })}
             </div>
           )}
-        </div>
-      )}
+        </DisclosureSection>
+      </InspectorCard>
     </div>
   )
 }
@@ -881,34 +783,17 @@ function FileEditor({ file, accentColor, onUpdate, onSave }: {
   onUpdate: (v: string) => void
   onSave: () => void
 }): JSX.Element {
-  const [open, setOpen] = useState(file.content !== null)
   const isNew = file.content === null
 
   return (
-    <div style={{ borderTop: '1px solid var(--color-border)' }}>
-      <button
-        className="flex items-center gap-2 w-full px-4 py-1.5 text-left"
-        onClick={() => setOpen((v) => !v)}
-        style={{ background: 'transparent' }}
-      >
-        <svg
-          width="8" height="8" viewBox="0 0 10 10" fill="currentColor"
-          style={{ opacity: 0.3, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s', flexShrink: 0 }}
+    <div className="px-4 py-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className="p-2">
+        <DisclosureSection
+          title={<span className="font-mono" style={{ color: isNew ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{file.label}</span>}
+          defaultOpen={file.content !== null}
+          meta={isNew ? <Badge>new</Badge> : undefined}
+          bodyClassName="pt-2"
         >
-          <path d="M5 7 L1 3 L9 3 Z" />
-        </svg>
-        <span className="text-xs flex-1 font-mono" style={{ color: isNew ? 'var(--color-text-muted)' : 'var(--color-text)', fontSize: 11 }}>
-          {file.label}
-        </span>
-        {isNew && (
-          <span className="text-xs rounded px-1" style={{ background: 'var(--color-surface2)', color: 'var(--color-text-muted)', fontSize: 10 }}>
-            new
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div className="px-4 pb-3">
           <div className="text-xs mb-1.5 truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
             {file.path}
           </div>
@@ -930,21 +815,20 @@ function FileEditor({ file, accentColor, onUpdate, onSave }: {
             }}
           />
           <div className="flex justify-end mt-1.5">
-            <button
+            <Button
               onClick={onSave}
               disabled={!file.dirty || file.saving}
-              className="rounded px-3 py-1 text-xs font-medium transition-colors"
+              variant={file.dirty ? 'primary' : 'secondary'}
+              className="px-3 py-1"
               style={{
-                background: file.dirty ? (accentColor ?? 'var(--color-accent)') : 'var(--color-surface2)',
-                color: file.dirty ? '#fff' : 'var(--color-text-muted)',
-                cursor: file.dirty ? 'pointer' : 'default'
+                background: file.dirty ? (accentColor ?? 'var(--accent)') : undefined
               }}
             >
               {file.saving ? 'Saving…' : isNew ? 'Create' : 'Save'}
-            </button>
+            </Button>
           </div>
-        </div>
-      )}
+        </DisclosureSection>
+      </InspectorCard>
     </div>
   )
 }
@@ -955,61 +839,42 @@ function CommandsDirView({ dir, onOpenFile }: {
   dir: CommandsDir
   onOpenFile: (name: string) => void
 }): JSX.Element {
-  const [open, setOpen] = useState(false)
   const files = dir.files?.filter((f) => f.endsWith('.md') || f.endsWith('.mdc')) ?? []
   const exists = dir.files !== null
 
   return (
-    <div style={{ borderTop: '1px solid var(--color-border)' }}>
-      <button
-        className="flex items-center gap-2 w-full px-4 py-1.5 text-left"
-        onClick={() => setOpen((v) => !v)}
-        style={{ background: 'transparent' }}
-      >
-        <svg
-          width="8" height="8" viewBox="0 0 10 10" fill="currentColor"
-          style={{ opacity: 0.3, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s', flexShrink: 0 }}
+    <div className="px-4 py-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className="p-2">
+        <DisclosureSection
+          title={<span className="font-mono" style={{ color: exists ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{dir.label}</span>}
+          meta={<Badge>{!exists ? 'not found' : files.length === 0 ? 'empty' : `${files.length}`}</Badge>}
+          bodyClassName="pt-2"
         >
-          <path d="M5 7 L1 3 L9 3 Z" />
-        </svg>
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.5, flexShrink: 0 }}>
-          <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
-        </svg>
-        <span className="text-xs flex-1 font-mono" style={{ color: exists ? 'var(--color-text)' : 'var(--color-text-muted)', fontSize: 11 }}>
-          {dir.label}
-        </span>
-        <span className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-          {!exists ? 'not found' : files.length === 0 ? 'empty' : `${files.length} file${files.length !== 1 ? 's' : ''}`}
-        </span>
-      </button>
-
-      {open && (
-        <div className="px-4 pb-2">
           {files.length === 0 ? (
             <div className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
               {exists ? 'No .md/.mdc files found' : 'Directory does not exist'}
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
-              {files.map((name) => (
-                <button
+              {files.map((name, index) => (
+                <SurfaceRow
+                  as="button"
                   key={name}
+                  index={index}
                   onClick={() => onOpenFile(name)}
                   className="flex items-center gap-2 px-2 py-1 rounded text-left w-full"
                   style={{ background: 'transparent' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface2)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 >
                   <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.4, flexShrink: 0 }}>
                     <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z" />
                   </svg>
                   <span className="text-xs font-mono" style={{ color: 'var(--color-text)', fontSize: 11 }}>{name}</span>
-                </button>
+                </SurfaceRow>
               ))}
             </div>
           )}
-        </div>
-      )}
+        </DisclosureSection>
+      </InspectorCard>
     </div>
   )
 }

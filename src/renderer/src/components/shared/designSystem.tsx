@@ -674,6 +674,79 @@ export function StatusBadge({
   )
 }
 
+export function AttachmentPill({
+  label,
+  title,
+  meta,
+  onRemove,
+  tone = 'neutral',
+  className = '',
+}: {
+  label: ReactNode
+  title?: string
+  meta?: ReactNode
+  onRemove?: () => void
+  tone?: Tone
+  className?: string
+}): JSX.Element {
+  return (
+    <span
+      title={title}
+      className={`attachment-pill motion-row inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs ${className}`}
+      style={{
+        color: toneColor[tone],
+        background: 'var(--surface-bg)',
+        borderColor: 'var(--border-subtle)',
+      }}
+    >
+      <Icon name="file" size={12} />
+      <span className="min-w-0 truncate">{label}</span>
+      {meta && <span className="shrink-0 text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{meta}</span>}
+      {onRemove && (
+        <IconButton
+          icon="close"
+          label={`Remove ${typeof label === 'string' ? label : 'attachment'}`}
+          onClick={onRemove}
+          size="sm"
+          tooltip={false}
+          className="h-4 w-4"
+          style={{ width: 16, height: 16, color: 'var(--text-tertiary)' }}
+        />
+      )}
+    </span>
+  )
+}
+
+export function MarkdownSurface({
+  children,
+  user = false,
+  className = '',
+}: {
+  children: ReactNode
+  user?: boolean
+  className?: string
+}): JSX.Element {
+  return (
+    <div data-user={user ? 'true' : 'false'} className={`markdown-surface ${className}`}>
+      {children}
+    </div>
+  )
+}
+
+export function ThinkingDots({
+  label = 'Thinking',
+}: {
+  label?: string
+}): JSX.Element {
+  return (
+    <div className="thinking-dots" aria-label={label}>
+      {[0, 1, 2].map((index) => (
+        <span key={index} className="thinking-dot" style={{ animationDelay: `${index * 0.2}s` }} />
+      ))}
+    </div>
+  )
+}
+
 interface SurfaceRowProps {
   children: ReactNode
   active?: boolean
@@ -1163,16 +1236,19 @@ export function ScrollEdgeButton({
   onClick,
   className = '',
   ariaLabel,
+  dataTestId,
 }: {
   children: ReactNode
   onClick: () => void
   className?: string
   ariaLabel: string
+  dataTestId?: string
 }): JSX.Element {
   return (
     <button
       type="button"
       aria-label={ariaLabel}
+      data-testid={dataTestId}
       onClick={onClick}
       className={`motion-edge-button flex h-5 min-w-9 items-center justify-center gap-0.5 rounded-full border px-2 text-[10px] font-semibold leading-none ${className}`}
       style={{

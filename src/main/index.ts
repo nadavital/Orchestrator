@@ -193,6 +193,49 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(120);
             var capabilitySheetClosedWithEscape = !document.querySelector('.motion-sheet');
+
+            const setNativeValue = (element, value) => {
+              const setter = Object.getOwnPropertyDescriptor(element.constructor.prototype, 'value')?.set;
+              setter?.call(element, value);
+            };
+            const search = document.querySelector('.capabilities-search');
+            if (search instanceof HTMLInputElement) {
+              setNativeValue(search, 'Orchestrator Smoke Skill');
+              search.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(180);
+            }
+            const skillsTab = [...document.querySelectorAll('.segmented-control-button')]
+              .find((button) => button.textContent?.includes('Skills'));
+            skillsTab?.click();
+            await sleep(180);
+
+            const openCapabilityAction = async (label) => {
+              const actionButtons = [...document.querySelectorAll('button')]
+                .filter((button) => button.getAttribute('aria-label') === 'Capability actions');
+              for (const actionButton of actionButtons) {
+                actionButton.click();
+                await sleep(80);
+                const item = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((button) => button.textContent?.includes(label) && !button.disabled);
+                if (item) {
+                  item.click();
+                  await sleep(180);
+                  return true;
+                }
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                await sleep(60);
+              }
+              return false;
+            };
+
+            var capabilityEditActionClicked = await openCapabilityAction('Edit');
+            var capabilityEditSheetOpened = Boolean(document.querySelector('.motion-sheet'));
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(120);
+            var capabilitySyncActionClicked = await openCapabilityAction('Sync');
+            var capabilitySyncSheetOpened = Boolean(document.querySelector('.motion-sheet'));
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(120);
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'composer') {
             const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
@@ -247,6 +290,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilitySheetFocused: typeof capabilitySheetFocused === 'boolean' ? capabilitySheetFocused : null,
             capabilitySheetFocusStayedInside: typeof capabilitySheetFocusStayedInside === 'boolean' ? capabilitySheetFocusStayedInside : null,
             capabilitySheetClosedWithEscape: typeof capabilitySheetClosedWithEscape === 'boolean' ? capabilitySheetClosedWithEscape : null,
+            capabilityEditActionClicked: typeof capabilityEditActionClicked === 'boolean' ? capabilityEditActionClicked : null,
+            capabilityEditSheetOpened: typeof capabilityEditSheetOpened === 'boolean' ? capabilityEditSheetOpened : null,
+            capabilitySyncActionClicked: typeof capabilitySyncActionClicked === 'boolean' ? capabilitySyncActionClicked : null,
+            capabilitySyncSheetOpened: typeof capabilitySyncSheetOpened === 'boolean' ? capabilitySyncSheetOpened : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,
             composerPermissionFocusReturned: typeof composerPermissionFocusReturned === 'boolean' ? composerPermissionFocusReturned : null,
@@ -725,6 +772,23 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
         const mainResult = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            let projects = await window.api.projects.list();
+            if (projects.length === 0) {
+              const root = ${JSON.stringify(process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd())};
+              const project = await window.api.projects.add('Automated UI Smoke', root);
+              projects = [project];
+            }
+            let sessions = await window.api.sessions.list();
+            if (sessions.length === 0) {
+              const project = projects[0];
+              const session = await window.api.sessions.create({
+                projectId: project.id,
+                workDir: project.rootPath,
+                useWorktree: false,
+                repoRoot: project.rootPath
+              });
+              await window.api.projects.addSession(project.id, session.id);
+            }
             await sleep(900);
             const root = document.documentElement;
             const rootStyles = getComputedStyle(root);
@@ -733,13 +797,49 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
             const motionButton = document.querySelector('.motion-button, .motion-icon-button, .motion-edge-button');
             const transitionDurations = motionButton ? getComputedStyle(motionButton).transitionDuration.split(',').map((value) => value.trim()) : [];
             const animationDurations = animatedView ? getComputedStyle(animatedView).animationDuration.split(',').map((value) => value.trim()) : [];
-            const isZeroDuration = (value) => value === '0s' || value === '0ms' || value === '0.001ms';
+            const isZeroDuration = (value) => {
+              if (value === '0s' || value === '0ms' || value === '0.001ms') return true;
+              const numeric = Number.parseFloat(value);
+              if (!Number.isFinite(numeric)) return false;
+              return value.endsWith('ms') ? numeric <= 0.001 : numeric <= 0.000001;
+            };
+            const allZero = (values) => values.length === 0 || values.every(isZeroDuration);
+
+            const sidebarButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Toggle sidebar');
+            sidebarButton?.click();
+            await sleep(120);
+            const rightPanel = document.querySelector('[data-motion-panel="right"]');
+            const rightPanelDurations = rightPanel ? getComputedStyle(rightPanel).transitionDuration.split(',').map((value) => value.trim()) : [];
+
+            const terminalButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Toggle terminal');
+            terminalButton?.click();
+            await sleep(120);
+            const bottomPanel = document.querySelector('[data-motion-panel="bottom"]');
+            const bottomPanelDurations = bottomPanel ? getComputedStyle(bottomPanel).transitionDuration.split(',').map((value) => value.trim()) : [];
+
+            const popover = document.createElement('div');
+            popover.className = 'motion-popover-surface';
+            document.body.appendChild(popover);
+            const popoverDurations = getComputedStyle(popover).animationDuration.split(',').map((value) => value.trim());
+            popover.remove();
+
+            const sheet = document.createElement('section');
+            sheet.className = 'motion-sheet';
+            document.body.appendChild(sheet);
+            const sheetDurations = getComputedStyle(sheet).animationDuration.split(',').map((value) => value.trim());
+            sheet.remove();
             return {
               mainReducedDataset: root.dataset.reducedMotion === 'true',
               mainMotionDurationPanel: duration,
               mainPanelDurationZero: duration === '0ms',
-              mainTransitionsZero: transitionDurations.length === 0 || transitionDurations.every(isZeroDuration),
-              mainAnimationsZero: animationDurations.length === 0 || animationDurations.every(isZeroDuration)
+              mainTransitionsZero: allZero(transitionDurations),
+              mainAnimationsZero: allZero(animationDurations),
+              mainRightPanelReduced: rightPanel?.getAttribute('data-open') === 'true' && allZero(rightPanelDurations),
+              mainBottomPanelReduced: bottomPanel?.getAttribute('data-open') === 'true' && allZero(bottomPanelDurations),
+              mainPopoverReduced: allZero(popoverDurations),
+              mainSheetReduced: allZero(sheetDurations)
             };
           })()
         `)
