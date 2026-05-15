@@ -193,6 +193,8 @@ export default function PetOverlay(): JSX.Element | null {
   const trayListRef = useRef<HTMLDivElement>(null)
   const mascotRef = useRef<HTMLDivElement>(null)
   const resizeState = useRef<ResizeState | null>(null)
+  const resizeFrameRef = useRef<number | null>(null)
+  const pendingResizeWidthRef = useRef<number | null>(null)
 
   // Load initial config + sessions.
   useEffect(() => {
@@ -293,15 +295,25 @@ export default function PetOverlay(): JSX.Element | null {
   useEffect(() => {
     const onPointerUp = (e: PointerEvent): void => {
       finishDrag(e.pointerId, { screenX: e.screenX, screenY: e.screenY, timeMs: e.timeStamp }, true)
+      finishResize(e.pointerId, e.screenX)
     }
     const onPointerCancel = (e: PointerEvent): void => {
       finishDrag(e.pointerId, null, false)
+      finishResize(e.pointerId)
     }
     window.addEventListener('pointerup', onPointerUp)
     window.addEventListener('pointercancel', onPointerCancel)
     return () => {
       window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('pointercancel', onPointerCancel)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current)
+      }
     }
   }, [])
 
@@ -425,12 +437,29 @@ export default function PetOverlay(): JSX.Element | null {
       ? (mascotWidthPx ?? state.startWidthPx)
       : clampMascotWidth(state.startWidthPx + screenX - state.startScreenX)
     resizeState.current = null
+    pendingResizeWidthRef.current = null
+    if (resizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(resizeFrameRef.current)
+      resizeFrameRef.current = null
+    }
     setIsResizingVisual(false)
     setMascotWidthPx(width)
     window.petApi.pet.setMascotWidth(width)
     if (target instanceof HTMLElement && target.hasPointerCapture?.(pointerId)) {
       target.releasePointerCapture(pointerId)
     }
+  }
+
+  const sendResizePreview = (width: number): void => {
+    pendingResizeWidthRef.current = width
+    if (resizeFrameRef.current !== null) return
+    resizeFrameRef.current = window.requestAnimationFrame(() => {
+      resizeFrameRef.current = null
+      const nextWidth = pendingResizeWidthRef.current
+      if (nextWidth !== null) {
+        window.petApi.pet.setMascotResizePreview(nextWidth)
+      }
+    })
   }
 
   // Drag handlers: 4px threshold before committing (matches Codex Ge=4).
@@ -500,6 +529,7 @@ export default function PetOverlay(): JSX.Element | null {
       startWidthPx: clampMascotWidth(width),
     }
     setIsResizingVisual(true)
+    sendResizePreview(clampMascotWidth(width))
   }
 
   const handleResizePointerMove = (e: React.PointerEvent<HTMLButtonElement>): void => {
@@ -507,7 +537,9 @@ export default function PetOverlay(): JSX.Element | null {
     if (!state || state.pointerId !== e.pointerId) return
     e.preventDefault()
     e.stopPropagation()
-    setMascotWidthPx(clampMascotWidth(state.startWidthPx + e.screenX - state.startScreenX))
+    const width = clampMascotWidth(state.startWidthPx + e.screenX - state.startScreenX)
+    setMascotWidthPx(width)
+    sendResizePreview(width)
   }
 
   const handleResizePointerUp = (e: React.PointerEvent<HTMLButtonElement>): void => {

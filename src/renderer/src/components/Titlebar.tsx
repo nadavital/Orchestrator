@@ -4,6 +4,7 @@ import { useProjectStore } from '../store/projects'
 import type { AppProfile } from '../env'
 import Icon from './shared/Icon'
 import SessionActionsMenu from './shared/SessionActionsMenu'
+import { StatusBadge, ToolbarButton } from './shared/designSystem'
 
 export default function Titlebar(): JSX.Element {
   const {
@@ -73,7 +74,7 @@ export default function Titlebar(): JSX.Element {
             >
               {session.name}
             </span>
-            <StatusDot status={session.status} />
+            <SessionStatusBadge status={session.status} />
             {session.pinned && (
               <span style={{ color: 'var(--text-tertiary)' }} title="Pinned">
                 <Icon name="pin" size={13} />
@@ -113,30 +114,27 @@ export default function Titlebar(): JSX.Element {
       >
         {session && ui && (
           <>
-            <TitleBtn
+            <ToolbarButton
+              icon="ellipsis"
+              label="Chat actions"
               active={menuPoint !== null}
               onClick={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect()
                 setMenuPoint({ x: rect.right - 196, y: rect.bottom + 6 })
               }}
-              title="Chat actions"
-            >
-              <Icon name="ellipsis" size={15} />
-            </TitleBtn>
-            <TitleBtn
+            />
+            <ToolbarButton
+              icon="diff"
+              label="Toggle sidebar"
               active={inspectorOpen}
               onClick={toggleInspector}
-              title="Toggle sidebar"
-            >
-              <Icon name="diff" size={14} />
-            </TitleBtn>
-            <TitleBtn
+            />
+            <ToolbarButton
+              icon="terminal"
+              label="Toggle terminal"
               active={ui.showTerminal}
               onClick={() => setShowTerminal(activeSessionId!, !ui.showTerminal)}
-              title="Toggle terminal"
-            >
-              <Icon name="terminal" size={14} />
-            </TitleBtn>
+            />
           </>
         )}
       </div>
@@ -153,36 +151,13 @@ export default function Titlebar(): JSX.Element {
   )
 }
 
-function StatusDot({ status }: { status: string }): JSX.Element {
+function SessionStatusBadge({ status }: { status: string }): JSX.Element {
   const isRunning = status === 'running'
   const isWaiting = status.startsWith('waiting_') || status === 'reconnecting'
   const isError = status.endsWith('_error') || status === 'error'
-  return (
-    <span className="flex items-center gap-1">
-      <span
-        className="rounded-full shrink-0"
-        style={{
-          width: 6,
-          height: 6,
-          background: isRunning
-            ? 'var(--color-green)'
-            : isWaiting
-              ? 'var(--color-yellow)'
-              : isError
-                ? 'var(--color-red)'
-                : 'var(--color-text-muted)',
-          opacity: isRunning || isWaiting || isError ? 1 : 0.4,
-          animation: isRunning ? 'statusPulse 1.5s ease-in-out infinite' : 'none',
-          display: 'inline-block'
-        }}
-      />
-      {(isWaiting || isError) && (
-        <span className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-          {statusLabel(status)}
-        </span>
-      )}
-    </span>
-  )
+  const tone = isError ? 'danger' : isWaiting ? 'warning' : isRunning ? 'success' : 'neutral'
+  const label = isRunning ? 'running' : isWaiting || isError ? statusLabel(status) : 'idle'
+  return <StatusBadge label={label} tone={tone} pulse={isRunning || isWaiting} />
 }
 
 function statusLabel(status: string): string {
@@ -198,31 +173,4 @@ function statusLabel(status: string): string {
     error: 'error'
   }
   return labels[status] ?? status
-}
-
-function TitleBtn({
-  children, active, onClick, title
-}: {
-  children: React.ReactNode; active: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; title: string
-}): JSX.Element {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      className="flex items-center gap-1.5 text-xs transition-colors"
-      style={{
-        width: 30,
-        height: 30,
-        justifyContent: 'center',
-        background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
-        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-        border: `1px solid ${active ? 'var(--border-strong)' : 'var(--border-subtle)'}`,
-        borderRadius: 'var(--radius-md)',
-        padding: 0,
-        fontWeight: 600
-      }}
-    >
-      {children}
-    </button>
-  )
 }

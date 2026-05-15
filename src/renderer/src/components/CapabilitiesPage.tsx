@@ -16,6 +16,7 @@ import { useProjectStore } from '../store/projects'
 import { useSessionStore } from '../store/sessions'
 import Icon from './shared/Icon'
 import ProviderIcon from './shared/ProviderIcon'
+import { Badge, Button, PopoverSurface, SegmentedControl, Sheet, SurfaceRow, ToolbarButton } from './shared/designSystem'
 
 type CapabilityTab = 'skill' | 'mcp' | 'plugin' | 'app' | 'agent' | 'instruction' | 'more'
 type CapabilityScopeFilter = 'all' | 'global' | 'project'
@@ -287,17 +288,17 @@ export default function CapabilitiesPage(): JSX.Element {
           </p>
         </div>
         <div className="capabilities-header-actions">
-          <button className="cap-button ghost" onClick={() => void refresh()} disabled={loading}>
+          <Button variant="ghost" onClick={() => void refresh()} disabled={loading}>
             <Icon name="refresh" size={14} />
             {loading ? 'Refreshing' : 'Refresh'}
-          </button>
+          </Button>
           <div className="cap-create-wrap">
-            <button className="cap-button primary" onClick={() => setCreateMenuOpen((open) => !open)}>
+            <Button variant="primary" onClick={() => setCreateMenuOpen((open) => !open)}>
               <Icon name="plus" size={14} />
               Create
-            </button>
+            </Button>
             {createMenuOpen && (
-              <div className="cap-create-menu">
+              <PopoverSurface className="cap-create-menu">
                 <button onClick={() => openCreate('skill')}>
                   <Icon name="sparkles" size={14} />
                   <span>Skill</span>
@@ -310,7 +311,7 @@ export default function CapabilitiesPage(): JSX.Element {
                   <Icon name="extensions" size={14} />
                   <span>Plugin</span>
                 </button>
-              </div>
+              </PopoverSurface>
             )}
           </div>
         </div>
@@ -347,32 +348,33 @@ export default function CapabilitiesPage(): JSX.Element {
         <section className="capability-status-row">
           <span>{groups.length.toLocaleString()} capabilities across {providerCount.toLocaleString()} provider{providerCount === 1 ? '' : 's'}</span>
           {errors.length > 0 && (
-            <button onClick={openProviderSettings}>
+            <Button variant="danger" onClick={openProviderSettings}>
               <Icon name="wrench" size={13} />
               {errors.length} issue{errors.length === 1 ? '' : 's'}
-            </button>
+            </Button>
           )}
         </section>
 
         <section className="capability-tabs" aria-label="Capability sections">
-          {visibleTabs.map((nextTab) => (
-              <button
-                key={nextTab.id}
-                className={activeTab.id === nextTab.id ? 'active' : ''}
-                onClick={() => setTab(nextTab.id)}
-              >
-                {nextTab.label}
-                <span>{tabCounts[nextTab.id]}</span>
-              </button>
-            ))}
+          <SegmentedControl
+            value={activeTab.id}
+            onChange={setTab}
+            options={visibleTabs.map((nextTab) => ({
+              value: nextTab.id,
+              label: (
+                <span className="inline-flex items-center gap-1.5">
+                  {nextTab.label}
+                  <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>{tabCounts[nextTab.id]}</span>
+                </span>
+              )
+            }))}
+          />
         </section>
 
         {message && (
           <div className="capability-message">
             <span>{message}</span>
-            <button onClick={() => setMessage(null)} title="Dismiss">
-              <Icon name="close" size={13} />
-            </button>
+            <ToolbarButton icon="close" label="Dismiss" onClick={() => setMessage(null)} />
           </div>
         )}
 
@@ -524,7 +526,7 @@ function CapabilityRow({
   const hasActions = canEdit || canRemove || canSync
   const coverage = providerCoverageLabel(group)
   return (
-    <article className="capability-row">
+    <SurfaceRow className="capability-row">
       <div className="capability-row-main">
         <div className="capability-kind-dot" style={{ background: tone }} />
         <div className="min-w-0">
@@ -550,18 +552,20 @@ function CapabilityRow({
         })}
         {group.resources.length > 4 && <span>+{group.resources.length - 4}</span>}
       </div>
-      <strong className="capability-row-status" style={{ color: tone }}>{group.status}</strong>
+      <strong className="capability-row-status">
+        <Badge tone={statusTone(group.status)}>{group.status}</Badge>
+      </strong>
       <div className="capability-row-actions">
         {hasActions && (
-          <button
+          <ToolbarButton
+            icon="ellipsis"
+            label="Capability actions"
             onClick={() => setMenuOpen((open) => !open)}
-            title="Capability actions"
-          >
-            <Icon name="ellipsis" size={14} />
-          </button>
+            active={menuOpen}
+          />
         )}
         {hasActions && menuOpen && (
-          <div className="capability-row-menu">
+          <PopoverSurface className="capability-row-menu">
             <button
               disabled={!canSync}
               onClick={() => {
@@ -593,10 +597,10 @@ function CapabilityRow({
               <Icon name="close" size={13} />
               <span>Delete</span>
             </button>
-          </div>
+          </PopoverSurface>
         )}
       </div>
-    </article>
+    </SurfaceRow>
   )
 }
 
@@ -658,23 +662,31 @@ function CreateCapabilitySheet({
   onSubmit: () => void
 }): JSX.Element {
   return (
-    <div className="capability-sheet-backdrop">
-      <section className="capability-sheet">
-        <div className="capability-sheet-header">
-          <div>
-            <h2>Create capability</h2>
-            <p>Portable where possible, provider-native where necessary.</p>
-          </div>
-          <button onClick={onClose} title="Close"><Icon name="close" size={15} /></button>
+    <Sheet
+      onClose={onClose}
+      title={
+        <div>
+          <h2>Create capability</h2>
+          <p>Portable where possible, provider-native where necessary.</p>
         </div>
-
-        <div className="cap-segmented">
-          {(['skill', 'plugin', 'mcp_server'] as CapabilityCreateKind[]).map((nextKind) => (
-            <button key={nextKind} className={kind === nextKind ? 'active' : ''} onClick={() => onKindChange(nextKind)}>
-              {createLabel(nextKind)}
-            </button>
-          ))}
-        </div>
+      }
+      footer={
+        <>
+          <span className="capability-scope-note">Global capability</span>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={onSubmit}>Create</Button>
+        </>
+      }
+    >
+        <SegmentedControl
+          value={kind}
+          onChange={onKindChange}
+          options={(['skill', 'plugin', 'mcp_server'] as CapabilityCreateKind[]).map((nextKind) => ({
+            value: nextKind,
+            label: createLabel(nextKind)
+          }))}
+          className="mb-3"
+        />
 
         <label className="cap-field">
           <span>Name</span>
@@ -687,13 +699,15 @@ function CreateCapabilitySheet({
 
         {kind === 'mcp_server' ? (
           <>
-            <div className="cap-segmented compact">
-              {(['stdio', 'http'] as CapabilityMcpTransport[]).map((transport) => (
-                <button key={transport} className={mcpTransport === transport ? 'active' : ''} onClick={() => onMcpTransportChange(transport)}>
-                  {transport === 'stdio' ? 'Command' : 'HTTP'}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              value={mcpTransport}
+              onChange={onMcpTransportChange}
+              options={(['stdio', 'http'] as CapabilityMcpTransport[]).map((transport) => ({
+                value: transport,
+                label: transport === 'stdio' ? 'Command' : 'HTTP'
+              }))}
+              className="mb-3"
+            />
             {mcpTransport === 'stdio' ? (
               <>
                 <label className="cap-field">
@@ -718,14 +732,7 @@ function CreateCapabilitySheet({
             <textarea value={body} onChange={(event) => onBodyChange(event.target.value)} placeholder="Describe the workflow, rules, examples, and verification expectations." />
           </label>
         )}
-
-        <div className="capability-sheet-footer">
-          <span className="capability-scope-note">Global capability</span>
-          <button className="cap-button ghost" onClick={onClose}>Cancel</button>
-          <button className="cap-button primary" onClick={onSubmit}>Create</button>
-        </div>
-      </section>
-    </div>
+    </Sheet>
   )
 }
 
@@ -1117,6 +1124,12 @@ function resourceStatusTone(status: ProviderResource['status']): string {
   if (status === 'enabled' || status === 'available') return 'var(--state-success)'
   if (status === 'disabled' || status === 'unknown') return 'var(--text-tertiary)'
   return 'var(--state-danger)'
+}
+
+function statusTone(status: ProviderResource['status']): 'success' | 'neutral' | 'danger' {
+  if (status === 'enabled' || status === 'available') return 'success'
+  if (status === 'disabled' || status === 'unknown') return 'neutral'
+  return 'danger'
 }
 
 function resourceKindLabel(kind: ProviderResourceKind): string {

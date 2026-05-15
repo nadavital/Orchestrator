@@ -1,4 +1,4 @@
-import { forwardRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { forwardRef, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import Icon, { type IconName } from './Icon'
 import { rowMotionStyle } from '../../design/motion'
 
@@ -89,6 +89,7 @@ interface IconButtonProps {
   label: string
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void | Promise<void>
   disabled?: boolean
+  active?: boolean
   tone?: Tone
   size?: 'sm' | 'md'
   className?: string
@@ -101,6 +102,7 @@ export function IconButton({
   label,
   onClick,
   disabled = false,
+  active = false,
   tone = 'neutral',
   size = 'md',
   className = '',
@@ -112,15 +114,16 @@ export function IconButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      title={tooltip ? undefined : label}
+      title={label}
       aria-label={label}
+      data-active={active ? 'true' : 'false'}
       className={`motion-icon-button grid shrink-0 place-items-center rounded-md disabled:cursor-default disabled:opacity-45 ${className}`}
       style={{
         width: size === 'sm' ? 24 : 30,
         height: size === 'sm' ? 24 : 30,
-        color: toneColor[tone],
-        background: 'transparent',
-        border: '1px solid transparent',
+        color: active ? 'var(--text-primary)' : toneColor[tone],
+        background: active ? 'var(--control-bg-active)' : 'transparent',
+        border: active ? '1px solid var(--border-strong)' : '1px solid transparent',
         ...style,
       }}
     >
@@ -131,6 +134,38 @@ export function IconButton({
   return tooltip ? <Tooltip label={label}>{button}</Tooltip> : button
 }
 
+export function ToolbarButton({
+  icon,
+  label,
+  onClick,
+  active = false,
+  disabled = false,
+  tone = 'neutral',
+}: {
+  icon: IconName
+  label: string
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void | Promise<void>
+  active?: boolean
+  disabled?: boolean
+  tone?: Tone
+}): JSX.Element {
+  return (
+    <IconButton
+      icon={icon}
+      label={label}
+      onClick={onClick}
+      active={active}
+      disabled={disabled}
+      tone={tone}
+      className="toolbar-button"
+      style={{
+        background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
+        borderColor: active ? 'var(--border-strong)' : 'var(--border-subtle)',
+      }}
+    />
+  )
+}
+
 export function Tooltip({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return (
     <span className="orchestrator-tooltip-anchor">
@@ -139,6 +174,189 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
         {label}
       </span>
     </span>
+  )
+}
+
+export function MotionView({
+  viewKey,
+  children,
+  className = '',
+  style,
+}: {
+  viewKey: string
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+}): JSX.Element {
+  return (
+    <div
+      key={viewKey}
+      data-motion-view={viewKey}
+      className={`motion-view min-h-0 min-w-0 flex-1 ${className}`}
+      style={style}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function MotionPanel({
+  open,
+  side,
+  size,
+  children,
+  className = '',
+  style,
+}: {
+  open: boolean
+  side: 'right' | 'bottom'
+  size: number
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+}): JSX.Element {
+  const dimensionStyle: CSSProperties = side === 'right'
+    ? { width: open ? size : 0, minWidth: open ? size : 0, maxWidth: open ? size : 0 }
+    : { height: open ? size : 0, minHeight: open ? size : 0, maxHeight: open ? size : 0 }
+
+  return (
+    <div
+      data-open={open ? 'true' : 'false'}
+      data-motion-panel={side}
+      aria-hidden={!open}
+      className={`motion-panel motion-panel-${side} shrink-0 overflow-hidden ${className}`}
+      style={{
+        ...dimensionStyle,
+        opacity: open ? 1 : 0,
+        pointerEvents: open ? 'auto' : 'none',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function PanelResizeHandle({
+  orientation,
+  onPointerDown,
+  label,
+  active = false,
+  className = '',
+}: {
+  orientation: 'vertical' | 'horizontal'
+  onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void
+  label: string
+  active?: boolean
+  className?: string
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      data-active={active ? 'true' : 'false'}
+      data-orientation={orientation}
+      className={`panel-resize-handle ${className}`}
+      onPointerDown={onPointerDown}
+    />
+  )
+}
+
+export function TabButton({
+  children,
+  active,
+  onClick,
+  onClose,
+  closeLabel,
+}: {
+  children: ReactNode
+  active: boolean
+  onClick: () => void
+  onClose?: () => void
+  closeLabel?: string
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      data-active={active ? 'true' : 'false'}
+      className="motion-tab-button"
+      onClick={onClick}
+    >
+      <span className="min-w-0 truncate">{children}</span>
+      {active && onClose && (
+        <span
+          role="button"
+          aria-label={closeLabel}
+          title={closeLabel}
+          className="motion-tab-close"
+          onClick={(event) => {
+            event.stopPropagation()
+            onClose()
+          }}
+        >
+          <Icon name="close" size={11} />
+        </span>
+      )}
+    </button>
+  )
+}
+
+export function SegmentedControl<T extends string>({
+  value,
+  options,
+  onChange,
+  className = '',
+}: {
+  value: T
+  options: Array<{ value: T; label: ReactNode; disabled?: boolean }>
+  onChange: (value: T) => void
+  className?: string
+}): JSX.Element {
+  return (
+    <div className={`segmented-control ${className}`} role="tablist">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="tab"
+          aria-selected={option.value === value}
+          disabled={option.disabled}
+          data-active={option.value === value ? 'true' : 'false'}
+          className="segmented-control-button"
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function SwitchControl({
+  checked,
+  onChange,
+  label,
+  disabled = false,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  label: string
+  disabled?: boolean
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      data-checked={checked ? 'true' : 'false'}
+      className="switch-control"
+      onClick={() => onChange(!checked)}
+    >
+      <span className="switch-control-thumb" />
+    </button>
   )
 }
 
@@ -318,6 +536,44 @@ export function MotionOverlay({
       <div className={`motion-overlay-surface ${surfaceClassName}`} style={surfaceStyle}>
         {children}
       </div>
+    </div>
+  )
+}
+
+export function Sheet({
+  title,
+  children,
+  footer,
+  onClose,
+  width = 520,
+}: {
+  title: ReactNode
+  children: ReactNode
+  footer?: ReactNode
+  onClose: () => void
+  width?: number
+}): JSX.Element {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return (
+    <div
+      className="motion-sheet-backdrop fixed inset-0 z-50 flex justify-end"
+      onClick={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <section className="motion-sheet flex h-full min-h-0 flex-col" style={{ width }}>
+        <header className="motion-sheet-header">
+          <div className="min-w-0 flex-1">{title}</div>
+          <IconButton icon="close" label="Close" onClick={onClose} />
+        </header>
+        <div className="motion-sheet-body">{children}</div>
+        {footer && <footer className="motion-sheet-footer">{footer}</footer>}
+      </section>
     </div>
   )
 }

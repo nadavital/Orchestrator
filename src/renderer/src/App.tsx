@@ -7,6 +7,7 @@ import Titlebar from './components/Titlebar'
 import SettingsPage from './components/SettingsModal'
 import CapabilitiesPage from './components/CapabilitiesPage'
 import DesignSystemPreview from './components/DesignSystemPreview'
+import { MotionView } from './components/shared/designSystem'
 import { applyAppearance, type Appearance } from './theme'
 
 export default function App(): JSX.Element {
@@ -173,41 +174,35 @@ export default function App(): JSX.Element {
     return <DesignSystemPreview />
   }
 
-  if (showSettings) {
-    return (
-      <div className="app-shell flex flex-1 overflow-hidden">
-        <Sidebar />
-        <section className="content-shell flex-1 flex flex-col min-w-0 min-h-0">
-          <SettingsPage
-            section={settingsSection}
-            onClose={() => setShowSettings(false)}
-          />
-        </section>
-      </div>
-    )
-  }
-
-  if (showCapabilities) {
-    return (
-      <div className="app-shell flex flex-1 overflow-hidden">
-        <Sidebar />
-        <section className="content-shell flex-1 flex flex-col min-w-0 min-h-0">
-          <CapabilitiesPage />
-        </section>
-      </div>
-    )
-  }
-
   return (
     <div
       className="app-shell flex flex-1 overflow-hidden"
     >
       <Sidebar />
       <section className="content-shell flex-1 flex flex-col min-w-0 min-h-0">
-        <Titlebar />
-        <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {activeSessionId ? <SessionPane /> : null}
-        </main>
+        {showSettings ? (
+          <MotionView viewKey={`settings:${settingsSection}`} className="flex flex-col overflow-hidden">
+            <SettingsPage
+              section={settingsSection}
+              onClose={() => setShowSettings(false)}
+            />
+          </MotionView>
+        ) : showCapabilities ? (
+          <MotionView viewKey="capabilities" className="flex flex-col overflow-hidden">
+            <CapabilitiesPage />
+          </MotionView>
+        ) : (
+          <>
+            <Titlebar />
+            <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              {activeSessionId ? (
+                <MotionView viewKey={`session:${activeSessionId}`} className="flex flex-col overflow-hidden">
+                  <SessionPane />
+                </MotionView>
+              ) : null}
+            </main>
+          </>
+        )}
       </section>
     </div>
   )

@@ -66,6 +66,7 @@ declare global {
         setTrayHeight: (h: number) => void
         setTraySize: (size: { width: number; height: number }) => void
         setMascotSize: (size: { width: number; height: number }) => void
+        setMascotResizePreview: (width: number) => void
         setMascotWidth: (width: number) => void
         onConfigUpdated: (cb: (update: { selectedPetId?: string; mascotWidthPx?: number }) => void) => () => void
         onLayout: (cb: (layout: PetLayout) => void) => () => void

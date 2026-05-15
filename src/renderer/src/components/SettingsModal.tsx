@@ -22,6 +22,7 @@ import { useSessionStore } from '../store/sessions'
 import type { SettingsSection } from '../store/sessions'
 import ProviderIcon from './shared/ProviderIcon'
 import Icon from './shared/Icon'
+import { SegmentedControl as SystemSegmentedControl, SwitchControl } from './shared/designSystem'
 import { applyAppearance, type Accent, type Appearance, type Density, type TranscriptStyle } from '../theme'
 
 interface Props {
@@ -497,35 +498,7 @@ function SegmentedChoice<T extends string>({
 }
 
 function Switch({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      aria-pressed={checked}
-      style={{
-        width: 44,
-        height: 26,
-        borderRadius: 'var(--radius-pill)',
-        border: '1px solid var(--border-subtle)',
-        background: checked ? 'var(--accent)' : 'var(--control-bg-active)',
-        padding: 2,
-        cursor: 'pointer',
-        flexShrink: 0
-      }}
-    >
-      <span
-        style={{
-          display: 'block',
-          width: 20,
-          height: 20,
-          borderRadius: '50%',
-          background: '#fff',
-          transform: checked ? 'translateX(18px)' : 'translateX(0)',
-          transition: 'transform 140ms ease'
-        }}
-      />
-    </button>
-  )
+  return <SwitchControl checked={checked} onChange={onChange} label="Toggle setting" />
 }
 
 // ─── Providers section ────────────────────────────────────────────────────────
@@ -1681,7 +1654,7 @@ function InlineMutedText({ children }: { children: React.ReactNode }): JSX.Eleme
 function SegmentedControl({
   items,
   value,
-  color,
+  color: _color,
   onChange,
 }: {
   items: Array<{ id: string; label: string }>
@@ -1690,38 +1663,12 @@ function SegmentedControl({
   onChange: (id: string) => void
 }): JSX.Element {
   return (
-    <div
-      style={{
-        display: 'inline-flex',
-        padding: 3,
-        gap: 2,
-        borderRadius: 8,
-        background: 'var(--color-surface2)',
-        border: '1px solid var(--color-border)',
-      }}
-    >
-      {items.map((item) => {
-        const active = value === item.id
-        return (
-          <button
-            key={item.id}
-            onClick={() => onChange(item.id)}
-            style={{
-              padding: '5px 11px',
-              borderRadius: 6,
-              border: 'none',
-              background: active ? color : 'transparent',
-              color: active ? '#fff' : 'var(--color-text-muted)',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: active ? 650 : 500,
-            }}
-          >
-            {item.label}
-          </button>
-        )
-      })}
-    </div>
+    <SystemSegmentedControl
+      value={value}
+      onChange={onChange}
+      options={items.map((item) => ({ value: item.id, label: item.label }))}
+      className="settings-segmented-control"
+    />
   )
 }
 

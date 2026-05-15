@@ -72,6 +72,7 @@ const petApi = {
     setTrayHeight: (h: number): void => ipcRenderer.send('pet:trayHeight', h),
     setTraySize: (size: { width: number; height: number }): void => ipcRenderer.send('pet:traySize', size),
     setMascotSize: (size: { width: number; height: number }): void => ipcRenderer.send('pet:mascotSize', size),
+    setMascotResizePreview: (width: number): void => ipcRenderer.send('pet:mascotResizePreview', width),
     setMascotWidth: (width: number): void => ipcRenderer.send('pet:mascotWidth', width),
     onConfigUpdated: (cb: (update: { selectedPetId?: string; mascotWidthPx?: number }) => void): (() => void) => {
       const handler = (

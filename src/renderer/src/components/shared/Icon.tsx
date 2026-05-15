@@ -12,6 +12,7 @@ import {
   Copy,
   CircleDot,
   Ellipsis,
+  Eraser,
   File,
   Folder,
   GitBranch,
@@ -49,6 +50,7 @@ export type IconName =
   | 'copy'
   | 'close'
   | 'dot'
+  | 'eraser'
   | 'ellipsis'
   | 'diff'
   | 'extensions'
@@ -84,6 +86,7 @@ const icons: Record<IconName, LucideIcon> = {
   copy: Copy,
   close: X,
   dot: CircleDot,
+  eraser: Eraser,
   ellipsis: Ellipsis,
   diff: GitCompare,
   extensions: Boxes,

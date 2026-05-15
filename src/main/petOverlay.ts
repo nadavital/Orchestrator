@@ -58,7 +58,7 @@ export interface CodexPetImportResult {
 const FALLBACK_MASCOT: Size = { width: 113, height: 122 }
 const FALLBACK_TRAY: Size = { width: 276, height: 0 }
 const TRAY_W = 276
-const WINDOW_PAD = 8
+const WINDOW_PAD = 16
 const TRAY_GAP = 8
 
 const TRAY_ITEM_H = 132  // conservative first layout before renderer reports card height
@@ -71,6 +71,7 @@ const MAX_COAST_MS = 900
 const SCREEN_MARGIN = 24
 const MASCOT_MIN_WIDTH = 80
 const MASCOT_MAX_WIDTH = 224
+const MASCOT_ASPECT_RATIO = 192 / 208
 
 const CODEX_PET_NAMES: Record<string, string> = {
   bsod: 'BSOD',
@@ -410,6 +411,20 @@ function clampMascotWidth(width: unknown): number | null {
     : null
 }
 
+function mascotSizeForWidth(width: number): Size {
+  return {
+    width,
+    height: Math.ceil(width / MASCOT_ASPECT_RATIO),
+  }
+}
+
+function syncSavedMascotSize(): void {
+  const savedWidth = clampMascotWidth(settingsStore.get('petMascotWidthPx', null))
+  if (savedWidth !== null) {
+    mascotSize = mascotSizeForWidth(savedWidth)
+  }
+}
+
 function applyLayout(): void {
   if (!petWin || petWin.isDestroyed()) return
   const layout = computeLayout(anchor, trayCount)
@@ -479,6 +494,7 @@ export function createPetOverlayWindow(mainWin: BrowserWindow): void {
   const isOpen = settingsStore.get('petOpen', true) as boolean
   const saved = settingsStore.get('petPosition', null) as { x: number; y: number } | null
   placement = settingsStore.get('petPlacement', 'top-end') as PetPlacement
+  syncSavedMascotSize()
   anchor = clampAnchor(saved || defaultAnchor())
   attachDisplayListeners()
 
@@ -539,6 +555,7 @@ export function createPetOverlayWindow(mainWin: BrowserWindow): void {
 
 export const petOverlayManager = {
   getConfig(): PetConfig {
+    syncSavedMascotSize()
     const layout = computeLayout(anchor, trayCount)
     return {
       pets: loadPets(),
@@ -733,6 +750,16 @@ export const petOverlayManager = {
     applyLayout()
   },
 
+  setMascotResizePreview(width: number): void {
+    const clamped = clampMascotWidth(width)
+    if (clamped === null) return
+    const nextSize = mascotSizeForWidth(clamped)
+    if (nextSize.width === mascotSize.width && nextSize.height === mascotSize.height) return
+    mascotSize = nextSize
+    anchor = clampAnchor(anchor)
+    applyLayout()
+  },
+
   setPointerInteractive(v: boolean): void {
     if (!petWin || v === pointerInteractive) return
     pointerInteractive = v
@@ -761,7 +788,10 @@ export const petOverlayManager = {
   setMascotWidth(width: number): void {
     const clamped = clampMascotWidth(width)
     if (clamped === null) return
+    mascotSize = mascotSizeForWidth(clamped)
+    anchor = clampAnchor(anchor)
     settingsStore.set('petMascotWidthPx', clamped)
     petWin?.webContents.send('pet:configUpdated', { mascotWidthPx: clamped })
+    applyLayout()
   }
 }

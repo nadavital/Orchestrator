@@ -8,6 +8,7 @@ import InputBar from './InputBar'
 import ContextSidebar from './ContextSidebar'
 import RunningAgentsStrip from './RunningAgentsStrip'
 import Icon from '../shared/Icon'
+import { IconButton, MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
 
 const MIN_TERMINAL_HEIGHT = 120
 const MAX_TERMINAL_HEIGHT = 600
@@ -19,6 +20,7 @@ export default function SessionPane(): JSX.Element | null {
   const session = sessions.find((s) => s.id === activeSessionId)
   const [promptInjectorRef] = useState<MutableRefObject<((text: string) => void) | null>>({ current: null })
   const [terminalHeight, setTerminalHeight] = useState(DEFAULT_TERMINAL_HEIGHT)
+  const [isTerminalResizing, setIsTerminalResizing] = useState(false)
   const dragStartRef = useRef<{ y: number; h: number } | null>(null)
 
   // Tab state: array of tab indices, active tab index
@@ -37,11 +39,13 @@ export default function SessionPane(): JSX.Element | null {
     }
   }, [session?.id])
 
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+  const handleResizeStart = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault()
+    e.currentTarget.setPointerCapture?.(e.pointerId)
     dragStartRef.current = { y: e.clientY, h: terminalHeight }
+    setIsTerminalResizing(true)
 
-    const onMove = (me: MouseEvent): void => {
+    const onMove = (me: PointerEvent): void => {
       if (!dragStartRef.current) return
       const delta = dragStartRef.current.y - me.clientY
       const next = Math.max(MIN_TERMINAL_HEIGHT, Math.min(MAX_TERMINAL_HEIGHT, dragStartRef.current.h + delta))
@@ -49,11 +53,12 @@ export default function SessionPane(): JSX.Element | null {
     }
     const onUp = (): void => {
       dragStartRef.current = null
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+      setIsTerminalResizing(false)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
     }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp, { once: true })
   }, [terminalHeight])
 
   if (!session) return null
@@ -114,21 +119,20 @@ export default function SessionPane(): JSX.Element | null {
       </div>
 
       {/* Terminal bottom panel */}
-      {ui.showTerminal && (
-        <>
-          <div
-            onMouseDown={handleResizeStart}
-            style={{
-              height: 4,
-              background: 'var(--surface-bg)',
-              cursor: 'ns-resize',
-              flexShrink: 0,
-              transition: 'background 0.1s'
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--control-bg-hover)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-bg)')}
-          />
-
+      <MotionPanel
+        open={ui.showTerminal}
+        side="bottom"
+        size={terminalHeight + 50}
+        className="flex flex-col"
+      >
+        <PanelResizeHandle
+          orientation="horizontal"
+          label="Resize terminal"
+          active={isTerminalResizing}
+          onPointerDown={handleResizeStart}
+        />
+        {ui.showTerminal && (
+          <>
           <div
             className="flex items-center shrink-0"
             style={{
@@ -143,90 +147,43 @@ export default function SessionPane(): JSX.Element | null {
                 return (
                   <div
                     key={tabId}
-                    className="flex items-center shrink-0 rounded-lg"
-                    style={{
-                      height: 30,
-                      background: active ? 'var(--control-bg)' : 'transparent'
-                    }}
+                    className="flex items-center shrink-0"
                   >
-                    <button
+                    <TabButton
+                      active={active}
                       onClick={() => setActiveTab(tabId)}
-                      className="flex items-center gap-2 h-full text-sm"
-                      style={{
-                        padding: '0 12px',
-                        color: active ? 'var(--color-text)' : 'var(--color-text-muted)',
-                        fontWeight: active ? 500 : 400
-                      }}
+                      onClose={tabs.length > 1 ? () => closeTab(tabId) : undefined}
+                      closeLabel="Close terminal"
                     >
                       <Icon name="terminal" size={15} />
                       {tabs.length === 1 ? 'Terminal' : `Terminal ${idx + 1}`}
-                    </button>
-                    {tabs.length > 1 && (
-                      <button
-                        onClick={() => closeTab(tabId)}
-                        className="h-full flex items-center"
-                        style={{ color: 'var(--color-text-muted)' }}
-                        title="Close terminal"
-                        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
-                      >
-                        <Icon name="close" size={12} />
-                      </button>
-                    )}
+                    </TabButton>
                   </div>
                 )
               })}
-              <button
-                onClick={addTab}
-                title="New terminal"
-                className="rounded-lg flex items-center justify-center"
-                style={{
-                  width: 30,
-                  height: 30,
-                  color: 'var(--color-text-muted)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = 'var(--color-text)'
-                  e.currentTarget.style.background = 'var(--control-bg-hover)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = 'var(--color-text-muted)'
-                  e.currentTarget.style.background = 'transparent'
-                }}
-              >
-                <Icon name="plus" size={16} />
-              </button>
+              <IconButton icon="plus" label="New terminal" onClick={addTab} />
             </div>
 
             <div className="flex items-center gap-0.5 px-2 shrink-0">
-              <button
+              <ToolbarButton
+                icon="eraser"
+                label="Clear terminal"
                 onClick={() => window.api.terminal.clear(terminalId(activeTab))}
-                title="Clear"
-                className="rounded-lg px-2 py-1 text-xs"
-                style={{ color: 'var(--color-text-muted)' }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
-              >
-                Clear
-              </button>
-              <button
+              />
+              <ToolbarButton
+                icon="close"
+                label="Hide terminal"
                 onClick={() => setShowTerminal(session.id, false)}
-                title="Hide terminal"
-                className="rounded-lg flex items-center justify-center"
-                style={{ color: 'var(--color-text-muted)' }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text)')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
-              >
-                <Icon name="close" size={15} />
-              </button>
+              />
             </div>
           </div>
 
           <div style={{ height: terminalHeight, flexShrink: 0, overflow: 'hidden', background: 'var(--surface-bg)' }}>
             <TerminalView terminalId={terminalId(activeTab)} workDir={session.workDir} />
           </div>
-        </>
-      )}
+          </>
+        )}
+      </MotionPanel>
     </div>
   )
 }
