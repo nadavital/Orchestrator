@@ -39,6 +39,12 @@ interface Rect extends Size {
   y: number
 }
 
+export interface PetElementMetrics {
+  isTrayVisible: boolean
+  mascot: Size
+  tray: Size | null
+}
+
 export interface PetConfig {
   pets: PetEntry[]
   selectedPetId: string
@@ -738,6 +744,32 @@ export const petOverlayManager = {
     const height = Math.ceil(size.height)
     if (width === traySize.width && height === traySize.height) return
     traySize = { width, height }
+    applyLayout()
+  },
+
+  setElementMetrics(metrics: PetElementMetrics): void {
+    const nextMascot = {
+      width: Math.ceil(metrics.mascot.width),
+      height: Math.ceil(metrics.mascot.height),
+    }
+    const nextTray = metrics.tray
+      ? {
+          width: Math.ceil(metrics.tray.width),
+          height: Math.ceil(metrics.tray.height),
+        }
+      : { width: TRAY_W, height: 0 }
+    const nextTrayCount = metrics.isTrayVisible ? Math.max(1, trayCount) : 0
+    const changed =
+      nextMascot.width !== mascotSize.width ||
+      nextMascot.height !== mascotSize.height ||
+      nextTray.width !== traySize.width ||
+      nextTray.height !== traySize.height ||
+      nextTrayCount !== trayCount
+    if (!changed) return
+    mascotSize = nextMascot
+    traySize = nextTray
+    trayCount = nextTrayCount
+    anchor = clampAnchor(anchor)
     applyLayout()
   },
 

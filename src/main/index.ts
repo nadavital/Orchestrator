@@ -70,6 +70,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedScrollSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay') {
+    runAutomatedPetOverlaySmoke(win, outputPath, screenshotPath)
+    return
+  }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
+    runAutomatedSessionSwitchSmoke(win, outputPath, screenshotPath)
+    return
+  }
 
   win.webContents.once('did-finish-load', () => {
     setTimeout(() => {
@@ -137,6 +145,26 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sidebarButton?.click();
             await sleep(700);
           }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
+            const createButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.trim() === 'Create');
+            createButton?.click();
+            await sleep(120);
+            var capabilityMenuOpened = Boolean(document.querySelector('.cap-create-menu [role="menu"]'));
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(120);
+            var capabilityMenuClosedWithEscape = !document.querySelector('.cap-create-menu [role="menu"]');
+            createButton?.click();
+            await sleep(120);
+            const skillMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+              .find((button) => button.textContent?.includes('Skill'));
+            skillMenuItem?.click();
+            await sleep(180);
+            var capabilitySheetOpened = Boolean(document.querySelector('.motion-sheet'));
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(120);
+            var capabilitySheetClosedWithEscape = !document.querySelector('.motion-sheet');
+          }
           const bodyText = document.body.innerText;
           const buttons = [...document.querySelectorAll('button')].map((button) => ({
             text: button.textContent?.trim() ?? '',
@@ -161,6 +189,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             ),
             hasInspectorTabs: bodyText.includes('Changes') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),
+            capabilityMenuOpened: typeof capabilityMenuOpened === 'boolean' ? capabilityMenuOpened : null,
+            capabilityMenuClosedWithEscape: typeof capabilityMenuClosedWithEscape === 'boolean' ? capabilityMenuClosedWithEscape : null,
+            capabilitySheetOpened: typeof capabilitySheetOpened === 'boolean' ? capabilitySheetOpened : null,
+            capabilitySheetClosedWithEscape: typeof capabilitySheetClosedWithEscape === 'boolean' ? capabilitySheetClosedWithEscape : null,
             buttonCount: buttons.length,
             buttons: buttons.slice(0, 30)
           };
@@ -176,6 +208,160 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
         app.quit()
       })
+    }, 700)
+  })
+}
+
+function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const profile = getAppProfile()
+        const sessions = sessionManager.list().filter((session) =>
+          session.messages.some((message) => message.type === 'text' && message.content.includes('SESSION_SWITCH_SMOKE_'))
+        )
+        const first = sessions.find((session) =>
+          session.messages.some((message) => message.type === 'text' && message.content.includes('SESSION_SWITCH_SMOKE_ONE'))
+        ) ?? sessions[0]
+        const second = sessions.find((session) =>
+          session.messages.some((message) => message.type === 'text' && message.content.includes('SESSION_SWITCH_SMOKE_TWO'))
+        ) ?? sessions[1]
+
+        if (!first || !second) {
+          writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, firstTranscriptFound: false, secondTranscriptFound: false }, screenshotPath }, null, 2))
+          app.quit()
+          return
+        }
+
+        win.webContents.send('pet:navigate', first.id)
+        await new Promise((resolve) => setTimeout(resolve, 250))
+        const before = await win.webContents.executeJavaScript(`
+          (() => ({
+            firstTranscriptFound: document.body.innerText.includes('SESSION_SWITCH_SMOKE_ONE'),
+            sessionViewAnimated: document.querySelector('[data-motion-view="session"]')?.classList.contains('motion-view-animated') ?? null
+          }))()
+        `)
+
+        await win.webContents.executeJavaScript('window.__orchestratorSessionSwitchStart = performance.now()')
+        win.webContents.send('pet:navigate', second.id)
+        const after = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 30; index += 1) {
+              if (document.body.innerText.includes('SESSION_SWITCH_SMOKE_TWO')) break;
+              await sleep(10);
+            }
+            return {
+              secondTranscriptFound: document.body.innerText.includes('SESSION_SWITCH_SMOKE_TWO'),
+              switchElapsedMs: performance.now() - window.__orchestratorSessionSwitchStart,
+              sessionViewAnimated: document.querySelector('[data-motion-view="session"]')?.classList.contains('motion-view-animated') ?? null
+            };
+          })()
+        `)
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...before, ...after }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const profile = getAppProfile()
+        const session = sessionManager.list()[0] ?? null
+        if (session) sessionManager.updateName(session.id, 'Overlay geometry smoke')
+
+        let overlayWindow: BrowserWindow | null = null
+        for (let attempt = 0; attempt < 30; attempt += 1) {
+          overlayWindow = BrowserWindow.getAllWindows().find((candidate) =>
+            candidate !== win && !candidate.isDestroyed() && candidate.webContents.getURL().includes('pet-overlay')
+          ) ?? null
+          if (overlayWindow) break
+          await new Promise((resolve) => setTimeout(resolve, 150))
+        }
+
+        if (!overlayWindow) {
+          writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, overlayFound: false }, screenshotPath }, null, 2))
+          app.quit()
+          return
+        }
+
+        overlayWindow.showInactive()
+        overlayWindow.moveTop()
+        if (session) sessionManager.updateStatus(session.id, 'waiting_for_user')
+        await new Promise((resolve) => setTimeout(resolve, 900))
+
+        const result = await overlayWindow.webContents.executeJavaScript(`
+          (() => {
+            const rectFor = (selector) => {
+              const el = document.querySelector(selector);
+              if (!el) return null;
+              const rect = el.getBoundingClientRect();
+              return {
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height
+              };
+            };
+            const viewport = { width: window.innerWidth, height: window.innerHeight };
+            const badge = rectFor('[data-testid="avatar-overlay-notification-badge"]');
+            const tray = rectFor('[data-avatar-overlay-size="notification-tray"]');
+            const mascot = rectFor('[data-avatar-mascot="true"]');
+            const tolerance = 3;
+            const badgeInsideViewport = Boolean(badge) &&
+              badge.left >= -tolerance &&
+              badge.top >= -tolerance &&
+              badge.right <= viewport.width + tolerance &&
+              badge.bottom <= viewport.height + tolerance;
+            const trayAligned = Boolean(tray && mascot) &&
+              Math.abs(tray.right - mascot.right) <= 4;
+            const noHorizontalOverflow = [badge, tray, mascot].filter(Boolean).every((rect) =>
+              rect.left >= -tolerance && rect.right <= viewport.width + tolerance
+            );
+            const noVerticalOverflow = [badge, tray, mascot].filter(Boolean).every((rect) =>
+              rect.top >= -tolerance && rect.bottom <= viewport.height + tolerance
+            );
+            return {
+              overlayFound: true,
+              viewport,
+              badge,
+              tray,
+              mascot,
+              badgeFound: Boolean(badge),
+              trayFound: Boolean(tray && tray.height > 0),
+              mascotFound: Boolean(mascot),
+              badgeInsideViewport,
+              trayAligned,
+              noHorizontalOverflow,
+              noVerticalOverflow,
+              bodyText: document.body.innerText
+            };
+          })()
+        `)
+
+        if (screenshotPath) {
+          const image = await overlayWindow.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
     }, 700)
   })
 }
@@ -298,16 +484,20 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   const existing = projectStore.list()
   const project = existing[0] ?? projectStore.add('Automated UI Smoke', workspace)
   const existingSessions = sessionManager.list()
-  if (existingSessions.some((session) => session.projectId === project.id)) return
-  const session = await sessionManager.create({
-    projectId: project.id,
-    workDir: project.rootPath,
-    useWorktree: false,
-    repoRoot: project.rootPath
-  })
-  projectStore.addSession(project.id, session.id)
+  let session = existingSessions.find((candidate) => candidate.projectId === project.id)
+  if (!session) {
+    session = await sessionManager.create({
+      projectId: project.id,
+      workDir: project.rootPath,
+      useWorktree: false,
+      repoRoot: project.rootPath
+    })
+    projectStore.addSession(project.id, session.id)
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'scroll') {
     seedAutomatedScrollSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
+    await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
   }
 }
 
@@ -329,6 +519,41 @@ function seedAutomatedScrollSmokeSession(sessionId: string): void {
     timestamp: Date.now() + messages.length
   })
   sessionManager.appendMessage(sessionId, messages)
+}
+
+async function seedAutomatedSessionSwitchSmokeSessions(projectId: string, workDir: string): Promise<void> {
+  const existing = sessionManager.list()
+  const one = existing.find((session) =>
+    session.messages.some((message) => message.type === 'text' && message.content.includes('SESSION_SWITCH_SMOKE_ONE'))
+  ) ?? await createSessionSwitchFixture(projectId, workDir, 'Session switch one', 'SESSION_SWITCH_SMOKE_ONE')
+  const two = existing.find((session) =>
+    session.messages.some((message) => message.type === 'text' && message.content.includes('SESSION_SWITCH_SMOKE_TWO'))
+  ) ?? await createSessionSwitchFixture(projectId, workDir, 'Session switch two', 'SESSION_SWITCH_SMOKE_TWO')
+  projectStore.addSession(projectId, one.id)
+  projectStore.addSession(projectId, two.id)
+}
+
+async function createSessionSwitchFixture(
+  projectId: string,
+  workDir: string,
+  name: string,
+  marker: string
+): Promise<ReturnType<typeof sessionManager.list>[number]> {
+  const session = await sessionManager.create({
+    projectId,
+    workDir,
+    useWorktree: false,
+    repoRoot: workDir
+  })
+  sessionManager.updateName(session.id, name)
+  sessionManager.appendMessage(session.id, [{
+    id: `${marker.toLowerCase()}-assistant`,
+    role: 'assistant',
+    type: 'text',
+    content: `${marker}: seeded transcript content for immediate chat switching.`,
+    timestamp: Date.now()
+  }])
+  return sessionManager.get(session.id) ?? session
 }
 
 app.on('window-all-closed', () => {

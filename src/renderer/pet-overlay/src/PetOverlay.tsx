@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import PetAvatar, { type AnimState } from './PetAvatar'
 import { PROVIDER_DEFS } from '../../../types'
 import type { PetConfig, PetEntry, PetLayout } from './env'
@@ -103,6 +103,166 @@ interface TrayScrollState {
   hiddenOlderNotificationCount: number
 }
 
+interface ElementSize {
+  width: number
+  height: number
+}
+
+interface OverlayElementMetrics {
+  isTrayVisible: boolean
+  mascot: ElementSize
+  tray: ElementSize | null
+}
+
+function roundedRectSize(el: HTMLElement | null): ElementSize | null {
+  if (!el || window.getComputedStyle(el).display === 'none') return null
+  const rect = el.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  return { width: Math.ceil(rect.width), height: Math.ceil(rect.height) }
+}
+
+function measureNotificationTray(el: HTMLElement | null): ElementSize | null {
+  if (!el || window.getComputedStyle(el).display === 'none') return null
+  const rect = el.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  const header = el.querySelector<HTMLElement>('[data-avatar-overlay-size="notification-tray-header"]')
+  const list = el.querySelector<HTMLElement>('[data-avatar-overlay-size="notification-tray-list"]')
+  const headerHeight = header ? Math.ceil(header.getBoundingClientRect().height) : 0
+  const listHeight = list ? Math.ceil(list.scrollHeight) : Math.ceil(rect.height)
+  return {
+    width: Math.ceil(el.offsetWidth > 0 ? el.offsetWidth : rect.width),
+    height: Math.max(0, headerHeight + listHeight),
+  }
+}
+
+function metricsKey(metrics: OverlayElementMetrics): string {
+  return [
+    metrics.isTrayVisible ? '1' : '0',
+    metrics.mascot.width,
+    metrics.mascot.height,
+    metrics.tray?.width ?? 0,
+    metrics.tray?.height ?? 0,
+  ].join(':')
+}
+
+function elementIsVisible(el: Element): boolean {
+  if (!(el instanceof HTMLElement)) return false
+  const style = window.getComputedStyle(el)
+  if (style.display === 'none' || style.visibility === 'hidden' || style.pointerEvents === 'none') return false
+  const rect = el.getBoundingClientRect()
+  return rect.width > 0 && rect.height > 0
+}
+
+function pointInsideElement(point: { x: number; y: number }, el: Element): boolean {
+  const rect = el.getBoundingClientRect()
+  if (point.x < rect.left || point.x > rect.right || point.y < rect.top || point.y > rect.bottom) return false
+  return document.elementsFromPoint(point.x, point.y).some((hit) => hit === el || el.contains(hit))
+}
+
+function findInteractiveElementAt(
+  point: { x: number; y: number },
+  region: HTMLElement | null,
+  selectors: string[]
+): Element | null {
+  if (!region) return null
+  for (const selector of selectors) {
+    const matches = Array.from(region.querySelectorAll(selector))
+    for (const candidate of matches) {
+      if (elementIsVisible(candidate) && pointInsideElement(point, candidate)) return candidate
+    }
+  }
+  if (elementIsVisible(region) && region.matches(':hover')) {
+    const hit = document.elementFromPoint(point.x, point.y)
+    if (hit?.closest(selectors.join(','))) return hit
+  }
+  return null
+}
+
+function useFloatingPetPointerInteractivity({
+  regionRef,
+  isPaused,
+}: {
+  regionRef: RefObject<HTMLElement | null>
+  isPaused: () => boolean
+}): void {
+  useEffect(() => {
+    const selectors = [
+      '[data-interactive]',
+      '[data-avatar-overlay-hit-region]',
+      '[data-avatar-mascot="true"]',
+      '[data-avatar-overlay-control]',
+      '[data-testid="avatar-overlay-notification-badge"]',
+      '[data-testid="avatar-overlay-resize-handle"]',
+    ]
+    let lastPoint: { x: number; y: number } | null = null
+    let lastInteractive = false
+    let frame: number | null = null
+
+    const setInteractive = (interactive: boolean): void => {
+      if (interactive === lastInteractive) return
+      lastInteractive = interactive
+      window.petApi.pet.setPointerInteractive(interactive)
+    }
+
+    const evaluate = (): void => {
+      frame = null
+      if (isPaused()) {
+        setInteractive(false)
+        return
+      }
+      if (!lastPoint) {
+        setInteractive(false)
+        return
+      }
+      setInteractive(Boolean(findInteractiveElementAt(lastPoint, regionRef.current, selectors)))
+    }
+
+    const schedule = (): void => {
+      if (frame !== null) return
+      frame = window.requestAnimationFrame(evaluate)
+    }
+
+    const handleMouseMove = (event: MouseEvent): void => {
+      lastPoint = { x: event.clientX, y: event.clientY }
+      schedule()
+    }
+    const handleMouseLeave = (): void => {
+      lastPoint = null
+      setInteractive(false)
+    }
+    const observer = new MutationObserver(schedule)
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('resize', schedule)
+    window.addEventListener('scroll', schedule, true)
+    window.addEventListener('mouseleave', handleMouseLeave)
+    observer.observe(document.body, {
+      attributeFilter: ['aria-hidden', 'class', 'hidden', 'style'],
+      attributes: true,
+      childList: true,
+      subtree: true,
+    })
+    schedule()
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('resize', schedule)
+      window.removeEventListener('scroll', schedule, true)
+      window.removeEventListener('mouseleave', handleMouseLeave)
+      observer.disconnect()
+      if (frame !== null) window.cancelAnimationFrame(frame)
+      window.petApi.pet.setPointerInteractive(false)
+    }
+  }, [isPaused, regionRef])
+}
+
+function usePrefersReducedMotion(): boolean {
+  const prefersReducedMotion = useRef(
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+  return prefersReducedMotion.current
+}
+
 function measureTrayScrollState(el: HTMLElement | null): TrayScrollState {
   if (!el) {
     return {
@@ -176,6 +336,8 @@ export default function PetOverlay(): JSX.Element | null {
   })
   const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(() => loadDismissedKeys())
   const [isNotificationTrayOpen, setIsNotificationTrayOpen] = useState(true)
+  const [badgePressed, setBadgePressed] = useState(false)
+  const [badgeHovering, setBadgeHovering] = useState(false)
   const [trayScrollState, setTrayScrollState] = useState<TrayScrollState>(() => ({
     hasScrollableContent: false,
     hasLatestNotificationsAbove: false,
@@ -189,12 +351,16 @@ export default function PetOverlay(): JSX.Element | null {
   const [dragAnimState, setDragAnimState] = useState<AnimState | null>(null)
   const [mascotWidthPx, setMascotWidthPx] = useState<number | null>(null)
   const [isResizingVisual, setIsResizingVisual] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
   const trayRef = useRef<HTMLDivElement>(null)
   const trayListRef = useRef<HTMLDivElement>(null)
   const mascotRef = useRef<HTMLDivElement>(null)
   const resizeState = useRef<ResizeState | null>(null)
   const resizeFrameRef = useRef<number | null>(null)
   const pendingResizeWidthRef = useRef<number | null>(null)
+  const metricsFrameRef = useRef<number | null>(null)
+  const lastMetricsKeyRef = useRef<string | null>(null)
+  const prefersReducedMotion = usePrefersReducedMotion()
 
   // Load initial config + sessions.
   useEffect(() => {
@@ -321,56 +487,6 @@ export default function PetOverlay(): JSX.Element | null {
     storeDismissedKeys(dismissedKeys)
   }, [dismissedKeys])
 
-  // Mouse passthrough
-  useEffect(() => {
-    let lastInteractive = false
-    const onMove = (e: MouseEvent): void => {
-      if (isDragging.current) return
-      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-      const isInteractive = !!el?.closest('[data-interactive]')
-      if (isInteractive !== lastInteractive) {
-        lastInteractive = isInteractive
-        window.petApi.pet.setPointerInteractive(isInteractive)
-      }
-    }
-    window.addEventListener('mousemove', onMove)
-    return () => window.removeEventListener('mousemove', onMove)
-  }, [])
-
-  // Report actual element sizes to main so it can place the floating window.
-  useEffect(() => {
-    const el = trayRef.current
-    if (!el) return
-    let frame: number | null = null
-    const ro = new ResizeObserver(([entry]) => {
-      const width = Math.ceil(entry.contentRect.width)
-      const height = Math.ceil(entry.contentRect.height)
-      if (frame !== null) window.cancelAnimationFrame(frame)
-      frame = window.requestAnimationFrame(() => {
-        frame = null
-        window.petApi.pet.setTraySize({ width, height })
-      })
-    })
-    ro.observe(el)
-    return () => {
-      if (frame !== null) window.cancelAnimationFrame(frame)
-      ro.disconnect()
-    }
-  }, [])
-
-  useEffect(() => {
-    const el = mascotRef.current
-    if (!el) return
-    const ro = new ResizeObserver(([entry]) => {
-      window.petApi.pet.setMascotSize({
-        width: Math.ceil(entry.contentRect.width),
-        height: Math.ceil(entry.contentRect.height),
-      })
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   // Compute aggregate state
   const notifications = Object.values(sessions)
     .map((session) => buildPetNotification(session))
@@ -390,6 +506,62 @@ export default function PetOverlay(): JSX.Element | null {
     config?.pets.find((p) => p.id === config.selectedPetId) ?? config?.pets[0]
 
   const hasTray = notifications.length > 0
+  const badgeScale = prefersReducedMotion ? 1 : badgePressed ? 0.94 : badgeHovering ? 1.06 : 1
+
+  const reportElementMetrics = useCallback((): void => {
+    const mascot = roundedRectSize(mascotRef.current)
+    if (!mascot) return
+    const metrics: OverlayElementMetrics = {
+      isTrayVisible: hasTray && isNotificationTrayOpen,
+      mascot,
+      tray: hasTray && isNotificationTrayOpen ? measureNotificationTray(trayRef.current) : null,
+    }
+    const key = metricsKey(metrics)
+    if (key === lastMetricsKeyRef.current) return
+    lastMetricsKeyRef.current = key
+    window.petApi.pet.setElementMetrics(metrics)
+  }, [hasTray, isNotificationTrayOpen])
+
+  const scheduleElementMetricsReport = useCallback((): void => {
+    if (metricsFrameRef.current !== null) return
+    metricsFrameRef.current = window.requestAnimationFrame(() => {
+      metricsFrameRef.current = null
+      reportElementMetrics()
+    })
+  }, [reportElementMetrics])
+  const isPointerInteractivityPaused = useCallback((): boolean => (
+    isDragging.current || resizeState.current !== null
+  ), [])
+
+  useLayoutEffect(() => {
+    scheduleElementMetricsReport()
+    const observed = [
+      mascotRef.current,
+      trayRef.current,
+      trayListRef.current,
+      ...Array.from(trayRef.current?.querySelectorAll<HTMLElement>('[data-avatar-overlay-measure="notification-tray-row"]') ?? []),
+    ].filter((el): el is HTMLElement => Boolean(el))
+    const ro = new ResizeObserver(scheduleElementMetricsReport)
+    observed.forEach((el) => ro.observe(el))
+    window.addEventListener('resize', scheduleElementMetricsReport)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', scheduleElementMetricsReport)
+    }
+  }, [notifications.length, selectedPet?.id, mascotWidthPx, isNotificationTrayOpen, scheduleElementMetricsReport])
+
+  useEffect(() => {
+    return () => {
+      if (metricsFrameRef.current !== null) {
+        window.cancelAnimationFrame(metricsFrameRef.current)
+      }
+    }
+  }, [])
+
+  useFloatingPetPointerInteractivity({
+    regionRef: rootRef,
+    isPaused: isPointerInteractivityPaused,
+  })
 
   useEffect(() => {
     setTrayScrollState(measureTrayScrollState(trayListRef.current))
@@ -554,6 +726,7 @@ export default function PetOverlay(): JSX.Element | null {
 
   return (
     <div
+      ref={rootRef}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -765,7 +938,23 @@ export default function PetOverlay(): JSX.Element | null {
             className="no-drag"
             aria-label={isNotificationTrayOpen ? 'Collapse activity' : `Open activity tray, ${notifications.length} item${notifications.length === 1 ? '' : 's'}`}
             title={isNotificationTrayOpen ? 'Collapse activity' : 'Open activity tray'}
-            onPointerDown={(ev) => ev.stopPropagation()}
+            onPointerDown={(ev) => {
+              ev.stopPropagation()
+              setBadgePressed(true)
+            }}
+            onPointerUp={() => setBadgePressed(false)}
+            onPointerCancel={() => setBadgePressed(false)}
+            onPointerEnter={() => setBadgeHovering(true)}
+            onPointerLeave={() => {
+              setBadgeHovering(false)
+              setBadgePressed(false)
+            }}
+            onMouseDown={() => setBadgePressed(true)}
+            onMouseUp={() => setBadgePressed(false)}
+            onBlur={() => {
+              setBadgeHovering(false)
+              setBadgePressed(false)
+            }}
             onClick={(ev) => {
               ev.stopPropagation()
               setIsNotificationTrayOpen((open) => !open)
@@ -781,6 +970,7 @@ export default function PetOverlay(): JSX.Element | null {
               minWidth: 28,
               minHeight: 28,
               width: isNotificationTrayOpen ? 28 : undefined,
+              height: 28,
               padding: isNotificationTrayOpen ? 0 : '4px 8px',
               borderRadius: 999,
               border: '1px solid var(--color-token-border-default, rgba(255,255,255,0.18))',
@@ -791,8 +981,9 @@ export default function PetOverlay(): JSX.Element | null {
               fontWeight: 500,
               lineHeight: 1,
               cursor: 'pointer',
-              transform: 'translate(6px, -4px)',
-              transition: 'transform 160ms ease-out, background-color 160ms ease-out, color 160ms ease-out, scale 160ms ease-out',
+              transform: `scale(${badgeScale})`,
+              transformOrigin: 'center',
+              transition: prefersReducedMotion ? 'none' : 'transform 160ms cubic-bezier(0.19, 1, 0.22, 1), background-color 160ms ease-out, color 160ms ease-out',
             }}
           >
             {isNotificationTrayOpen ? (

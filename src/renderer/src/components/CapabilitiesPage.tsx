@@ -16,7 +16,7 @@ import { useProjectStore } from '../store/projects'
 import { useSessionStore } from '../store/sessions'
 import Icon from './shared/Icon'
 import ProviderIcon from './shared/ProviderIcon'
-import { Badge, Button, PopoverSurface, SegmentedControl, Sheet, SurfaceRow, ToolbarButton } from './shared/designSystem'
+import { Badge, Button, ConfirmDialog, MenuItem, MenuSurface, SegmentedControl, Sheet, SurfaceRow, ToolbarButton } from './shared/designSystem'
 
 type CapabilityTab = 'skill' | 'mcp' | 'plugin' | 'app' | 'agent' | 'instruction' | 'more'
 type CapabilityScopeFilter = 'all' | 'global' | 'project'
@@ -89,6 +89,7 @@ export default function CapabilitiesPage(): JSX.Element {
   const [syncMode, setSyncMode] = useState<CapabilitySyncMode>('backfill-missing-providers')
   const [syncLoading, setSyncLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [removeCandidate, setRemoveCandidate] = useState<ResourceGroup | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!workDir) return
@@ -217,10 +218,10 @@ export default function CapabilitiesPage(): JSX.Element {
   }
 
   const removeGroup = async (group: ResourceGroup): Promise<void> => {
-    if (!confirm(`Remove ${group.name}? This will delete editable global capability files for this item.`)) return
     try {
       const result = await window.api.providers.deleteCapability({ resources: group.resources })
       setMessage(`Removed ${group.name}. ${result.files.length} file${result.files.length === 1 ? '' : 's'} changed.${result.warnings.length ? ` ${result.warnings[0]}` : ''}`)
+      setRemoveCandidate(null)
       await refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -298,20 +299,11 @@ export default function CapabilitiesPage(): JSX.Element {
               Create
             </Button>
             {createMenuOpen && (
-              <PopoverSurface className="cap-create-menu">
-                <button onClick={() => openCreate('skill')}>
-                  <Icon name="sparkles" size={14} />
-                  <span>Skill</span>
-                </button>
-                <button onClick={() => openCreate('mcp_server')}>
-                  <Icon name="plug" size={14} />
-                  <span>MCP server</span>
-                </button>
-                <button onClick={() => openCreate('plugin')}>
-                  <Icon name="extensions" size={14} />
-                  <span>Plugin</span>
-                </button>
-              </PopoverSurface>
+              <MenuSurface className="cap-create-menu" onClose={() => setCreateMenuOpen(false)}>
+                <MenuItem icon="sparkles" label="Skill" onClick={() => openCreate('skill')} />
+                <MenuItem icon="plug" label="MCP server" onClick={() => openCreate('mcp_server')} />
+                <MenuItem icon="extensions" label="Plugin" onClick={() => openCreate('plugin')} />
+              </MenuSurface>
             )}
           </div>
         </div>
@@ -391,7 +383,7 @@ export default function CapabilitiesPage(): JSX.Element {
               groups={visibleGroups}
               loading={loading}
               onEdit={openEdit}
-              onRemove={(group) => void removeGroup(group)}
+              onRemove={(group) => setRemoveCandidate(group)}
               onSync={openSync}
             />
           )}
@@ -457,6 +449,16 @@ export default function CapabilitiesPage(): JSX.Element {
             setSyncPlan(null)
           }}
           onSubmit={() => void submitSync()}
+        />
+      )}
+
+      {removeCandidate && (
+        <ConfirmDialog
+          title={`Remove ${removeCandidate.name}?`}
+          description="This will delete editable global capability files for this item."
+          confirmLabel="Delete"
+          onCancel={() => setRemoveCandidate(null)}
+          onConfirm={() => void removeGroup(removeCandidate)}
         />
       )}
     </div>
@@ -565,39 +567,36 @@ function CapabilityRow({
           />
         )}
         {hasActions && menuOpen && (
-          <PopoverSurface className="capability-row-menu">
-            <button
+          <MenuSurface className="capability-row-menu" onClose={() => setMenuOpen(false)}>
+            <MenuItem
+              icon="refresh"
+              label="Sync"
               disabled={!canSync}
               onClick={() => {
                 setMenuOpen(false)
                 onSync()
               }}
-            >
-              <Icon name="refresh" size={13} />
-              <span>Sync</span>
-            </button>
-            <button
+            />
+            <MenuItem
+              icon="pencil"
+              label="Edit"
               disabled={!canEdit}
               onClick={() => {
                 setMenuOpen(false)
                 onEdit()
               }}
-            >
-              <Icon name="pencil" size={13} />
-              <span>Edit</span>
-            </button>
-            <button
+            />
+            <MenuItem
+              icon="close"
+              label="Delete"
+              tone="danger"
               disabled={!canRemove}
-              className="danger"
               onClick={() => {
                 setMenuOpen(false)
                 onRemove()
               }}
-            >
-              <Icon name="close" size={13} />
-              <span>Delete</span>
-            </button>
-          </PopoverSurface>
+            />
+          </MenuSurface>
         )}
       </div>
     </SurfaceRow>
@@ -775,16 +774,22 @@ function EditCapabilitySheet({
 }): JSX.Element {
   const editable = group.resources.some((resource) => resource.actions.includes('edit'))
   return (
-    <div className="capability-sheet-backdrop">
-      <section className="capability-sheet">
-        <div className="capability-sheet-header">
-          <div>
-            <h2>Edit capability</h2>
-            <p>{editable ? 'Updates global capability files that Orchestrator can safely manage.' : 'This item is provider-managed.'}</p>
-          </div>
-          <button onClick={onClose} title="Close"><Icon name="close" size={15} /></button>
+    <Sheet
+      onClose={onClose}
+      title={
+        <div>
+          <h2>Edit capability</h2>
+          <p>{editable ? 'Updates global capability files that Orchestrator can safely manage.' : 'This item is provider-managed.'}</p>
         </div>
-
+      }
+      footer={
+        <>
+          <span className="capability-scope-note">{editable ? 'Editable global file' : 'Provider-managed'}</span>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={onSubmit} disabled={!editable}>Save</Button>
+        </>
+      }
+    >
         <label className="cap-field">
           <span>Name</span>
           <input value={name} onChange={(event) => onNameChange(event.target.value)} disabled={!editable} />
@@ -796,13 +801,16 @@ function EditCapabilitySheet({
 
         {group.kind === 'mcp_server' ? (
           <>
-            <div className="cap-segmented compact">
-              {(['stdio', 'http'] as CapabilityMcpTransport[]).map((transport) => (
-                <button key={transport} className={mcpTransport === transport ? 'active' : ''} onClick={() => onMcpTransportChange(transport)} disabled={!editable}>
-                  {transport === 'stdio' ? 'Command' : 'HTTP'}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              value={mcpTransport}
+              onChange={onMcpTransportChange}
+              options={(['stdio', 'http'] as CapabilityMcpTransport[]).map((transport) => ({
+                value: transport,
+                label: transport === 'stdio' ? 'Command' : 'HTTP',
+                disabled: !editable
+              }))}
+              className="compact mb-3"
+            />
             {mcpTransport === 'stdio' ? (
               <>
                 <label className="cap-field">
@@ -832,14 +840,7 @@ function EditCapabilitySheet({
             />
           </label>
         )}
-
-        <div className="capability-sheet-footer">
-          <span className="capability-scope-note">{editable ? 'Editable global file' : 'Provider-managed'}</span>
-          <button className="cap-button ghost" onClick={onClose}>Cancel</button>
-          <button className="cap-button primary" onClick={onSubmit} disabled={!editable}>Save</button>
-        </div>
-      </section>
-    </div>
+    </Sheet>
   )
 }
 
@@ -877,24 +878,31 @@ function SyncCapabilitySheet({
   }
 
   return (
-    <div className="capability-sheet-backdrop">
-      <section className="capability-sheet cap-sync-sheet">
-        <div className="capability-sheet-header">
-          <div>
-            <h2>Sync capability</h2>
-            <p>{group.name}</p>
-          </div>
-          <button onClick={onClose} title="Close"><Icon name="close" size={15} /></button>
+    <Sheet
+      onClose={onClose}
+      title={
+        <div>
+          <h2>Sync capability</h2>
+          <p>{group.name}</p>
         </div>
-
-        <div className="cap-segmented">
-          {syncModeOptions(group.kind).map((option) => (
-            <button key={option.id} className={mode === option.id ? 'active' : ''} onClick={() => onModeChange(option.id)}>
-              {option.label}
-            </button>
-          ))}
-        </div>
-
+      }
+      footer={
+        <>
+          <span className="capability-scope-note">{scopeSummary(group)}</span>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={onSubmit} disabled={disabled}>Apply</Button>
+        </>
+      }
+    >
+        <SegmentedControl
+          value={mode}
+          onChange={onModeChange}
+          options={syncModeOptions(group.kind).map((option) => ({
+            value: option.id,
+            label: option.label
+          }))}
+          className="mb-3"
+        />
         <div className="cap-sync-provider-grid">
           {providerOptions.map((providerId) => {
             const provider = PROVIDER_DEFS[providerId]
@@ -948,14 +956,7 @@ function SyncCapabilitySheet({
             </div>
           )}
         </section>
-
-        <div className="capability-sheet-footer">
-          <span className="capability-scope-note">{scopeSummary(group)}</span>
-          <button className="cap-button ghost" onClick={onClose}>Cancel</button>
-          <button className="cap-button primary" onClick={onSubmit} disabled={disabled}>Apply</button>
-        </div>
-      </section>
-    </div>
+    </Sheet>
   )
 }
 

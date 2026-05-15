@@ -261,6 +261,20 @@
     transform-origin: top center;
   }
 
+  .motion-menu-item {
+    transition:
+      background-color var(--motion-duration-control) var(--motion-ease-standard),
+      color var(--motion-duration-control) var(--motion-ease-standard),
+      transform var(--motion-duration-control) var(--motion-ease-standard);
+  }
+
+  .motion-menu-item:hover,
+  .motion-menu-item:focus-visible {
+    background: var(--control-bg-hover) !important;
+    outline: none;
+    transform: translateX(1px);
+  }
+
   .motion-view-animated {
     animation: motionOverlayIn var(--motion-duration-panel) var(--motion-ease-emphasized) both;
   }

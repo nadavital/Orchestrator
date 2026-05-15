@@ -11,18 +11,22 @@ const captureView = process.argv.includes('--settings')
   : process.argv.includes('--capabilities')
     ? 'capabilities'
     : process.argv.includes('--resources')
-      ? 'resources'
+    ? 'resources'
       : process.argv.includes('--pets')
         ? 'pets'
-        : process.argv.includes('--design-system')
-          ? 'design-system'
-          : process.argv.includes('--scroll')
-            ? 'scroll'
-            : process.argv.includes('--inspector')
-              ? 'inspector'
-              : process.argv.includes('--terminal')
-                ? 'terminal'
-                : 'main'
+        : process.argv.includes('--pet-overlay')
+          ? 'pet-overlay'
+          : process.argv.includes('--session-switch')
+            ? 'session-switch'
+            : process.argv.includes('--design-system')
+              ? 'design-system'
+              : process.argv.includes('--scroll')
+                ? 'scroll'
+                : process.argv.includes('--inspector')
+                  ? 'inspector'
+                  : process.argv.includes('--terminal')
+                    ? 'terminal'
+                    : 'main'
 const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', profile)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
@@ -40,7 +44,7 @@ const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'd
     ORCHESTRATOR_PROFILE: profile,
     ORCHESTRATOR_USER_DATA_DIR: userDataDir,
     ORCHESTRATOR_SMOKE_WORKSPACE_DIR: workspaceDir,
-    ORCHESTRATOR_DISABLE_PET_OVERLAY: '1',
+    ORCHESTRATOR_DISABLE_PET_OVERLAY: captureView === 'pet-overlay' ? '0' : '1',
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT: outputPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_SCREENSHOT: screenshotPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW: captureView
@@ -74,7 +78,27 @@ child.on('exit', (code) => {
   }
 
   const result = report.result ?? {}
-  const checks = captureView === 'scroll'
+  const checks = captureView === 'session-switch'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        firstTranscriptFound: result.firstTranscriptFound === true,
+        secondTranscriptFound: result.secondTranscriptFound === true,
+        switchWithinBudget: Number(result.switchElapsedMs ?? Number.POSITIVE_INFINITY) <= 150,
+        sessionViewNotAnimated: result.sessionViewAnimated === false
+      }
+    : captureView === 'pet-overlay'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        overlayFound: result.overlayFound === true,
+        badgeFound: result.badgeFound === true,
+        trayFound: result.trayFound === true,
+        mascotFound: result.mascotFound === true,
+        badgeInsideViewport: result.badgeInsideViewport === true,
+        trayAligned: result.trayAligned === true,
+        noHorizontalOverflow: result.noHorizontalOverflow === true,
+        noVerticalOverflow: result.noVerticalOverflow === true
+      }
+    : captureView === 'scroll'
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
         transcriptFound: result.transcriptFound === true,
@@ -98,6 +122,10 @@ child.on('exit', (code) => {
         sidebarNavigation: ['capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector'].includes(captureView) || result.hasSideQuestionCommandText === true,
+        capabilityCreateMenu: captureView !== 'capabilities' || result.capabilityMenuOpened === true,
+        capabilityMenuEscape: captureView !== 'capabilities' || result.capabilityMenuClosedWithEscape === true,
+        capabilityCreateSheet: captureView !== 'capabilities' || result.capabilitySheetOpened === true,
+        capabilitySheetEscape: captureView !== 'capabilities' || result.capabilitySheetClosedWithEscape === true,
         buttons: Number(result.buttonCount ?? 0) > 0
       }
   const failed = Object.entries(checks).filter(([, ok]) => !ok)

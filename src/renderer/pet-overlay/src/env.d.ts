@@ -65,6 +65,11 @@ declare global {
         setTrayCount: (count: number) => void
         setTrayHeight: (h: number) => void
         setTraySize: (size: { width: number; height: number }) => void
+        setElementMetrics: (metrics: {
+          isTrayVisible: boolean
+          mascot: { width: number; height: number }
+          tray: { width: number; height: number } | null
+        }) => void
         setMascotSize: (size: { width: number; height: number }) => void
         setMascotResizePreview: (width: number) => void
         setMascotWidth: (width: number) => void

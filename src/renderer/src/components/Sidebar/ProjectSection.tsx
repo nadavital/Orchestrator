@@ -4,7 +4,7 @@ import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
 import SessionItem from './SessionItem'
 import Icon from '../shared/Icon'
-import { IconButton, SurfaceRow } from '../shared/designSystem'
+import { ConfirmDialog, IconButton, SurfaceRow } from '../shared/designSystem'
 
 interface Props {
   project: Project
@@ -14,6 +14,7 @@ interface Props {
 export default function ProjectSection({ project, sessions }: Props): JSX.Element {
   const [collapsed, setCollapsed] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [confirmingRemoval, setConfirmingRemoval] = useState(false)
   const { removeProject, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const {
     sessions: allSessions,
@@ -83,7 +84,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
         onClick={() => setCollapsed((c) => !c)}
         onContextMenu={(e) => {
           e.preventDefault()
-          if (confirm(`Remove project "${project.name}"?`)) handleRemoveProject()
+          setConfirmingRemoval(true)
         }}
       >
         <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
@@ -121,6 +122,18 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
             <SessionItem key={session.id} session={session} />
           ))}
         </div>
+      )}
+      {confirmingRemoval && (
+        <ConfirmDialog
+          title={`Remove project "${project.name}"?`}
+          description="This removes the project and its chats from Orchestrator."
+          confirmLabel="Remove"
+          onCancel={() => setConfirmingRemoval(false)}
+          onConfirm={() => {
+            setConfirmingRemoval(false)
+            void handleRemoveProject()
+          }}
+        />
       )}
     </div>
   )

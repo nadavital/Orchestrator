@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { forwardRef, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import Icon, { type IconName } from './Icon'
 import { rowMotionStyle } from '../../design/motion'
 
@@ -668,6 +668,247 @@ export const PopoverSurface = forwardRef<HTMLDivElement, {
     </div>
   )
 })
+
+export function DismissablePopoverSurface({
+  children,
+  onClose,
+  className = '',
+  style,
+  role,
+}: {
+  children: ReactNode
+  onClose: () => void
+  className?: string
+  style?: CSSProperties
+  role?: string
+}): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+      }
+    }
+    const onMouseDown = (event: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        window.setTimeout(onClose, 0)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    document.addEventListener('mousedown', onMouseDown, { capture: true })
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, { capture: true })
+      document.removeEventListener('mousedown', onMouseDown, { capture: true })
+    }
+  }, [onClose])
+
+  return (
+    <PopoverSurface ref={ref} className={className} style={style}>
+      <div role={role} className="min-w-0">
+        {children}
+      </div>
+    </PopoverSurface>
+  )
+}
+
+export function MenuSurface({
+  children,
+  onClose,
+  className = '',
+  style,
+}: {
+  children: ReactNode
+  onClose: () => void
+  className?: string
+  style?: CSSProperties
+}): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const focusMenuItem = (delta: 1 | -1): void => {
+      const items = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])
+      if (items.length === 0) return
+      const currentIndex = Math.max(0, items.findIndex((item) => item === document.activeElement))
+      const next = items[(currentIndex + delta + items.length) % items.length]
+      next?.focus()
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        focusMenuItem(1)
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        focusMenuItem(-1)
+      }
+    }
+    const onMouseDown = (event: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        window.setTimeout(onClose, 0)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    document.addEventListener('mousedown', onMouseDown, { capture: true })
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, { capture: true })
+      document.removeEventListener('mousedown', onMouseDown, { capture: true })
+    }
+  }, [onClose])
+
+  return (
+    <PopoverSurface ref={ref} className={className} style={style}>
+      <div role="menu" className="flex min-w-0 flex-col gap-1 p-1">
+        {children}
+      </div>
+    </PopoverSurface>
+  )
+}
+
+export function MenuItem({
+  icon,
+  label,
+  onClick,
+  tone = 'neutral',
+  disabled = false,
+}: {
+  icon?: IconName
+  label: ReactNode
+  onClick: () => void | Promise<void>
+  tone?: Tone
+  disabled?: boolean
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onClick={() => { void onClick() }}
+      className="motion-menu-item flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs disabled:cursor-default disabled:opacity-45"
+      style={{
+        color: toneColor[tone],
+        background: 'transparent',
+        border: 'none',
+      }}
+    >
+      {icon && <Icon name={icon} size={13} />}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
+  )
+}
+
+export function ConfirmDialog({
+  title,
+  description,
+  confirmLabel,
+  cancelLabel = 'Cancel',
+  tone = 'danger',
+  onCancel,
+  onConfirm,
+}: {
+  title: ReactNode
+  description?: ReactNode
+  confirmLabel: ReactNode
+  cancelLabel?: ReactNode
+  tone?: 'danger' | 'accent'
+  onCancel: () => void
+  onConfirm: () => void | Promise<void>
+}): JSX.Element {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onCancel])
+
+  return (
+    <MotionOverlay onClose={onCancel} surfaceClassName="w-[min(420px,calc(100vw-32px))] rounded-xl p-4">
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</div>
+          {description && <div className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{description}</div>}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onCancel}>{cancelLabel}</Button>
+          <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm}>{confirmLabel}</Button>
+        </div>
+      </div>
+    </MotionOverlay>
+  )
+}
+
+export function TextInputDialog({
+  title,
+  description,
+  initialValue,
+  confirmLabel,
+  cancelLabel = 'Cancel',
+  placeholder,
+  onCancel,
+  onConfirm,
+}: {
+  title: ReactNode
+  description?: ReactNode
+  initialValue: string
+  confirmLabel: ReactNode
+  cancelLabel?: ReactNode
+  placeholder?: string
+  onCancel: () => void
+  onConfirm: (value: string) => void | Promise<void>
+}): JSX.Element {
+  const [value, setValue] = useState(initialValue)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const input = inputRef.current
+    if (!input) return
+    input.focus()
+    input.select()
+  }, [])
+
+  const submit = (): void => {
+    const next = value.trim()
+    if (!next) return
+    void onConfirm(next)
+  }
+
+  return (
+    <MotionOverlay onClose={onCancel} surfaceClassName="w-[min(420px,calc(100vw-32px))] rounded-xl p-4">
+      <form
+        className="flex min-w-0 flex-col gap-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          submit()
+        }}
+      >
+        <div className="min-w-0">
+          <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</div>
+          {description && <div className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{description}</div>}
+        </div>
+        <input
+          ref={inputRef}
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => setValue(event.target.value)}
+          className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+          style={{
+            borderColor: 'var(--border-subtle)',
+            background: 'var(--control-bg)',
+            color: 'var(--text-primary)',
+          }}
+        />
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onCancel}>{cancelLabel}</Button>
+          <Button variant="primary" type="submit" disabled={!value.trim()}>{confirmLabel}</Button>
+        </div>
+      </form>
+    </MotionOverlay>
+  )
+}
 
 export function ScrollEdgeButton({
   children,

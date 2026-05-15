@@ -227,6 +227,8 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.on('pet:trayCount', (_, count: number) => petOverlayManager.setTrayCount(count))
   ipcMain.on('pet:trayHeight', (_, h: number) => petOverlayManager.setTrayHeight(h))
   ipcMain.on('pet:traySize', (_, size: { width: number; height: number }) => petOverlayManager.setTraySize(size))
+  ipcMain.on('pet:elementMetrics', (_, metrics: { isTrayVisible: boolean; mascot: { width: number; height: number }; tray: { width: number; height: number } | null }) =>
+    petOverlayManager.setElementMetrics(metrics))
   ipcMain.on('pet:mascotSize', (_, size: { width: number; height: number }) => petOverlayManager.setMascotSize(size))
   ipcMain.on('pet:mascotResizePreview', (_, width: number) => petOverlayManager.setMascotResizePreview(width))
   ipcMain.on('pet:mascotWidth', (_, width: number) => petOverlayManager.setMascotWidth(width))

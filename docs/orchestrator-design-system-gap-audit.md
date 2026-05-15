@@ -1264,16 +1264,26 @@ Use this as the definition of done for the full migration.
 
 ## Bottom Line
 
-The current implementation is no longer just a first slice. It now has a real app-shell, panel, resize, tab, toolbar, badge, and inspector primitive baseline. It is still not a whole-app 1:1 Codex UI/motion system.
+The current implementation is no longer just a first slice. It now has a real app-shell, panel, resize, tab, toolbar, badge, inspector, pet-overlay geometry, and shared interaction primitive baseline. It is still not a whole-app 1:1 Codex UI/motion system because settings, transcript, composer, extension panels, full focus restoration, and exit-animation retention still need a dedicated finishing pass.
+
+Completed in the latest implementation pass:
+
+- Floating pet-overlay badge and tray geometry now report measured mascot/tray metrics to the main-process layout manager.
+- Pet overlay pointer interactivity now covers the mascot, badge, resize handle, tray, rows, and controls instead of only checking generic `data-interactive` hits.
+- Pet overlay badge scaling now uses Codex-like hover/press motion and reduced-motion fallback.
+- Automated pet-overlay smoke now verifies overlay presence, badge/tray/mascot bounds, tray alignment, and overflow.
+- Automated session-switch smoke now verifies transcript switching within budget and confirms the session view is not replaying entrance motion.
+- Shared `MenuSurface`, `MenuItem`, `DismissablePopoverSurface`, `ConfirmDialog`, and `TextInputDialog` primitives now cover Escape/outside-click behavior, disabled/danger states, and native dialog replacement.
+- Capabilities create/row menus, edit/sync sheets, and delete confirmation now use shared primitives.
+- Session action rename/delete and project removal no longer use native browser prompt/confirm UI.
+- Capabilities smoke now verifies create-menu open, menu Escape dismissal, create-sheet open, and sheet Escape dismissal.
 
 The biggest remaining pieces are:
 
-1. Chat switching latency guard and smoke coverage.
-2. Floating pet-overlay visual smoke coverage and reduced-motion hardening.
-3. Shared dismissable menu/popover/sheet accessibility behavior.
-4. Full settings migration.
-5. Composer and transcript primitives.
-6. Extensions panel migration.
-7. Capabilities edit/sync sheet migration.
-
-The next best step is the latency/pet-overlay verification pass: prove chat switching is instant, then add the floating pet-overlay harness so resize, badge, tray, banner, and custom-state behavior can be checked automatically.
+1. Full settings migration to shared rows, cards, diagnostics pills, and form controls.
+2. Composer and transcript primitives beyond dropdown dismissal, especially attachment chips, command surfaces, file cards, scroll-to-bottom, and thinking/streaming states.
+3. Extensions panel migration.
+4. Focus restoration and focus trapping for sheets/dialogs.
+5. Exit animation retention for menus/sheets/dialogs rather than immediate unmount.
+6. Reduced-motion automated coverage for the main renderer and pet overlay.
+7. Deeper visual comparison baselines against Codex for badges, banners, panels, menus, tabs, sheets, and navigation.
