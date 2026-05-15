@@ -858,6 +858,36 @@
     }
   }
 
+  :root[data-reduced-motion="true"] {
+    --motion-duration-edge: 0ms;
+    --motion-duration-row: 0ms;
+    --motion-duration-control: 0ms;
+    --motion-duration-overlay: 0ms;
+    --motion-duration-panel: 0ms;
+    --motion-row-enter-y: 0px;
+    --motion-control-offset: 0px;
+  }
+
+  :root[data-reduced-motion="true"] *,
+  :root[data-reduced-motion="true"] *::before,
+  :root[data-reduced-motion="true"] *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0ms !important;
+  }
+
+  :root[data-reduced-motion="true"] .motion-button:hover,
+  :root[data-reduced-motion="true"] .motion-icon-button:hover,
+  :root[data-reduced-motion="true"] .motion-edge-button:hover,
+  :root[data-reduced-motion="true"] .motion-badge-button:hover,
+  :root[data-reduced-motion="true"] .motion-button:active,
+  :root[data-reduced-motion="true"] .motion-icon-button:active,
+  :root[data-reduced-motion="true"] .motion-edge-button:active,
+  :root[data-reduced-motion="true"] .motion-badge-button:active {
+    transform: none !important;
+  }
+
   .capabilities-page {
     position: relative;
     display: flex;

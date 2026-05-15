@@ -78,6 +78,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedSessionSwitchSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced') {
+    runAutomatedReducedMotionSmoke(win, outputPath, screenshotPath)
+    return
+  }
 
   win.webContents.once('did-finish-load', () => {
     setTimeout(() => {
@@ -326,11 +330,17 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
 
         overlayWindow.showInactive()
         overlayWindow.moveTop()
-        if (session) sessionManager.updateStatus(session.id, 'waiting_for_user')
+        if (session) sessionManager.updateStatus(session.id, 'provider_error')
         await new Promise((resolve) => setTimeout(resolve, 900))
 
         const result = await overlayWindow.webContents.executeJavaScript(`
-          (() => {
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            for (let index = 0; index < 240; index += 1) {
+              if (document.querySelector('[data-avatar-mascot="true"]') && document.querySelector('[data-testid="avatar-overlay-notification-badge"]')) break;
+              await sleep(50);
+            }
+            const config = await window.petApi.pet.getConfig();
             const rectFor = (selector) => {
               const el = document.querySelector(selector);
               if (!el) return null;
@@ -344,37 +354,67 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
                 height: rect.height
               };
             };
-            const viewport = { width: window.innerWidth, height: window.innerHeight };
-            const badge = rectFor('[data-testid="avatar-overlay-notification-badge"]');
-            const tray = rectFor('[data-avatar-overlay-size="notification-tray"]');
-            const mascot = rectFor('[data-avatar-mascot="true"]');
             const tolerance = 3;
-            const badgeInsideViewport = Boolean(badge) &&
-              badge.left >= -tolerance &&
-              badge.top >= -tolerance &&
-              badge.right <= viewport.width + tolerance &&
-              badge.bottom <= viewport.height + tolerance;
-            const trayAligned = Boolean(tray && mascot) &&
-              Math.abs(tray.right - mascot.right) <= 4;
-            const noHorizontalOverflow = [badge, tray, mascot].filter(Boolean).every((rect) =>
-              rect.left >= -tolerance && rect.right <= viewport.width + tolerance
-            );
-            const noVerticalOverflow = [badge, tray, mascot].filter(Boolean).every((rect) =>
-              rect.top >= -tolerance && rect.bottom <= viewport.height + tolerance
-            );
+            const geometrySnapshot = () => {
+              const viewport = { width: window.innerWidth, height: window.innerHeight };
+              const badge = rectFor('[data-testid="avatar-overlay-notification-badge"]');
+              const tray = rectFor('[data-avatar-overlay-size="notification-tray"]');
+              const mascot = rectFor('[data-avatar-mascot="true"]');
+              const badgeInsideViewport = Boolean(badge) &&
+                badge.left >= -tolerance &&
+                badge.top >= -tolerance &&
+                badge.right <= viewport.width + tolerance &&
+                badge.bottom <= viewport.height + tolerance;
+              const trayAligned = Boolean(tray && mascot) &&
+                Math.abs(tray.right - mascot.right) <= 4;
+              const noHorizontalOverflow = [badge, tray, mascot].filter(Boolean).every((rect) =>
+                rect.left >= -tolerance && rect.right <= viewport.width + tolerance
+              );
+              const noVerticalOverflow = [badge, tray, mascot].filter(Boolean).every((rect) =>
+                rect.top >= -tolerance && rect.bottom <= viewport.height + tolerance
+              );
+              return {
+                viewport,
+                badge,
+                tray,
+                mascot,
+                badgeFound: Boolean(badge),
+                trayFound: Boolean(tray && tray.height > 0),
+                mascotFound: Boolean(mascot),
+                badgeInsideViewport,
+                trayAligned,
+                noHorizontalOverflow,
+                noVerticalOverflow,
+              };
+            };
+            const measureAtWidth = async (width) => {
+              window.petApi.pet.setMascotWidth(width);
+              for (let index = 0; index < 80; index += 1) {
+                const mascot = rectFor('[data-avatar-mascot="true"]');
+                if (mascot && Math.abs(mascot.width - width) <= 8) break;
+                await sleep(50);
+              }
+              await sleep(120);
+              return geometrySnapshot();
+            };
+            const baseGeometry = geometrySnapshot();
+            const maxGeometry = await measureAtWidth(224);
+            const minGeometry = await measureAtWidth(80);
+            const resizeMaxInside = maxGeometry.badgeInsideViewport && maxGeometry.noHorizontalOverflow && maxGeometry.noVerticalOverflow;
+            const resizeMinInside = minGeometry.badgeInsideViewport && minGeometry.noHorizontalOverflow && minGeometry.noVerticalOverflow;
             return {
               overlayFound: true,
-              viewport,
-              badge,
-              tray,
-              mascot,
-              badgeFound: Boolean(badge),
-              trayFound: Boolean(tray && tray.height > 0),
-              mascotFound: Boolean(mascot),
-              badgeInsideViewport,
-              trayAligned,
-              noHorizontalOverflow,
-              noVerticalOverflow,
+              ...baseGeometry,
+              resizeMaxInside,
+              resizeMinInside,
+              maxGeometry,
+              minGeometry,
+              configPetCount: config.pets?.length ?? null,
+              configSelectedPetId: config.selectedPetId ?? null,
+              configSessions: (config.sessions ?? []).map((session) => ({ id: session.id, name: session.name, status: session.status, messages: session.messages?.length ?? 0 })),
+              readyState: document.readyState,
+              rootHtmlLength: document.getElementById('root')?.innerHTML.length ?? null,
+              scripts: [...document.scripts].map((script) => script.src || script.getAttribute('src') || ''),
               bodyText: document.body.innerText
             };
           })()
@@ -385,6 +425,91 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
           writeFileSync(screenshotPath, image.toPNG())
         }
         writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const profile = getAppProfile()
+        const session = sessionManager.list()[0] ?? null
+
+        const mainResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            await sleep(900);
+            const root = document.documentElement;
+            const rootStyles = getComputedStyle(root);
+            const duration = rootStyles.getPropertyValue('--motion-duration-panel').trim();
+            const animatedView = document.querySelector('.motion-view-animated');
+            const motionButton = document.querySelector('.motion-button, .motion-icon-button, .motion-edge-button');
+            const transitionDurations = motionButton ? getComputedStyle(motionButton).transitionDuration.split(',').map((value) => value.trim()) : [];
+            const animationDurations = animatedView ? getComputedStyle(animatedView).animationDuration.split(',').map((value) => value.trim()) : [];
+            const isZeroDuration = (value) => value === '0s' || value === '0ms' || value === '0.001ms';
+            return {
+              mainReducedDataset: root.dataset.reducedMotion === 'true',
+              mainMotionDurationPanel: duration,
+              mainPanelDurationZero: duration === '0ms',
+              mainTransitionsZero: transitionDurations.length === 0 || transitionDurations.every(isZeroDuration),
+              mainAnimationsZero: animationDurations.length === 0 || animationDurations.every(isZeroDuration)
+            };
+          })()
+        `)
+
+        let overlayWindow: BrowserWindow | null = null
+        for (let attempt = 0; attempt < 30; attempt += 1) {
+          overlayWindow = BrowserWindow.getAllWindows().find((candidate) =>
+            candidate !== win && !candidate.isDestroyed() && candidate.webContents.getURL().includes('pet-overlay')
+          ) ?? null
+          if (overlayWindow) break
+          await new Promise((resolve) => setTimeout(resolve, 150))
+        }
+
+        let overlayResult: Record<string, unknown> = { overlayFound: false }
+        if (overlayWindow) {
+          overlayWindow.showInactive()
+          overlayWindow.moveTop()
+          if (session) {
+            sessionManager.updateName(session.id, 'Reduced motion smoke')
+            sessionManager.updateStatus(session.id, 'provider_error')
+          }
+          await new Promise((resolve) => setTimeout(resolve, 900))
+          overlayResult = await overlayWindow.webContents.executeJavaScript(`
+            (async () => {
+              const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              for (let index = 0; index < 240; index += 1) {
+                if (document.querySelector('[data-testid="avatar-overlay-notification-badge"]') && document.querySelector('[data-avatar-overlay-measure="notification-tray-row"] > div')) break;
+                await sleep(50);
+              }
+              const badge = document.querySelector('[data-testid="avatar-overlay-notification-badge"]');
+              const row = document.querySelector('[data-avatar-overlay-measure="notification-tray-row"] > div');
+              return {
+                overlayFound: true,
+                overlayReducedDataset: document.documentElement.dataset.reducedMotion === 'true',
+                overlayBadgeTransition: badge ? badge.style.transition : null,
+                overlayRowTransition: row ? row.style.transition : null,
+                overlayBadgeTransitionDisabled: badge ? badge.style.transition === 'none' : false,
+                overlayRowTransitionDisabled: row ? row.style.transition === 'none' : false
+              };
+            })()
+          `)
+          if (screenshotPath) {
+            const image = await overlayWindow.webContents.capturePage()
+            writeFileSync(screenshotPath, image.toPNG())
+          }
+        } else if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...mainResult, ...overlayResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -526,6 +651,28 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     seedAutomatedScrollSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
     await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
+  } else if (
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay' ||
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced'
+  ) {
+    const fixtureMessage: ChatMessage = {
+      id: `${process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW}-pet-fixture`,
+      role: 'assistant',
+      type: 'text',
+      content: 'Pet overlay smoke fixture state.',
+      timestamp: Date.now()
+    }
+    sessionManager.save({
+      ...session,
+      name: process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay'
+        ? 'Overlay geometry smoke'
+        : 'Reduced motion smoke',
+      status: 'provider_error',
+      messages: [
+        ...session.messages.filter((message) => message.id !== fixtureMessage.id),
+        fixtureMessage
+      ]
+    })
   }
 }
 

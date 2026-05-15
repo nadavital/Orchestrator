@@ -38,6 +38,9 @@ export default function App(): JSX.Element {
   } = useSessionStore()
 
   useEffect(() => {
+    window.api.app.getProfile().then((profile) => {
+      document.documentElement.dataset.reducedMotion = profile.forceReducedMotion ? 'true' : 'false'
+    })
     window.api.sessions.checkProviders().then(setProviderAvailability)
     window.api.settings.get().then((s) => {
       applyAppearance(

@@ -6,6 +6,7 @@ import { extractFile, listPackage } from '@electron/asar'
 import { is } from '@electron-toolkit/utils'
 import { settingsStore } from './settings'
 import { sessionManager } from './sessions'
+import { getAppProfile } from './appProfile'
 
 export interface PetManifest {
   id: string
@@ -52,6 +53,7 @@ export interface PetConfig {
   sessions: ReturnType<typeof sessionManager.list>
   initialLayout: PetLayout
   mascotWidthPx: number | null
+  forceReducedMotion: boolean
 }
 
 export interface CodexPetImportResult {
@@ -576,6 +578,7 @@ export const petOverlayManager = {
         placement: layout.placement,
       },
       mascotWidthPx: clampMascotWidth(settingsStore.get('petMascotWidthPx', null)),
+      forceReducedMotion: getAppProfile().forceReducedMotion,
     }
   },
 

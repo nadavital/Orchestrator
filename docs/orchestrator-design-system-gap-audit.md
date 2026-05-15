@@ -329,6 +329,8 @@ These are no longer the primary blockers:
 - Composer dropdowns now use the shared dismissable popover surface and have smoke coverage for Escape and outside-click dismissal.
 - Shared sheets and modal overlays now use `role="dialog"`, `aria-modal`, initial focus, focus containment, focus restoration, and centralized Escape handling.
 - Pet resize no longer waits for a renderer `ResizeObserver` round trip to resize the floating window; it sends live resize-preview width to the main process, which recomputes the window bounds immediately.
+- Pet overlay smoke now exercises the real floating overlay window and asserts badge/tray/mascot geometry at default, max, and min mascot widths.
+- Forced reduced-motion smoke now verifies the main renderer CSS path and pet-overlay inline transition fallbacks.
 - UI smoke coverage has been exercised for main, design-system, terminal, inspector, capabilities, and pets/settings views.
 
 ### Still Not Codex-Level
@@ -340,10 +342,10 @@ These remain the main gaps:
 - `ExtensionsPanel.tsx` is still mostly local and has repeated disclosure/transition behavior.
 - Capabilities edit/sync sheets still use the old `capability-sheet-backdrop` and local sheet layout.
 - Menus/popovers now have shared Escape/outside-click dismissal in the migrated composer surfaces, and sheets/dialogs have shared focus handling. Full Codex-level roving menu keyboard behavior and exit animation retention are still missing.
-- The pet overlay is visually closer, but it still uses overlay-local primitives and inline transition strings instead of a shared cross-renderer design layer.
-- There is no deterministic floating pet-overlay smoke harness for badge, banner, tray, hover controls, resize, and provider/custom states.
-- Reduced-motion is broadly present in the main renderer CSS, but not verified end-to-end across the pet overlay and every direct inline transition.
-- Session-switch transitions exist at the view wrapper level, but there is not yet a dedicated visual smoke/assertion for session switching.
+- The pet overlay is visually closer, but it still uses overlay-local primitives instead of a shared cross-renderer design layer.
+- The deterministic floating pet-overlay smoke now covers badge, tray, mascot bounds, tray alignment, and min/max resize clipping. It still needs hover-control, reply-form, collapsed-tray, and provider/custom-state fixtures.
+- Reduced-motion is now verified for the main renderer CSS path and the pet-overlay badge/row inline transition paths. It still needs broader panel/sheet/popover screenshots in reduced-motion mode.
+- Session-switch transitions now have a dedicated latency smoke/assertion.
 - Session switching must remain effectively instant. The first follow-up implementation keyed the session `MotionView` by `activeSessionId`, which could make chat-window switching feel like a slower page transition. That is not acceptable for Codex parity; session switching should prefer state preservation and immediate content swap over decorative transition.
 
 ### Updated Renderer Inventory
@@ -398,19 +400,17 @@ Why it matters: this is the surface most likely to regress invisibly because the
 
 Still needed:
 
-- Add a deterministic pet-overlay harness or smoke route that can render the floating overlay with fixture sessions.
 - Verify badge collapsed/expanded states.
 - Verify notification banner/tray rows, dismiss, expand, reply, and action buttons.
-- Verify resize at min/default/max widths without clipping.
+- Add richer screenshot states for expanded tray, collapsed tray, reply form, and waiting-for-input actions.
 - Verify hover-only resize affordance and notification expand affordance.
 - Verify custom provider statuses map to the intended badge/banner states.
-- Verify reduced-motion behavior inside the pet overlay, not only the main renderer.
 
 Suggested implementation:
 
-- Add a `--pet-overlay` smoke mode that opens the pet overlay with fixture config and fixture session events, or add a renderer-only `#pet-overlay-preview` route that uses the same `PetOverlay` components with mocked `window.petApi`.
-- Capture screenshots at default, max-size, collapsed tray, expanded tray, and waiting-for-input states.
-- Add DOM assertions for `data-testid="avatar-overlay-resize-handle"` and `data-testid="avatar-overlay-notification-badge"`.
+- Extend the existing `--pet-overlay` smoke mode with fixture events for waiting, review, failure, reply, and custom provider states.
+- Capture screenshots for default, max-size, collapsed tray, expanded tray, reply form, and waiting-for-input states.
+- Add DOM assertions for the hover/focus-only controls, especially `data-testid="avatar-overlay-resize-handle"` and notification row controls.
 
 ### P0: Menu, Popover, And Sheet Accessibility
 
@@ -509,11 +509,9 @@ Why it matters: Codex's motion is polished partly because reduced-motion behavio
 
 Still needed:
 
-- Add `--motion-reduced` smoke mode.
-- Force `prefers-reduced-motion` in the smoke harness or add a CSS/test flag.
-- Assert panels still open/close without transform motion.
-- Assert pet overlay does not run direct inline transitions in reduced-motion mode.
-- Replace pet overlay direct transition strings with tokenized helpers or reduced-motion branches.
+- Add reduced-motion screenshot assertions for right panel, terminal panel, shared sheet, and shared popover.
+- Expand pet-overlay reduced-motion coverage beyond badge/row transitions to collapsed tray, reply form, and resize affordances.
+- Continue replacing feature-local transition strings with shared motion helpers as each surface migrates.
 
 ### P2: App-Shell Maturity
 
@@ -1270,15 +1268,16 @@ Use this as the definition of done for the full migration.
 
 ## Bottom Line
 
-The current implementation is no longer just a first slice. It now has a real app-shell, panel, resize, tab, toolbar, badge, inspector, pet-overlay geometry, and shared interaction primitive baseline. It is still not a whole-app 1:1 Codex UI/motion system because settings, transcript, composer, extension panels, full focus restoration, and exit-animation retention still need a dedicated finishing pass.
+The current implementation is no longer just a first slice. It now has a real app-shell, panel, resize, tab, toolbar, badge, inspector, pet-overlay geometry, reduced-motion, and shared interaction primitive baseline. It is still not a whole-app 1:1 Codex UI/motion system because settings, transcript, composer, extension panels, roving menu keyboard behavior, and exit-animation retention still need a dedicated finishing pass.
 
 Completed in the latest implementation pass:
 
 - Floating pet-overlay badge and tray geometry now report measured mascot/tray metrics to the main-process layout manager.
 - Pet overlay pointer interactivity now covers the mascot, badge, resize handle, tray, rows, and controls instead of only checking generic `data-interactive` hits.
 - Pet overlay badge scaling now uses Codex-like hover/press motion and reduced-motion fallback.
-- Automated pet-overlay smoke now verifies overlay presence, badge/tray/mascot bounds, tray alignment, and overflow.
+- Automated pet-overlay smoke now verifies overlay presence, badge/tray/mascot bounds, tray alignment, overflow, and min/max mascot resize clipping.
 - Automated session-switch smoke now verifies transcript switching within budget and confirms the session view is not replaying entrance motion.
+- Automated reduced-motion smoke now verifies forced reduced-motion profile propagation, zeroed main-renderer motion durations, and disabled pet-overlay badge/row transitions.
 - Shared `MenuSurface`, `MenuItem`, `DismissablePopoverSurface`, `ConfirmDialog`, and `TextInputDialog` primitives now cover Escape/outside-click behavior, disabled/danger states, and native dialog replacement.
 - Capabilities create/row menus, edit/sync sheets, and delete confirmation now use shared primitives.
 - Session action rename/delete and project removal no longer use native browser prompt/confirm UI.

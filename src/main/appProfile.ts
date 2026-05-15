@@ -8,6 +8,7 @@ export interface AppProfile {
   userDataDir: string
   isIsolated: boolean
   disablePetOverlay: boolean
+  forceReducedMotion: boolean
 }
 
 let configuredProfile: AppProfile | null = null
@@ -37,7 +38,8 @@ export function configureAppProfile(): AppProfile {
     displayName,
     userDataDir: app.getPath('userData'),
     isIsolated,
-    disablePetOverlay: disablePetArg || process.env.ORCHESTRATOR_DISABLE_PET_OVERLAY === '1'
+    disablePetOverlay: disablePetArg || process.env.ORCHESTRATOR_DISABLE_PET_OVERLAY === '1',
+    forceReducedMotion: hasArg('--orchestrator-reduced-motion') || process.env.ORCHESTRATOR_FORCE_REDUCED_MOTION === '1'
   }
   return configuredProfile
 }

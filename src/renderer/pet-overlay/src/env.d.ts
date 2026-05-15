@@ -37,6 +37,7 @@ export interface PetConfig {
   sessions: Session[]
   initialLayout: PetLayout
   mascotWidthPx: number | null
+  forceReducedMotion: boolean
 }
 
 declare global {

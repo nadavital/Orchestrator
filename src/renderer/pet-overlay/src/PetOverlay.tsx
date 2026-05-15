@@ -256,11 +256,28 @@ function useFloatingPetPointerInteractivity({
   }, [isPaused, regionRef])
 }
 
-function usePrefersReducedMotion(): boolean {
-  const prefersReducedMotion = useRef(
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+function usePrefersReducedMotion(forceReducedMotion: boolean): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
+    forceReducedMotion || (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   )
-  return prefersReducedMotion.current
+
+  useEffect(() => {
+    if (forceReducedMotion) {
+      setPrefersReducedMotion(true)
+      return
+    }
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const handleChange = (): void => setPrefersReducedMotion(media.matches)
+    handleChange()
+    media.addEventListener('change', handleChange)
+    return () => media.removeEventListener('change', handleChange)
+  }, [forceReducedMotion])
+
+  return prefersReducedMotion
+}
+
+function transitionFor(prefersReducedMotion: boolean, transition: string): string {
+  return prefersReducedMotion ? 'none' : transition
 }
 
 function measureTrayScrollState(el: HTMLElement | null): TrayScrollState {
@@ -351,6 +368,7 @@ export default function PetOverlay(): JSX.Element | null {
   const [dragAnimState, setDragAnimState] = useState<AnimState | null>(null)
   const [mascotWidthPx, setMascotWidthPx] = useState<number | null>(null)
   const [isResizingVisual, setIsResizingVisual] = useState(false)
+  const [forceReducedMotion, setForceReducedMotion] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const trayRef = useRef<HTMLDivElement>(null)
   const trayListRef = useRef<HTMLDivElement>(null)
@@ -360,12 +378,14 @@ export default function PetOverlay(): JSX.Element | null {
   const pendingResizeWidthRef = useRef<number | null>(null)
   const metricsFrameRef = useRef<number | null>(null)
   const lastMetricsKeyRef = useRef<string | null>(null)
-  const prefersReducedMotion = usePrefersReducedMotion()
+  const prefersReducedMotion = usePrefersReducedMotion(forceReducedMotion)
 
   // Load initial config + sessions.
   useEffect(() => {
     window.petApi.pet.getConfig().then((cfg) => {
       setConfig(cfg)
+      setForceReducedMotion(cfg.forceReducedMotion)
+      document.documentElement.dataset.reducedMotion = cfg.forceReducedMotion ? 'true' : 'false'
       setLayout(cfg.initialLayout)
       setMascotWidthPx(cfg.mascotWidthPx)
       const initial: Record<string, SessionState> = {}
@@ -795,6 +815,7 @@ export default function PetOverlay(): JSX.Element | null {
                 <NotificationCard
                   key={notification.key}
                   notification={notification}
+                  prefersReducedMotion={prefersReducedMotion}
                   onClick={() => {
                     window.petApi.pet.focusMain(notification.localConversationId)
                     setSessions((prev) => ({
@@ -879,7 +900,7 @@ export default function PetOverlay(): JSX.Element | null {
           zIndex: 2,
           transform: isDraggingVisual ? 'scale(0.95)' : 'scale(1)',
           transformOrigin: 'center',
-          transition: isDraggingVisual ? 'transform 160ms ease-out' : 'none',
+          transition: isDraggingVisual ? transitionFor(prefersReducedMotion, 'transform 160ms ease-out') : 'none',
         }}
       >
         <PetAvatar
@@ -926,7 +947,7 @@ export default function PetOverlay(): JSX.Element | null {
               borderRight: '2px solid currentColor',
               borderBottom: '2px solid currentColor',
               opacity: isHovering || isResizingVisual ? 0.85 : 0,
-              transition: 'opacity 120ms ease-out',
+              transition: transitionFor(prefersReducedMotion, 'opacity 120ms ease-out'),
             }}
           />
         </button>
@@ -983,7 +1004,7 @@ export default function PetOverlay(): JSX.Element | null {
               cursor: 'pointer',
               transform: `scale(${badgeScale})`,
               transformOrigin: 'center',
-              transition: prefersReducedMotion ? 'none' : 'transform 160ms cubic-bezier(0.19, 1, 0.22, 1), background-color 160ms ease-out, color 160ms ease-out',
+              transition: transitionFor(prefersReducedMotion, 'transform 160ms cubic-bezier(0.19, 1, 0.22, 1), background-color 160ms ease-out, color 160ms ease-out'),
             }}
           >
             {isNotificationTrayOpen ? (
@@ -1047,12 +1068,14 @@ function TrayButton({
 
 function NotificationCard({
   notification,
+  prefersReducedMotion,
   onClick,
   onDismiss,
   onAction,
   onReply,
 }: {
   notification: PetNotification
+  prefersReducedMotion: boolean
   onClick: () => void
   onDismiss: () => void
   onAction: (action: PetWaitingRequestAction) => Promise<void>
@@ -1138,7 +1161,7 @@ function NotificationCard({
             : 'inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -1px 0 rgba(0,0,0,0.18)',
           color: 'var(--color-token-text-primary, rgba(255,255,255,0.92))',
           backdropFilter: 'blur(18px)',
-          transition: 'border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease',
+          transition: transitionFor(prefersReducedMotion, 'border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease'),
         }}
       >
         <div
@@ -1202,7 +1225,7 @@ function NotificationCard({
               WebkitLineClamp: expanded ? undefined : hasWaitingRequest ? 5 : 2,
               WebkitBoxOrient: 'vertical',
               fontFamily: bodyText.startsWith('$') ? 'ui-monospace, SFMono-Regular, monospace' : 'inherit',
-              transition: 'max-height 180ms ease-out',
+              transition: transitionFor(prefersReducedMotion, 'max-height 180ms ease-out'),
             }}
           >
             {bodyText}
@@ -1244,7 +1267,7 @@ function NotificationCard({
             alignItems: 'center',
             justifyContent: 'center',
             opacity: expandable && rowActive ? 0 : 1,
-            transition: 'opacity 150ms ease-out',
+            transition: transitionFor(prefersReducedMotion, 'opacity 150ms ease-out'),
           }}
         >
           <StatusIcon visual={visual} />
@@ -1261,7 +1284,7 @@ function NotificationCard({
               opacity: rowActive ? 1 : 0,
               pointerEvents: rowActive ? 'auto' : 'none',
               transform: rowActive ? 'translateX(0)' : 'translateX(6px)',
-              transition: 'opacity 150ms ease-out, transform 150ms ease-out',
+              transition: transitionFor(prefersReducedMotion, 'opacity 150ms ease-out, transform 150ms ease-out'),
             }}
           >
             <IconButton
@@ -1269,7 +1292,7 @@ function NotificationCard({
               ariaLabel={`${expanded ? 'Collapse' : 'Expand'} ${notification.title}`}
               onClick={() => setExpanded((value) => !value)}
             >
-              <span style={{ transform: `rotate(${expanded ? 90 : 0}deg)`, transition: 'transform 120ms ease-out' }}>
+              <span style={{ transform: `rotate(${expanded ? 90 : 0}deg)`, transition: transitionFor(prefersReducedMotion, 'transform 120ms ease-out') }}>
                 <ChevronIcon path={CHEVRON_RIGHT} />
               </span>
             </IconButton>
@@ -1288,7 +1311,7 @@ function NotificationCard({
               opacity: rowActive ? 1 : 0,
               pointerEvents: rowActive ? 'auto' : 'none',
               transform: rowActive ? 'translateX(0)' : 'translateX(6px)',
-              transition: 'opacity 150ms ease-out, transform 150ms ease-out',
+              transition: transitionFor(prefersReducedMotion, 'opacity 150ms ease-out, transform 150ms ease-out'),
             }}
           >
             <ActionButton
@@ -1365,7 +1388,7 @@ function NotificationCard({
               opacity: rowActive ? 1 : 0,
               pointerEvents: rowActive ? 'auto' : 'none',
               transform: rowActive ? 'translateX(0)' : 'translateX(-6px)',
-              transition: 'opacity 150ms ease-out, transform 150ms ease-out',
+              transition: transitionFor(prefersReducedMotion, 'opacity 150ms ease-out, transform 150ms ease-out'),
             }}
           >
             <IconButton title="Dismiss" ariaLabel={`Dismiss ${notification.title}`} onClick={onDismiss}>

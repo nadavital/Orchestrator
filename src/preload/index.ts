@@ -25,6 +25,7 @@ interface AppProfile {
   userDataDir: string
   isIsolated: boolean
   disablePetOverlay: boolean
+  forceReducedMotion: boolean
 }
 
 export type SessionEvent =

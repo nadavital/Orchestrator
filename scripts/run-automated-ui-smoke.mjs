@@ -16,6 +16,8 @@ const captureView = process.argv.includes('--settings')
         ? 'composer'
       : process.argv.includes('--pets')
         ? 'pets'
+        : process.argv.includes('--motion-reduced')
+          ? 'motion-reduced'
         : process.argv.includes('--pet-overlay')
           ? 'pet-overlay'
           : process.argv.includes('--session-switch')
@@ -46,7 +48,8 @@ const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'd
     ORCHESTRATOR_PROFILE: profile,
     ORCHESTRATOR_USER_DATA_DIR: userDataDir,
     ORCHESTRATOR_SMOKE_WORKSPACE_DIR: workspaceDir,
-    ORCHESTRATOR_DISABLE_PET_OVERLAY: captureView === 'pet-overlay' ? '0' : '1',
+    ORCHESTRATOR_DISABLE_PET_OVERLAY: ['pet-overlay', 'motion-reduced'].includes(captureView) ? '0' : '1',
+    ORCHESTRATOR_FORCE_REDUCED_MOTION: captureView === 'motion-reduced' ? '1' : process.env.ORCHESTRATOR_FORCE_REDUCED_MOTION,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT: outputPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_SCREENSHOT: screenshotPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW: captureView
@@ -88,6 +91,19 @@ child.on('exit', (code) => {
         switchWithinBudget: Number(result.switchElapsedMs ?? Number.POSITIVE_INFINITY) <= 150,
         sessionViewNotAnimated: result.sessionViewAnimated === false
       }
+    : captureView === 'motion-reduced'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        profileForced: result.profile?.forceReducedMotion === true,
+        mainReducedDataset: result.mainReducedDataset === true,
+        mainPanelDurationZero: result.mainPanelDurationZero === true,
+        mainTransitionsZero: result.mainTransitionsZero === true,
+        mainAnimationsZero: result.mainAnimationsZero === true,
+        overlayFound: result.overlayFound === true,
+        overlayReducedDataset: result.overlayReducedDataset === true,
+        overlayBadgeTransitionDisabled: result.overlayBadgeTransitionDisabled === true,
+        overlayRowTransitionDisabled: result.overlayRowTransitionDisabled === true
+      }
     : captureView === 'pet-overlay'
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
@@ -98,7 +114,9 @@ child.on('exit', (code) => {
         badgeInsideViewport: result.badgeInsideViewport === true,
         trayAligned: result.trayAligned === true,
         noHorizontalOverflow: result.noHorizontalOverflow === true,
-        noVerticalOverflow: result.noVerticalOverflow === true
+        noVerticalOverflow: result.noVerticalOverflow === true,
+        resizeMaxInside: result.resizeMaxInside === true,
+        resizeMinInside: result.resizeMinInside === true
       }
     : captureView === 'scroll'
     ? {

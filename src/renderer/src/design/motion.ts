@@ -28,18 +28,33 @@ export const motionPresets = {
 
 export type MotionSize = 'none' | 'subtle' | 'standard'
 
+export function isReducedMotionForced(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.documentElement.dataset.reducedMotion === 'true'
+}
+
+export function prefersReducedMotionNow(): boolean {
+  if (typeof window === 'undefined') return false
+  return isReducedMotionForced() || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
 export function useReducedMotionPreference(): boolean {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    return prefersReducedMotionNow()
   })
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const handleChange = (): void => setPrefersReducedMotion(media.matches)
+    const handleChange = (): void => setPrefersReducedMotion(prefersReducedMotionNow())
+    const observer = new MutationObserver(handleChange)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-reduced-motion'] })
     handleChange()
     media.addEventListener('change', handleChange)
-    return () => media.removeEventListener('change', handleChange)
+    return () => {
+      media.removeEventListener('change', handleChange)
+      observer.disconnect()
+    }
   }, [])
 
   return prefersReducedMotion
