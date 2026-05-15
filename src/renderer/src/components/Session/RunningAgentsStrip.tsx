@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useSessionStore } from '../../store/sessions'
 import type { AgentNode, Session } from '../../types'
+import { Badge, SurfaceRow } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
@@ -45,12 +46,13 @@ export default function RunningAgentsStrip({ session }: Props): JSX.Element | nu
 
 function AgentPill({ agent, active, onClick }: { agent: AgentNode; active: boolean; onClick: () => void }): JSX.Element {
   return (
-    <button
+    <SurfaceRow
+      as="button"
       onClick={onClick}
       title={agent.summary ?? agent.role ?? agent.name ?? agent.id}
+      active={active}
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs shrink-0"
       style={{
-        background: active ? 'var(--accent-muted)' : 'var(--surface-bg)',
         color: active ? 'var(--accent)' : 'var(--color-text)',
         border: active ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
         maxWidth: 220
@@ -68,10 +70,8 @@ function AgentPill({ agent, active, onClick }: { agent: AgentNode; active: boole
       <span className="truncate">
         {agent.name ?? agent.role ?? agent.id}
       </span>
-      <span style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-        {agent.status}
-      </span>
-    </button>
+      <Badge tone={statusTone(agent.status)}>{agent.status}</Badge>
+    </SurfaceRow>
   )
 }
 
@@ -80,4 +80,11 @@ function statusColor(status: AgentNode['status']): string {
   if (status === 'waiting' || status === 'blocked') return 'var(--color-yellow)'
   if (status === 'failed' || status === 'cancelled') return 'var(--color-red)'
   return 'var(--color-text-muted)'
+}
+
+function statusTone(status: AgentNode['status']): 'neutral' | 'success' | 'warning' | 'danger' {
+  if (status === 'running') return 'success'
+  if (status === 'waiting' || status === 'blocked') return 'warning'
+  if (status === 'failed' || status === 'cancelled') return 'danger'
+  return 'neutral'
 }

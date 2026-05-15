@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { useSessionStore } from '../../store/sessions'
 import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import type { PlanItemStatus, PlanState, RunEvent, Session, SessionRunEventRecord } from '../../types'
+import { Badge, InspectorCard, MetricPill, PanelHeader } from '../shared/designSystem'
 
 interface Props {
   session: Session
@@ -31,14 +32,7 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
         background: 'var(--surface-bg)'
       }}
     >
-      <div className="shrink-0 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Plan
-        </div>
-        <div className="mt-0.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
-          Goal, task state, and plan mode updates.
-        </div>
-      </div>
+      <PanelHeader title="Plan" subtitle="Goal, task state, and plan mode updates." />
 
       {!hasContent ? (
         <EmptyText>Goals, plan mode updates, and task lists will appear here as the agent organizes the work.</EmptyText>
@@ -75,15 +69,7 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
   ].filter(Boolean)
 
   return (
-    <div
-      className="min-w-0 rounded-md p-3"
-      style={{
-        background: 'var(--surface-bg)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: 'var(--shadow-soft)'
-      }}
-    >
+    <InspectorCard className="p-3">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: 'var(--color-accent)' }}>
@@ -95,32 +81,13 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
           {stats.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {stats.map((stat) => (
-                <span
-                  key={stat}
-                  className="rounded px-2 py-0.5 text-[10px] font-semibold"
-                  style={{
-                    color: 'var(--color-text-muted)',
-                  background: 'var(--control-bg)',
-                  border: '1px solid var(--border-subtle)'
-                  }}
-                >
-                  {stat}
-                </span>
+                <MetricPill key={stat}>{stat}</MetricPill>
               ))}
             </div>
           )}
         </div>
         {pct !== null && (
-          <span
-            className="shrink-0 rounded px-2 py-0.5 text-xs font-medium"
-            style={{
-              color: pct >= 90 ? 'var(--color-yellow)' : 'var(--color-accent)',
-              background: 'var(--color-accent-dim)',
-              border: '1px solid var(--color-accent)'
-            }}
-          >
-            {pct}%
-          </span>
+          <MetricPill tone={pct >= 90 ? 'warning' : 'accent'}>{pct}%</MetricPill>
         )}
       </div>
       {pct !== null && (
@@ -134,7 +101,7 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
           />
         </div>
       )}
-    </div>
+    </InspectorCard>
   )
 }
 
@@ -149,15 +116,7 @@ function PlanBlock({ plan, current = false }: { plan: PlanState; current?: boole
   const title = plan.title ?? (plan.items.length > 0 ? 'Tasks' : plan.mode === 'plan' ? 'Planning' : 'Plan')
 
   return (
-    <div
-      className="min-w-0 rounded-md p-3"
-      style={{
-        background: current ? 'var(--surface-bg)' : 'var(--control-bg)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: current ? 'var(--shadow-soft)' : 'none'
-      }}
-    >
+    <InspectorCard className="p-3" active={current}>
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
@@ -235,7 +194,7 @@ function PlanBlock({ plan, current = false }: { plan: PlanState; current?: boole
           ))}
         </div>
       )}
-    </div>
+    </InspectorCard>
   )
 }
 
@@ -266,16 +225,7 @@ function PlanBadge({ plan }: { plan: PlanState }): JSX.Element {
   const label = total > 0 ? `${done}/${total}` : plan.mode === 'execute' ? 'ready' : 'plan'
 
   return (
-    <span
-      className="shrink-0 rounded px-2 py-0.5 text-xs font-medium"
-      style={{
-        color: 'var(--color-accent)',
-        background: 'var(--color-accent-dim)',
-        border: '1px solid var(--color-accent)'
-      }}
-    >
-      {label}
-    </span>
+    <Badge tone="accent">{label}</Badge>
   )
 }
 

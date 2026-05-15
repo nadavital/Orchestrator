@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Session } from '../../types'
 import { useSessionStore } from '../../store/sessions'
+import { Button, InspectorCard } from '../shared/designSystem'
 
 interface Props {
   session: Session
@@ -43,26 +44,16 @@ export default function SideQuestionPanel({ session, embedded }: Props): JSX.Ele
     >
       <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
         {messages.length === 0 ? (
-          <div
-            className="p-3 text-xs"
-            style={{
-              color: 'var(--text-secondary)',
-              background: 'var(--surface-bg)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-lg)'
-            }}
-          >
+          <InspectorCard className="p-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
             No side questions yet.
-          </div>
+          </InspectorCard>
         ) : (
           messages.map((message) => (
-            <div
+            <InspectorCard
               key={message.id}
               className="p-3 text-sm"
+              active={message.role === 'user'}
               style={{
-                background: message.role === 'user' ? 'var(--accent-muted)' : 'var(--surface-bg)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-lg)',
                 color: message.status === 'error' ? 'var(--color-red)' : 'var(--color-text)'
               }}
             >
@@ -75,7 +66,7 @@ export default function SideQuestionPanel({ session, embedded }: Props): JSX.Ele
                   ${message.usage.totalCostUsd.toFixed(4)}
                 </div>
               )}
-            </div>
+            </InspectorCard>
           ))
         )}
       </div>
@@ -99,14 +90,13 @@ export default function SideQuestionPanel({ session, embedded }: Props): JSX.Ele
             borderRadius: 'var(--radius-lg)'
           }}
         />
-        <button
+        <Button
           type="submit"
           disabled={!question.trim() || pending}
-          className="px-3 py-2 text-xs font-medium disabled:opacity-50"
-          style={{ background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius-lg)' }}
+          variant="primary"
         >
           Ask
-        </button>
+        </Button>
       </form>
     </div>
   )

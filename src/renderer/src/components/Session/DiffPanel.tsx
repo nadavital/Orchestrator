@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fileStatusLabel, summarizeFileChanges } from '../../types'
 import type { FileChange } from '../../types'
-import Icon from '../shared/Icon'
+import { Badge, MetricPill, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
 
 interface Props {
   sessionId: string
@@ -38,26 +38,19 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
         fontFamily: "'SF Mono', 'JetBrains Mono', Menlo, monospace"
       }}
     >
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-4 py-3 shrink-0 text-sm font-semibold"
-        style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-      >
-        <span>Changes {files.length > 0 ? `(${files.length})` : ''}</span>
-        <button
+      <PanelHeader
+        title={`Changes${files.length > 0 ? ` (${files.length})` : ''}`}
+        actions={
+          <ToolbarButton
+            icon="refresh"
+            label="Refresh"
           onClick={() => window.api.sessions.getChangedFiles(sessionId).then((f) => {
             setFiles(f)
             if (f.length > 0 && !f.find((x) => x.path === selectedFile)) setSelectedFile(f[0].path)
           })}
-          title="Refresh"
-          className="rounded p-1 transition-colors"
-          style={{ color: 'var(--color-text-muted)' }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)' }}
-        >
-          <Icon name="refresh" size={13} />
-        </button>
-      </div>
+          />
+        }
+      />
 
       {files.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-xs" style={{ color: 'var(--color-text-muted)' }}>
@@ -75,8 +68,8 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
             <div className="truncate">{summary.label}</div>
             {(summary.additions > 0 || summary.deletions > 0) && (
               <div className="mt-1 flex gap-2" style={{ fontSize: 10 }}>
-                {summary.additions > 0 && <span style={{ color: '#22c55e' }}>+{summary.additions}</span>}
-                {summary.deletions > 0 && <span style={{ color: '#ef4444' }}>-{summary.deletions}</span>}
+                {summary.additions > 0 && <MetricPill tone="success">+{summary.additions}</MetricPill>}
+                {summary.deletions > 0 && <MetricPill tone="danger">-{summary.deletions}</MetricPill>}
               </div>
             )}
           </div>
@@ -127,15 +120,14 @@ function FileRow({ file, selected, onClick }: { file: FileChange; selected: bool
   const dir = parts.join('/')
 
   return (
-    <button
+    <SurfaceRow
+      as="button"
       onClick={onClick}
-      className="w-full min-w-0 max-w-full overflow-hidden flex items-center gap-2 px-3 py-1.5 text-left transition-colors"
+      active={selected}
+      className="w-full min-w-0 max-w-full overflow-hidden flex items-center gap-2 px-3 py-1.5 text-left"
       style={{
-        background: selected ? 'var(--accent-muted)' : 'transparent',
         borderLeft: selected ? '2px solid var(--accent)' : '2px solid transparent'
       }}
-      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = 'var(--control-bg)' }}
-      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent' }}
     >
       <span
         className="text-xs font-bold shrink-0"
@@ -156,11 +148,11 @@ function FileRow({ file, selected, onClick }: { file: FileChange; selected: bool
       </span>
       {(file.additions > 0 || file.deletions > 0) && (
         <span className="text-xs shrink-0 flex gap-1" style={{ fontSize: 10 }}>
-          {file.additions > 0 && <span style={{ color: '#22c55e' }}>+{file.additions}</span>}
-          {file.deletions > 0 && <span style={{ color: '#ef4444' }}>-{file.deletions}</span>}
+          {file.additions > 0 && <Badge tone="success">+{file.additions}</Badge>}
+          {file.deletions > 0 && <Badge tone="danger">-{file.deletions}</Badge>}
         </span>
       )}
-    </button>
+    </SurfaceRow>
   )
 }
 

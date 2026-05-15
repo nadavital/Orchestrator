@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useSessionStore } from '../../store/sessions'
 import type { AgentNode, AgentStatus, Session } from '../../types'
-import Icon from '../shared/Icon'
+import { Badge, InspectorCard, MetricPill, PanelHeader, TabButton } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
@@ -35,28 +35,11 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
         background: 'var(--surface-bg)'
       }}
     >
-      <div className="shrink-0 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Agent Activity
-            </div>
-            <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-              Subagents, side tasks, and transcript handoffs.
-            </div>
-          </div>
-          <span
-            className="shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase"
-            style={{
-              color: stats.active > 0 ? 'var(--color-green)' : 'var(--color-text-muted)',
-              background: 'var(--control-bg)',
-              border: '1px solid var(--border-subtle)'
-            }}
-          >
-            {stats.total} total
-          </span>
-        </div>
-      </div>
+      <PanelHeader
+        title="Agent Activity"
+        subtitle="Subagents, side tasks, and transcript handoffs."
+        actions={<MetricPill tone={stats.active > 0 ? 'success' : 'neutral'}>{stats.total} total</MetricPill>}
+      />
 
       <AgentOverview stats={stats} />
 
@@ -105,13 +88,8 @@ function AgentOverview({
 
 function AgentStat({ label, value, tone }: { label: string; value: number; tone: string }): JSX.Element {
   return (
-    <div
+    <InspectorCard
       className="rounded-md px-2 py-1.5 min-w-0"
-      style={{
-        background: 'var(--surface-bg)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-lg)'
-      }}
     >
       <div className="text-[10px] font-bold uppercase truncate" style={{ color: 'var(--color-text-muted)' }}>
         {label}
@@ -119,28 +97,21 @@ function AgentStat({ label, value, tone }: { label: string; value: number; tone:
       <div className="text-xs font-semibold" style={{ color: value > 0 ? tone : 'var(--color-text-muted)' }}>
         {value}
       </div>
-    </div>
+    </InspectorCard>
   )
 }
 
 function EmptyState({ providerId }: { providerId: string }): JSX.Element {
   return (
     <div className="flex-1 min-h-0 p-3">
-      <div
-        className="rounded-md p-3"
-        style={{
-          background: 'var(--surface-bg)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-lg)'
-        }}
-      >
+      <InspectorCard className="p-3">
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
           No agent activity yet
         </div>
         <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)', lineHeight: 1.45 }}>
           When {providerId} starts a subagent or side task, its status and transcript will appear here.
         </div>
-      </div>
+      </InspectorCard>
     </div>
   )
 }
@@ -174,37 +145,17 @@ function AgentTab({
   onClose?: () => void
 }): JSX.Element {
   return (
-    <div
-      className="group inline-flex h-8 min-w-0 max-w-[220px] shrink-0 items-center gap-1.5 rounded-md px-2 text-left"
-      style={{
-        background: active ? 'var(--accent-muted)' : 'var(--surface-bg)',
-        border: active ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-lg)'
-      }}
+    <TabButton
+      active={active}
+      onClick={onClick}
+      onClose={onClose}
+      closeLabel="Close transcript"
     >
-      <button
-        type="button"
-        onClick={onClick}
-        className="inline-flex min-w-0 flex-1 items-center gap-1.5 text-left"
-      >
+      <span className="inline-flex min-w-0 items-center gap-1.5">
         <StatusDot status={agent.status} />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium" style={{ color: active ? 'var(--color-accent)' : 'var(--color-text)' }}>
-          {agent.name ?? agent.role ?? agent.id}
-        </span>
-      </button>
-      {onClose && (
-        <button
-          type="button"
-          onClick={onClose}
-          className="grid h-5 w-5 shrink-0 place-items-center rounded"
-          title="Close transcript"
-          aria-label="Close transcript"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          <Icon name="close" size={12} />
-        </button>
-      )}
-    </div>
+        <span className="min-w-0 truncate">{agent.name ?? agent.role ?? agent.id}</span>
+      </span>
+    </TabButton>
   )
 }
 
@@ -222,16 +173,7 @@ function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
             <h3 className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
               {agent.name ?? agent.role ?? agent.id}
             </h3>
-            <span
-              className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase"
-              style={{
-                color: agentStatusColor(agent.status),
-                background: 'var(--control-bg)',
-                border: '1px solid var(--border-subtle)'
-              }}
-            >
-              {agent.status}
-            </span>
+            <Badge tone={agentStatusTone(agent.status)}>{agent.status}</Badge>
           </div>
           {(agent.role || agent.model || agent.providerId) && (
             <div className="text-xs mt-1 truncate" style={{ color: 'var(--color-text-muted)' }}>
@@ -254,16 +196,13 @@ function AgentConversation({ agent }: { agent: AgentNode }): JSX.Element {
 
 function TranscriptBlock({ content, muted = false }: { content: string; muted?: boolean }): JSX.Element {
   return (
-    <div
+    <InspectorCard
       className="mt-3 rounded-md p-3 text-sm"
       style={{
         maxWidth: '100%',
         minWidth: 0,
         boxSizing: 'border-box',
         color: muted ? 'var(--color-text-muted)' : 'var(--color-text)',
-        background: 'var(--surface-bg)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-lg)',
         lineHeight: 1.5,
         whiteSpace: 'pre-wrap',
         overflowWrap: 'anywhere',
@@ -271,8 +210,15 @@ function TranscriptBlock({ content, muted = false }: { content: string; muted?: 
       }}
     >
       {content}
-    </div>
+    </InspectorCard>
   )
+}
+
+function agentStatusTone(status: AgentStatus): 'accent' | 'success' | 'warning' | 'danger' {
+  if (status === 'running') return 'success'
+  if (status === 'waiting' || status === 'blocked' || status === 'queued') return 'warning'
+  if (status === 'failed' || status === 'cancelled') return 'danger'
+  return 'accent'
 }
 
 function EmptyText({ children }: { children: React.ReactNode }): JSX.Element {

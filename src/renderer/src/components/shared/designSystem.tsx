@@ -333,6 +333,69 @@ export function SegmentedControl<T extends string>({
   )
 }
 
+export function PanelHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: ReactNode
+  subtitle?: ReactNode
+  actions?: ReactNode
+}): JSX.Element {
+  return (
+    <div className="panel-header">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</div>
+        {subtitle && <div className="mt-0.5 truncate text-xs" style={{ color: 'var(--text-secondary)' }}>{subtitle}</div>}
+      </div>
+      {actions && <div className="panel-header-actions">{actions}</div>}
+    </div>
+  )
+}
+
+export function InspectorCard({
+  children,
+  active = false,
+  className = '',
+  style,
+}: {
+  children: ReactNode
+  active?: boolean
+  className?: string
+  style?: CSSProperties
+}): JSX.Element {
+  return (
+    <div
+      data-active={active ? 'true' : 'false'}
+      className={`inspector-card motion-row ${className}`}
+      style={style}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function MetricPill({
+  children,
+  tone = 'neutral',
+}: {
+  children: ReactNode
+  tone?: Tone
+}): JSX.Element {
+  return (
+    <span
+      className="metric-pill"
+      style={{
+        color: toneColor[tone],
+        background: `color-mix(in srgb, ${toneColor[tone]} 10%, var(--surface-bg))`,
+        borderColor: `color-mix(in srgb, ${toneColor[tone]} 25%, var(--border-subtle))`,
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
 export function SwitchControl({
   checked,
   onChange,
