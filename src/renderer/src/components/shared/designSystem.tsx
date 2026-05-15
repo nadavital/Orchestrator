@@ -760,6 +760,7 @@ interface SurfaceRowProps {
   style?: CSSProperties
   title?: string
   ariaLabel?: string
+  dataTestId?: string
 }
 
 export function SurfaceRow({
@@ -775,9 +776,11 @@ export function SurfaceRow({
   style,
   title,
   ariaLabel,
+  dataTestId,
 }: SurfaceRowProps): JSX.Element {
   const shared = {
     'data-active': active ? 'true' : 'false',
+    'data-testid': dataTestId,
     className: `surface-row motion-row ${className}`,
     style: { ...rowMotionStyle(index), ...style },
     onContextMenu,

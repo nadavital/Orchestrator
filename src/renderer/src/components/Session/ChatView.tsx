@@ -47,6 +47,7 @@ const TOOL_SUMMARY_MAX_HEIGHT = 220
 const FOLLOW_BOTTOM_THRESHOLD = 80
 const USER_MESSAGE_COLLAPSE_LENGTH = 1400
 const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
+const TRANSCRIPT_RENDER_CHUNK = 40
 
 export default function ChatView({ session, projectName, onSuggestedPrompt }: Props): JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -55,7 +56,13 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   const pendingScrollFrameRef = useRef<number | null>(null)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
-  const transcriptItems = groupTranscriptMessages(session.messages)
+  const [renderLimit, setRenderLimit] = useState(() => Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
+  const visibleMessages = useMemo(() => {
+    if (session.messages.length <= renderLimit) return session.messages
+    return session.messages.slice(-renderLimit)
+  }, [renderLimit, session.messages])
+  const hiddenMessageCount = Math.max(0, session.messages.length - visibleMessages.length)
+  const transcriptItems = useMemo(() => groupTranscriptMessages(visibleMessages), [visibleMessages])
   const fileReferenceRoots = useMemo(() => sessionFileReferenceRoots(session), [session])
   const lastMessage = session.messages[session.messages.length - 1]
   const lastTextLength = lastMessage?.type === 'text' ? lastMessage.content.length : 0
@@ -113,6 +120,7 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
 
   useEffect(() => {
     setFollowingBottom(true)
+    setRenderLimit(Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
     scrollToBottom(true)
   }, [scrollToBottom, session.id, setFollowingBottom])
 
@@ -182,6 +190,13 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
             gap: 'var(--transcript-gap, 14px)'
           }}
         >
+          {hiddenMessageCount > 0 && (
+            <LoadEarlierMessages
+              hiddenCount={hiddenMessageCount}
+              onLoad={() => setRenderLimit((current) => Math.min(session.messages.length, current + TRANSCRIPT_RENDER_CHUNK))}
+              onLoadAll={() => setRenderLimit(session.messages.length)}
+            />
+          )}
           {transcriptItems.map((item) => (
             item.type === 'tool_group'
               ? <ToolActivitySummary key={item.id} messages={item.messages} />
@@ -210,6 +225,34 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
           Jump to latest
         </ScrollEdgeButton>
       )}
+    </div>
+  )
+}
+
+function LoadEarlierMessages({
+  hiddenCount,
+  onLoad,
+  onLoadAll
+}: {
+  hiddenCount: number
+  onLoad: () => void
+  onLoadAll: () => void
+}): JSX.Element {
+  return (
+    <div className="flex justify-center">
+      <SurfaceRow
+        dataTestId="load-earlier-messages"
+        className="items-center gap-2 rounded-full px-3 py-1.5 text-xs"
+        style={{
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-subtle)',
+          color: 'var(--text-secondary)'
+        }}
+      >
+        <span>{hiddenCount.toLocaleString()} earlier message{hiddenCount === 1 ? '' : 's'} hidden for faster chat switching</span>
+        <Button variant="ghost" className="px-2 py-0.5" onClick={onLoad}>Load earlier</Button>
+        <Button variant="ghost" className="px-2 py-0.5" onClick={onLoadAll}>All</Button>
+      </SurfaceRow>
     </div>
   )
 }

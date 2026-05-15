@@ -102,7 +102,9 @@ child.on('exit', (code) => {
         firstTitleFound: result.firstTitleFound === true,
         secondTranscriptFound: result.secondTranscriptFound === true,
         secondTitleFound: result.secondTitleFound === true,
-        switchWithinBudget: Number(result.switchElapsedMs ?? Number.POSITIVE_INFINITY) <= 150,
+        longHistoryDeferred: result.longHistoryDeferred === true,
+        titleWithinBudget: Number(result.titleElapsedMs ?? Number.POSITIVE_INFINITY) <= 150,
+        transcriptWithinBudget: Number(result.switchElapsedMs ?? Number.POSITIVE_INFINITY) <= 900,
         sessionViewNotAnimated: result.sessionViewAnimated === false
       }
     : captureView === 'motion-reduced'

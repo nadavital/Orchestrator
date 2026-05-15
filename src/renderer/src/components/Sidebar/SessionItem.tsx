@@ -4,7 +4,7 @@ import { useProjectStore } from '../../store/projects'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
 import { IconButton, SurfaceRow } from '../shared/designSystem'
-import { useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 
 interface Props {
   session: Session
@@ -24,29 +24,27 @@ const statusColor: Record<Session['status'], string> = {
   error: 'var(--color-red)'
 }
 
-export default function SessionItem({ session }: Props): JSX.Element {
-  const {
-    sessions,
-    activeSessionId,
-    uiState,
-    setActiveSession,
-    removeSession,
-    setShowCapabilities,
-    setShowSettings
-  } = useSessionStore()
+function SessionItem({ session }: Props): JSX.Element {
+  const isActive = useSessionStore((state) => state.activeSessionId === session.id)
+  const unread = useSessionStore((state) => state.uiState[session.id]?.hasUnread ?? false)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const removeSession = useSessionStore((state) => state.removeSession)
+  const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
+  const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const { removeSessionFromProject } = useProjectStore()
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
-  const isActive = activeSessionId === session.id
-  const hasUnread = !isActive && (uiState[session.id]?.hasUnread ?? false)
+  const hasUnread = !isActive && unread
+  const preview = useMemo(() => {
+    const lastMessage = session.messages.findLast((m) => m.type === 'text' && m.role !== 'system')
+    return lastMessage && lastMessage.type === 'text'
+      ? compactPreview(lastMessage.content, session.name, session.status)
+      : ''
+  }, [session.messages, session.name, session.status])
 
-  const lastMessage = session.messages.findLast((m) => m.type === 'text' && m.role !== 'system')
-  const preview = lastMessage && lastMessage.type === 'text'
-    ? compactPreview(lastMessage.content, session.name, session.status)
-    : ''
-
-  const cleanupActiveIfEmpty = async (): Promise<void> => {
-    if (!activeSessionId || activeSessionId === session.id) return
-    const active = sessions.find((s) => s.id === activeSessionId)
+  const cleanupSessionIfEmpty = async (sessionId: string | null): Promise<void> => {
+    const { sessions, removeSession } = useSessionStore.getState()
+    if (!sessionId || sessionId === session.id) return
+    const active = sessions.find((s) => s.id === sessionId)
     if (active && active.messages.length === 0 && active.status !== 'running') {
       await window.api.sessions.remove(active.id)
       await window.api.projects.removeSession(active.projectId, active.id)
@@ -56,10 +54,11 @@ export default function SessionItem({ session }: Props): JSX.Element {
   }
 
   const handleClick = async (): Promise<void> => {
-    await cleanupActiveIfEmpty()
+    const previousActiveId = useSessionStore.getState().activeSessionId
     setActiveSession(session.id)
     setShowCapabilities(false)
     setShowSettings(false)
+    void cleanupSessionIfEmpty(previousActiveId)
   }
 
   const handleRemove = async (): Promise<void> => {
@@ -162,3 +161,5 @@ function compactPreview(content: string, name: string, status: Session['status']
   if (!compact || compact === name) return ''
   return compact.length > 44 ? `${compact.slice(0, 41)}...` : compact
 }
+
+export default memo(SessionItem)

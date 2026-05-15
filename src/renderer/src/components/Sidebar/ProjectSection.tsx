@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Project, Session } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
@@ -16,25 +16,22 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   const [creating, setCreating] = useState(false)
   const [confirmingRemoval, setConfirmingRemoval] = useState(false)
   const { removeProject, addSessionToProject, removeSessionFromProject } = useProjectStore()
-  const {
-    sessions: allSessions,
-    activeSessionId,
-    removeSession,
-    addSession,
-    setActiveSession,
-    setShowCapabilities,
-    setShowSettings
-  } = useSessionStore()
-  const sortedSessions = [...sessions].sort((a, b) => {
+  const removeSession = useSessionStore((state) => state.removeSession)
+  const addSession = useSessionStore((state) => state.addSession)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
+  const setShowSettings = useSessionStore((state) => state.setShowSettings)
+  const sortedSessions = useMemo(() => [...sessions].sort((a, b) => {
     if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1
     return b.createdAt - a.createdAt
-  })
+  }), [sessions])
 
   const handleNewSession = async (): Promise<void> => {
     if (creating) return
     setCreating(true)
 
     // Clean up the currently active session if it has no messages
+    const { activeSessionId, sessions: allSessions, removeSession } = useSessionStore.getState()
     if (activeSessionId) {
       const active = allSessions.find((s) => s.id === activeSessionId)
       if (active && active.messages.length === 0 && active.status !== 'running') {

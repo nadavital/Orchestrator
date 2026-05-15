@@ -355,13 +355,25 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
         const after = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            let titleElapsedMs = null;
             for (let index = 0; index < 30; index += 1) {
-              if (document.body.innerText.includes('SESSION_SWITCH_SMOKE_TWO')) break;
+              if (document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)})) {
+                titleElapsedMs = performance.now() - window.__orchestratorSessionSwitchStart;
+                break;
+              }
               await sleep(10);
             }
+            for (let index = 0; index < 120; index += 1) {
+              const transcriptText = document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '';
+              if (transcriptText.includes('SESSION_SWITCH_SMOKE_TWO')) break;
+              await sleep(10);
+            }
+            const transcriptText = document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '';
             return {
-              secondTranscriptFound: document.body.innerText.includes('SESSION_SWITCH_SMOKE_TWO'),
+              secondTranscriptFound: transcriptText.includes('SESSION_SWITCH_SMOKE_TWO'),
               secondTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)}) ?? false,
+              longHistoryDeferred: Boolean(document.querySelector('[data-testid="load-earlier-messages"]')),
+              titleElapsedMs,
               switchElapsedMs: performance.now() - window.__orchestratorSessionSwitchStart,
               sessionViewAnimated: document.querySelector('[data-motion-view="session"]')?.classList.contains('motion-view-animated') ?? null
             };
@@ -1135,13 +1147,24 @@ async function createSessionSwitchFixture(
     repoRoot: workDir
   })
   sessionManager.updateName(session.id, name)
-  sessionManager.appendMessage(session.id, [{
+  const baseTime = Date.now()
+  const messages: ChatMessage[] = Array.from({ length: 420 }, (_, index) => ({
+    id: `${marker.toLowerCase()}-${index + 1}`,
+    role: index % 2 === 0 ? 'user' : 'assistant',
+    type: 'text',
+    content: `Long history ${marker} message ${index + 1}\n\n${Array.from({ length: 3 }, (_line, lineIndex) =>
+      `This seeded line ${lineIndex + 1} makes session switching exercise realistic transcript volume without depending on user data.`
+    ).join('\n')}`,
+    timestamp: baseTime + index
+  }))
+  messages.push({
     id: `${marker.toLowerCase()}-assistant`,
     role: 'assistant',
     type: 'text',
     content: `${marker}: seeded transcript content for immediate chat switching.`,
-    timestamp: Date.now()
-  }])
+    timestamp: baseTime + messages.length
+  })
+  sessionManager.appendMessage(session.id, messages)
   return sessionManager.get(session.id) ?? session
 }
 

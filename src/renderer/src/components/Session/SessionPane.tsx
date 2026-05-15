@@ -94,7 +94,7 @@ export default function SessionPane(): JSX.Element | null {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
+    <div className="relative flex flex-col h-full overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
       {/* Main content row: chat + optional side panels */}
       <div className="flex-1 flex min-w-0 overflow-hidden">
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
