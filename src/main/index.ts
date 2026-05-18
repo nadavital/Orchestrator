@@ -426,6 +426,24 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               }
               await sleep(10);
             }
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            const lazyBeforeText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
+            const lazyBeforeHidden = Number(lazyBeforeText.match(/Show\\s+([\\d,]+)/)?.[1]?.replace(/,/g, '') ?? 0);
+            let lazyBeforeTop = null;
+            let lazyAfterTop = null;
+            let lazyAfterHidden = null;
+            if (scroller instanceof HTMLElement) {
+              scroller.scrollTop = Math.min(240, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              lazyBeforeTop = scroller.scrollTop;
+              for (let index = 0; index < 60; index += 1) {
+                const lazyAfterText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
+                lazyAfterHidden = Number(lazyAfterText.match(/Show\\s+([\\d,]+)/)?.[1]?.replace(/,/g, '') ?? 0);
+                if (lazyAfterHidden > 0 && lazyAfterHidden < lazyBeforeHidden) break;
+                await sleep(20);
+              }
+              lazyAfterTop = scroller.scrollTop;
+            }
             window.dispatchEvent(new KeyboardEvent('keydown', {
               key: 'f',
               code: 'KeyF',
@@ -454,6 +472,11 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               secondTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)}) ?? false,
               longHistoryDeferred: Boolean(document.querySelector('[data-testid="load-earlier-messages"]')),
               fullHydratedAfterSwitch,
+              autoLazyLoadedEarlier: lazyBeforeHidden > 0 && (lazyAfterHidden ?? lazyBeforeHidden) < lazyBeforeHidden,
+              autoLazyAnchorPreserved: lazyBeforeTop !== null && (lazyAfterTop ?? 0) > lazyBeforeTop,
+              lazyBeforeHidden,
+              lazyAfterHidden,
+              lazyAfterTop,
               transcriptSearchFound,
               renderedMessages: window.__orchestratorSessionSwitchLastPerf?.renderedMessages ?? null,
               messageCount: window.__orchestratorSessionSwitchLastPerf?.messageCount ?? null,

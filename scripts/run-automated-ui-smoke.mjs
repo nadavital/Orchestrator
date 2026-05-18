@@ -115,6 +115,8 @@ child.on('exit', (code) => {
         summaryTailBounded: result.summaryTailBounded === true,
         longHistoryDeferred: result.longHistoryDeferred === true,
         fullHydratedAfterSwitch: result.fullHydratedAfterSwitch === true,
+        autoLazyLoadedEarlier: result.autoLazyLoadedEarlier === true,
+        autoLazyAnchorPreserved: result.autoLazyAnchorPreserved === true,
         transcriptSearchFound: result.transcriptSearchFound === true,
         renderedWindowBounded: Number(result.renderedMessages ?? Number.POSITIVE_INFINITY) <= 40,
         telemetryRecorded: result.telemetryRecorded === true,

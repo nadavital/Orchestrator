@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import type { WheelEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -52,6 +52,7 @@ const FOLLOW_BOTTOM_THRESHOLD = 80
 const USER_MESSAGE_COLLAPSE_LENGTH = 1400
 const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
 const TRANSCRIPT_RENDER_CHUNK = 40
+const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
 
 export default function ChatView({ session, projectName, onSuggestedPrompt }: Props): JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -59,6 +60,13 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   const searchInputRef = useRef<HTMLInputElement>(null)
   const shouldFollowBottomRef = useRef(true)
   const pendingScrollFrameRef = useRef<number | null>(null)
+  const loadingEarlierRef = useRef(false)
+  const prependAnchorRef = useRef<{
+    scrollHeight: number
+    scrollTop: number
+    messageId?: string
+    messageTop?: number
+  } | null>(null)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -86,6 +94,10 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   }, [session.messages])
   const loadedHiddenCount = Math.max(0, session.messages.length - visibleMessages.length)
   const unloadedBeforeCount = Math.max(0, totalMessageCount - session.messages.length)
+
+  useEffect(() => {
+    loadingEarlierRef.current = loadingEarlier
+  }, [loadingEarlier])
 
   useEffect(() => {
     let cancelled = false
@@ -118,6 +130,44 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     stopFollowingBottom()
   }, [stopFollowingBottom])
 
+  const capturePrependAnchor = useCallback(() => {
+    const scroller = scrollContainerRef.current
+    if (!scroller) return
+    const scrollerTop = scroller.getBoundingClientRect().top
+    const firstMessage = scroller.querySelector<HTMLElement>('[data-message-id]')
+    prependAnchorRef.current = {
+      scrollHeight: scroller.scrollHeight,
+      scrollTop: scroller.scrollTop,
+      messageId: firstMessage?.dataset.messageId,
+      messageTop: firstMessage ? firstMessage.getBoundingClientRect().top - scrollerTop : undefined
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    const anchor = prependAnchorRef.current
+    const scroller = scrollContainerRef.current
+    if (!anchor || !scroller) return
+    prependAnchorRef.current = null
+    const restoreAnchor = (): void => {
+      const currentScroller = scrollContainerRef.current
+      if (!currentScroller) return
+      if (anchor.messageId && typeof anchor.messageTop === 'number') {
+        const scrollerTop = currentScroller.getBoundingClientRect().top
+        const anchoredMessage = currentScroller.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(anchor.messageId)}"]`)
+        if (anchoredMessage) {
+          const nextMessageTop = anchoredMessage.getBoundingClientRect().top - scrollerTop
+          currentScroller.scrollTop += nextMessageTop - anchor.messageTop
+          return
+        }
+      }
+      const heightDelta = currentScroller.scrollHeight - anchor.scrollHeight
+      currentScroller.scrollTop = anchor.scrollTop + Math.max(0, heightDelta)
+    }
+    restoreAnchor()
+    const frame = window.requestAnimationFrame(restoreAnchor)
+    return () => window.cancelAnimationFrame(frame)
+  }, [session.messages.length, renderLimit])
+
   const scrollToBottom = useCallback((force = false) => {
     if (force) {
       const scroller = scrollContainerRef.current
@@ -140,12 +190,66 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     })
   }, [setFollowingBottom])
 
+  const handleLoadEarlier = useCallback(async (source: 'manual' | 'auto' = 'manual') => {
+    if (loadingEarlierRef.current) return
+    capturePrependAnchor()
+    if (loadedHiddenCount > 0) {
+      loadingEarlierRef.current = true
+      setRenderLimit((current) => Math.min(session.messages.length, current + TRANSCRIPT_RENDER_CHUNK))
+      window.requestAnimationFrame(() => {
+        loadingEarlierRef.current = false
+      })
+      recordRendererMetric('transcript.lazy.render-loaded', markRendererStart(), {
+        sessionId: session.id,
+        source,
+        renderedMessages: Math.min(session.messages.length, renderLimit + TRANSCRIPT_RENDER_CHUNK)
+      })
+      return
+    }
+    const beforeMessageId = session.messages[0]?.id
+    if (!beforeMessageId || unloadedBeforeCount <= 0) {
+      prependAnchorRef.current = null
+      return
+    }
+    loadingEarlierRef.current = true
+    setLoadingEarlier(true)
+    const startedAt = markRendererStart()
+    try {
+      const page = await window.api.sessions.getTranscriptPage(session.id, { beforeMessageId, limit: TRANSCRIPT_RENDER_CHUNK })
+      if (page) {
+        useSessionStore.getState().mergeTranscriptPage(session.id, page, 'prepend')
+        setRenderLimit((current) => Math.min(current + page.messages.length, current + TRANSCRIPT_RENDER_CHUNK))
+        recordRendererMetric('transcript.page.prepend-ready', startedAt, {
+          sessionId: session.id,
+          source,
+          messages: page.messages.length,
+          hasMoreBefore: page.hasMoreBefore
+        })
+      } else {
+        prependAnchorRef.current = null
+      }
+    } finally {
+      loadingEarlierRef.current = false
+      setLoadingEarlier(false)
+    }
+  }, [
+    capturePrependAnchor,
+    loadedHiddenCount,
+    renderLimit,
+    session.id,
+    session.messages,
+    unloadedBeforeCount
+  ])
+
   const handleScroll = useCallback(() => {
     const scroller = scrollContainerRef.current
     if (!scroller) return
     const distanceFromBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
     setFollowingBottom(distanceFromBottom <= FOLLOW_BOTTOM_THRESHOLD)
-  }, [setFollowingBottom])
+    if (hiddenMessageCount > 0 && scroller.scrollTop <= TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD) {
+      void handleLoadEarlier('auto')
+    }
+  }, [handleLoadEarlier, hiddenMessageCount, setFollowingBottom])
 
   useEffect(() => {
     setFollowingBottom(true)
@@ -294,32 +398,6 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     }
   }, [])
 
-  const handleLoadEarlier = useCallback(async () => {
-    if (loadingEarlier) return
-    if (loadedHiddenCount > 0) {
-      setRenderLimit((current) => Math.min(session.messages.length, current + TRANSCRIPT_RENDER_CHUNK))
-      return
-    }
-    const beforeMessageId = session.messages[0]?.id
-    if (!beforeMessageId || unloadedBeforeCount <= 0) return
-    setLoadingEarlier(true)
-    const startedAt = markRendererStart()
-    try {
-      const page = await window.api.sessions.getTranscriptPage(session.id, { beforeMessageId, limit: TRANSCRIPT_RENDER_CHUNK })
-      if (page) {
-        useSessionStore.getState().mergeTranscriptPage(session.id, page, 'prepend')
-        setRenderLimit((current) => Math.min(current + page.messages.length, current + TRANSCRIPT_RENDER_CHUNK))
-        recordRendererMetric('transcript.page.prepend-ready', startedAt, {
-          sessionId: session.id,
-          messages: page.messages.length,
-          hasMoreBefore: page.hasMoreBefore
-        })
-      }
-    } finally {
-      setLoadingEarlier(false)
-    }
-  }, [loadedHiddenCount, loadingEarlier, session.id, session.messages, unloadedBeforeCount])
-
   const handleLoadAllLoaded = useCallback(() => {
     setRenderLimit(session.messages.length)
   }, [session.messages.length])
@@ -402,7 +480,7 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
             <LoadEarlierMessages
               hiddenCount={hiddenMessageCount}
               loading={loadingEarlier}
-              onLoad={handleLoadEarlier}
+              onLoad={() => { void handleLoadEarlier('manual') }}
               onLoadAll={handleLoadAllLoaded}
             />
           )}
