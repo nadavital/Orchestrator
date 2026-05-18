@@ -109,6 +109,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedSessionSwitchSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-stress') {
+    runAutomatedTranscriptStressSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced') {
     runAutomatedReducedMotionSmoke(win, outputPath, screenshotPath)
     return
@@ -1348,6 +1352,8 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
             await sleep(40);
             scroller.dispatchEvent(new WheelEvent('wheel', { deltaY: -360, bubbles: true, cancelable: true }));
+            scroller.scrollTop = Math.max(0, scroller.scrollTop - 360);
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
             await sleep(120);
             return {
               profile,
@@ -1426,6 +1432,111 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
   })
 }
 
+function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const stressSession = sessionManager.list().find((candidate) =>
+          candidate.messages.some((message) => message.type === 'text' && message.content.includes('TRANSCRIPT_STRESS_LATEST'))
+        )
+        const stressSessionId = stressSession?.id ?? null
+        if (stressSessionId) win.webContents.send('pet:navigate', stressSessionId)
+
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const profile = await window.api.app.getProfile();
+            const startedAt = performance.now();
+            for (let index = 0; index < 160; index += 1) {
+              const text = document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '';
+              if (text.includes('TRANSCRIPT_STRESS_LATEST')) break;
+              await sleep(10);
+            }
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) {
+              return { profile, stressTranscriptFound: false, stressSessionId: ${JSON.stringify(stressSessionId)}, bodyText: document.body.innerText };
+            }
+            const readyElapsedMs = performance.now() - startedAt;
+            const text = scroller.innerText;
+            const hiddenCount = () => Number((document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '').match(/Show\\s+([\\d,]+)/)?.[1]?.replace(/,/g, '') ?? 0);
+            const mountedRows = () => document.querySelectorAll('[data-testid="virtual-transcript-row"]').length;
+            const messageCount = window.__orchestratorSessionSwitchLastPerf?.messageCount ?? null;
+            const initialHidden = hiddenCount();
+            const initialMountedRows = mountedRows();
+
+            scroller.scrollTop = Math.min(240, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
+            scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            let afterLazyHidden = initialHidden;
+            for (let index = 0; index < 100; index += 1) {
+              afterLazyHidden = hiddenCount();
+              if (afterLazyHidden > 0 && afterLazyHidden < initialHidden) break;
+              await sleep(20);
+            }
+            await sleep(80);
+            const lazyMountedRows = mountedRows();
+
+            window.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'f',
+              code: 'KeyF',
+              metaKey: true,
+              bubbles: true,
+              cancelable: true
+            }));
+            await sleep(80);
+            const search = document.querySelector('[data-testid="transcript-search"]');
+            let searchJumpFound = false;
+            if (search instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(search.constructor.prototype, 'value')?.set;
+              setter?.call(search, 'TRANSCRIPT_STRESS_EARLY_0007');
+              search.dispatchEvent(new Event('input', { bubbles: true }));
+              for (let index = 0; index < 120; index += 1) {
+                const resultButton = [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('TRANSCRIPT_STRESS_EARLY_0007'));
+                if (resultButton instanceof HTMLButtonElement) {
+                  resultButton.click();
+                  break;
+                }
+                await sleep(20);
+              }
+              for (let index = 0; index < 120; index += 1) {
+                if ((document.querySelector('[data-testid="transcript-scroll"]')?.innerText ?? '').includes('TRANSCRIPT_STRESS_EARLY_0007')) {
+                  searchJumpFound = true;
+                  break;
+                }
+                await sleep(20);
+              }
+            }
+            const searchMountedRows = mountedRows();
+
+            return {
+              profile,
+              stressTranscriptFound: text.includes('TRANSCRIPT_STRESS_LATEST'),
+              readyElapsedMs,
+              messageCount,
+              initialHidden,
+              afterLazyHidden,
+              initialMountedRows,
+              lazyMountedRows,
+              searchMountedRows,
+              lazyLoadedOlderChunk: initialHidden > 0 && afterLazyHidden < initialHidden,
+              searchJumpFound
+            };
+          })()
+        `)
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 app.whenReady().then(async () => {
   ;({ registerIpcHandlers } = await import('./ipc'))
   ;({ createPetOverlayWindow, destroyPetOverlayWindow, setCreateMainWindowCallback } = await import('./petOverlay'))
@@ -1472,6 +1583,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     seedAutomatedTranscriptLayoutSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
     await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-stress') {
+    await seedAutomatedTranscriptStressSmokeSession(project.id, project.rootPath)
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced'
@@ -1638,6 +1751,61 @@ async function seedAutomatedSessionSwitchSmokeSessions(projectId: string, workDi
   ) ?? await createSessionSwitchFixture(projectId, workDir, 'Session switch two', 'SESSION_SWITCH_SMOKE_TWO')
   projectStore.addSession(projectId, one.id)
   projectStore.addSession(projectId, two.id)
+}
+
+async function seedAutomatedTranscriptStressSmokeSession(projectId: string, workDir: string): Promise<void> {
+  const existing = sessionManager.list().find((session) =>
+    session.messages.some((message) => message.type === 'text' && message.content.includes('TRANSCRIPT_STRESS_LATEST'))
+  )
+  const session = existing ?? await sessionManager.create({
+    projectId,
+    workDir,
+    useWorktree: false,
+    repoRoot: workDir
+  })
+  const baseTime = Date.now()
+  const messages: ChatMessage[] = Array.from({ length: 2500 }, (_, index) => {
+    const number = String(index + 1).padStart(4, '0')
+    const marker = index === 6 ? 'TRANSCRIPT_STRESS_EARLY_0007' : `TRANSCRIPT_STRESS_${number}`
+    return {
+      id: `transcript-stress-${number}`,
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      type: 'text',
+      content: [
+        `${marker}: large transcript fixture message ${number}.`,
+        `This message verifies measured virtualization on a long thread without mounting thousands of rows.`,
+        index % 10 === 0
+          ? Array.from({ length: 8 }, (_line, lineIndex) => `Extra markdown-ish paragraph ${lineIndex + 1} for variable row height.`).join('\n')
+          : 'Short row variant for estimator coverage.'
+      ].join('\n\n'),
+      timestamp: baseTime + index
+    }
+  })
+  messages.push({
+    id: 'transcript-stress-latest',
+    role: 'assistant',
+    type: 'text',
+    content: [
+      'TRANSCRIPT_STRESS_LATEST: latest message should appear immediately after switching to the large transcript.',
+      '',
+      '```ts',
+      'export const transcriptStressLatest = true',
+      '```'
+    ].join('\n'),
+    timestamp: baseTime + messages.length
+  })
+
+  sessionManager.save({
+    ...session,
+    name: 'Transcript stress smoke',
+    status: 'idle',
+    messages,
+    createdAt: baseTime,
+    latestMessageAt: baseTime + messages.length,
+    messageCount: messages.length,
+    messagesLoaded: true
+  })
+  projectStore.addSession(projectId, session.id)
 }
 
 async function createSessionSwitchFixture(

@@ -24,22 +24,24 @@ const captureView = process.argv.includes('--settings')
             ? 'sidebar'
             : process.argv.includes('--transcript-layout')
               ? 'transcript-layout'
-              : process.argv.includes('--session-switch')
-                ? 'session-switch'
-              : process.argv.includes('--extensions')
-                ? 'extensions'
-                : process.argv.includes('--design-system')
-                  ? 'design-system'
-                  : process.argv.includes('--scroll')
-                    ? 'scroll'
-                    : process.argv.includes('--inspector')
-                      ? 'inspector'
-                      : process.argv.includes('--terminal')
-                        ? 'terminal'
-                        : 'main'
+              : process.argv.includes('--transcript-stress')
+                ? 'transcript-stress'
+                : process.argv.includes('--session-switch')
+                  ? 'session-switch'
+                  : process.argv.includes('--extensions')
+                    ? 'extensions'
+                    : process.argv.includes('--design-system')
+                      ? 'design-system'
+                      : process.argv.includes('--scroll')
+                        ? 'scroll'
+                        : process.argv.includes('--inspector')
+                          ? 'inspector'
+                          : process.argv.includes('--terminal')
+                            ? 'terminal'
+                            : 'main'
 const runPackaged = process.argv.includes('--packaged')
 const profile = 'automated-ui-smoke'
-const userDataDir = join(tmpdir(), 'orchestrator-profiles', profile)
+const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
@@ -124,6 +126,18 @@ child.on('exit', (code) => {
         titleWithinBudget: Number(result.titleElapsedMs ?? Number.POSITIVE_INFINITY) <= 150,
         transcriptWithinBudget: Number(result.switchElapsedMs ?? Number.POSITIVE_INFINITY) <= 900,
         sessionViewNotAnimated: result.sessionViewAnimated === false
+      }
+    : captureView === 'transcript-stress'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        stressTranscriptFound: result.stressTranscriptFound === true,
+        stressMessageCount: Number(result.messageCount ?? 0) >= 2500,
+        initialMountedRowsBounded: Number(result.initialMountedRows ?? Number.POSITIVE_INFINITY) <= 48,
+        lazyMountedRowsBounded: Number(result.lazyMountedRows ?? Number.POSITIVE_INFINITY) <= 56,
+        searchMountedRowsBounded: Number(result.searchMountedRows ?? Number.POSITIVE_INFINITY) <= 56,
+        lazyLoadedOlderChunk: result.lazyLoadedOlderChunk === true,
+        searchJumpFound: result.searchJumpFound === true,
+        stressReadyWithinBudget: Number(result.readyElapsedMs ?? Number.POSITIVE_INFINITY) <= 1400
       }
     : captureView === 'motion-reduced'
     ? {
