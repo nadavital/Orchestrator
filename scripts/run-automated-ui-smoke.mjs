@@ -117,6 +117,7 @@ child.on('exit', (code) => {
         fullHydratedAfterSwitch: result.fullHydratedAfterSwitch === true,
         autoLazyLoadedEarlier: result.autoLazyLoadedEarlier === true,
         autoLazyAnchorPreserved: result.autoLazyAnchorPreserved === true,
+        virtualMountedRowsBounded: Number(result.mountedVirtualRows ?? Number.POSITIVE_INFINITY) <= 36,
         transcriptSearchFound: result.transcriptSearchFound === true,
         renderedWindowBounded: Number(result.renderedMessages ?? Number.POSITIVE_INFINITY) <= 40,
         telemetryRecorded: result.telemetryRecorded === true,

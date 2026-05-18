@@ -432,18 +432,35 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
             let lazyBeforeTop = null;
             let lazyAfterTop = null;
             let lazyAfterHidden = null;
+            let lazyBeforeVisibleMessage = null;
+            let lazyAfterVisibleMessage = null;
             if (scroller instanceof HTMLElement) {
+              const firstVisibleMessageId = () => {
+                const scrollerRect = scroller.getBoundingClientRect();
+                const messages = Array.from(scroller.querySelectorAll('[data-message-id]'));
+                const visible = messages.find((message) => {
+                  const rect = message.getBoundingClientRect();
+                  return rect.bottom > scrollerRect.top && rect.top < scrollerRect.bottom;
+                });
+                return visible?.getAttribute('data-message-id') ?? null;
+              };
               scroller.scrollTop = Math.min(240, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
               scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
               lazyBeforeTop = scroller.scrollTop;
+              lazyBeforeVisibleMessage = firstVisibleMessageId();
               for (let index = 0; index < 60; index += 1) {
                 const lazyAfterText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
                 lazyAfterHidden = Number(lazyAfterText.match(/Show\\s+([\\d,]+)/)?.[1]?.replace(/,/g, '') ?? 0);
                 if (lazyAfterHidden > 0 && lazyAfterHidden < lazyBeforeHidden) break;
                 await sleep(20);
               }
+              await sleep(80);
               lazyAfterTop = scroller.scrollTop;
+              lazyAfterVisibleMessage = firstVisibleMessageId();
             }
+            const messageOrdinal = (id) => Number(id?.match(/-(\\d+)$/)?.[1] ?? Number.NaN);
+            const lazyBeforeOrdinal = messageOrdinal(lazyBeforeVisibleMessage);
+            const lazyAfterOrdinal = messageOrdinal(lazyAfterVisibleMessage);
             window.dispatchEvent(new KeyboardEvent('keydown', {
               key: 'f',
               code: 'KeyF',
@@ -467,16 +484,23 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               }
             }
             const telemetry = await window.api.performance.snapshot();
+            const mountedVirtualRows = document.querySelectorAll('[data-testid="virtual-transcript-row"]').length;
             return {
               secondTranscriptFound: transcriptText.includes('SESSION_SWITCH_SMOKE_TWO'),
               secondTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)}) ?? false,
               longHistoryDeferred: Boolean(document.querySelector('[data-testid="load-earlier-messages"]')),
               fullHydratedAfterSwitch,
               autoLazyLoadedEarlier: lazyBeforeHidden > 0 && (lazyAfterHidden ?? lazyBeforeHidden) < lazyBeforeHidden,
-              autoLazyAnchorPreserved: lazyBeforeTop !== null && (lazyAfterTop ?? 0) > lazyBeforeTop,
+              autoLazyAnchorPreserved: Boolean(lazyBeforeVisibleMessage && lazyAfterVisibleMessage) &&
+                Number.isFinite(lazyBeforeOrdinal) &&
+                Number.isFinite(lazyAfterOrdinal) &&
+                Math.abs(lazyAfterOrdinal - lazyBeforeOrdinal) <= 1,
               lazyBeforeHidden,
               lazyAfterHidden,
               lazyAfterTop,
+              lazyBeforeVisibleMessage,
+              lazyAfterVisibleMessage,
+              mountedVirtualRows,
               transcriptSearchFound,
               renderedMessages: window.__orchestratorSessionSwitchLastPerf?.renderedMessages ?? null,
               messageCount: window.__orchestratorSessionSwitchLastPerf?.messageCount ?? null,

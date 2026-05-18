@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
-import type { WheelEvent } from 'react'
+import type { ReactNode, WheelEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -32,6 +32,13 @@ import { useSessionStore } from '../../store/sessions'
 import { markRendererStart, recordRendererMetric } from '../../performance'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+interface TranscriptPrependAnchor {
+  scrollHeight: number
+  scrollTop: number
+  messageId?: string
+  messageTop?: number
+  estimatedPrependedHeight?: number
+}
 
 interface Props {
   session: Session
@@ -53,6 +60,8 @@ const USER_MESSAGE_COLLAPSE_LENGTH = 1400
 const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
 const TRANSCRIPT_RENDER_CHUNK = 40
 const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
+const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
+const TRANSCRIPT_VIRTUAL_ROW_GAP = 14
 
 export default function ChatView({ session, projectName, onSuggestedPrompt }: Props): JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -61,12 +70,9 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   const shouldFollowBottomRef = useRef(true)
   const pendingScrollFrameRef = useRef<number | null>(null)
   const loadingEarlierRef = useRef(false)
-  const prependAnchorRef = useRef<{
-    scrollHeight: number
-    scrollTop: number
-    messageId?: string
-    messageTop?: number
-  } | null>(null)
+  const transcriptListRef = useRef<HTMLDivElement>(null)
+  const measuredRowHeightsRef = useRef<Record<string, number>>({})
+  const prependAnchorRef = useRef<TranscriptPrependAnchor | null>(null)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
   const [loadingEarlier, setLoadingEarlier] = useState(false)
@@ -75,6 +81,8 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   const [searchResults, setSearchResults] = useState<TranscriptSearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [renderLimit, setRenderLimit] = useState(() => Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
+  const [scrollMetrics, setScrollMetrics] = useState({ top: 0, height: 0, listOffsetTop: 0 })
+  const [rowMeasurementVersion, setRowMeasurementVersion] = useState(0)
   const visibleMessages = useMemo(() => {
     if (session.messages.length <= renderLimit) return session.messages
     return session.messages.slice(-renderLimit)
@@ -94,10 +102,43 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   }, [session.messages])
   const loadedHiddenCount = Math.max(0, session.messages.length - visibleMessages.length)
   const unloadedBeforeCount = Math.max(0, totalMessageCount - session.messages.length)
+  const virtualWindow = useMemo(() => buildVirtualTranscriptWindow(
+    transcriptItems,
+    measuredRowHeightsRef.current,
+    Math.max(0, scrollMetrics.top - scrollMetrics.listOffsetTop),
+    scrollMetrics.height || 800
+  ), [rowMeasurementVersion, scrollMetrics.height, scrollMetrics.listOffsetTop, scrollMetrics.top, transcriptItems])
 
   useEffect(() => {
     loadingEarlierRef.current = loadingEarlier
   }, [loadingEarlier])
+
+  const updateScrollMetrics = useCallback(() => {
+    const scroller = scrollContainerRef.current
+    if (!scroller) return
+    const nextMetrics = {
+      top: scroller.scrollTop,
+      height: scroller.clientHeight,
+      listOffsetTop: transcriptListRef.current?.offsetTop ?? 0
+    }
+    setScrollMetrics((current) => (
+      Math.abs(current.top - nextMetrics.top) < 1 &&
+      Math.abs(current.height - nextMetrics.height) < 1 &&
+      Math.abs(current.listOffsetTop - nextMetrics.listOffsetTop) < 1
+        ? current
+        : nextMetrics
+    ))
+  }, [])
+
+  useLayoutEffect(() => {
+    updateScrollMetrics()
+    const scroller = scrollContainerRef.current
+    if (!scroller) return
+    const observer = new ResizeObserver(updateScrollMetrics)
+    observer.observe(scroller)
+    if (transcriptListRef.current) observer.observe(transcriptListRef.current)
+    return () => observer.disconnect()
+  }, [session.id, updateScrollMetrics])
 
   useEffect(() => {
     let cancelled = false
@@ -130,12 +171,17 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     stopFollowingBottom()
   }, [stopFollowingBottom])
 
-  const capturePrependAnchor = useCallback(() => {
+  const readVisiblePrependAnchor = useCallback((): TranscriptPrependAnchor | null => {
     const scroller = scrollContainerRef.current
-    if (!scroller) return
-    const scrollerTop = scroller.getBoundingClientRect().top
-    const firstMessage = scroller.querySelector<HTMLElement>('[data-message-id]')
-    prependAnchorRef.current = {
+    if (!scroller) return null
+    const scrollerRect = scroller.getBoundingClientRect()
+    const scrollerTop = scrollerRect.top
+    const messages = Array.from(scroller.querySelectorAll<HTMLElement>('[data-message-id]'))
+    const firstMessage = messages.find((message) => {
+      const rect = message.getBoundingClientRect()
+      return rect.bottom > scrollerRect.top && rect.top < scrollerRect.bottom
+    }) ?? messages[0]
+    return {
       scrollHeight: scroller.scrollHeight,
       scrollTop: scroller.scrollTop,
       messageId: firstMessage?.dataset.messageId,
@@ -143,11 +189,15 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     }
   }, [])
 
+  const capturePrependAnchor = useCallback((anchor?: TranscriptPrependAnchor | null) => {
+    if (prependAnchorRef.current) return
+    prependAnchorRef.current = anchor ?? readVisiblePrependAnchor()
+  }, [readVisiblePrependAnchor])
+
   useLayoutEffect(() => {
     const anchor = prependAnchorRef.current
     const scroller = scrollContainerRef.current
     if (!anchor || !scroller) return
-    prependAnchorRef.current = null
     const restoreAnchor = (): void => {
       const currentScroller = scrollContainerRef.current
       if (!currentScroller) return
@@ -159,20 +209,34 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
           currentScroller.scrollTop += nextMessageTop - anchor.messageTop
           return
         }
+        const estimatedOffset = transcriptItemOffset(anchor.messageId, transcriptItems, measuredRowHeightsRef.current)
+        if (estimatedOffset !== null) {
+          currentScroller.scrollTop = (transcriptListRef.current?.offsetTop ?? 0) + estimatedOffset - anchor.messageTop
+          return
+        }
+      }
+      if (typeof anchor.estimatedPrependedHeight === 'number') {
+        currentScroller.scrollTop = anchor.scrollTop + anchor.estimatedPrependedHeight
+        return
       }
       const heightDelta = currentScroller.scrollHeight - anchor.scrollHeight
       currentScroller.scrollTop = anchor.scrollTop + Math.max(0, heightDelta)
     }
     restoreAnchor()
-    const frame = window.requestAnimationFrame(restoreAnchor)
+    const frame = window.requestAnimationFrame(() => {
+      restoreAnchor()
+      prependAnchorRef.current = null
+      updateScrollMetrics()
+    })
     return () => window.cancelAnimationFrame(frame)
-  }, [session.messages.length, renderLimit])
+  }, [session.messages.length, renderLimit, transcriptItems, updateScrollMetrics])
 
   const scrollToBottom = useCallback((force = false) => {
     if (force) {
       const scroller = scrollContainerRef.current
       if (scroller) scroller.scrollTop = scroller.scrollHeight
       setFollowingBottom(true)
+      updateScrollMetrics()
       return
     }
     if (pendingScrollFrameRef.current !== null) {
@@ -184,18 +248,54 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
       const scroller = scrollContainerRef.current
       if (scroller) {
         scroller.scrollTop = scroller.scrollHeight
+        updateScrollMetrics()
       } else {
         bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
       }
     })
-  }, [setFollowingBottom])
+  }, [setFollowingBottom, updateScrollMetrics])
 
-  const handleLoadEarlier = useCallback(async (source: 'manual' | 'auto' = 'manual') => {
+  const handleVirtualRowHeight = useCallback((id: string, height: number) => {
+    const previous = measuredRowHeightsRef.current[id]
+    if (previous && Math.abs(previous - height) < 1) return
+    measuredRowHeightsRef.current = {
+      ...measuredRowHeightsRef.current,
+      [id]: height
+    }
+    setRowMeasurementVersion((version) => version + 1)
+    updateScrollMetrics()
+  }, [updateScrollMetrics])
+
+  const schedulePrependScrollCompensation = useCallback((anchor: TranscriptPrependAnchor | null, estimatedHeight: number) => {
+    if (!anchor || estimatedHeight <= 0) return
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const scroller = scrollContainerRef.current
+        if (!scroller) return
+        scroller.scrollTop = anchor.scrollTop + estimatedHeight
+        updateScrollMetrics()
+      })
+    })
+  }, [updateScrollMetrics])
+
+  const handleLoadEarlier = useCallback(async (
+    source: 'manual' | 'auto' = 'manual',
+    anchor?: TranscriptPrependAnchor | null
+  ) => {
     if (loadingEarlierRef.current) return
-    capturePrependAnchor()
+    capturePrependAnchor(anchor)
     if (loadedHiddenCount > 0) {
+      const nextRenderLimit = Math.min(session.messages.length, renderLimit + TRANSCRIPT_RENDER_CHUNK)
+      const previousStart = Math.max(0, session.messages.length - renderLimit)
+      const nextStart = Math.max(0, session.messages.length - nextRenderLimit)
+      const anchorToRestore = prependAnchorRef.current
+      const estimatedPrependedHeight = estimateTranscriptMessagesHeight(session.messages.slice(nextStart, previousStart))
+      if (prependAnchorRef.current) {
+        prependAnchorRef.current.estimatedPrependedHeight = estimatedPrependedHeight
+      }
       loadingEarlierRef.current = true
-      setRenderLimit((current) => Math.min(session.messages.length, current + TRANSCRIPT_RENDER_CHUNK))
+      setRenderLimit(nextRenderLimit)
+      schedulePrependScrollCompensation(anchorToRestore, estimatedPrependedHeight)
       window.requestAnimationFrame(() => {
         loadingEarlierRef.current = false
       })
@@ -217,8 +317,14 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     try {
       const page = await window.api.sessions.getTranscriptPage(session.id, { beforeMessageId, limit: TRANSCRIPT_RENDER_CHUNK })
       if (page) {
+        const anchorToRestore = prependAnchorRef.current
+        const estimatedPrependedHeight = estimateTranscriptMessagesHeight(page.messages)
+        if (prependAnchorRef.current) {
+          prependAnchorRef.current.estimatedPrependedHeight = estimatedPrependedHeight
+        }
         useSessionStore.getState().mergeTranscriptPage(session.id, page, 'prepend')
         setRenderLimit((current) => Math.min(current + page.messages.length, current + TRANSCRIPT_RENDER_CHUNK))
+        schedulePrependScrollCompensation(anchorToRestore, estimatedPrependedHeight)
         recordRendererMetric('transcript.page.prepend-ready', startedAt, {
           sessionId: session.id,
           source,
@@ -244,15 +350,19 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   const handleScroll = useCallback(() => {
     const scroller = scrollContainerRef.current
     if (!scroller) return
+    updateScrollMetrics()
     const distanceFromBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
     setFollowingBottom(distanceFromBottom <= FOLLOW_BOTTOM_THRESHOLD)
     if (hiddenMessageCount > 0 && scroller.scrollTop <= TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD) {
-      void handleLoadEarlier('auto')
+      const anchor = readVisiblePrependAnchor()
+      void handleLoadEarlier('auto', anchor)
     }
-  }, [handleLoadEarlier, hiddenMessageCount, setFollowingBottom])
+  }, [handleLoadEarlier, hiddenMessageCount, readVisiblePrependAnchor, setFollowingBottom, updateScrollMetrics])
 
   useEffect(() => {
     setFollowingBottom(true)
+    measuredRowHeightsRef.current = {}
+    setRowMeasurementVersion((version) => version + 1)
     setRenderLimit(Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
     scrollToBottom(true)
   }, [scrollToBottom, session.id, session.messagesLoaded, setFollowingBottom])
@@ -501,20 +611,37 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
               setSearchResults([])
             }}
           />
-          {transcriptItems.map((item) => (
-            item.type === 'tool_group'
-              ? <ToolActivitySummary key={item.id} messages={item.messages} />
-              : (
-                <MessageRow
-                  key={item.message.id}
-                  msg={item.message}
-                  session={session}
-                  fileReferenceRoots={fileReferenceRoots}
-                  preferredEditor={preferredEditor}
-                  canCopy={item.message.id === lastAssistantTextId}
-                />
-              )
-          ))}
+          <div
+            ref={transcriptListRef}
+            data-testid="virtualized-transcript"
+            className="relative min-w-0"
+            style={{ height: virtualWindow.totalHeight }}
+          >
+            <div
+              className="absolute left-0 right-0 top-0 min-w-0"
+              style={{ transform: `translateY(${virtualWindow.offsetTop}px)` }}
+            >
+              {virtualWindow.items.map(({ id, item }) => (
+                <MeasuredTranscriptRow
+                  key={id}
+                  id={id}
+                  onHeight={handleVirtualRowHeight}
+                >
+                  {item.type === 'tool_group'
+                    ? <ToolActivitySummary messages={item.messages} />
+                    : (
+                      <MessageRow
+                        msg={item.message}
+                        session={session}
+                        fileReferenceRoots={fileReferenceRoots}
+                        preferredEditor={preferredEditor}
+                        canCopy={item.message.id === lastAssistantTextId}
+                      />
+                    )}
+                </MeasuredTranscriptRow>
+              ))}
+            </div>
+          </div>
           {session.status === 'running' && <ThinkingIndicator />}
           <div ref={bottomRef} />
         </div>
@@ -667,6 +794,127 @@ function TranscriptSearch({
 type TranscriptItem =
   | { type: 'message'; message: ChatMessage }
   | { type: 'tool_group'; id: string; messages: Array<ToolUseMessage | ToolResultMessage> }
+
+interface VirtualTranscriptWindow {
+  totalHeight: number
+  offsetTop: number
+  items: Array<{ id: string; item: TranscriptItem }>
+}
+
+function buildVirtualTranscriptWindow(
+  items: TranscriptItem[],
+  measuredHeights: Record<string, number>,
+  scrollTop: number,
+  viewportHeight: number
+): VirtualTranscriptWindow {
+  if (items.length === 0) return { totalHeight: 0, offsetTop: 0, items: [] }
+
+  const viewportStart = Math.max(0, scrollTop - TRANSCRIPT_VIRTUAL_OVERSCAN)
+  const viewportEnd = scrollTop + viewportHeight + TRANSCRIPT_VIRTUAL_OVERSCAN
+  const visibleItems: Array<{ id: string; item: TranscriptItem }> = []
+  let offset = 0
+  let offsetTop = 0
+  let totalHeight = 0
+
+  for (const item of items) {
+    const id = transcriptItemId(item)
+    const height = measuredHeights[id] ?? estimateTranscriptItemHeight(item)
+    const itemStart = offset
+    const itemEnd = itemStart + height
+    if (itemEnd >= viewportStart && itemStart <= viewportEnd) {
+      if (visibleItems.length === 0) offsetTop = itemStart
+      visibleItems.push({ id, item })
+    }
+    offset = itemEnd
+    totalHeight = itemEnd
+  }
+
+  if (visibleItems.length === 0) {
+    const item = items[items.length - 1]
+    const id = transcriptItemId(item)
+    return {
+      totalHeight,
+      offsetTop: Math.max(0, totalHeight - (measuredHeights[id] ?? estimateTranscriptItemHeight(item))),
+      items: [{ id, item }]
+    }
+  }
+
+  return { totalHeight, offsetTop, items: visibleItems }
+}
+
+function transcriptItemId(item: TranscriptItem): string {
+  return item.type === 'tool_group' ? item.id : item.message.id
+}
+
+function transcriptItemOffset(
+  messageId: string,
+  items: TranscriptItem[],
+  measuredHeights: Record<string, number>
+): number | null {
+  let offset = 0
+  for (const item of items) {
+    const id = transcriptItemId(item)
+    if (id === messageId) return offset
+    offset += measuredHeights[id] ?? estimateTranscriptItemHeight(item)
+  }
+  return null
+}
+
+function estimateTranscriptMessagesHeight(messages: ChatMessage[]): number {
+  return groupTranscriptMessages(messages).reduce((total, item) => total + estimateTranscriptItemHeight(item), 0)
+}
+
+function estimateTranscriptItemHeight(item: TranscriptItem): number {
+  if (item.type === 'tool_group') {
+    return 58 + Math.min(item.messages.length, TOOL_SUMMARY_SCROLL_THRESHOLD) * 26 + TRANSCRIPT_VIRTUAL_ROW_GAP
+  }
+  const message = item.message
+  if (message.type === 'text') {
+    const lines = message.content.split('\n').length
+    const wrappedLines = Math.ceil(message.content.length / (message.role === 'user' ? 70 : 92))
+    const bodyHeight = Math.min(720, Math.max(lines, wrappedLines) * 18)
+    return (message.role === 'user' ? 52 : 44) + bodyHeight + TRANSCRIPT_VIRTUAL_ROW_GAP
+  }
+  if (message.type === 'tool_use' || message.type === 'tool_result') return 96 + TRANSCRIPT_VIRTUAL_ROW_GAP
+  return 72 + TRANSCRIPT_VIRTUAL_ROW_GAP
+}
+
+function MeasuredTranscriptRow({
+  id,
+  onHeight,
+  children
+}: {
+  id: string
+  onHeight: (id: string, height: number) => void
+  children: ReactNode
+}): JSX.Element {
+  const rowRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const row = rowRef.current
+    if (!row) return
+    const measure = (): void => {
+      const height = row.getBoundingClientRect().height
+      if (height > 0) onHeight(id, height)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(row)
+    return () => observer.disconnect()
+  }, [id, onHeight])
+
+  return (
+    <div
+      ref={rowRef}
+      data-testid="virtual-transcript-row"
+      data-virtual-row-id={id}
+      className="min-w-0"
+      style={{ paddingBottom: TRANSCRIPT_VIRTUAL_ROW_GAP }}
+    >
+      {children}
+    </div>
+  )
+}
 
 function groupTranscriptMessages(messages: ChatMessage[]): TranscriptItem[] {
   const items: TranscriptItem[] = []
