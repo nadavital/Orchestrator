@@ -291,6 +291,19 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-017 | Codex app-server chosen as the rich Codex runtime target. | `Complete` | Local Codex 0.128.0 app-server help and generated v2 schema expose structured approvals, questions, diffs, plans, agents, plugins, skills, MCP, account, model, filesystem, hooks, and terminal APIs. |
 | V-018 | Brief/status events, usage metadata, attachments, `/btw` side questions, and automated detached UI smoke landed. | `Complete` | `brief-usage.jsonl`; `npx tsc -p tsconfig.node.json --noEmit`; `npx tsc -p tsconfig.web.json --noEmit`; `npm run test:providers`; `npm run smoke:ui:auto`; live Claude 2.1.140 `--brief` probes showed usage/cost fields but no `SendUserMessage` tool. |
 | V-019 | First-class Capabilities page landed. | `Complete` | `src/renderer/src/components/CapabilitiesPage.tsx`; `src/main/capabilityCreator.ts`; `npm run build`; `npm run test:providers` 141/141; `npm run smoke:ui:auto -- --capabilities` screenshot `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-capabilities-1778792716697.png`. |
+| V-020 | Sidebar pin ordering and noisy file-reference cards hardened. | `Complete` | `src/types/sessionOrdering.ts`; `sessionOrdering.test.ts`; unresolved relative prose references now disappear instead of showing missing cards; `npm run test:providers` 156/156, `npm run build`, `npm run smoke:ui:auto -- --sidebar`, and `git diff --check` passed. |
+
+### Next Polish Queue
+
+These are the next small, user-visible polish slices to consider after the current reliability checkpoint.
+
+| ID | Polish Area | Target UX | Status | Next action |
+| --- | --- | --- | --- | --- |
+| POL-001 | File cards | Cards appear only for confident, useful file references; no review prose, numeric literals, or unresolved relative guesses. | `Partial` | Add a renderer smoke fixture that proves unresolved relative prose cards are suppressed while explicit absolute missing files still show disabled actions. |
+| POL-002 | Pet overlay | Built-in pets render without white-square glitches and state transitions feel close to Codex. | `Partial` | Run a packaged pet-overlay smoke and inspect sprite atlas loading/state transitions in the installed app. |
+| POL-003 | Command palette | Keyboard-first actions feel native and do not duplicate composer slash commands. | `Implemented` | Add a command-palette automated smoke for search, recent commands, and shortcut labels. |
+| POL-004 | Sidebar polish | Pinned, unread, running, rename, and project grouping feel stable during live runs. | `Implemented` | Add a focused smoke for running/completion transitions while a pinned session receives messages. |
+| POL-005 | Transcript polish | Long threads feel complete, searchable, and scroll-stable without exposing implementation copy. | `Implemented` | Keep stress/session-switch/scroll smokes in the default pre-install checklist after transcript changes. |
 
 ### P0: Re-establish Installed-App Verification
 
@@ -649,6 +662,9 @@ When implementing against this plan:
 - Verification passed for the lazy-transcript checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `git diff --check`, `npm run smoke:ui:auto -- --session-switch`, and `npm run smoke:ui:auto -- --scroll`.
 - Verification passed for the streaming-scroll checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `git diff --check`, `npm run smoke:ui:auto -- --scroll`, `npm run pack:mac`, copy to `/Applications/Orchestrator.app`, and packaged-vs-installed `app.asar` hash comparison.
 - Verification passed for the sidebar/search/layout checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `git diff --check`, `npm run smoke:ui:auto -- --sidebar`, `npm run smoke:ui:auto -- --transcript-layout`, `npm run smoke:ui:auto -- --session-switch`, `npm run pack:mac`, copy to `/Applications/Orchestrator.app`, and packaged-vs-installed `app.asar` hash comparison.
+- Pin-order reliability checkpoint: pinned chat ordering now lives in shared `src/types/sessionOrdering.ts`, is covered by `sessionOrdering.test.ts`, and is used by both main-process migration and renderer sorting. New pins append after existing pinned chats, and message recency no longer moves ordered pins.
+- File-card confidence checkpoint: unresolved relative references extracted from assistant prose are suppressed after workspace resolution fails, while explicit absolute missing references can still render as disabled missing cards. This prevents review comments like bare class names or snippets from becoming visible missing-file cards.
+- Verification passed for the pin/file-card checkpoint: `npm run test:providers` passed 156/156, `npm run build` passed, `npm run smoke:ui:auto -- --sidebar` passed, and `git diff --check` passed.
 
 ### 2026-05-11
 

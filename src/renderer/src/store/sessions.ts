@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, TranscriptPage, UsageSummary } from '../types'
+import { nextPinOrder } from '../types'
 
 export type SettingsSection = 'general' | 'providers' | 'shortcuts' | 'pets'
 
@@ -183,9 +184,9 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   updatePinned: (id, pinned, pinOrder) =>
     set((s) => {
-      const nextPinOrder = pinOrder ?? (pinned ? getNextPinOrder(s.sessions) : undefined)
+      const order = pinOrder ?? (pinned ? nextPinOrder(s.sessions) : undefined)
       return {
-        sessions: s.sessions.map((x) => (x.id === id ? { ...x, pinned, pinOrder: nextPinOrder } : x))
+        sessions: s.sessions.map((x) => (x.id === id ? { ...x, pinned, pinOrder: order } : x))
       }
     }),
 
@@ -433,12 +434,6 @@ function fullSessionItem(session: Session): SessionListItem {
     previewText: sessionPreviewText(session.messages, session.name),
     latestMessageAt: session.messages.at(-1)?.timestamp ?? session.createdAt
   }
-}
-
-function getNextPinOrder(sessions: SessionListItem[]): number {
-  return sessions.reduce((max, session) => {
-    return typeof session.pinOrder === 'number' ? Math.max(max, session.pinOrder) : max
-  }, 0) + 1
 }
 
 function mergeMessages(first: ChatMessage[], second: ChatMessage[]): ChatMessage[] {

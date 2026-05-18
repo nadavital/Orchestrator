@@ -1462,6 +1462,11 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
           }
         }
 
+        if (file.source === 'relative') {
+          setExists(false)
+          return
+        }
+
         setExists(false)
       } catch {
         if (!cancelled) setExists(false)
@@ -1482,6 +1487,8 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
     setError(null)
     await window.api.fs.showInFolder(displayPath)
   }
+
+  if (exists === false && file.source === 'relative') return <></>
 
   return (
     <div

@@ -18,6 +18,7 @@ import { migrateLegacyUserData } from './userDataMigration'
 import { approvalBroker } from './approvalBroker'
 import { searchTranscriptMessages, transcriptPageForMessages } from './transcriptIndex'
 import { recordPerformanceMetric } from './performanceTelemetry'
+import { ensurePinnedSessionOrders, nextPinOrder } from '../types'
 
 interface SessionStore {
   sessions: Session[]
@@ -42,29 +43,10 @@ const pendingFollowUps = new Map<string, PendingFollowUp[]>()
 const activeToolUseIds = new Map<string, Set<string>>()
 
 function ensurePinnedOrders(sessions: Session[]): Session[] {
-  const missingOrder = sessions.filter((session) => session.pinned && typeof session.pinOrder !== 'number')
-  if (missingOrder.length === 0) return sessions
-
-  let nextOrder = sessions.reduce((max, session) => {
-    return typeof session.pinOrder === 'number' ? Math.max(max, session.pinOrder) : max
-  }, 0)
-  const orderedMissing = [...missingOrder].sort((a, b) => {
-    const aTime = a.latestMessageAt ?? a.messages.at(-1)?.timestamp ?? a.createdAt
-    const bTime = b.latestMessageAt ?? b.messages.at(-1)?.timestamp ?? b.createdAt
-    return bTime - aTime || a.createdAt - b.createdAt || a.id.localeCompare(b.id)
-  })
-  for (const session of orderedMissing) {
-    nextOrder += 1
-    session.pinOrder = nextOrder
-  }
-  store.set('sessions', sessions)
-  return sessions
-}
-
-function nextPinOrder(sessions: Session[]): number {
-  return sessions.reduce((max, session) => {
-    return typeof session.pinOrder === 'number' ? Math.max(max, session.pinOrder) : max
-  }, 0) + 1
+  const hadMissingOrder = sessions.some((session) => session.pinned && typeof session.pinOrder !== 'number')
+  const ordered = ensurePinnedSessionOrders(sessions)
+  if (hadMissingOrder) store.set('sessions', ordered)
+  return ordered
 }
 
 function defaultRuntimeForProvider(providerId: string): ProviderRuntimeKind {

@@ -1144,3 +1144,11 @@ export {
 export type {
   ComposerSendState
 } from './sessionControls'
+export {
+  comparePinnedSessions,
+  ensurePinnedSessionOrders,
+  nextPinOrder
+} from './sessionOrdering'
+export type {
+  PinOrderedSession
+} from './sessionOrdering'
