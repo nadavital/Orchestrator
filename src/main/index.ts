@@ -757,6 +757,36 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const errorRow = await waitForRow('Sidebar error');
             const runningRow = await waitForRow('Sidebar running');
             const allDots = [...document.querySelectorAll('[data-testid="session-status-dot"]')];
+            const organizeButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Organize sidebar');
+            let organizeMenuWorks = false;
+            if (organizeButton instanceof HTMLButtonElement) {
+              organizeButton.click();
+              await sleep(120);
+              const menuText = document.body.innerText;
+              const chronological = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Chronological list'));
+              if (
+                menuText.includes('By project') &&
+                menuText.includes('Recent projects') &&
+                menuText.includes('Sort by created') &&
+                chronological instanceof HTMLButtonElement
+              ) {
+                chronological.click();
+                await sleep(160);
+                const chronologicalText = document.body.innerText;
+                organizeButton.click();
+                await sleep(80);
+                const byProject = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('By project'));
+                if (byProject instanceof HTMLButtonElement) byProject.click();
+                await sleep(120);
+                organizeMenuWorks =
+                  chronologicalText.includes('Recent chats') &&
+                  chronologicalText.includes('Sidebar running') &&
+                  document.body.innerText.includes('Projects');
+              }
+            }
             return {
               pinnedAboveProjects,
               pinnedOrderStable,
@@ -772,6 +802,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               unreadIdleDotVisible: Boolean(unreadRow?.querySelector('[data-testid="session-status-dot"]')),
               errorDotVisible: Boolean(errorRow?.querySelector('[data-testid="session-status-dot"]')),
               grayIdleDotsAbsent: allDots.length === 2,
+              organizeMenuWorks,
               dotCount: allDots.length,
               bodyText: document.body.innerText
             };

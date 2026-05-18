@@ -15,6 +15,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   const [collapsed, setCollapsed] = useState(false)
   const [creating, setCreating] = useState(false)
   const [confirmingRemoval, setConfirmingRemoval] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const { removeProject, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const removeSession = useSessionStore((state) => state.removeSession)
   const addSession = useSessionStore((state) => state.addSession)
@@ -62,6 +63,8 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
     await window.api.projects.remove(project.id)
     removeProject(project.id)
   }
+  const visibleSessions = expanded ? sessions : sessions.slice(0, 6)
+  const hiddenSessionCount = Math.max(0, sessions.length - visibleSessions.length)
 
   return (
     <div style={{ marginBottom: 8 }}>
@@ -110,9 +113,29 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
               New chat
             </div>
           )}
-          {sessions.map((session) => (
+          {visibleSessions.map((session) => (
             <SessionItem key={session.id} session={session} />
           ))}
+          {hiddenSessionCount > 0 && (
+            <button
+              type="button"
+              className="w-full rounded-md px-2 py-1.5 text-left text-xs font-medium"
+              style={{ color: 'var(--text-tertiary)' }}
+              onClick={() => setExpanded(true)}
+            >
+              Show {hiddenSessionCount} more
+            </button>
+          )}
+          {expanded && sessions.length > 6 && (
+            <button
+              type="button"
+              className="w-full rounded-md px-2 py-1.5 text-left text-xs font-medium"
+              style={{ color: 'var(--text-tertiary)' }}
+              onClick={() => setExpanded(false)}
+            >
+              Show less
+            </button>
+          )}
         </div>
       )}
       {confirmingRemoval && (
