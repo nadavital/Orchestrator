@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
+import { prepareMacSmokeBundle } from './lib/packaged-smoke-bundle.mjs'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const captureView = process.argv.includes('--settings')
@@ -227,6 +228,8 @@ child.on('exit', (code) => {
         commandPaletteOpens: result.commandPaletteOpens === true,
         commandPaletteShiftPOpens: result.commandPaletteShiftPOpens === true,
         commandPaletteGrouped: result.commandPaletteGrouped === true,
+        commandPaletteRecentVisible: result.commandPaletteRecentVisible === true,
+        commandPaletteFuzzyFindsTerminal: result.commandPaletteFuzzyFindsTerminal === true,
         commandPaletteSearchActionWorks: result.commandPaletteSearchActionWorks === true,
         searchShortcutOpens: result.searchShortcutOpens === true,
         keyboardShortcutsShortcutOpens: result.keyboardShortcutsShortcutOpens === true,
@@ -290,7 +293,7 @@ child.on('exit', (code) => {
 
 function packagedLaunchCommand() {
   const executable = process.platform === 'darwin'
-    ? join(root, 'dist', 'mac-arm64', 'Orchestrator.app', 'Contents', 'MacOS', 'Orchestrator')
+    ? prepareMacSmokeBundle({ root, profile: `${profile}-${captureView}-${process.pid}` }).executable
     : join(root, 'dist', 'Orchestrator')
   if (!existsSync(executable)) {
     console.error(`Packaged app not found at ${executable}`)

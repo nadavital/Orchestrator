@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../types'
+import type { AppMenuCommand } from '../types/appCommands'
 
 interface AppSettings {
   defaultProvider: string
@@ -42,22 +43,6 @@ export type SessionEvent =
   | { type: 'needsInput'; id: string }
 
 type SettingsUpdatedPayload = Omit<Extract<SessionEvent, { type: 'settingsUpdated' }>, 'type'>
-
-type AppMenuCommand =
-  | 'open-command-menu'
-  | 'new-chat'
-  | 'search-transcript'
-  | 'rename-chat'
-  | 'toggle-chat-pin'
-  | 'previous-chat'
-  | 'next-chat'
-  | 'previous-recent-chat'
-  | 'next-recent-chat'
-  | 'toggle-inspector'
-  | 'toggle-terminal'
-  | 'settings'
-  | 'keyboard-shortcuts'
-  | `go-chat-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
 
 const api = {
   app: {

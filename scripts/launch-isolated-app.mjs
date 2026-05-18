@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { spawn } from 'child_process'
-import { existsSync, mkdirSync, rmSync, cpSync, renameSync } from 'fs'
-import { spawnSync } from 'child_process'
+import { existsSync, mkdirSync, rmSync } from 'fs'
 import { join, resolve } from 'path'
 import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
+import { prepareMacSmokeBundle } from './lib/packaged-smoke-bundle.mjs'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const options = parseArgs(process.argv.slice(2))
@@ -64,7 +64,7 @@ function devCommand() {
 
 function packagedCommand() {
   const executable = process.platform === 'darwin'
-    ? prepareMacSmokeBundle()
+    ? prepareMacSmokeBundle({ root, profile }).executable
     : join(root, 'dist', 'Orchestrator')
   if (!existsSync(executable)) {
     console.error(`Packaged app not found at ${executable}`)
@@ -79,37 +79,6 @@ function packagedCommand() {
       '--orchestrator-disable-pet'
     ]
   }
-}
-
-function prepareMacSmokeBundle() {
-  const sourceApp = join(root, 'dist/mac-arm64/Orchestrator.app')
-  if (!existsSync(sourceApp)) {
-    console.error(`Packaged app not found at ${sourceApp}`)
-    console.error('Run npm run pack:mac first, or use npm run smoke:app for a dev smoke profile.')
-    process.exit(1)
-  }
-
-  const appName = `Orchestrator ${titleCaseProfile(profile)}`
-  const bundleRoot = join(tmpdir(), 'orchestrator-app-bundles', profile)
-  const appPath = join(bundleRoot, `${appName}.app`)
-  rmSync(appPath, { recursive: true, force: true })
-  mkdirSync(bundleRoot, { recursive: true })
-  cpSync(sourceApp, appPath, { recursive: true, verbatimSymlinks: true })
-
-  const plist = join(appPath, 'Contents/Info.plist')
-  const executableName = `Orchestrator-${bundleIdSuffix(profile)}`
-  renameSync(join(appPath, 'Contents/MacOS/Orchestrator'), join(appPath, 'Contents/MacOS', executableName))
-  updatePlist(plist, 'CFBundleDisplayName', appName)
-  updatePlist(plist, 'CFBundleExecutable', executableName)
-  updatePlist(plist, 'CFBundleIdentifier', `com.navital.orchestrator.${bundleIdSuffix(profile)}`)
-  console.log(`  app bundle: ${appPath}`)
-
-  return join(appPath, 'Contents/MacOS', executableName)
-}
-
-function updatePlist(plist, key, value) {
-  const result = spawnSync('plutil', ['-replace', key, '-string', value, plist], { stdio: 'inherit' })
-  if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
 function parseArgs(args) {
@@ -145,17 +114,4 @@ function parseArgs(args) {
 function sanitizeProfileName(name) {
   const sanitized = String(name).trim().replace(/[^a-zA-Z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '')
   return sanitized || 'smoke'
-}
-
-function titleCaseProfile(name) {
-  return name
-    .split(/[-_.]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-function bundleIdSuffix(name) {
-  const suffix = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
-  return suffix || 'smoke'
 }

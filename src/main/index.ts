@@ -5,6 +5,8 @@ import { writeFileSync } from 'fs'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { configureAppProfile, getAppProfile } from './appProfile'
 import type { ChatMessage } from '../types'
+import { APP_COMMANDS } from '../types/appCommands'
+import type { AppMenuCommand } from '../types/appCommands'
 
 const appProfile = configureAppProfile()
 
@@ -16,22 +18,6 @@ let projectStore: typeof import('./projects').projectStore
 let sessionManager: typeof import('./sessions').sessionManager
 
 let mainWindow: BrowserWindow | null = null
-
-type AppMenuCommand =
-  | 'open-command-menu'
-  | 'new-chat'
-  | 'search-transcript'
-  | 'rename-chat'
-  | 'toggle-chat-pin'
-  | 'previous-chat'
-  | 'next-chat'
-  | 'previous-recent-chat'
-  | 'next-recent-chat'
-  | 'toggle-inspector'
-  | 'toggle-terminal'
-  | 'settings'
-  | 'keyboard-shortcuts'
-  | `go-chat-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
 
 function sendAppMenuCommand(command: AppMenuCommand): void {
   mainWindow?.webContents.send('app:menu-command', command)
@@ -56,8 +42,8 @@ function installApplicationMenu(): void {
     {
       label: 'File',
       submenu: [
-        { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: () => sendAppMenuCommand('new-chat') },
-        { label: 'Command Palette', accelerator: 'CmdOrCtrl+K', click: () => sendAppMenuCommand('open-command-menu') },
+        menuCommand('new-chat'),
+        menuCommand('open-command-menu'),
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' }
       ]
@@ -73,19 +59,19 @@ function installApplicationMenu(): void {
         { role: 'paste' },
         { role: 'selectAll' },
         { type: 'separator' },
-        { label: 'Find in Chat', accelerator: 'CmdOrCtrl+F', click: () => sendAppMenuCommand('search-transcript') }
+        menuCommand('search-transcript')
       ]
     },
     {
       label: 'Chat',
       submenu: [
-        { label: 'Rename Chat', accelerator: 'CmdOrCtrl+Alt+R', click: () => sendAppMenuCommand('rename-chat') },
-        { label: 'Pin or Unpin Chat', accelerator: 'CmdOrCtrl+Alt+P', click: () => sendAppMenuCommand('toggle-chat-pin') },
+        menuCommand('rename-chat'),
+        menuCommand('toggle-chat-pin'),
         { type: 'separator' },
-        { label: 'Previous Chat', accelerator: 'CmdOrCtrl+Shift+[', click: () => sendAppMenuCommand('previous-chat') },
-        { label: 'Next Chat', accelerator: 'CmdOrCtrl+Shift+]', click: () => sendAppMenuCommand('next-chat') },
-        { label: 'Previous Recent Chat', accelerator: 'Ctrl+Shift+Tab', click: () => sendAppMenuCommand('previous-recent-chat') },
-        { label: 'Next Recent Chat', accelerator: 'Ctrl+Tab', click: () => sendAppMenuCommand('next-recent-chat') },
+        menuCommand('previous-chat'),
+        menuCommand('next-chat'),
+        menuCommand('previous-recent-chat'),
+        menuCommand('next-recent-chat'),
         { type: 'separator' },
         ...Array.from({ length: 9 }, (_, index): MenuItemConstructorOptions => ({
           label: `Go to Chat ${index + 1}`,
@@ -97,8 +83,8 @@ function installApplicationMenu(): void {
     {
       label: 'View',
       submenu: [
-        { label: 'Toggle Inspector', accelerator: 'CmdOrCtrl+B', click: () => sendAppMenuCommand('toggle-inspector') },
-        { label: 'Toggle Terminal', accelerator: 'CmdOrCtrl+J', click: () => sendAppMenuCommand('toggle-terminal') },
+        menuCommand('toggle-inspector'),
+        menuCommand('toggle-terminal'),
         { type: 'separator' },
         { role: 'reload' },
         { role: 'toggleDevTools' },
@@ -121,13 +107,22 @@ function installApplicationMenu(): void {
     {
       label: 'Help',
       submenu: [
-        { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+Shift+/', click: () => sendAppMenuCommand('keyboard-shortcuts') },
-        { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => sendAppMenuCommand('settings') }
+        menuCommand('keyboard-shortcuts'),
+        menuCommand('settings')
       ]
     }
   ]
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+function menuCommand(command: keyof typeof APP_COMMANDS): MenuItemConstructorOptions {
+  const definition = APP_COMMANDS[command]
+  return {
+    label: definition.menuLabel ?? definition.label,
+    accelerator: definition.accelerator,
+    click: () => sendAppMenuCommand(definition.id)
+  }
 }
 
 function isBrokenPipeError(error: unknown): boolean {
@@ -820,8 +815,11 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               bubbles: true,
               cancelable: true
             }));
-            await sleep(80);
-            const search = document.querySelector('[data-testid="transcript-search"]');
+            let search = document.querySelector('[data-testid="transcript-search"]');
+            for (let index = 0; index < 10 && !(search instanceof HTMLInputElement && document.activeElement === search); index += 1) {
+              await sleep(50);
+              search = document.querySelector('[data-testid="transcript-search"]');
+            }
             const searchShortcutOpens = search instanceof HTMLInputElement && document.activeElement === search;
 
             const scroller = document.querySelector('[data-testid="transcript-scroll"]');
@@ -879,6 +877,15 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const shiftPaletteInput = document.querySelector('#command-palette-search');
             const commandPaletteShiftPOpens = shiftPaletteInput instanceof HTMLInputElement && document.activeElement === shiftPaletteInput;
             const commandPaletteGrouped = Boolean(document.querySelector('[data-command-group="Chat"]'));
+            const commandPaletteRecentVisible = Boolean(document.querySelector('[data-command-group="Recent"]'));
+            let commandPaletteFuzzyFindsTerminal = false;
+            if (shiftPaletteInput instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(shiftPaletteInput.constructor.prototype, 'value')?.set;
+              setter?.call(shiftPaletteInput, 'term');
+              shiftPaletteInput.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(80);
+              commandPaletteFuzzyFindsTerminal = Boolean(document.querySelector('[data-command-id="toggle-terminal"]'));
+            }
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
             await sleep(100);
             window.dispatchEvent(new KeyboardEvent('keydown', {
@@ -891,7 +898,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             }));
             await sleep(180);
             const shortcutsSearch = document.querySelector('#settings-shortcut-search');
-            const keyboardShortcutsShortcutOpens = shortcutsSearch instanceof HTMLInputElement && document.body.innerText.includes('Command palette');
+            const keyboardShortcutsShortcutOpens = shortcutsSearch instanceof HTMLInputElement && document.body.innerText.includes('Command Palette');
 
             return {
               transcriptFound: true,
@@ -900,6 +907,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               commandPaletteOpens,
               commandPaletteShiftPOpens,
               commandPaletteGrouped,
+              commandPaletteRecentVisible,
+              commandPaletteFuzzyFindsTerminal,
               commandPaletteSearchActionWorks,
               searchShortcutOpens,
               keyboardShortcutsShortcutOpens,

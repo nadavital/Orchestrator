@@ -20,6 +20,7 @@ import {
 } from '../types'
 import { useSessionStore } from '../store/sessions'
 import type { SettingsSection } from '../store/sessions'
+import { formatShortcutKeys, visibleShortcutRows } from '../../../types/appCommands'
 import ProviderIcon from './shared/ProviderIcon'
 import Icon from './shared/Icon'
 import {
@@ -535,24 +536,13 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: (value: boo
 }
 
 function ShortcutsSection(): JSX.Element {
-  const command = navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'
-  const option = navigator.platform.toLowerCase().includes('mac') ? '⌥' : 'Alt'
-  const control = navigator.platform.toLowerCase().includes('mac') ? '⌃' : 'Ctrl'
   const [query, setQuery] = useState('')
-  const shortcuts = [
-    { category: 'App', label: 'Command palette', description: 'Open commands from anywhere in the workspace.', keys: [[command, 'K'], [command, '⇧', 'P']] },
-    { category: 'App', label: 'Keyboard shortcuts', description: 'Open this shortcuts reference.', keys: [[command, '⇧', '/']] },
-    { category: 'App', label: 'Open settings', description: 'Open general app settings.', keys: [[command, ',']] },
-    { category: 'Chat', label: 'New chat', description: 'Start a fresh chat in the current project.', keys: [[command, 'N']] },
-    { category: 'Chat', label: 'Rename chat', description: 'Rename the active sidebar chat.', keys: [[command, option, 'R'], ['Double-click']] },
-    { category: 'Chat', label: 'Pin or unpin chat', description: 'Toggle the active chat in the pinned list.', keys: [[command, option, 'P']] },
-    { category: 'Navigation', label: 'Search transcript', description: 'Find text in the current chat.', keys: [[command, 'F']] },
-    { category: 'Navigation', label: 'Previous chat', description: 'Switch to the previous recent chat.', keys: [[command, '⇧', '['], [control, '⇧', 'Tab']] },
-    { category: 'Navigation', label: 'Next chat', description: 'Switch to the next recent chat.', keys: [[command, '⇧', ']'], [control, 'Tab']] },
-    { category: 'Navigation', label: 'Go to chat 1-9', description: 'Jump directly to a recent sidebar chat.', keys: [[command, '1-9']] },
-    { category: 'Panels', label: 'Toggle inspector sidebar', description: 'Show or hide Diff, Agents, Plan, and detail panels.', keys: [[command, 'B']] },
-    { category: 'Panels', label: 'Toggle terminal', description: 'Show or hide the terminal pane.', keys: [[command, 'J'], [command, '`']] }
-  ]
+  const shortcutPlatform = navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
+  const shortcuts = visibleShortcutRows().map((shortcut) => ({
+    ...shortcut,
+    category: shortcut.group,
+    keys: shortcut.shortcuts.map((sequence) => formatShortcutKeys(sequence, shortcutPlatform))
+  }))
   const normalizedQuery = query.trim().toLowerCase()
   const visibleShortcuts = shortcuts.filter((shortcut) => {
     if (!normalizedQuery) return true

@@ -11,7 +11,8 @@ import CommandPalette, { type CommandPaletteAction } from './components/CommandP
 import { MotionView, TextInputDialog } from './components/shared/designSystem'
 import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
-import type { AppMenuCommand } from './env'
+import { APP_COMMANDS, formatShortcutSequence } from '../../types/appCommands'
+import type { AppMenuCommand, StableAppCommand } from '../../types/appCommands'
 
 export default function App(): JSX.Element {
   const isDesignSystemPreview = window.location.hash === '#design-system'
@@ -161,95 +162,99 @@ export default function App(): JSX.Element {
     setRenamingActiveChat(false)
   }, [])
 
-  const commandSymbol = useMemo(() => navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl', [])
+  const shortcutPlatform = useMemo(() => navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other', [])
+  const shortcutsFor = useCallback((command: StableAppCommand): string[] => (
+    APP_COMMANDS[command].shortcuts.map((sequence) => formatShortcutSequence(sequence, shortcutPlatform))
+  ), [shortcutPlatform])
   const chatSlotActions = useMemo<CommandPaletteAction[]>(() => (
     Array.from({ length: Math.min(9, sessions.length) }, (_, index) => ({
       id: `go-chat-${index + 1}`,
       label: `Go to Chat ${index + 1}`,
       group: 'Navigation',
       description: 'Jump to a recent chat from the sidebar order.',
-      shortcut: `${commandSymbol}${index + 1}`,
+      shortcut: formatShortcutSequence(['mod', String(index + 1)], shortcutPlatform),
       keywords: ['thread', 'session', 'recent'],
       run: () => switchChatSlot(index + 1)
     }))
-  ), [commandSymbol, sessions.length, switchChatSlot])
+  ), [sessions.length, shortcutPlatform, switchChatSlot])
 
   const commandPaletteActions = useMemo<CommandPaletteAction[]>(() => [
     {
       id: 'new-chat',
-      label: 'New Chat',
-      group: 'Chat',
-      description: 'Start a fresh chat in the current project.',
-      shortcut: `${commandSymbol}N`,
-      keywords: ['thread', 'session'],
+      label: APP_COMMANDS['new-chat'].label,
+      group: APP_COMMANDS['new-chat'].group,
+      description: APP_COMMANDS['new-chat'].description,
+      shortcuts: shortcutsFor('new-chat'),
+      keywords: [...(APP_COMMANDS['new-chat'].keywords ?? [])],
       run: () => { void createNewChat() }
     },
     {
       id: 'rename-chat',
-      label: 'Rename Chat',
-      group: 'Chat',
-      description: 'Rename the active sidebar thread.',
-      shortcut: `${commandSymbol}⌥R`,
+      label: APP_COMMANDS['rename-chat'].label,
+      group: APP_COMMANDS['rename-chat'].group,
+      description: APP_COMMANDS['rename-chat'].description,
+      shortcuts: shortcutsFor('rename-chat'),
       disabled: !activeSessionId,
-      keywords: ['thread', 'session', 'title'],
+      keywords: [...(APP_COMMANDS['rename-chat'].keywords ?? [])],
       run: () => setRenamingActiveChat(true)
     },
     {
       id: 'toggle-chat-pin',
       label: activeSession?.pinned ? 'Unpin Chat' : 'Pin Chat',
-      group: 'Chat',
+      group: APP_COMMANDS['toggle-chat-pin'].group,
       description: activeSession?.pinned ? 'Remove this chat from the pinned list.' : 'Keep this chat at the top of the sidebar.',
-      shortcut: `${commandSymbol}⌥P`,
+      shortcuts: shortcutsFor('toggle-chat-pin'),
       disabled: !activeSessionId,
-      keywords: ['thread', 'session', 'favorite'],
+      keywords: [...(APP_COMMANDS['toggle-chat-pin'].keywords ?? [])],
       run: () => { void toggleActiveChatPin() }
     },
     {
       id: 'search-transcript',
-      label: 'Search Transcript',
-      group: 'Navigation',
-      description: 'Open search for the active chat.',
-      shortcut: `${commandSymbol}F`,
+      label: APP_COMMANDS['search-transcript'].label,
+      group: APP_COMMANDS['search-transcript'].group,
+      description: APP_COMMANDS['search-transcript'].description,
+      shortcuts: shortcutsFor('search-transcript'),
       disabled: !activeSessionId,
-      keywords: ['find', 'history'],
+      keywords: [...(APP_COMMANDS['search-transcript'].keywords ?? [])],
       run: openTranscriptSearch
     },
     {
       id: 'previous-chat',
-      label: 'Previous Chat',
-      group: 'Navigation',
-      description: 'Switch to the previous recent chat.',
-      shortcuts: [`${commandSymbol}⇧[`, '⌃⇧Tab'],
+      label: APP_COMMANDS['previous-chat'].label,
+      group: APP_COMMANDS['previous-chat'].group,
+      description: APP_COMMANDS['previous-chat'].description,
+      shortcuts: shortcutsFor('previous-chat'),
       disabled: sessions.length < 2,
       run: () => switchChat(-1)
     },
     {
       id: 'next-chat',
-      label: 'Next Chat',
-      group: 'Navigation',
-      description: 'Switch to the next recent chat.',
-      shortcuts: [`${commandSymbol}⇧]`, '⌃Tab'],
+      label: APP_COMMANDS['next-chat'].label,
+      group: APP_COMMANDS['next-chat'].group,
+      description: APP_COMMANDS['next-chat'].description,
+      shortcuts: shortcutsFor('next-chat'),
       disabled: sessions.length < 2,
       run: () => switchChat(1)
     },
     ...chatSlotActions,
     {
       id: 'toggle-inspector',
-      label: 'Toggle Inspector',
-      group: 'Panels',
-      description: 'Show or hide Diff, Agents, Plan, and related detail.',
-      shortcut: `${commandSymbol}B`,
+      label: APP_COMMANDS['toggle-inspector'].label,
+      group: APP_COMMANDS['toggle-inspector'].group,
+      description: APP_COMMANDS['toggle-inspector'].description,
+      shortcuts: shortcutsFor('toggle-inspector'),
       disabled: !activeSessionId,
-      keywords: ['sidebar', 'diff', 'agents'],
+      keywords: [...(APP_COMMANDS['toggle-inspector'].keywords ?? [])],
       run: toggleInspector
     },
     {
       id: 'toggle-terminal',
-      label: 'Toggle Terminal',
-      group: 'Panels',
-      description: 'Show or hide the terminal pane.',
-      shortcut: `${commandSymbol}J`,
+      label: APP_COMMANDS['toggle-terminal'].label,
+      group: APP_COMMANDS['toggle-terminal'].group,
+      description: APP_COMMANDS['toggle-terminal'].description,
+      shortcuts: shortcutsFor('toggle-terminal'),
       disabled: !activeSessionId,
+      keywords: [...(APP_COMMANDS['toggle-terminal'].keywords ?? [])],
       run: toggleTerminal
     },
     {
@@ -262,30 +267,31 @@ export default function App(): JSX.Element {
     },
     {
       id: 'keyboard-shortcuts',
-      label: 'Keyboard Shortcuts',
-      group: 'App',
-      description: 'Open the shortcuts reference in Settings.',
-      shortcut: `${commandSymbol}⇧/`,
-      keywords: ['settings', 'keybindings'],
+      label: APP_COMMANDS['keyboard-shortcuts'].label,
+      group: APP_COMMANDS['keyboard-shortcuts'].group,
+      description: APP_COMMANDS['keyboard-shortcuts'].description,
+      shortcuts: shortcutsFor('keyboard-shortcuts'),
+      keywords: [...(APP_COMMANDS['keyboard-shortcuts'].keywords ?? [])],
       run: () => openSettings('shortcuts')
     },
     {
       id: 'settings',
-      label: 'Open Settings',
-      group: 'App',
-      description: 'Open app settings.',
-      shortcut: `${commandSymbol},`,
+      label: APP_COMMANDS.settings.label,
+      group: APP_COMMANDS.settings.group,
+      description: APP_COMMANDS.settings.description,
+      shortcuts: shortcutsFor('settings'),
+      keywords: [...(APP_COMMANDS.settings.keywords ?? [])],
       run: () => openSettings('general')
     }
   ], [
     activeSession?.pinned,
     activeSessionId,
     chatSlotActions,
-    commandSymbol,
     createNewChat,
     openSettings,
     openTranscriptSearch,
     sessions.length,
+    shortcutsFor,
     switchChat,
     toggleActiveChatPin,
     toggleInspector,

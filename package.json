@@ -40,6 +40,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "pack:mac": "npm run build && electron-builder --mac dir",
+    "install:mac": "node scripts/install-packaged-app.mjs",
     "dist:mac": "npm run build && electron-builder --mac dmg zip",
     "test:providers": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node --test out-test/src/main/__tests__/*.test.js",
     "test:smoke-config": "node --test scripts/provider-smoke-config.test.mjs",

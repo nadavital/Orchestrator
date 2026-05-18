@@ -505,6 +505,7 @@ For packaged parity against `dist/mac-arm64/Orchestrator.app` without replacing 
 ```bash
 npm run pack:mac
 npm run smoke:app:packaged -- --reset
+npm run smoke:ui:auto -- --packaged --transcript-layout
 ```
 
 Useful options:
@@ -520,6 +521,7 @@ Expected:
 - `window.api.app.getProfile()` returns `isIsolated: true` and a `/private/tmp` or otherwise explicit `userDataDir`.
 - Existing sessions/settings in the user's normal Orchestrator window do not appear in the smoke profile.
 - Computer Use targeting is reliable for the dev lane via `Electron`. Packaged renamed-bundle targeting is not fully solved in the current plugin: it can list the renamed smoke app, but `get_app_state` did not attach by renamed app name in the 2026-05-13 smoke.
+- Packaged smoke scripts prepare a renamed temporary app bundle with a profile-specific bundle id before launching, so they do not register as the normal installed app.
 - Do not quit or replace the user's installed `/Applications/Orchestrator.app` unless they explicitly ask for that.
 
 ## Installed App Smoke Checklist
@@ -538,11 +540,13 @@ npm run pack:mac
 killall Orchestrator
 ```
 
-3. Copy the fresh package into `/Applications`:
+3. Copy the fresh package into `/Applications` through the guarded installer:
 
 ```bash
-ditto /Users/navital/Desktop/Orchestrator/dist/mac-arm64/Orchestrator.app /Applications/Orchestrator.app
+npm run install:mac
 ```
+
+Expected: if `/Applications/Orchestrator.app` is still running, the installer refuses to copy. Only bypass with `ORCHESTRATOR_ALLOW_RUNNING_APP=1` when intentionally accepting the risk of replacing a live app bundle.
 
 4. Launch the installed app:
 
@@ -632,6 +636,9 @@ When implementing against this plan:
 - Transcript search decision: search should not be permanent thin chrome. It opens on `Cmd+F`/`Ctrl+F`, focuses the input, and closes without leaving empty search UI behind.
 - Command palette decision: app-wide actions should be discoverable with `Cmd+K`/`Ctrl+K`, while provider/project prompt commands remain in the composer slash palette.
 - Codex parity shortcut decision: mirror the installed Codex app's broad shortcut shape where it fits Orchestrator: native Electron menu accelerators, `Cmd+Shift+P` as a command-palette alternate, `Cmd+J` for terminal, `Cmd+Alt+R` rename, `Cmd+Alt+P` pin/unpin, `Cmd+1-9` chat jumps, and a searchable Shortcuts settings table.
+- App install safety decision: `/Applications/Orchestrator.app` replacement must go through `npm run install:mac`, which refuses to copy over a running installed app unless `ORCHESTRATOR_ALLOW_RUNNING_APP=1` is explicitly set. Packaged smokes launch renamed temp bundles instead of the raw `dist/mac-arm64/Orchestrator.app`.
+- Command shortcut source-of-truth decision: native menus, command palette, and Settings shortcuts share `src/types/appCommands.ts`; command palette filtering uses scored fuzzy matching and records a small local Recent section.
+- Crash note: `Orchestrator-2026-05-18-152656.ips` was an early native `_RegisterApplication`/`NSApplication init` abort from a packaged smoke-test app under the repo path, not the installed `/Applications/Orchestrator.app`. Avoid direct raw packaged launches while the installed app is running.
 - Transcript paging copy decision: users should not see implementation language like "earlier messages hidden for faster chat switching." Older pages remain available, but the affordance should read as a quiet history action, not a performance warning.
 - Transcript scroll decision: streaming output should not fight manual reading. Auto-follow is allowed only while the user is already near the bottom; upward scroll intent disables following until the user explicitly jumps back to latest.
 - Transcript performance direction: bounded recent rendering is acceptable as an implementation detail, but the product promise is a complete searchable transcript. If long chats keep growing, prefer virtualized rendering and lazy hydration over user-visible "hidden messages" language.
