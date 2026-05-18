@@ -328,6 +328,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               restoreButton.click();
               await sleep(120);
             }
+            const diffSearch = document.querySelector('[data-testid="diff-file-search"]');
+            if (diffSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
+              setter?.call(diffSearch, 'review-new');
+              diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(160);
+            }
+            var reviewSearchWorks =
+              document.body.innerText.includes('review-new.txt') &&
+              document.body.innerText.includes('No diff available') === false;
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
             const createButton = [...document.querySelectorAll('button')]
@@ -451,6 +461,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
+            reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),

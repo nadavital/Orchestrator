@@ -1,18 +1,28 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { fileStatusLabel, summarizeFileChanges } from '../../types'
 import type { FileChange } from '../../types'
-import { Badge, MetricPill, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
+import { Badge, Button, MetricPill, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
 
 interface Props {
   sessionId: string
+  workDir: string
   embedded?: boolean
 }
 
-export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.Element {
+export default function DiffPanel({ sessionId, workDir, embedded = false }: Props): JSX.Element {
   const [files, setFiles] = useState<FileChange[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileDiff, setFileDiff] = useState('')
+  const [query, setQuery] = useState('')
+  const [wrapLines, setWrapLines] = useState(true)
   const summary = summarizeFileChanges(files)
+  const filteredFiles = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    return normalizedQuery
+      ? files.filter((file) => file.path.toLowerCase().includes(normalizedQuery))
+      : files
+  }, [files, query])
+  const selectedChange = selectedFile ? files.find((file) => file.path === selectedFile) ?? null : null
 
   useEffect(() => {
     window.api.sessions.getChangedFiles(sessionId).then((f) => {
@@ -25,6 +35,23 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
     if (!selectedFile) return
     window.api.sessions.getDiffForFile(sessionId, selectedFile).then(setFileDiff)
   }, [selectedFile, sessionId])
+
+  useEffect(() => {
+    if (!selectedFile || filteredFiles.some((file) => file.path === selectedFile)) return
+    setSelectedFile(filteredFiles[0]?.path ?? null)
+  }, [filteredFiles, selectedFile])
+
+  const refresh = (): void => {
+    window.api.sessions.getChangedFiles(sessionId).then((f) => {
+      setFiles(f)
+      if (f.length > 0 && !f.find((x) => x.path === selectedFile)) setSelectedFile(f[0].path)
+    })
+  }
+
+  const openSelectedFile = (): void => {
+    if (!selectedFile) return
+    void window.api.fs.openPath(joinPath(workDir, selectedFile))
+  }
 
   return (
     <div
@@ -41,14 +68,19 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
       <PanelHeader
         title={`Changes${files.length > 0 ? ` (${files.length})` : ''}`}
         actions={
-          <ToolbarButton
-            icon="refresh"
-            label="Refresh"
-          onClick={() => window.api.sessions.getChangedFiles(sessionId).then((f) => {
-            setFiles(f)
-            if (f.length > 0 && !f.find((x) => x.path === selectedFile)) setSelectedFile(f[0].path)
-          })}
-          />
+          <div className="flex items-center gap-1">
+            <ToolbarButton
+              icon="file"
+              label="Open file"
+              disabled={!selectedFile}
+              onClick={openSelectedFile}
+            />
+            <ToolbarButton
+              icon="refresh"
+              label="Refresh"
+              onClick={refresh}
+            />
+          </div>
         }
       />
 
@@ -73,12 +105,38 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
               </div>
             )}
           </div>
-          {/* File list */}
+          <div className="flex shrink-0 items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+            <input
+              data-testid="diff-file-search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search changed files"
+              className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
+              style={{
+                background: 'var(--control-bg)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)'
+              }}
+            />
+            <Button
+              variant={wrapLines ? 'secondary' : 'ghost'}
+              className="px-2 py-1"
+              ariaLabel={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
+              onClick={() => setWrapLines((value) => !value)}
+            >
+              Wrap
+            </Button>
+          </div>
           <div
             className="overflow-y-auto overflow-x-hidden shrink-0"
             style={{ maxHeight: 200, borderBottom: '1px solid var(--border-subtle)' }}
           >
-            {files.map((f) => (
+            {filteredFiles.length === 0 && (
+              <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                No changed files match this search.
+              </div>
+            )}
+            {filteredFiles.map((f) => (
               <FileRow
                 key={f.path}
                 file={f}
@@ -92,10 +150,11 @@ export default function DiffPanel({ sessionId, embedded = false }: Props): JSX.E
           <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
             {selectedFile ? (
               fileDiff ? (
-                <DiffLines diff={fileDiff} />
+                <DiffLines diff={fileDiff} wrap={wrapLines} />
               ) : (
-                <div className="flex items-center justify-center h-full text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  No diff available
+                <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  <span>No diff available</span>
+                  {selectedChange && <span>{fileStatusLabel(selectedChange.status)} · {selectedChange.path}</span>}
                 </div>
               )
             ) : null}
@@ -156,7 +215,7 @@ function FileRow({ file, selected, onClick }: { file: FileChange; selected: bool
   )
 }
 
-function DiffLines({ diff }: { diff: string }): JSX.Element {
+function DiffLines({ diff, wrap }: { diff: string; wrap: boolean }): JSX.Element {
   const lines = diff.split('\n').filter(
     (l) => !l.startsWith('diff --git') && !l.startsWith('index ') && !l.startsWith('--- ') && !l.startsWith('+++ ')
   )
@@ -180,9 +239,10 @@ function DiffLines({ diff }: { diff: string }): JSX.Element {
             style={{
               color,
               background: bg,
-              whiteSpace: 'pre-wrap',
-              overflowWrap: 'anywhere',
-              wordBreak: 'break-word',
+              whiteSpace: wrap ? 'pre-wrap' : 'pre',
+              overflowWrap: wrap ? 'anywhere' : 'normal',
+              wordBreak: wrap ? 'break-word' : 'normal',
+              overflowX: wrap ? 'hidden' : 'auto',
               lineHeight: 1.6
             }}
           >
@@ -192,4 +252,8 @@ function DiffLines({ diff }: { diff: string }): JSX.Element {
       })}
     </div>
   )
+}
+
+function joinPath(root: string, filePath: string): string {
+  return `${root.replace(/\/+$/, '')}/${filePath.replace(/^\/+/, '')}`
 }

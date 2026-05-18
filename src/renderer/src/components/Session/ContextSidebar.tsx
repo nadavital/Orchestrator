@@ -206,7 +206,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         {effectiveTab === 'extensions' && (
           <ExtensionsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} embedded />
         )}
-        {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} embedded />}
+        {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} workDir={session.workDir} embedded />}
         {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
       </div>
       </aside>

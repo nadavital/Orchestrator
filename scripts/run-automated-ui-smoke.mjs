@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from 'child_process'
+import { spawn, spawnSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { tmpdir } from 'os'
@@ -59,6 +59,19 @@ if (captureView === 'capabilities') {
   writeFileSync(join(workspaceDir, 'AGENTS.md'), '# Automated UI smoke\n\nProject instruction fixture.\n')
   writeFileSync(join(smokeSkillDir, 'SKILL.md'), '# Orchestrator Smoke Skill\n\nA deterministic fixture used by UI smoke tests.\n')
   writeFileSync(join(smokeCommandDir, 'orchestrator-smoke.md'), '# Orchestrator smoke command\n\nRun the smoke fixture.\n')
+}
+
+if (captureView === 'inspector') {
+  writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\n')
+  writeFileSync(join(workspaceDir, 'review-delete.txt'), 'delete me\n')
+  spawnSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' })
+  spawnSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: workspaceDir, stdio: 'ignore' })
+  spawnSync('git', ['config', 'user.name', 'Orchestrator Smoke'], { cwd: workspaceDir, stdio: 'ignore' })
+  spawnSync('git', ['add', '.'], { cwd: workspaceDir, stdio: 'ignore' })
+  spawnSync('git', ['commit', '-m', 'baseline'], { cwd: workspaceDir, stdio: 'ignore' })
+  writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\nafter review\n')
+  writeFileSync(join(workspaceDir, 'review-new.txt'), 'new review file\n')
+  rmSync(join(workspaceDir, 'review-delete.txt'), { force: true })
 }
 
 const launch = runPackaged ? packagedLaunchCommand() : {
@@ -268,6 +281,7 @@ child.on('exit', (code) => {
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
         rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,
         rightPanelExpand: captureView !== 'inspector' || result.rightPanelExpandWorks === true,
+        reviewSearch: captureView !== 'inspector' || result.reviewSearchWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,
