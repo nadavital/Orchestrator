@@ -1,11 +1,13 @@
-export type Appearance = 'system' | 'mist' | 'graphite' | 'high-contrast' | 'dark' | 'light'
+export type Appearance = 'system' | 'mist' | 'graphite' | 'ocean' | 'palenight' | 'high-contrast' | 'dark' | 'light'
 export type Accent = 'blue' | 'teal' | 'purple' | 'green' | 'rose' | 'system' | 'custom'
 export type Density = 'comfortable' | 'compact'
 export type TranscriptStyle = 'relaxed' | 'dense'
 
-export function resolveAppearance(appearance: Appearance): 'mist' | 'graphite' | 'high-contrast' {
+export function resolveAppearance(appearance: Appearance): 'mist' | 'graphite' | 'ocean' | 'palenight' | 'high-contrast' {
   if (appearance === 'mist' || appearance === 'light') return 'mist'
   if (appearance === 'graphite' || appearance === 'dark') return 'graphite'
+  if (appearance === 'ocean') return 'ocean'
+  if (appearance === 'palenight') return 'palenight'
   if (appearance === 'high-contrast') return 'high-contrast'
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'mist' : 'graphite'
 }

@@ -368,6 +368,7 @@ export default function PetOverlay(): JSX.Element | null {
   const [dragAnimState, setDragAnimState] = useState<AnimState | null>(null)
   const [mascotWidthPx, setMascotWidthPx] = useState<number | null>(null)
   const [isResizingVisual, setIsResizingVisual] = useState(false)
+  const [isResizeHandleHovering, setIsResizeHandleHovering] = useState(false)
   const [isResizeHandleFocused, setIsResizeHandleFocused] = useState(false)
   const [forceReducedMotion, setForceReducedMotion] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -921,6 +922,8 @@ export default function PetOverlay(): JSX.Element | null {
           onPointerUp={handleResizePointerUp}
           onPointerCancel={(e) => finishResize(e.pointerId, undefined, e.currentTarget)}
           onLostPointerCapture={(e) => finishResize(e.pointerId, undefined, e.currentTarget)}
+          onPointerEnter={() => setIsResizeHandleHovering(true)}
+          onPointerLeave={() => setIsResizeHandleHovering(false)}
           onFocus={() => setIsResizeHandleFocused(true)}
           onBlur={() => setIsResizeHandleFocused(false)}
           style={{
@@ -950,7 +953,7 @@ export default function PetOverlay(): JSX.Element | null {
               height: 10,
               borderRight: '2px solid currentColor',
               borderBottom: '2px solid currentColor',
-              opacity: isHovering || isResizingVisual || isResizeHandleFocused ? 0.85 : 0,
+              opacity: isResizeHandleHovering || isResizingVisual || isResizeHandleFocused ? 0.85 : 0,
               transition: transitionFor(prefersReducedMotion, 'opacity 120ms ease-out'),
             }}
           />

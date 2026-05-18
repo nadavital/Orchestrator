@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, TranscriptPage, UsageSummary } from '../types'
 import { nextPinOrder } from '../types'
 
-export type SettingsSection = 'general' | 'providers' | 'shortcuts' | 'pets'
+export type SettingsSection = 'general' | 'appearance' | 'providers' | 'shortcuts' | 'pets'
 
 export interface SideQuestionMessage {
   id: string

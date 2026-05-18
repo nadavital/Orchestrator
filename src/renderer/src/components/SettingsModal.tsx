@@ -225,6 +225,12 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
           {section === 'general' && (
             <GeneralSection
+              preferredEditor={preferredEditor}
+              onSetPreferredEditor={savePreferredEditor}
+            />
+          )}
+          {section === 'appearance' && (
+            <AppearanceSection
               appearance={appearance}
               accent={accent}
               density={density}
@@ -234,7 +240,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               interfaceScale={interfaceScale}
               uiFont={uiFont}
               monoFont={monoFont}
-              preferredEditor={preferredEditor}
               onSetAppearance={saveAppearance}
               onSetAccent={saveAccent}
               onSetDensity={saveDensity}
@@ -244,7 +249,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               onSetInterfaceScale={saveInterfaceScale}
               onSetUiFont={saveUiFont}
               onSetMonoFont={saveMonoFont}
-              onSetPreferredEditor={savePreferredEditor}
             />
           )}
           {section === 'pets' && <PetsSection />}
@@ -275,6 +279,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
 }
 
 function settingsTitle(section: SettingsSection): string {
+  if (section === 'appearance') return 'Appearance'
   if (section === 'providers') return 'Providers & models'
   if (section === 'shortcuts') return 'Shortcuts'
   if (section === 'pets') return 'Pets'
@@ -290,6 +295,49 @@ function normalizePreferredEditor(value: unknown): PreferredEditor {
 // ─── General section (app-wide) ───────────────────────────────────────────────
 
 function GeneralSection({
+  preferredEditor,
+  onSetPreferredEditor,
+}: {
+  preferredEditor: PreferredEditor
+  onSetPreferredEditor: (value: PreferredEditor) => void
+}): JSX.Element {
+  const editorOptions: Array<{ id: PreferredEditor; label: string; desc: string }> = [
+    { id: 'system', label: 'System default', desc: 'Use macOS file associations' },
+    { id: 'cursor', label: 'Cursor', desc: 'Open file cards in Cursor' },
+    { id: 'vscode', label: 'VS Code', desc: 'Open file cards in Visual Studio Code' },
+    { id: 'vscode-insiders', label: 'VS Code Insiders', desc: 'Use the Insiders app' },
+    { id: 'zed', label: 'Zed', desc: 'Open file cards in Zed' }
+  ]
+
+  return (
+    <div style={{ padding: '30px 44px 56px', maxWidth: 820, margin: '0 auto' }}>
+      <SettingsIntro
+        description="App-level defaults that affect everyday navigation and file handoff."
+      />
+
+      <SettingGroup title="Files" description="Choose where referenced file cards open from chat.">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+          {editorOptions.map((option) => {
+            const active = preferredEditor === option.id
+            return (
+              <SettingChoiceCard
+                key={option.id}
+                label={option.label}
+                description={option.desc}
+                active={active}
+                onClick={() => onSetPreferredEditor(option.id)}
+              />
+            )
+          })}
+        </div>
+      </SettingGroup>
+    </div>
+  )
+}
+
+// ─── Appearance section ──────────────────────────────────────────────────────
+
+function AppearanceSection({
   appearance,
   accent,
   density,
@@ -299,7 +347,6 @@ function GeneralSection({
   interfaceScale,
   uiFont,
   monoFont,
-  preferredEditor,
   onSetAppearance,
   onSetAccent,
   onSetDensity,
@@ -309,7 +356,6 @@ function GeneralSection({
   onSetInterfaceScale,
   onSetUiFont,
   onSetMonoFont,
-  onSetPreferredEditor,
 }: {
   appearance: Appearance
   accent: Accent
@@ -320,7 +366,6 @@ function GeneralSection({
   interfaceScale: number
   uiFont: string
   monoFont: string
-  preferredEditor: PreferredEditor
   onSetAppearance: (value: Appearance) => void
   onSetAccent: (value: Accent) => void
   onSetDensity: (value: Density) => void
@@ -330,12 +375,13 @@ function GeneralSection({
   onSetInterfaceScale: (value: number) => void
   onSetUiFont: (value: string) => void
   onSetMonoFont: (value: string) => void
-  onSetPreferredEditor: (value: PreferredEditor) => void
 }): JSX.Element {
   const appearanceOptions: Array<{ id: Appearance; label: string; desc: string }> = [
     { id: 'system', label: 'System', desc: 'Follow macOS' },
     { id: 'mist', label: 'Mist Light', desc: 'Soft light canvas' },
     { id: 'graphite', label: 'Graphite Dark', desc: 'Low-glare dark workspace' },
+    { id: 'ocean', label: 'Ocean', desc: 'Blue-toned dark material' },
+    { id: 'palenight', label: 'Palenight', desc: 'Softer purple dark material' },
     { id: 'high-contrast', label: 'High Contrast', desc: 'Maximum contrast' },
   ]
   const accentOptions: Array<{ id: Accent; label: string; color: string }> = [
@@ -363,18 +409,10 @@ function GeneralSection({
     { id: 'system', label: 'System mono', desc: 'SF Mono where available' },
     { id: 'mono', label: 'Developer mono', desc: 'Code-first stack' }
   ]
-  const editorOptions: Array<{ id: PreferredEditor; label: string; desc: string }> = [
-    { id: 'system', label: 'System default', desc: 'Use macOS file associations' },
-    { id: 'cursor', label: 'Cursor', desc: 'Open file cards in Cursor' },
-    { id: 'vscode', label: 'VS Code', desc: 'Open file cards in Visual Studio Code' },
-    { id: 'vscode-insiders', label: 'VS Code Insiders', desc: 'Use the Insiders app' },
-    { id: 'zed', label: 'Zed', desc: 'Open file cards in Zed' }
-  ]
-
   return (
     <div style={{ padding: '30px 44px 56px', maxWidth: 960, margin: '0 auto' }}>
       <SettingsIntro
-        description="Tune the app shell, typography, and density without changing how your agents work."
+        description="Tune the app shell, typography, density, and reading rhythm without changing how your agents work."
       />
 
       <SettingGroup title="Appearance" description="Choose the overall app material and contrast.">
@@ -453,23 +491,6 @@ function GeneralSection({
               onChange={(event) => onSetInterfaceScale(Number(event.currentTarget.value))}
             />
           </label>
-        </div>
-      </SettingGroup>
-
-      <SettingGroup title="Files" description="Choose where referenced file cards open from chat.">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
-          {editorOptions.map((option) => {
-            const active = preferredEditor === option.id
-            return (
-              <SettingChoiceCard
-                key={option.id}
-                label={option.label}
-                description={option.desc}
-                active={active}
-                onClick={() => onSetPreferredEditor(option.id)}
-              />
-            )
-          })}
         </div>
       </SettingGroup>
 

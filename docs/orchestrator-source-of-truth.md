@@ -304,6 +304,9 @@ These are the next small, user-visible polish slices to consider after the curre
 | POL-003 | Command palette | Keyboard-first actions feel native and do not duplicate composer slash commands. | `Implemented` | Add a command-palette automated smoke for search, recent commands, and shortcut labels. |
 | POL-004 | Sidebar polish | Pinned, unread, running, rename, and project grouping feel stable during live runs. | `Implemented` | Add a focused smoke for running/completion transitions while a pinned session receives messages. |
 | POL-005 | Transcript polish | Long threads feel complete, searchable, and scroll-stable without exposing implementation copy. | `Implemented` | Keep stress/session-switch/scroll smokes in the default pre-install checklist after transcript changes. |
+| POL-006 | Settings organization | Settings follow the Codex app's sectioned model: General stays app-behavior focused, Appearance owns themes/typography/density, and provider/capability surfaces do not crowd core preferences. | `Partial` | Continue splitting advanced provider/capability management into focused sections after the Appearance split lands. |
+| POL-007 | Theme parity | Theming offers more than a single light/dark pair while preserving Orchestrator's own visual identity. | `Partial` | Use Codex material-theme variants as the reference and add screenshot smoke coverage for each app theme. |
+| POL-008 | Right sidebar parity | The right inspector should feel as deliberate as Codex: stable tab identity, readable counts/states, richer empty states, and deeper plan/agent/diff/resource controls without crowding chat. | `Partial` | Compare against Codex side-panel/browser-tab assets and implement one panel at a time with rendered smoke coverage. |
 
 ### P0: Re-establish Installed-App Verification
 

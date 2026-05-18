@@ -180,6 +180,7 @@ child.on('exit', (code) => {
         trayCollapsed: result.trayCollapsed === true,
         trayReopened: result.trayReopened === true,
         resizeHandleFound: result.resizeHandleFound === true,
+        resizeGripMascotHoverHidden: result.resizeGripMascotHoverHidden === true,
         resizeGripHoverVisible: result.resizeGripHoverVisible === true,
         resizeGripFocusVisible: result.resizeGripFocusVisible === true,
         replyFormOpened: result.replyFormOpened === true,

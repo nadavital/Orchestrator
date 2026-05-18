@@ -9,6 +9,7 @@ import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import { MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
+import Icon, { type IconName } from '../shared/Icon'
 
 export type ContextTab = 'plan' | 'diff' | 'agents' | 'extensions' | 'side'
 
@@ -19,6 +20,13 @@ interface Props {
 const DEFAULT_PANEL_WIDTH = 468
 const MIN_PANEL_WIDTH = 360
 const MAX_PANEL_WIDTH = 720
+
+interface ContextTabSpec {
+  id: ContextTab
+  label: string
+  icon: IconName
+  count?: number
+}
 
 export default function ContextSidebar({ session }: Props): JSX.Element | null {
   const { eventBuffers, uiState, setShowDiff, setShowEvents, setShowPlan, setShowExtensions, setShowSideQuestions } = useSessionStore()
@@ -36,13 +44,13 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   const hasOpenAgent = (ui?.agentTabIds?.length ?? 0) > 0
   const hasLiveAgent = agents.some(isLiveAgent)
   const hasSideQuestions = (ui?.sideQuestions?.length ?? 0) > 0
-  const tabs = [
-    ui?.showDiff ? { id: 'diff' as const, label: 'Changes' } : null,
-    hasPlan ? { id: 'plan' as const, label: 'Plan' } : null,
-    (hasOpenAgent || hasLiveAgent) ? { id: 'agents' as const, label: 'Agents' } : null,
-    ui?.showExtensions ? { id: 'extensions' as const, label: 'Extensions' } : null,
-    hasSideQuestions ? { id: 'side' as const, label: 'Side' } : null
-  ].filter((tab): tab is { id: ContextTab; label: string } => Boolean(tab))
+  const tabs: ContextTabSpec[] = [
+    ...(ui?.showDiff ? [{ id: 'diff' as const, label: 'Changes', icon: 'diff' as const }] : []),
+    ...(hasPlan ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }] : []),
+    ...((hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length }] : []),
+    ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
+    ...(hasSideQuestions ? [{ id: 'side' as const, label: 'Side', icon: 'chat' as const, count: ui?.sideQuestions?.length ?? 0 }] : [])
+  ]
   const activeTab: ContextTab | null = ui?.showPlan
     ? 'plan'
     : ui?.showDiff
@@ -121,7 +129,21 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
               onClose={() => close(tab.id)}
               closeLabel={`Close ${tab.label}`}
             >
-              {tab.label}
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <Icon name={tab.icon} size={13} />
+                <span className="truncate">{tab.label}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span
+                    className="grid min-w-4 place-items-center rounded-full px-1 text-[10px] leading-4"
+                    style={{
+                      background: effectiveTab === tab.id ? 'var(--accent-bg)' : 'var(--control-bg)',
+                      color: effectiveTab === tab.id ? 'var(--accent)' : 'var(--text-tertiary)',
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </span>
             </TabButton>
           ))}
         </div>

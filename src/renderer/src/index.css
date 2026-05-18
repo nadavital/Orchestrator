@@ -115,6 +115,62 @@
     color-scheme: dark;
   }
 
+  :root[data-theme='ocean'] {
+    --app-bg: #07131f;
+    --panel-bg: rgba(10, 27, 43, 0.94);
+    --panel-bg-solid: #0a1b2b;
+    --canvas-bg: #0b1624;
+    --surface-bg: #132338;
+    --surface-bg-raised: #1a2c45;
+    --control-bg: rgba(199, 226, 255, 0.07);
+    --control-bg-hover: rgba(199, 226, 255, 0.11);
+    --control-bg-active: rgba(199, 226, 255, 0.15);
+    --border-subtle: rgba(210, 232, 255, 0.1);
+    --border-strong: rgba(210, 232, 255, 0.18);
+    --text-primary: #edf7ff;
+    --text-secondary: #a8bdd2;
+    --text-tertiary: #75889c;
+    --accent-bg: color-mix(in srgb, var(--accent) 20%, transparent);
+    --state-success: #42c985;
+    --state-warning: #e5b648;
+    --state-danger: #ff6464;
+    --shadow-popover: 0 20px 50px rgba(0, 8, 20, 0.46);
+    --shadow-composer: 0 18px 48px rgba(0, 8, 20, 0.36);
+    --shadow-card: 0 1px 2px rgba(0, 8, 20, 0.26);
+    --shadow-soft: 0 1px 2px rgba(0, 8, 20, 0.26);
+    --shadow-menu: 0 20px 50px rgba(0, 8, 20, 0.46);
+    --shadow-dialog: 0 28px 90px rgba(0, 8, 20, 0.58);
+    color-scheme: dark;
+  }
+
+  :root[data-theme='palenight'] {
+    --app-bg: #171824;
+    --panel-bg: rgba(33, 34, 50, 0.94);
+    --panel-bg-solid: #212232;
+    --canvas-bg: #1b1d2b;
+    --surface-bg: #25283a;
+    --surface-bg-raised: #303449;
+    --control-bg: rgba(222, 220, 255, 0.07);
+    --control-bg-hover: rgba(222, 220, 255, 0.11);
+    --control-bg-active: rgba(222, 220, 255, 0.15);
+    --border-subtle: rgba(226, 224, 255, 0.1);
+    --border-strong: rgba(226, 224, 255, 0.18);
+    --text-primary: #f5f3ff;
+    --text-secondary: #b9b7ce;
+    --text-tertiary: #85849a;
+    --accent-bg: color-mix(in srgb, var(--accent) 20%, transparent);
+    --state-success: #58c994;
+    --state-warning: #e9ba55;
+    --state-danger: #ff6b77;
+    --shadow-popover: 0 20px 50px rgba(4, 4, 12, 0.44);
+    --shadow-composer: 0 18px 48px rgba(4, 4, 12, 0.35);
+    --shadow-card: 0 1px 2px rgba(4, 4, 12, 0.26);
+    --shadow-soft: 0 1px 2px rgba(4, 4, 12, 0.26);
+    --shadow-menu: 0 20px 50px rgba(4, 4, 12, 0.44);
+    --shadow-dialog: 0 28px 90px rgba(4, 4, 12, 0.56);
+    color-scheme: dark;
+  }
+
   :root[data-theme='high-contrast'] {
     --app-bg: #000000;
     --panel-bg: #050505;

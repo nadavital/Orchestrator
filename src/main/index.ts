@@ -708,7 +708,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               }));
             }
             if (normalPin instanceof HTMLElement) normalPin.focus({ preventScroll: true });
-            await sleep(160);
+            await sleep(360);
             const hoverPinVisible = normalPin instanceof HTMLElement &&
               Number.parseFloat(getComputedStyle(normalPin).opacity || '0') > 0.5;
 
@@ -1037,6 +1037,7 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
                 trayCollapsed: false,
                 trayReopened: false,
                 resizeHandleFound: false,
+                resizeGripMascotHoverHidden: false,
                 resizeGripHoverVisible: false,
                 resizeGripFocusVisible: false,
                 bodyText: document.body.innerText
@@ -1135,8 +1136,8 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
                 const rect = mascot.getBoundingClientRect();
                 const eventInit = {
                   bubbles: true,
-                  clientX: rect.right - 10,
-                  clientY: rect.bottom - 10,
+                  clientX: rect.left + 10,
+                  clientY: rect.top + 10,
                   pointerType: 'mouse'
                 };
                 mascot.dispatchEvent(new PointerEvent('pointerover', eventInit));
@@ -1144,13 +1145,29 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
                 mascot.dispatchEvent(new MouseEvent('mouseover', eventInit));
                 mascot.dispatchEvent(new MouseEvent('mouseenter', { ...eventInit, bubbles: false }));
               }
-              await sleep(140);
+              await sleep(160);
+              const mascotHoverOpacity = grip ? Number.parseFloat(getComputedStyle(grip).opacity || '0') : 0;
+              if (handle instanceof HTMLElement) {
+                const rect = handle.getBoundingClientRect();
+                const eventInit = {
+                  bubbles: true,
+                  clientX: rect.left + Math.max(1, rect.width / 2),
+                  clientY: rect.top + Math.max(1, rect.height / 2),
+                  pointerType: 'mouse'
+                };
+                handle.dispatchEvent(new PointerEvent('pointerover', eventInit));
+                handle.dispatchEvent(new PointerEvent('pointerenter', { ...eventInit, bubbles: false }));
+                handle.dispatchEvent(new MouseEvent('mouseover', eventInit));
+                handle.dispatchEvent(new MouseEvent('mouseenter', { ...eventInit, bubbles: false }));
+              }
+              await sleep(160);
               const hoverOpacity = grip ? Number.parseFloat(getComputedStyle(grip).opacity || '0') : 0;
               if (handle instanceof HTMLElement) handle.focus({ preventScroll: true });
-              await sleep(80);
+              await sleep(140);
               const focusOpacity = grip ? Number.parseFloat(getComputedStyle(grip).opacity || '0') : 0;
               return {
                 resizeHandleFound: handle instanceof HTMLElement,
+                resizeGripMascotHoverHidden: mascotHoverOpacity < 0.2,
                 resizeGripHoverVisible: hoverOpacity > 0.5,
                 resizeGripFocusVisible: focusOpacity > 0.5
               };

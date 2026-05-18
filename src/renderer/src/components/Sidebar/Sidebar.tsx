@@ -80,6 +80,12 @@ export default function Sidebar(): JSX.Element {
               onClick={() => setSettingsSection('general')}
             />
             <SidebarNavItem
+              icon="sparkles"
+              label="Appearance"
+              active={settingsSection === 'appearance'}
+              onClick={() => setSettingsSection('appearance')}
+            />
+            <SidebarNavItem
               icon="agents"
               label="Providers & models"
               active={settingsSection === 'providers'}
