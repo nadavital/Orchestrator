@@ -24,6 +24,15 @@ const statusColor: Record<Session['status'], string> = {
   error: 'var(--color-red)'
 }
 
+const errorStatuses = new Set<Session['status']>([
+  'auth_error',
+  'model_error',
+  'quota_error',
+  'rate_limit_error',
+  'provider_error',
+  'error'
+])
+
 function SessionItem({ session }: Props): JSX.Element {
   const isActive = useSessionStore((state) => state.activeSessionId === session.id)
   const unread = useSessionStore((state) => state.uiState[session.id]?.hasUnread ?? false)
@@ -35,6 +44,9 @@ function SessionItem({ session }: Props): JSX.Element {
   const { removeSessionFromProject } = useProjectStore()
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
   const hasUnread = !isActive && unread
+  const hasError = errorStatuses.has(session.status)
+  const hasUncheckedCompletion = hasUnread && session.status === 'idle'
+  const showStatusDot = hasUncheckedCompletion || hasError
   const preview = useMemo(() => {
     if (session.previewText) return compactPreview(session.previewText, session.name, session.status)
     const lastMessage = session.messages.findLast((m) => m.type === 'text' && m.role !== 'system')
@@ -112,26 +124,12 @@ function SessionItem({ session }: Props): JSX.Element {
         active={isActive}
         style={{
           borderRadius: 'var(--radius-md)',
-          padding: '5px 7px 5px 28px'
+          padding: '5px 7px'
         }}
         onClick={handleClick}
         onContextMenu={openMenu}
       >
-        <div className="session-item-status-slot mt-1.5 shrink-0">
-          <div
-            className="session-item-status-dot rounded-full"
-            style={{
-              width: 5,
-              height: 5,
-              background: hasUnread ? 'var(--color-accent)' : statusColor[session.status],
-              opacity: session.status === 'idle' && !hasUnread ? 0.4 : 1,
-              boxShadow: session.status === 'running'
-                ? '0 0 4px var(--color-green)'
-                : hasUnread
-                  ? '0 0 4px var(--color-accent)'
-                  : 'none'
-            }}
-          />
+        <div className="session-item-pin-slot mt-0.5 shrink-0">
           <button
             type="button"
             className="session-item-pin-button"
@@ -145,11 +143,6 @@ function SessionItem({ session }: Props): JSX.Element {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            {session.pinned && (
-              <span className="shrink-0" style={{ color: 'var(--text-tertiary)' }} title="Pinned">
-                <Icon name="pin" size={11} />
-              </span>
-            )}
             <div className="text-[13px] font-medium truncate leading-5" style={{ color: 'var(--text-primary)' }}>
               {session.name}
             </div>
@@ -169,6 +162,18 @@ function SessionItem({ session }: Props): JSX.Element {
             </span>
           )}
         </div>
+        {showStatusDot && (
+          <span
+            className="session-item-status-dot mt-2 shrink-0 rounded-full"
+            title={hasError ? 'Needs attention' : 'Unread updates'}
+            style={{
+              background: hasError ? statusColor[session.status] : 'var(--color-accent)',
+              boxShadow: hasError
+                ? '0 0 4px var(--color-red)'
+                : '0 0 4px var(--color-accent)'
+            }}
+          />
+        )}
         <span className="surface-row-secondary shrink-0 mt-0.5">
           <IconButton
             icon="ellipsis"
