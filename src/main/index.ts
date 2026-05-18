@@ -1297,8 +1297,10 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
             await sleep(900);
             const scroller = document.querySelector('[data-testid="transcript-scroll"]');
             if (!scroller) return { profile, transcriptFound: false, seededSessionId: ${JSON.stringify(seededSessionId)}, bodyText: document.body.innerText };
-            scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight - 360);
+            scroller.scrollTop = scroller.scrollHeight;
             scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+            await sleep(40);
+            scroller.dispatchEvent(new WheelEvent('wheel', { deltaY: -360, bubbles: true, cancelable: true }));
             await sleep(120);
             return {
               profile,
@@ -1333,6 +1335,7 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
             const afterScrollTop = scroller.scrollTop;
             const afterScrollHeight = scroller.scrollHeight;
             const afterClientHeight = scroller.clientHeight;
+            const afterBottomDistance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
             const jump = document.querySelector('[data-testid="jump-to-latest"]');
             const jumpVisibleAfterUpdate = Boolean(jump);
             jump?.click();
@@ -1343,6 +1346,7 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
               afterScrollTop,
               afterScrollHeight,
               afterClientHeight,
+              afterBottomDistance,
               jumpVisibleAfterUpdate,
               finalScrollTop: scroller.scrollTop,
               finalBottomDistance,
@@ -1356,6 +1360,8 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
           ...after,
           scrollStayedPut: Boolean(before?.transcriptFound && after?.transcriptFound) &&
             Math.abs((after.afterScrollTop ?? 0) - (before.beforeScrollTop ?? 0)) <= 8,
+          streamingDidNotAutoFollow: Boolean(after?.transcriptFound) &&
+            (after.afterBottomDistance ?? 0) > 80,
           jumpToLatestReached: Boolean(after?.transcriptFound) && (after.finalBottomDistance ?? Number.POSITIVE_INFINITY) <= 80
         }
 

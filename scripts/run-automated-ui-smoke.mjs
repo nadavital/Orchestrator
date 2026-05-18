@@ -182,6 +182,7 @@ child.on('exit', (code) => {
         transcriptFound: result.transcriptFound === true,
         jumpVisibleBeforeUpdate: result.jumpVisibleBeforeUpdate === true,
         scrollStayedPut: result.scrollStayedPut === true,
+        streamingDidNotAutoFollow: result.streamingDidNotAutoFollow === true,
         jumpToLatestReached: result.jumpToLatestReached === true,
         jumpHiddenAfterClick: result.jumpVisibleAfterClick === false
       }

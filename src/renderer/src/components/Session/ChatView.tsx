@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import type { WheelEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -100,6 +101,22 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
     shouldFollowBottomRef.current = isFollowing
     setShowJumpToLatest((current) => current === shouldShowJumpButton ? current : shouldShowJumpButton)
   }, [])
+
+  const stopFollowingBottom = useCallback(() => {
+    if (pendingScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(pendingScrollFrameRef.current)
+      pendingScrollFrameRef.current = null
+    }
+    setFollowingBottom(false)
+  }, [setFollowingBottom])
+
+  const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
+    if (event.deltaY < 0) stopFollowingBottom()
+  }, [stopFollowingBottom])
+
+  const handleTouchStart = useCallback(() => {
+    stopFollowingBottom()
+  }, [stopFollowingBottom])
 
   const scrollToBottom = useCallback((force = false) => {
     if (force) {
@@ -369,6 +386,8 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
         data-testid="transcript-scroll"
         ref={scrollContainerRef}
         onScroll={handleScroll}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
         className="h-full min-w-0 overflow-y-auto overflow-x-hidden px-6 py-5"
         style={{ userSelect: 'text' }}
       >
