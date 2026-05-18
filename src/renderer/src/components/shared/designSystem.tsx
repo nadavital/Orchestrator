@@ -754,6 +754,7 @@ interface SurfaceRowProps {
   index?: number
   as?: 'button' | 'div'
   onClick?: () => void | Promise<void>
+  onDoubleClick?: (event: React.MouseEvent) => void | Promise<void>
   onContextMenu?: (event: React.MouseEvent) => void
   onMouseEnter?: (event: React.MouseEvent) => void
   className?: string
@@ -770,6 +771,7 @@ export function SurfaceRow({
   index = 0,
   as = 'div',
   onClick,
+  onDoubleClick,
   onContextMenu,
   onMouseEnter,
   className = '',
@@ -785,6 +787,7 @@ export function SurfaceRow({
     style: { ...rowMotionStyle(index), ...style },
     onContextMenu,
     onMouseEnter,
+    onDoubleClick: (event: React.MouseEvent) => { void onDoubleClick?.(event) },
     title,
     'aria-label': ariaLabel,
   }

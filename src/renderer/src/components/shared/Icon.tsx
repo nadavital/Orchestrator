@@ -17,6 +17,7 @@ import {
   Folder,
   GitBranch,
   GitCompare,
+  Keyboard,
   ListChecks,
   Menu,
   MessageSquare,
@@ -56,6 +57,7 @@ export type IconName =
   | 'extensions'
   | 'file'
   | 'folder'
+  | 'keyboard'
   | 'menu'
   | 'paperclip'
   | 'pencil'
@@ -92,6 +94,7 @@ const icons: Record<IconName, LucideIcon> = {
   extensions: Boxes,
   file: File,
   folder: Folder,
+  keyboard: Keyboard,
   menu: Menu,
   paperclip: Paperclip,
   pencil: Pencil,

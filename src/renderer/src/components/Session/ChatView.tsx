@@ -55,11 +55,13 @@ const TRANSCRIPT_RENDER_CHUNK = 40
 export default function ChatView({ session, projectName, onSuggestedPrompt }: Props): JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const shouldFollowBottomRef = useRef(true)
   const pendingScrollFrameRef = useRef<number | null>(null)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
   const [loadingEarlier, setLoadingEarlier] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<TranscriptSearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -188,7 +190,38 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   }, [session.id, visibleMessages.length])
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        setSearchOpen(true)
+        return
+      }
+      if (event.key === 'Escape' && searchOpen) {
+        const activeElement = document.activeElement
+        if (activeElement === searchInputRef.current || searchInputRef.current?.contains(activeElement)) {
+          event.preventDefault()
+          setSearchOpen(false)
+          setSearchQuery('')
+          setSearchResults([])
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [searchOpen])
+
+  useEffect(() => {
+    if (!searchOpen) return
+    window.requestAnimationFrame(() => searchInputRef.current?.focus())
+  }, [searchOpen])
+
+  useEffect(() => {
     const query = searchQuery.trim()
+    if (!searchOpen) {
+      setSearchResults([])
+      setSearching(false)
+      return
+    }
     if (query.length < 2) {
       setSearchResults([])
       setSearching(false)
@@ -212,7 +245,7 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
       cancelled = true
       window.clearTimeout(timeout)
     }
-  }, [searchQuery, session.id])
+  }, [searchOpen, searchQuery, session.id])
 
   useEffect(() => {
     if (session.messagesLoaded || session.messageCount === 0 || session.messages.length >= Math.min(totalMessageCount, TRANSCRIPT_RENDER_CHUNK)) return
@@ -353,11 +386,18 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
             <TranscriptLoadingState />
           )}
           <TranscriptSearch
+            open={searchOpen}
+            inputRef={searchInputRef}
             query={searchQuery}
             results={searchResults}
             searching={searching}
             onQueryChange={setSearchQuery}
             onJump={handleJumpToSearchResult}
+            onClose={() => {
+              setSearchOpen(false)
+              setSearchQuery('')
+              setSearchResults([])
+            }}
           />
           {transcriptItems.map((item) => (
             item.type === 'tool_group'
@@ -442,22 +482,30 @@ function LoadEarlierMessages({
 }
 
 function TranscriptSearch({
+  open,
+  inputRef,
   query,
   results,
   searching,
   onQueryChange,
-  onJump
+  onJump,
+  onClose
 }: {
+  open: boolean
+  inputRef: React.RefObject<HTMLInputElement>
   query: string
   results: TranscriptSearchResult[]
   searching: boolean
   onQueryChange: (query: string) => void
   onJump: (result: TranscriptSearchResult) => void
+  onClose: () => void
 }): JSX.Element {
+  if (!open) return <></>
+
   return (
     <div className="sticky top-0 z-10 -mx-1 flex justify-end pb-1">
       <div
-        className="motion-row w-full max-w-[360px] rounded-lg px-2 py-1"
+        className="motion-row relative w-full max-w-[360px] rounded-lg px-2 py-1"
         style={{
           background: 'color-mix(in srgb, var(--surface-bg) 92%, transparent)',
           border: '1px solid var(--border-subtle)',
@@ -469,16 +517,26 @@ function TranscriptSearch({
         <input
           id="transcript-search"
           data-testid="transcript-search"
+          ref={inputRef}
           value={query}
           onChange={(event) => onQueryChange(event.currentTarget.value)}
           placeholder="Search transcript"
-          className="w-full rounded-md px-2 py-1 text-xs outline-none"
+          className="w-full rounded-md py-1 pl-2 pr-7 text-xs outline-none"
           style={{
             background: 'var(--control-bg)',
             border: '1px solid var(--border-subtle)',
             color: 'var(--text-primary)'
           }}
         />
+        <button
+          type="button"
+          aria-label="Close transcript search"
+          onClick={onClose}
+          className="absolute right-3 top-2.5 grid h-5 w-5 place-items-center rounded"
+          style={{ color: 'var(--text-tertiary)', background: 'transparent' }}
+        >
+          <Icon name="close" size={12} />
+        </button>
         {(searching || results.length > 0) && (
           <div className="mt-1 max-h-56 overflow-auto rounded-md" style={{ background: 'var(--canvas-bg)' }}>
             {searching ? (
@@ -1013,7 +1071,7 @@ function MessageAttachmentList({ attachments }: { attachments: Attachment[] }): 
 
 function FileReferenceList({ files, cwd, searchRoots, preferredEditor }: { files: FileReference[]; cwd: string; searchRoots: string[]; preferredEditor: PreferredEditor }): JSX.Element {
   return (
-    <div className="mt-3 space-y-1.5" aria-label="Referenced files">
+    <div className="mt-3 min-w-0 max-w-full space-y-1.5" aria-label="Referenced files" data-testid="file-reference-list">
       {files.map((file) => (
         <FileReferenceCard key={file.path} file={file} cwd={cwd} searchRoots={searchRoots} preferredEditor={preferredEditor} />
       ))}
@@ -1077,7 +1135,8 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
 
   return (
     <div
-      className="rounded-lg px-3 py-2 text-xs"
+      data-testid="file-reference-card"
+      className="min-w-0 max-w-full overflow-hidden rounded-lg px-3 py-2 text-xs"
       style={{
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
@@ -1197,12 +1256,13 @@ function ToolActivitySummary({ messages }: { messages: Array<ToolUseMessage | To
   const shouldScroll = rowCount > TOOL_SUMMARY_SCROLL_THRESHOLD
 
   return (
-    <div className="flex justify-start min-w-0 w-full">
+    <div className="flex justify-start min-w-0 w-full" data-testid="tool-activity-summary">
       <div className="w-full min-w-0" style={{ maxWidth: 'min(760px, 100%)' }}>
         <DisclosureSection
           title={<span style={{ color: hasErrors ? 'var(--color-red)' : 'var(--color-text-muted)' }}>{summary}</span>}
         >
           <div
+            data-testid="tool-activity-body"
             className="min-w-0 overflow-y-auto overflow-x-hidden pl-5 pr-1 pb-1 text-xs"
             style={{
               color: 'var(--color-text-muted)',

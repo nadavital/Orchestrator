@@ -93,6 +93,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedScrollSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'sidebar') {
+    runAutomatedSidebarSmoke(win, outputPath, screenshotPath)
+    return
+  }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
+    runAutomatedTranscriptLayoutSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay') {
     runAutomatedPetOverlaySmoke(win, outputPath, screenshotPath)
     return
@@ -418,6 +426,14 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               }
               await sleep(10);
             }
+            window.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'f',
+              code: 'KeyF',
+              metaKey: true,
+              bubbles: true,
+              cancelable: true
+            }));
+            await sleep(60);
             const search = document.querySelector('[data-testid="transcript-search"]');
             let transcriptSearchFound = false;
             if (search instanceof HTMLInputElement) {
@@ -455,6 +471,229 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
           writeFileSync(screenshotPath, image.toPNG())
         }
         writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...summaryResult, ...before, ...after }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const profile = getAppProfile()
+        const sessions = sessionManager.list()
+        const unread = sessions.find((session) => session.name === 'Sidebar unread idle')
+        if (unread) {
+          sessionManager.updateStatus(unread.id, 'running')
+          await new Promise((resolve) => setTimeout(resolve, 120))
+          sessionManager.updateStatus(unread.id, 'idle')
+        }
+        const running = sessions.find((session) => session.name === 'Sidebar running')
+        if (running) sessionManager.updateStatus(running.id, 'running')
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const rowFor = (name) => [...document.querySelectorAll('[data-testid="session-row"]')]
+              .find((row) => row.textContent?.includes(name));
+            const waitForRow = async (name) => {
+              for (let index = 0; index < 80; index += 1) {
+                const row = rowFor(name);
+                if (row) return row;
+                await sleep(25);
+              }
+              return null;
+            };
+            await waitForRow('Sidebar pinned recent');
+            await sleep(250);
+
+            const bodyText = document.body.innerText;
+            const pinnedIndex = bodyText.indexOf('Pinned');
+            const projectsIndex = bodyText.indexOf('Projects');
+            const recentIndex = bodyText.indexOf('Sidebar pinned recent');
+            const olderIndex = bodyText.indexOf('Sidebar pinned older');
+            const pinnedAboveProjects = pinnedIndex >= 0 && projectsIndex >= 0 && pinnedIndex < projectsIndex;
+            const pinnedRecentFirst = recentIndex >= 0 && olderIndex >= 0 && recentIndex < olderIndex && recentIndex < projectsIndex;
+            const projectBlock = projectsIndex >= 0 ? bodyText.slice(projectsIndex) : '';
+            const pinnedRowsHiddenFromProjects =
+              !projectBlock.includes('Sidebar pinned recent') &&
+              !projectBlock.includes('Sidebar pinned older');
+
+            const pinnedRecentRow = rowFor('Sidebar pinned recent');
+            const pinnedRecentPin = pinnedRecentRow?.querySelector('[data-testid="session-pin-toggle"]');
+            if (pinnedRecentPin instanceof HTMLElement) pinnedRecentPin.click();
+            for (let index = 0; index < 80; index += 1) {
+              const nextText = document.body.innerText;
+              const nextProjectsIndex = nextText.indexOf('Projects');
+              const nextProjectBlock = nextProjectsIndex >= 0 ? nextText.slice(nextProjectsIndex) : '';
+              if (nextProjectBlock.includes('Sidebar pinned recent')) break;
+              await sleep(25);
+            }
+            const afterUnpinText = document.body.innerText;
+            const afterProjectsIndex = afterUnpinText.indexOf('Projects');
+            const afterProjectBlock = afterProjectsIndex >= 0 ? afterUnpinText.slice(afterProjectsIndex) : '';
+            const pinnedRowUnpinned = afterProjectBlock.includes('Sidebar pinned recent');
+
+            const normalRow = await waitForRow('Sidebar normal idle');
+            const normalPin = normalRow?.querySelector('[data-testid="session-pin-toggle"]');
+            if (normalRow instanceof HTMLElement) {
+              const rect = normalRow.getBoundingClientRect();
+              normalRow.dispatchEvent(new MouseEvent('mouseover', {
+                bubbles: true,
+                clientX: rect.left + 12,
+                clientY: rect.top + 12
+              }));
+            }
+            if (normalPin instanceof HTMLElement) normalPin.focus({ preventScroll: true });
+            await sleep(160);
+            const hoverPinVisible = normalPin instanceof HTMLElement &&
+              Number.parseFloat(getComputedStyle(normalPin).opacity || '0') > 0.5;
+
+            let doubleClickRenameWorks = false;
+            if (normalRow instanceof HTMLElement) {
+              normalRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+              await sleep(120);
+              const input = document.querySelector('input');
+              if (input instanceof HTMLInputElement) {
+                const setter = Object.getOwnPropertyDescriptor(input.constructor.prototype, 'value')?.set;
+                setter?.call(input, 'Sidebar renamed by smoke');
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                doubleClickRenameWorks = Boolean(await waitForRow('Sidebar renamed by smoke'));
+              }
+            }
+
+            const unreadRow = await waitForRow('Sidebar unread idle');
+            const errorRow = await waitForRow('Sidebar error');
+            const runningRow = await waitForRow('Sidebar running');
+            const allDots = [...document.querySelectorAll('[data-testid="session-status-dot"]')];
+            return {
+              pinnedAboveProjects,
+              pinnedRecentFirst,
+              pinnedRowsHiddenFromProjects,
+              pinnedRowUnpinned,
+              hoverPinVisible,
+              doubleClickRenameWorks,
+              runningSpinnerVisible: Boolean(runningRow?.querySelector('[data-testid="session-status-spinner"]')),
+              normalIdleDotHidden: !normalRow?.querySelector('[data-testid="session-status-dot"]'),
+              unreadIdleDotVisible: Boolean(unreadRow?.querySelector('[data-testid="session-status-dot"]')),
+              errorDotVisible: Boolean(errorRow?.querySelector('[data-testid="session-status-dot"]')),
+              grayIdleDotsAbsent: allDots.length === 2,
+              dotCount: allDots.length,
+              bodyText: document.body.innerText
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        win.setSize(860, 720)
+        const profile = getAppProfile()
+        const session = sessionManager.list().find((candidate) => candidate.name === 'Transcript layout smoke')
+        if (session) {
+          win.webContents.send('pet:navigate', session.id)
+          await new Promise((resolve) => setTimeout(resolve, 180))
+        }
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const waitForText = async (text) => {
+              for (let index = 0; index < 80; index += 1) {
+                if (document.body.innerText.includes(text)) return true;
+                await sleep(25);
+              }
+              return false;
+            };
+            const layoutFixtureVisible = await waitForText('TRANSCRIPT_LAYOUT_SMOKE');
+            await sleep(160);
+            const searchHiddenInitially = !document.querySelector('[data-testid="transcript-search"]');
+            window.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'f',
+              code: 'KeyF',
+              metaKey: true,
+              bubbles: true,
+              cancelable: true
+            }));
+            await sleep(80);
+            const search = document.querySelector('[data-testid="transcript-search"]');
+            const searchShortcutOpens = search instanceof HTMLInputElement && document.activeElement === search;
+
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!scroller) {
+              return { transcriptFound: false, layoutFixtureVisible, bodyText: document.body.innerText };
+            }
+
+            const viewportWidth = document.documentElement.clientWidth;
+            const docScrollWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+            const documentNoHorizontalOverflow = docScrollWidth <= viewportWidth + 2;
+            const transcriptNoHorizontalOverflow = scroller.scrollWidth <= scroller.clientWidth + 2;
+            const scrollerRect = scroller.getBoundingClientRect();
+            const isInsideScroller = (element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.left >= scrollerRect.left - 2 && rect.right <= scrollerRect.right + 2;
+            };
+
+            const messageRows = [...document.querySelectorAll('[data-message-id]')];
+            const pre = document.querySelector('pre');
+            const table = document.querySelector('table');
+            const fileCards = [...document.querySelectorAll('[data-testid="file-reference-card"]')];
+            const toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
+            const toolButton = toolSummary?.querySelector('.motion-disclosure-trigger');
+            if (toolButton instanceof HTMLElement && toolButton.getAttribute('aria-expanded') !== 'true') {
+              toolButton.click();
+            }
+            await sleep(160);
+            const toolBody = document.querySelector('[data-testid="tool-activity-body"]');
+            const expandedDocScrollWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+
+            return {
+              transcriptFound: true,
+              layoutFixtureVisible,
+              searchHiddenInitially,
+              searchShortcutOpens,
+              documentNoHorizontalOverflow,
+              transcriptNoHorizontalOverflow,
+              messageRowsBounded: messageRows.length > 0 && messageRows.every(isInsideScroller),
+              codeBlockBounded: pre instanceof HTMLElement && isInsideScroller(pre),
+              codeBlockInternallyScrollable: pre instanceof HTMLElement && pre.scrollWidth > pre.clientWidth + 24,
+              tableBounded: table instanceof HTMLElement && isInsideScroller(table),
+              fileCardsBounded: fileCards.length > 0 && fileCards.every(isInsideScroller),
+              toolSummaryExpanded: toolButton instanceof HTMLElement && toolButton.getAttribute('aria-expanded') === 'true' && Boolean(toolBody),
+              toolSummaryBounded: toolBody instanceof HTMLElement && isInsideScroller(toolBody) && toolBody.clientHeight <= 240,
+              toolSummaryScrollable: toolBody instanceof HTMLElement && toolBody.scrollHeight > toolBody.clientHeight + 24,
+              documentNoHorizontalOverflowAfterExpand: expandedDocScrollWidth <= viewportWidth + 2,
+              docScrollWidth,
+              expandedDocScrollWidth,
+              viewportWidth,
+              transcriptScrollWidth: scroller.scrollWidth,
+              transcriptClientWidth: scroller.clientWidth,
+              bodyText: document.body.innerText
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -1148,6 +1387,10 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'scroll') {
     seedAutomatedScrollSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'sidebar') {
+    await seedAutomatedSidebarSmokeSessions(project.id, project.rootPath)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-layout') {
+    seedAutomatedTranscriptLayoutSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'session-switch') {
     await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
   } else if (
@@ -1199,6 +1442,111 @@ function seedAutomatedScrollSmokeSession(sessionId: string): void {
     timestamp: Date.now() + messages.length
   })
   sessionManager.appendMessage(sessionId, messages)
+}
+
+function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+
+  const baseTime = Date.now()
+  const longToken = `TRANSCRIPT_LAYOUT_SMOKE_${'A'.repeat(220)}`
+  const longPath = `${process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'}/src/${'deeply-nested-layout-fixture-segment/'.repeat(5)}transcript-layout-fixture.ts`
+  const messages: ChatMessage[] = [
+    {
+      id: 'transcript-layout-user',
+      role: 'user',
+      type: 'text',
+      content: `Please inspect this intentionally long input without stretching the transcript.\n\n${'input-fragment-'.repeat(80)}`,
+      timestamp: baseTime
+    },
+    {
+      id: 'transcript-layout-assistant',
+      role: 'assistant',
+      type: 'text',
+      content: [
+        'TRANSCRIPT_LAYOUT_SMOKE',
+        '',
+        'This fixture keeps markdown, code, tables, and file references inside the transcript bounds.',
+        '',
+        '```ts',
+        `export const longLayoutToken = "${longToken}";`,
+        '```',
+        '',
+        '| Surface | Stress value |',
+        '| --- | --- |',
+        `| code | ${longToken} |`,
+        `| path | ${longPath} |`,
+        '',
+        `Referenced fixture: \`${longPath}\``
+      ].join('\n'),
+      timestamp: baseTime + 1
+    },
+    ...Array.from({ length: 14 }, (_, index): ChatMessage => ({
+      id: `transcript-layout-tool-${index + 1}`,
+      role: 'assistant',
+      type: 'tool_use',
+      toolName: 'Bash',
+      toolInput: {
+        command: `printf '${longToken}-${index + 1}'`,
+        cwd: longPath,
+        description: `Layout fixture tool call ${index + 1}`
+      },
+      timestamp: baseTime + 2 + index
+    }))
+  ]
+
+  sessionManager.save({
+    ...session,
+    name: 'Transcript layout smoke',
+    status: 'idle',
+    messages,
+    createdAt: baseTime,
+    latestMessageAt: baseTime + messages.length
+  })
+}
+
+async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: string): Promise<void> {
+  const baseTime = Date.now()
+  const fixtures: Array<{
+    name: string
+    pinned: boolean
+    status: ReturnType<typeof sessionManager.list>[number]['status']
+    offset: number
+  }> = [
+    { name: 'Sidebar pinned older', pinned: true, status: 'idle', offset: 1 },
+    { name: 'Sidebar pinned recent', pinned: true, status: 'idle', offset: 5 },
+    { name: 'Sidebar normal idle', pinned: false, status: 'idle', offset: 3 },
+    { name: 'Sidebar unread idle', pinned: false, status: 'idle', offset: 4 },
+    { name: 'Sidebar error', pinned: false, status: 'provider_error', offset: 2 },
+    { name: 'Sidebar running', pinned: false, status: 'running', offset: 6 },
+  ]
+
+  for (const fixture of fixtures) {
+    const existing = sessionManager.list().find((session) => session.name === fixture.name)
+    const session = existing ?? await sessionManager.create({
+      projectId,
+      workDir,
+      useWorktree: false,
+      repoRoot: workDir
+    })
+    const timestamp = baseTime + fixture.offset
+    sessionManager.save({
+      ...session,
+      name: fixture.name,
+      pinned: fixture.pinned,
+      status: fixture.status,
+      messages: [{
+        id: `sidebar-smoke-${fixture.name.toLowerCase().replace(/\s+/g, '-')}`,
+        role: 'assistant',
+        type: 'text',
+        content: `${fixture.name} fixture message.`,
+        timestamp
+      }],
+      createdAt: timestamp,
+      latestMessageAt: timestamp
+    })
+    projectStore.addSession(projectId, session.id)
+  }
 }
 
 async function seedAutomatedSessionSwitchSmokeSessions(projectId: string, workDir: string): Promise<void> {

@@ -85,6 +85,12 @@ export default function Sidebar(): JSX.Element {
               onClick={() => setSettingsSection('providers')}
             />
             <SidebarNavItem
+              icon="keyboard"
+              label="Shortcuts"
+              active={settingsSection === 'shortcuts'}
+              onClick={() => setSettingsSection('shortcuts')}
+            />
+            <SidebarNavItem
               icon="book"
               label="Pets"
               active={settingsSection === 'pets'}

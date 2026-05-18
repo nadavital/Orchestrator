@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, TranscriptPage, UsageSummary } from '../types'
 
-export type SettingsSection = 'general' | 'providers' | 'pets'
+export type SettingsSection = 'general' | 'providers' | 'shortcuts' | 'pets'
 
 export interface SideQuestionMessage {
   id: string

@@ -4,7 +4,7 @@ import { useProjectStore } from '../store/projects'
 import type { AppProfile } from '../env'
 import Icon from './shared/Icon'
 import SessionActionsMenu from './shared/SessionActionsMenu'
-import { StatusBadge, ToolbarButton } from './shared/designSystem'
+import { ToolbarButton } from './shared/designSystem'
 
 export default function Titlebar(): JSX.Element {
   const {
@@ -75,7 +75,6 @@ export default function Titlebar(): JSX.Element {
             >
               {session.name}
             </span>
-            <SessionStatusBadge status={session.status} />
             {session.pinned && (
               <span style={{ color: 'var(--text-tertiary)' }} title="Pinned">
                 <Icon name="pin" size={13} />
@@ -150,28 +149,4 @@ export default function Titlebar(): JSX.Element {
       )}
     </div>
   )
-}
-
-function SessionStatusBadge({ status }: { status: string }): JSX.Element {
-  const isRunning = status === 'running'
-  const isWaiting = status.startsWith('waiting_') || status === 'reconnecting'
-  const isError = status.endsWith('_error') || status === 'error'
-  const tone = isError ? 'danger' : isWaiting ? 'warning' : isRunning ? 'success' : 'neutral'
-  const label = isRunning ? 'running' : isWaiting || isError ? statusLabel(status) : 'idle'
-  return <StatusBadge label={label} tone={tone} pulse={isRunning || isWaiting} />
-}
-
-function statusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    waiting_for_permission: 'waiting for permission',
-    waiting_for_user: 'waiting for input',
-    reconnecting: 'reconnecting',
-    auth_error: 'auth error',
-    model_error: 'model error',
-    quota_error: 'quota error',
-    rate_limit_error: 'rate limited',
-    provider_error: 'provider error',
-    error: 'error'
-  }
-  return labels[status] ?? status
 }

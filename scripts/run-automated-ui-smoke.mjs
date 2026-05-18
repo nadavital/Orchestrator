@@ -20,19 +20,23 @@ const captureView = process.argv.includes('--settings')
           ? 'motion-reduced'
         : process.argv.includes('--pet-overlay')
           ? 'pet-overlay'
-          : process.argv.includes('--session-switch')
-            ? 'session-switch'
-            : process.argv.includes('--extensions')
-              ? 'extensions'
-            : process.argv.includes('--design-system')
-              ? 'design-system'
-              : process.argv.includes('--scroll')
-                ? 'scroll'
-                : process.argv.includes('--inspector')
-                  ? 'inspector'
-                  : process.argv.includes('--terminal')
-                    ? 'terminal'
-                    : 'main'
+          : process.argv.includes('--sidebar')
+            ? 'sidebar'
+            : process.argv.includes('--transcript-layout')
+              ? 'transcript-layout'
+              : process.argv.includes('--session-switch')
+                ? 'session-switch'
+              : process.argv.includes('--extensions')
+                ? 'extensions'
+                : process.argv.includes('--design-system')
+                  ? 'design-system'
+                  : process.argv.includes('--scroll')
+                    ? 'scroll'
+                    : process.argv.includes('--inspector')
+                      ? 'inspector'
+                      : process.argv.includes('--terminal')
+                        ? 'terminal'
+                        : 'main'
 const runPackaged = process.argv.includes('--packaged')
 const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', profile)
@@ -180,6 +184,40 @@ child.on('exit', (code) => {
         scrollStayedPut: result.scrollStayedPut === true,
         jumpToLatestReached: result.jumpToLatestReached === true,
         jumpHiddenAfterClick: result.jumpVisibleAfterClick === false
+      }
+    : captureView === 'sidebar'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        pinnedAboveProjects: result.pinnedAboveProjects === true,
+        pinnedRecentFirst: result.pinnedRecentFirst === true,
+        pinnedRowsHiddenFromProjects: result.pinnedRowsHiddenFromProjects === true,
+        pinnedRowUnpinned: result.pinnedRowUnpinned === true,
+        hoverPinVisible: result.hoverPinVisible === true,
+        doubleClickRenameWorks: result.doubleClickRenameWorks === true,
+        runningSpinnerVisible: result.runningSpinnerVisible === true,
+        normalIdleDotHidden: result.normalIdleDotHidden === true,
+        unreadIdleDotVisible: result.unreadIdleDotVisible === true,
+        errorDotVisible: result.errorDotVisible === true,
+        grayIdleDotsAbsent: result.grayIdleDotsAbsent === true
+      }
+    : captureView === 'transcript-layout'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        transcriptFound: result.transcriptFound === true,
+        layoutFixtureVisible: result.layoutFixtureVisible === true,
+        searchHiddenInitially: result.searchHiddenInitially === true,
+        searchShortcutOpens: result.searchShortcutOpens === true,
+        documentNoHorizontalOverflow: result.documentNoHorizontalOverflow === true,
+        transcriptNoHorizontalOverflow: result.transcriptNoHorizontalOverflow === true,
+        messageRowsBounded: result.messageRowsBounded === true,
+        codeBlockBounded: result.codeBlockBounded === true,
+        codeBlockInternallyScrollable: result.codeBlockInternallyScrollable === true,
+        tableBounded: result.tableBounded === true,
+        fileCardsBounded: result.fileCardsBounded === true,
+        toolSummaryExpanded: result.toolSummaryExpanded === true,
+        toolSummaryBounded: result.toolSummaryBounded === true,
+        toolSummaryScrollable: result.toolSummaryScrollable === true,
+        documentNoHorizontalOverflowAfterExpand: result.documentNoHorizontalOverflowAfterExpand === true
       }
     : captureView === 'design-system'
       ? {

@@ -247,6 +247,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
             />
           )}
           {section === 'pets' && <PetsSection />}
+          {section === 'shortcuts' && <ShortcutsSection />}
           {section === 'providers' && (
             <ProvidersSection
               defaultProvider={defaultProvider}
@@ -274,6 +275,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
 
 function settingsTitle(section: SettingsSection): string {
   if (section === 'providers') return 'Providers & models'
+  if (section === 'shortcuts') return 'Shortcuts'
   if (section === 'pets') return 'Pets'
   return 'General'
 }
@@ -530,6 +532,59 @@ function SegmentedChoice<T extends string>({
 
 function Switch({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }): JSX.Element {
   return <SwitchControl checked={checked} onChange={onChange} label="Toggle setting" />
+}
+
+function ShortcutsSection(): JSX.Element {
+  const command = navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'
+  const shortcuts = [
+    { label: 'Search transcript', keys: [command, 'F'] },
+    { label: 'New chat', keys: [command, 'N'] },
+    { label: 'Previous chat', keys: [command, '⇧', '['] },
+    { label: 'Next chat', keys: [command, '⇧', ']'] },
+    { label: 'Toggle inspector sidebar', keys: [command, 'B'] },
+    { label: 'Toggle terminal', keys: [command, '`'] },
+    { label: 'Toggle pet overlay', keys: [command, '⇧', 'P'] },
+    { label: 'Open settings', keys: [command, ','] },
+    { label: 'Rename sidebar chat', keys: ['Double-click'] }
+  ]
+
+  return (
+    <div style={{ padding: '30px 44px 56px', maxWidth: 820, margin: '0 auto' }}>
+      <SettingsIntro description="Fast paths for common chat, navigation, and app-shell actions." />
+      <SettingGroup title="Keyboard" description="These shortcuts are built in and available anywhere in the chat workspace.">
+        <div style={{ display: 'grid', gap: 6 }}>
+          {shortcuts.map((shortcut) => (
+            <div
+              key={shortcut.label}
+              className="flex items-center justify-between gap-4 rounded-lg px-3 py-2"
+              style={{
+                background: 'var(--surface-bg)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)'
+              }}
+            >
+              <span className="min-w-0 text-sm font-medium">{shortcut.label}</span>
+              <span className="flex shrink-0 items-center gap-1">
+                {shortcut.keys.map((key) => (
+                  <kbd
+                    key={`${shortcut.label}-${key}`}
+                    className="min-w-6 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
+                    style={{
+                      background: 'var(--control-bg)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)'
+                    }}
+                  >
+                    {key}
+                  </kbd>
+                ))}
+              </span>
+            </div>
+          ))}
+        </div>
+      </SettingGroup>
+    </div>
+  )
 }
 
 // ─── Providers section ────────────────────────────────────────────────────────

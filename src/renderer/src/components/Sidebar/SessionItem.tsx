@@ -3,7 +3,7 @@ import { useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
-import { IconButton, SurfaceRow } from '../shared/designSystem'
+import { IconButton, SurfaceRow, TextInputDialog } from '../shared/designSystem'
 import { memo, useMemo, useState } from 'react'
 
 interface Props {
@@ -43,10 +43,12 @@ function SessionItem({ session }: Props): JSX.Element {
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const { removeSessionFromProject } = useProjectStore()
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
+  const [renaming, setRenaming] = useState(false)
   const hasUnread = !isActive && unread
   const hasError = errorStatuses.has(session.status)
+  const isRunning = session.status === 'running' || session.status === 'reconnecting'
   const hasUncheckedCompletion = hasUnread && session.status === 'idle'
-  const showStatusDot = hasUncheckedCompletion || hasError
+  const showStatusIndicator = isRunning || hasUncheckedCompletion || hasError
   const preview = useMemo(() => {
     if (session.previewText) return compactPreview(session.previewText, session.name, session.status)
     const lastMessage = session.messages.findLast((m) => m.type === 'text' && m.role !== 'system')
@@ -98,6 +100,16 @@ function SessionItem({ session }: Props): JSX.Element {
     removeSessionFromProject(session.projectId, session.id)
   }
 
+  const rename = async (nextName: string): Promise<void> => {
+    const trimmed = nextName.trim()
+    if (!trimmed || trimmed === session.name) {
+      setRenaming(false)
+      return
+    }
+    await window.api.sessions.updateName(session.id, trimmed)
+    setRenaming(false)
+  }
+
   const togglePinned = async (event: React.MouseEvent): Promise<void> => {
     event.preventDefault()
     event.stopPropagation()
@@ -120,6 +132,7 @@ function SessionItem({ session }: Props): JSX.Element {
   return (
     <>
       <SurfaceRow
+        dataTestId="session-row"
         className="group flex items-start gap-2 cursor-pointer select-none"
         active={isActive}
         style={{
@@ -127,12 +140,17 @@ function SessionItem({ session }: Props): JSX.Element {
           padding: '5px 7px'
         }}
         onClick={handleClick}
+        onDoubleClick={(event) => {
+          if ((event.target as HTMLElement).closest('button')) return
+          setRenaming(true)
+        }}
         onContextMenu={openMenu}
       >
         <div className="session-item-pin-slot mt-0.5 shrink-0">
           <button
             type="button"
             className="session-item-pin-button"
+            data-testid="session-pin-toggle"
             title={session.pinned ? 'Unpin chat' : 'Pin chat'}
             aria-label={session.pinned ? 'Unpin chat' : 'Pin chat'}
             data-pinned={session.pinned ? 'true' : 'false'}
@@ -162,17 +180,27 @@ function SessionItem({ session }: Props): JSX.Element {
             </span>
           )}
         </div>
-        {showStatusDot && (
-          <span
-            className="session-item-status-dot mt-2 shrink-0 rounded-full"
-            title={hasError ? 'Needs attention' : 'Unread updates'}
-            style={{
-              background: hasError ? statusColor[session.status] : 'var(--color-accent)',
-              boxShadow: hasError
-                ? '0 0 4px var(--color-red)'
-                : '0 0 4px var(--color-accent)'
-            }}
-          />
+        {showStatusIndicator && (
+          isRunning ? (
+            <span
+              className="session-item-running-spinner mt-1.5 shrink-0"
+              data-testid="session-status-spinner"
+              title="Running"
+              aria-label="Running"
+            />
+          ) : (
+            <span
+              className="session-item-status-dot mt-2 shrink-0 rounded-full"
+              data-testid="session-status-dot"
+              title={hasError ? 'Needs attention' : 'Unread updates'}
+              style={{
+                background: hasError ? statusColor[session.status] : 'var(--color-accent)',
+                boxShadow: hasError
+                  ? '0 0 4px var(--color-red)'
+                  : '0 0 4px var(--color-accent)'
+              }}
+            />
+          )
         )}
         <span className="surface-row-secondary shrink-0 mt-0.5">
           <IconButton
@@ -194,12 +222,20 @@ function SessionItem({ session }: Props): JSX.Element {
           onRemove={handleRemove}
         />
       )}
+      {renaming && (
+        <TextInputDialog
+          title="Rename chat"
+          initialValue={session.name}
+          confirmLabel="Rename"
+          onCancel={() => setRenaming(false)}
+          onConfirm={(value) => void rename(value)}
+        />
+      )}
     </>
   )
 }
 
 function compactPreview(content: string, name: string, status: Session['status']): string {
-  if (status === 'running') return 'Running...'
   if (status === 'waiting_for_permission') return 'Waiting for approval'
   if (status === 'waiting_for_user') return 'Waiting for answer'
 

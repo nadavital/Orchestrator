@@ -833,6 +833,15 @@
     height: 6px;
   }
 
+  .session-item-running-spinner {
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid color-mix(in srgb, var(--color-green) 28%, transparent);
+    border-top-color: var(--color-green);
+    border-radius: 999px;
+    animation: motionSpinner 850ms linear infinite;
+  }
+
   .session-item-pin-button {
     display: grid;
     place-items: center;
