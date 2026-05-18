@@ -884,6 +884,43 @@
     height: 22px;
   }
 
+  .session-row-shell {
+    position: relative;
+    outline: none;
+  }
+
+  .session-row-shell:focus-visible .surface-row {
+    background: var(--control-bg-hover);
+    border-color: var(--border-subtle);
+  }
+
+  .session-row-env-icon {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 18px;
+    color: var(--text-tertiary);
+  }
+
+  .session-row-right-meta {
+    max-width: 48px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 1;
+    transform: translateX(0);
+    transition:
+      opacity var(--motion-duration-control) var(--motion-ease-control),
+      transform var(--motion-duration-control) var(--motion-ease-control);
+  }
+
+  .surface-row:hover .session-row-right-meta,
+  .surface-row:focus-within .session-row-right-meta,
+  .session-row-shell:focus-visible .session-row-right-meta {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+
   .session-item-status-dot {
     width: 6px;
     height: 6px;
@@ -925,9 +962,67 @@
 
   .surface-row:hover .session-item-pin-button,
   .surface-row:focus-within .session-item-pin-button,
+  .session-row-shell:focus-visible .session-item-pin-button,
   .session-item-pin-button[data-pinned='true'] {
     opacity: 1;
     transform: scale(1);
+  }
+
+  .session-hover-card {
+    position: fixed;
+    z-index: 140;
+    width: min(320px, calc(100vw - 320px));
+    min-width: 260px;
+    max-width: 320px;
+    padding: 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--surface-bg);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-popover);
+    pointer-events: none;
+  }
+
+  .session-hover-card-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .session-hover-card-preview {
+    margin-top: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .session-hover-card-row {
+    display: grid;
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 8px;
+    margin-top: 7px;
+    align-items: baseline;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .session-hover-card-row span {
+    color: var(--text-tertiary);
+  }
+
+  .session-hover-card-row strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+    font-weight: 600;
   }
 
   .motion-disclosure-content {

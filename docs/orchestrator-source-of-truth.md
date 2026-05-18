@@ -327,24 +327,24 @@ The installed Codex app is the reference for desktop polish, but Orchestrator sh
 
 This is the preferred implementation order. Each item should land as a small checkpoint with tests/smokes and a decision-log note.
 
-| ID | Scope | Outcome | Depends on | Verification |
-| --- | --- | --- | --- | --- |
-| CP-001 | Sidebar row primitive | Reusable row with compact title/meta/status/action slots and stable hover/focus behavior. | Existing sidebar state. | `npm run smoke:ui:auto -- --sidebar`; row unit tests if extracted helpers are pure. |
-| CP-002 | Sidebar hover metadata | Hover card shows project, root/cwd, branch/worktree, provider/model, status, and updated time. | CP-001; project/session metadata. | New sidebar hover-card smoke. |
-| CP-003 | Sidebar organization | Persisted organize/sort modes, project actions, show more/less. | CP-001 and CP-002. | Sidebar smoke with long project groups and pinned/project actions. |
-| CP-004 | Right panel state model | Per-session durable `rightPanel` store replaces boolean inspector state. | Current `ContextSidebar` behavior mapped. | Typecheck, provider tests, right-panel state unit tests. |
-| CP-005 | Right panel shell | Closeable tabs, active tab persistence, width/full-width persistence, overflow/empty states. | CP-004. | New right-panel shell smoke plus session-switch smoke. |
-| CP-006 | Port existing panels | Diff, Plan, Agents, Extensions, and Side Questions run inside the new shell unchanged where possible. | CP-005. | Existing panel smokes plus right-panel smoke. |
-| CP-007 | Review tab v2 | Changed-file tree/search, view controls, open-in-editor, binary/no-content states. | CP-006. | Diff/review smoke with modified/added/deleted/untracked/binary/large files. |
-| CP-008 | Files tab | Workspace tree/search/preview/actions and add-to-chat. | CP-005; editor-open settings. | Files-tab smoke with nested folders, spaces, missing files, and add-to-chat. |
-| CP-009 | Browser tab | URL bar, navigation, empty state, screenshot, external open, local server affordance. | CP-005. | Browser-tab smoke against local test server. |
-| CP-010 | Side-chat tabs | `/btw` becomes durable side-chat tabs with independent composer/history and close cleanup. | CP-005. | Side-chat smoke with multiple side chats and unread state. |
-| CP-011 | Terminal shell parity | Persisted bottom panel state, theme-aware terminal colors, optional multiple terminal tabs. | Theme tokens; existing terminal. | Terminal smoke and keyboard shortcut smoke. |
-| CP-012 | Theme model v2 | Light/dark/system plus per-variant chrome/code theme settings and migration. | Current settings schema. | Theme migration unit tests and settings smoke. |
-| CP-013 | Custom theme editor | Editable accent/surface/foreground/contrast/semantic colors, font sizes, motion/cursor toggles. | CP-012. | Appearance smoke across light/dark/system and custom color application. |
-| CP-014 | Theme import/export | Validated `codex-theme-v1:` import/export. | CP-012 and CP-013. | Parser unit tests and settings import/export smoke. |
-| CP-015 | Settings taxonomy | Settings sections match the level of Codex polish without crowding normal preferences. | CP-012; capabilities surfaces. | Settings navigation smoke and no-horizontal-scroll smoke. |
-| CP-016 | Pet/personalization polish | Packaged pets render cleanly and resize/state behavior matches Codex expectations where practical. | Current pet overlay. | `npm run smoke:ui:auto -- --pet-overlay` and packaged resource smoke. |
+| ID | Scope | Outcome | Status | Depends on | Verification |
+| --- | --- | --- | --- | --- | --- |
+| CP-001 | Sidebar row primitive | Reusable row with compact title/meta/status/action slots and stable hover/focus behavior. | `Complete` | Existing sidebar state. | `npx tsc -p tsconfig.node.json --noEmit`; `npx tsc -p tsconfig.web.json --noEmit`; `npm run smoke:ui:auto -- --sidebar`; `git diff --check`. |
+| CP-002 | Sidebar hover metadata | Hover card shows project, root/cwd, branch/worktree, provider/model, status, and updated time. | `Complete` | CP-001; project/session metadata. | Sidebar smoke now asserts hover card and environment icon visibility. |
+| CP-003 | Sidebar organization | Persisted organize/sort modes, project actions, show more/less. | `Planned` | CP-001 and CP-002. | Sidebar smoke with long project groups and pinned/project actions. |
+| CP-004 | Right panel state model | Per-session durable `rightPanel` store replaces boolean inspector state. | `Planned` | Current `ContextSidebar` behavior mapped. | Typecheck, provider tests, right-panel state unit tests. |
+| CP-005 | Right panel shell | Closeable tabs, active tab persistence, width/full-width persistence, overflow/empty states. | `Planned` | CP-004. | New right-panel shell smoke plus session-switch smoke. |
+| CP-006 | Port existing panels | Diff, Plan, Agents, Extensions, and Side Questions run inside the new shell unchanged where possible. | `Planned` | CP-005. | Existing panel smokes plus right-panel smoke. |
+| CP-007 | Review tab v2 | Changed-file tree/search, view controls, open-in-editor, binary/no-content states. | `Planned` | CP-006. | Diff/review smoke with modified/added/deleted/untracked/binary/large files. |
+| CP-008 | Files tab | Workspace tree/search/preview/actions and add-to-chat. | `Planned` | CP-005; editor-open settings. | Files-tab smoke with nested folders, spaces, missing files, and add-to-chat. |
+| CP-009 | Browser tab | URL bar, navigation, empty state, screenshot, external open, local server affordance. | `Planned` | CP-005. | Browser-tab smoke against local test server. |
+| CP-010 | Side-chat tabs | `/btw` becomes durable side-chat tabs with independent composer/history and close cleanup. | `Planned` | CP-005. | Side-chat smoke with multiple side chats and unread state. |
+| CP-011 | Terminal shell parity | Persisted bottom panel state, theme-aware terminal colors, optional multiple terminal tabs. | `Planned` | Theme tokens; existing terminal. | Terminal smoke and keyboard shortcut smoke. |
+| CP-012 | Theme model v2 | Light/dark/system plus per-variant chrome/code theme settings and migration. | `Planned` | Current settings schema. | Theme migration unit tests and settings smoke. |
+| CP-013 | Custom theme editor | Editable accent/surface/foreground/contrast/semantic colors, font sizes, motion/cursor toggles. | `Planned` | CP-012. | Appearance smoke across light/dark/system and custom color application. |
+| CP-014 | Theme import/export | Validated `codex-theme-v1:` import/export. | `Planned` | CP-012 and CP-013. | Parser unit tests and settings import/export smoke. |
+| CP-015 | Settings taxonomy | Settings sections match the level of Codex polish without crowding normal preferences. | `Planned` | CP-012; capabilities surfaces. | Settings navigation smoke and no-horizontal-scroll smoke. |
+| CP-016 | Pet/personalization polish | Packaged pets render cleanly and resize/state behavior matches Codex expectations where practical. | `Planned` | Current pet overlay. | `npm run smoke:ui:auto -- --pet-overlay` and packaged resource smoke. |
 
 ### Next Polish Queue
 
@@ -719,6 +719,8 @@ When implementing against this plan:
 - Verification passed for the lazy-transcript checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `git diff --check`, `npm run smoke:ui:auto -- --session-switch`, and `npm run smoke:ui:auto -- --scroll`.
 - Verification passed for the streaming-scroll checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `git diff --check`, `npm run smoke:ui:auto -- --scroll`, `npm run pack:mac`, copy to `/Applications/Orchestrator.app`, and packaged-vs-installed `app.asar` hash comparison.
 - Verification passed for the sidebar/search/layout checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `git diff --check`, `npm run smoke:ui:auto -- --sidebar`, `npm run smoke:ui:auto -- --transcript-layout`, `npm run smoke:ui:auto -- --session-switch`, `npm run pack:mac`, copy to `/Applications/Orchestrator.app`, and packaged-vs-installed `app.asar` hash comparison.
+- Codex sidebar parity checkpoint: chat rows now use a compact metadata-first layout with an environment icon, right-side updated/status text, hover-revealed actions, keyboard focus behavior, and a Codex-style hover card with project, folder, branch/worktree, provider/model, status, and updated time. Branch lookup is lazy through the main-process git IPC so long sidebars do not eagerly probe every repo.
+- Verification passed for the sidebar parity checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `git diff --check`, and `npm run smoke:ui:auto -- --sidebar`; the sidebar smoke now asserts hover-card and environment-icon visibility.
 - Pin-order reliability checkpoint: pinned chat ordering now lives in shared `src/types/sessionOrdering.ts`, is covered by `sessionOrdering.test.ts`, and is used by both main-process migration and renderer sorting. New pins append after existing pinned chats, and message recency no longer moves ordered pins.
 - File-card confidence checkpoint: unresolved relative references extracted from assistant prose are suppressed after workspace resolution fails, while explicit absolute missing references can still render as disabled missing cards. This prevents review comments like bare class names or snippets from becoming visible missing-file cards.
 - Verification passed for the pin/file-card checkpoint: `npm run test:providers` passed 156/156, `npm run build` passed, `npm run smoke:ui:auto -- --sidebar` passed, and `git diff --check` passed.

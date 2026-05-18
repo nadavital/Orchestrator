@@ -182,6 +182,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // Git
   ipcMain.handle('git:isGitRepo', (_, dir: string) => gitManager.isGitRepo(dir))
+  ipcMain.handle('git:getCurrentBranch', (_, dir: string) => gitManager.getCurrentBranch(dir))
 
   // App settings
   ipcMain.handle('settings:get', () => settingsStore.store)

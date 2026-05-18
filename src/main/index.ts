@@ -711,6 +711,16 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             await sleep(360);
             const hoverPinVisible = normalPin instanceof HTMLElement &&
               Number.parseFloat(getComputedStyle(normalPin).opacity || '0') > 0.5;
+            const hoverCard = document.querySelector('[data-testid="session-hover-card"]');
+            const hoverCardText = hoverCard instanceof HTMLElement ? hoverCard.innerText : '';
+            const hoverCardVisible = hoverCard instanceof HTMLElement &&
+              hoverCardText.includes('Sidebar normal idle') &&
+              hoverCardText.includes('Project') &&
+              hoverCardText.includes('Automated UI Smoke') &&
+              hoverCardText.includes('Folder') &&
+              hoverCardText.includes('Provider') &&
+              hoverCardText.includes('Status');
+            const environmentIconVisible = Boolean(normalRow?.querySelector('[data-testid="session-environment-icon"]'));
 
             let doubleClickRenameWorks = false;
             if (normalRow instanceof HTMLElement) {
@@ -754,6 +764,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               pinnedRowUnpinned,
               newPinAppended,
               hoverPinVisible,
+              hoverCardVisible,
+              environmentIconVisible,
               doubleClickRenameWorks,
               runningSpinnerVisible: Boolean(runningRow?.querySelector('[data-testid="session-status-spinner"]')),
               normalIdleDotHidden: !normalRow?.querySelector('[data-testid="session-status-dot"]'),

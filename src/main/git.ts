@@ -15,6 +15,16 @@ export const gitManager = {
     }
   },
 
+  async getCurrentBranch(dir: string): Promise<string | null> {
+    try {
+      const git = simpleGit(dir)
+      const status = await git.status()
+      return status.current || null
+    } catch {
+      return null
+    }
+  },
+
   async createWorktree(repoRoot: string, sessionId: string): Promise<string> {
     const worktreesDir = join(repoRoot, '.orchestrator-worktrees')
     mkdirSync(worktreesDir, { recursive: true })

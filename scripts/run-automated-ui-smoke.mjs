@@ -214,6 +214,8 @@ child.on('exit', (code) => {
         pinnedRowUnpinned: result.pinnedRowUnpinned === true,
         newPinAppended: result.newPinAppended === true,
         hoverPinVisible: result.hoverPinVisible === true,
+        hoverCardVisible: result.hoverCardVisible === true,
+        environmentIconVisible: result.environmentIconVisible === true,
         doubleClickRenameWorks: result.doubleClickRenameWorks === true,
         runningSpinnerVisible: result.runningSpinnerVisible === true,
         normalIdleDotHidden: result.normalIdleDotHidden === true,

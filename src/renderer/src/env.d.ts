@@ -118,6 +118,7 @@ declare global {
       }
       git: {
         isGitRepo: (dir: string) => Promise<boolean>
+        getCurrentBranch: (dir: string) => Promise<string | null>
       }
       providers: {
         getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>

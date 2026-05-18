@@ -1,10 +1,11 @@
 import type { Session } from '../../types'
+import { PROVIDER_DEFS } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
 import { IconButton, SurfaceRow, TextInputDialog } from '../shared/designSystem'
-import { memo, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 interface Props {
   session: Session
@@ -34,6 +35,7 @@ const errorStatuses = new Set<Session['status']>([
 ])
 
 function SessionItem({ session }: Props): JSX.Element {
+  const rowRef = useRef<HTMLDivElement>(null)
   const isActive = useSessionStore((state) => state.activeSessionId === session.id)
   const unread = useSessionStore((state) => state.uiState[session.id]?.hasUnread ?? false)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
@@ -41,14 +43,28 @@ function SessionItem({ session }: Props): JSX.Element {
   const updatePinned = useSessionStore((state) => state.updatePinned)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
-  const { removeSessionFromProject } = useProjectStore()
+  const { projects, removeSessionFromProject } = useProjectStore()
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
   const [renaming, setRenaming] = useState(false)
+  const [detailsVisible, setDetailsVisible] = useState(false)
+  const [cardPosition, setCardPosition] = useState<{ left: number; top: number } | null>(null)
+  const [branch, setBranch] = useState<string | null>(null)
+  const [branchLoadedFor, setBranchLoadedFor] = useState<string | null>(null)
   const hasUnread = !isActive && unread
   const hasError = errorStatuses.has(session.status)
   const isRunning = session.status === 'running' || session.status === 'reconnecting'
   const hasUncheckedCompletion = hasUnread && session.status === 'idle'
   const showStatusIndicator = isRunning || hasUncheckedCompletion || hasError
+  const project = projects.find((p) => p.id === session.projectId)
+  const provider = PROVIDER_DEFS[session.provider]
+  const model = provider?.models.find((candidate) => candidate.id === session.model)
+  const statusLabel = statusLabelFor(session.status, hasUnread)
+  const environment = session.useWorktree
+    ? { icon: 'branch' as const, label: 'Worktree', description: 'This chat is running in a local git worktree.' }
+    : { icon: 'folder' as const, label: 'Local', description: 'This chat is running locally.' }
+  const updatedLabel = formatRelativeTime(session.latestMessageAt ?? session.createdAt)
+  const cwdLabel = project ? relativePath(project.rootPath, session.workDir) : session.workDir
+  const branchLabel = branch ?? inferredWorktreeBranch(session)
   const preview = useMemo(() => {
     if (session.previewText) return compactPreview(session.previewText, session.name, session.status)
     const lastMessage = session.messages.findLast((m) => m.type === 'text' && m.role !== 'system')
@@ -56,6 +72,22 @@ function SessionItem({ session }: Props): JSX.Element {
       ? compactPreview(lastMessage.content, session.name, session.status)
       : ''
   }, [session.messages, session.name, session.previewText, session.status])
+
+  useEffect(() => {
+    if (!detailsVisible || branchLoadedFor === session.workDir) return
+    let cancelled = false
+    setBranchLoadedFor(session.workDir)
+    window.api.git.getCurrentBranch(session.workDir)
+      .then((nextBranch) => {
+        if (!cancelled) setBranch(nextBranch)
+      })
+      .catch(() => {
+        if (!cancelled) setBranch(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [branchLoadedFor, detailsVisible, session.workDir])
 
   const cleanupSessionIfEmpty = async (sessionId: string | null): Promise<void> => {
     const { sessions, removeSession } = useSessionStore.getState()
@@ -130,90 +162,142 @@ function SessionItem({ session }: Props): JSX.Element {
     setMenuPoint({ x: event.clientX, y: event.clientY })
   }
 
+  const showDetails = (): void => {
+    const rect = rowRef.current?.getBoundingClientRect()
+    if (rect) {
+      const cardTop = Math.min(Math.max(rect.top - 10, 10), window.innerHeight - 220)
+      setCardPosition({ left: rect.right + 8, top: cardTop })
+    }
+    setDetailsVisible(true)
+  }
+
+  const hideDetails = (): void => {
+    setDetailsVisible(false)
+  }
+
   return (
     <>
-      <SurfaceRow
-        dataTestId="session-row"
-        className="group flex items-start gap-2 cursor-pointer select-none"
-        active={isActive}
-        style={{
-          borderRadius: 'var(--radius-md)',
-          padding: '5px 7px'
+      <div
+        ref={rowRef}
+        className="session-row-shell"
+        role="button"
+        tabIndex={0}
+        aria-current={isActive ? 'page' : undefined}
+        aria-describedby={detailsVisible ? `session-hover-${session.id}` : undefined}
+        onMouseEnter={showDetails}
+        onMouseLeave={hideDetails}
+        onFocus={showDetails}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hideDetails()
         }}
-        onClick={handleClick}
-        onDoubleClick={(event) => {
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return
           if ((event.target as HTMLElement).closest('button')) return
-          setRenaming(true)
+          event.preventDefault()
+          void handleClick()
         }}
-        onContextMenu={openMenu}
       >
-        <div className="session-item-pin-slot mt-0.5 shrink-0">
-          <button
-            type="button"
-            className="session-item-pin-button"
-            data-testid="session-pin-toggle"
-            title={session.pinned ? 'Unpin chat' : 'Pin chat'}
-            aria-label={session.pinned ? 'Unpin chat' : 'Pin chat'}
-            data-pinned={session.pinned ? 'true' : 'false'}
-            onClick={(event) => void togglePinned(event)}
+        <SurfaceRow
+          dataTestId="session-row"
+          className="group flex h-8 items-center gap-1.5 cursor-pointer select-none"
+          active={isActive}
+          style={{
+            borderRadius: 'var(--radius-md)',
+            padding: '4px 6px'
+          }}
+          onClick={handleClick}
+          onDoubleClick={(event) => {
+            if ((event.target as HTMLElement).closest('button')) return
+            setRenaming(true)
+          }}
+          onContextMenu={openMenu}
+        >
+          <div className="session-item-pin-slot shrink-0">
+            <button
+              type="button"
+              className="session-item-pin-button"
+              data-testid="session-pin-toggle"
+              title={session.pinned ? 'Unpin chat' : 'Pin chat'}
+              aria-label={session.pinned ? 'Unpin chat' : 'Pin chat'}
+              data-pinned={session.pinned ? 'true' : 'false'}
+              onClick={(event) => void togglePinned(event)}
+            >
+              <Icon name="pin" size={12} />
+            </button>
+          </div>
+          <span
+            className="session-row-env-icon shrink-0"
+            title={environment.description}
+            aria-label={environment.label}
+            data-testid="session-environment-icon"
           >
-            <Icon name="pin" size={12} />
-          </button>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="text-[13px] font-medium truncate leading-5" style={{ color: 'var(--text-primary)' }}>
+            <Icon name={environment.icon} size={13} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div
+              className="text-[13px] font-medium truncate leading-5"
+              data-thread-title={session.name}
+              style={{ color: 'var(--text-primary)' }}
+            >
               {session.name}
             </div>
           </div>
-          {preview && (
-            <div className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
-              {preview}
-            </div>
+          <span className="session-row-right-meta shrink-0 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+            {isRunning ? 'Running' : hasError ? 'Error' : updatedLabel}
+          </span>
+          {showStatusIndicator && (
+            isRunning ? (
+              <span
+                className="session-item-running-spinner shrink-0"
+                data-testid="session-status-spinner"
+                title="Running"
+                aria-label="Running"
+              />
+            ) : (
+              <span
+                className="session-item-status-dot shrink-0 rounded-full"
+                data-testid="session-status-dot"
+                title={hasError ? 'Needs attention' : 'Unread updates'}
+                style={{
+                  background: hasError ? statusColor[session.status] : 'var(--color-accent)',
+                  boxShadow: hasError
+                    ? '0 0 4px var(--color-red)'
+                    : '0 0 4px var(--color-accent)'
+                }}
+              />
+            )
           )}
-          {/* Only show worktree badge — local is the default and doesn't need labelling */}
-          {session.useWorktree && (
-            <span
-              className="text-xs px-1.5 py-0.5 mt-1 inline-block"
-              style={{ background: 'var(--color-accent-dim)', color: 'var(--color-accent)', fontSize: 10, borderRadius: 'var(--radius-pill)' }}
-            >
-              worktree
-            </span>
-          )}
+          <span className="surface-row-secondary shrink-0">
+            <IconButton
+              icon="ellipsis"
+              label="Chat actions"
+              size="sm"
+              tooltip={false}
+              onClick={openMenu}
+              style={{ color: 'var(--text-tertiary)' }}
+            />
+          </span>
+        </SurfaceRow>
+      </div>
+      {detailsVisible && cardPosition && (
+        <div
+          id={`session-hover-${session.id}`}
+          className="session-hover-card"
+          data-testid="session-hover-card"
+          style={{ left: cardPosition.left, top: cardPosition.top }}
+          role="tooltip"
+        >
+          <div className="session-hover-card-title">{session.name}</div>
+          {preview && <div className="session-hover-card-preview">{preview}</div>}
+          <SessionHoverRow label="Project" value={project?.name ?? 'No project'} />
+          <SessionHoverRow label="Folder" value={cwdLabel} />
+          {branchLabel && <SessionHoverRow label="Branch" value={branchLabel} />}
+          <SessionHoverRow label="Environment" value={environment.label} />
+          <SessionHoverRow label="Provider" value={[provider?.name ?? session.provider, model?.label ?? session.model].filter(Boolean).join(' · ')} />
+          <SessionHoverRow label="Status" value={statusLabel} />
+          <SessionHoverRow label="Updated" value={updatedLabel} />
         </div>
-        {showStatusIndicator && (
-          isRunning ? (
-            <span
-              className="session-item-running-spinner mt-1.5 shrink-0"
-              data-testid="session-status-spinner"
-              title="Running"
-              aria-label="Running"
-            />
-          ) : (
-            <span
-              className="session-item-status-dot mt-2 shrink-0 rounded-full"
-              data-testid="session-status-dot"
-              title={hasError ? 'Needs attention' : 'Unread updates'}
-              style={{
-                background: hasError ? statusColor[session.status] : 'var(--color-accent)',
-                boxShadow: hasError
-                  ? '0 0 4px var(--color-red)'
-                  : '0 0 4px var(--color-accent)'
-              }}
-            />
-          )
-        )}
-        <span className="surface-row-secondary shrink-0 mt-0.5">
-          <IconButton
-            icon="ellipsis"
-            label="Chat actions"
-            size="sm"
-            tooltip={false}
-            onClick={openMenu}
-            style={{ color: 'var(--text-tertiary)' }}
-          />
-        </span>
-      </SurfaceRow>
+      )}
       {menuPoint && (
         <SessionActionsMenu
           session={session}
@@ -236,6 +320,15 @@ function SessionItem({ session }: Props): JSX.Element {
   )
 }
 
+function SessionHoverRow({ label, value }: { label: string; value: string }): JSX.Element {
+  return (
+    <div className="session-hover-card-row">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
 function compactPreview(content: string, name: string, status: Session['status']): string {
   if (status === 'waiting_for_permission') return 'Waiting for approval'
   if (status === 'waiting_for_user') return 'Waiting for answer'
@@ -243,6 +336,62 @@ function compactPreview(content: string, name: string, status: Session['status']
   const compact = content.replace(/\s+/g, ' ').trim()
   if (!compact || compact === name) return ''
   return compact.length > 44 ? `${compact.slice(0, 41)}...` : compact
+}
+
+function statusLabelFor(status: Session['status'], hasUnread: boolean): string {
+  if (hasUnread && status === 'idle') return 'Unread updates'
+  switch (status) {
+    case 'idle':
+      return 'Idle'
+    case 'running':
+      return 'Running'
+    case 'waiting_for_permission':
+      return 'Waiting for approval'
+    case 'waiting_for_user':
+      return 'Waiting for answer'
+    case 'reconnecting':
+      return 'Reconnecting'
+    case 'auth_error':
+      return 'Authentication error'
+    case 'model_error':
+      return 'Model error'
+    case 'quota_error':
+      return 'Quota error'
+    case 'rate_limit_error':
+      return 'Rate limit error'
+    case 'provider_error':
+      return 'Provider error'
+    case 'error':
+      return 'Needs attention'
+  }
+}
+
+function formatRelativeTime(timestamp: number): string {
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
+  if (elapsedSeconds < 45) return 'now'
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60)
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m`
+  const elapsedHours = Math.floor(elapsedMinutes / 60)
+  if (elapsedHours < 24) return `${elapsedHours}h`
+  const elapsedDays = Math.floor(elapsedHours / 24)
+  if (elapsedDays < 7) return `${elapsedDays}d`
+  return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function relativePath(rootPath: string, workDir: string): string {
+  const normalizedRoot = rootPath.replace(/\/+$/, '')
+  const normalizedWorkDir = workDir.replace(/\/+$/, '')
+  if (normalizedWorkDir === normalizedRoot) return basename(normalizedRoot)
+  if (normalizedWorkDir.startsWith(`${normalizedRoot}/`)) return `./${normalizedWorkDir.slice(normalizedRoot.length + 1)}`
+  return workDir
+}
+
+function basename(path: string): string {
+  return path.split('/').filter(Boolean).pop() ?? path
+}
+
+function inferredWorktreeBranch(session: Session): string | null {
+  return session.useWorktree ? `orchestrator/${session.id.slice(0, 8)}` : null
 }
 
 export default memo(SessionItem)
