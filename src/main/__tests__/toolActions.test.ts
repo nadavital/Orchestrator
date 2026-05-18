@@ -158,6 +158,29 @@ test('file references preserve quoted paths, paths with spaces, and home referen
   assert.equal(refs.some((ref) => ref.path === '/private/tmp/orchestrator-agent-ui-smoke/p2'), false)
 })
 
+test('file references ignore inline comments and decimal literals in review prose', () => {
+  const content = [
+    'The code is in good shape. A few things to flag:',
+    '',
+    '**Blocking — files missing from the PR:**',
+    '- `CbccPaymentBenefitExperienceContractTest.java` and `iloc-service-types/src/test/resources/` (the JSON fixture it uses) are **untracked** — they have not been committed, so the contract test will not be in the PR.',
+    '',
+    '**Minor issues:**',
+    '- `EligibleReward.java:61` has a `// Co-branded card cashback reward values` comment that violates the no-comments-for-what convention.',
+    '- `String.valueOf(r.getTotalRewardAmount().getValue())` at `ILockServiceContextBuilder.java:117` converts a `double` to string. It works for the known values (`0.03`, `13.67`), but floating-point representation could be surprising.'
+  ].join('\n')
+  const refs = extractFileReferences(content, '/Users/navital/Desktop/xoneor')
+
+  assert.deepEqual(refs.map((ref) => ref.path), [
+    '/Users/navital/Desktop/xoneor/CbccPaymentBenefitExperienceContractTest.java',
+    '/Users/navital/Desktop/xoneor/EligibleReward.java',
+    '/Users/navital/Desktop/xoneor/ILockServiceContextBuilder.java'
+  ])
+  assert.equal(refs.some((ref) => ref.path.includes('Co-branded card cashback reward values')), false)
+  assert.equal(refs.some((ref) => ref.path.endsWith('/0.03')), false)
+  assert.equal(refs.some((ref) => ref.path.endsWith('/13.67')), false)
+})
+
 test('file reference roots include sibling Desktop repos mentioned in tool output', () => {
   const content = 'Read /Users/navital/Desktop/xopes/xopesweb/src/main/resources/schema/PaymentsUpsellMessage.graphqls'
   assert.deepEqual(

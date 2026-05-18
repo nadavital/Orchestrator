@@ -86,6 +86,7 @@ function addPathReference(
   const path = cleanPath(rawPath)
   if (!path) return
   if (path.startsWith('/')) {
+    if (path.startsWith('//')) return
     addReference(refs, path, 'absolute')
     return
   }
@@ -102,13 +103,20 @@ function cleanPath(value: string): string {
   path = path.replace(/^["'`({[]+/, '')
   path = path.replace(/["'`)}\]]+$/, '')
   path = path.replace(/[.,;:!?]+$/, '')
+  path = path.replace(/:(\d+)(?::\d+)?$/, '')
   return path
 }
 
 function looksLikeRelativeFile(value: string, allowSpaces = false): boolean {
   if (value.startsWith('/') || value.startsWith('-') || value.includes('://')) return false
   if (!allowSpaces && /\s/.test(value)) return false
-  if (!/[A-Za-z0-9_-]\.[A-Za-z0-9]{1,12}$/.test(value)) return false
+  const fileMatch = value.match(allowSpaces
+    ? /(^|\/)([^/]+)\.([A-Za-z0-9]{1,12})$/
+    : /(^|\/)([^/\s]+)\.([A-Za-z0-9]{1,12})$/)
+  if (!fileMatch) return false
+  const baseName = fileMatch[2] ?? ''
+  const extension = fileMatch[3] ?? ''
+  if (!/[A-Za-z]/.test(`${baseName}${extension}`)) return false
   return value.includes('/') || /^[A-Za-z0-9_.@-]+\.[A-Za-z0-9]{1,12}$/.test(value)
 }
 
