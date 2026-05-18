@@ -9,11 +9,34 @@ const appProfile = configureAppProfile()
 
 let registerIpcHandlers: typeof import('./ipc').registerIpcHandlers
 let createPetOverlayWindow: typeof import('./petOverlay').createPetOverlayWindow
+let destroyPetOverlayWindow: typeof import('./petOverlay').destroyPetOverlayWindow
 let setCreateMainWindowCallback: typeof import('./petOverlay').setCreateMainWindowCallback
 let projectStore: typeof import('./projects').projectStore
 let sessionManager: typeof import('./sessions').sessionManager
 
 let mainWindow: BrowserWindow | null = null
+
+function isBrokenPipeError(error: unknown): boolean {
+  return error instanceof Error && (error as NodeJS.ErrnoException).code === 'EPIPE'
+}
+
+function installBrokenPipeGuards(): void {
+  const ignoreBrokenPipe = (error: NodeJS.ErrnoException): void => {
+    if (isBrokenPipeError(error)) return
+    throw error
+  }
+  const ignoreUncaughtBrokenPipe = (error: Error): void => {
+    if (isBrokenPipeError(error)) return
+    process.removeListener('uncaughtException', ignoreUncaughtBrokenPipe)
+    throw error
+  }
+
+  process.stdout.on('error', ignoreBrokenPipe)
+  process.stderr.on('error', ignoreBrokenPipe)
+  process.on('uncaughtException', ignoreUncaughtBrokenPipe)
+}
+
+installBrokenPipeGuards()
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -1087,7 +1110,7 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
 
 app.whenReady().then(async () => {
   ;({ registerIpcHandlers } = await import('./ipc'))
-  ;({ createPetOverlayWindow, setCreateMainWindowCallback } = await import('./petOverlay'))
+  ;({ createPetOverlayWindow, destroyPetOverlayWindow, setCreateMainWindowCallback } = await import('./petOverlay'))
   ;({ projectStore } = await import('./projects'))
   ;({ sessionManager } = await import('./sessions'))
 
@@ -1101,6 +1124,10 @@ app.whenReady().then(async () => {
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => {
+  destroyPetOverlayWindow?.()
 })
 
 async function bootstrapAutomatedUiSmokeState(): Promise<void> {
@@ -1131,7 +1158,12 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
       id: `${process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW}-pet-fixture`,
       role: 'assistant',
       type: 'text',
-      content: 'Pet overlay smoke fixture state with enough detail to exercise the hidden expand control, row-height measurement, and tray resizing path without relying on a live provider run.',
+      content: [
+        'Pet overlay smoke fixture state.',
+        'This line exercises the hidden expand control.',
+        'This line verifies row-height measurement after expansion.',
+        'This line keeps tray resizing independent from a live provider run.'
+      ].join('\n'),
       timestamp: Date.now()
     }
     sessionManager.save({

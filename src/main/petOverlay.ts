@@ -486,19 +486,35 @@ function refreshCursorAtCurrentMousePosition(): void {
   } as Electron.MouseInputEvent)
 }
 
+function clearThrowTimer(): void {
+  if (!throwTimer) return
+  clearTimeout(throwTimer)
+  throwTimer = null
+}
+
+export function destroyPetOverlayWindow(): void {
+  clearThrowTimer()
+  pointerInteractive = false
+  keyboardInteractive = false
+  lastLayout = null
+  if (petWin && !petWin.isDestroyed()) {
+    petWin.destroy()
+  }
+  petWin = null
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 export function setCreateMainWindowCallback(fn: () => void): void {
   createMainWindowFn = fn
 }
 
 export function createPetOverlayWindow(mainWin: BrowserWindow): void {
-  if (petWin && !petWin.isDestroyed()) {
-    petWin.destroy()
-    petWin = null
-  }
+  destroyPetOverlayWindow()
   mainWindowRef = mainWin
   pointerInteractive = false
   keyboardInteractive = false
+  trayCount = 0
+  traySize = { ...FALLBACK_TRAY }
   const isOpen = settingsStore.get('petOpen', true) as boolean
   const saved = settingsStore.get('petPosition', null) as { x: number; y: number } | null
   placement = settingsStore.get('petPlacement', 'top-end') as PetPlacement
@@ -524,6 +540,7 @@ export function createPetOverlayWindow(mainWin: BrowserWindow): void {
     focusable: false,
     skipTaskbar: true,
     show: false,
+    backgroundColor: '#00000000',
     ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/petOverlay.js'),
@@ -680,7 +697,7 @@ export const petOverlayManager = {
   },
 
   dragStart(clientX: number, clientY: number): void {
-    if (throwTimer) { clearTimeout(throwTimer); throwTimer = null }
+    clearThrowTimer()
     const layout = computeLayout(anchor, trayCount)
     pointerAnchorX = clientX - layout.mascotLeft
     pointerAnchorY = clientY - layout.mascotTop
@@ -705,6 +722,7 @@ export const petOverlayManager = {
 
   dragRelease(vx: number, vy: number): void {
     if (!petWin) return
+    clearThrowTimer()
     let cvx = vx
     let cvy = vy
     let elapsed = 0

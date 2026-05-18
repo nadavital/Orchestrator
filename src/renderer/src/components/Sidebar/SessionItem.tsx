@@ -29,6 +29,7 @@ function SessionItem({ session }: Props): JSX.Element {
   const unread = useSessionStore((state) => state.uiState[session.id]?.hasUnread ?? false)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
   const removeSession = useSessionStore((state) => state.removeSession)
+  const updatePinned = useSessionStore((state) => state.updatePinned)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const { removeSessionFromProject } = useProjectStore()
@@ -85,6 +86,19 @@ function SessionItem({ session }: Props): JSX.Element {
     removeSessionFromProject(session.projectId, session.id)
   }
 
+  const togglePinned = async (event: React.MouseEvent): Promise<void> => {
+    event.preventDefault()
+    event.stopPropagation()
+    const nextPinned = !session.pinned
+    updatePinned(session.id, nextPinned)
+    try {
+      await window.api.sessions.updatePinned(session.id, nextPinned)
+    } catch (error) {
+      updatePinned(session.id, Boolean(session.pinned))
+      console.error('Failed to update pinned chat', error)
+    }
+  }
+
   const openMenu = (event: React.MouseEvent): void => {
     event.preventDefault()
     event.stopPropagation()
@@ -103,9 +117,9 @@ function SessionItem({ session }: Props): JSX.Element {
         onClick={handleClick}
         onContextMenu={openMenu}
       >
-        <div className="mt-1.5 shrink-0 flex items-center justify-center" style={{ width: 11 }}>
+        <div className="session-item-status-slot mt-1.5 shrink-0">
           <div
-            className="rounded-full"
+            className="session-item-status-dot rounded-full"
             style={{
               width: 5,
               height: 5,
@@ -118,6 +132,16 @@ function SessionItem({ session }: Props): JSX.Element {
                   : 'none'
             }}
           />
+          <button
+            type="button"
+            className="session-item-pin-button"
+            title={session.pinned ? 'Unpin chat' : 'Pin chat'}
+            aria-label={session.pinned ? 'Unpin chat' : 'Pin chat'}
+            data-pinned={session.pinned ? 'true' : 'false'}
+            onClick={(event) => void togglePinned(event)}
+          >
+            <Icon name="pin" size={12} />
+          </button>
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">

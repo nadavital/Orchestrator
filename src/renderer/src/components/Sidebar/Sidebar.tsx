@@ -3,6 +3,7 @@ import type { Project } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
 import ProjectSection from './ProjectSection'
+import SessionItem from './SessionItem'
 import Icon from '../shared/Icon'
 import { IconButton, SurfaceRow } from '../shared/designSystem'
 
@@ -25,18 +26,21 @@ export default function Sidebar(): JSX.Element {
     setShowCapabilities,
     setShowSettings
   } = useSessionStore()
+  const sortedPinnedSessions = useMemo(() => {
+    return [...sessions]
+      .filter((session) => session.pinned)
+      .sort((a, b) => (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt))
+  }, [sessions])
   const sessionsByProject = useMemo(() => {
     const grouped = new Map<string, typeof sessions>()
     for (const session of sessions) {
+      if (session.pinned) continue
       const current = grouped.get(session.projectId)
       if (current) current.push(session)
       else grouped.set(session.projectId, [session])
     }
     for (const group of grouped.values()) {
-      group.sort((a, b) => {
-        if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1
-        return (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt)
-      })
+      group.sort((a, b) => (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt))
     }
     return grouped
   }, [sessions])
@@ -101,6 +105,19 @@ export default function Sidebar(): JSX.Element {
               }}
             />
           </div>
+
+          {sortedPinnedSessions.length > 0 && (
+            <div className="px-2.5 pb-3">
+              <div className="px-1.5 pb-1 text-xs font-semibold" style={{ color: 'var(--text-tertiary)' }}>
+                Pinned
+              </div>
+              <div className="space-y-px">
+                {sortedPinnedSessions.map((session) => (
+                  <SessionItem key={session.id} session={session} />
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between px-4 pb-1">
             <span className="text-sm" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
