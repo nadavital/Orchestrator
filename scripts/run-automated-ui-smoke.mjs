@@ -266,6 +266,7 @@ child.on('exit', (code) => {
         composer: result.hasComposer === true,
         sidebarNavigation: ['settings', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
+        rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,

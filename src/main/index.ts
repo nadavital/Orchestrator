@@ -401,6 +401,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerAgentFocusReturned = document.activeElement === agentButton;
           }
           const bodyText = document.body.innerText;
+          const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
           const buttons = [...document.querySelectorAll('button')].map((button) => ({
             text: button.textContent?.trim() ?? '',
             title: button.getAttribute('title') ?? '',
@@ -424,6 +425,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               button.text.includes('Resources')
             ),
             hasInspectorTabs: bodyText.includes('Changes') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
+            hasRightPanelState: rightPanel instanceof HTMLElement &&
+              rightPanel.dataset.rightPanelActiveTab === 'diff' &&
+              rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
+              Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),

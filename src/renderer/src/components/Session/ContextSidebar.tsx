@@ -29,11 +29,22 @@ interface ContextTabSpec {
 }
 
 export default function ContextSidebar({ session }: Props): JSX.Element | null {
-  const { eventBuffers, uiState, setShowDiff, setShowEvents, setShowPlan, setShowExtensions, setShowSideQuestions } = useSessionStore()
-  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH)
+  const {
+    eventBuffers,
+    uiState,
+    setShowDiff,
+    setShowEvents,
+    setShowPlan,
+    setShowExtensions,
+    setShowSideQuestions,
+    setRightPanelWidth,
+    closeRightPanel
+  } = useSessionStore()
   const [isResizing, setIsResizing] = useState(false)
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null)
   const ui = uiState[session.id]
+  const rightPanel = ui?.rightPanel
+  const panelWidth = rightPanel?.width ?? DEFAULT_PANEL_WIDTH
   const events = eventBuffers[session.id] ?? []
   const plans = [
     ...derivePlanStatesFromMessages(session, session.messages),
@@ -51,7 +62,9 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
     ...(hasSideQuestions ? [{ id: 'side' as const, label: 'Side', icon: 'chat' as const, count: ui?.sideQuestions?.length ?? 0 }] : [])
   ]
-  const activeTab: ContextTab | null = ui?.showPlan
+  const activeTab: ContextTab | null = rightPanel?.activeTabId
+    ? rightPanel.activeTabId
+    : ui?.showPlan
     ? 'plan'
     : ui?.showDiff
       ? 'diff'
@@ -73,6 +86,10 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   }
 
   const close = (tab?: ContextTab): void => {
+    if (!tab) {
+      closeRightPanel(session.id)
+      return
+    }
     if (tab === 'plan' || !tab) setShowPlan(session.id, false)
     if (tab === 'diff' || !tab) setShowDiff(session.id, false)
     if (tab === 'agents' || !tab) setShowEvents(session.id, false)
@@ -90,7 +107,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       const start = resizeStartRef.current
       if (!start) return
       const delta = start.x - moveEvent.clientX
-      setPanelWidth(Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, start.width + delta)))
+      setRightPanelWidth(session.id, Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, start.width + delta)))
     }
     const onUp = (): void => {
       resizeStartRef.current = null
@@ -100,7 +117,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp, { once: true })
-  }, [panelWidth])
+  }, [panelWidth, session.id, setRightPanelWidth])
 
   return (
     <MotionPanel
@@ -115,7 +132,13 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         active={isResizing}
         onPointerDown={handleResizeStart}
       />
-      <aside className="min-w-0 flex flex-1 flex-col overflow-hidden">
+      <aside
+        className="min-w-0 flex flex-1 flex-col overflow-hidden"
+        data-testid="session-right-panel"
+        data-right-panel-active-tab={effectiveTab ?? ''}
+        data-right-panel-width={panelWidth}
+        data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
+      >
       <div
         className="shrink-0 flex items-center justify-between gap-2 px-2 py-2"
         style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}

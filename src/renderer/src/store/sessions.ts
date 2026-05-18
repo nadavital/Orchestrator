@@ -3,6 +3,22 @@ import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermi
 import { nextPinOrder } from '../types'
 
 export type SettingsSection = 'general' | 'appearance' | 'providers' | 'shortcuts' | 'pets'
+export type RightPanelTabId = 'plan' | 'diff' | 'agents' | 'extensions' | 'side'
+
+export interface RightPanelTabState {
+  id: RightPanelTabId
+  kind: RightPanelTabId
+  title: string
+  closable: boolean
+}
+
+export interface RightPanelState {
+  open: boolean
+  width: number
+  fullWidth: boolean
+  activeTabId: RightPanelTabId | null
+  tabs: RightPanelTabState[]
+}
 
 export interface SideQuestionMessage {
   id: string
@@ -23,6 +39,7 @@ interface SessionUIState {
   activeAgentId?: string | null
   agentTabIds?: string[]
   sideQuestions?: SideQuestionMessage[]
+  rightPanel?: RightPanelState
 }
 
 interface SessionState {
@@ -71,6 +88,9 @@ interface SessionState {
   appendSideQuestion: (id: string, message: SideQuestionMessage) => void
   updateSideQuestion: (id: string, messageId: string, patch: Partial<SideQuestionMessage>) => void
   setShowSideQuestions: (id: string, v: boolean) => void
+  setRightPanelWidth: (id: string, width: number) => void
+  setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
+  closeRightPanel: (id: string) => void
   setHasUnread: (id: string, v: boolean) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
@@ -95,7 +115,14 @@ const defaultUI: SessionUIState = {
   hasUnread: false,
   activeAgentId: null,
   agentTabIds: [],
-  sideQuestions: []
+  sideQuestions: [],
+  rightPanel: {
+    open: false,
+    width: 468,
+    fullWidth: false,
+    activeTabId: null,
+    tabs: []
+  }
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -206,6 +233,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         ...s.uiState,
         [id]: {
           ...(s.uiState[id] ?? defaultUI),
+          rightPanel: syncRightPanelTab(s.uiState[id]?.rightPanel, 'diff', v),
           showDiff: v,
           showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
@@ -221,6 +249,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         ...s.uiState,
         [id]: {
           ...(s.uiState[id] ?? defaultUI),
+          rightPanel: syncRightPanelTab(s.uiState[id]?.rightPanel, 'plan', v),
           showPlan: v,
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
           showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
@@ -236,6 +265,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         ...s.uiState,
         [id]: {
           ...(s.uiState[id] ?? defaultUI),
+          rightPanel: syncRightPanelTab(s.uiState[id]?.rightPanel, 'agents', v),
           showEvents: v,
           showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
@@ -256,6 +286,7 @@ export const useSessionStore = create<SessionState>((set) => ({
         ...s.uiState,
         [id]: {
           ...(s.uiState[id] ?? defaultUI),
+          rightPanel: syncRightPanelTab(s.uiState[id]?.rightPanel, 'extensions', v),
           showExtensions: v,
           showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
           showDiff: v ? false : (s.uiState[id]?.showDiff ?? false),
@@ -273,6 +304,7 @@ export const useSessionStore = create<SessionState>((set) => ({
           ...s.uiState,
           [id]: {
             ...current,
+            rightPanel: syncRightPanelTab(current.rightPanel, 'side', v),
             showExtensions: v ? false : current.showExtensions,
             showPlan: v ? false : current.showPlan,
             showDiff: v ? false : current.showDiff,
@@ -297,6 +329,7 @@ export const useSessionStore = create<SessionState>((set) => ({
             : current.agentTabIds ?? []
           return {
             ...current,
+            rightPanel: syncRightPanelTab(current.rightPanel, 'agents', true),
             activeAgentId: agentId,
             showEvents: true,
             showPlan: false,
@@ -323,6 +356,7 @@ export const useSessionStore = create<SessionState>((set) => ({
             ...current,
             agentTabIds,
             activeAgentId,
+            rightPanel: syncRightPanelTab(current.rightPanel, 'agents', agentTabIds.length > 0 ? current.showEvents : false),
             showEvents: agentTabIds.length > 0 ? current.showEvents : false
           }
         }
@@ -337,6 +371,7 @@ export const useSessionStore = create<SessionState>((set) => ({
           ...s.uiState,
           [id]: {
             ...current,
+            rightPanel: syncRightPanelTab(current.rightPanel, 'side', true),
             showPlan: false,
             showDiff: false,
             showEvents: false,
@@ -359,6 +394,53 @@ export const useSessionStore = create<SessionState>((set) => ({
             sideQuestions: (current.sideQuestions ?? []).map((message) =>
               message.id === messageId ? { ...message, ...patch } : message
             )
+          }
+        }
+      }
+    }),
+
+  setRightPanelWidth: (id, width) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: { ...ensureRightPanel(current.rightPanel), width }
+          }
+        }
+      }
+    }),
+
+  setRightPanelFullWidth: (id, fullWidth) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: { ...ensureRightPanel(current.rightPanel), fullWidth }
+          }
+        }
+      }
+    }),
+
+  closeRightPanel: (id) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            showPlan: false,
+            showDiff: false,
+            showEvents: false,
+            showExtensions: false,
+            showSideQuestions: false,
+            rightPanel: { ...ensureRightPanel(current.rightPanel), open: false, activeTabId: null, tabs: [] }
           }
         }
       }
@@ -425,6 +507,56 @@ export const useSessionStore = create<SessionState>((set) => ({
       rawBuffers: { ...s.rawBuffers, [id]: (s.rawBuffers[id] ?? '') + data }
     }))
 }))
+
+const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabId, string> = {
+  plan: 'Plan',
+  diff: 'Changes',
+  agents: 'Agents',
+  extensions: 'Extensions',
+  side: 'Side'
+}
+
+function ensureRightPanel(panel?: RightPanelState): RightPanelState {
+  return {
+    open: panel?.open ?? false,
+    width: panel?.width ?? 468,
+    fullWidth: panel?.fullWidth ?? false,
+    activeTabId: panel?.activeTabId ?? null,
+    tabs: panel?.tabs ?? []
+  }
+}
+
+function rightPanelTab(id: RightPanelTabId): RightPanelTabState {
+  return {
+    id,
+    kind: id,
+    title: RIGHT_PANEL_TAB_TITLES[id],
+    closable: true
+  }
+}
+
+function syncRightPanelTab(panel: RightPanelState | undefined, id: RightPanelTabId, open: boolean): RightPanelState {
+  const current = ensureRightPanel(panel)
+  if (!open) {
+    const tabs = current.tabs.filter((tab) => tab.id !== id)
+    const activeTabId = current.activeTabId === id ? tabs.at(-1)?.id ?? null : current.activeTabId
+    return {
+      ...current,
+      open: tabs.length > 0,
+      activeTabId,
+      tabs
+    }
+  }
+  const tabs = current.tabs.some((tab) => tab.id === id)
+    ? current.tabs
+    : [...current.tabs, rightPanelTab(id)]
+  return {
+    ...current,
+    open: true,
+    activeTabId: id,
+    tabs
+  }
+}
 
 function fullSessionItem(session: Session): SessionListItem {
   return {
