@@ -109,6 +109,29 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   }, [injectedText])
 
   useEffect(() => {
+    const onAddComposerAttachment = (event: Event): void => {
+      const detail = (event as CustomEvent<Partial<Extract<Attachment, { kind: 'local_file' }>>>).detail
+      if (!detail?.path) return
+      const filePath = detail.path
+      const pathParts = filePath.split(/[\\/]/)
+      const name = detail.name ?? pathParts.at(-1) ?? filePath
+      setAttachments((current) => dedupeAttachments([
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          kind: 'local_file',
+          path: filePath,
+          name,
+          size: detail.size
+        }
+      ]))
+      textareaRef.current?.focus()
+    }
+    window.addEventListener('orchestrator:add-composer-attachment', onAddComposerAttachment)
+    return () => window.removeEventListener('orchestrator:add-composer-attachment', onAddComposerAttachment)
+  }, [])
+
+  useEffect(() => {
     if (!showPermMenu) setShowAdvancedPerms(false)
   }, [showPermMenu])
 

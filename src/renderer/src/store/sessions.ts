@@ -3,7 +3,7 @@ import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermi
 import { nextPinOrder } from '../types'
 
 export type SettingsSection = 'general' | 'appearance' | 'providers' | 'shortcuts' | 'pets'
-export type RightPanelTabId = 'plan' | 'diff' | 'agents' | 'extensions' | 'side'
+export type RightPanelTabId = 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files'
 
 export interface RightPanelTabState {
   id: RightPanelTabId
@@ -90,6 +90,8 @@ interface SessionState {
   setShowSideQuestions: (id: string, v: boolean) => void
   setRightPanelWidth: (id: string, width: number) => void
   setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
+  openRightPanelTab: (id: string, tabId: RightPanelTabId) => void
+  closeRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   closeRightPanel: (id: string) => void
   setHasUnread: (id: string, v: boolean) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
@@ -427,6 +429,39 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
     }),
 
+  openRightPanelTab: (id, tabId) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: syncRightPanelTab(current.rightPanel, tabId, true)
+          }
+        }
+      }
+    }),
+
+  closeRightPanelTab: (id, tabId) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            showPlan: tabId === 'plan' ? false : current.showPlan,
+            showDiff: tabId === 'diff' ? false : current.showDiff,
+            showEvents: tabId === 'agents' ? false : current.showEvents,
+            showExtensions: tabId === 'extensions' ? false : current.showExtensions,
+            showSideQuestions: tabId === 'side' ? false : current.showSideQuestions,
+            rightPanel: syncRightPanelTab(current.rightPanel, tabId, false)
+          }
+        }
+      }
+    }),
+
   closeRightPanel: (id) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
@@ -513,7 +548,8 @@ const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabId, string> = {
   diff: 'Changes',
   agents: 'Agents',
   extensions: 'Extensions',
-  side: 'Side'
+  side: 'Side',
+  files: 'Files'
 }
 
 function ensureRightPanel(panel?: RightPanelState): RightPanelState {

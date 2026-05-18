@@ -331,13 +331,51 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const diffSearch = document.querySelector('[data-testid="diff-file-search"]');
             if (diffSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
-              setter?.call(diffSearch, 'review-new');
+              setter?.call(diffSearch, 'review-base');
               diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
               await sleep(160);
             }
             var reviewSearchWorks =
-              document.body.innerText.includes('review-new.txt') &&
+              document.body.innerText.includes('review-base.txt') &&
+              document.body.innerText.includes('after review') &&
               document.body.innerText.includes('No diff available') === false;
+            const filesButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Open files');
+            if (filesButton instanceof HTMLButtonElement) {
+              filesButton.click();
+              await sleep(260);
+            }
+            const fileSearch = document.querySelector('[data-testid="workspace-file-search"]');
+            if (fileSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
+              setter?.call(fileSearch, 'nested note');
+              fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(220);
+            }
+            const nestedFileButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('nested note.md'));
+            if (nestedFileButton instanceof HTMLButtonElement) {
+              nestedFileButton.click();
+              await sleep(220);
+            }
+            const addFileButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Add file to chat');
+            if (addFileButton instanceof HTMLButtonElement) {
+              addFileButton.click();
+              await sleep(180);
+            }
+            var filesTabSearchWorks =
+              document.body.innerText.includes('nested note.md') &&
+              document.body.innerText.includes('Nested file smoke preview') &&
+              document.body.innerText.includes('Nested Folder');
+            var filesTabAttachWorks =
+              [...document.querySelectorAll('.attachment-pill')]
+                .some((attachment) => attachment.textContent?.includes('nested note.md'));
+            const changesTabButton = document.querySelector('[data-tab-id="diff"]')?.closest('button');
+            if (changesTabButton instanceof HTMLButtonElement) {
+              changesTabButton.click();
+              await sleep(120);
+            }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
             const createButton = [...document.querySelectorAll('button')]
@@ -462,6 +500,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
+            filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
+            filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),

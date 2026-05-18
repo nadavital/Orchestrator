@@ -5,13 +5,14 @@ import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
 import DiffPanel from './DiffPanel'
 import EventInspectorPanel from './EventInspectorPanel'
 import ExtensionsPanel from './ExtensionsPanel'
+import FilesPanel from './FilesPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
 import { MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 import Icon, { type IconName } from '../shared/Icon'
 
-export type ContextTab = 'plan' | 'diff' | 'agents' | 'extensions' | 'side'
+export type ContextTab = 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files'
 
 interface Props {
   session: Session
@@ -39,6 +40,8 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     setShowSideQuestions,
     setRightPanelWidth,
     setRightPanelFullWidth,
+    openRightPanelTab,
+    closeRightPanelTab,
     closeRightPanel
   } = useSessionStore()
   const [isResizing, setIsResizing] = useState(false)
@@ -60,8 +63,10 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   const hasOpenAgent = (ui?.agentTabIds?.length ?? 0) > 0
   const hasLiveAgent = agents.some(isLiveAgent)
   const hasSideQuestions = (ui?.sideQuestions?.length ?? 0) > 0
+  const hasFilesTab = rightPanel?.tabs.some((tab) => tab.id === 'files') ?? false
   const tabs: ContextTabSpec[] = [
     ...(ui?.showDiff ? [{ id: 'diff' as const, label: 'Changes', icon: 'diff' as const }] : []),
+    ...(hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : []),
     ...(hasPlan ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }] : []),
     ...((hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length }] : []),
     ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
@@ -89,6 +94,10 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   }, [])
 
   const activate = (tab: ContextTab): void => {
+    if (tab === 'files') {
+      openRightPanelTab(session.id, 'files')
+      return
+    }
     setShowPlan(session.id, tab === 'plan')
     setShowDiff(session.id, tab === 'diff')
     setShowEvents(session.id, tab === 'agents')
@@ -101,6 +110,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       closeRightPanel(session.id)
       return
     }
+    if (tab === 'files') closeRightPanelTab(session.id, 'files')
     if (tab === 'plan' || !tab) setShowPlan(session.id, false)
     if (tab === 'diff' || !tab) setShowDiff(session.id, false)
     if (tab === 'agents' || !tab) setShowEvents(session.id, false)
@@ -188,6 +198,12 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           ))}
         </div>
         <ToolbarButton
+          icon="folder"
+          label="Open files"
+          active={effectiveTab === 'files'}
+          onClick={() => openRightPanelTab(session.id, 'files')}
+        />
+        <ToolbarButton
           icon="chevronRight"
           label={rightPanel?.fullWidth ? 'Restore panel width' : 'Expand panel'}
           onClick={() => setRightPanelFullWidth(session.id, !rightPanel?.fullWidth)}
@@ -206,6 +222,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         {effectiveTab === 'extensions' && (
           <ExtensionsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} embedded />
         )}
+        {effectiveTab === 'files' && <FilesPanel workDir={session.workDir} embedded />}
         {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} workDir={session.workDir} embedded />}
         {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
       </div>

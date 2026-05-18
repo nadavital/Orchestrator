@@ -62,8 +62,10 @@ if (captureView === 'capabilities') {
 }
 
 if (captureView === 'inspector') {
+  mkdirSync(join(workspaceDir, 'Nested Folder'), { recursive: true })
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\n')
   writeFileSync(join(workspaceDir, 'review-delete.txt'), 'delete me\n')
+  writeFileSync(join(workspaceDir, 'Nested Folder', 'nested note.md'), '# Nested file smoke preview\n\nThis verifies spaces in paths.\n')
   spawnSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['config', 'user.name', 'Orchestrator Smoke'], { cwd: workspaceDir, stdio: 'ignore' })
@@ -282,6 +284,8 @@ child.on('exit', (code) => {
         rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,
         rightPanelExpand: captureView !== 'inspector' || result.rightPanelExpandWorks === true,
         reviewSearch: captureView !== 'inspector' || result.reviewSearchWorks === true,
+        filesTabSearch: captureView !== 'inspector' || result.filesTabSearchWorks === true,
+        filesTabAttach: captureView !== 'inspector' || result.filesTabAttachWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,
