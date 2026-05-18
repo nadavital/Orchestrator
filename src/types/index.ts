@@ -867,6 +867,7 @@ export interface Session {
   id: string
   name: string
   pinned?: boolean
+  pinOrder?: number
   projectId: string
   workDir: string
   useWorktree: boolean

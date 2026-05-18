@@ -673,10 +673,10 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const bodyText = document.body.innerText;
             const pinnedIndex = bodyText.indexOf('Pinned');
             const projectsIndex = bodyText.indexOf('Projects');
-            const recentIndex = bodyText.indexOf('Sidebar pinned recent');
             const olderIndex = bodyText.indexOf('Sidebar pinned older');
+            const recentIndex = bodyText.indexOf('Sidebar pinned recent');
             const pinnedAboveProjects = pinnedIndex >= 0 && projectsIndex >= 0 && pinnedIndex < projectsIndex;
-            const pinnedRecentFirst = recentIndex >= 0 && olderIndex >= 0 && recentIndex < olderIndex && recentIndex < projectsIndex;
+            const pinnedOrderStable = recentIndex >= 0 && olderIndex >= 0 && olderIndex < recentIndex && recentIndex < projectsIndex;
             const projectBlock = projectsIndex >= 0 ? bodyText.slice(projectsIndex) : '';
             const pinnedRowsHiddenFromProjects =
               !projectBlock.includes('Sidebar pinned recent') &&
@@ -726,15 +726,33 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               }
             }
 
+            const renamedRow = await waitForRow('Sidebar renamed by smoke');
+            const renamedPin = renamedRow?.querySelector('[data-testid="session-pin-toggle"]');
+            if (renamedPin instanceof HTMLElement) renamedPin.click();
+            for (let index = 0; index < 80; index += 1) {
+              const nextText = document.body.innerText;
+              const nextProjectsIndex = nextText.indexOf('Projects');
+              const nextPinnedBlock = nextProjectsIndex >= 0 ? nextText.slice(0, nextProjectsIndex) : nextText;
+              if (nextPinnedBlock.includes('Sidebar renamed by smoke')) break;
+              await sleep(25);
+            }
+            const afterPinText = document.body.innerText;
+            const afterPinProjectsIndex = afterPinText.indexOf('Projects');
+            const afterPinPinnedBlock = afterPinProjectsIndex >= 0 ? afterPinText.slice(0, afterPinProjectsIndex) : afterPinText;
+            const olderAfterPinIndex = afterPinPinnedBlock.indexOf('Sidebar pinned older');
+            const renamedPinnedIndex = afterPinPinnedBlock.indexOf('Sidebar renamed by smoke');
+            const newPinAppended = olderAfterPinIndex >= 0 && renamedPinnedIndex > olderAfterPinIndex;
+
             const unreadRow = await waitForRow('Sidebar unread idle');
             const errorRow = await waitForRow('Sidebar error');
             const runningRow = await waitForRow('Sidebar running');
             const allDots = [...document.querySelectorAll('[data-testid="session-status-dot"]')];
             return {
               pinnedAboveProjects,
-              pinnedRecentFirst,
+              pinnedOrderStable,
               pinnedRowsHiddenFromProjects,
               pinnedRowUnpinned,
+              newPinAppended,
               hoverPinVisible,
               doubleClickRenameWorks,
               runningSpinnerVisible: Boolean(runningRow?.querySelector('[data-testid="session-status-spinner"]')),
@@ -1872,9 +1890,10 @@ async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: str
     pinned: boolean
     status: ReturnType<typeof sessionManager.list>[number]['status']
     offset: number
+    pinOrder?: number
   }> = [
-    { name: 'Sidebar pinned older', pinned: true, status: 'idle', offset: 1 },
-    { name: 'Sidebar pinned recent', pinned: true, status: 'idle', offset: 5 },
+    { name: 'Sidebar pinned older', pinned: true, status: 'idle', offset: 1, pinOrder: 1 },
+    { name: 'Sidebar pinned recent', pinned: true, status: 'idle', offset: 5, pinOrder: 2 },
     { name: 'Sidebar normal idle', pinned: false, status: 'idle', offset: 3 },
     { name: 'Sidebar unread idle', pinned: false, status: 'idle', offset: 4 },
     { name: 'Sidebar error', pinned: false, status: 'provider_error', offset: 2 },
@@ -1894,6 +1913,7 @@ async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: str
       ...session,
       name: fixture.name,
       pinned: fixture.pinned,
+      pinOrder: fixture.pinned ? fixture.pinOrder : undefined,
       status: fixture.status,
       messages: [{
         id: `sidebar-smoke-${fixture.name.toLowerCase().replace(/\s+/g, '-')}`,

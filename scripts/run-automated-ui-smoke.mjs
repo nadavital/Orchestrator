@@ -208,9 +208,10 @@ child.on('exit', (code) => {
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
         pinnedAboveProjects: result.pinnedAboveProjects === true,
-        pinnedRecentFirst: result.pinnedRecentFirst === true,
+        pinnedOrderStable: result.pinnedOrderStable === true,
         pinnedRowsHiddenFromProjects: result.pinnedRowsHiddenFromProjects === true,
         pinnedRowUnpinned: result.pinnedRowUnpinned === true,
+        newPinAppended: result.newPinAppended === true,
         hoverPinVisible: result.hoverPinVisible === true,
         doubleClickRenameWorks: result.doubleClickRenameWorks === true,
         runningSpinnerVisible: result.runningSpinnerVisible === true,

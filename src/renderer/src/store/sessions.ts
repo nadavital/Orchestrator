@@ -43,7 +43,7 @@ interface SessionState {
   setActiveSession: (id: string | null) => void
   updateStatus: (id: string, status: Session['status']) => void
   updateName: (id: string, name: string) => void
-  updatePinned: (id: string, pinned: boolean) => void
+  updatePinned: (id: string, pinned: boolean, pinOrder?: number) => void
   updateSession: (id: string, patch: Partial<Session>) => void
   updateSettings: (id: string, patch: {
     provider?: string
@@ -181,10 +181,13 @@ export const useSessionStore = create<SessionState>((set) => ({
       sessions: s.sessions.map((x) => (x.id === id ? { ...x, name } : x))
     })),
 
-  updatePinned: (id, pinned) =>
-    set((s) => ({
-      sessions: s.sessions.map((x) => (x.id === id ? { ...x, pinned } : x))
-    })),
+  updatePinned: (id, pinned, pinOrder) =>
+    set((s) => {
+      const nextPinOrder = pinOrder ?? (pinned ? getNextPinOrder(s.sessions) : undefined)
+      return {
+        sessions: s.sessions.map((x) => (x.id === id ? { ...x, pinned, pinOrder: nextPinOrder } : x))
+      }
+    }),
 
   updateSession: (id, patch) =>
     set((s) => ({
@@ -430,6 +433,12 @@ function fullSessionItem(session: Session): SessionListItem {
     previewText: sessionPreviewText(session.messages, session.name),
     latestMessageAt: session.messages.at(-1)?.timestamp ?? session.createdAt
   }
+}
+
+function getNextPinOrder(sessions: SessionListItem[]): number {
+  return sessions.reduce((max, session) => {
+    return typeof session.pinOrder === 'number' ? Math.max(max, session.pinOrder) : max
+  }, 0) + 1
 }
 
 function mergeMessages(first: ChatMessage[], second: ChatMessage[]): ChatMessage[] {

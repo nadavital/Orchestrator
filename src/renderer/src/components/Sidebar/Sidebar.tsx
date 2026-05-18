@@ -29,7 +29,7 @@ export default function Sidebar(): JSX.Element {
   const sortedPinnedSessions = useMemo(() => {
     return [...sessions]
       .filter((session) => session.pinned)
-      .sort((a, b) => (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt))
+      .sort((a, b) => comparePinnedSessions(a, b))
   }, [sessions])
   const sessionsByProject = useMemo(() => {
     const grouped = new Map<string, typeof sessions>()
@@ -175,6 +175,15 @@ export default function Sidebar(): JSX.Element {
       </div>
     </aside>
   )
+}
+
+function comparePinnedSessions(a: { id: string; pinOrder?: number; latestMessageAt?: number; createdAt: number }, b: { id: string; pinOrder?: number; latestMessageAt?: number; createdAt: number }): number {
+  const aOrder = a.pinOrder ?? Number.MAX_SAFE_INTEGER
+  const bOrder = b.pinOrder ?? Number.MAX_SAFE_INTEGER
+  if (aOrder !== bOrder) return aOrder - bOrder
+  const aTime = a.latestMessageAt ?? a.createdAt
+  const bTime = b.latestMessageAt ?? b.createdAt
+  return bTime - aTime || a.createdAt - b.createdAt || a.id.localeCompare(b.id)
 }
 
 function SidebarNavItem({

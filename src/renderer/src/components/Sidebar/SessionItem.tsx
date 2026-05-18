@@ -114,11 +114,12 @@ function SessionItem({ session }: Props): JSX.Element {
     event.preventDefault()
     event.stopPropagation()
     const nextPinned = !session.pinned
+    const previousPinOrder = session.pinOrder
     updatePinned(session.id, nextPinned)
     try {
       await window.api.sessions.updatePinned(session.id, nextPinned)
     } catch (error) {
-      updatePinned(session.id, Boolean(session.pinned))
+      updatePinned(session.id, Boolean(session.pinned), previousPinOrder)
       console.error('Failed to update pinned chat', error)
     }
   }

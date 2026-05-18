@@ -41,6 +41,32 @@ const pendingFollowUps = new Map<string, PendingFollowUp[]>()
 
 const activeToolUseIds = new Map<string, Set<string>>()
 
+function ensurePinnedOrders(sessions: Session[]): Session[] {
+  const missingOrder = sessions.filter((session) => session.pinned && typeof session.pinOrder !== 'number')
+  if (missingOrder.length === 0) return sessions
+
+  let nextOrder = sessions.reduce((max, session) => {
+    return typeof session.pinOrder === 'number' ? Math.max(max, session.pinOrder) : max
+  }, 0)
+  const orderedMissing = [...missingOrder].sort((a, b) => {
+    const aTime = a.latestMessageAt ?? a.messages.at(-1)?.timestamp ?? a.createdAt
+    const bTime = b.latestMessageAt ?? b.messages.at(-1)?.timestamp ?? b.createdAt
+    return bTime - aTime || a.createdAt - b.createdAt || a.id.localeCompare(b.id)
+  })
+  for (const session of orderedMissing) {
+    nextOrder += 1
+    session.pinOrder = nextOrder
+  }
+  store.set('sessions', sessions)
+  return sessions
+}
+
+function nextPinOrder(sessions: Session[]): number {
+  return sessions.reduce((max, session) => {
+    return typeof session.pinOrder === 'number' ? Math.max(max, session.pinOrder) : max
+  }, 0) + 1
+}
+
 function defaultRuntimeForProvider(providerId: string): ProviderRuntimeKind {
   if (providerId === 'codex') return 'app-server'
   return 'headless'
@@ -290,12 +316,12 @@ function clearRuntimeState(sessionId: string): void {
 
 export const sessionManager = {
   list(): Session[] {
-    return store.get('sessions', []).map(normalizeSession)
+    return ensurePinnedOrders(store.get('sessions', [])).map(normalizeSession)
   },
 
   listSummaries(): SessionListItem[] {
     const startedAt = performance.now()
-    const summaries = store.get('sessions', []).map(sessionListItem)
+    const summaries = ensurePinnedOrders(store.get('sessions', [])).map(sessionListItem)
     recordPerformanceMetric({
       name: 'sessions.listSummaries',
       surface: 'main',
@@ -310,7 +336,7 @@ export const sessionManager = {
   },
 
   get(id: string): Session | undefined {
-    const session = store.get('sessions', []).find((s) => s.id === id)
+    const session = ensurePinnedOrders(store.get('sessions', [])).find((s) => s.id === id)
     return session ? normalizeSession(session) : undefined
   },
 
@@ -458,12 +484,13 @@ export const sessionManager = {
   },
 
   updatePinned(id: string, pinned: boolean): void {
-    const sessions = store.get('sessions', [])
+    const sessions = ensurePinnedOrders(store.get('sessions', []))
     const s = sessions.find((s) => s.id === id)
     if (s) {
       s.pinned = pinned
+      s.pinOrder = pinned ? nextPinOrder(sessions) : undefined
       store.set('sessions', sessions)
-      send('session:pinned', { id, pinned })
+      send('session:pinned', { id, pinned, pinOrder: s.pinOrder })
     }
   },
 

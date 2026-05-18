@@ -38,7 +38,7 @@ export type SessionEvent =
   | { type: 'events'; id: string; events: SessionRunEventRecord[] }
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
-  | { type: 'pinned'; id: string; pinned: boolean }
+  | { type: 'pinned'; id: string; pinned: boolean; pinOrder?: number }
   | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
   | {
       type: 'settingsUpdated'

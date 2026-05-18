@@ -480,7 +480,7 @@ export default function App(): JSX.Element {
       } else if (event.type === 'renamed') {
         updateName(event.id, event.name)
       } else if (event.type === 'pinned') {
-        updatePinned(event.id, event.pinned)
+        updatePinned(event.id, event.pinned, event.pinOrder)
       } else if (event.type === 'updated') {
         updateSession(event.id, { workDir: event.workDir, useWorktree: event.useWorktree })
       } else if (event.type === 'settingsUpdated') {
