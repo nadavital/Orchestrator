@@ -115,13 +115,14 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
 | Streaming assistant text | Text appears as soon as provider emits it, with no artificial throttling unless needed for paint stability. | `Implemented` | Structured partial-message parser. | Add regression test for no duplicate final text and visible streaming in dev app. |
-| No horizontal app scroll | Main pane, markdown, code blocks, tables, cards, and sidebar content never force page-level horizontal scroll. | `Partial` | Several fixes landed; user still found table/sidebar cases earlier. | Add Playwright/Computer Use visual checks for code blocks, tables, long paths, agent cards, and tool cards. |
+| No horizontal app scroll | Main pane, markdown, code blocks, tables, cards, and sidebar content never force page-level horizontal scroll. | `Complete` | `npm run smoke:ui:auto -- --transcript-layout` covers long code, tables, file cards, expanded tool summaries, and document/transcript scroll width. | Keep viewport-resized screenshot automation as a future enhancement if Browser/Playwright stability improves. |
 | Code block behavior | Long code scrolls inside the block, not the whole app. | `Implemented` | Renderer CSS changes from prior pass. | Add snapshot/screenshot fixture with long code. |
 | Markdown tables | Table cell text wraps responsively instead of forcing horizontal scroll. | `Implemented` | Prior CSS changes. | Add screenshot fixture at narrow and wide widths. |
-| Tool summaries | Main transcript shows concise counts and action labels; detail is expandable and bounded. | `Implemented` | `ToolCallCard`, `ChatView`, provider fixtures. | Add max-height scroll test for large tool-call expansions. |
+| Tool summaries | Main transcript shows concise counts and action labels; detail is expandable and bounded. | `Complete` | `ToolCallCard`, `ChatView`, provider fixtures, and transcript-layout smoke for large expanded tool summaries. | Keep max-height behavior when adding new tool detail renderers. |
 | Raw events | Raw provider event noise stays out of the main transcript. | `Implemented` | Sidebar/inspector design. | Continue enforcing in UI tests. |
 | File reference cards | Created/referenced files appear as cards that open existing files and do not falsely say missing. | `Complete` | Installed-app P2-008 smoke verified cwd-relative, absolute, quoted path with spaces, long path with spaces, generated file, missing file, and `~/...` references after parser/card-cap fixes. | Keep covered by file-reference unit tests and installed-app smoke when parser/UI changes. |
-| Activity/sidebar simplicity | Secondary information is available but not crowded or duplicated in header/sidebar. | `Partial` | Header/sidebar simplification in prior pass. | Audit sidebar actions and remove duplicate controls. |
+| Activity/sidebar simplicity | Secondary information is available but not crowded or duplicated in header/sidebar. | `Complete` | Sidebar smoke covers global pinned chats, hover pin/unpin, double-click rename, running spinner, and unread/error-only dots; header status chip was removed. | Keep secondary controls out of the main transcript/header unless they directly unblock the current run. |
+| Earlier transcript pages | Older messages are available without making fast chat switching feel like data loss. | `Implemented` | Transcript paging/search keeps initial render bounded. Product decision: do not expose implementation copy like "hidden for faster chat switching" in the default transcript. | Use a quiet "Show earlier" affordance only when older pages are available. |
 
 ### Files, Diff, And Workspace Effects
 
@@ -167,6 +168,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | Feature | Target UX | Status | Evidence | Next action |
 | --- | --- | --- | --- | --- |
 | App slash commands | `/pet`, `/diff`, `/settings`, etc. are provider-neutral app actions. | `Complete` | Slash palette tests plus installed-app P5 smoke showed app/project/global/skill grouping and no duplicate `/agents` entry. | Keep grouped palette behavior covered when adding provider commands. |
+| App command palette | Global app actions are discoverable outside the composer slash palette. | `Complete` | `Cmd+K`/`Ctrl+K` opens a global palette for new chat, transcript search, rename, next/previous chat, inspector, terminal, pet, and settings; transcript-layout smoke verifies palette-open and search action. | Keep palette and Shortcuts settings in sync as app-level actions change. |
 | Provider slash commands | Prompt-like provider commands appear only where supported and useful. | `Complete` | Installed-app P5 smoke ran project command `/ui-smoke`, disposable global command `/orchestrator-global-smoke`, project skill `/skill:tiny-skill`, and disposable global skill `/skill:orchestrator-global-smoke`. | Add cache/invalidation if repeated scans become visible. |
 | Built-in Claude TUI commands | True TUI-only commands open terminal overlay or provider management UI. | `Complete` | Settings P5 smoke showed read-only MCP/plugins/agents surfaces and `Purge project state` remained an explicit manual terminal handoff. | Add terminal-launch buttons only if the handoff UX is requested. |
 | Project commands | Discover `.claude/commands` and render in command palette. | `Complete` | Installed-app P5 smoke ran `.claude/commands/ui-smoke.md` and returned `P5_PROJECT_COMMAND_OK`; `project-command.jsonl` fixture covers the parsed shape. | Keep fixture current as Claude command output changes. |
@@ -621,6 +623,14 @@ When implementing against this plan:
 9. Commit at a stable checkpoint if the change is broad or user-facing.
 
 ## Decision Log
+
+### 2026-05-18
+
+- Sidebar/shortcut checkpoint: pinned chats are global above projects, pin/unpin is available on hover, double-click rename works from the sidebar row, running rows use a spinner in the status-dot slot, idle gray status dots and the header idle/status chip were removed, and Settings now includes a Shortcuts section.
+- Transcript search decision: search should not be permanent thin chrome. It opens on `Cmd+F`/`Ctrl+F`, focuses the input, and closes without leaving empty search UI behind.
+- Command palette decision: app-wide actions should be discoverable with `Cmd+K`/`Ctrl+K`, while provider/project prompt commands remain in the composer slash palette.
+- Transcript paging copy decision: users should not see implementation language like "earlier messages hidden for faster chat switching." Older pages remain available, but the affordance should read as a quiet history action, not a performance warning.
+- Verification passed for the sidebar/search/layout checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `git diff --check`, `npm run smoke:ui:auto -- --sidebar`, `npm run smoke:ui:auto -- --transcript-layout`, `npm run smoke:ui:auto -- --session-switch`, `npm run pack:mac`, copy to `/Applications/Orchestrator.app`, and packaged-vs-installed `app.asar` hash comparison.
 
 ### 2026-05-11
 

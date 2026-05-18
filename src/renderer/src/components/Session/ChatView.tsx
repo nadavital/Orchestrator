@@ -190,10 +190,11 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   }, [session.id, visibleMessages.length])
 
   useEffect(() => {
+    const openSearch = (): void => setSearchOpen(true)
     const onKeyDown = (event: KeyboardEvent): void => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
         event.preventDefault()
-        setSearchOpen(true)
+        openSearch()
         return
       }
       if (event.key === 'Escape' && searchOpen) {
@@ -207,7 +208,11 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
       }
     }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('orchestrator:open-transcript-search', openSearch)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('orchestrator:open-transcript-search', openSearch)
+    }
   }, [searchOpen])
 
   useEffect(() => {
@@ -471,9 +476,9 @@ function LoadEarlierMessages({
           color: 'var(--text-secondary)'
         }}
       >
-        <span>{hiddenCount.toLocaleString()} earlier message{hiddenCount === 1 ? '' : 's'} hidden for faster chat switching</span>
+        <span>Earlier messages</span>
         <Button variant="ghost" className="px-2 py-0.5" onClick={onLoad} disabled={loading}>
-          {loading ? 'Loading' : 'Load earlier'}
+          {loading ? 'Loading' : `Show ${hiddenCount.toLocaleString()}`}
         </Button>
         <Button variant="ghost" className="px-2 py-0.5" onClick={onLoadAll}>Show loaded</Button>
       </SurfaceRow>

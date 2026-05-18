@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useProjectStore } from './store/projects'
 import { useSessionStore } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
@@ -7,7 +7,8 @@ import Titlebar from './components/Titlebar'
 import SettingsPage from './components/SettingsModal'
 import CapabilitiesPage from './components/CapabilitiesPage'
 import DesignSystemPreview from './components/DesignSystemPreview'
-import { MotionView } from './components/shared/designSystem'
+import CommandPalette, { type CommandPaletteAction } from './components/CommandPalette'
+import { MotionView, TextInputDialog } from './components/shared/designSystem'
 import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
 
@@ -15,6 +16,7 @@ export default function App(): JSX.Element {
   const isDesignSystemPreview = window.location.hash === '#design-system'
   const { setProjects, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const {
+    sessions,
     setSessions,
     addSession,
     mergeTranscriptPage,
@@ -39,6 +41,192 @@ export default function App(): JSX.Element {
     settingsSection,
     activeSessionId
   } = useSessionStore()
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [renamingActiveChat, setRenamingActiveChat] = useState(false)
+  const activeSession = sessions.find((session) => session.id === activeSessionId)
+
+  const createNewChat = useCallback(async (): Promise<void> => {
+    const sessionState = useSessionStore.getState()
+    const projectState = useProjectStore.getState()
+    const active = sessionState.sessions.find((session) => session.id === sessionState.activeSessionId)
+    const targetProject = active
+      ? projectState.projects.find((project) => project.id === active.projectId)
+      : projectState.projects.at(-1)
+    if (!targetProject) return
+
+    if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running') {
+      await window.api.sessions.remove(active.id)
+      await window.api.projects.removeSession(active.projectId, active.id)
+      sessionState.removeSession(active.id)
+      projectState.removeSessionFromProject(active.projectId, active.id)
+    }
+
+    const session = await window.api.sessions.create({
+      projectId: targetProject.id,
+      workDir: targetProject.rootPath,
+      useWorktree: false,
+      repoRoot: targetProject.rootPath
+    })
+    await window.api.projects.addSession(targetProject.id, session.id)
+    sessionState.addSession(session)
+    projectState.addSessionToProject(targetProject.id, session.id)
+    sessionState.setActiveSession(session.id)
+    sessionState.setShowCapabilities(false)
+    sessionState.setShowSettings(false)
+  }, [])
+
+  const switchChat = useCallback((direction: 1 | -1): void => {
+    const { sessions, activeSessionId, setActiveSession, setShowCapabilities, setShowSettings } = useSessionStore.getState()
+    if (sessions.length < 2) return
+    const ordered = [...sessions].sort((a, b) => (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt))
+    const currentIndex = Math.max(0, ordered.findIndex((session) => session.id === activeSessionId))
+    const nextIndex = (currentIndex + direction + ordered.length) % ordered.length
+    setActiveSession(ordered[nextIndex].id)
+    setShowCapabilities(false)
+    setShowSettings(false)
+  }, [])
+
+  const toggleInspector = useCallback((): void => {
+    const {
+      activeSessionId,
+      uiState,
+      setShowDiff,
+      setShowPlan,
+      setShowEvents,
+      setShowExtensions,
+      setShowSideQuestions
+    } = useSessionStore.getState()
+    if (!activeSessionId) return
+    const ui = uiState[activeSessionId]
+    const open = Boolean(ui?.showDiff || ui?.showPlan || ui?.showEvents || ui?.showExtensions || ui?.showSideQuestions)
+    if (open) {
+      setShowDiff(activeSessionId, false)
+      setShowPlan(activeSessionId, false)
+      setShowEvents(activeSessionId, false)
+      setShowExtensions(activeSessionId, false)
+      setShowSideQuestions(activeSessionId, false)
+    } else {
+      setShowDiff(activeSessionId, true)
+    }
+  }, [])
+
+  const toggleTerminal = useCallback((): void => {
+    const { activeSessionId, uiState, setShowTerminal } = useSessionStore.getState()
+    if (!activeSessionId) return
+    setShowTerminal(activeSessionId, !(uiState[activeSessionId]?.showTerminal ?? false))
+  }, [])
+
+  const togglePet = useCallback(async (): Promise<void> => {
+    const config = await window.api.pet.getConfig() as { isOpen?: boolean }
+    await window.api.pet.setOpen(!(config.isOpen ?? true))
+  }, [])
+
+  const openTranscriptSearch = useCallback((): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:open-transcript-search'))
+  }, [])
+
+  const renameActiveChat = useCallback(async (nextName: string): Promise<void> => {
+    const session = useSessionStore.getState().sessions.find((candidate) => candidate.id === useSessionStore.getState().activeSessionId)
+    const trimmed = nextName.trim()
+    if (!session || !trimmed || trimmed === session.name) {
+      setRenamingActiveChat(false)
+      return
+    }
+    await window.api.sessions.updateName(session.id, trimmed)
+    setRenamingActiveChat(false)
+  }, [])
+
+  const commandSymbol = useMemo(() => navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl', [])
+  const commandPaletteActions = useMemo<CommandPaletteAction[]>(() => [
+    {
+      id: 'new-chat',
+      label: 'New Chat',
+      description: 'Start a fresh chat in the current project.',
+      shortcut: `${commandSymbol}N`,
+      keywords: ['thread', 'session'],
+      run: () => { void createNewChat() }
+    },
+    {
+      id: 'search-transcript',
+      label: 'Search Transcript',
+      description: 'Open search for the active chat.',
+      shortcut: `${commandSymbol}F`,
+      disabled: !activeSessionId,
+      keywords: ['find', 'history'],
+      run: openTranscriptSearch
+    },
+    {
+      id: 'rename-chat',
+      label: 'Rename Chat',
+      description: 'Rename the active sidebar thread.',
+      disabled: !activeSessionId,
+      keywords: ['thread', 'session', 'title'],
+      run: () => setRenamingActiveChat(true)
+    },
+    {
+      id: 'previous-chat',
+      label: 'Previous Chat',
+      description: 'Switch to the previous recent chat.',
+      shortcut: `${commandSymbol}⇧[`,
+      disabled: sessions.length < 2,
+      run: () => switchChat(-1)
+    },
+    {
+      id: 'next-chat',
+      label: 'Next Chat',
+      description: 'Switch to the next recent chat.',
+      shortcut: `${commandSymbol}⇧]`,
+      disabled: sessions.length < 2,
+      run: () => switchChat(1)
+    },
+    {
+      id: 'toggle-inspector',
+      label: 'Toggle Inspector',
+      description: 'Show or hide Diff, Agents, Plan, and related detail.',
+      shortcut: `${commandSymbol}B`,
+      disabled: !activeSessionId,
+      keywords: ['sidebar', 'diff', 'agents'],
+      run: toggleInspector
+    },
+    {
+      id: 'toggle-terminal',
+      label: 'Toggle Terminal',
+      description: 'Show or hide the terminal pane.',
+      shortcut: `${commandSymbol}\``,
+      disabled: !activeSessionId,
+      run: toggleTerminal
+    },
+    {
+      id: 'toggle-pet',
+      label: 'Toggle Pet Overlay',
+      description: 'Show or hide the floating activity overlay.',
+      shortcut: `${commandSymbol}⇧P`,
+      keywords: ['overlay'],
+      run: () => { void togglePet() }
+    },
+    {
+      id: 'settings',
+      label: 'Open Settings',
+      description: 'Open app settings.',
+      shortcut: `${commandSymbol},`,
+      run: () => {
+        setShowCapabilities(false)
+        setShowSettings(true)
+      }
+    }
+  ], [
+    activeSessionId,
+    commandSymbol,
+    createNewChat,
+    openTranscriptSearch,
+    sessions.length,
+    setShowCapabilities,
+    setShowSettings,
+    switchChat,
+    toggleInspector,
+    togglePet,
+    toggleTerminal
+  ])
 
   useEffect(() => {
     const bootStartedAt = markRendererStart()
@@ -185,87 +373,16 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (isDesignSystemPreview) return
 
-    const createNewChat = async (): Promise<void> => {
-      const sessionState = useSessionStore.getState()
-      const projectState = useProjectStore.getState()
-      const active = sessionState.sessions.find((session) => session.id === sessionState.activeSessionId)
-      const targetProject = active
-        ? projectState.projects.find((project) => project.id === active.projectId)
-        : projectState.projects.at(-1)
-      if (!targetProject) return
-
-      if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running') {
-        await window.api.sessions.remove(active.id)
-        await window.api.projects.removeSession(active.projectId, active.id)
-        sessionState.removeSession(active.id)
-        projectState.removeSessionFromProject(active.projectId, active.id)
-      }
-
-      const session = await window.api.sessions.create({
-        projectId: targetProject.id,
-        workDir: targetProject.rootPath,
-        useWorktree: false,
-        repoRoot: targetProject.rootPath
-      })
-      await window.api.projects.addSession(targetProject.id, session.id)
-      sessionState.addSession(session)
-      projectState.addSessionToProject(targetProject.id, session.id)
-      sessionState.setActiveSession(session.id)
-      sessionState.setShowCapabilities(false)
-      sessionState.setShowSettings(false)
-    }
-
-    const switchChat = (direction: 1 | -1): void => {
-      const { sessions, activeSessionId, setActiveSession, setShowCapabilities, setShowSettings } = useSessionStore.getState()
-      if (sessions.length < 2) return
-      const ordered = [...sessions].sort((a, b) => (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt))
-      const currentIndex = Math.max(0, ordered.findIndex((session) => session.id === activeSessionId))
-      const nextIndex = (currentIndex + direction + ordered.length) % ordered.length
-      setActiveSession(ordered[nextIndex].id)
-      setShowCapabilities(false)
-      setShowSettings(false)
-    }
-
-    const toggleInspector = (): void => {
-      const {
-        activeSessionId,
-        uiState,
-        setShowDiff,
-        setShowPlan,
-        setShowEvents,
-        setShowExtensions,
-        setShowSideQuestions
-      } = useSessionStore.getState()
-      if (!activeSessionId) return
-      const ui = uiState[activeSessionId]
-      const open = Boolean(ui?.showDiff || ui?.showPlan || ui?.showEvents || ui?.showExtensions || ui?.showSideQuestions)
-      if (open) {
-        setShowDiff(activeSessionId, false)
-        setShowPlan(activeSessionId, false)
-        setShowEvents(activeSessionId, false)
-        setShowExtensions(activeSessionId, false)
-        setShowSideQuestions(activeSessionId, false)
-      } else {
-        setShowDiff(activeSessionId, true)
-      }
-    }
-
-    const toggleTerminal = (): void => {
-      const { activeSessionId, uiState, setShowTerminal } = useSessionStore.getState()
-      if (!activeSessionId) return
-      setShowTerminal(activeSessionId, !(uiState[activeSessionId]?.showTerminal ?? false))
-    }
-
-    const togglePet = async (): Promise<void> => {
-      const config = await window.api.pet.getConfig() as { isOpen?: boolean }
-      await window.api.pet.setOpen(!(config.isOpen ?? true))
-    }
-
     const onKeyDown = (event: KeyboardEvent): void => {
       const command = event.metaKey || event.ctrlKey
       if (!command || event.altKey || event.isComposing) return
       const key = event.key.toLowerCase()
 
+      if (key === 'k' && !event.shiftKey) {
+        event.preventDefault()
+        setCommandPaletteOpen(true)
+        return
+      }
       if (key === 'n' && !event.shiftKey) {
         event.preventDefault()
         void createNewChat()
@@ -305,7 +422,16 @@ export default function App(): JSX.Element {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isDesignSystemPreview, setShowCapabilities, setShowSettings])
+  }, [
+    createNewChat,
+    isDesignSystemPreview,
+    setShowCapabilities,
+    setShowSettings,
+    switchChat,
+    toggleInspector,
+    togglePet,
+    toggleTerminal
+  ])
 
   useEffect(() => {
     if (!activeSessionId) return
@@ -361,6 +487,21 @@ export default function App(): JSX.Element {
           </>
         )}
       </section>
+      {commandPaletteOpen && (
+        <CommandPalette
+          actions={commandPaletteActions}
+          onClose={() => setCommandPaletteOpen(false)}
+        />
+      )}
+      {renamingActiveChat && activeSession && (
+        <TextInputDialog
+          title="Rename chat"
+          initialValue={activeSession.name}
+          confirmLabel="Rename"
+          onCancel={() => setRenamingActiveChat(false)}
+          onConfirm={(value) => void renameActiveChat(value)}
+        />
+      )}
     </div>
   )
 }

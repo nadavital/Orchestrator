@@ -420,7 +420,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
             let fullHydratedAfterSwitch = false;
             for (let index = 0; index < 120; index += 1) {
               const loadEarlierText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
-              if (loadEarlierText.includes('381 earlier')) {
+              if (loadEarlierText.includes('Show 381')) {
                 fullHydratedAfterSwitch = true;
                 break;
               }
@@ -626,6 +626,29 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             await sleep(160);
             const searchHiddenInitially = !document.querySelector('[data-testid="transcript-search"]');
             window.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'k',
+              code: 'KeyK',
+              metaKey: true,
+              bubbles: true,
+              cancelable: true
+            }));
+            await sleep(120);
+            const commandInput = document.querySelector('#command-palette-search');
+            const commandPaletteOpens = commandInput instanceof HTMLInputElement && document.activeElement === commandInput;
+            let commandPaletteSearchActionWorks = false;
+            if (commandInput instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(commandInput.constructor.prototype, 'value')?.set;
+              setter?.call(commandInput, 'search transcript');
+              commandInput.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(80);
+              document.querySelector('[data-command-id="search-transcript"]')?.click();
+              await sleep(160);
+              const commandSearch = document.querySelector('[data-testid="transcript-search"]');
+              commandPaletteSearchActionWorks = commandSearch instanceof HTMLInputElement && document.activeElement === commandSearch;
+              document.querySelector('[aria-label="Close transcript search"]')?.click();
+              await sleep(80);
+            }
+            window.dispatchEvent(new KeyboardEvent('keydown', {
               key: 'f',
               code: 'KeyF',
               metaKey: true,
@@ -668,7 +691,10 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               transcriptFound: true,
               layoutFixtureVisible,
               searchHiddenInitially,
+              commandPaletteOpens,
+              commandPaletteSearchActionWorks,
               searchShortcutOpens,
+              hiddenMessageCopyQuiet: !document.body.innerText.includes('hidden for faster chat switching'),
               documentNoHorizontalOverflow,
               transcriptNoHorizontalOverflow,
               messageRowsBounded: messageRows.length > 0 && messageRows.every(isInsideScroller),
