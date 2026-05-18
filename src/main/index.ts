@@ -308,6 +308,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(900);
             }
           }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
+            const rightPanelBefore = document.querySelector('[data-testid="session-right-panel"]');
+            const widthBefore = Number(rightPanelBefore?.getAttribute('data-right-panel-width') ?? '0');
+            const expandButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Expand panel');
+            if (expandButton instanceof HTMLButtonElement) {
+              expandButton.click();
+              await sleep(180);
+            }
+            const rightPanelExpanded = document.querySelector('[data-testid="session-right-panel"]');
+            var rightPanelExpandWorks =
+              rightPanelExpanded instanceof HTMLElement &&
+              rightPanelExpanded.dataset.rightPanelFullWidth === 'true' &&
+              Number(rightPanelExpanded.dataset.rightPanelWidth ?? '0') > widthBefore + 40;
+            const restoreButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Restore panel width');
+            if (restoreButton instanceof HTMLButtonElement) {
+              restoreButton.click();
+              await sleep(120);
+            }
+          }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
             const createButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.trim() === 'Create');
@@ -429,6 +450,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               rightPanel.dataset.rightPanelActiveTab === 'diff' &&
               rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
+            rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),

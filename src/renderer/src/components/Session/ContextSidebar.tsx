@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSessionStore } from '../../store/sessions'
 import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
@@ -38,13 +38,18 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     setShowExtensions,
     setShowSideQuestions,
     setRightPanelWidth,
+    setRightPanelFullWidth,
     closeRightPanel
   } = useSessionStore()
   const [isResizing, setIsResizing] = useState(false)
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null)
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
   const panelWidth = rightPanel?.width ?? DEFAULT_PANEL_WIDTH
+  const panelSize = rightPanel?.fullWidth
+    ? Math.max(MIN_PANEL_WIDTH, viewportWidth - 322)
+    : panelWidth
   const events = eventBuffers[session.id] ?? []
   const plans = [
     ...derivePlanStatesFromMessages(session, session.messages),
@@ -77,6 +82,12 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
             : null
   const effectiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0]?.id ?? null
 
+  useEffect(() => {
+    const onResize = (): void => setViewportWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
   const activate = (tab: ContextTab): void => {
     setShowPlan(session.id, tab === 'plan')
     setShowDiff(session.id, tab === 'diff')
@@ -108,6 +119,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       if (!start) return
       const delta = start.x - moveEvent.clientX
       setRightPanelWidth(session.id, Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, start.width + delta)))
+      if (rightPanel?.fullWidth) setRightPanelFullWidth(session.id, false)
     }
     const onUp = (): void => {
       resizeStartRef.current = null
@@ -117,33 +129,38 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp, { once: true })
-  }, [panelWidth, session.id, setRightPanelWidth])
+  }, [panelWidth, rightPanel?.fullWidth, session.id, setRightPanelFullWidth, setRightPanelWidth])
 
   return (
     <MotionPanel
       open={Boolean(effectiveTab)}
       side="right"
-      size={panelWidth}
+      size={panelSize}
       className="flex"
+      style={{ borderLeft: '1px solid var(--border-subtle)' }}
     >
-      <PanelResizeHandle
-        orientation="vertical"
-        label="Resize inspector"
-        active={isResizing}
-        onPointerDown={handleResizeStart}
-      />
+      {!rightPanel?.fullWidth && (
+        <PanelResizeHandle
+          orientation="vertical"
+          label="Resize inspector"
+          active={isResizing}
+          onPointerDown={handleResizeStart}
+        />
+      )}
       <aside
         className="min-w-0 flex flex-1 flex-col overflow-hidden"
         data-testid="session-right-panel"
+        data-app-shell-focus-area="right-panel"
         data-right-panel-active-tab={effectiveTab ?? ''}
-        data-right-panel-width={panelWidth}
+        data-right-panel-width={panelSize}
+        data-right-panel-full-width={rightPanel?.fullWidth ? 'true' : 'false'}
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
       >
       <div
         className="shrink-0 flex items-center justify-between gap-2 px-2 py-2"
         style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" data-app-shell-tab-controller>
           {tabs.map((tab) => (
             <TabButton
               key={tab.id}
@@ -152,7 +169,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
               onClose={() => close(tab.id)}
               closeLabel={`Close ${tab.label}`}
             >
-              <span className="inline-flex min-w-0 items-center gap-1.5">
+              <span className="inline-flex min-w-0 items-center gap-1.5" data-tab-id={tab.id}>
                 <Icon name={tab.icon} size={13} />
                 <span className="truncate">{tab.label}</span>
                 {tab.count !== undefined && tab.count > 0 && (
@@ -171,12 +188,17 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           ))}
         </div>
         <ToolbarButton
+          icon="chevronRight"
+          label={rightPanel?.fullWidth ? 'Restore panel width' : 'Expand panel'}
+          onClick={() => setRightPanelFullWidth(session.id, !rightPanel?.fullWidth)}
+        />
+        <ToolbarButton
           icon="close"
           label="Close inspector"
           onClick={() => close()}
         />
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden" data-app-shell-tab-panel-controller>
         {effectiveTab === 'plan' && <PlanPanel session={session} embedded />}
         {effectiveTab === 'agents' && (
           <EventInspectorPanel session={session} embedded activeAgentId={ui?.activeAgentId ?? null} />
