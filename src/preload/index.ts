@@ -43,9 +43,30 @@ export type SessionEvent =
 
 type SettingsUpdatedPayload = Omit<Extract<SessionEvent, { type: 'settingsUpdated' }>, 'type'>
 
+type AppMenuCommand =
+  | 'open-command-menu'
+  | 'new-chat'
+  | 'search-transcript'
+  | 'rename-chat'
+  | 'toggle-chat-pin'
+  | 'previous-chat'
+  | 'next-chat'
+  | 'previous-recent-chat'
+  | 'next-recent-chat'
+  | 'toggle-inspector'
+  | 'toggle-terminal'
+  | 'settings'
+  | 'keyboard-shortcuts'
+  | `go-chat-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
+
 const api = {
   app: {
-    getProfile: (): Promise<AppProfile> => ipcRenderer.invoke('app:getProfile')
+    getProfile: (): Promise<AppProfile> => ipcRenderer.invoke('app:getProfile'),
+    onMenuCommand: (cb: (command: AppMenuCommand) => void): (() => void) => {
+      const handler = (_: Electron.IpcRendererEvent, command: AppMenuCommand): void => cb(command)
+      ipcRenderer.on('app:menu-command', handler)
+      return () => ipcRenderer.off('app:menu-command', handler)
+    }
   },
 
   projects: {

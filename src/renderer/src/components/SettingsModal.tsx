@@ -536,51 +536,107 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: (value: boo
 
 function ShortcutsSection(): JSX.Element {
   const command = navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'
+  const option = navigator.platform.toLowerCase().includes('mac') ? '⌥' : 'Alt'
+  const control = navigator.platform.toLowerCase().includes('mac') ? '⌃' : 'Ctrl'
+  const [query, setQuery] = useState('')
   const shortcuts = [
-    { label: 'Search transcript', keys: [command, 'F'] },
-    { label: 'New chat', keys: [command, 'N'] },
-    { label: 'Previous chat', keys: [command, '⇧', '['] },
-    { label: 'Next chat', keys: [command, '⇧', ']'] },
-    { label: 'Toggle inspector sidebar', keys: [command, 'B'] },
-    { label: 'Toggle terminal', keys: [command, '`'] },
-    { label: 'Toggle pet overlay', keys: [command, '⇧', 'P'] },
-    { label: 'Open settings', keys: [command, ','] },
-    { label: 'Rename sidebar chat', keys: ['Double-click'] }
+    { category: 'App', label: 'Command palette', description: 'Open commands from anywhere in the workspace.', keys: [[command, 'K'], [command, '⇧', 'P']] },
+    { category: 'App', label: 'Keyboard shortcuts', description: 'Open this shortcuts reference.', keys: [[command, '⇧', '/']] },
+    { category: 'App', label: 'Open settings', description: 'Open general app settings.', keys: [[command, ',']] },
+    { category: 'Chat', label: 'New chat', description: 'Start a fresh chat in the current project.', keys: [[command, 'N']] },
+    { category: 'Chat', label: 'Rename chat', description: 'Rename the active sidebar chat.', keys: [[command, option, 'R'], ['Double-click']] },
+    { category: 'Chat', label: 'Pin or unpin chat', description: 'Toggle the active chat in the pinned list.', keys: [[command, option, 'P']] },
+    { category: 'Navigation', label: 'Search transcript', description: 'Find text in the current chat.', keys: [[command, 'F']] },
+    { category: 'Navigation', label: 'Previous chat', description: 'Switch to the previous recent chat.', keys: [[command, '⇧', '['], [control, '⇧', 'Tab']] },
+    { category: 'Navigation', label: 'Next chat', description: 'Switch to the next recent chat.', keys: [[command, '⇧', ']'], [control, 'Tab']] },
+    { category: 'Navigation', label: 'Go to chat 1-9', description: 'Jump directly to a recent sidebar chat.', keys: [[command, '1-9']] },
+    { category: 'Panels', label: 'Toggle inspector sidebar', description: 'Show or hide Diff, Agents, Plan, and detail panels.', keys: [[command, 'B']] },
+    { category: 'Panels', label: 'Toggle terminal', description: 'Show or hide the terminal pane.', keys: [[command, 'J'], [command, '`']] }
   ]
+  const normalizedQuery = query.trim().toLowerCase()
+  const visibleShortcuts = shortcuts.filter((shortcut) => {
+    if (!normalizedQuery) return true
+    return [
+      shortcut.category,
+      shortcut.label,
+      shortcut.description,
+      shortcut.keys.flat().join(' ')
+    ].join(' ').toLowerCase().includes(normalizedQuery)
+  })
 
   return (
     <div style={{ padding: '30px 44px 56px', maxWidth: 820, margin: '0 auto' }}>
       <SettingsIntro description="Fast paths for common chat, navigation, and app-shell actions." />
       <SettingGroup title="Keyboard" description="These shortcuts are built in and available anywhere in the chat workspace.">
-        <div style={{ display: 'grid', gap: 6 }}>
-          {shortcuts.map((shortcut) => (
+        <label className="sr-only" htmlFor="settings-shortcut-search">Search keyboard shortcuts</label>
+        <input
+          id="settings-shortcut-search"
+          value={query}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+          placeholder="Search shortcuts"
+          className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+          style={{
+            background: 'var(--control-bg)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-primary)'
+          }}
+        />
+        <div
+          className="mt-3 overflow-hidden rounded-lg"
+          style={{ border: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
+        >
+          <div
+            className="grid grid-cols-[120px_minmax(0,1fr)_minmax(180px,auto)] gap-3 border-b px-3 py-2 text-[11px] font-semibold uppercase tracking-wide"
+            style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-tertiary)' }}
+          >
+            <span>Section</span>
+            <span>Command</span>
+            <span className="text-right">Keybinding</span>
+          </div>
+          {visibleShortcuts.map((shortcut) => (
             <div
               key={shortcut.label}
-              className="flex items-center justify-between gap-4 rounded-lg px-3 py-2"
+              className="grid grid-cols-[120px_minmax(0,1fr)_minmax(180px,auto)] items-center gap-3 border-b px-3 py-2 last:border-b-0"
               style={{
-                background: 'var(--surface-bg)',
-                border: '1px solid var(--border-subtle)',
+                borderColor: 'var(--border-subtle)',
                 color: 'var(--text-primary)'
               }}
             >
-              <span className="min-w-0 text-sm font-medium">{shortcut.label}</span>
-              <span className="flex shrink-0 items-center gap-1">
-                {shortcut.keys.map((key) => (
-                  <kbd
-                    key={`${shortcut.label}-${key}`}
-                    className="min-w-6 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
-                    style={{
-                      background: 'var(--control-bg)',
-                      border: '1px solid var(--border-subtle)',
-                      color: 'var(--text-secondary)'
-                    }}
-                  >
-                    {key}
-                  </kbd>
+              <span className="min-w-0 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                {shortcut.category}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">{shortcut.label}</span>
+                <span className="mt-0.5 block truncate text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  {shortcut.description}
+                </span>
+              </span>
+              <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                {shortcut.keys.map((sequence, sequenceIndex) => (
+                  <span key={`${shortcut.label}-${sequenceIndex}`} className="flex items-center gap-1">
+                    {sequence.map((key) => (
+                      <kbd
+                        key={`${shortcut.label}-${sequenceIndex}-${key}`}
+                        className="min-w-6 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
+                        style={{
+                          background: 'var(--control-bg)',
+                          border: '1px solid var(--border-subtle)',
+                          color: 'var(--text-secondary)'
+                        }}
+                      >
+                        {key}
+                      </kbd>
+                    ))}
+                  </span>
                 ))}
               </span>
             </div>
           ))}
+          {visibleShortcuts.length === 0 && (
+            <div className="px-3 py-8 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
+              No matching shortcuts
+            </div>
+          )}
         </div>
       </SettingGroup>
     </div>

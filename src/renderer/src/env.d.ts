@@ -58,11 +58,28 @@ export type SessionEvent =
     }
   | { type: 'needsInput'; id: string }
 
+export type AppMenuCommand =
+  | 'open-command-menu'
+  | 'new-chat'
+  | 'search-transcript'
+  | 'rename-chat'
+  | 'toggle-chat-pin'
+  | 'previous-chat'
+  | 'next-chat'
+  | 'previous-recent-chat'
+  | 'next-recent-chat'
+  | 'toggle-inspector'
+  | 'toggle-terminal'
+  | 'settings'
+  | 'keyboard-shortcuts'
+  | `go-chat-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
+
 declare global {
   interface Window {
     api: {
       app: {
         getProfile: () => Promise<AppProfile>
+        onMenuCommand: (cb: (command: AppMenuCommand) => void) => () => void
       }
       projects: {
         list: () => Promise<Project[]>

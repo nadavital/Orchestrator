@@ -1,4 +1,5 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { writeFileSync } from 'fs'
 import { electronApp, is } from '@electron-toolkit/utils'
@@ -15,6 +16,119 @@ let projectStore: typeof import('./projects').projectStore
 let sessionManager: typeof import('./sessions').sessionManager
 
 let mainWindow: BrowserWindow | null = null
+
+type AppMenuCommand =
+  | 'open-command-menu'
+  | 'new-chat'
+  | 'search-transcript'
+  | 'rename-chat'
+  | 'toggle-chat-pin'
+  | 'previous-chat'
+  | 'next-chat'
+  | 'previous-recent-chat'
+  | 'next-recent-chat'
+  | 'toggle-inspector'
+  | 'toggle-terminal'
+  | 'settings'
+  | 'keyboard-shortcuts'
+  | `go-chat-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
+
+function sendAppMenuCommand(command: AppMenuCommand): void {
+  mainWindow?.webContents.send('app:menu-command', command)
+}
+
+function installApplicationMenu(): void {
+  const isMac = process.platform === 'darwin'
+  const appSubmenu: MenuItemConstructorOptions[] = [
+    { role: 'about' },
+    { type: 'separator' },
+    { role: 'services' },
+    { type: 'separator' },
+    { role: 'hide' },
+    { role: 'hideOthers' },
+    { role: 'unhide' },
+    { type: 'separator' },
+    { role: 'quit' }
+  ]
+
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac ? [{ label: app.name, submenu: appSubmenu } satisfies MenuItemConstructorOptions] : []),
+    {
+      label: 'File',
+      submenu: [
+        { label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: () => sendAppMenuCommand('new-chat') },
+        { label: 'Command Palette', accelerator: 'CmdOrCtrl+K', click: () => sendAppMenuCommand('open-command-menu') },
+        { type: 'separator' },
+        isMac ? { role: 'close' } : { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+        { type: 'separator' },
+        { label: 'Find in Chat', accelerator: 'CmdOrCtrl+F', click: () => sendAppMenuCommand('search-transcript') }
+      ]
+    },
+    {
+      label: 'Chat',
+      submenu: [
+        { label: 'Rename Chat', accelerator: 'CmdOrCtrl+Alt+R', click: () => sendAppMenuCommand('rename-chat') },
+        { label: 'Pin or Unpin Chat', accelerator: 'CmdOrCtrl+Alt+P', click: () => sendAppMenuCommand('toggle-chat-pin') },
+        { type: 'separator' },
+        { label: 'Previous Chat', accelerator: 'CmdOrCtrl+Shift+[', click: () => sendAppMenuCommand('previous-chat') },
+        { label: 'Next Chat', accelerator: 'CmdOrCtrl+Shift+]', click: () => sendAppMenuCommand('next-chat') },
+        { label: 'Previous Recent Chat', accelerator: 'Ctrl+Shift+Tab', click: () => sendAppMenuCommand('previous-recent-chat') },
+        { label: 'Next Recent Chat', accelerator: 'Ctrl+Tab', click: () => sendAppMenuCommand('next-recent-chat') },
+        { type: 'separator' },
+        ...Array.from({ length: 9 }, (_, index): MenuItemConstructorOptions => ({
+          label: `Go to Chat ${index + 1}`,
+          accelerator: `CmdOrCtrl+${index + 1}`,
+          click: () => sendAppMenuCommand(`go-chat-${index + 1}` as AppMenuCommand)
+        }))
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Toggle Inspector', accelerator: 'CmdOrCtrl+B', click: () => sendAppMenuCommand('toggle-inspector') },
+        { label: 'Toggle Terminal', accelerator: 'CmdOrCtrl+J', click: () => sendAppMenuCommand('toggle-terminal') },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [{ type: 'separator' as const }, { role: 'front' as const }] : [])
+      ]
+    },
+    {
+      label: 'Help',
+      submenu: [
+        { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+Shift+/', click: () => sendAppMenuCommand('keyboard-shortcuts') },
+        { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => sendAppMenuCommand('settings') }
+      ]
+    }
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
 
 function isBrokenPipeError(error: unknown): boolean {
   return error instanceof Error && (error as NodeJS.ErrnoException).code === 'EPIPE'
@@ -729,7 +843,18 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const pre = document.querySelector('pre');
             const table = document.querySelector('table');
             const fileCards = [...document.querySelectorAll('[data-testid="file-reference-card"]')];
-            const toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
+            const messageRowsBounded = messageRows.length > 0 && messageRows.every(isInsideScroller);
+            const codeBlockBounded = pre instanceof HTMLElement && isInsideScroller(pre);
+            const codeBlockInternallyScrollable = pre instanceof HTMLElement && pre.scrollWidth > pre.clientWidth + 24;
+            const tableBounded = table instanceof HTMLElement && isInsideScroller(table);
+            const fileCardsBounded = fileCards.length > 0 && fileCards.every(isInsideScroller);
+            let toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
+            for (let index = 0; index < 10 && !toolSummary; index += 1) {
+              scroller.scrollTop = Math.max(scroller.scrollHeight, scroller.clientHeight) * ((index + 1) / 10);
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(180);
+              toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
+            }
             const toolButton = toolSummary?.querySelector('.motion-disclosure-trigger');
             if (toolButton instanceof HTMLElement && toolButton.getAttribute('aria-expanded') !== 'true') {
               toolButton.click();
@@ -737,25 +862,58 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             await sleep(160);
             const toolBody = document.querySelector('[data-testid="tool-activity-body"]');
             const expandedDocScrollWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+            const toolSummaryExpanded = toolButton instanceof HTMLElement && toolButton.getAttribute('aria-expanded') === 'true' && Boolean(toolBody);
+            const toolSummaryBounded = toolBody instanceof HTMLElement && isInsideScroller(toolBody) && toolBody.clientHeight <= 240;
+            const toolSummaryScrollable = toolBody instanceof HTMLElement && toolBody.scrollHeight > toolBody.clientHeight + 24;
+            document.querySelector('[aria-label="Close transcript search"]')?.click();
+            await sleep(80);
+            window.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'P',
+              code: 'KeyP',
+              metaKey: true,
+              shiftKey: true,
+              bubbles: true,
+              cancelable: true
+            }));
+            await sleep(120);
+            const shiftPaletteInput = document.querySelector('#command-palette-search');
+            const commandPaletteShiftPOpens = shiftPaletteInput instanceof HTMLInputElement && document.activeElement === shiftPaletteInput;
+            const commandPaletteGrouped = Boolean(document.querySelector('[data-command-group="Chat"]'));
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+            await sleep(100);
+            window.dispatchEvent(new KeyboardEvent('keydown', {
+              key: '?',
+              code: 'Slash',
+              metaKey: true,
+              shiftKey: true,
+              bubbles: true,
+              cancelable: true
+            }));
+            await sleep(180);
+            const shortcutsSearch = document.querySelector('#settings-shortcut-search');
+            const keyboardShortcutsShortcutOpens = shortcutsSearch instanceof HTMLInputElement && document.body.innerText.includes('Command palette');
 
             return {
               transcriptFound: true,
               layoutFixtureVisible,
               searchHiddenInitially,
               commandPaletteOpens,
+              commandPaletteShiftPOpens,
+              commandPaletteGrouped,
               commandPaletteSearchActionWorks,
               searchShortcutOpens,
+              keyboardShortcutsShortcutOpens,
               hiddenMessageCopyQuiet: !document.body.innerText.includes('hidden for faster chat switching'),
               documentNoHorizontalOverflow,
               transcriptNoHorizontalOverflow,
-              messageRowsBounded: messageRows.length > 0 && messageRows.every(isInsideScroller),
-              codeBlockBounded: pre instanceof HTMLElement && isInsideScroller(pre),
-              codeBlockInternallyScrollable: pre instanceof HTMLElement && pre.scrollWidth > pre.clientWidth + 24,
-              tableBounded: table instanceof HTMLElement && isInsideScroller(table),
-              fileCardsBounded: fileCards.length > 0 && fileCards.every(isInsideScroller),
-              toolSummaryExpanded: toolButton instanceof HTMLElement && toolButton.getAttribute('aria-expanded') === 'true' && Boolean(toolBody),
-              toolSummaryBounded: toolBody instanceof HTMLElement && isInsideScroller(toolBody) && toolBody.clientHeight <= 240,
-              toolSummaryScrollable: toolBody instanceof HTMLElement && toolBody.scrollHeight > toolBody.clientHeight + 24,
+              messageRowsBounded,
+              codeBlockBounded,
+              codeBlockInternallyScrollable,
+              tableBounded,
+              fileCardsBounded,
+              toolSummaryExpanded,
+              toolSummaryBounded,
+              toolSummaryScrollable,
               documentNoHorizontalOverflowAfterExpand: expandedDocScrollWidth <= viewportWidth + 2,
               docScrollWidth,
               expandedDocScrollWidth,
@@ -1546,6 +1704,7 @@ app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.orchestrator.app')
 
   registerIpcHandlers(ipcMain)
+  installApplicationMenu()
   setCreateMainWindowCallback(createWindow)
   await bootstrapAutomatedUiSmokeState()
   createWindow()

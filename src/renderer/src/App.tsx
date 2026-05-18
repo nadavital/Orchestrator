@@ -11,6 +11,7 @@ import CommandPalette, { type CommandPaletteAction } from './components/CommandP
 import { MotionView, TextInputDialog } from './components/shared/designSystem'
 import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
+import type { AppMenuCommand } from './env'
 
 export default function App(): JSX.Element {
   const isDesignSystemPreview = window.location.hash === '#design-system'
@@ -36,6 +37,7 @@ export default function App(): JSX.Element {
     setProviderModels,
     setShowSettings,
     setShowCapabilities,
+    setSettingsSection,
     showSettings,
     showCapabilities,
     settingsSection,
@@ -125,6 +127,29 @@ export default function App(): JSX.Element {
     window.dispatchEvent(new CustomEvent('orchestrator:open-transcript-search'))
   }, [])
 
+  const openSettings = useCallback((section: 'general' | 'providers' | 'shortcuts' | 'pets' = 'general'): void => {
+    setSettingsSection(section)
+    setShowCapabilities(false)
+    setShowSettings(true)
+  }, [setSettingsSection, setShowCapabilities, setShowSettings])
+
+  const toggleActiveChatPin = useCallback(async (): Promise<void> => {
+    const { sessions, activeSessionId } = useSessionStore.getState()
+    const session = sessions.find((candidate) => candidate.id === activeSessionId)
+    if (!session) return
+    await window.api.sessions.updatePinned(session.id, !session.pinned)
+  }, [])
+
+  const switchChatSlot = useCallback((slot: number): void => {
+    const { sessions, setActiveSession, setShowCapabilities, setShowSettings } = useSessionStore.getState()
+    const ordered = [...sessions].sort((a, b) => (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt))
+    const session = ordered[slot - 1]
+    if (!session) return
+    setActiveSession(session.id)
+    setShowCapabilities(false)
+    setShowSettings(false)
+  }, [])
+
   const renameActiveChat = useCallback(async (nextName: string): Promise<void> => {
     const session = useSessionStore.getState().sessions.find((candidate) => candidate.id === useSessionStore.getState().activeSessionId)
     const trimmed = nextName.trim()
@@ -137,18 +162,52 @@ export default function App(): JSX.Element {
   }, [])
 
   const commandSymbol = useMemo(() => navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl', [])
+  const chatSlotActions = useMemo<CommandPaletteAction[]>(() => (
+    Array.from({ length: Math.min(9, sessions.length) }, (_, index) => ({
+      id: `go-chat-${index + 1}`,
+      label: `Go to Chat ${index + 1}`,
+      group: 'Navigation',
+      description: 'Jump to a recent chat from the sidebar order.',
+      shortcut: `${commandSymbol}${index + 1}`,
+      keywords: ['thread', 'session', 'recent'],
+      run: () => switchChatSlot(index + 1)
+    }))
+  ), [commandSymbol, sessions.length, switchChatSlot])
+
   const commandPaletteActions = useMemo<CommandPaletteAction[]>(() => [
     {
       id: 'new-chat',
       label: 'New Chat',
+      group: 'Chat',
       description: 'Start a fresh chat in the current project.',
       shortcut: `${commandSymbol}N`,
       keywords: ['thread', 'session'],
       run: () => { void createNewChat() }
     },
     {
+      id: 'rename-chat',
+      label: 'Rename Chat',
+      group: 'Chat',
+      description: 'Rename the active sidebar thread.',
+      shortcut: `${commandSymbol}⌥R`,
+      disabled: !activeSessionId,
+      keywords: ['thread', 'session', 'title'],
+      run: () => setRenamingActiveChat(true)
+    },
+    {
+      id: 'toggle-chat-pin',
+      label: activeSession?.pinned ? 'Unpin Chat' : 'Pin Chat',
+      group: 'Chat',
+      description: activeSession?.pinned ? 'Remove this chat from the pinned list.' : 'Keep this chat at the top of the sidebar.',
+      shortcut: `${commandSymbol}⌥P`,
+      disabled: !activeSessionId,
+      keywords: ['thread', 'session', 'favorite'],
+      run: () => { void toggleActiveChatPin() }
+    },
+    {
       id: 'search-transcript',
       label: 'Search Transcript',
+      group: 'Navigation',
       description: 'Open search for the active chat.',
       shortcut: `${commandSymbol}F`,
       disabled: !activeSessionId,
@@ -156,32 +215,28 @@ export default function App(): JSX.Element {
       run: openTranscriptSearch
     },
     {
-      id: 'rename-chat',
-      label: 'Rename Chat',
-      description: 'Rename the active sidebar thread.',
-      disabled: !activeSessionId,
-      keywords: ['thread', 'session', 'title'],
-      run: () => setRenamingActiveChat(true)
-    },
-    {
       id: 'previous-chat',
       label: 'Previous Chat',
+      group: 'Navigation',
       description: 'Switch to the previous recent chat.',
-      shortcut: `${commandSymbol}⇧[`,
+      shortcuts: [`${commandSymbol}⇧[`, '⌃⇧Tab'],
       disabled: sessions.length < 2,
       run: () => switchChat(-1)
     },
     {
       id: 'next-chat',
       label: 'Next Chat',
+      group: 'Navigation',
       description: 'Switch to the next recent chat.',
-      shortcut: `${commandSymbol}⇧]`,
+      shortcuts: [`${commandSymbol}⇧]`, '⌃Tab'],
       disabled: sessions.length < 2,
       run: () => switchChat(1)
     },
+    ...chatSlotActions,
     {
       id: 'toggle-inspector',
       label: 'Toggle Inspector',
+      group: 'Panels',
       description: 'Show or hide Diff, Agents, Plan, and related detail.',
       shortcut: `${commandSymbol}B`,
       disabled: !activeSessionId,
@@ -191,40 +246,103 @@ export default function App(): JSX.Element {
     {
       id: 'toggle-terminal',
       label: 'Toggle Terminal',
+      group: 'Panels',
       description: 'Show or hide the terminal pane.',
-      shortcut: `${commandSymbol}\``,
+      shortcut: `${commandSymbol}J`,
       disabled: !activeSessionId,
       run: toggleTerminal
     },
     {
       id: 'toggle-pet',
       label: 'Toggle Pet Overlay',
+      group: 'App',
       description: 'Show or hide the floating activity overlay.',
-      shortcut: `${commandSymbol}⇧P`,
       keywords: ['overlay'],
       run: () => { void togglePet() }
     },
     {
+      id: 'keyboard-shortcuts',
+      label: 'Keyboard Shortcuts',
+      group: 'App',
+      description: 'Open the shortcuts reference in Settings.',
+      shortcut: `${commandSymbol}⇧/`,
+      keywords: ['settings', 'keybindings'],
+      run: () => openSettings('shortcuts')
+    },
+    {
       id: 'settings',
       label: 'Open Settings',
+      group: 'App',
       description: 'Open app settings.',
       shortcut: `${commandSymbol},`,
-      run: () => {
-        setShowCapabilities(false)
-        setShowSettings(true)
-      }
+      run: () => openSettings('general')
     }
   ], [
+    activeSession?.pinned,
     activeSessionId,
+    chatSlotActions,
     commandSymbol,
     createNewChat,
+    openSettings,
     openTranscriptSearch,
     sessions.length,
-    setShowCapabilities,
-    setShowSettings,
     switchChat,
+    toggleActiveChatPin,
     toggleInspector,
     togglePet,
+    toggleTerminal
+  ])
+
+  const runAppCommand = useCallback((command: AppMenuCommand): void => {
+    if (command.startsWith('go-chat-')) {
+      switchChatSlot(Number(command.replace('go-chat-', '')))
+      return
+    }
+    switch (command) {
+      case 'open-command-menu':
+        setCommandPaletteOpen(true)
+        break
+      case 'new-chat':
+        void createNewChat()
+        break
+      case 'search-transcript':
+        openTranscriptSearch()
+        break
+      case 'rename-chat':
+        if (useSessionStore.getState().activeSessionId) setRenamingActiveChat(true)
+        break
+      case 'toggle-chat-pin':
+        void toggleActiveChatPin()
+        break
+      case 'previous-chat':
+      case 'previous-recent-chat':
+        switchChat(-1)
+        break
+      case 'next-chat':
+      case 'next-recent-chat':
+        switchChat(1)
+        break
+      case 'toggle-inspector':
+        toggleInspector()
+        break
+      case 'toggle-terminal':
+        toggleTerminal()
+        break
+      case 'settings':
+        openSettings('general')
+        break
+      case 'keyboard-shortcuts':
+        openSettings('shortcuts')
+        break
+    }
+  }, [
+    createNewChat,
+    openSettings,
+    openTranscriptSearch,
+    switchChat,
+    switchChatSlot,
+    toggleActiveChatPin,
+    toggleInspector,
     toggleTerminal
   ])
 
@@ -374,11 +492,32 @@ export default function App(): JSX.Element {
     if (isDesignSystemPreview) return
 
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.isComposing) return
       const command = event.metaKey || event.ctrlKey
-      if (!command || event.altKey || event.isComposing) return
       const key = event.key.toLowerCase()
 
-      if (key === 'k' && !event.shiftKey) {
+      if (event.ctrlKey && !event.metaKey && !event.altKey && key === 'tab') {
+        event.preventDefault()
+        switchChat(event.shiftKey ? -1 : 1)
+        return
+      }
+
+      if (!command) return
+
+      if (event.altKey) {
+        if (key === 'r' && !event.shiftKey) {
+          event.preventDefault()
+          if (useSessionStore.getState().activeSessionId) setRenamingActiveChat(true)
+          return
+        }
+        if (key === 'p' && !event.shiftKey) {
+          event.preventDefault()
+          void toggleActiveChatPin()
+        }
+        return
+      }
+
+      if ((key === 'k' && !event.shiftKey) || (key === 'p' && event.shiftKey)) {
         event.preventDefault()
         setCommandPaletteOpen(true)
         return
@@ -408,15 +547,24 @@ export default function App(): JSX.Element {
         toggleTerminal()
         return
       }
-      if (key === ',' && !event.shiftKey) {
+      if (key === 'j' && !event.shiftKey) {
         event.preventDefault()
-        setShowCapabilities(false)
-        setShowSettings(true)
+        toggleTerminal()
         return
       }
-      if (key === 'p' && event.shiftKey) {
+      if (key === ',' && !event.shiftKey) {
         event.preventDefault()
-        void togglePet()
+        openSettings('general')
+        return
+      }
+      if (event.shiftKey && event.code === 'Slash') {
+        event.preventDefault()
+        openSettings('shortcuts')
+        return
+      }
+      if (!event.shiftKey && /^[1-9]$/.test(key)) {
+        event.preventDefault()
+        switchChatSlot(Number(key))
       }
     }
 
@@ -425,13 +573,18 @@ export default function App(): JSX.Element {
   }, [
     createNewChat,
     isDesignSystemPreview,
-    setShowCapabilities,
-    setShowSettings,
+    openSettings,
     switchChat,
+    switchChatSlot,
     toggleInspector,
-    togglePet,
+    toggleActiveChatPin,
     toggleTerminal
   ])
+
+  useEffect(() => {
+    if (isDesignSystemPreview) return
+    return window.api.app.onMenuCommand(runAppCommand)
+  }, [isDesignSystemPreview, runAppCommand])
 
   useEffect(() => {
     if (!activeSessionId) return
