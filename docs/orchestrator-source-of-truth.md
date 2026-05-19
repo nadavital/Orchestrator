@@ -1,6 +1,6 @@
 # Orchestrator Source Of Truth
 
-Last updated: 2026-05-18
+Last updated: 2026-05-19
 
 This is the canonical execution plan for Orchestrator. Every long-running implementation pass should start here, update this file as work lands, and treat the older docs in `docs/` as supporting research or historical evidence.
 
@@ -135,7 +135,7 @@ All providers should translate into these shapes at the adapter/runtime boundary
 | File delete | Clear deletion summary and Diff warning. | `Complete` | Installed-app P2-003 smoke deleted `p2-delete-target.txt`; file card showed missing/disabled actions and Diff showed deleted-file mode with removed baseline line. | Keep deletion rows visually checked in Diff edge-case smoke. |
 | File read/search/list | Compact summary; no raw JSON; searchable targets in expanded details. | `Complete` | Installed-app P2-004 smoke read/listed/searched the repo, surfaced `P2_SEARCH_NEEDLE`, and showed `Read 2 files · Listed 1 listing` without raw JSON in chat. | Keep compact summary tests current as tool vocabulary changes. |
 | Bash/shell | Permission-aware command summary with bounded output. | `Complete` | Installed-app P2-005 through P2-007 smokes covered Bash allow once, allow session, and deny; denied command ended with explicit permission-denied error and did not create the target file. | Add fixture if Claude denial event shape changes. |
-| Workspace provenance | Session knows cwd, worktree/base/branch, provider session id, and generated artifact roots. | `Partial` | App-managed worktrees exist. | Add provenance strip/detail to session metadata and tests. |
+| Workspace provenance | Session knows cwd, worktree/base/branch, provider session id, and generated artifact roots. | `Implemented` | App-managed worktrees exist; header now shows environment, project/folder, branch when available, and provider/model metadata. | Add generated artifact roots and deeper fork/worktree provenance when those flows become first-class. |
 | Git state | Diff panel reflects changed files and risky deletes/large patches. | `Complete` | Installed-app P2-009 smoke showed modified, added/staged, deleted, untracked, and large modified states with previews for deleted, large, and staged-added files. | Keep as a required installed-app smoke after Diff renderer changes. |
 
 ### Permissions, Questions, And Plan Mode
@@ -292,6 +292,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-018 | Brief/status events, usage metadata, attachments, `/btw` side questions, and automated detached UI smoke landed. | `Complete` | `brief-usage.jsonl`; `npx tsc -p tsconfig.node.json --noEmit`; `npx tsc -p tsconfig.web.json --noEmit`; `npm run test:providers`; `npm run smoke:ui:auto`; live Claude 2.1.140 `--brief` probes showed usage/cost fields but no `SendUserMessage` tool. |
 | V-019 | First-class Capabilities page landed. | `Complete` | `src/renderer/src/components/CapabilitiesPage.tsx`; `src/main/capabilityCreator.ts`; `npm run build`; `npm run test:providers` 141/141; `npm run smoke:ui:auto -- --capabilities` screenshot `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-capabilities-1778792716697.png`. |
 | V-020 | Sidebar pin ordering and noisy file-reference cards hardened. | `Complete` | `src/types/sessionOrdering.ts`; `sessionOrdering.test.ts`; unresolved relative prose references now disappear instead of showing missing cards; `npm run test:providers` 156/156, `npm run build`, `npm run smoke:ui:auto -- --sidebar`, and `git diff --check` passed. |
+| V-021 | Header thread identity and provenance strip landed. | `Complete` | Header shows environment icon, project/folder, branch when available, and provider/model; chat actions menu includes copy folder path and copy session ID. `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, and `npm run smoke:ui:auto -- --inspector` passed with `headerIdentity` and `headerActionMenu`. |
 
 ### Codex Parity Matrix
 
@@ -305,7 +306,7 @@ The installed Codex app is the reference for desktop polish, but Orchestrator sh
 | Sidebar status model | Active, follower, idle, needs-resume, read-only, realtime voice, automation next run, unread, error, and running states. | Running spinner, unread/error dots, permission/question previews, and active row styling. | Core states are covered, but subscription/automation/read-only/detail states are absent. | `Partial` | Enrich status mapping from existing runtime data first; add new states only when backed by provider/app data. |
 | Pinned and recent ordering | Pinned section is global and row metadata does not reorder unexpectedly. | Global pinned section exists and stable pin ordering is implemented. | Needs ongoing smoke around live status/message updates. | `Implemented` | Add transition smoke for pinned rows while running/completing/unread states change. |
 | Sidebar organization | Organize popover supports project/connection/recent/chronological views, created/updated sort, filtering, show more/less, project pinning and actions. | Fixed project grouping, pinned section, project collapse, new chat, remove. | Project navigation is much less powerful. | `Planned` | Add persisted organize mode and sort mode; add project actions for rename/open folder/archive chats/pin project after row primitive lands. |
-| Header thread identity | Header carries env icon, secondary metadata line, and thread actions such as copy cwd/session/app link, fork/worktree, side chat. | Header is intentionally quiet after status chip removal. | Some useful identity/actions are missing, but header must not get noisy again. | `Planned` | Add a compact secondary metadata line and move deeper actions into a menu, not persistent chips. |
+| Header thread identity | Header carries env icon, secondary metadata line, and thread actions such as copy cwd/session/app link, fork/worktree, side chat. | Header is intentionally quiet after status chip removal and now shows compact project/folder/branch/provider identity. | Deeper fork/worktree/app-link actions are still missing, but the primary identity strip is in place without bringing back a status chip. | `Implemented` | Keep deeper actions inside the chat actions menu; add app-link/fork/worktree actions only when those flows are backed by stable product behavior. |
 | Settings structure | Many focused sections: General, Appearance, Git, Connections, Worktrees, Agent, Personalization, Shortcuts, Usage, Browser, Computer Use, MCP, Hooks, Plugins, Skills, Data Controls. | Split into General, Appearance, Providers/models, Shortcuts, Pets, with some crowded provider/capability surfaces. | Better than before, still not organized at Codex scale. | `Partial` | Continue section split: Appearance, Keyboard Shortcuts, Pets/Personalization, Provider Diagnostics, Capabilities, MCP/Plugins/Skills, Data Controls. |
 | Theme model | Light/dark/system top-level setting plus separate light/dark chrome themes and code theme IDs. | Named app presets with aliases for light/dark; one active appearance setting. | No per-variant theme persistence. | `Partial` | Add `appearanceTheme`, light/dark chrome theme objects, and light/dark code theme IDs with migration from existing presets. |
 | Custom colors | Editable accent, surface/background, ink/foreground, contrast, translucent/opaque window behavior, semantic colors. | One `customAccent`, preset palettes, density/sidebar/transcript toggles. | Customization is too shallow. | `Partial` | Add custom light/dark color editor for accent, surface, foreground, contrast, diff added/removed, skill/agent/status colors. |
@@ -345,6 +346,7 @@ This is the preferred implementation order. Each item should land as a small che
 | CP-014 | Theme import/export | Validated `codex-theme-v1:` import/export. | `Complete` | CP-012 and CP-013. | Settings smoke imports a valid `codex-theme-v1:` string and verifies sharing controls are present; parser validates variant, hex colors, contrast, and JSON shape. |
 | CP-015 | Settings taxonomy | Settings sections match the level of Codex polish without crowding normal preferences. | `Complete` | CP-012; capabilities surfaces. | Settings smoke verifies Appearance is grouped into Mode, Presets, Theme editor, Sharing, Typography, and Layout and reading. |
 | CP-016 | Pet/personalization polish | Packaged pets render cleanly and resize/state behavior matches Codex expectations where practical. | `Complete` | Current pet overlay. | Pet overlay smoke verifies compact corner-only resize affordance, hidden grip on normal mascot hover, visible grip on handle hover/focus, geometry bounds, and status mapping. |
+| CP-017 | Header thread identity | Compact header provenance without the old noisy status chip. | `Implemented` | Sidebar metadata, project/session state, provider/model state. | Inspector smoke now asserts the header environment icon, metadata line, and copy actions while preserving right-panel checks. |
 
 ### Next Polish Queue
 
@@ -699,6 +701,11 @@ When implementing against this plan:
 9. Commit at a stable checkpoint if the change is broad or user-facing.
 
 ## Decision Log
+
+### 2026-05-19
+
+- Header provenance checkpoint: the titlebar now shows a compact environment icon plus project/folder, branch when available, and provider/model metadata under the active chat title. The old idle/status chip stays removed; deeper thread actions live in the chat actions menu, which now includes copy folder path and copy session ID.
+- Verification passed for the header provenance checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, and `npm run smoke:ui:auto -- --inspector`; inspector smoke now asserts `headerIdentity` and `headerActionMenu`.
 
 ### 2026-05-18
 

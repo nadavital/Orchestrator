@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSessionStore } from '../store/sessions'
 import { useProjectStore } from '../store/projects'
 import type { AppProfile } from '../env'
+import { PROVIDER_DEFS } from '../types'
 import Icon from './shared/Icon'
 import SessionActionsMenu from './shared/SessionActionsMenu'
 import { ToolbarButton } from './shared/designSystem'
@@ -18,17 +19,38 @@ export default function Titlebar(): JSX.Element {
     setShowPlan,
     setShowSideQuestions
   } = useSessionStore()
-  const { removeSessionFromProject } = useProjectStore()
+  const { projects, removeSessionFromProject } = useProjectStore()
   const session = sessions.find((s) => s.id === activeSessionId)
+  const project = session ? projects.find((candidate) => candidate.id === session.projectId) : null
   const ui = activeSessionId
     ? (uiState[activeSessionId] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, hasUnread: false })
     : null
   const [profile, setProfile] = useState<AppProfile | null>(null)
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
+  const [branch, setBranch] = useState<string | null>(null)
 
   useEffect(() => {
     window.api.app.getProfile().then(setProfile).catch(() => setProfile(null))
   }, [])
+
+  useEffect(() => {
+    if (!session?.workDir) {
+      setBranch(null)
+      return
+    }
+    let cancelled = false
+    setBranch(null)
+    window.api.git.getCurrentBranch(session.workDir)
+      .then((nextBranch) => {
+        if (!cancelled) setBranch(nextBranch)
+      })
+      .catch(() => {
+        if (!cancelled) setBranch(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [session?.workDir])
 
   const inspectorOpen = Boolean(ui?.showDiff || ui?.showPlan || ui?.showEvents || ui?.showSideQuestions)
   const toggleInspector = (): void => {
@@ -52,11 +74,32 @@ export default function Titlebar(): JSX.Element {
     removeSessionFromProject(session.projectId, session.id)
   }
 
+  const provider = session ? PROVIDER_DEFS[session.provider] : null
+  const model = session && provider ? provider.models.find((candidate) => candidate.id === session.model) : null
+  const environment = session?.useWorktree
+    ? { icon: 'branch' as const, label: 'Worktree' }
+    : { icon: 'folder' as const, label: 'Local' }
+  const branchLabel = session ? branch ?? inferredWorktreeBranch(session) : null
+  const folderLabel = session
+    ? project
+      ? relativePath(project.rootPath, session.workDir)
+      : basename(session.workDir)
+    : null
+  const providerLabel = session
+    ? [provider?.name ?? session.provider, model?.label ?? session.model].filter(Boolean).join(' · ')
+    : null
+  const metadataParts = [
+    project?.name ?? 'No project',
+    folderLabel,
+    branchLabel ? `Branch ${branchLabel}` : null,
+    providerLabel
+  ].filter(Boolean)
+
   return (
     <div
       className="flex items-center shrink-0 w-full"
       style={{
-        height: 46,
+        height: 50,
         background: 'var(--surface-bg)',
         borderBottom: '1px solid var(--border-subtle)',
         userSelect: 'none',
@@ -68,18 +111,49 @@ export default function Titlebar(): JSX.Element {
         {session ? (
           <>
             <span
-              data-testid="active-session-title"
-              className="truncate"
-              style={{ color: 'var(--text-primary)', maxWidth: 520, fontSize: 15, fontWeight: 520 }}
-              title={session.name}
+              data-testid="session-header-environment"
+              title={environment.label}
+              aria-label={environment.label}
+              className="grid shrink-0 place-items-center"
+              style={{ color: 'var(--text-tertiary)', width: 18, height: 18 }}
             >
-              {session.name}
+              <Icon name={environment.icon} size={13} />
             </span>
-            {session.pinned && (
-              <span style={{ color: 'var(--text-tertiary)' }} title="Pinned">
-                <Icon name="pin" size={13} />
-              </span>
-            )}
+            <div className="flex min-w-0 flex-col">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span
+                  data-testid="active-session-title"
+                  className="truncate"
+                  style={{ color: 'var(--text-primary)', maxWidth: 520, fontSize: 14, fontWeight: 540, lineHeight: '18px' }}
+                  title={session.name}
+                >
+                  {session.name}
+                </span>
+                {session.pinned && (
+                  <span className="shrink-0" style={{ color: 'var(--text-tertiary)' }} title="Pinned">
+                    <Icon name="pin" size={12} />
+                  </span>
+                )}
+              </div>
+              <div
+                data-testid="session-header-metadata"
+                className="flex min-w-0 items-center gap-1 truncate text-[11px]"
+                style={{ color: 'var(--text-tertiary)', lineHeight: '14px', maxWidth: 680 }}
+                title={metadataParts.join(' · ')}
+              >
+                {metadataParts.map((part, index) => (
+                  <span
+                    key={`${part}-${index}`}
+                    data-testid={String(part).startsWith('Branch ') ? 'session-header-branch' : undefined}
+                    className="truncate"
+                    style={{ minWidth: index === 0 ? 0 : undefined }}
+                  >
+                    {index > 0 && <span aria-hidden="true">· </span>}
+                    {part}
+                  </span>
+                ))}
+              </div>
+            </div>
           </>
         ) : (
           <span style={{ color: 'var(--text-primary)', fontSize: 15, fontWeight: 520 }}>
@@ -149,4 +223,20 @@ export default function Titlebar(): JSX.Element {
       )}
     </div>
   )
+}
+
+function relativePath(rootPath: string, workDir: string): string {
+  const normalizedRoot = rootPath.replace(/\/+$/, '')
+  const normalizedWorkDir = workDir.replace(/\/+$/, '')
+  if (normalizedWorkDir === normalizedRoot) return basename(normalizedRoot)
+  if (normalizedWorkDir.startsWith(`${normalizedRoot}/`)) return `./${normalizedWorkDir.slice(normalizedRoot.length + 1)}`
+  return basename(workDir)
+}
+
+function basename(path: string): string {
+  return path.split('/').filter(Boolean).pop() ?? path
+}
+
+function inferredWorktreeBranch(session: { id: string; useWorktree?: boolean }): string | null {
+  return session.useWorktree ? `orchestrator/${session.id.slice(0, 8)}` : null
 }

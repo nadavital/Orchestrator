@@ -35,6 +35,11 @@ export default function SessionActionsMenu({
     onClose()
   }
 
+  const copyToClipboard = async (value: string): Promise<void> => {
+    await navigator.clipboard.writeText(value)
+    onClose()
+  }
+
   const remove = async (): Promise<void> => {
     if (!onRemove) return
     await onRemove(session)
@@ -49,7 +54,7 @@ export default function SessionActionsMenu({
         onClose={onClose}
         style={{
           left: Math.max(8, Math.min(x, window.innerWidth - 208)),
-          top: Math.max(8, Math.min(y, window.innerHeight - 146)),
+          top: Math.max(8, Math.min(y, window.innerHeight - 232)),
           width: 196,
           zIndex: 10000,
         }}
@@ -60,6 +65,9 @@ export default function SessionActionsMenu({
           label={session.pinned ? 'Unpin chat' : 'Pin chat'}
           onClick={() => void togglePinned()}
         />
+        <div style={{ height: 1, background: 'var(--border-subtle)', margin: '5px 3px' }} />
+        <MenuItem icon="copy" label="Copy folder path" onClick={() => void copyToClipboard(session.workDir)} />
+        <MenuItem icon="copy" label="Copy session ID" onClick={() => void copyToClipboard(session.id)} />
         {onRemove && (
           <>
             <div style={{ height: 1, background: 'var(--border-subtle)', margin: '5px 3px' }} />

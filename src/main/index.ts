@@ -259,6 +259,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
           }
           await sleep(100);
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
+            const chatActionsButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Chat actions');
+            if (chatActionsButton instanceof HTMLButtonElement) {
+              chatActionsButton.click();
+              await sleep(120);
+              var headerActionMenuWorks =
+                document.body.innerText.includes('Copy folder path') &&
+                document.body.innerText.includes('Copy session ID');
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+              await sleep(80);
+            }
+          }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets') {
             const settingsButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.trim() === 'Settings' || button.getAttribute('title') === 'Settings');
@@ -572,6 +585,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           }
           const bodyText = document.body.innerText;
           const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+          const headerMetadataText = document.querySelector('[data-testid="session-header-metadata"]')?.textContent ?? '';
+          const headerIdentityWorks =
+            Boolean(document.querySelector('[data-testid="session-header-environment"]')) &&
+            headerMetadataText.includes('Automated UI Smoke') &&
+            headerMetadataText.includes('Claude') &&
+            headerMetadataText.length > 'Automated UI Smoke'.length;
           const buttons = [...document.querySelectorAll('button')].map((button) => ({
             text: button.textContent?.trim() ?? '',
             title: button.getAttribute('title') ?? '',
@@ -594,6 +613,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               button.label === 'Resources' ||
               button.text.includes('Resources')
             ),
+            headerIdentityWorks,
+            headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
             hasInspectorTabs: bodyText.includes('Changes') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
             hasRightPanelState: rightPanel instanceof HTMLElement &&
               rightPanel.dataset.rightPanelActiveTab === 'diff' &&
