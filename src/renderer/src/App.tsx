@@ -368,7 +368,8 @@ export default function App(): JSX.Element {
         s.customAccent ?? '#0a7cff',
         s.interfaceScale ?? 1,
         s.uiFont ?? 'system',
-        s.monoFont ?? 'system'
+        s.monoFont ?? 'system',
+        s
       )
       const pm = (s as unknown as Record<string, unknown>).providerModels
       if (pm && typeof pm === 'object') setProviderModels(pm as Record<string, string[]>)
@@ -385,7 +386,8 @@ export default function App(): JSX.Element {
         s.customAccent ?? '#0a7cff',
         s.interfaceScale ?? 1,
         s.uiFont ?? 'system',
-        s.monoFont ?? 'system'
+        s.monoFont ?? 'system',
+        s
       ))
     }
     media.addEventListener('change', onSystemThemeChanged)

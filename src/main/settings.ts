@@ -17,6 +17,33 @@ interface AppSettings {
   interfaceScale: number
   uiFont: string
   monoFont: string
+  appearanceTheme: 'light' | 'dark' | 'system'
+  appearanceLightChromeTheme: ChromeTheme
+  appearanceDarkChromeTheme: ChromeTheme
+  appearanceLightCodeThemeId: string
+  appearanceDarkCodeThemeId: string
+  sansFontSize: number
+  codeFontSize: number
+  useFontSmoothing: boolean
+  usePointerCursors: boolean
+  reduceMotion: boolean
+}
+
+interface ChromeTheme {
+  accent: string
+  surface: string
+  ink: string
+  contrast: number
+  opaqueWindows: boolean
+  fonts?: {
+    ui?: string
+    code?: string
+  }
+  semanticColors?: {
+    diffAdded?: string
+    diffRemoved?: string
+    skill?: string
+  }
 }
 
 migrateLegacyUserData()
@@ -39,5 +66,37 @@ export const settingsStore = new Store<AppSettings>({
     interfaceScale: 1,
     uiFont: 'system',
     monoFont: 'system',
+    appearanceTheme: 'system',
+    appearanceLightChromeTheme: {
+      accent: '#0a7cff',
+      surface: '#ffffff',
+      ink: '#111111',
+      contrast: 45,
+      opaqueWindows: false,
+      semanticColors: {
+        diffAdded: '#13a355',
+        diffRemoved: '#dc2f2f',
+        skill: '#7c3aed'
+      }
+    },
+    appearanceDarkChromeTheme: {
+      accent: '#8ab4f8',
+      surface: '#20222a',
+      ink: '#f3f3f0',
+      contrast: 58,
+      opaqueWindows: true,
+      semanticColors: {
+        diffAdded: '#36c172',
+        diffRemoved: '#ff5f5f',
+        skill: '#a78bfa'
+      }
+    },
+    appearanceLightCodeThemeId: 'github-light',
+    appearanceDarkCodeThemeId: 'github-dark',
+    sansFontSize: 13,
+    codeFontSize: 13,
+    useFontSmoothing: true,
+    usePointerCursors: true,
+    reduceMotion: false,
   }
 })

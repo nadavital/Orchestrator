@@ -19,6 +19,33 @@ export interface AppSettings {
   interfaceScale: number
   uiFont: string
   monoFont: string
+  appearanceTheme: 'light' | 'dark' | 'system'
+  appearanceLightChromeTheme: ChromeTheme
+  appearanceDarkChromeTheme: ChromeTheme
+  appearanceLightCodeThemeId: string
+  appearanceDarkCodeThemeId: string
+  sansFontSize: number
+  codeFontSize: number
+  useFontSmoothing: boolean
+  usePointerCursors: boolean
+  reduceMotion: boolean
+}
+
+export interface ChromeTheme {
+  accent: string
+  surface: string
+  ink: string
+  contrast: number
+  opaqueWindows: boolean
+  fonts?: {
+    ui?: string
+    code?: string
+  }
+  semanticColors?: {
+    diffAdded?: string
+    diffRemoved?: string
+    skill?: string
+  }
 }
 
 export interface AppProfile {

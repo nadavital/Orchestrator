@@ -19,6 +19,7 @@ export default function TerminalView({ terminalId, workDir }: Props): JSX.Elemen
     const bg = vars.getPropertyValue('--surface-bg').trim() || '#ffffff'
     const fg = vars.getPropertyValue('--text-primary').trim() || '#111111'
     const accent = vars.getPropertyValue('--color-accent').trim() || '#8ab4f8'
+    const codeFontSize = Number.parseFloat(vars.getPropertyValue('--font-code-size')) || 13
     const term = new Terminal({
       theme: {
         background: bg,
@@ -27,7 +28,7 @@ export default function TerminalView({ terminalId, workDir }: Props): JSX.Elemen
         selectionBackground: vars.getPropertyValue('--accent-bg').trim() || 'rgba(10,124,255,0.16)'
       },
       fontFamily: "'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace",
-      fontSize: 13,
+      fontSize: codeFontSize,
       lineHeight: 1.45,
       scrollback: 5000,
       cursorBlink: true,

@@ -7,6 +7,8 @@
     --font-mono-custom: 'SF Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
     --font-ui: var(--font-ui-custom);
     --font-mono: var(--font-mono-custom);
+    --font-ui-size: 13px;
+    --font-code-size: 13px;
     --interface-scale: 1;
 
     --radius-xs: 4px;
@@ -80,6 +82,16 @@
     --color-green: var(--state-success);
     --color-red: var(--state-danger);
     --color-yellow: var(--state-warning);
+    --color-token-main-surface-primary: var(--canvas-bg);
+    --color-token-main-surface-secondary: var(--surface-bg);
+    --color-token-bg-secondary: var(--surface-bg-raised);
+    --color-token-border-default: var(--border-subtle);
+    --color-token-border-strong: var(--border-strong);
+    --color-token-text-primary: var(--text-primary);
+    --color-token-text-secondary: var(--text-secondary);
+    --color-token-text-tertiary: var(--text-tertiary);
+    --color-token-accent: var(--accent);
+    --color-token-accent-surface: var(--accent-bg);
     color-scheme: light;
   }
 
@@ -232,7 +244,7 @@
     background: transparent;
     color: var(--color-text);
     font-family: var(--font-ui);
-    font-size: calc(13px * var(--interface-scale));
+    font-size: calc(var(--font-ui-size) * var(--interface-scale));
     line-height: 1.5;
     user-select: none;
     overflow: hidden;
