@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { createServer } from 'http'
 import { join, resolve } from 'path'
 import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
@@ -46,6 +47,8 @@ const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captur
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
+let browserSmokeServer = null
+let browserSmokeUrl = ''
 
 rmSync(userDataDir, { recursive: true, force: true })
 mkdirSync(userDataDir, { recursive: true })
@@ -74,6 +77,15 @@ if (captureView === 'inspector') {
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\nafter review\n')
   writeFileSync(join(workspaceDir, 'review-new.txt'), 'new review file\n')
   rmSync(join(workspaceDir, 'review-delete.txt'), { force: true })
+  browserSmokeServer = createServer((_, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end('<!doctype html><title>Orchestrator Browser Smoke</title><main><h1>Browser smoke page</h1><p>Loaded inside the side panel.</p></main>')
+  })
+  await new Promise((resolveServer) => {
+    browserSmokeServer.listen(0, '127.0.0.1', resolveServer)
+  })
+  const address = browserSmokeServer.address()
+  if (address && typeof address === 'object') browserSmokeUrl = `http://127.0.0.1:${address.port}`
 }
 
 const launch = runPackaged ? packagedLaunchCommand() : {
@@ -92,7 +104,8 @@ const child = spawn(launch.bin, launch.args, {
     ORCHESTRATOR_FORCE_REDUCED_MOTION: captureView === 'motion-reduced' ? '1' : process.env.ORCHESTRATOR_FORCE_REDUCED_MOTION,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT: outputPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_SCREENSHOT: screenshotPath,
-    ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW: captureView
+    ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW: captureView,
+    ORCHESTRATOR_BROWSER_SMOKE_URL: browserSmokeUrl
   },
   stdio: ['ignore', 'pipe', 'pipe']
 })
@@ -109,6 +122,7 @@ const timeout = setTimeout(() => {
 }, 45_000)
 
 child.on('exit', (code) => {
+  browserSmokeServer?.close()
   clearTimeout(timeout)
   if (!existsSync(outputPath)) {
     console.error('Automated UI smoke did not produce an output file.')
@@ -286,6 +300,8 @@ child.on('exit', (code) => {
         reviewSearch: captureView !== 'inspector' || result.reviewSearchWorks === true,
         filesTabSearch: captureView !== 'inspector' || result.filesTabSearchWorks === true,
         filesTabAttach: captureView !== 'inspector' || result.filesTabAttachWorks === true,
+        browserTab: captureView !== 'inspector' || result.browserTabWorks === true,
+        browserScreenshot: captureView !== 'inspector' || result.browserScreenshotWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,

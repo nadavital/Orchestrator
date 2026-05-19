@@ -1,9 +1,12 @@
 import {
   AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   BarChart3,
   BookOpen,
   Boxes,
+  Camera,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -17,6 +20,7 @@ import {
   Folder,
   GitBranch,
   GitCompare,
+  Globe,
   Keyboard,
   ListChecks,
   Menu,
@@ -27,6 +31,7 @@ import {
   Plug,
   Plus,
   RotateCw,
+  ExternalLink,
   Send,
   Settings,
   Sparkles,
@@ -39,8 +44,12 @@ import {
 
 export type IconName =
   | 'agents'
+  | 'arrowLeft'
+  | 'arrowRight'
   | 'arrowUp'
   | 'book'
+  | 'browser'
+  | 'camera'
   | 'branch'
   | 'chat'
   | 'check'
@@ -55,6 +64,7 @@ export type IconName =
   | 'ellipsis'
   | 'diff'
   | 'extensions'
+  | 'external'
   | 'file'
   | 'folder'
   | 'keyboard'
@@ -76,8 +86,12 @@ export type IconName =
 
 const icons: Record<IconName, LucideIcon> = {
   agents: Users,
+  arrowLeft: ArrowLeft,
+  arrowRight: ArrowRight,
   arrowUp: ArrowUp,
   book: BookOpen,
+  browser: Globe,
+  camera: Camera,
   branch: GitBranch,
   chat: MessageSquare,
   check: Check,
@@ -92,6 +106,7 @@ const icons: Record<IconName, LucideIcon> = {
   ellipsis: Ellipsis,
   diff: GitCompare,
   extensions: Boxes,
+  external: ExternalLink,
   file: File,
   folder: Folder,
   keyboard: Keyboard,

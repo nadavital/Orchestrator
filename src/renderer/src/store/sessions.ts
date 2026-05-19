@@ -3,7 +3,7 @@ import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermi
 import { nextPinOrder } from '../types'
 
 export type SettingsSection = 'general' | 'appearance' | 'providers' | 'shortcuts' | 'pets'
-export type RightPanelTabId = 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files'
+export type RightPanelTabId = 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser'
 
 export interface RightPanelTabState {
   id: RightPanelTabId
@@ -39,6 +39,7 @@ interface SessionUIState {
   activeAgentId?: string | null
   agentTabIds?: string[]
   sideQuestions?: SideQuestionMessage[]
+  browserUrl?: string
   rightPanel?: RightPanelState
 }
 
@@ -92,6 +93,7 @@ interface SessionState {
   setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
   openRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   closeRightPanelTab: (id: string, tabId: RightPanelTabId) => void
+  setRightPanelBrowserUrl: (id: string, url: string) => void
   closeRightPanel: (id: string) => void
   setHasUnread: (id: string, v: boolean) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
@@ -118,6 +120,7 @@ const defaultUI: SessionUIState = {
   activeAgentId: null,
   agentTabIds: [],
   sideQuestions: [],
+  browserUrl: '',
   rightPanel: {
     open: false,
     width: 468,
@@ -462,6 +465,20 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
     }),
 
+  setRightPanelBrowserUrl: (id, url) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            browserUrl: url
+          }
+        }
+      }
+    }),
+
   closeRightPanel: (id) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
@@ -549,7 +566,8 @@ const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabId, string> = {
   agents: 'Agents',
   extensions: 'Extensions',
   side: 'Side',
-  files: 'Files'
+  files: 'Files',
+  browser: 'Browser'
 }
 
 function ensureRightPanel(panel?: RightPanelState): RightPanelState {

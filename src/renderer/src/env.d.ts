@@ -120,6 +120,9 @@ declare global {
         isGitRepo: (dir: string) => Promise<boolean>
         getCurrentBranch: (dir: string) => Promise<string | null>
       }
+      browser: {
+        openExternal: (url: string) => Promise<void>
+      }
       providers: {
         getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>
         getManifest: () => Promise<Record<string, ProviderManifest>>

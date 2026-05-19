@@ -164,7 +164,8 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      contextIsolation: true
+      contextIsolation: true,
+      webviewTag: true
     }
   })
 
@@ -371,6 +372,32 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var filesTabAttachWorks =
               [...document.querySelectorAll('.attachment-pill')]
                 .some((attachment) => attachment.textContent?.includes('nested note.md'));
+            const browserButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Open browser');
+            if (browserButton instanceof HTMLButtonElement) {
+              browserButton.click();
+              await sleep(260);
+            }
+            const browserInput = document.querySelector('[data-testid="browser-url-input"]');
+            if (browserInput instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(browserInput.constructor.prototype, 'value')?.set;
+              setter?.call(browserInput, ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')});
+              browserInput.dispatchEvent(new Event('input', { bubbles: true }));
+              browserInput.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+              await sleep(1200);
+            }
+            const browserWebview = document.querySelector('[data-testid="browser-webview"]');
+            const captureBrowserButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Capture screenshot');
+            if (captureBrowserButton instanceof HTMLButtonElement) {
+              captureBrowserButton.click();
+              await sleep(500);
+            }
+            var browserTabWorks =
+              browserWebview instanceof HTMLElement &&
+              typeof browserWebview.getAttribute === 'function' &&
+              document.body.innerText.includes('Orchestrator Browser Smoke');
+            var browserScreenshotWorks = Boolean(document.querySelector('[data-testid="browser-screenshot-preview"]'));
             const changesTabButton = document.querySelector('[data-tab-id="diff"]')?.closest('button');
             if (changesTabButton instanceof HTMLButtonElement) {
               changesTabButton.click();
@@ -502,6 +529,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
+            browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
+            browserScreenshotWorks: typeof browserScreenshotWorks === 'boolean' ? browserScreenshotWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),

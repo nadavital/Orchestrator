@@ -184,6 +184,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('git:isGitRepo', (_, dir: string) => gitManager.isGitRepo(dir))
   ipcMain.handle('git:getCurrentBranch', (_, dir: string) => gitManager.getCurrentBranch(dir))
 
+  // Browser side panel
+  ipcMain.handle('browser:openExternal', (_, url: string): Promise<void> => shell.openExternal(url))
+
   // App settings
   ipcMain.handle('settings:get', () => settingsStore.store)
   ipcMain.handle('settings:set', (_, key: string, value: unknown) => {

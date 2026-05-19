@@ -131,6 +131,10 @@ const api = {
     getCurrentBranch: (dir: string): Promise<string | null> => ipcRenderer.invoke('git:getCurrentBranch', dir)
   },
 
+  browser: {
+    openExternal: (url: string): Promise<void> => ipcRenderer.invoke('browser:openExternal', url)
+  },
+
   providers: {
     getRuntimeInfo: (): Promise<Record<string, ProviderRuntimeInfo>> =>
       ipcRenderer.invoke('providers:getRuntimeInfo'),

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSessionStore } from '../../store/sessions'
 import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
+import BrowserPanel from './BrowserPanel'
 import DiffPanel from './DiffPanel'
 import EventInspectorPanel from './EventInspectorPanel'
 import ExtensionsPanel from './ExtensionsPanel'
@@ -12,7 +13,7 @@ import { MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../sha
 import { deriveSessionAgentNodes } from './agentNodes'
 import Icon, { type IconName } from '../shared/Icon'
 
-export type ContextTab = 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files'
+export type ContextTab = 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser'
 
 interface Props {
   session: Session
@@ -42,6 +43,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     setRightPanelFullWidth,
     openRightPanelTab,
     closeRightPanelTab,
+    setRightPanelBrowserUrl,
     closeRightPanel
   } = useSessionStore()
   const [isResizing, setIsResizing] = useState(false)
@@ -64,8 +66,10 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   const hasLiveAgent = agents.some(isLiveAgent)
   const hasSideQuestions = (ui?.sideQuestions?.length ?? 0) > 0
   const hasFilesTab = rightPanel?.tabs.some((tab) => tab.id === 'files') ?? false
+  const hasBrowserTab = rightPanel?.tabs.some((tab) => tab.id === 'browser') ?? false
   const tabs: ContextTabSpec[] = [
     ...(ui?.showDiff ? [{ id: 'diff' as const, label: 'Changes', icon: 'diff' as const }] : []),
+    ...(hasBrowserTab ? [{ id: 'browser' as const, label: 'Browser', icon: 'browser' as const }] : []),
     ...(hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : []),
     ...(hasPlan ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }] : []),
     ...((hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length }] : []),
@@ -94,8 +98,8 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   }, [])
 
   const activate = (tab: ContextTab): void => {
-    if (tab === 'files') {
-      openRightPanelTab(session.id, 'files')
+    if (tab === 'files' || tab === 'browser') {
+      openRightPanelTab(session.id, tab)
       return
     }
     setShowPlan(session.id, tab === 'plan')
@@ -111,6 +115,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       return
     }
     if (tab === 'files') closeRightPanelTab(session.id, 'files')
+    if (tab === 'browser') closeRightPanelTab(session.id, 'browser')
     if (tab === 'plan' || !tab) setShowPlan(session.id, false)
     if (tab === 'diff' || !tab) setShowDiff(session.id, false)
     if (tab === 'agents' || !tab) setShowEvents(session.id, false)
@@ -198,6 +203,12 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           ))}
         </div>
         <ToolbarButton
+          icon="browser"
+          label="Open browser"
+          active={effectiveTab === 'browser'}
+          onClick={() => openRightPanelTab(session.id, 'browser')}
+        />
+        <ToolbarButton
           icon="folder"
           label="Open files"
           active={effectiveTab === 'files'}
@@ -221,6 +232,13 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         )}
         {effectiveTab === 'extensions' && (
           <ExtensionsPanel provider={session.provider ?? 'claude'} workDir={session.workDir} embedded />
+        )}
+        {effectiveTab === 'browser' && (
+          <BrowserPanel
+            embedded
+            initialUrl={ui?.browserUrl ?? ''}
+            onUrlChange={(url) => setRightPanelBrowserUrl(session.id, url)}
+          />
         )}
         {effectiveTab === 'files' && <FilesPanel workDir={session.workDir} embedded />}
         {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} workDir={session.workDir} embedded />}
