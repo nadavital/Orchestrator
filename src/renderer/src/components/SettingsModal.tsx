@@ -34,9 +34,25 @@ import {
   StatusPill,
   SwitchControl
 } from './shared/designSystem'
-import { applyAppearance, type Accent, type Appearance, type Density, type TranscriptStyle } from '../theme'
+import { applyAppearance, type Accent, type Appearance, type AppearanceTheme, type ChromeTheme, type Density, type TranscriptStyle } from '../theme'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+
+const defaultLightChromeTheme: ChromeTheme = {
+  accent: '#0a7cff',
+  surface: '#ffffff',
+  ink: '#111111',
+  contrast: 45,
+  opaqueWindows: false
+}
+
+const defaultDarkChromeTheme: ChromeTheme = {
+  accent: '#8ab4f8',
+  surface: '#20222a',
+  ink: '#f3f3f0',
+  contrast: 58,
+  opaqueWindows: true
+}
 
 interface Props {
   section: SettingsSection
@@ -63,6 +79,16 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [interfaceScale, setInterfaceScale] = useState(1)
   const [uiFont, setUiFont] = useState('system')
   const [monoFont, setMonoFont] = useState('system')
+  const [appearanceTheme, setAppearanceTheme] = useState<AppearanceTheme>('system')
+  const [lightChromeTheme, setLightChromeTheme] = useState<ChromeTheme>(defaultLightChromeTheme)
+  const [darkChromeTheme, setDarkChromeTheme] = useState<ChromeTheme>(defaultDarkChromeTheme)
+  const [lightCodeThemeId, setLightCodeThemeId] = useState('github-light')
+  const [darkCodeThemeId, setDarkCodeThemeId] = useState('github-dark')
+  const [sansFontSize, setSansFontSize] = useState(13)
+  const [codeFontSize, setCodeFontSize] = useState(13)
+  const [useFontSmoothing, setUseFontSmoothing] = useState(true)
+  const [usePointerCursors, setUsePointerCursors] = useState(true)
+  const [reduceMotion, setReduceMotion] = useState(false)
 
   useEffect(() => {
     window.api.settings.get().then((s) => {
@@ -82,6 +108,16 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       setInterfaceScale((rec.interfaceScale as number) ?? 1)
       setUiFont((rec.uiFont as string) ?? 'system')
       setMonoFont((rec.monoFont as string) ?? 'system')
+      setAppearanceTheme((rec.appearanceTheme as AppearanceTheme) ?? 'system')
+      setLightChromeTheme(normalizeChromeTheme(rec.appearanceLightChromeTheme, defaultLightChromeTheme))
+      setDarkChromeTheme(normalizeChromeTheme(rec.appearanceDarkChromeTheme, defaultDarkChromeTheme))
+      setLightCodeThemeId((rec.appearanceLightCodeThemeId as string) ?? 'github-light')
+      setDarkCodeThemeId((rec.appearanceDarkCodeThemeId as string) ?? 'github-dark')
+      setSansFontSize((rec.sansFontSize as number) ?? 13)
+      setCodeFontSize((rec.codeFontSize as number) ?? 13)
+      setUseFontSmoothing((rec.useFontSmoothing as boolean | undefined) ?? true)
+      setUsePointerCursors((rec.usePointerCursors as boolean | undefined) ?? true)
+      setReduceMotion((rec.reduceMotion as boolean | undefined) ?? false)
     })
     window.api.providers.getRuntimeInfo().then(setProviderRuntime)
   }, [])
@@ -129,6 +165,83 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const savePreferredEditor = (value: PreferredEditor): void => {
     setPreferredEditor(value)
     window.api.settings.set('preferredEditor', value)
+  }
+
+  const buildAppearanceModel = (overrides: Partial<{
+    appearanceTheme: AppearanceTheme
+    lightChromeTheme: ChromeTheme
+    darkChromeTheme: ChromeTheme
+    lightCodeThemeId: string
+    darkCodeThemeId: string
+    sansFontSize: number
+    codeFontSize: number
+    useFontSmoothing: boolean
+    usePointerCursors: boolean
+    reduceMotion: boolean
+  }> = {}) => ({
+    appearanceTheme: overrides.appearanceTheme ?? appearanceTheme,
+    appearanceLightChromeTheme: overrides.lightChromeTheme ?? lightChromeTheme,
+    appearanceDarkChromeTheme: overrides.darkChromeTheme ?? darkChromeTheme,
+    appearanceLightCodeThemeId: overrides.lightCodeThemeId ?? lightCodeThemeId,
+    appearanceDarkCodeThemeId: overrides.darkCodeThemeId ?? darkCodeThemeId,
+    sansFontSize: overrides.sansFontSize ?? sansFontSize,
+    codeFontSize: overrides.codeFontSize ?? codeFontSize,
+    useFontSmoothing: overrides.useFontSmoothing ?? useFontSmoothing,
+    usePointerCursors: overrides.usePointerCursors ?? usePointerCursors,
+    reduceMotion: overrides.reduceMotion ?? reduceMotion
+  })
+
+  const applyAppearanceModel = (overrides?: Parameters<typeof buildAppearanceModel>[0]): void => {
+    applyAppearance(
+      appearance,
+      accent,
+      density,
+      sidebarTint,
+      transcriptStyle,
+      customAccent,
+      interfaceScale,
+      uiFont,
+      monoFont,
+      buildAppearanceModel(overrides)
+    )
+  }
+
+  const saveAppearanceTheme = (value: AppearanceTheme): void => {
+    setAppearanceTheme(value)
+    applyAppearanceModel({ appearanceTheme: value })
+    window.api.settings.set('appearanceTheme', value)
+  }
+
+  const saveChromeTheme = (variant: 'light' | 'dark', nextTheme: ChromeTheme): void => {
+    if (variant === 'light') {
+      setLightChromeTheme(nextTheme)
+      applyAppearanceModel({ lightChromeTheme: nextTheme })
+      window.api.settings.set('appearanceLightChromeTheme', nextTheme)
+    } else {
+      setDarkChromeTheme(nextTheme)
+      applyAppearanceModel({ darkChromeTheme: nextTheme })
+      window.api.settings.set('appearanceDarkChromeTheme', nextTheme)
+    }
+  }
+
+  const saveThemeFontSize = (kind: 'ui' | 'code', value: number): void => {
+    if (kind === 'ui') {
+      setSansFontSize(value)
+      applyAppearanceModel({ sansFontSize: value })
+      window.api.settings.set('sansFontSize', value)
+    } else {
+      setCodeFontSize(value)
+      applyAppearanceModel({ codeFontSize: value })
+      window.api.settings.set('codeFontSize', value)
+    }
+  }
+
+  const saveThemeToggle = (key: 'useFontSmoothing' | 'usePointerCursors' | 'reduceMotion', value: boolean): void => {
+    if (key === 'useFontSmoothing') setUseFontSmoothing(value)
+    if (key === 'usePointerCursors') setUsePointerCursors(value)
+    if (key === 'reduceMotion') setReduceMotion(value)
+    applyAppearanceModel({ [key]: value })
+    window.api.settings.set(key, value)
   }
 
   const saveAppearance = (value: Appearance): void => {
@@ -240,6 +353,14 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               interfaceScale={interfaceScale}
               uiFont={uiFont}
               monoFont={monoFont}
+              appearanceTheme={appearanceTheme}
+              lightChromeTheme={lightChromeTheme}
+              darkChromeTheme={darkChromeTheme}
+              sansFontSize={sansFontSize}
+              codeFontSize={codeFontSize}
+              useFontSmoothing={useFontSmoothing}
+              usePointerCursors={usePointerCursors}
+              reduceMotion={reduceMotion}
               onSetAppearance={saveAppearance}
               onSetAccent={saveAccent}
               onSetDensity={saveDensity}
@@ -249,6 +370,10 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               onSetInterfaceScale={saveInterfaceScale}
               onSetUiFont={saveUiFont}
               onSetMonoFont={saveMonoFont}
+              onSetAppearanceTheme={saveAppearanceTheme}
+              onSetChromeTheme={saveChromeTheme}
+              onSetThemeFontSize={saveThemeFontSize}
+              onSetThemeToggle={saveThemeToggle}
             />
           )}
           {section === 'pets' && <PetsSection />}
@@ -290,6 +415,21 @@ function normalizePreferredEditor(value: unknown): PreferredEditor {
   return value === 'vscode' || value === 'vscode-insiders' || value === 'cursor' || value === 'zed'
     ? value
     : 'system'
+}
+
+function normalizeChromeTheme(value: unknown, fallback: ChromeTheme): ChromeTheme {
+  if (!value || typeof value !== 'object') return fallback
+  const record = value as Partial<ChromeTheme>
+  return {
+    ...fallback,
+    accent: typeof record.accent === 'string' ? record.accent : fallback.accent,
+    surface: typeof record.surface === 'string' ? record.surface : fallback.surface,
+    ink: typeof record.ink === 'string' ? record.ink : fallback.ink,
+    contrast: typeof record.contrast === 'number' ? record.contrast : fallback.contrast,
+    opaqueWindows: typeof record.opaqueWindows === 'boolean' ? record.opaqueWindows : fallback.opaqueWindows,
+    fonts: record.fonts,
+    semanticColors: record.semanticColors
+  }
 }
 
 // ─── General section (app-wide) ───────────────────────────────────────────────
@@ -347,6 +487,14 @@ function AppearanceSection({
   interfaceScale,
   uiFont,
   monoFont,
+  appearanceTheme,
+  lightChromeTheme,
+  darkChromeTheme,
+  sansFontSize,
+  codeFontSize,
+  useFontSmoothing,
+  usePointerCursors,
+  reduceMotion,
   onSetAppearance,
   onSetAccent,
   onSetDensity,
@@ -356,6 +504,10 @@ function AppearanceSection({
   onSetInterfaceScale,
   onSetUiFont,
   onSetMonoFont,
+  onSetAppearanceTheme,
+  onSetChromeTheme,
+  onSetThemeFontSize,
+  onSetThemeToggle,
 }: {
   appearance: Appearance
   accent: Accent
@@ -366,6 +518,14 @@ function AppearanceSection({
   interfaceScale: number
   uiFont: string
   monoFont: string
+  appearanceTheme: AppearanceTheme
+  lightChromeTheme: ChromeTheme
+  darkChromeTheme: ChromeTheme
+  sansFontSize: number
+  codeFontSize: number
+  useFontSmoothing: boolean
+  usePointerCursors: boolean
+  reduceMotion: boolean
   onSetAppearance: (value: Appearance) => void
   onSetAccent: (value: Accent) => void
   onSetDensity: (value: Density) => void
@@ -375,6 +535,10 @@ function AppearanceSection({
   onSetInterfaceScale: (value: number) => void
   onSetUiFont: (value: string) => void
   onSetMonoFont: (value: string) => void
+  onSetAppearanceTheme: (value: AppearanceTheme) => void
+  onSetChromeTheme: (variant: 'light' | 'dark', value: ChromeTheme) => void
+  onSetThemeFontSize: (kind: 'ui' | 'code', value: number) => void
+  onSetThemeToggle: (key: 'useFontSmoothing' | 'usePointerCursors' | 'reduceMotion', value: boolean) => void
 }): JSX.Element {
   const appearanceOptions: Array<{ id: Appearance; label: string; desc: string }> = [
     { id: 'system', label: 'System', desc: 'Follow macOS' },
@@ -400,6 +564,11 @@ function AppearanceSection({
     { id: 'relaxed', label: 'Relaxed', desc: 'Readable chat rhythm' },
     { id: 'dense', label: 'Dense', desc: 'Tighter transcript spacing' }
   ]
+  const themeOptions: Array<{ id: AppearanceTheme; label: string; desc: string }> = [
+    { id: 'system', label: 'System', desc: 'Follow macOS' },
+    { id: 'light', label: 'Light', desc: 'Use light chrome' },
+    { id: 'dark', label: 'Dark', desc: 'Use dark chrome' }
+  ]
   const fontOptions = [
     { id: 'system', label: 'System', desc: 'Native macOS text' },
     { id: 'rounded', label: 'Rounded', desc: 'Softer interface tone' },
@@ -409,6 +578,10 @@ function AppearanceSection({
     { id: 'system', label: 'System mono', desc: 'SF Mono where available' },
     { id: 'mono', label: 'Developer mono', desc: 'Code-first stack' }
   ]
+  const updateChrome = (variant: 'light' | 'dark', patch: Partial<ChromeTheme>): void => {
+    const current = variant === 'light' ? lightChromeTheme : darkChromeTheme
+    onSetChromeTheme(variant, { ...current, ...patch })
+  }
   return (
     <div style={{ padding: '30px 44px 56px', maxWidth: 960, margin: '0 auto' }}>
       <SettingsIntro
@@ -429,6 +602,17 @@ function AppearanceSection({
               />
             )
           })}
+        </div>
+      </SettingGroup>
+
+      <SettingGroup title="Theme model" description="Codex-style light, dark, and system theme selection.">
+        <SegmentedChoice items={themeOptions} value={appearanceTheme} onChange={onSetAppearanceTheme} />
+      </SettingGroup>
+
+      <SettingGroup title="Custom colors" description="Tune chrome colors independently for light and dark variants.">
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+          <ChromeThemeEditor title="Light chrome" variant="light" theme={lightChromeTheme} onChange={updateChrome} />
+          <ChromeThemeEditor title="Dark chrome" variant="dark" theme={darkChromeTheme} onChange={updateChrome} />
         </div>
       </SettingGroup>
 
@@ -491,6 +675,30 @@ function AppearanceSection({
               onChange={(event) => onSetInterfaceScale(Number(event.currentTarget.value))}
             />
           </label>
+          <label style={{ display: 'grid', gap: 6, color: 'var(--text-secondary)', fontSize: 12 }}>
+            UI font size
+            <input
+              data-testid="appearance-ui-font-size"
+              type="range"
+              min="11"
+              max="18"
+              step="1"
+              value={sansFontSize}
+              onChange={(event) => onSetThemeFontSize('ui', Number(event.currentTarget.value))}
+            />
+          </label>
+          <label style={{ display: 'grid', gap: 6, color: 'var(--text-secondary)', fontSize: 12 }}>
+            Code font size
+            <input
+              data-testid="appearance-code-font-size"
+              type="range"
+              min="11"
+              max="18"
+              step="1"
+              value={codeFontSize}
+              onChange={(event) => onSetThemeFontSize('code', Number(event.currentTarget.value))}
+            />
+          </label>
         </div>
       </SettingGroup>
 
@@ -519,9 +727,143 @@ function AppearanceSection({
             </span>
             <Switch checked={sidebarTint} onChange={onSetSidebarTint} />
           </label>
+          <PreferenceToggle
+            title="Font smoothing"
+            description="Use antialiased interface and code text."
+            checked={useFontSmoothing}
+            onChange={(value) => onSetThemeToggle('useFontSmoothing', value)}
+          />
+          <PreferenceToggle
+            title="Pointer cursors"
+            description="Use hand cursors for interactive controls."
+            checked={usePointerCursors}
+            onChange={(value) => onSetThemeToggle('usePointerCursors', value)}
+          />
+          <PreferenceToggle
+            title="Reduce motion"
+            description="Prefer shorter transitions in app chrome."
+            checked={reduceMotion}
+            onChange={(value) => onSetThemeToggle('reduceMotion', value)}
+          />
         </div>
       </SettingGroup>
     </div>
+  )
+}
+
+function ChromeThemeEditor({
+  title,
+  variant,
+  theme,
+  onChange
+}: {
+  title: string
+  variant: 'light' | 'dark'
+  theme: ChromeTheme
+  onChange: (variant: 'light' | 'dark', patch: Partial<ChromeTheme>) => void
+}): JSX.Element {
+  return (
+    <div
+      data-testid={`appearance-${variant}-chrome-editor`}
+      style={{
+        display: 'grid',
+        gap: 12,
+        padding: 14,
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--border-subtle)',
+        background: 'var(--surface-bg)'
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--text-primary)' }}>{title}</div>
+      <ColorInput label="Accent" value={theme.accent} onChange={(value) => onChange(variant, { accent: value })} />
+      <ColorInput label="Background" value={theme.surface} onChange={(value) => onChange(variant, { surface: value })} />
+      <ColorInput label="Foreground" value={theme.ink} onChange={(value) => onChange(variant, { ink: value })} />
+      <ColorInput
+        label="Diff added"
+        value={theme.semanticColors?.diffAdded ?? '#13a355'}
+        onChange={(value) => onChange(variant, { semanticColors: { ...theme.semanticColors, diffAdded: value } })}
+      />
+      <ColorInput
+        label="Diff removed"
+        value={theme.semanticColors?.diffRemoved ?? '#dc2f2f'}
+        onChange={(value) => onChange(variant, { semanticColors: { ...theme.semanticColors, diffRemoved: value } })}
+      />
+      <ColorInput
+        label="Skill"
+        value={theme.semanticColors?.skill ?? '#7c3aed'}
+        onChange={(value) => onChange(variant, { semanticColors: { ...theme.semanticColors, skill: value } })}
+      />
+      <label style={{ display: 'grid', gap: 6, color: 'var(--text-secondary)', fontSize: 12 }}>
+        Contrast
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value={theme.contrast}
+          onChange={(event) => onChange(variant, { contrast: Number(event.currentTarget.value) })}
+        />
+      </label>
+      <PreferenceToggle
+        title="Opaque windows"
+        description="Use solid chrome instead of translucent sidebar material."
+        checked={theme.opaqueWindows}
+        onChange={(value) => onChange(variant, { opaqueWindows: value })}
+      />
+    </div>
+  )
+}
+
+function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }): JSX.Element {
+  return (
+    <label className="flex items-center justify-between gap-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
+      <span>{label}</span>
+      <input
+        type="color"
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        style={{
+          width: 34,
+          height: 28,
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)',
+          background: 'transparent'
+        }}
+      />
+    </label>
+  )
+}
+
+function PreferenceToggle({
+  title,
+  description,
+  checked,
+  onChange
+}: {
+  title: string
+  description: string
+  checked: boolean
+  onChange: (value: boolean) => void
+}): JSX.Element {
+  return (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '12px 14px',
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--border-subtle)',
+        background: 'var(--surface-bg)'
+      }}
+    >
+      <span>
+        <span style={{ display: 'block', fontSize: 13, fontWeight: 650, color: 'var(--text-primary)' }}>{title}</span>
+        <span style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{description}</span>
+      </span>
+      <Switch checked={checked} onChange={onChange} />
+    </label>
   )
 }
 
