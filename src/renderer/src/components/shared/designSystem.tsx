@@ -331,12 +331,14 @@ export function TabButton({
   active,
   onClick,
   onClose,
+  onContextMenu,
   closeLabel,
 }: {
   children: ReactNode
   active: boolean
   onClick: () => void
   onClose?: () => void
+  onContextMenu?: (event: React.MouseEvent) => void
   closeLabel?: string
 }): JSX.Element {
   return (
@@ -345,6 +347,7 @@ export function TabButton({
       data-active={active ? 'true' : 'false'}
       className="motion-tab-button"
       onClick={onClick}
+      onContextMenu={onContextMenu}
     >
       <span className="min-w-0 truncate">{children}</span>
       {active && onClose && (

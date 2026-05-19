@@ -480,6 +480,33 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               typeof browserWebview.getAttribute === 'function' &&
               document.body.innerText.includes('Orchestrator Browser Smoke');
             var browserScreenshotWorks = Boolean(document.querySelector('[data-testid="browser-screenshot-preview"]'));
+            const browserTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('button');
+            var rightPanelContextMenuWorks = false;
+            var rightPanelTabReorderWorks = false;
+            if (browserTabButton instanceof HTMLButtonElement) {
+              const beforeOrder = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
+              browserTabButton.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: browserTabButton.getBoundingClientRect().left + 12,
+                clientY: browserTabButton.getBoundingClientRect().bottom + 4
+              }));
+              await sleep(140);
+              rightPanelContextMenuWorks =
+                document.body.innerText.includes('Move tab left') &&
+                document.body.innerText.includes('Move tab right') &&
+                document.body.innerText.includes('Close tab');
+              const moveLeft = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Move tab left'));
+              if (moveLeft instanceof HTMLButtonElement) {
+                moveLeft.click();
+                await sleep(160);
+                const afterOrder = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
+                rightPanelTabReorderWorks =
+                  beforeOrder.includes('files,browser') &&
+                  afterOrder.includes('browser,files');
+              }
+            }
             const openBlankSideChat = async () => {
               const activeTextarea = document.querySelector('textarea');
               if (!(activeTextarea instanceof HTMLTextAreaElement)) return;
@@ -645,6 +672,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
             browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
             browserScreenshotWorks: typeof browserScreenshotWorks === 'boolean' ? browserScreenshotWorks : null,
+            rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
+            rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,

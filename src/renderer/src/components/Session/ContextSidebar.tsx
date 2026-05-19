@@ -10,7 +10,7 @@ import ExtensionsPanel from './ExtensionsPanel'
 import FilesPanel from './FilesPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
-import { MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
+import { MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 import Icon, { type IconName } from '../shared/Icon'
 
@@ -44,12 +44,14 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     setRightPanelFullWidth,
     openRightPanelTab,
     closeRightPanelTab,
+    moveRightPanelTab,
     setRightPanelBrowserUrl,
     closeSideChat,
     openSideChat,
     closeRightPanel
   } = useSessionStore()
   const [isResizing, setIsResizing] = useState(false)
+  const [tabMenu, setTabMenu] = useState<{ tabId: ContextTab; x: number; y: number } | null>(null)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null)
   const ui = uiState[session.id]
@@ -82,7 +84,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         count: chat?.messages.filter((message) => message.status === 'pending').length
       }
     })
-  const tabs: ContextTabSpec[] = [
+  const availableTabs: ContextTabSpec[] = [
     ...(ui?.showDiff ? [{ id: 'diff' as const, label: 'Changes', icon: 'diff' as const }] : []),
     ...(hasBrowserTab ? [{ id: 'browser' as const, label: 'Browser', icon: 'browser' as const }] : []),
     ...(hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : []),
@@ -91,6 +93,13 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     ...((hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length }] : []),
     ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
     ...(hasSideQuestions ? [{ id: 'side' as const, label: 'Side', icon: 'chat' as const, count: ui?.sideQuestions?.length ?? 0 }] : [])
+  ]
+  const persistedTabIds = rightPanel?.tabs.map((tab) => tab.id) ?? []
+  const tabs: ContextTabSpec[] = [
+    ...persistedTabIds
+      .map((tabId) => availableTabs.find((tab) => tab.id === tabId))
+      .filter((tab): tab is ContextTabSpec => Boolean(tab)),
+    ...availableTabs.filter((tab) => !persistedTabIds.includes(tab.id))
   ]
   const activeTab: ContextTab | null = rightPanel?.activeTabId
     ? rightPanel.activeTabId
@@ -131,6 +140,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   }
 
   const close = (tab?: ContextTab): void => {
+    setTabMenu(null)
     if (!tab) {
       closeRightPanel(session.id)
       return
@@ -169,6 +179,13 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     window.addEventListener('pointerup', onUp, { once: true })
   }, [panelWidth, rightPanel?.fullWidth, session.id, setRightPanelFullWidth, setRightPanelWidth])
 
+  const moveTab = (tabId: ContextTab, direction: 'left' | 'right'): void => {
+    moveRightPanelTab(session.id, tabId, direction)
+    setTabMenu(null)
+  }
+
+  const tabMenuIndex = tabMenu ? tabs.findIndex((tab) => tab.id === tabMenu.tabId) : -1
+
   return (
     <MotionPanel
       open={Boolean(effectiveTab)}
@@ -205,6 +222,10 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
               active={effectiveTab === tab.id}
               onClick={() => activate(tab.id)}
               onClose={() => close(tab.id)}
+              onContextMenu={(event) => {
+                event.preventDefault()
+                setTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY })
+              }}
               closeLabel={`Close ${tab.label}`}
             >
               <span className="inline-flex min-w-0 items-center gap-1.5" data-tab-id={tab.id}>
@@ -270,6 +291,36 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           <SideQuestionPanel session={session} chatId={sideChatIdFromTabId(effectiveTab ?? 'plan') ?? undefined} embedded />
         )}
       </div>
+      {tabMenu && (
+        <MenuSurface
+          onClose={() => setTabMenu(null)}
+          style={{
+            position: 'fixed',
+            left: Math.max(8, Math.min(tabMenu.x, window.innerWidth - 190)),
+            top: Math.max(8, Math.min(tabMenu.y, window.innerHeight - 130)),
+            width: 180,
+            zIndex: 80
+          }}
+        >
+          <MenuItem
+            icon="arrowLeft"
+            label="Move tab left"
+            disabled={tabMenuIndex <= 0}
+            onClick={() => moveTab(tabMenu.tabId, 'left')}
+          />
+          <MenuItem
+            icon="arrowRight"
+            label="Move tab right"
+            disabled={tabMenuIndex < 0 || tabMenuIndex >= tabs.length - 1}
+            onClick={() => moveTab(tabMenu.tabId, 'right')}
+          />
+          <MenuItem
+            icon="close"
+            label="Close tab"
+            onClick={() => close(tabMenu.tabId)}
+          />
+        </MenuSurface>
+      )}
       </aside>
     </MotionPanel>
   )

@@ -315,6 +315,8 @@ child.on('exit', (code) => {
         filesTabAttach: captureView !== 'inspector' || result.filesTabAttachWorks === true,
         browserTab: captureView !== 'inspector' || result.browserTabWorks === true,
         browserScreenshot: captureView !== 'inspector' || result.browserScreenshotWorks === true,
+        rightPanelContextMenuWorks: captureView !== 'inspector' || result.rightPanelContextMenuWorks === true,
+        rightPanelTabReorderWorks: captureView !== 'inspector' || result.rightPanelTabReorderWorks === true,
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
         terminalTabsPersist: captureView !== 'terminal' || result.terminalTabsPersistState === true,

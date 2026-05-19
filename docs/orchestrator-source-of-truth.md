@@ -300,6 +300,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-026 | Sidebar live-transition smoke landed. | `Complete` | Sidebar smoke drives a pinned chat through running and completed/unread states and verifies its pin order remains stable. |
 | V-027 | Transcript polish gate re-verified. | `Complete` | `transcript-stress`, `session-switch`, and `scroll` smokes passed, covering long-thread virtualization, lazy hydration, search jump, session switching, and manual-scroll behavior during streaming. |
 | V-028 | Packaged pet-overlay smoke passed. | `Complete` | `npm run pack:mac`, `npm run smoke:ui:auto -- --packaged --pet-overlay`, and packaged resource listing verified bundled pet atlases and packaged overlay behavior. |
+| V-029 | Right-panel tab menu and reorder landed. | `Complete` | Inspector smoke verifies the right-panel tab context menu and persisted tab order changes. |
 
 ### Codex Parity Matrix
 
@@ -341,7 +342,7 @@ This is the preferred implementation order. Each item should land as a small che
 | CP-002 | Sidebar hover metadata | Hover card shows project, root/cwd, branch/worktree, provider/model, status, and updated time. | `Complete` | CP-001; project/session metadata. | Sidebar smoke now asserts hover card and environment icon visibility. |
 | CP-003 | Sidebar organization | Persisted organize/sort modes, project actions, show more/less. | `Complete` | CP-001 and CP-002. | Sidebar smoke covers organize menu options, Chronological list, By project restore, project action menu, project rename, project pin ordering, and show more/less for long project groups. |
 | CP-004 | Right panel state model | Per-session durable `rightPanel` store replaces boolean inspector state. | `Complete` | Current `ContextSidebar` behavior mapped. | `npx tsc -p tsconfig.node.json --noEmit`; `npx tsc -p tsconfig.web.json --noEmit`; `npm run smoke:ui:auto -- --inspector`; `git diff --check`. |
-| CP-005 | Right panel shell | Closeable tabs, active tab persistence, width/full-width persistence, overflow/empty states. | `Implemented` | CP-004. | Inspector smoke covers active tab, tab list, persisted width path, and Expand/Restore panel behavior. Reorder/context-menu tab polish remains for the deeper workbench pass. |
+| CP-005 | Right panel shell | Closeable tabs, active tab persistence, width/full-width persistence, overflow/empty states. | `Complete` | CP-004. | Inspector smoke covers active tab, tab list, persisted width path, Expand/Restore panel behavior, tab context menu, and tab reordering. |
 | CP-006 | Port existing panels | Diff, Plan, Agents, Extensions, and Side Questions run inside the new shell unchanged where possible. | `Complete` | CP-005. | Covered by the right-panel shell checkpoint; existing panel rendering still flows through the durable tab shell and inspector smoke. |
 | CP-007 | Review tab v2 | Changed-file tree/search, view controls, open-in-editor, binary/no-content states. | `Implemented` | CP-006. | Inspector smoke seeds a git repo with modified/deleted/untracked files, verifies the Review search path, and screenshot-checks the changed-file list plus diff preview. Binary/deep source-preview support remains for the future Files/Review workbench pass. |
 | CP-008 | Files tab | Workspace tree/search/preview/actions and add-to-chat. | `Implemented` | CP-005; editor-open settings. | Inspector smoke opens the Files tab, searches a nested path with spaces, previews file content, and attaches the selected file to the composer. Missing/binary-specific previews remain for the deeper workbench pass. |
@@ -725,6 +726,7 @@ When implementing against this plan:
 - Sidebar live-transition checkpoint: the sidebar smoke now drives a pinned row from running to completed/unread while another chat is pinned, and verifies the spinner, completion dot, and pinned order remain stable.
 - Transcript polish gate checkpoint: `npm run smoke:ui:auto -- --transcript-stress`, `npm run smoke:ui:auto -- --session-switch`, and `npm run smoke:ui:auto -- --scroll` passed as the long-thread/session-switch/streaming-scroll verification set.
 - Packaged pet-overlay checkpoint: `npm run pack:mac` rebuilt the packaged app, `npm run smoke:ui:auto -- --packaged --pet-overlay` passed in a renamed temp bundle, and packaged resources include ditto/orchestrator/pika/psyduck `pet.json` plus `spritesheet.webp`.
+- Right-panel tab shell checkpoint: the right-panel tab strip now follows persisted tab order, exposes a context menu with move-left/move-right/close actions, and inspector smoke verifies the browser/files tab order changes after moving Browser left.
 
 ### 2026-05-18
 

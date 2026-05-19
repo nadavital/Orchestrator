@@ -117,6 +117,7 @@ interface SessionState {
   setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
   openRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   closeRightPanelTab: (id: string, tabId: RightPanelTabId) => void
+  moveRightPanelTab: (id: string, tabId: RightPanelTabId, direction: 'left' | 'right') => void
   setRightPanelBrowserUrl: (id: string, url: string) => void
   closeRightPanel: (id: string) => void
   setTerminalHeight: (id: string, height: number) => void
@@ -592,6 +593,20 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
     }),
 
+  moveRightPanelTab: (id, tabId, direction) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: moveRightPanelTab(current.rightPanel, tabId, direction)
+          }
+        }
+      }
+    }),
+
   setRightPanelBrowserUrl: (id, url) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
@@ -849,6 +864,28 @@ function syncRightPanelTab(panel: RightPanelState | undefined, id: RightPanelTab
     ...current,
     open: true,
     activeTabId: id,
+    tabs
+  }
+}
+
+function moveRightPanelTab(
+  panel: RightPanelState | undefined,
+  id: RightPanelTabId,
+  direction: 'left' | 'right'
+): RightPanelState {
+  const current = ensureRightPanel(panel)
+  const index = current.tabs.findIndex((tab) => tab.id === id)
+  if (index === -1) return current
+  const nextIndex = direction === 'left'
+    ? Math.max(0, index - 1)
+    : Math.min(current.tabs.length - 1, index + 1)
+  if (nextIndex === index) return current
+  const tabs = [...current.tabs]
+  const [tab] = tabs.splice(index, 1)
+  if (!tab) return current
+  tabs.splice(nextIndex, 0, tab)
+  return {
+    ...current,
     tabs
   }
 }
