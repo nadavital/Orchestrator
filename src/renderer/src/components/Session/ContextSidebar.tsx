@@ -10,7 +10,7 @@ import ExtensionsPanel from './ExtensionsPanel'
 import FilesPanel from './FilesPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
-import { MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
+import { IconButton, MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, TabButton } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 import Icon, { type IconName } from '../shared/Icon'
 
@@ -23,6 +23,7 @@ interface Props {
 const DEFAULT_PANEL_WIDTH = 468
 const MIN_PANEL_WIDTH = 360
 const MAX_PANEL_WIDTH = 720
+const MIN_PRIMARY_CONTENT_WIDTH = 560
 
 interface ContextTabSpec {
   id: ContextTab
@@ -53,14 +54,19 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   } = useSessionStore()
   const [isResizing, setIsResizing] = useState(false)
   const [tabMenu, setTabMenu] = useState<{ tabId: ContextTab; x: number; y: number } | null>(null)
-  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
+  const [mainRowWidth, setMainRowWidth] = useState(() => window.innerWidth)
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null)
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
   const panelWidth = rightPanel?.width ?? DEFAULT_PANEL_WIDTH
+  const maxPanelWidth = Math.max(
+    MIN_PANEL_WIDTH,
+    Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, mainRowWidth - MIN_PRIMARY_CONTENT_WIDTH))
+  )
   const panelSize = rightPanel?.fullWidth
-    ? Math.max(MIN_PANEL_WIDTH, viewportWidth - 322)
-    : panelWidth
+    ? Math.max(MIN_PANEL_WIDTH, mainRowWidth)
+    : Math.max(MIN_PANEL_WIDTH, Math.min(maxPanelWidth, panelWidth))
   const events = eventBuffers[session.id] ?? []
   const plans = [
     ...derivePlanStatesFromMessages(session, session.messages),
@@ -118,9 +124,20 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   const effectiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0]?.id ?? null
 
   useEffect(() => {
-    const onResize = (): void => setViewportWidth(window.innerWidth)
+    const updateWidths = (): void => {
+      const row = document.querySelector('[data-testid="session-main-row"]')
+      if (row instanceof HTMLElement) setMainRowWidth(row.getBoundingClientRect().width)
+    }
+    updateWidths()
+    const row = document.querySelector('[data-testid="session-main-row"]')
+    const observer = row instanceof HTMLElement ? new ResizeObserver(updateWidths) : null
+    observer?.observe(row as HTMLElement)
+    const onResize = (): void => updateWidths()
     window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', onResize)
+    }
   }, [])
 
   const activate = (tab: ContextTab): void => {
@@ -167,7 +184,13 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       const start = resizeStartRef.current
       if (!start) return
       const delta = start.x - moveEvent.clientX
-      setRightPanelWidth(session.id, Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, start.width + delta)))
+      const row = document.querySelector('[data-testid="session-main-row"]')
+      const rowWidth = row instanceof HTMLElement ? row.getBoundingClientRect().width : mainRowWidth
+      const dragMaxPanelWidth = Math.max(
+        MIN_PANEL_WIDTH,
+        Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, rowWidth - MIN_PRIMARY_CONTENT_WIDTH))
+      )
+      setRightPanelWidth(session.id, Math.max(MIN_PANEL_WIDTH, Math.min(dragMaxPanelWidth, start.width + delta)))
       if (rightPanel?.fullWidth) setRightPanelFullWidth(session.id, false)
     }
     const onUp = (): void => {
@@ -178,7 +201,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp, { once: true })
-  }, [panelWidth, rightPanel?.fullWidth, session.id, setRightPanelFullWidth, setRightPanelWidth])
+  }, [mainRowWidth, panelWidth, rightPanel?.fullWidth, session.id, setRightPanelFullWidth, setRightPanelWidth])
 
   const moveTab = (tabId: ContextTab, direction: 'left' | 'right'): void => {
     moveRightPanelTab(session.id, tabId, direction)
@@ -186,14 +209,25 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   }
 
   const tabMenuIndex = tabMenu ? tabs.findIndex((tab) => tab.id === tabMenu.tabId) : -1
+  const closedToolTabs: ContextTabSpec[] = [
+    ...(!hasBrowserTab ? [{ id: 'browser' as const, label: 'Browser', icon: 'browser' as const }] : []),
+    ...(!hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : [])
+  ]
+  const openToolTab = (tab: ContextTab): void => {
+    setToolsMenuOpen(false)
+    openRightPanelTab(session.id, tab)
+  }
 
   return (
     <MotionPanel
       open={Boolean(effectiveTab)}
       side="right"
       size={panelSize}
-      className="flex"
-      style={{ borderLeft: '1px solid var(--border-subtle)' }}
+      className={`flex ${rightPanel?.fullWidth ? 'right-sidebar-expanded' : ''}`}
+      style={{
+        borderLeft: '1px solid var(--border-subtle)',
+        ...(rightPanel?.fullWidth ? { width: '100%', minWidth: '100%', maxWidth: '100%' } : {})
+      }}
     >
       {!rightPanel?.fullWidth && (
         <PanelResizeHandle
@@ -212,11 +246,9 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         data-right-panel-full-width={rightPanel?.fullWidth ? 'true' : 'false'}
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
       >
-      <div
-        className="shrink-0 flex items-center justify-between gap-2 px-2 py-2"
-        style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" data-app-shell-tab-controller>
+      <div className="right-sidebar-chrome">
+        <div className="right-sidebar-tabbar">
+          <div className="right-sidebar-tab-row" data-app-shell-tab-controller>
           {tabs.map((tab) => (
             <TabButton
               key={tab.id}
@@ -233,42 +265,55 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
                 <Icon name={tab.icon} size={13} />
                 <span className="truncate">{tab.label}</span>
                 {tab.count !== undefined && tab.count > 0 && (
-                  <span
-                    className="grid min-w-4 place-items-center rounded-full px-1 text-[10px] leading-4"
-                    style={{
-                      background: effectiveTab === tab.id ? 'var(--accent-bg)' : 'var(--control-bg)',
-                      color: effectiveTab === tab.id ? 'var(--accent)' : 'var(--text-tertiary)',
-                    }}
-                  >
+                  <span className="right-sidebar-tab-count">
                     {tab.count}
                   </span>
                 )}
               </span>
             </TabButton>
           ))}
+          </div>
+          <div className="right-sidebar-tab-actions">
+            {closedToolTabs.length > 0 && (
+              <div className="relative">
+                <IconButton
+                  icon="plus"
+                  label="Add inspector tab"
+                  size="sm"
+                  active={toolsMenuOpen}
+                  onClick={() => setToolsMenuOpen((open) => !open)}
+                />
+                {toolsMenuOpen && (
+                  <MenuSurface
+                    onClose={() => setToolsMenuOpen(false)}
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 34,
+                      width: 168,
+                      zIndex: 70
+                    }}
+                  >
+                    {closedToolTabs.map((tab) => (
+                      <MenuItem
+                        key={tab.id}
+                        icon={tab.icon}
+                        label={tab.label}
+                        onClick={() => openToolTab(tab.id)}
+                      />
+                    ))}
+                  </MenuSurface>
+                )}
+              </div>
+            )}
+            <IconButton
+              icon={rightPanel?.fullWidth ? 'minimize' : 'maximize'}
+              label={rightPanel?.fullWidth ? 'Restore inspector' : 'Maximize inspector'}
+              size="sm"
+              onClick={() => setRightPanelFullWidth(session.id, !rightPanel?.fullWidth)}
+            />
+          </div>
         </div>
-        <ToolbarButton
-          icon="browser"
-          label="Open browser"
-          active={effectiveTab === 'browser'}
-          onClick={() => openRightPanelTab(session.id, 'browser')}
-        />
-        <ToolbarButton
-          icon="folder"
-          label="Open files"
-          active={effectiveTab === 'files'}
-          onClick={() => openRightPanelTab(session.id, 'files')}
-        />
-        <ToolbarButton
-          icon="chevronRight"
-          label={rightPanel?.fullWidth ? 'Restore panel width' : 'Expand panel'}
-          onClick={() => setRightPanelFullWidth(session.id, !rightPanel?.fullWidth)}
-        />
-        <ToolbarButton
-          icon="close"
-          label="Close inspector"
-          onClick={() => close()}
-        />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden" data-app-shell-tab-panel-controller>
         {effectiveTab === 'plan' && <PlanPanel session={session} embedded />}

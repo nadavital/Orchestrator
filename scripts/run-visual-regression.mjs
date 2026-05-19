@@ -9,6 +9,7 @@ const outDir = resolve(process.argv.includes('--out')
   ? process.argv[process.argv.indexOf('--out') + 1]
   : join(root, 'tmp', 'visual-regression'))
 const views = [
+  ['empty-state', '--empty-state'],
   ['main'],
   ['composer', '--composer'],
   ['settings', '--settings'],

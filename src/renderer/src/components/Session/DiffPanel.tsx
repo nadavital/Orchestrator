@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { fileStatusLabel, summarizeFileChanges } from '../../types'
 import type { FileChange } from '../../types'
 import type { FilePreviewResult } from '../../env'
-import { Badge, Button, MetricPill, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
+import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
 
 interface Props {
   sessionId: string
@@ -18,6 +18,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [previewLoading, setPreviewLoading] = useState(false)
   const [query, setQuery] = useState('')
   const [wrapLines, setWrapLines] = useState(true)
+  const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const summary = summarizeFileChanges(files)
   const filteredFiles = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -96,6 +97,48 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     void navigator.clipboard.writeText(selectedFile)
   }
 
+  const changeActions = (
+    <div className="relative flex items-center gap-1">
+      <ToolbarButton
+        icon="refresh"
+        label="Refresh changes"
+        onClick={refresh}
+      />
+      <IconButton
+        icon="ellipsis"
+        label="Change actions"
+        disabled={!selectedChange}
+        active={actionMenuOpen}
+        onClick={() => setActionMenuOpen((open) => !open)}
+      />
+      {actionMenuOpen && (
+        <MenuSurface
+          onClose={() => setActionMenuOpen(false)}
+          style={{ position: 'absolute', right: 0, top: 34, width: 170, zIndex: 90 }}
+        >
+          <MenuItem
+            icon="file"
+            label="Open file"
+            disabled={!selectedChange || selectedChange.status === 'D'}
+            onClick={() => { openSelectedFile(); setActionMenuOpen(false) }}
+          />
+          <MenuItem
+            icon="folder"
+            label="Reveal file"
+            disabled={!selectedChange || selectedChange.status === 'D'}
+            onClick={() => { revealSelectedFile(); setActionMenuOpen(false) }}
+          />
+          <MenuItem
+            icon="copy"
+            label="Copy path"
+            disabled={!selectedChange}
+            onClick={() => { copySelectedPath(); setActionMenuOpen(false) }}
+          />
+        </MenuSurface>
+      )}
+    </div>
+  )
+
   return (
     <div
       className="flex flex-col shrink-0 min-w-0 overflow-hidden"
@@ -104,40 +147,25 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
         borderLeft: embedded ? 'none' : '1px solid var(--border-subtle)',
-        background: 'var(--surface-bg)',
-        fontFamily: "'SF Mono', 'JetBrains Mono', Menlo, monospace"
+        background: 'var(--surface-bg)'
       }}
     >
-      <PanelHeader
-        title={`Changes${files.length > 0 ? ` (${files.length})` : ''}`}
-        actions={
-          <div className="flex items-center gap-1">
-            <ToolbarButton
-              icon="file"
-              label="Open file"
-              disabled={!selectedChange || selectedChange.status === 'D'}
-              onClick={openSelectedFile}
-            />
-            <ToolbarButton
-              icon="folder"
-              label="Reveal file"
-              disabled={!selectedChange || selectedChange.status === 'D'}
-              onClick={revealSelectedFile}
-            />
-            <ToolbarButton
-              icon="copy"
-              label="Copy path"
-              disabled={!selectedChange}
-              onClick={copySelectedPath}
-            />
-            <ToolbarButton
-              icon="refresh"
-              label="Refresh"
-              onClick={refresh}
-            />
-          </div>
-        }
-      />
+      {embedded ? (
+        <div className="right-sidebar-subtoolbar">
+          <span
+            className="truncate"
+            style={{ color: files.length > 0 && summary.risk === 'high' ? 'var(--color-red)' : undefined }}
+          >
+            {files.length > 0 ? summary.label : 'Working tree'}
+          </span>
+          {changeActions}
+        </div>
+      ) : (
+        <PanelHeader
+          title={`Changes${files.length > 0 ? ` (${files.length})` : ''}`}
+          actions={changeActions}
+        />
+      )}
 
       {files.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-xs" style={{ color: 'var(--color-text-muted)' }}>
@@ -145,21 +173,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         </div>
       ) : (
         <>
-          <div
-            className="px-3 py-2 text-xs"
-            style={{
-              borderBottom: '1px solid var(--border-subtle)',
-              color: summary.risk === 'high' ? 'var(--color-red)' : 'var(--color-text-muted)'
-            }}
-          >
-            <div className="truncate">{summary.label}</div>
-            {(summary.additions > 0 || summary.deletions > 0) && (
-              <div className="mt-1 flex gap-2" style={{ fontSize: 10 }}>
-                {summary.additions > 0 && <MetricPill tone="success">+{summary.additions}</MetricPill>}
-                {summary.deletions > 0 && <MetricPill tone="danger">-{summary.deletions}</MetricPill>}
-              </div>
-            )}
-          </div>
           <div className="flex shrink-0 items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
             <input
               data-testid="diff-file-search"
@@ -173,14 +186,12 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
                 color: 'var(--text-primary)'
               }}
             />
-            <Button
-              variant={wrapLines ? 'secondary' : 'ghost'}
-              className="px-2 py-1"
-              ariaLabel={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
+            <ToolbarButton
+              icon="wrap"
+              label={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
+              active={wrapLines}
               onClick={() => setWrapLines((value) => !value)}
-            >
-              Wrap
-            </Button>
+            />
           </div>
           <div
             className="overflow-y-auto overflow-x-hidden shrink-0"
@@ -239,7 +250,8 @@ function ReviewPreview({
   if (loading) {
     return <ReviewEmptyState title={change.path} body="Loading review preview..." />
   }
-  if (isBinaryDiff(diff) || preview?.kind === 'binary') {
+  const hasNativePreview = preview?.kind === 'image' || preview?.kind === 'pdf' || preview?.kind === 'audio' || preview?.kind === 'video'
+  if ((isBinaryDiff(diff) && !hasNativePreview) || preview?.kind === 'binary') {
     return <ReviewEmptyState title={change.path} body="Binary file changed. Use Open file or Reveal file to inspect it." testId="review-binary-state" />
   }
   if (preview?.kind === 'image') {
@@ -258,7 +270,33 @@ function ReviewPreview({
     )
   }
   if (preview?.kind === 'pdf') {
-    return <ReviewEmptyState title={change.path} body="PDF file changed. Use Open file or Reveal file to inspect it." testId="review-pdf-state" />
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-pdf-state">
+        <ReviewPreviewHeader change={change} label="PDF file changed" />
+        <iframe title={change.path} src={fileUrl(absolutePath)} className="min-h-0 flex-1 border-0" />
+      </div>
+    )
+  }
+  if (preview?.kind === 'audio') {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-audio-state">
+        <ReviewPreviewHeader change={change} label="Audio file changed" />
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-4 text-center">
+          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{change.path}</span>
+          <audio controls src={fileUrl(absolutePath)} className="w-full max-w-[360px]" />
+        </div>
+      </div>
+    )
+  }
+  if (preview?.kind === 'video') {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-video-state">
+        <ReviewPreviewHeader change={change} label="Video file changed" />
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3">
+          <video controls src={fileUrl(absolutePath)} className="max-h-full max-w-full rounded-md" />
+        </div>
+      </div>
+    )
   }
   if (diff.trim()) {
     return <DiffLines diff={diff} wrap={wrap} />

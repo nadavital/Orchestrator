@@ -14,12 +14,13 @@ type SidebarSortMode = 'updated' | 'created'
 const SIDEBAR_VIEW_KEY = 'orchestrator.sidebar.viewMode'
 const SIDEBAR_SORT_KEY = 'orchestrator.sidebar.sortMode'
 
-export async function pickAndAddProject(addProject: (p: Project) => void): Promise<void> {
+export async function pickAndAddProject(addProject: (p: Project) => void): Promise<Project | null> {
   const dir = await window.api.dialog.openDirectory()
-  if (!dir) return
+  if (!dir) return null
   const name = dir.split('/').pop() ?? dir
   const project = await window.api.projects.add(name, dir)
   addProject(project)
+  return project
 }
 
 export default function Sidebar(): JSX.Element {
@@ -84,9 +85,9 @@ export default function Sidebar(): JSX.Element {
 
   return (
     <aside
-      className="flex flex-col overflow-hidden shrink-0"
+      className="flex min-w-0 flex-col overflow-hidden shrink-0"
       style={{
-        width: 282,
+        width: 264,
         background: 'var(--panel-bg)',
         backdropFilter: 'blur(22px)',
         WebkitBackdropFilter: 'blur(22px)'
@@ -104,7 +105,7 @@ export default function Sidebar(): JSX.Element {
               Settings
             </span>
           </div>
-          <div className="flex-1 overflow-y-auto px-2.5 py-1">
+          <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-1">
             <SidebarNavItem
               icon="settings"
               label="General"
@@ -119,15 +120,9 @@ export default function Sidebar(): JSX.Element {
             />
             <SidebarNavItem
               icon="agents"
-              label="Providers & models"
+              label="Providers"
               active={settingsSection === 'providers'}
               onClick={() => setSettingsSection('providers')}
-            />
-            <SidebarNavItem
-              icon="wrench"
-              label="Provider diagnostics"
-              active={settingsSection === 'diagnostics'}
-              onClick={() => setSettingsSection('diagnostics')}
             />
             <SidebarNavItem
               icon="keyboard"
@@ -151,7 +146,7 @@ export default function Sidebar(): JSX.Element {
         </>
       ) : (
         <>
-          <div className="px-2.5 pb-3">
+          <div className="min-w-0 px-2.5 pb-3">
             <SidebarNavItem
               icon="plug"
               label="Capabilities"
@@ -164,11 +159,11 @@ export default function Sidebar(): JSX.Element {
           </div>
 
           {sortedPinnedSessions.length > 0 && (
-            <div className="px-2.5 pb-3">
+            <div className="min-w-0 px-2.5 pb-3">
               <div className="px-1.5 pb-1 text-xs font-semibold" style={{ color: 'var(--text-tertiary)' }}>
                 Pinned
               </div>
-              <div className="space-y-px">
+              <div className="min-w-0 space-y-px">
                 {sortedPinnedSessions.map((session) => (
                   <SessionItem key={session.id} session={session} />
                 ))}
@@ -176,8 +171,8 @@ export default function Sidebar(): JSX.Element {
             </div>
           )}
 
-          <div className="flex items-center justify-between px-4 pb-1">
-            <span className="text-sm" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+          <div className="flex items-center justify-between px-3 pb-1">
+            <span className="text-[13px]" style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
               {viewMode === 'chronological' ? 'Recent chats' : 'Projects'}
             </span>
             <div className="relative flex items-center gap-1">
@@ -229,9 +224,9 @@ export default function Sidebar(): JSX.Element {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-2.5 py-1">
+          <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-1">
             {viewMode === 'chronological' ? (
-              <div className="space-y-px">
+              <div className="min-w-0 space-y-px">
                 {unpinnedSessions.length === 0 && (
                   <div style={{ color: 'var(--text-secondary)', padding: '5px 8px', fontSize: 13 }}>
                     No recent chats

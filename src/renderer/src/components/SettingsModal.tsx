@@ -62,13 +62,13 @@ const pillButtonStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 8,
-  padding: '8px 12px',
+  gap: 7,
+  padding: '7px 11px',
   borderRadius: 'var(--radius-pill)',
   background: 'var(--control-bg)',
   border: '1px solid var(--border-subtle)',
   color: 'var(--text-primary)',
-  fontSize: 12,
+  fontSize: 11.5,
   fontWeight: 650,
   cursor: 'pointer'
 }
@@ -427,6 +427,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
           {section === 'providers' && (
             <ProvidersSection
               defaultProvider={defaultProvider}
+              sessions={sessions}
               defaultModels={defaultModels}
               defaultEfforts={defaultEfforts}
               defaultPermissionModes={defaultPermissionModes}
@@ -444,13 +445,23 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
             />
           )}
           {section === 'diagnostics' && (
-            <ProviderDiagnosticsSection
+            <ProvidersSection
               defaultProvider={defaultProvider}
+              sessions={sessions}
+              defaultModels={defaultModels}
+              defaultEfforts={defaultEfforts}
+              defaultPermissionModes={defaultPermissionModes}
+              providerModels={providerModels}
               providerRuntime={providerRuntime}
               providerDiagnostics={providerDiagnostics}
               diagnosticsLoading={diagnosticsLoading}
               providerAvailability={providerAvailability}
-              sessions={sessions}
+              defaultAdvancedOpen
+              onSetDefaultProvider={saveDefaultProvider}
+              onSetDefaultModel={saveDefaultModel}
+              onSetDefaultEffort={saveDefaultEffort}
+              onSetDefaultPermissionMode={saveDefaultPermissionMode}
+              onSetProviderModels={saveProviderModels}
               onLoadProviderDiagnostics={loadProviderDiagnostics}
             />
           )}
@@ -462,8 +473,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
 
 function settingsTitle(section: SettingsSection): string {
   if (section === 'appearance') return 'Appearance'
-  if (section === 'providers') return 'Providers & models'
-  if (section === 'diagnostics') return 'Provider diagnostics'
+  if (section === 'providers' || section === 'diagnostics') return 'Providers'
   if (section === 'shortcuts') return 'Shortcuts'
   if (section === 'pets') return 'Pets'
   if (section === 'data') return 'Data controls'
@@ -1098,7 +1108,8 @@ function ShortcutsSection(): JSX.Element {
   const shortcuts = visibleShortcutRows().map((shortcut) => ({
     ...shortcut,
     category: shortcut.group,
-    keys: shortcut.shortcuts.map((sequence) => formatShortcutKeys(sequence, shortcutPlatform))
+    keys: shortcut.shortcuts.map((sequence) => formatShortcutKeys(sequence, shortcutPlatform)),
+    primaryKeys: formatShortcutKeys(shortcut.shortcuts[0], shortcutPlatform)
   }))
   const normalizedQuery = query.trim().toLowerCase()
   const visibleShortcuts = shortcuts.filter((shortcut) => {
@@ -1113,8 +1124,8 @@ function ShortcutsSection(): JSX.Element {
 
   return (
     <div style={{ padding: '30px 44px 56px', maxWidth: 820, margin: '0 auto' }}>
-      <SettingsIntro description="Fast paths for common chat, navigation, and app-shell actions." />
-      <SettingGroup title="Keyboard" description="These shortcuts are built in and available anywhere in the chat workspace.">
+      <SettingsIntro description="Primary keyboard shortcuts for common workspace actions." />
+      <SettingGroup title="Keyboard" description="">
         <label className="sr-only" htmlFor="settings-shortcut-search">Search keyboard shortcuts</label>
         <input
           id="settings-shortcut-search"
@@ -1138,7 +1149,7 @@ function ShortcutsSection(): JSX.Element {
           >
             <span>Section</span>
             <span>Command</span>
-            <span className="text-right">Keybinding</span>
+            <span className="text-right">Shortcut</span>
           </div>
           {visibleShortcuts.map((shortcut) => (
             <div
@@ -1154,28 +1165,23 @@ function ShortcutsSection(): JSX.Element {
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{shortcut.label}</span>
-                <span className="mt-0.5 block truncate text-xs" style={{ color: 'var(--text-secondary)' }}>
-                  {shortcut.description}
-                </span>
               </span>
               <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                {shortcut.keys.map((sequence, sequenceIndex) => (
-                  <span key={`${shortcut.label}-${sequenceIndex}`} className="flex items-center gap-1">
-                    {sequence.map((key) => (
-                      <kbd
-                        key={`${shortcut.label}-${sequenceIndex}-${key}`}
-                        className="min-w-6 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
-                        style={{
-                          background: 'var(--control-bg)',
-                          border: '1px solid var(--border-subtle)',
-                          color: 'var(--text-secondary)'
-                        }}
-                      >
-                        {key}
-                      </kbd>
-                    ))}
-                  </span>
-                ))}
+                <span className="flex items-center gap-1">
+                  {shortcut.primaryKeys.map((key) => (
+                    <kbd
+                      key={`${shortcut.label}-${key}`}
+                      className="min-w-6 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
+                      style={{
+                        background: 'var(--control-bg)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-secondary)'
+                      }}
+                    >
+                      {key}
+                    </kbd>
+                  ))}
+                </span>
               </span>
             </div>
           ))}
@@ -1193,10 +1199,11 @@ function ShortcutsSection(): JSX.Element {
 // ─── Providers section ────────────────────────────────────────────────────────
 
 function ProvidersSection({
-  defaultProvider, defaultModels, defaultEfforts, defaultPermissionModes, providerModels,
-  providerRuntime, providerDiagnostics, diagnosticsLoading, providerAvailability, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onLoadProviderDiagnostics
+  defaultProvider, sessions, defaultModels, defaultEfforts, defaultPermissionModes, providerModels,
+  providerRuntime, providerDiagnostics, diagnosticsLoading, providerAvailability, defaultAdvancedOpen = false, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
+  sessions: SessionListItem[]
   defaultModels: Record<string, string>
   defaultEfforts: Record<string, string>
   defaultPermissionModes: Record<string, string>
@@ -1205,6 +1212,7 @@ function ProvidersSection({
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
   diagnosticsLoading: Record<string, boolean>
   providerAvailability: Record<string, boolean>
+  defaultAdvancedOpen?: boolean
   onSetDefaultProvider: (id: string) => void
   onSetDefaultModel: (providerId: string, modelId: string) => void
   onSetDefaultEffort: (providerId: string, effortId: string) => void
@@ -1225,8 +1233,9 @@ function ProvidersSection({
   const runtime = providerRuntime[selectedId]
   const diagnostics = providerDiagnostics[selectedId]
   const loadingDiagnostics = diagnosticsLoading[selectedId] === true
-  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen)
   const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
+  const usageSnapshot = summarizeProviderUsage(sessions, selectedId)
   const modelForPicker = visibleIds.includes(currentModel)
     ? currentModel
     : visibleModels[0]?.id ?? currentModel
@@ -1241,10 +1250,8 @@ function ProvidersSection({
   }
 
   return (
-    <div style={{ padding: '34px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
-      <SettingsIntro
-        description="Pick defaults for provider, model, thinking, and permission mode."
-      />
+    <div data-testid="provider-settings-section" style={{ padding: '34px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
+      <SettingsIntro description="Provider defaults, local health, and config." />
 
       <div style={{ display: 'grid', gridTemplateColumns: '190px minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
         <ProviderSidePicker
@@ -1363,6 +1370,14 @@ function ProvidersSection({
                 <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
               </CompactSetting>
             )}
+            <CompactSetting title="Usage">
+              <ProviderUsageDiagnosticsCard
+                providerId={selectedId}
+                diagnostics={diagnostics}
+                usage={usageSnapshot}
+                color={providerDef.color}
+              />
+            </CompactSetting>
             {diagnostics && diagnostics.probes.length > 0 && (
               <CompactSetting title="Probes">
                 <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />

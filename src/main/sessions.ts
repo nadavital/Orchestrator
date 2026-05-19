@@ -146,6 +146,16 @@ function escapeAttachmentAttribute(value: string): string {
     .replaceAll('>', '&gt;')
 }
 
+function isTextLikeAttachment(attachment: Extract<Attachment, { kind: 'local_file' }>): boolean {
+  const mimeType = attachment.mimeType?.toLowerCase()
+  if (!mimeType) return true
+  return mimeType.startsWith('text/') ||
+    mimeType === 'application/json' ||
+    mimeType === 'application/javascript' ||
+    mimeType === 'application/xml' ||
+    mimeType === 'application/x-yaml'
+}
+
 function promptWithLocalAttachments(prompt: string, attachments: Attachment[] = []): string {
   const localFiles = localFileAttachments(attachments)
   if (localFiles.length === 0) return prompt
@@ -153,12 +163,20 @@ function promptWithLocalAttachments(prompt: string, attachments: Attachment[] = 
   const blocks = localFiles.map((attachment) => {
     const path = escapeAttachmentAttribute(attachment.path)
     const name = escapeAttachmentAttribute(attachment.name)
+    const mimeType = attachment.mimeType ? ` mime_type="${escapeAttachmentAttribute(attachment.mimeType)}"` : ''
+    if (!isTextLikeAttachment(attachment)) {
+      return [
+        `<attached_file path="${path}" name="${name}"${mimeType} binary="true">`,
+        'Attachment saved by Orchestrator. Use the file path above if this provider can read local files.',
+        '</attached_file>'
+      ].join('\n')
+    }
     try {
       const raw = readFileSync(attachment.path, 'utf8')
       const truncated = raw.length > MAX_ATTACHMENT_CHARS
       const content = truncated ? raw.slice(0, MAX_ATTACHMENT_CHARS) : raw
       return [
-        `<attached_file path="${path}" name="${name}">`,
+        `<attached_file path="${path}" name="${name}"${mimeType}>`,
         content,
         truncated ? '\n[Attachment truncated by Orchestrator.]' : '',
         '</attached_file>'

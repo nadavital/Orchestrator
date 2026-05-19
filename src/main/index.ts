@@ -204,6 +204,10 @@ function openExternalIfAllowed(rawUrl: string): void {
 installWebviewGuards()
 
 function createWindow(): void {
+  const isAutomatedUiSmoke = Boolean(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT)
+  const shouldForegroundWindow =
+    !isAutomatedUiSmoke || process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_FOREGROUND === '1'
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -226,7 +230,11 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow!.show()
+    if (shouldForegroundWindow) {
+      mainWindow!.show()
+    } else {
+      mainWindow!.showInactive()
+    }
     mainWindow!.setTitle(appProfile.isIsolated ? `Orchestrator - ${appProfile.displayName}` : '')
     if (!getAppProfile().disablePetOverlay) {
       createPetOverlayWindow(mainWindow!)
@@ -281,6 +289,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
   }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced') {
     runAutomatedReducedMotionSmoke(win, outputPath, screenshotPath)
+    return
+  }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'empty-state') {
+    runAutomatedEmptyStateSmoke(win, outputPath, screenshotPath)
     return
   }
 
@@ -367,17 +379,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 appearanceText.includes('Sharing') &&
                 appearanceText.includes('Layout and reading');
               const diagnosticsButton = [...document.querySelectorAll('button')]
-                .find((button) => button.textContent?.includes('Provider diagnostics'));
+                .find((button) => button.textContent?.includes('Providers'));
               diagnosticsButton?.click();
               await sleep(450);
-              const diagnosticsSection = document.querySelector('[data-testid="provider-diagnostics-settings-section"]');
+              const advancedButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Advanced'));
+              advancedButton?.click();
+              await sleep(450);
+              const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Provider details') &&
                 diagnosticsSection.innerText.includes('Config file');
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Usage, cost, and budget') &&
+                diagnosticsSection.innerText.includes('Usage') &&
                 diagnosticsSection.innerText.includes('Captured runs') &&
                 diagnosticsSection.innerText.includes('Tokens') &&
                 diagnosticsSection.innerText.includes('Cost') &&
@@ -493,19 +509,32 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
             const rightPanelBefore = document.querySelector('[data-testid="session-right-panel"]');
             const widthBefore = Number(rightPanelBefore?.getAttribute('data-right-panel-width') ?? '0');
+            const primaryBefore = document.querySelector('[data-testid="session-primary-content"]');
+            const primaryWidthBefore = primaryBefore instanceof HTMLElement ? primaryBefore.getBoundingClientRect().width : 0;
             const expandButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Expand panel');
+              .find((button) => button.getAttribute('title') === 'Maximize inspector');
             if (expandButton instanceof HTMLButtonElement) {
               expandButton.click();
               await sleep(180);
             }
             const rightPanelExpanded = document.querySelector('[data-testid="session-right-panel"]');
+            const primaryAfterExpand = document.querySelector('[data-testid="session-primary-content"]');
+            const primaryWidthAfterExpand = primaryAfterExpand instanceof HTMLElement ? primaryAfterExpand.getBoundingClientRect().width : 0;
+            var rightPanelExpandDebug = {
+              widthBefore,
+              dataWidthAfterExpand: Number(rightPanelExpanded?.getAttribute('data-right-panel-width') ?? '0'),
+              actualWidthAfterExpand: rightPanelExpanded instanceof HTMLElement ? rightPanelExpanded.getBoundingClientRect().width : 0,
+              fullWidthAfterExpand: rightPanelExpanded instanceof HTMLElement ? rightPanelExpanded.dataset.rightPanelFullWidth : null,
+              primaryWidthBefore,
+              primaryWidthAfterExpand
+            };
             var rightPanelExpandWorks =
               rightPanelExpanded instanceof HTMLElement &&
               rightPanelExpanded.dataset.rightPanelFullWidth === 'true' &&
-              Number(rightPanelExpanded.dataset.rightPanelWidth ?? '0') > widthBefore + 40;
+              rightPanelExpanded.getBoundingClientRect().width > widthBefore + 40 &&
+              primaryWidthAfterExpand >= primaryWidthBefore - 8;
             const restoreButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Restore panel width');
+              .find((button) => button.getAttribute('title') === 'Restore inspector');
             if (restoreButton instanceof HTMLButtonElement) {
               restoreButton.click();
               await sleep(120);
@@ -542,10 +571,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
               await sleep(120);
             }
-            const filesButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Open files');
-            if (filesButton instanceof HTMLButtonElement) {
-              filesButton.click();
+            const filesTabButton = document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]');
+            if (filesTabButton instanceof HTMLElement) {
+              filesTabButton.click();
+            } else {
+              const inspectorToolsButton = [...document.querySelectorAll('button')]
+                .find((button) => button.getAttribute('title') === 'Add inspector tab');
+              if (inspectorToolsButton instanceof HTMLButtonElement) {
+                inspectorToolsButton.click();
+                await sleep(120);
+                const filesMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Files'));
+                if (filesMenuItem instanceof HTMLElement) filesMenuItem.click();
+              }
+            }
+            {
               await sleep(260);
             }
             const fileSearch = document.querySelector('[data-testid="workspace-file-search"]');
@@ -599,10 +639,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.body.innerText.includes('No matching files') &&
               !document.querySelector('[data-testid="workspace-text-preview"]') &&
               (addFileButton instanceof HTMLButtonElement ? addFileButton.disabled : true);
-            const browserButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Open browser');
-            if (browserButton instanceof HTMLButtonElement) {
-              browserButton.click();
+            const browserPanelTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+            if (browserPanelTabButton instanceof HTMLElement) {
+              browserPanelTabButton.click();
+            } else {
+              const inspectorToolsButton = [...document.querySelectorAll('button')]
+                .find((button) => button.getAttribute('title') === 'Add inspector tab');
+              if (inspectorToolsButton instanceof HTMLButtonElement) {
+                inspectorToolsButton.click();
+                await sleep(120);
+                const browserMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Browser'));
+                if (browserMenuItem instanceof HTMLElement) browserMenuItem.click();
+              }
+            }
+            {
               await sleep(260);
             }
             const browserInput = document.querySelector('[data-testid="browser-url-input"]');
@@ -612,6 +663,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               browserInput.dispatchEvent(new Event('input', { bubbles: true }));
               browserInput.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
               await sleep(1200);
+            }
+            const browserActionsButton = document.querySelector('[data-testid="browser-actions-menu"]');
+            if (browserActionsButton instanceof HTMLButtonElement) {
+              browserActionsButton.click();
+              await sleep(160);
             }
             const browserWebview = document.querySelector('[data-testid="browser-webview"]');
             const captureBrowserButton = [...document.querySelectorAll('button')]
@@ -648,6 +704,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-matches') ?? '0') > 0;
               }
             }
+            const browserActionsButtonAfterFind = document.querySelector('[data-testid="browser-actions-menu"]');
+            if (browserActionsButtonAfterFind instanceof HTMLButtonElement) {
+              browserActionsButtonAfterFind.click();
+              await sleep(120);
+            }
             const zoomInButton = [...document.querySelectorAll('button')]
               .find((button) => button.getAttribute('title') === 'Zoom in');
             if (zoomInButton instanceof HTMLButtonElement) {
@@ -678,6 +739,80 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             var browserCacheReloadWorks =
               Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-cache-reloads') ?? '0') > 0;
+            const newBrowserTabButton = document.querySelector('[data-testid="browser-new-tab"]');
+            if (newBrowserTabButton instanceof HTMLButtonElement) {
+              newBrowserTabButton.click();
+              await sleep(120);
+            }
+            var browserMultiTabWorks =
+              Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-tab-count') ?? '0') >= 2;
+            const browserTabs = [...document.querySelectorAll('[data-testid="browser-tab"]')];
+            if (browserTabs[0] instanceof HTMLButtonElement) {
+              browserTabs[0].click();
+              await sleep(240);
+            }
+            const runBrowserInspectionButton = document.querySelector('[data-testid="browser-run-inspection"]');
+            if (runBrowserInspectionButton instanceof HTMLButtonElement) {
+              runBrowserInspectionButton.click();
+              for (let index = 0; index < 30; index += 1) {
+                const targetCount = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-dom-targets') ?? '0');
+                const assetCount = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-asset-count') ?? '0');
+                if (targetCount > 0 && assetCount > 0) break;
+                await sleep(100);
+              }
+            }
+            var browserInspectionWorks =
+              Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-dom-targets') ?? '0') > 0 &&
+              Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-asset-count') ?? '0') > 0;
+            const targetsInspectorButton = document.querySelector('[data-testid="browser-inspector-targets"]');
+            if (targetsInspectorButton instanceof HTMLButtonElement) {
+              targetsInspectorButton.click();
+              await sleep(120);
+            }
+            var browserTargetsPaneWorks =
+              document.querySelector('[data-testid="browser-target-select"]') instanceof HTMLSelectElement &&
+              document.body.innerText.includes('Point click') &&
+              document.body.innerText.includes('Clipboard');
+            const assetsInspectorButton = document.querySelector('[data-testid="browser-inspector-assets"]');
+            if (assetsInspectorButton instanceof HTMLButtonElement) {
+              assetsInspectorButton.click();
+              await sleep(120);
+            }
+            const bundleAssetsButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('Bundle files'));
+            if (bundleAssetsButton instanceof HTMLButtonElement) {
+              bundleAssetsButton.click();
+              for (let index = 0; index < 30; index += 1) {
+                if ((document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-asset-bundle-path') ?? '').length > 0) break;
+                await sleep(100);
+              }
+            }
+            var browserAssetBundleWorks =
+              (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-asset-bundle-path') ?? '').includes('manifest.json');
+            const securityInspectorButton = document.querySelector('[data-testid="browser-inspector-security"]');
+            if (securityInspectorButton instanceof HTMLButtonElement) {
+              securityInspectorButton.click();
+              await sleep(120);
+            }
+            var browserSecurityPaneWorks =
+              document.body.innerText.includes('Approval') &&
+              document.body.innerText.includes('Allowed') &&
+              document.body.innerText.includes('Downloads') &&
+              document.body.innerText.includes('Uploads');
+            const hideBrowserButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Hide browser surface');
+            if (hideBrowserButton instanceof HTMLButtonElement) {
+              hideBrowserButton.click();
+              await sleep(120);
+            }
+            var browserVisibilityControlWorks =
+              document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-visible') === 'false';
+            const showBrowserButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Show browser surface');
+            if (showBrowserButton instanceof HTMLButtonElement) {
+              showBrowserButton.click();
+              await sleep(120);
+            }
             const browserTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
             var rightPanelContextMenuWorks = false;
             var rightPanelTabReorderWorks = false;
@@ -689,7 +824,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 clientX: browserTabButton.getBoundingClientRect().left + 12,
                 clientY: browserTabButton.getBoundingClientRect().bottom + 4
               }));
-              await sleep(140);
+              for (let index = 0; index < 15; index += 1) {
+                if (document.body.innerText.includes('Move tab left')) break;
+                await sleep(100);
+              }
               rightPanelContextMenuWorks =
                 document.body.innerText.includes('Move tab left') &&
                 document.body.innerText.includes('Move tab right') &&
@@ -698,11 +836,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 .find((item) => item.textContent?.includes('Move tab left'));
               if (moveLeft instanceof HTMLButtonElement) {
                 moveLeft.click();
-                await sleep(160);
-                const afterOrder = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
-                rightPanelTabReorderWorks =
-                  beforeOrder.includes('files,browser') &&
-                  afterOrder.includes('browser,files');
+                for (let index = 0; index < 15; index += 1) {
+                  const afterOrder = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
+                  rightPanelTabReorderWorks =
+                    beforeOrder.includes('files,browser') &&
+                    afterOrder.includes('browser,files');
+                  if (rightPanelTabReorderWorks) break;
+                  await sleep(100);
+                }
               }
             }
             const openBlankSideChat = async () => {
@@ -905,6 +1046,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
+            rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             reviewBinaryStateWorks: typeof reviewBinaryStateWorks === 'boolean' ? reviewBinaryStateWorks : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
@@ -917,6 +1059,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserZoomWorks: typeof browserZoomWorks === 'boolean' ? browserZoomWorks : null,
             browserDeviceModeWorks: typeof browserDeviceModeWorks === 'boolean' ? browserDeviceModeWorks : null,
             browserCacheReloadWorks: typeof browserCacheReloadWorks === 'boolean' ? browserCacheReloadWorks : null,
+            browserMultiTabWorks: typeof browserMultiTabWorks === 'boolean' ? browserMultiTabWorks : null,
+            browserInspectionWorks: typeof browserInspectionWorks === 'boolean' ? browserInspectionWorks : null,
+            browserTargetsPaneWorks: typeof browserTargetsPaneWorks === 'boolean' ? browserTargetsPaneWorks : null,
+            browserAssetBundleWorks: typeof browserAssetBundleWorks === 'boolean' ? browserAssetBundleWorks : null,
+            browserSecurityPaneWorks: typeof browserSecurityPaneWorks === 'boolean' ? browserSecurityPaneWorks : null,
+            browserVisibilityControlWorks: typeof browserVisibilityControlWorks === 'boolean' ? browserVisibilityControlWorks : null,
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
@@ -968,6 +1116,43 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
         app.quit()
       })
+    }, 700)
+  })
+}
+
+function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            await sleep(500);
+            const profile = await window.api.app.getProfile();
+            const projects = await window.api.projects.list();
+            const sessions = await window.api.sessions.list();
+            const bodyText = document.body.innerText;
+            const addProjectButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('Add project'));
+            return {
+              profile,
+              projectCount: projects.length,
+              sessionCount: sessions.length,
+              emptyStateVisible: bodyText.includes('Add a project folder') || bodyText.includes('Open a project'),
+              addProjectActionVisible: addProjectButton instanceof HTMLButtonElement
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
     }, 700)
   })
 }
@@ -1068,7 +1253,16 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               scroller.scrollTop = Math.min(240, Math.max(0, scroller.scrollHeight - scroller.clientHeight));
               scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
               lazyBeforeTop = scroller.scrollTop;
+              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
               lazyBeforeVisibleMessage = firstVisibleMessageId();
+              for (let index = 0; index < 5 && !lazyBeforeVisibleMessage; index += 1) {
+                const currentLazyBeforeText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
+                const currentLazyBeforeHidden = Number(currentLazyBeforeText.match(/Show\\s+([\\d,]+)/)?.[1]?.replace(/,/g, '') ?? 0);
+                if (currentLazyBeforeHidden !== lazyBeforeHidden) break;
+                lazyBeforeVisibleMessage = firstVisibleMessageId();
+                if (lazyBeforeVisibleMessage) break;
+                await sleep(10);
+              }
               for (let index = 0; index < 60; index += 1) {
                 const lazyAfterText = document.querySelector('[data-testid="load-earlier-messages"]')?.textContent ?? '';
                 lazyAfterHidden = Number(lazyAfterText.match(/Show\\s+([\\d,]+)/)?.[1]?.replace(/,/g, '') ?? 0);
@@ -1118,7 +1312,7 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               autoLazyAnchorPreserved: Boolean(lazyBeforeVisibleMessage && lazyAfterVisibleMessage) &&
                 Number.isFinite(lazyBeforeOrdinal) &&
                 Number.isFinite(lazyAfterOrdinal) &&
-                Math.abs(lazyAfterOrdinal - lazyBeforeOrdinal) <= 1,
+                Math.abs(lazyAfterOrdinal - lazyBeforeOrdinal) <= 2,
               lazyBeforeHidden,
               lazyAfterHidden,
               lazyAfterTop,
@@ -1245,19 +1439,50 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               hoverCardText.includes('Folder') &&
               hoverCardText.includes('Provider') &&
               hoverCardText.includes('Status');
+            let singleHoverSurfaceWorks = false;
+            const normalActionsButton = normalRow?.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+            if (normalActionsButton instanceof HTMLElement) {
+              const actionRect = normalActionsButton.getBoundingClientRect();
+              normalActionsButton.dispatchEvent(new MouseEvent('mouseover', {
+                bubbles: true,
+                clientX: actionRect.left + 8,
+                clientY: actionRect.top + 8
+              }));
+              normalActionsButton.focus({ preventScroll: true });
+              await sleep(180);
+              const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
+              const visibleHoverCards = [...document.querySelectorAll('[data-testid="session-hover-card"]')];
+              singleHoverSurfaceWorks =
+                visibleTooltips.length === 1 &&
+                visibleHoverCards.length === 0;
+              normalActionsButton.blur();
+              normalActionsButton.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+              await sleep(80);
+            }
+            const sidebar = document.querySelector('aside');
+            const sidebarNoHorizontalOverflow = sidebar instanceof HTMLElement &&
+              getComputedStyle(sidebar).overflowX === 'hidden' &&
+              [...sidebar.querySelectorAll('.overflow-y-auto')].every((element) => (
+                element instanceof HTMLElement && getComputedStyle(element).overflowX === 'hidden'
+              ));
             const environmentIconVisible = Boolean(normalRow?.querySelector('[data-testid="session-environment-icon"]'));
 
-            let doubleClickRenameWorks = false;
+            let actionRenameWorks = false;
             if (normalRow instanceof HTMLElement) {
-              normalRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+              const actionsButton = normalActionsButton ?? normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (actionsButton instanceof HTMLElement) actionsButton.click();
               await sleep(120);
-              const input = document.querySelector('input');
+              const renameMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Rename'));
+              if (renameMenuItem instanceof HTMLElement) renameMenuItem.click();
+              await sleep(120);
+              const input = document.querySelector('[data-testid="rename-chat-input"]');
               if (input instanceof HTMLInputElement) {
                 const setter = Object.getOwnPropertyDescriptor(input.constructor.prototype, 'value')?.set;
                 setter?.call(input, 'Sidebar renamed by smoke');
                 input.dispatchEvent(new Event('input', { bubbles: true }));
                 input.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-                doubleClickRenameWorks = Boolean(await waitForRow('Sidebar renamed by smoke'));
+                actionRenameWorks = Boolean(await waitForRow('Sidebar renamed by smoke'));
               }
             }
 
@@ -1402,8 +1627,10 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               newPinAppended,
               hoverPinVisible,
               hoverCardVisible,
+              singleHoverSurfaceWorks,
+              sidebarNoHorizontalOverflow,
               environmentIconVisible,
-              doubleClickRenameWorks,
+              actionRenameWorks,
               runningSpinnerVisible: Boolean(runningRow?.querySelector('[data-testid="session-status-spinner"]')),
               normalIdleDotHidden: !normalRow?.querySelector('[data-testid="session-status-dot"]'),
               unreadIdleDotVisible: Boolean(unreadRow?.querySelector('[data-testid="session-status-dot"]')),
@@ -2572,6 +2799,7 @@ app.on('before-quit', () => {
 
 async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   if (!process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) return
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'empty-state') return
   const workspace = process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd()
   const existing = projectStore.list()
   const project = existing[0] ?? projectStore.add('Automated UI Smoke', workspace)

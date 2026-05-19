@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
 import { useSessionStore } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
@@ -8,7 +9,9 @@ import SettingsPage from './components/SettingsModal'
 import CapabilitiesPage from './components/CapabilitiesPage'
 import DesignSystemPreview from './components/DesignSystemPreview'
 import CommandPalette, { type CommandPaletteAction } from './components/CommandPalette'
-import { MotionView, TextInputDialog } from './components/shared/designSystem'
+import RenameChatDialog from './components/shared/RenameChatDialog'
+import { MotionView } from './components/shared/designSystem'
+import EmptyState from './components/shared/EmptyState'
 import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
 import { APP_COMMANDS, formatShortcutSequence } from '../../types/appCommands'
@@ -47,6 +50,7 @@ export default function App(): JSX.Element {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [renamingActiveChat, setRenamingActiveChat] = useState(false)
   const activeSession = sessions.find((session) => session.id === activeSessionId)
+  const deferredActiveSessionId = useDeferredValue(activeSessionId)
 
   const createNewChat = useCallback(async (): Promise<void> => {
     const sessionState = useSessionStore.getState()
@@ -355,7 +359,10 @@ export default function App(): JSX.Element {
   useEffect(() => {
     const bootStartedAt = markRendererStart()
     window.api.app.getProfile().then((profile) => {
-      document.documentElement.dataset.reducedMotion = profile.forceReducedMotion ? 'true' : 'false'
+      document.documentElement.dataset.forcedReducedMotion = profile.forceReducedMotion ? 'true' : 'false'
+      if (profile.forceReducedMotion) {
+        document.documentElement.dataset.reducedMotion = 'true'
+      }
     })
     window.api.sessions.checkProviders().then(setProviderAvailability)
     window.api.settings.get().then((s) => {
@@ -453,7 +460,9 @@ export default function App(): JSX.Element {
     )
 
     const unsubNav = window.api.pet.onNavigate((sessionId) => {
-      setActiveSession(sessionId)
+      flushSync(() => {
+        setActiveSession(sessionId)
+      })
     })
 
     const unsub = window.api.onSessionEvent((event) => {
@@ -639,11 +648,13 @@ export default function App(): JSX.Element {
           <>
             <Titlebar />
             <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              {activeSessionId ? (
+              {deferredActiveSessionId ? (
                 <MotionView viewKey="session" animate={false} className="flex flex-col overflow-hidden">
-                  <SessionPane />
+                  <SessionPane sessionId={deferredActiveSessionId} />
                 </MotionView>
-              ) : null}
+              ) : (
+                <EmptyState />
+              )}
             </main>
           </>
         )}
@@ -655,10 +666,8 @@ export default function App(): JSX.Element {
         />
       )}
       {renamingActiveChat && activeSession && (
-        <TextInputDialog
-          title="Rename chat"
+        <RenameChatDialog
           initialValue={activeSession.name}
-          confirmLabel="Rename"
           onCancel={() => setRenamingActiveChat(false)}
           onConfirm={(value) => void renameActiveChat(value)}
         />

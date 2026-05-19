@@ -43,15 +43,7 @@ interface TranscriptPrependAnchor {
 interface Props {
   session: Session
   projectName?: string
-  onSuggestedPrompt?: (prompt: string) => void
 }
-
-const SUGGESTED_PROMPTS = [
-  'Explain the structure of this codebase',
-  'Find and fix any TypeScript errors',
-  'Write tests for the main module',
-  'Refactor the largest file for readability'
-]
 
 const TOOL_SUMMARY_SCROLL_THRESHOLD = 8
 const TOOL_SUMMARY_MAX_HEIGHT = 220
@@ -63,7 +55,7 @@ const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
 const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
 const TRANSCRIPT_VIRTUAL_ROW_GAP = 14
 
-export default function ChatView({ session, projectName, onSuggestedPrompt }: Props): JSX.Element {
+export default function ChatView({ session, projectName }: Props): JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -534,33 +526,13 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
   // Hero state: no messages yet
   if (session.messages.length === 0 && session.status !== 'running') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-8 pb-8" style={{ background: 'var(--canvas-bg)' }}>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8" style={{ background: 'var(--canvas-bg)' }}>
         <h1
-          className="text-3xl font-semibold text-center mb-7 leading-tight"
-          style={{ color: 'var(--text-primary)', maxWidth: 560, fontSize: 30 }}
+          className="text-3xl font-semibold text-center leading-tight"
+          style={{ color: 'var(--text-primary)', maxWidth: 620, fontSize: 30 }}
         >
           {projectName ? `What do you want to build in ${projectName}?` : 'What do you want to build?'}
         </h1>
-        <div className="grid grid-cols-2 gap-2.5 w-full" style={{ maxWidth: 500 }}>
-          {SUGGESTED_PROMPTS.map((prompt, index) => (
-            <SurfaceRow
-              as="button"
-              key={prompt}
-              onClick={() => onSuggestedPrompt?.(prompt)}
-              index={index}
-              className="text-left px-4 py-3 text-sm"
-              style={{
-                background: 'var(--surface-bg)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-lg)',
-                color: 'var(--text-secondary)',
-                lineHeight: 1.4
-              }}
-            >
-              {prompt}
-            </SurfaceRow>
-          ))}
-        </div>
       </div>
     )
   }

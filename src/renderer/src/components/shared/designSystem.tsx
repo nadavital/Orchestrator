@@ -21,6 +21,29 @@ const focusableSelector = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',')
 
+const hoverSurfaceOpenEvent = 'orchestrator:hover-surface-open'
+
+export function announceHoverSurfaceOpen(id: string): void {
+  window.dispatchEvent(new CustomEvent(hoverSurfaceOpenEvent, { detail: { id } }))
+}
+
+export function useExclusiveHoverSurface(id: string, onClose: () => void): void {
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  useEffect(() => {
+    const onOpen = (event: Event): void => {
+      const nextId = (event as CustomEvent<{ id?: string }>).detail?.id
+      if (nextId && nextId !== id) onCloseRef.current()
+    }
+    window.addEventListener(hoverSurfaceOpenEvent, onOpen)
+    return () => window.removeEventListener(hoverSurfaceOpenEvent, onOpen)
+  }, [id])
+}
+
 function useLayerFocus(
   ref: RefObject<HTMLElement | null>,
   onClose: () => void
@@ -235,10 +258,49 @@ export function ToolbarButton({
 }
 
 export function Tooltip({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+  const idRef = useRef(`tooltip-${Math.random().toString(36).slice(2)}`)
+  const anchorRef = useRef<HTMLSpanElement | null>(null)
+  const [visible, setVisible] = useState(false)
+  const [position, setPosition] = useState<{ left: number; top: number; placement: 'top' | 'bottom' } | null>(null)
+
+  const show = (): void => {
+    const rect = anchorRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const estimatedWidth = Math.min(Math.max(label.length * 6.2 + 18, 52), 240)
+    const left = Math.min(Math.max(rect.left + rect.width / 2, 8 + estimatedWidth / 2), window.innerWidth - 8 - estimatedWidth / 2)
+    const placement = rect.top < 38 ? 'bottom' : 'top'
+    const top = placement === 'bottom'
+      ? Math.min(rect.bottom + 7, window.innerHeight - 28)
+      : Math.max(rect.top - 7, 8)
+    announceHoverSurfaceOpen(idRef.current)
+    setPosition({ left, top, placement })
+    setVisible(true)
+  }
+
+  const hide = (): void => setVisible(false)
+  useExclusiveHoverSurface(idRef.current, hide)
+
   return (
-    <span className="orchestrator-tooltip-anchor">
+    <span
+      ref={anchorRef}
+      className="orchestrator-tooltip-anchor"
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+      onMouseDownCapture={hide}
+    >
       {children}
-      <span className="orchestrator-tooltip" role="tooltip" style={{ bottom: 'calc(100% + 6px)', left: '50%', transform: 'translate(-50%, 3px)' }}>
+      <span
+        className="orchestrator-tooltip"
+        role="tooltip"
+        data-visible={visible && position ? 'true' : 'false'}
+        data-placement={position?.placement ?? 'top'}
+        style={{
+          left: position?.left ?? 0,
+          top: position?.top ?? 0
+        }}
+      >
         {label}
       </span>
     </span>
@@ -879,12 +941,14 @@ export function MotionOverlay({
   className = '',
   surfaceClassName = '',
   surfaceStyle,
+  backdropStyle,
 }: {
   children: ReactNode
   onClose: () => void
   className?: string
   surfaceClassName?: string
   surfaceStyle?: CSSProperties
+  backdropStyle?: CSSProperties
 }): JSX.Element {
   const surfaceRef = useRef<HTMLDivElement>(null)
   useLayerFocus(surfaceRef, onClose)
@@ -892,7 +956,7 @@ export function MotionOverlay({
   return (
     <div
       className={`motion-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center ${className}`}
-      style={{ background: 'rgba(16, 24, 40, 0.28)', backdropFilter: 'blur(16px)' }}
+      style={{ background: 'rgba(16, 24, 40, 0.28)', backdropFilter: 'blur(16px)', ...backdropStyle }}
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
       <div

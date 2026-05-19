@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FilePreviewResult } from '../../env'
-import { Badge, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
+import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
 interface Props {
@@ -24,6 +24,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [preview, setPreview] = useState<FilePreviewResult | null>(null)
   const [loading, setLoading] = useState(true)
+  const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const filteredEntries = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     return normalized
@@ -102,6 +103,29 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
     }))
   }
 
+  const fileActions = (
+    <div className="relative flex items-center gap-1">
+      <ToolbarButton icon="paperclip" label="Add file to chat" disabled={selectedEntry?.kind !== 'file'} onClick={addSelectedToChat} />
+      <IconButton
+        icon="ellipsis"
+        label="File actions"
+        disabled={!selectedEntry}
+        active={actionMenuOpen}
+        onClick={() => setActionMenuOpen((open) => !open)}
+      />
+      {actionMenuOpen && (
+        <MenuSurface
+          onClose={() => setActionMenuOpen(false)}
+          style={{ position: 'absolute', right: 0, top: 34, width: 170, zIndex: 90 }}
+        >
+          <MenuItem icon="copy" label="Copy path" disabled={!selectedEntry} onClick={() => { copySelected(); setActionMenuOpen(false) }} />
+          <MenuItem icon="folder" label="Reveal file" disabled={!selectedEntry} onClick={() => { revealSelected(); setActionMenuOpen(false) }} />
+          <MenuItem icon="file" label="Open file" disabled={!selectedEntry} onClick={() => { openSelected(); setActionMenuOpen(false) }} />
+        </MenuSurface>
+      )}
+    </div>
+  )
+
   return (
     <div
       className="flex min-h-0 min-w-0 flex-col overflow-hidden"
@@ -111,17 +135,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
         background: 'var(--surface-bg)'
       }}
     >
-      <PanelHeader
-        title="Files"
-        actions={
-          <div className="flex items-center gap-1">
-            <ToolbarButton icon="paperclip" label="Add file to chat" disabled={selectedEntry?.kind !== 'file'} onClick={addSelectedToChat} />
-            <ToolbarButton icon="copy" label="Copy path" disabled={!selectedEntry} onClick={copySelected} />
-            <ToolbarButton icon="folder" label="Reveal file" disabled={!selectedEntry} onClick={revealSelected} />
-            <ToolbarButton icon="file" label="Open file" disabled={!selectedEntry} onClick={openSelected} />
-          </div>
-        }
-      />
+      {!embedded && <PanelHeader title="Files" actions={fileActions} />}
       <div className="flex shrink-0 items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <input
           data-testid="workspace-file-search"
@@ -136,6 +150,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
           }}
         />
         <Badge tone="neutral">{filteredEntries.length}</Badge>
+        {embedded && fileActions}
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(140px,0.42fr)_minmax(0,1fr)]">
         <div className="min-h-0 overflow-y-auto border-r" style={{ borderColor: 'var(--border-subtle)' }}>
@@ -218,7 +233,30 @@ function FilePreview({
     )
   }
   if (preview.kind === 'pdf') {
-    return <EmptyFileState title={entry.name} body="PDF preview is handled by the system viewer. Use Open file to inspect it." />
+    return (
+      <iframe
+        title={entry.name}
+        src={fileUrl(absolutePath)}
+        className="h-full w-full border-0"
+        data-testid="workspace-pdf-preview"
+      />
+    )
+  }
+  if (preview.kind === 'audio') {
+    return (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 p-4 text-center">
+        <Icon name="file" size={26} />
+        <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{entry.name}</div>
+        <audio controls src={fileUrl(absolutePath)} className="w-full max-w-[360px]" data-testid="workspace-audio-preview" />
+      </div>
+    )
+  }
+  if (preview.kind === 'video') {
+    return (
+      <div className="flex h-full min-h-0 items-center justify-center overflow-auto p-3">
+        <video controls src={fileUrl(absolutePath)} className="max-h-full max-w-full rounded-md" data-testid="workspace-video-preview" />
+      </div>
+    )
   }
   if (preview.kind === 'binary') {
     return <EmptyFileState title={entry.name} body="Binary file preview unavailable. Use Open file or Reveal file to inspect it." />

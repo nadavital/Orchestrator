@@ -2,7 +2,8 @@ import type { IpcMain } from 'electron'
 import { dialog, app, shell } from 'electron'
 import { execFile } from 'child_process'
 import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
-import { basename, dirname, extname } from 'path'
+import { tmpdir } from 'os'
+import { basename, dirname, extname, join } from 'path'
 import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, PerformanceMetric, TranscriptPageRequest } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -24,16 +25,51 @@ import { providerManifests } from './providerManifest'
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
 type FilePreviewResult =
   | { kind: 'text'; size: number; text: string; truncated: boolean }
-  | { kind: 'image' | 'pdf' | 'binary'; size: number; truncated: boolean }
+  | { kind: 'image' | 'pdf' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
   | { kind: 'missing' | 'unreadable'; size?: number; truncated: false }
+
+interface BrowserAssetRequest {
+  inventoryId: string
+  pageUrl?: string | null
+  assets: Array<{
+    id: string
+    kind: string
+    name: string
+    url: string
+  }>
+}
+
+interface PastedAttachmentRequest {
+  name?: string
+  mimeType?: string
+  bytes: ArrayBuffer | Uint8Array
+}
 
 const FILE_PREVIEW_LIMIT = 80_000
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.aiff', '.m4a', '.aac', '.flac', '.ogg'])
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm'])
 const BINARY_EXTENSIONS = new Set([
-  '.bin', '.exe', '.dmg', '.zip', '.gz', '.tgz', '.br', '.7z', '.mp4', '.mov', '.mp3',
-  '.wav', '.aiff', '.woff', '.woff2', '.ttf', '.otf', '.ico', '.icns', '.wasm', '.sqlite',
+  '.bin', '.exe', '.dmg', '.zip', '.gz', '.tgz', '.br', '.7z', '.woff', '.woff2', '.ttf', '.otf', '.ico', '.icns', '.wasm', '.sqlite',
   '.db', '.jar', '.class', '.so', '.dylib'
 ])
+
+const BROWSER_ARTIFACT_DIR = 'orchestrator-browser-artifacts'
+const COMPOSER_ATTACHMENT_DIR = 'orchestrator-composer-attachments'
+const MIME_EXTENSIONS: Record<string, string> = {
+  'application/json': '.json',
+  'application/pdf': '.pdf',
+  'image/bmp': '.bmp',
+  'image/gif': '.gif',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/svg+xml': '.svg',
+  'image/webp': '.webp',
+  'text/csv': '.csv',
+  'text/html': '.html',
+  'text/markdown': '.md',
+  'text/plain': '.txt'
+}
 
 const EDITOR_APPS: Record<Exclude<PreferredEditor, 'system'>, { label: string; macAppName: string }> = {
   vscode: { label: 'VS Code', macAppName: 'Visual Studio Code' },
@@ -57,6 +93,8 @@ function previewFile(filePath: string): FilePreviewResult {
     const extension = extname(filePath).toLowerCase()
     if (IMAGE_EXTENSIONS.has(extension)) return { kind: 'image', size, truncated: false }
     if (extension === '.pdf') return { kind: 'pdf', size, truncated: false }
+    if (AUDIO_EXTENSIONS.has(extension)) return { kind: 'audio', size, truncated: false }
+    if (VIDEO_EXTENSIONS.has(extension)) return { kind: 'video', size, truncated: false }
     if (BINARY_EXTENSIONS.has(extension)) return { kind: 'binary', size, truncated: false }
 
     const byteCount = Math.min(size, FILE_PREVIEW_LIMIT)
@@ -77,6 +115,124 @@ function previewFile(filePath: string): FilePreviewResult {
   } catch {
     return { kind: 'unreadable', truncated: false }
   }
+}
+
+function writeBrowserDataUrlArtifact(dataUrl: string, suggestedName?: string): { path: string; size: number } {
+  const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(dataUrl)
+  if (!match) throw new Error('Invalid browser artifact data URL')
+  const isBase64 = match[2] === ';base64'
+  const payload = match[3] ?? ''
+  const buffer = isBase64 ? Buffer.from(payload, 'base64') : Buffer.from(decodeURIComponent(payload), 'utf8')
+  const dir = join(tmpdir(), BROWSER_ARTIFACT_DIR)
+  mkdirSync(dir, { recursive: true })
+  const safeName = sanitizeArtifactName(suggestedName || `browser-screenshot-${Date.now()}.png`)
+  const filePath = join(dir, uniqueArtifactName(dir, safeName))
+  writeFileSync(filePath, buffer)
+  return { path: filePath, size: buffer.byteLength }
+}
+
+function writePastedAttachment(request: PastedAttachmentRequest): { path: string; name: string; size: number; mimeType?: string } {
+  const buffer = request.bytes instanceof ArrayBuffer
+    ? Buffer.from(request.bytes)
+    : Buffer.from(request.bytes.buffer, request.bytes.byteOffset, request.bytes.byteLength)
+  const dir = join(tmpdir(), COMPOSER_ATTACHMENT_DIR)
+  mkdirSync(dir, { recursive: true })
+  const name = clipboardAttachmentName(request.name, request.mimeType)
+  const filePath = join(dir, uniqueArtifactName(dir, name))
+  writeFileSync(filePath, buffer)
+  return {
+    path: filePath,
+    name: basename(filePath),
+    size: buffer.byteLength,
+    mimeType: request.mimeType || undefined
+  }
+}
+
+async function bundleBrowserAssets(request: BrowserAssetRequest): Promise<{
+  directoryPath: string
+  manifestPath: string
+  assets: Array<{ id: string; kind: string; name: string; url: string; path: string; contentType: string | null }>
+  failures: Array<{ id: string; kind: string; name: string; url: string; reason: string }>
+  summary: { requestedCount: number; downloadedCount: number; failedCount: number }
+}> {
+  const dir = join(tmpdir(), BROWSER_ARTIFACT_DIR, sanitizeArtifactName(request.inventoryId || `inventory-${Date.now()}`))
+  mkdirSync(dir, { recursive: true })
+  const downloaded: Array<{ id: string; kind: string; name: string; url: string; path: string; contentType: string | null }> = []
+  const failures: Array<{ id: string; kind: string; name: string; url: string; reason: string }> = []
+
+  for (const asset of request.assets.slice(0, 80)) {
+    try {
+      if (!/^https?:/i.test(asset.url) && !/^data:/i.test(asset.url)) {
+        throw new Error('Only http, https, and data URLs can be bundled')
+      }
+      const safeName = uniqueArtifactName(dir, sanitizeArtifactName(asset.name || `${asset.kind}-${asset.id}`))
+      const filePath = join(dir, safeName)
+      let contentType: string | null = null
+      let buffer: Buffer
+      if (/^data:/i.test(asset.url)) {
+        const saved = writeBrowserDataUrlArtifact(asset.url, safeName)
+        buffer = Buffer.from(readFileSync(saved.path))
+        contentType = /^data:([^;,]+)/i.exec(asset.url)?.[1] ?? null
+      } else {
+        const response = await fetch(asset.url)
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        contentType = response.headers.get('content-type')
+        buffer = Buffer.from(await response.arrayBuffer())
+      }
+      writeFileSync(filePath, buffer)
+      downloaded.push({ ...asset, path: filePath, contentType })
+    } catch (error) {
+      failures.push({ ...asset, reason: error instanceof Error ? error.message : String(error) })
+    }
+  }
+
+  const manifestPath = join(dir, 'manifest.json')
+  writeFileSync(manifestPath, JSON.stringify({
+    pageUrl: request.pageUrl ?? null,
+    inventoryId: request.inventoryId,
+    assets: downloaded,
+    failures,
+    summary: {
+      requestedCount: request.assets.length,
+      downloadedCount: downloaded.length,
+      failedCount: failures.length
+    }
+  }, null, 2))
+
+  return {
+    directoryPath: dir,
+    manifestPath,
+    assets: downloaded,
+    failures,
+    summary: {
+      requestedCount: request.assets.length,
+      downloadedCount: downloaded.length,
+      failedCount: failures.length
+    }
+  }
+}
+
+function sanitizeArtifactName(name: string): string {
+  const compact = name.replace(/[^\w.\-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 96)
+  return compact || `artifact-${Date.now()}`
+}
+
+function clipboardAttachmentName(name?: string, mimeType?: string): string {
+  const extension = mimeType ? MIME_EXTENSIONS[mimeType.toLowerCase()] : ''
+  const fallback = mimeType?.startsWith('image/') ? `pasted-image-${Date.now()}${extension || '.png'}` : `pasted-file-${Date.now()}${extension}`
+  const safeName = sanitizeArtifactName(basename(name || fallback))
+  return extension && !extname(safeName) ? `${safeName}${extension}` : safeName
+}
+
+function uniqueArtifactName(dir: string, name: string): string {
+  if (!existsSync(join(dir, name))) return name
+  const extension = extname(name)
+  const stem = extension ? name.slice(0, -extension.length) : name
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = `${stem}-${index}${extension}`
+    if (!existsSync(join(dir, candidate))) return candidate
+  }
+  return `${stem}-${Date.now()}${extension}`
 }
 
 function looksBinary(buffer: Buffer): boolean {
@@ -244,6 +400,15 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // Browser side panel
   ipcMain.handle('browser:openExternal', (_, url: string): Promise<void> => shell.openExternal(url))
+  ipcMain.handle('browser:saveDataUrlArtifact', (_, dataUrl: string, suggestedName?: string) =>
+    writeBrowserDataUrlArtifact(dataUrl, suggestedName)
+  )
+  ipcMain.handle('browser:bundleAssets', (_, request: BrowserAssetRequest) =>
+    bundleBrowserAssets(request)
+  )
+  ipcMain.handle('attachments:savePastedFile', (_, request: PastedAttachmentRequest) =>
+    writePastedAttachment(request)
+  )
 
   // App settings
   ipcMain.handle('settings:get', () => settingsStore.store)

@@ -1,6 +1,6 @@
-import { createElement, useEffect, useRef, useState } from 'react'
-import type { BrowserWorkbenchState } from '../../store/sessions'
-import { Badge, ToolbarButton } from '../shared/designSystem'
+import { createElement, useEffect, useMemo, useRef, useState } from 'react'
+import type { BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
+import { Badge, IconButton, MenuSurface, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
 interface Props {
@@ -26,42 +26,119 @@ type WebviewElement = HTMLElement & {
   setZoomFactor: (factor: number) => void
   getZoomFactor?: () => number
   capturePage: () => Promise<{ toDataURL: () => string }>
+  executeJavaScript: <T = unknown>(code: string, userGesture?: boolean) => Promise<T>
+}
+
+interface BrowserLogEntry {
+  level: 'debug' | 'info' | 'log' | 'warn' | 'error'
+  message: string
+  timestamp: string
+  url?: string
+}
+
+interface PageAsset {
+  id: string
+  kind: 'script' | 'font' | 'image' | 'stylesheet' | 'video' | 'other'
+  name: string
+  url: string
+  sources: Array<{ kind: string; property?: string }>
+}
+
+interface InlineSvgAsset {
+  id: string
+  name: string
+  markup: string
+}
+
+interface PageAssetInventory {
+  id: string
+  pageUrl: string | null
+  assets: PageAsset[]
+  inlineSvgs: InlineSvgAsset[]
+  summary: {
+    totalCount: number
+    inlineSvgCount: number
+    byKind: Record<string, number>
+  }
+}
+
+interface VisibleTarget {
+  nodeId: string
+  tagName: string
+  role: string | null
+  ariaName: string | null
+  visibleText: string | null
+  preview: string
+  boundingBox: { x: number; y: number; width: number; height: number }
+  selector: { primary: string | null; candidates: string[] }
 }
 
 const QUICK_URLS = ['http://localhost:5173', 'http://127.0.0.1:8787']
 const ZOOM_STEP = 0.1
+const DEFAULT_TAB: BrowserTabState = { id: 'tab-1', title: 'New tab', url: '', lastOpened: 0 }
 
-export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlChange, browserState, onBrowserStateChange }: Props): JSX.Element {
+export default function BrowserPanel({
+  initialUrl = '',
+  embedded = false,
+  onUrlChange,
+  browserState,
+  onBrowserStateChange
+}: Props): JSX.Element {
+  const workbench = normalizeWorkbench(browserState, initialUrl)
   const webviewRef = useRef<WebviewElement | null>(null)
   const pendingCacheReloadRef = useRef(false)
-  const [address, setAddress] = useState(initialUrl)
-  const [currentUrl, setCurrentUrl] = useState(initialUrl)
-  const [title, setTitle] = useState('')
+  const [address, setAddress] = useState(activeBrowserTab(workbench).url || initialUrl)
+  const [currentUrl, setCurrentUrl] = useState(activeBrowserTab(workbench).url || initialUrl)
+  const [title, setTitle] = useState(activeBrowserTab(workbench).title === 'New tab' ? '' : activeBrowserTab(workbench).title)
   const [isLoading, setIsLoading] = useState(false)
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [screenshot, setScreenshot] = useState<string | null>(null)
-  const [findVisible, setFindVisible] = useState(browserState?.findVisible ?? false)
-  const [findQuery, setFindQuery] = useState(browserState?.findQuery ?? '')
+  const [artifactPath, setArtifactPath] = useState<string | null>(null)
   const [findMatches, setFindMatches] = useState(0)
-  const [zoomFactor, setZoomFactor] = useState(browserState?.zoomFactor ?? 1)
-  const [deviceMode, setDeviceMode] = useState<'desktop' | 'mobile'>(browserState?.deviceMode ?? 'desktop')
   const [cacheReloadCount, setCacheReloadCount] = useState(0)
+  const [logs, setLogs] = useState<BrowserLogEntry[]>([])
+  const [domSnapshot, setDomSnapshot] = useState('')
+  const [visibleTargets, setVisibleTargets] = useState<VisibleTarget[]>([])
+  const [assetInventory, setAssetInventory] = useState<PageAssetInventory | null>(null)
+  const [assetBundlePath, setAssetBundlePath] = useState<string | null>(null)
+  const [selectedTargetId, setSelectedTargetId] = useState('')
+  const [actionText, setActionText] = useState('')
+  const [clipboardText, setClipboardText] = useState('')
+  const [coordinateAction, setCoordinateAction] = useState({ x: 20, y: 20, scrollY: 360 })
+  const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
+  const activeTab = activeBrowserTab(workbench)
+  const visible = workbench.visible
+  const viewport = browserViewport(workbench)
+  const urlOrigin = safeOrigin(currentUrl)
+  const blocked = Boolean(urlOrigin && workbench.blockedOrigins.includes(originKey(urlOrigin)))
+  const capabilitySummary = useMemo(() => [
+    `${workbench.tabs.length} tab${workbench.tabs.length === 1 ? '' : 's'}`,
+    workbench.deviceMode === 'desktop' ? 'default viewport' : `${workbench.viewportWidth} x ${workbench.viewportHeight}`,
+    workbench.inspectorOpen ? 'inspector open' : 'inspector hidden'
+  ], [workbench.deviceMode, workbench.inspectorOpen, workbench.tabs.length, workbench.viewportHeight, workbench.viewportWidth])
 
   useEffect(() => {
-    setAddress(initialUrl)
-    setCurrentUrl(initialUrl)
-  }, [initialUrl])
+    const nextTab = activeBrowserTab(workbench)
+    const nextUrl = nextTab.url || initialUrl
+    setAddress(nextUrl)
+    setCurrentUrl(nextUrl)
+    setTitle(nextTab.title === 'New tab' ? '' : nextTab.title)
+    setError(null)
+    setFindMatches(0)
+    setScreenshot(null)
+    setArtifactPath(null)
+    setDomSnapshot('')
+    setVisibleTargets([])
+    setAssetInventory(null)
+    setAssetBundlePath(null)
+    setSelectedTargetId('')
+  }, [workbench.activeTabId, initialUrl])
 
   useEffect(() => {
-    if (!browserState) return
-    setFindVisible(browserState.findVisible)
-    setFindQuery(browserState.findQuery)
-    setZoomFactor(browserState.zoomFactor)
-    setDeviceMode(browserState.deviceMode)
-    webviewRef.current?.setZoomFactor(browserState.zoomFactor)
-  }, [browserState?.deviceMode, browserState?.findQuery, browserState?.findVisible, browserState?.zoomFactor])
+    webviewRef.current?.setZoomFactor(workbench.zoomFactor)
+  }, [workbench.zoomFactor])
 
   useEffect(() => {
     const webview = webviewRef.current
@@ -75,6 +152,7 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
         setCurrentUrl(nextUrl)
         setAddress(nextUrl)
         onUrlChange?.(nextUrl)
+        patchActiveTab({ url: nextUrl, title: webview.getTitle?.() || nextUrl, lastOpened: Date.now() })
       }
       setTitle(webview.getTitle?.() ?? '')
     }
@@ -89,8 +167,8 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
         setCacheReloadCount((count) => count + 1)
       }
       updateNavigationState()
-      webview.setZoomFactor?.(zoomFactor)
-      if (findQuery.trim()) webview.findInPage?.(findQuery)
+      webview.setZoomFactor?.(workbench.zoomFactor)
+      if (workbench.findQuery.trim()) webview.findInPage?.(workbench.findQuery)
     }
     const failLoad = (event: Event): void => {
       const detail = event as Event & { errorDescription?: string; validatedURL?: string }
@@ -101,11 +179,22 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
     }
     const titleUpdated = (event: Event): void => {
       const detail = event as Event & { title?: string }
-      setTitle(detail.title ?? webview.getTitle?.() ?? '')
+      const nextTitle = detail.title ?? webview.getTitle?.() ?? ''
+      setTitle(nextTitle)
+      patchActiveTab({ title: nextTitle || activeTab.title })
     }
     const foundInPage = (event: Event): void => {
       const detail = event as Event & { result?: { matches?: number } }
       setFindMatches(detail.result?.matches ?? 0)
+    }
+    const consoleMessage = (event: Event): void => {
+      const detail = event as Event & { level?: number; message?: string; sourceId?: string }
+      setLogs((entries) => [...entries, {
+        level: consoleLevel(detail.level),
+        message: detail.message ?? '',
+        timestamp: new Date().toISOString(),
+        url: detail.sourceId
+      }].slice(-80))
     }
 
     webview.addEventListener('did-start-loading', startLoading)
@@ -115,6 +204,7 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
     webview.addEventListener('did-fail-load', failLoad)
     webview.addEventListener('page-title-updated', titleUpdated)
     webview.addEventListener('found-in-page', foundInPage)
+    webview.addEventListener('console-message', consoleMessage)
     return () => {
       webview.removeEventListener('did-start-loading', startLoading)
       webview.removeEventListener('did-stop-loading', stopLoading)
@@ -123,30 +213,78 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
       webview.removeEventListener('did-fail-load', failLoad)
       webview.removeEventListener('page-title-updated', titleUpdated)
       webview.removeEventListener('found-in-page', foundInPage)
+      webview.removeEventListener('console-message', consoleMessage)
     }
-  }, [currentUrl, findQuery, onUrlChange, zoomFactor])
+  }, [activeTab.id, onUrlChange, workbench.findQuery, workbench.zoomFactor])
+
+  const patchWorkbench = (patch: Partial<BrowserWorkbenchState>): void => {
+    onBrowserStateChange?.(patch)
+  }
+
+  const patchActiveTab = (patch: Partial<BrowserTabState>): void => {
+    const tabs = workbench.tabs.map((tab) => tab.id === workbench.activeTabId ? { ...tab, ...patch } : tab)
+    patchWorkbench({ tabs })
+  }
 
   const navigate = (raw: string): void => {
     const nextUrl = normalizeUrl(raw)
     if (!nextUrl) return
+    const nextOrigin = safeOrigin(nextUrl)
+    if (nextOrigin && workbench.blockedOrigins.includes(originKey(nextOrigin))) {
+      setError(`Blocked by browser policy: ${originKey(nextOrigin)}`)
+      return
+    }
     setError(null)
     setScreenshot(null)
+    setArtifactPath(null)
     setAddress(nextUrl)
     setCurrentUrl(nextUrl)
+    patchActiveTab({ url: nextUrl, title: nextUrl, lastOpened: Date.now() })
     onUrlChange?.(nextUrl)
+  }
+
+  const newTab = (): void => {
+    const nextTab: BrowserTabState = {
+      id: `tab-${workbench.nextTabIndex}`,
+      title: 'New tab',
+      url: '',
+      lastOpened: Date.now()
+    }
+    patchWorkbench({
+      tabs: [...workbench.tabs, nextTab],
+      activeTabId: nextTab.id,
+      nextTabIndex: workbench.nextTabIndex + 1
+    })
+  }
+
+  const selectTab = (tabId: string): void => {
+    patchWorkbench({
+      activeTabId: tabId,
+      tabs: workbench.tabs.map((tab) => tab.id === tabId ? { ...tab, lastOpened: Date.now() } : tab)
+    })
+  }
+
+  const closeTab = (tabId: string): void => {
+    const nextTabs = workbench.tabs.filter((tab) => tab.id !== tabId)
+    const tabs = nextTabs.length > 0 ? nextTabs : [DEFAULT_TAB]
+    const activeTabId = workbench.activeTabId === tabId ? tabs.at(-1)?.id ?? tabs[0].id : workbench.activeTabId
+    patchWorkbench({ tabs, activeTabId })
   }
 
   const captureScreenshot = async (): Promise<void> => {
     const webview = webviewRef.current
     if (!webview || !currentUrl) return
     const image = await webview.capturePage()
-    setScreenshot(image.toDataURL())
+    const dataUrl = image.toDataURL()
+    setScreenshot(dataUrl)
+    const saved = await window.api.browser.saveDataUrlArtifact(dataUrl, `browser-${Date.now()}.png`)
+    setArtifactPath(saved.path)
+    patchWorkbench({ inspectorOpen: true, inspectorMode: 'console' })
   }
 
   const searchInPage = (query: string): void => {
-    setFindQuery(query)
     setFindMatches(0)
-    onBrowserStateChange?.({ findQuery: query })
+    patchWorkbench({ findQuery: query })
     if (!query.trim()) {
       webviewRef.current?.stopFindInPage('clearSelection')
       return
@@ -155,35 +293,15 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
   }
 
   const closeFind = (): void => {
-    setFindVisible(false)
-    setFindQuery('')
     setFindMatches(0)
-    onBrowserStateChange?.({ findVisible: false, findQuery: '' })
+    patchWorkbench({ findVisible: false, findQuery: '' })
     webviewRef.current?.stopFindInPage('clearSelection')
   }
 
-  const setFindPanelVisible = (visible: boolean): void => {
-    setFindVisible(visible)
-    onBrowserStateChange?.({ findVisible: visible })
-    if (!visible) closeFind()
-  }
-
   const changeZoom = (delta: number): void => {
-    const nextZoom = Math.max(0.5, Math.min(2, Number((zoomFactor + delta).toFixed(2))))
-    setZoomFactor(nextZoom)
+    const nextZoom = Math.max(0.5, Math.min(2, Number((workbench.zoomFactor + delta).toFixed(2))))
     webviewRef.current?.setZoomFactor(nextZoom)
-    window.setTimeout(() => {
-      const appliedZoom = Number(webviewRef.current?.getZoomFactor?.() ?? nextZoom)
-      setZoomFactor(appliedZoom)
-      onBrowserStateChange?.({ zoomFactor: appliedZoom })
-    }, 0)
-    onBrowserStateChange?.({ zoomFactor: nextZoom })
-  }
-
-  const resetZoom = (): void => {
-    setZoomFactor(1)
-    webviewRef.current?.setZoomFactor(1)
-    onBrowserStateChange?.({ zoomFactor: 1 })
+    patchWorkbench({ zoomFactor: nextZoom })
   }
 
   const reloadWithoutCache = (): void => {
@@ -191,10 +309,83 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
     webviewRef.current?.reloadIgnoringCache?.()
   }
 
-  const toggleDeviceMode = (): void => {
-    const nextMode = deviceMode === 'desktop' ? 'mobile' : 'desktop'
-    setDeviceMode(nextMode)
-    onBrowserStateChange?.({ deviceMode: nextMode })
+  const setViewportMode = (mode: BrowserWorkbenchState['deviceMode']): void => {
+    patchWorkbench({
+      deviceMode: mode,
+      viewportWidth: mode === 'desktop' ? 1280 : mode === 'mobile' ? 390 : workbench.viewportWidth,
+      viewportHeight: mode === 'desktop' ? 720 : mode === 'mobile' ? 760 : workbench.viewportHeight
+    })
+  }
+
+  const runInspection = async (): Promise<void> => {
+    const webview = webviewRef.current
+    if (!webview || !currentUrl) return
+    const [snapshot, targets, assets] = await Promise.all([
+      webview.executeJavaScript<string>(DOM_SNAPSHOT_SCRIPT),
+      webview.executeJavaScript<VisibleTarget[]>(VISIBLE_TARGETS_SCRIPT, true),
+      webview.executeJavaScript<PageAssetInventory>(PAGE_ASSETS_SCRIPT)
+    ])
+    patchWorkbench({ inspectorOpen: true })
+    setDomSnapshot(snapshot)
+    setVisibleTargets(targets)
+    setAssetInventory(assets)
+    if (!selectedTargetId && targets[0]) setSelectedTargetId(targets[0].nodeId)
+  }
+
+  const runTargetAction = async (action: 'click' | 'double_click' | 'type' | 'scroll'): Promise<void> => {
+    if (!selectedTargetId || !webviewRef.current) return
+    await webviewRef.current.executeJavaScript(
+      `window.__orchestratorBrowserAction(${JSON.stringify({ action, nodeId: selectedTargetId, text: actionText, x: 0, y: coordinateAction.scrollY })})`,
+      true
+    )
+    await runInspection()
+  }
+
+  const runCoordinateAction = async (action: 'click' | 'scroll'): Promise<void> => {
+    if (!webviewRef.current) return
+    await webviewRef.current.executeJavaScript(
+      `window.__orchestratorBrowserAction(${JSON.stringify({
+        action,
+        x: coordinateAction.x,
+        y: coordinateAction.y,
+        scrollY: coordinateAction.scrollY
+      })})`,
+      true
+    )
+    await runInspection()
+  }
+
+  const readClipboard = async (): Promise<void> => {
+    const text = await webviewRef.current?.executeJavaScript<string>('navigator.clipboard.readText().catch(() => "")', true)
+    setClipboardText(text ?? '')
+  }
+
+  const writeClipboard = async (): Promise<void> => {
+    await webviewRef.current?.executeJavaScript(`navigator.clipboard.writeText(${JSON.stringify(clipboardText)}).catch(() => undefined)`, true)
+  }
+
+  const bundleAssets = async (): Promise<void> => {
+    if (!assetInventory) return
+    const bundle = await window.api.browser.bundleAssets({
+      inventoryId: assetInventory.id,
+      pageUrl: assetInventory.pageUrl,
+      assets: assetInventory.assets
+        .filter((asset) => asset.kind === 'image' || asset.kind === 'stylesheet' || asset.kind === 'font' || asset.kind === 'video')
+        .map(({ id, kind, name, url }) => ({ id, kind, name, url }))
+    })
+    setAssetBundlePath(bundle.manifestPath)
+  }
+
+  const addOriginPolicy = (key: keyof Pick<BrowserWorkbenchState, 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins'>): void => {
+    if (!urlOrigin) return
+    const origin = originKey(urlOrigin)
+    const values = workbench[key]
+    if (values.includes(origin)) return
+    patchWorkbench({ [key]: [...values, origin] } as Partial<BrowserWorkbenchState>)
+  }
+
+  const clearOriginPolicy = (key: keyof Pick<BrowserWorkbenchState, 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins'>): void => {
+    patchWorkbench({ [key]: [] } as Partial<BrowserWorkbenchState>)
   }
 
   const openExternal = (): void => {
@@ -202,7 +393,7 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
     void window.api.browser.openExternal(currentUrl)
   }
 
-  const webview = currentUrl
+  const webview = currentUrl && visible
     ? createElement('webview', {
         ref: (node: WebviewElement | null) => {
           webviewRef.current = node
@@ -223,28 +414,75 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
     <div
       className="flex min-h-0 min-w-0 flex-col overflow-hidden"
       data-testid="browser-panel"
-      data-browser-zoom={zoomFactor.toFixed(2)}
-      data-browser-device-mode={deviceMode}
+      data-browser-zoom={workbench.zoomFactor.toFixed(2)}
+      data-browser-device-mode={workbench.deviceMode}
       data-browser-cache-reloads={cacheReloadCount}
       data-browser-find-matches={findMatches}
+      data-browser-tab-count={workbench.tabs.length}
+      data-browser-visible={visible ? 'true' : 'false'}
+      data-browser-dom-targets={visibleTargets.length}
+      data-browser-asset-count={assetInventory?.summary.totalCount ?? 0}
+      data-browser-log-count={logs.length}
+      data-browser-artifact-path={artifactPath ?? ''}
+      data-browser-asset-bundle-path={assetBundlePath ?? ''}
       style={{
-        width: embedded ? '100%' : 440,
+        width: embedded ? '100%' : 560,
         height: embedded ? '100%' : undefined,
         background: 'var(--surface-bg)'
       }}
     >
+      <div className="browser-tab-strip">
+        {workbench.tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            data-testid="browser-tab"
+            data-active={tab.id === workbench.activeTabId ? 'true' : 'false'}
+            className="browser-tab"
+            style={{
+              background: tab.id === workbench.activeTabId ? 'var(--surface-bg)' : 'transparent',
+              borderColor: tab.id === workbench.activeTabId ? 'var(--border-subtle)' : 'transparent',
+              color: 'var(--text-primary)'
+            }}
+            onClick={() => selectTab(tab.id)}
+          >
+            <Icon name="browser" size={12} />
+            <span className="min-w-0 flex-1 truncate">{tab.title || shortUrl(tab.url) || 'New tab'}</span>
+            {workbench.tabs.length > 1 && (
+              <span
+                role="button"
+                tabIndex={0}
+                className="grid size-4 place-items-center rounded opacity-70 hover:opacity-100"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  closeTab(tab.id)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') closeTab(tab.id)
+                }}
+              >
+                <Icon name="close" size={10} />
+              </span>
+            )}
+          </button>
+        ))}
+        <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
+        <div className="ml-auto hidden min-w-0 items-center gap-2 text-[11px] md:flex" style={{ color: 'var(--text-tertiary)' }}>
+          {capabilitySummary.map((label) => <span key={label} className="truncate">{label}</span>)}
+        </div>
+      </div>
+
       <form
-        className="flex shrink-0 items-center gap-1.5 px-2 py-2"
+        className="browser-toolbar"
         style={{ borderBottom: '1px solid var(--border-subtle)' }}
         onSubmit={(event) => {
           event.preventDefault()
           navigate(address)
         }}
       >
-        <ToolbarButton icon="arrowLeft" label="Back" disabled={!canGoBack} onClick={() => webviewRef.current?.goBack()} />
-        <ToolbarButton icon="arrowRight" label="Forward" disabled={!canGoForward} onClick={() => webviewRef.current?.goForward()} />
-        <ToolbarButton icon="refresh" label="Reload" disabled={!currentUrl} onClick={() => webviewRef.current?.reload()} />
-        <ToolbarButton icon="eraser" label="Reload without cache" disabled={!currentUrl} onClick={reloadWithoutCache} />
+        <ToolbarButton icon="arrowLeft" label="Back" disabled={!canGoBack || !visible} onClick={() => webviewRef.current?.goBack()} />
+        <ToolbarButton icon="arrowRight" label="Forward" disabled={!canGoForward || !visible} onClick={() => webviewRef.current?.goForward()} />
+        <ToolbarButton icon="refresh" label="Reload" disabled={!currentUrl || !visible} onClick={() => webviewRef.current?.reload()} />
         <div
           className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 py-1"
           style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
@@ -259,42 +497,152 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
             style={{ color: 'var(--text-primary)' }}
           />
         </div>
-        <ToolbarButton icon="search" label="Find in page" disabled={!currentUrl} active={findVisible} onClick={() => setFindPanelVisible(!findVisible)} />
-        <ToolbarButton icon="zoomOut" label="Zoom out" disabled={!currentUrl || zoomFactor <= 0.5} onClick={() => changeZoom(-ZOOM_STEP)} />
-        <button
-          type="button"
-          data-testid="browser-zoom-reset"
-          disabled={!currentUrl}
-          className="rounded-md px-2 py-1 text-[11px] font-semibold disabled:opacity-45"
-          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', background: 'var(--control-bg)' }}
-          onClick={resetZoom}
-        >
-          {Math.round(zoomFactor * 100)}%
-        </button>
-        <ToolbarButton icon="zoomIn" label="Zoom in" disabled={!currentUrl || zoomFactor >= 2} onClick={() => changeZoom(ZOOM_STEP)} />
+        <ToolbarButton icon="search" label="Find in page" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
         <ToolbarButton
-          icon={deviceMode === 'desktop' ? 'monitor' : 'smartphone'}
-          label={deviceMode === 'desktop' ? 'Mobile preview' : 'Desktop preview'}
-          disabled={!currentUrl}
-          active={deviceMode === 'mobile'}
-          onClick={toggleDeviceMode}
+          icon="wrench"
+          label="Inspect browser"
+          active={workbench.inspectorOpen}
+          disabled={!currentUrl || !visible}
+          dataTestId="browser-run-inspection"
+          onClick={() => void runInspection()}
         />
-        <ToolbarButton icon="camera" label="Capture screenshot" disabled={!currentUrl || isLoading} onClick={captureScreenshot} />
-        <ToolbarButton icon="external" label="Open in external browser" disabled={!currentUrl} onClick={openExternal} />
+        <div className="relative">
+          <IconButton
+            icon="ellipsis"
+            label="Browser actions"
+            size="sm"
+            active={browserMenuOpen}
+            dataTestId="browser-actions-menu"
+            onClick={() => setBrowserMenuOpen((open) => !open)}
+          />
+          {browserMenuOpen && (
+            <MenuSurface
+              onClose={() => setBrowserMenuOpen(false)}
+              className="browser-actions-menu"
+              style={{ position: 'absolute', right: 0, top: 32, width: 236, zIndex: 100 }}
+            >
+              <div className="browser-action-section">
+                <div className="browser-action-label">Page</div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  title="Reload without cache"
+                  className="browser-action-row"
+                  disabled={!currentUrl || !visible}
+                  onClick={reloadWithoutCache}
+                >
+                  <Icon name="eraser" size={13} />
+                  <span>Reload without cache</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  title="Capture screenshot"
+                  className="browser-action-row"
+                  disabled={!currentUrl || isLoading || !visible}
+                  onClick={() => {
+                    setBrowserMenuOpen(false)
+                    void captureScreenshot()
+                  }}
+                >
+                  <Icon name="camera" size={13} />
+                  <span>Capture screenshot</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  title="Open in external browser"
+                  className="browser-action-row"
+                  disabled={!currentUrl}
+                  onClick={() => {
+                    setBrowserMenuOpen(false)
+                    openExternal()
+                  }}
+                >
+                  <Icon name="external" size={13} />
+                  <span>Open externally</span>
+                </button>
+              </div>
+              <div className="browser-action-section">
+                <div className="browser-action-label">View</div>
+                <div className="browser-action-row browser-action-row-static">
+                  <Icon name="zoomOut" size={13} />
+                  <span className="min-w-0 flex-1">Zoom</span>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    title="Zoom out"
+                    className="browser-action-mini"
+                    disabled={!currentUrl || workbench.zoomFactor <= 0.5}
+                    onClick={() => changeZoom(-ZOOM_STEP)}
+                  >
+                    -
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    title="Reset zoom"
+                    data-testid="browser-zoom-reset"
+                    className="browser-action-value"
+                    disabled={!currentUrl}
+                    onClick={() => {
+                      webviewRef.current?.setZoomFactor(1)
+                      patchWorkbench({ zoomFactor: 1 })
+                    }}
+                  >
+                    {Math.round(workbench.zoomFactor * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    title="Zoom in"
+                    className="browser-action-mini"
+                    disabled={!currentUrl || workbench.zoomFactor >= 2}
+                    onClick={() => changeZoom(ZOOM_STEP)}
+                  >
+                    +
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  title={workbench.deviceMode === 'mobile' ? 'Desktop preview' : 'Mobile preview'}
+                  className="browser-action-row"
+                  disabled={!currentUrl}
+                  onClick={() => setViewportMode(workbench.deviceMode === 'mobile' ? 'desktop' : 'mobile')}
+                >
+                  <Icon name={workbench.deviceMode === 'mobile' ? 'monitor' : 'smartphone'} size={13} />
+                  <span>{workbench.deviceMode === 'mobile' ? 'Desktop preview' : 'Mobile preview'}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  title={visible ? 'Hide browser surface' : 'Show browser surface'}
+                  className="browser-action-row"
+                  onClick={() => patchWorkbench({ visible: !visible })}
+                >
+                  <Icon name={visible ? 'monitor' : 'close'} size={13} />
+                  <span>{visible ? 'Hide browser surface' : 'Show browser surface'}</span>
+                </button>
+              </div>
+            </MenuSurface>
+          )}
+        </div>
       </form>
-      {findVisible && (
+
+      {workbench.findVisible && (
         <div className="flex shrink-0 items-center gap-1.5 px-2 pb-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           <Icon name="search" size={13} />
           <input
             data-testid="browser-find-input"
-            value={findQuery}
+            value={workbench.findQuery}
             onChange={(event) => searchInPage(event.target.value)}
             placeholder="Find in page"
             autoFocus
             className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
             style={{ color: 'var(--text-primary)', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
           />
-          {findQuery.trim() && (
+          {workbench.findQuery.trim() && (
             <span className="min-w-8 text-right text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
               {findMatches}
             </span>
@@ -302,72 +650,489 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
           <ToolbarButton icon="close" label="Close find" onClick={closeFind} />
         </div>
       )}
-      {(title || isLoading || error) && (
-        <div className="flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+
+      <div className="browser-status-row">
+        <div className="flex min-w-0 items-center gap-2">
           {isLoading && <Badge tone="neutral">Loading</Badge>}
           {error && <Badge tone="danger">Failed</Badge>}
-          <span className="min-w-0 flex-1 truncate" style={{ color: error ? 'var(--danger)' : 'var(--text-tertiary)' }}>
-            {error ?? title}
+          {blocked && <Badge tone="warning">Blocked origin</Badge>}
+          <span className="min-w-0 flex-1 truncate" style={{ color: error ? 'var(--state-danger)' : 'var(--text-tertiary)' }}>
+            {error ?? title ?? currentUrl}
           </span>
         </div>
-      )}
-      {screenshot && (
-        <div className="shrink-0 px-3 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <img
-            data-testid="browser-screenshot-preview"
-            src={screenshot}
-            alt="Browser screenshot preview"
-            className="max-h-24 rounded-md border object-contain"
-            style={{ borderColor: 'var(--border-subtle)' }}
-          />
-        </div>
-      )}
-      {currentUrl ? (
-        <div className="flex min-h-0 flex-1 justify-center overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
-          <div
-            data-testid="browser-viewport-frame"
-            className="flex min-h-0 flex-1 overflow-hidden"
-            style={{
-              maxWidth: deviceMode === 'mobile' ? 390 : '100%',
-              borderLeft: deviceMode === 'mobile' ? '1px solid var(--border-subtle)' : 'none',
-              borderRight: deviceMode === 'mobile' ? '1px solid var(--border-subtle)' : 'none'
-            }}
+        <div className="flex items-center gap-1">
+          <select
+            data-testid="browser-viewport-mode"
+            value={workbench.deviceMode}
+            onChange={(event) => setViewportMode(event.target.value as BrowserWorkbenchState['deviceMode'])}
+            className="rounded-md px-2 py-1 text-xs outline-none"
+            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
           >
-            {webview}
-          </div>
+            <option value="desktop">1280 x 720</option>
+            <option value="mobile">390 x 760</option>
+            <option value="custom">Custom</option>
+          </select>
+          {workbench.deviceMode === 'custom' && (
+            <>
+              <input
+                aria-label="Viewport width"
+                value={workbench.viewportWidth}
+                onChange={(event) => patchWorkbench({ viewportWidth: Number(event.target.value) || 1280 })}
+                className="w-14 rounded-md px-1 py-1 text-xs outline-none"
+                style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+              />
+              <input
+                aria-label="Viewport height"
+                value={workbench.viewportHeight}
+                onChange={(event) => patchWorkbench({ viewportHeight: Number(event.target.value) || 720 })}
+                className="w-14 rounded-md px-1 py-1 text-xs outline-none"
+                style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+              />
+            </>
+          )}
         </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <Icon name="browser" size={26} />
-          <div className="space-y-1">
-            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-              Start browsing
+      </div>
+
+      <div
+        className="grid min-h-0 flex-1 overflow-hidden"
+        style={{ gridTemplateRows: workbench.inspectorOpen ? 'minmax(0, 1fr) 210px' : 'minmax(0, 1fr)' }}
+      >
+        <div className="flex min-h-0 justify-center overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
+          {currentUrl ? (
+            visible ? (
+              <div
+                data-testid="browser-viewport-frame"
+                className="flex min-h-0 overflow-hidden"
+                style={{
+                  width: viewport.width,
+                  maxWidth: '100%',
+                  height: viewport.height,
+                  maxHeight: '100%',
+                  borderLeft: workbench.deviceMode !== 'desktop' ? '1px solid var(--border-subtle)' : 'none',
+                  borderRight: workbench.deviceMode !== 'desktop' ? '1px solid var(--border-subtle)' : 'none'
+                }}
+              >
+                {webview}
+              </div>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                <Icon name="browser" size={26} />
+                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Browser is hidden</div>
+                <div className="max-w-sm text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                  The session keeps its tab state while the visible surface is hidden.
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+              <Icon name="browser" size={26} />
+              <div className="space-y-1">
+                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  Start browsing
+                </div>
+                <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                  Enter a URL or open a local target
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {QUICK_URLS.map((url) => (
+                  <button
+                    key={url}
+                    type="button"
+                    className="rounded-md px-2 py-1 text-xs"
+                    style={{
+                      background: 'var(--control-bg)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)'
+                    }}
+                    onClick={() => navigate(url)}
+                  >
+                    {url.replace(/^https?:\/\//, '')}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              Enter a URL to open a page
-            </div>
-          </div>
-          <div className="flex flex-wrap justify-center gap-1.5">
-            {QUICK_URLS.map((url) => (
+          )}
+        </div>
+
+        {workbench.inspectorOpen && (
+          <div className="browser-inspector-drawer">
+            <div className="flex items-center gap-1 overflow-x-auto px-2 py-1.5" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+              {(['console', 'dom', 'targets', 'assets', 'security'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  data-testid={`browser-inspector-${mode}`}
+                  className="rounded-md px-2 py-1 text-xs capitalize"
+                  style={{
+                    background: workbench.inspectorMode === mode ? 'var(--control-bg-active)' : 'transparent',
+                    border: `1px solid ${workbench.inspectorMode === mode ? 'var(--border-strong)' : 'transparent'}`,
+                    color: workbench.inspectorMode === mode ? 'var(--text-primary)' : 'var(--text-secondary)'
+                  }}
+                  onClick={() => patchWorkbench({ inspectorMode: mode })}
+                >
+                  {mode}
+                </button>
+              ))}
               <button
-                key={url}
+                type="button"
+                data-testid="browser-refresh-inspection"
+                className="ml-auto rounded-md px-2 py-1 text-xs font-semibold"
+                style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)' }}
+                disabled={!currentUrl || !visible}
+                onClick={runInspection}
+              >
+                Inspect
+              </button>
+              <button
                 type="button"
                 className="rounded-md px-2 py-1 text-xs"
-                style={{
-                  background: 'var(--control-bg)',
-                  border: '1px solid var(--border-subtle)',
-                  color: 'var(--text-secondary)'
-                }}
-                onClick={() => navigate(url)}
+                style={{ color: 'var(--text-tertiary)' }}
+                onClick={() => patchWorkbench({ inspectorOpen: false })}
               >
-                {url.replace(/^https?:\/\//, '')}
+                Hide
               </button>
-            ))}
+            </div>
+            <div className="h-[168px] overflow-auto px-3 py-2 text-xs" data-testid="browser-inspector-output">
+              {workbench.inspectorMode === 'console' && (
+                <ConsolePane logs={logs} artifactPath={artifactPath} screenshot={screenshot} onClear={() => setLogs([])} />
+              )}
+              {workbench.inspectorMode === 'dom' && <DomPane domSnapshot={domSnapshot} onInspect={runInspection} />}
+              {workbench.inspectorMode === 'targets' && (
+                <TargetsPane
+                  targets={visibleTargets}
+                  selectedTargetId={selectedTargetId}
+                  actionText={actionText}
+                  coordinateAction={coordinateAction}
+                  clipboardText={clipboardText}
+                  onActionTextChange={setActionText}
+                  onCoordinateChange={setCoordinateAction}
+                  onReadClipboard={readClipboard}
+                  onRunCoordinateAction={runCoordinateAction}
+                  onRunTargetAction={runTargetAction}
+                  onSelectTarget={setSelectedTargetId}
+                  onWriteClipboard={writeClipboard}
+                  onClipboardChange={setClipboardText}
+                />
+              )}
+              {workbench.inspectorMode === 'assets' && (
+                <AssetsPane inventory={assetInventory} bundlePath={assetBundlePath} onBundle={bundleAssets} />
+              )}
+              {workbench.inspectorMode === 'security' && (
+                <SecurityPane
+                  workbench={workbench}
+                  currentOrigin={urlOrigin ? originKey(urlOrigin) : ''}
+                  onPatch={patchWorkbench}
+                  onAddOriginPolicy={addOriginPolicy}
+                  onClearOriginPolicy={clearOriginPolicy}
+                />
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
+}
+
+function ConsolePane({
+  logs,
+  artifactPath,
+  screenshot,
+  onClear
+}: {
+  logs: BrowserLogEntry[]
+  artifactPath: string | null
+  screenshot: string | null
+  onClear: () => void
+}): JSX.Element {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Badge tone="neutral">dev logs {logs.length}</Badge>
+        {artifactPath && <Badge tone="success">screenshot saved</Badge>}
+        <button type="button" className="ml-auto text-xs" style={{ color: 'var(--text-secondary)' }} onClick={onClear}>Clear</button>
+      </div>
+      {artifactPath && <div className="truncate" style={{ color: 'var(--text-tertiary)' }}>{artifactPath}</div>}
+      {screenshot && (
+        <img
+          data-testid="browser-screenshot-preview"
+          src={screenshot}
+          alt="Browser screenshot preview"
+          className="max-h-20 rounded-md border object-contain"
+          style={{ borderColor: 'var(--border-subtle)' }}
+        />
+      )}
+      <div className="space-y-1">
+        {logs.length === 0 ? (
+          <div style={{ color: 'var(--text-tertiary)' }}>No console messages captured.</div>
+        ) : logs.slice(-8).map((entry, index) => (
+          <div key={`${entry.timestamp}-${index}`} className="grid grid-cols-[52px_minmax(0,1fr)] gap-2 rounded-md px-2 py-1" style={{ background: 'var(--control-bg)' }}>
+            <span style={{ color: logColor(entry.level) }}>{entry.level}</span>
+            <span className="truncate" style={{ color: 'var(--text-primary)' }}>{entry.message}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DomPane({ domSnapshot, onInspect }: { domSnapshot: string; onInspect: () => void }): JSX.Element {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Badge tone="neutral">DOM snapshot</Badge>
+        <button type="button" className="ml-auto text-xs" style={{ color: 'var(--accent)' }} onClick={onInspect}>Refresh</button>
+      </div>
+      <pre className="max-h-28 overflow-auto whitespace-pre-wrap rounded-md p-2 text-[11px]" style={{ background: 'var(--control-bg)', color: 'var(--text-primary)' }}>
+        {domSnapshot || 'Run Inspect to capture a compact page snapshot.'}
+      </pre>
+    </div>
+  )
+}
+
+function TargetsPane({
+  targets,
+  selectedTargetId,
+  actionText,
+  coordinateAction,
+  clipboardText,
+  onActionTextChange,
+  onCoordinateChange,
+  onReadClipboard,
+  onRunCoordinateAction,
+  onRunTargetAction,
+  onSelectTarget,
+  onWriteClipboard,
+  onClipboardChange
+}: {
+  targets: VisibleTarget[]
+  selectedTargetId: string
+  actionText: string
+  coordinateAction: { x: number; y: number; scrollY: number }
+  clipboardText: string
+  onActionTextChange: (value: string) => void
+  onCoordinateChange: (value: { x: number; y: number; scrollY: number }) => void
+  onReadClipboard: () => void
+  onRunCoordinateAction: (action: 'click' | 'scroll') => void
+  onRunTargetAction: (action: 'click' | 'double_click' | 'type' | 'scroll') => void
+  onSelectTarget: (id: string) => void
+  onWriteClipboard: () => void
+  onClipboardChange: (value: string) => void
+}): JSX.Element {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_180px] gap-3">
+      <div className="space-y-2">
+        <select
+          data-testid="browser-target-select"
+          value={selectedTargetId}
+          onChange={(event) => onSelectTarget(event.target.value)}
+          className="w-full rounded-md px-2 py-1 text-xs outline-none"
+          style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+        >
+          <option value="">Visible DOM targets ({targets.length})</option>
+          {targets.map((target) => <option key={target.nodeId} value={target.nodeId}>{target.preview}</option>)}
+        </select>
+        <input
+          value={actionText}
+          onChange={(event) => onActionTextChange(event.target.value)}
+          placeholder="Text for type action"
+          className="w-full rounded-md px-2 py-1 text-xs outline-none"
+          style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+        />
+        <div className="flex flex-wrap gap-1">
+          <ActionButton label="Click" onClick={() => onRunTargetAction('click')} disabled={!selectedTargetId} />
+          <ActionButton label="Double" onClick={() => onRunTargetAction('double_click')} disabled={!selectedTargetId} />
+          <ActionButton label="Type" onClick={() => onRunTargetAction('type')} disabled={!selectedTargetId || !actionText} />
+          <ActionButton label="Scroll target" onClick={() => onRunTargetAction('scroll')} disabled={!selectedTargetId} />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-1">
+          <SmallNumber label="X" value={coordinateAction.x} onChange={(x) => onCoordinateChange({ ...coordinateAction, x })} />
+          <SmallNumber label="Y" value={coordinateAction.y} onChange={(y) => onCoordinateChange({ ...coordinateAction, y })} />
+          <SmallNumber label="Scroll" value={coordinateAction.scrollY} onChange={(scrollY) => onCoordinateChange({ ...coordinateAction, scrollY })} />
+        </div>
+        <div className="flex gap-1">
+          <ActionButton label="Point click" onClick={() => onRunCoordinateAction('click')} />
+          <ActionButton label="Point scroll" onClick={() => onRunCoordinateAction('scroll')} />
+        </div>
+        <div className="flex gap-1">
+          <span className="self-center text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Clipboard</span>
+          <input
+            value={clipboardText}
+            onChange={(event) => onClipboardChange(event.target.value)}
+            placeholder="Clipboard"
+            className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
+            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+          />
+          <ActionButton label="Read" onClick={onReadClipboard} />
+          <ActionButton label="Write" onClick={onWriteClipboard} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetInventory | null; bundlePath: string | null; onBundle: () => void }): JSX.Element {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Badge tone="neutral">assets {inventory?.summary.totalCount ?? 0}</Badge>
+        <Badge tone="neutral">inline svg {inventory?.summary.inlineSvgCount ?? 0}</Badge>
+        <button type="button" className="ml-auto text-xs font-semibold" style={{ color: 'var(--accent)' }} disabled={!inventory} onClick={onBundle}>Bundle files</button>
+      </div>
+      {bundlePath && <div className="truncate" style={{ color: 'var(--text-tertiary)' }}>{bundlePath}</div>}
+      <div className="grid grid-cols-2 gap-1">
+        {Object.entries(inventory?.summary.byKind ?? {}).map(([kind, count]) => (
+          <div key={kind} className="rounded-md px-2 py-1" style={{ background: 'var(--control-bg)', color: 'var(--text-secondary)' }}>
+            {kind}: {count}
+          </div>
+        ))}
+      </div>
+      <div className="space-y-1">
+        {(inventory?.assets ?? []).slice(0, 6).map((asset) => (
+          <div key={asset.id} className="truncate rounded-md px-2 py-1" style={{ background: 'var(--control-bg)', color: 'var(--text-primary)' }}>
+            {asset.kind} · {asset.name}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SecurityPane({
+  workbench,
+  currentOrigin,
+  onPatch,
+  onAddOriginPolicy,
+  onClearOriginPolicy
+}: {
+  workbench: BrowserWorkbenchState
+  currentOrigin: string
+  onPatch: (patch: Partial<BrowserWorkbenchState>) => void
+  onAddOriginPolicy: (key: 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins') => void
+  onClearOriginPolicy: (key: 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins') => void
+}): JSX.Element {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-2">
+        <PolicySelect
+          label="Approval"
+          value={workbench.approvalMode}
+          onChange={(approvalMode) => onPatch({ approvalMode })}
+        />
+        <PolicySelect
+          label="History"
+          value={workbench.historyApprovalMode}
+          onChange={(historyApprovalMode) => onPatch({ historyApprovalMode })}
+        />
+        <div style={{ color: 'var(--text-tertiary)' }}>Current origin: {currentOrigin || 'none'}</div>
+      </div>
+      <div className="space-y-1">
+        <PolicyRow label="Allowed" values={workbench.allowedOrigins} onAdd={() => onAddOriginPolicy('allowedOrigins')} onClear={() => onClearOriginPolicy('allowedOrigins')} />
+        <PolicyRow label="Blocked" values={workbench.blockedOrigins} onAdd={() => onAddOriginPolicy('blockedOrigins')} onClear={() => onClearOriginPolicy('blockedOrigins')} />
+        <PolicyRow label="Downloads" values={workbench.allowedDownloadOrigins} onAdd={() => onAddOriginPolicy('allowedDownloadOrigins')} onClear={() => onClearOriginPolicy('allowedDownloadOrigins')} />
+        <PolicyRow label="Uploads" values={workbench.allowedUploadOrigins} onAdd={() => onAddOriginPolicy('allowedUploadOrigins')} onClear={() => onClearOriginPolicy('allowedUploadOrigins')} />
+      </div>
+    </div>
+  )
+}
+
+function PolicySelect({ label, value, onChange }: { label: string; value: 'alwaysAsk' | 'alwaysAllow'; onChange: (value: 'alwaysAsk' | 'alwaysAllow') => void }): JSX.Element {
+  return (
+    <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as 'alwaysAsk' | 'alwaysAllow')}
+        className="rounded-md px-2 py-1 text-xs outline-none"
+        style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+      >
+        <option value="alwaysAsk">Always ask</option>
+        <option value="alwaysAllow">Always allow</option>
+      </select>
+    </label>
+  )
+}
+
+function PolicyRow({ label, values, onAdd, onClear }: { label: string; values: string[]; onAdd: () => void; onClear: () => void }): JSX.Element {
+  return (
+    <div className="grid grid-cols-[72px_minmax(0,1fr)_auto_auto] items-center gap-1">
+      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+      <span className="truncate" style={{ color: 'var(--text-tertiary)' }}>{values.join(', ') || 'none'}</span>
+      <ActionButton label="Add" onClick={onAdd} />
+      <ActionButton label="Clear" onClick={onClear} disabled={values.length === 0} />
+    </div>
+  )
+}
+
+function ActionButton({ label, onClick, disabled = false }: { label: string; onClick: () => void; disabled?: boolean }): JSX.Element {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      className="rounded-md px-2 py-1 text-[11px] font-semibold disabled:opacity-45"
+      style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  )
+}
+
+function SmallNumber({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }): JSX.Element {
+  return (
+    <label className="space-y-0.5">
+      <span className="block text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value) || 0)}
+        className="w-full rounded-md px-1 py-1 text-xs outline-none"
+        style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+      />
+    </label>
+  )
+}
+
+function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl: string): BrowserWorkbenchState {
+  const tabs = state?.tabs?.length
+    ? state.tabs
+    : [{ ...DEFAULT_TAB, url: initialUrl, title: initialUrl ? shortUrl(initialUrl) : 'New tab' }]
+  return {
+    findVisible: state?.findVisible ?? false,
+    findQuery: state?.findQuery ?? '',
+    zoomFactor: state?.zoomFactor ?? 1,
+    deviceMode: state?.deviceMode ?? 'desktop',
+    viewportWidth: state?.viewportWidth ?? 1280,
+    viewportHeight: state?.viewportHeight ?? 720,
+    visible: state?.visible ?? true,
+    activeTabId: tabs.some((tab) => tab.id === state?.activeTabId) ? state!.activeTabId : tabs[0].id,
+    tabs,
+    nextTabIndex: Math.max(state?.nextTabIndex ?? 2, tabs.length + 1),
+    inspectorOpen: state?.inspectorOpen ?? false,
+    inspectorMode: state?.inspectorMode ?? 'console',
+    approvalMode: state?.approvalMode ?? 'alwaysAsk',
+    historyApprovalMode: state?.historyApprovalMode ?? 'alwaysAsk',
+    allowedOrigins: state?.allowedOrigins ?? ['localhost', '127.0.0.1'],
+    blockedOrigins: state?.blockedOrigins ?? [],
+    allowedDownloadOrigins: state?.allowedDownloadOrigins ?? [],
+    blockedDownloadOrigins: state?.blockedDownloadOrigins ?? [],
+    allowedUploadOrigins: state?.allowedUploadOrigins ?? [],
+    blockedUploadOrigins: state?.blockedUploadOrigins ?? []
+  }
+}
+
+function activeBrowserTab(workbench: BrowserWorkbenchState): BrowserTabState {
+  return workbench.tabs.find((tab) => tab.id === workbench.activeTabId) ?? workbench.tabs[0] ?? DEFAULT_TAB
+}
+
+function browserViewport(workbench: BrowserWorkbenchState): { width: number | string; height: number | string } {
+  if (workbench.deviceMode === 'desktop') return { width: '100%', height: '100%' }
+  return {
+    width: Math.max(280, workbench.viewportWidth),
+    height: Math.max(420, workbench.viewportHeight)
+  }
 }
 
 function normalizeUrl(raw: string): string {
@@ -377,3 +1142,204 @@ function normalizeUrl(raw: string): string {
   if (trimmed.includes('localhost') || trimmed.includes('127.0.0.1') || trimmed.includes('.')) return `http://${trimmed}`
   return `https://${trimmed}`
 }
+
+function safeOrigin(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    return parsed.origin
+  } catch {
+    return null
+  }
+}
+
+function originKey(origin: string): string {
+  try {
+    return new URL(origin).hostname.replace(/^www\./, '')
+  } catch {
+    return origin.replace(/^https?:\/\//, '').replace(/^www\./, '')
+  }
+}
+
+function shortUrl(url: string): string {
+  if (!url) return ''
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname + parsed.pathname.replace(/\/$/, '')
+  } catch {
+    return url
+  }
+}
+
+function consoleLevel(level?: number): BrowserLogEntry['level'] {
+  if (level === 3) return 'error'
+  if (level === 2) return 'warn'
+  if (level === 1) return 'info'
+  return 'log'
+}
+
+function logColor(level: BrowserLogEntry['level']): string {
+  if (level === 'error') return 'var(--state-danger)'
+  if (level === 'warn') return 'var(--state-warning)'
+  return 'var(--text-tertiary)'
+}
+
+const DOM_SNAPSHOT_SCRIPT = `
+(() => {
+  const visible = (element) => {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const labelFor = (element) => {
+    const aria = element.getAttribute('aria-label');
+    if (aria) return aria;
+    const text = (element.innerText || element.textContent || '').replace(/\\s+/g, ' ').trim();
+    if (text) return text.slice(0, 90);
+    return element.getAttribute('placeholder') || element.getAttribute('title') || element.id || '';
+  };
+  const nodes = [...document.querySelectorAll('main, header, nav, section, article, h1, h2, h3, button, a, input, textarea, select, [role]')]
+    .filter((element) => element instanceof HTMLElement && visible(element))
+    .slice(0, 80)
+    .map((element) => {
+      const tag = element.tagName.toLowerCase();
+      const role = element.getAttribute('role');
+      const label = labelFor(element);
+      return '<' + tag + (role ? ' role="' + role + '"' : '') + (label ? '> ' + label : '>');
+    });
+  return nodes.join('\\n');
+})()
+`
+
+const VISIBLE_TARGETS_SCRIPT = `
+(() => {
+  const visible = (element) => {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const cssEscape = (value) => {
+    if (window.CSS && CSS.escape) return CSS.escape(value);
+    return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\\\$&');
+  };
+  const targetSelector = 'a[href], button, input, textarea, select, [role="button"], [role="link"], [tabindex], [contenteditable="true"]';
+  window.__orchestratorBrowserTargets = [];
+  const targets = [...document.querySelectorAll(targetSelector)]
+    .filter((element) => element instanceof HTMLElement && visible(element))
+    .slice(0, 80)
+    .map((element, index) => {
+      const nodeId = 'node-' + (index + 1);
+      element.dataset.orchestratorNodeId = nodeId;
+      const rect = element.getBoundingClientRect();
+      const text = (element.innerText || element.textContent || element.value || '').replace(/\\s+/g, ' ').trim();
+      const ariaName = element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || null;
+      const candidates = [];
+      if (element.id) candidates.push('#' + cssEscape(element.id));
+      if (element.getAttribute('data-testid')) candidates.push('[data-testid="' + element.getAttribute('data-testid') + '"]');
+      if (ariaName) candidates.push(element.tagName.toLowerCase() + '[aria-label="' + ariaName.replace(/"/g, '\\"') + '"]');
+      candidates.push('[data-orchestrator-node-id="' + nodeId + '"]');
+      const preview = [element.tagName.toLowerCase(), element.getAttribute('role'), ariaName, text].filter(Boolean).join(' · ').slice(0, 120);
+      return {
+        nodeId,
+        tagName: element.tagName.toLowerCase(),
+        role: element.getAttribute('role'),
+        ariaName,
+        visibleText: text || null,
+        preview,
+        boundingBox: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
+        selector: { primary: candidates[0] || null, candidates }
+      };
+    });
+  window.__orchestratorBrowserTargets = targets;
+  window.__orchestratorBrowserAction = async ({ action, nodeId, text, x, y, scrollY }) => {
+    const element = nodeId ? document.querySelector('[data-orchestrator-node-id="' + nodeId + '"]') : document.elementFromPoint(x || 0, y || 0);
+    if (action === 'scroll') {
+      if (element && nodeId) element.scrollBy({ top: scrollY || y || 240, behavior: 'instant' });
+      else window.scrollBy({ top: scrollY || 240, left: 0, behavior: 'instant' });
+      return true;
+    }
+    if (!element) return false;
+    if (action === 'double_click') {
+      element.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window }));
+      return true;
+    }
+    if (action === 'type') {
+      element.focus();
+      if ('value' in element) {
+        element.value = text || '';
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+      } else {
+        document.execCommand('insertText', false, text || '');
+      }
+      return true;
+    }
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    return true;
+  };
+  return targets;
+})()
+`
+
+const PAGE_ASSETS_SCRIPT = `
+(() => {
+  const byUrl = new Map();
+  const inferKind = (url, initiatorType, element) => {
+    const lower = String(url || '').toLowerCase();
+    if (initiatorType === 'img' || element?.tagName === 'IMG' || /\\.(png|jpe?g|gif|webp|svg|bmp|ico)(\\?|#|$)/.test(lower)) return 'image';
+    if (initiatorType === 'css' || element?.rel === 'stylesheet' || /\\.css(\\?|#|$)/.test(lower)) return 'stylesheet';
+    if (initiatorType === 'script' || element?.tagName === 'SCRIPT' || /\\.m?js(\\?|#|$)/.test(lower)) return 'script';
+    if (initiatorType === 'video' || element?.tagName === 'VIDEO' || /\\.(mp4|mov|webm|m4v)(\\?|#|$)/.test(lower)) return 'video';
+    if (/\\.(woff2?|ttf|otf)(\\?|#|$)/.test(lower)) return 'font';
+    return 'other';
+  };
+  const nameFor = (url, fallback) => {
+    try {
+      const parsed = new URL(url, location.href);
+      return decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || parsed.hostname || fallback);
+    } catch {
+      return fallback;
+    }
+  };
+  const add = (url, kind, source) => {
+    if (!url) return;
+    const absolute = new URL(url, location.href).href;
+    const existing = byUrl.get(absolute);
+    if (existing) {
+      existing.sources.push(source);
+      return;
+    }
+    const id = 'asset-' + (byUrl.size + 1);
+    byUrl.set(absolute, { id, kind, name: nameFor(absolute, id), url: absolute, sources: [source] });
+  };
+  performance.getEntriesByType('resource').forEach((entry) => add(entry.name, inferKind(entry.name, entry.initiatorType), { kind: 'resource', property: entry.initiatorType }));
+  document.querySelectorAll('img[src], source[src], video[src], script[src], link[href], [style*="url("]').forEach((element) => {
+    const tag = element.tagName;
+    const url = element.getAttribute('src') || element.getAttribute('href');
+    if (url) add(url, inferKind(url, '', element), { kind: 'attribute', property: tag });
+    const style = element.getAttribute('style') || '';
+    const matches = [...style.matchAll(/url\\(["']?([^"')]+)["']?\\)/g)];
+    matches.forEach((match) => add(match[1], inferKind(match[1], '', element), { kind: 'computedStyle', property: 'style' }));
+  });
+  const inlineSvgs = [...document.querySelectorAll('svg')].slice(0, 40).map((svg, index) => ({
+    id: 'inline-svg-' + (index + 1),
+    name: svg.getAttribute('aria-label') || svg.id || 'Inline SVG ' + (index + 1),
+    markup: svg.outerHTML.slice(0, 50000)
+  }));
+  const assets = [...byUrl.values()];
+  const byKind = assets.reduce((acc, asset) => {
+    acc[asset.kind] = (acc[asset.kind] || 0) + 1;
+    return acc;
+  }, {});
+  return {
+    id: 'inventory-' + Date.now(),
+    pageUrl: location.href,
+    assets,
+    inlineSvgs,
+    summary: {
+      totalCount: assets.length,
+      inlineSvgCount: inlineSvgs.length,
+      byKind
+    }
+  };
+})()
+`

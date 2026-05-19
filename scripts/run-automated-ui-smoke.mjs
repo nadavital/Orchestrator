@@ -18,8 +18,10 @@ const captureView = process.argv.includes('--settings')
         ? 'composer'
       : process.argv.includes('--pets')
         ? 'pets'
-        : process.argv.includes('--motion-reduced')
+      : process.argv.includes('--motion-reduced')
           ? 'motion-reduced'
+        : process.argv.includes('--empty-state')
+          ? 'empty-state'
         : process.argv.includes('--pet-overlay')
           ? 'pet-overlay'
           : process.argv.includes('--sidebar')
@@ -79,9 +81,23 @@ if (captureView === 'inspector') {
   writeFileSync(join(workspaceDir, 'review-new.txt'), 'new review file\n')
   writeFileSync(join(workspaceDir, 'binary-preview-smoke.bin'), Buffer.from([0, 1, 2, 3, 4, 5, 6, 255]))
   rmSync(join(workspaceDir, 'review-delete.txt'), { force: true })
-  browserSmokeServer = createServer((_, response) => {
+  browserSmokeServer = createServer((request, response) => {
+    if (request.url === '/smoke.css') {
+      response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' })
+      response.end('main{font-family:system-ui;color:#102030}.asset-smoke{background:#f4f8ff}')
+      return
+    }
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-    response.end('<!doctype html><title>Orchestrator Browser Smoke</title><main><h1>Browser smoke page</h1><p>Loaded inside the side panel.</p></main>')
+    response.end(`<!doctype html>
+      <title>Orchestrator Browser Smoke</title>
+      <link rel="stylesheet" href="/smoke.css">
+      <main class="asset-smoke">
+        <h1>Browser smoke page</h1>
+        <p>Loaded inside the side panel.</p>
+        <button id="target-button" onclick="document.body.dataset.clicked='yes'; console.log('browser smoke clicked')">Target button</button>
+        <input aria-label="Smoke input" placeholder="Type here">
+        <svg role="img" aria-label="Inline smoke icon" width="18" height="18"><circle cx="9" cy="9" r="8"></circle></svg>
+      </main>`)
   })
   await new Promise((resolveServer) => {
     browserSmokeServer.listen(0, '127.0.0.1', resolveServer)
@@ -139,7 +155,15 @@ child.on('exit', (code) => {
   }
 
   const result = report.result ?? {}
-  const checks = captureView === 'session-switch'
+  const checks = captureView === 'empty-state'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        noProjects: result.projectCount === 0,
+        noSessions: result.sessionCount === 0,
+        emptyStateVisible: result.emptyStateVisible === true,
+        addProjectActionVisible: result.addProjectActionVisible === true
+      }
+    : captureView === 'session-switch'
     ? {
         isolatedProfile: result.profile?.isIsolated === true,
         firstTranscriptFound: result.firstTranscriptFound === true,
@@ -251,8 +275,10 @@ child.on('exit', (code) => {
         newPinAppended: result.newPinAppended === true,
         hoverPinVisible: result.hoverPinVisible === true,
         hoverCardVisible: result.hoverCardVisible === true,
+        singleHoverSurface: result.singleHoverSurfaceWorks === true,
+        sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
         environmentIconVisible: result.environmentIconVisible === true,
-        doubleClickRenameWorks: result.doubleClickRenameWorks === true,
+        actionRenameWorks: result.actionRenameWorks === true,
         runningSpinnerVisible: result.runningSpinnerVisible === true,
         normalIdleDotHidden: result.normalIdleDotHidden === true,
         unreadIdleDotVisible: result.unreadIdleDotVisible === true,
@@ -336,6 +362,12 @@ child.on('exit', (code) => {
         browserZoom: captureView !== 'inspector' || result.browserZoomWorks === true,
         browserDeviceMode: captureView !== 'inspector' || result.browserDeviceModeWorks === true,
         browserCacheReload: captureView !== 'inspector' || result.browserCacheReloadWorks === true,
+        browserMultiTab: captureView !== 'inspector' || result.browserMultiTabWorks === true,
+        browserInspection: captureView !== 'inspector' || result.browserInspectionWorks === true,
+        browserTargetsPane: captureView !== 'inspector' || result.browserTargetsPaneWorks === true,
+        browserAssetBundle: captureView !== 'inspector' || result.browserAssetBundleWorks === true,
+        browserSecurityPane: captureView !== 'inspector' || result.browserSecurityPaneWorks === true,
+        browserVisibilityControl: captureView !== 'inspector' || result.browserVisibilityControlWorks === true,
         rightPanelContextMenuWorks: captureView !== 'inspector' || result.rightPanelContextMenuWorks === true,
         rightPanelTabReorderWorks: captureView !== 'inspector' || result.rightPanelTabReorderWorks === true,
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,

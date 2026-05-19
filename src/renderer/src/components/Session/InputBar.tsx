@@ -11,11 +11,9 @@ import { AttachmentPill, DismissablePopoverSurface } from '../shared/designSyste
 interface Props {
   session: Session
   isNew: boolean
-  injectedText?: string
-  onInjectedConsumed?: () => void
 }
 
-export default function InputBar({ session, isNew, injectedText, onInjectedConsumed }: Props): JSX.Element {
+export default function InputBar({ session, isNew }: Props): JSX.Element {
   const {
     providerAvailability,
     providerModels,
@@ -44,6 +42,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
   const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
   const [claudeAgents, setClaudeAgents] = useState<ProviderAgentDef[]>([])
   const [claudeAgentsStatus, setClaudeAgentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
+  const [isSavingPastedFiles, setIsSavingPastedFiles] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const resizeTextarea = (textarea: HTMLTextAreaElement): void => {
@@ -93,20 +92,6 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
         setClaudeAgentsStatus('error')
       })
   }, [session.provider, showAgentMenu, claudeAgentsStatus])
-
-  useEffect(() => {
-    if (injectedText) {
-      setText(injectedText)
-      onInjectedConsumed?.()
-      textareaRef.current?.focus()
-      setTimeout(() => {
-        if (textareaRef.current) {
-          resizeTextarea(textareaRef.current)
-          moveTextareaCursorToEnd(textareaRef.current)
-        }
-      }, 0)
-    }
-  }, [injectedText])
 
   useEffect(() => {
     const onAddComposerAttachment = (event: Event): void => {
@@ -222,7 +207,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     status: session.status,
     canUsePermission
   })
-  const canSend = sendState.canSend
+  const canSend = sendState.canSend && !isSavingPastedFiles
   const canStop = canStopSession(session.status)
 
   const send = async (): Promise<void> => {
@@ -287,6 +272,41 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     textareaRef.current?.focus()
   }
 
+  const attachPastedFiles = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return
+    setIsSavingPastedFiles(true)
+    try {
+      const saved = await Promise.all(files.map(async (file): Promise<Attachment | null> => {
+        try {
+          const bytes = await file.arrayBuffer()
+          const attachment = await window.api.attachments.savePastedFile({
+            name: file.name || undefined,
+            mimeType: file.type || undefined,
+            bytes
+          })
+          return {
+            id: crypto.randomUUID(),
+            kind: 'local_file',
+            path: attachment.path,
+            name: attachment.name,
+            size: attachment.size,
+            mimeType: attachment.mimeType
+          }
+        } catch (error) {
+          console.warn('Unable to attach pasted file', error)
+          return null
+        }
+      }))
+      const next = saved.filter((attachment): attachment is Attachment => attachment !== null)
+      if (next.length > 0) {
+        setAttachments((current) => dedupeAttachments([...current, ...next]))
+        textareaRef.current?.focus()
+      }
+    } finally {
+      setIsSavingPastedFiles(false)
+    }
+  }
+
   const slashQuery = getSlashQuery(text)
   const showSlash = slashQuery !== null
 
@@ -307,9 +327,31 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>): void => {
     const textarea = e.currentTarget
+    const pastedFiles = getClipboardFiles(e.clipboardData)
+    if (pastedFiles.length > 0) {
+      e.preventDefault()
+      const pastedText = e.clipboardData.getData('text/plain')
+      if (pastedText) insertTextAtSelection(textarea, pastedText)
+      void attachPastedFiles(pastedFiles)
+      return
+    }
     window.setTimeout(() => {
       resizeTextarea(textarea)
       moveTextareaCursorToEnd(textarea)
+    }, 0)
+  }
+
+  const insertTextAtSelection = (textarea: HTMLTextAreaElement, value: string): void => {
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const next = `${textarea.value.slice(0, start)}${value}${textarea.value.slice(end)}`
+    setText(next)
+    setSlashIndex(0)
+    window.setTimeout(() => {
+      if (!textareaRef.current) return
+      const cursor = start + value.length
+      textareaRef.current.setSelectionRange(cursor, cursor)
+      resizeTextarea(textareaRef.current)
     }, 0)
   }
 
@@ -374,7 +416,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     setTextareaText(`${command.name} `)
   }
 
-  const sendTitle = sendState.willQueue ? 'Queue message (↵)' : 'Send (↵)'
+  const sendTitle = isSavingPastedFiles ? 'Saving pasted files' : sendState.willQueue ? 'Queue message (↵)' : 'Send (↵)'
 
   // Compact agent pill label: "Provider · Model [· Effort]"
   const agentLabel = [
@@ -389,7 +431,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
   return (
     <div
-      className="shrink-0 px-6 py-3"
+      className="shrink-0 px-6 pt-2 pb-3"
       style={{
         background: 'var(--canvas-bg)'
       }}
@@ -397,11 +439,11 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       <div
         className="overflow-visible mx-auto"
         style={{
-          maxWidth: isNew ? 740 : 900,
+          maxWidth: isNew ? 700 : 860,
           background: 'var(--surface-bg)',
           border: '1px solid var(--border-subtle)',
           borderRadius: 'var(--radius-xl)',
-          boxShadow: isNew ? '0 12px 34px rgba(15, 23, 42, 0.085)' : '0 6px 18px rgba(15, 23, 42, 0.055)',
+          boxShadow: isNew ? 'var(--shadow-composer)' : '0 6px 18px rgba(15, 23, 42, 0.045)',
           position: 'relative',
           transition: 'box-shadow 140ms ease, border-color 140ms ease'
         }}
@@ -419,7 +461,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
         )}
 
         {/* Text input */}
-        <div className="flex items-end px-4 pt-3 pb-1.5 gap-2">
+        <div className="flex items-end px-4 pt-3 pb-1 gap-2">
           <textarea
             ref={textareaRef}
             value={text}
@@ -430,7 +472,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
             rows={1}
             autoFocus={isNew}
             className="flex-1 resize-none bg-transparent outline-none"
-            style={{ color: 'var(--text-primary)', lineHeight: 1.55, maxHeight: 180, userSelect: 'text', fontSize: 14.5 }}
+            style={{ color: 'var(--text-primary)', lineHeight: 1.5, maxHeight: 180, userSelect: 'text', fontSize: 14 }}
           />
         </div>
         {attachments.length > 0 && (
@@ -446,7 +488,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
         )}
 
         {/* Bottom toolbar */}
-        <div className="flex items-center px-3 pb-2.5 gap-1.5">
+        <div className="flex items-center px-3 pb-2 gap-1.5">
 
           {/* Left side */}
           {isNew ? (
@@ -493,7 +535,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
 
           <div className="flex-1" />
 
-          <ToolbarBtn active={attachments.length > 0} onClick={attachFiles} title="Attach files">
+          <ToolbarBtn active={attachments.length > 0 || isSavingPastedFiles} onClick={attachFiles} title={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}>
             <Icon name="paperclip" size={13} />
           </ToolbarBtn>
 
@@ -840,6 +882,15 @@ function dedupeAttachments(attachments: Attachment[]): Attachment[] {
     seen.add(key)
     return true
   })
+}
+
+function getClipboardFiles(clipboardData: DataTransfer): File[] {
+  const files = Array.from(clipboardData.files ?? [])
+  if (files.length > 0) return files
+  return Array.from(clipboardData.items ?? [])
+    .filter((item) => item.kind === 'file')
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null)
 }
 
 function formatBytes(value: number): string {

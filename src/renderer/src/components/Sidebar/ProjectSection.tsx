@@ -120,13 +120,13 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   const hiddenSessionCount = Math.max(0, sessions.length - visibleSessions.length)
 
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div className="min-w-0" style={{ marginBottom: 4 }}>
       {/* Project header */}
       <SurfaceRow
         dataTestId="project-section-header"
-        className="group flex items-center gap-2 cursor-pointer select-none"
+        className="group flex min-w-0 items-center gap-2 cursor-pointer select-none"
         style={{
-          padding: '5px 7px',
+          padding: '3px 6px',
           borderRadius: 'var(--radius-md)',
           color: 'var(--text-secondary)',
         }}
@@ -140,8 +140,10 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
         <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
           <Icon name="chevronDown" size={12} />
         </span>
-        <Icon name="folder" size={14} />
-        <span className="flex-1 truncate text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+        <span className="shrink-0">
+          <Icon name="folder" size={13} />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
           {project.name}
         </span>
         {project.pinned && (
@@ -154,7 +156,6 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
             icon="ellipsis"
             label="Project actions"
             size="sm"
-            tooltip={false}
             onClick={openProjectMenu}
           />
           <IconButton
@@ -162,7 +163,6 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
             label={creating ? 'Creating chat' : 'New chat'}
             disabled={creating}
             size="sm"
-            tooltip={false}
             onClick={(e) => { e.stopPropagation(); void handleNewSession() }}
           />
         </span>
@@ -170,11 +170,11 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
 
       {/* Sessions */}
       {!collapsed && (
-        <div className="space-y-px">
+        <div>
           {sessions.length === 0 && (
             <div
               className="cursor-pointer"
-              style={{ color: 'var(--text-secondary)', padding: '5px 8px 5px 29px', fontSize: 13 }}
+              style={{ color: 'var(--text-secondary)', padding: '4px 8px 4px 28px', fontSize: 12.5 }}
               onClick={handleNewSession}
             >
               New chat

@@ -363,11 +363,11 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
         maxWidth: '100%',
         height: embedded ? '100%' : undefined,
         borderLeft: embedded ? 'none' : '1px solid var(--border-subtle)',
-        background: 'var(--panel-bg)'
+        background: 'var(--surface-bg)'
       }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+      <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
         <ProviderIcon providerId={provider} size={12} color={providerDef.color} />
         <span className="text-sm font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>
           {providerDef.name} Extensions
@@ -377,7 +377,7 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
         )}
       </div>
 
-      <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+      <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden" style={{ background: 'var(--canvas-bg)' }}>
         {provider === 'codex' && (
           <CodexExtensionsView
             groups={extensionGroups}
@@ -692,7 +692,7 @@ function AgentSectionView({
 
   return (
     <div>
-      <div className="px-4 py-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+      <div className="px-4 py-3" style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
           Local Instructions
         </div>

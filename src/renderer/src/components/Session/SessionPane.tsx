@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, type MutableRefObject } from 'react'
-import { useSessionStore } from '../../store/sessions'
+import { memo, useState, useRef, useCallback } from 'react'
+import { defaultUI, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import type { Session } from '../../types'
 import ChatView from './ChatView'
@@ -14,21 +14,21 @@ const MIN_TERMINAL_HEIGHT = 120
 const MAX_TERMINAL_HEIGHT = 600
 const DEFAULT_TERMINAL_HEIGHT = 260
 
-export default function SessionPane(): JSX.Element | null {
-  const {
-    sessions,
-    activeSessionId,
-    uiState,
-    setShowTerminal,
-    setTerminalHeight,
-    addTerminalTab,
-    setActiveTerminalTab,
-    moveTerminalTab,
-    closeTerminalTab
-  } = useSessionStore()
+interface SessionPaneProps {
+  sessionId: string
+}
+
+function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
+  const sessions = useSessionStore((state) => state.sessions)
+  const ui = useSessionStore((state) => state.uiState[sessionId] ?? defaultUI)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const setTerminalHeight = useSessionStore((state) => state.setTerminalHeight)
+  const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
+  const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
+  const moveTerminalTab = useSessionStore((state) => state.moveTerminalTab)
+  const closeTerminalTab = useSessionStore((state) => state.closeTerminalTab)
   const { projects } = useProjectStore()
-  const session = sessions.find((s) => s.id === activeSessionId)
-  const [promptInjectorRef] = useState<MutableRefObject<((text: string) => void) | null>>({ current: null })
+  const session = sessions.find((s) => s.id === sessionId)
   const [isTerminalResizing, setIsTerminalResizing] = useState(false)
   const [terminalMenu, setTerminalMenu] = useState<{ tabId: number; x: number; y: number } | null>(null)
   const dragStartRef = useRef<{ y: number; h: number } | null>(null)
@@ -62,7 +62,6 @@ export default function SessionPane(): JSX.Element | null {
 
   const isNew = (session.messageCount ?? session.messages.length) === 0 && session.status !== 'running'
   const project = projects.find((p) => p.id === session.projectId)
-  const ui = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, hasUnread: false }
   const terminalPanel = ui.terminalPanel ?? { height: DEFAULT_TERMINAL_HEIGHT, tabs: [0], activeTabId: 0, nextTabId: 1 }
   const terminalHeight = terminalPanel.height
   const tabs = terminalPanel.tabs
@@ -85,17 +84,13 @@ export default function SessionPane(): JSX.Element | null {
     setTerminalMenu(null)
   }
 
-  const handleSuggestedPrompt = (text: string): void => {
-    promptInjectorRef.current?.(text)
-  }
-
   const terminalMenuIndex = terminalMenu ? tabs.findIndex((tabId) => tabId === terminalMenu.tabId) : -1
 
   return (
     <div className="relative flex flex-col h-full overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
       {/* Main content row: chat + optional side panels */}
-      <div className="flex-1 flex min-w-0 overflow-hidden">
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <div className="relative flex-1 flex min-w-0 overflow-hidden" data-testid="session-main-row">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden" data-testid="session-primary-content">
           {/* Project label shown when new */}
           {isNew && project && (
             <div
@@ -107,10 +102,10 @@ export default function SessionPane(): JSX.Element | null {
             </div>
           )}
           <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-            <ChatView session={session} projectName={project?.name} onSuggestedPrompt={handleSuggestedPrompt} />
+            <ChatView session={session} projectName={project?.name} />
           </div>
           <RunningAgentsStrip session={session} />
-          <InputBarWithInjector session={session} isNew={isNew} injectorRef={promptInjectorRef} />
+          <InputBar session={session} isNew={isNew} />
         </div>
 
         <ContextSidebar session={session} />
@@ -232,23 +227,4 @@ export default function SessionPane(): JSX.Element | null {
   )
 }
 
-function InputBarWithInjector({
-  session,
-  isNew,
-  injectorRef
-}: {
-  session: Session
-  isNew: boolean
-  injectorRef: MutableRefObject<((text: string) => void) | null>
-}): JSX.Element {
-  const [injectedText, setInjectedText] = useState('')
-  injectorRef.current = setInjectedText
-  return (
-    <InputBar
-      session={session}
-      isNew={isNew}
-      injectedText={injectedText}
-      onInjectedConsumed={() => setInjectedText('')}
-    />
-  )
-}
+export default memo(SessionPane)

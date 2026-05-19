@@ -57,8 +57,15 @@ export interface AppProfile {
   forceReducedMotion: boolean
 }
 
+export interface SavedPastedAttachment {
+  path: string
+  name: string
+  size: number
+  mimeType?: string
+}
+
 export interface FilePreviewResult {
-  kind: 'text' | 'image' | 'pdf' | 'binary' | 'missing' | 'unreadable'
+  kind: 'text' | 'image' | 'pdf' | 'audio' | 'video' | 'binary' | 'missing' | 'unreadable'
   size?: number
   text?: string
   truncated: boolean
@@ -158,6 +165,21 @@ declare global {
       }
       browser: {
         openExternal: (url: string) => Promise<void>
+        saveDataUrlArtifact: (dataUrl: string, suggestedName?: string) => Promise<{ path: string; size: number }>
+        bundleAssets: (request: {
+          inventoryId: string
+          pageUrl?: string | null
+          assets: Array<{ id: string; kind: string; name: string; url: string }>
+        }) => Promise<{
+          directoryPath: string
+          manifestPath: string
+          assets: Array<{ id: string; kind: string; name: string; url: string; path: string; contentType: string | null }>
+          failures: Array<{ id: string; kind: string; name: string; url: string; reason: string }>
+          summary: { requestedCount: number; downloadedCount: number; failedCount: number }
+        }>
+      }
+      attachments: {
+        savePastedFile: (request: { name?: string; mimeType?: string; bytes: ArrayBuffer }) => Promise<SavedPastedAttachment>
       }
       providers: {
         getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>

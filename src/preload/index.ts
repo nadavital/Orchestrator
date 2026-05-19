@@ -48,7 +48,7 @@ interface ChromeTheme {
 }
 
 interface FilePreviewResult {
-  kind: 'text' | 'image' | 'pdf' | 'binary' | 'missing' | 'unreadable'
+  kind: 'text' | 'image' | 'pdf' | 'audio' | 'video' | 'binary' | 'missing' | 'unreadable'
   size?: number
   text?: string
   truncated: boolean
@@ -61,6 +61,13 @@ interface AppProfile {
   isIsolated: boolean
   disablePetOverlay: boolean
   forceReducedMotion: boolean
+}
+
+interface SavedPastedAttachment {
+  path: string
+  name: string
+  size: number
+  mimeType?: string
 }
 
 export type SessionEvent =
@@ -170,7 +177,25 @@ const api = {
   },
 
   browser: {
-    openExternal: (url: string): Promise<void> => ipcRenderer.invoke('browser:openExternal', url)
+    openExternal: (url: string): Promise<void> => ipcRenderer.invoke('browser:openExternal', url),
+    saveDataUrlArtifact: (dataUrl: string, suggestedName?: string): Promise<{ path: string; size: number }> =>
+      ipcRenderer.invoke('browser:saveDataUrlArtifact', dataUrl, suggestedName),
+    bundleAssets: (request: {
+      inventoryId: string
+      pageUrl?: string | null
+      assets: Array<{ id: string; kind: string; name: string; url: string }>
+    }): Promise<{
+      directoryPath: string
+      manifestPath: string
+      assets: Array<{ id: string; kind: string; name: string; url: string; path: string; contentType: string | null }>
+      failures: Array<{ id: string; kind: string; name: string; url: string; reason: string }>
+      summary: { requestedCount: number; downloadedCount: number; failedCount: number }
+    }> => ipcRenderer.invoke('browser:bundleAssets', request)
+  },
+
+  attachments: {
+    savePastedFile: (request: { name?: string; mimeType?: string; bytes: ArrayBuffer }): Promise<SavedPastedAttachment> =>
+      ipcRenderer.invoke('attachments:savePastedFile', request)
   },
 
   providers: {

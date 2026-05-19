@@ -4,7 +4,7 @@ import { useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
-import { IconButton, SurfaceRow, TextInputDialog } from '../shared/designSystem'
+import { announceHoverSurfaceOpen, IconButton, SurfaceRow, useExclusiveHoverSurface } from '../shared/designSystem'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 interface Props {
@@ -36,6 +36,7 @@ const errorStatuses = new Set<Session['status']>([
 
 function SessionItem({ session }: Props): JSX.Element {
   const rowRef = useRef<HTMLDivElement>(null)
+  const hoverSurfaceId = `session-hover-${session.id}`
   const isActive = useSessionStore((state) => state.activeSessionId === session.id)
   const unread = useSessionStore((state) => state.uiState[session.id]?.hasUnread ?? false)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
@@ -45,7 +46,6 @@ function SessionItem({ session }: Props): JSX.Element {
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const { projects, removeSessionFromProject } = useProjectStore()
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
-  const [renaming, setRenaming] = useState(false)
   const [detailsVisible, setDetailsVisible] = useState(false)
   const [cardPosition, setCardPosition] = useState<{ left: number; top: number } | null>(null)
   const [branch, setBranch] = useState<string | null>(null)
@@ -132,16 +132,6 @@ function SessionItem({ session }: Props): JSX.Element {
     removeSessionFromProject(session.projectId, session.id)
   }
 
-  const rename = async (nextName: string): Promise<void> => {
-    const trimmed = nextName.trim()
-    if (!trimmed || trimmed === session.name) {
-      setRenaming(false)
-      return
-    }
-    await window.api.sessions.updateName(session.id, trimmed)
-    setRenaming(false)
-  }
-
   const togglePinned = async (event: React.MouseEvent): Promise<void> => {
     event.preventDefault()
     event.stopPropagation()
@@ -162,18 +152,21 @@ function SessionItem({ session }: Props): JSX.Element {
     setMenuPoint({ x: event.clientX, y: event.clientY })
   }
 
+  const hideDetails = (): void => {
+    setDetailsVisible(false)
+  }
+
   const showDetails = (): void => {
     const rect = rowRef.current?.getBoundingClientRect()
     if (rect) {
       const cardTop = Math.min(Math.max(rect.top - 10, 10), window.innerHeight - 220)
       setCardPosition({ left: rect.right + 8, top: cardTop })
     }
+    announceHoverSurfaceOpen(hoverSurfaceId)
     setDetailsVisible(true)
   }
 
-  const hideDetails = (): void => {
-    setDetailsVisible(false)
-  }
+  useExclusiveHoverSurface(hoverSurfaceId, hideDetails)
 
   return (
     <>
@@ -183,7 +176,7 @@ function SessionItem({ session }: Props): JSX.Element {
         role="button"
         tabIndex={0}
         aria-current={isActive ? 'page' : undefined}
-        aria-describedby={detailsVisible ? `session-hover-${session.id}` : undefined}
+        aria-describedby={detailsVisible ? hoverSurfaceId : undefined}
         data-details-visible={detailsVisible ? 'true' : 'false'}
         onMouseEnter={showDetails}
         onMouseLeave={hideDetails}
@@ -200,17 +193,13 @@ function SessionItem({ session }: Props): JSX.Element {
       >
         <SurfaceRow
           dataTestId="session-row"
-          className="group flex h-8 items-center gap-1.5 cursor-pointer select-none"
+          className="group flex h-7 min-w-0 items-center gap-1.5 cursor-pointer select-none"
           active={isActive}
           style={{
             borderRadius: 'var(--radius-md)',
-            padding: '4px 6px'
+            padding: '3px 6px'
           }}
           onClick={handleClick}
-          onDoubleClick={(event) => {
-            if ((event.target as HTMLElement).closest('button')) return
-            setRenaming(true)
-          }}
           onContextMenu={openMenu}
         >
           <div className="session-item-pin-slot shrink-0">
@@ -243,7 +232,7 @@ function SessionItem({ session }: Props): JSX.Element {
               {session.name}
             </div>
           </div>
-          <span className="session-row-right-meta shrink-0 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+          <span className="session-row-right-meta shrink-0 text-[10.5px]" style={{ color: 'var(--text-tertiary)' }}>
             {isRunning ? 'Running' : hasError ? 'Error' : updatedLabel}
           </span>
           {showStatusIndicator && (
@@ -273,7 +262,6 @@ function SessionItem({ session }: Props): JSX.Element {
               icon="ellipsis"
               label="Chat actions"
               size="sm"
-              tooltip={false}
               onClick={openMenu}
               style={{ color: 'var(--text-tertiary)' }}
             />
@@ -282,7 +270,7 @@ function SessionItem({ session }: Props): JSX.Element {
       </div>
       {detailsVisible && cardPosition && (
         <div
-          id={`session-hover-${session.id}`}
+          id={hoverSurfaceId}
           className="session-hover-card"
           data-testid="session-hover-card"
           style={{ left: cardPosition.left, top: cardPosition.top }}
@@ -306,15 +294,6 @@ function SessionItem({ session }: Props): JSX.Element {
           y={menuPoint.y}
           onClose={() => setMenuPoint(null)}
           onRemove={handleRemove}
-        />
-      )}
-      {renaming && (
-        <TextInputDialog
-          title="Rename chat"
-          initialValue={session.name}
-          confirmLabel="Rename"
-          onCancel={() => setRenaming(false)}
-          onConfirm={(value) => void rename(value)}
         />
       )}
     </>

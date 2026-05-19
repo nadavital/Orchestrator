@@ -157,7 +157,7 @@ export default function CommandPalette({ actions, onClose }: Props): JSX.Element
                 {group.name}
               </div>
               {group.entries.map(({ action, index }) => {
-                const shortcuts = action.shortcuts ?? (action.shortcut ? [action.shortcut] : [])
+                const shortcut = action.shortcut ?? action.shortcuts?.[0]
                 return (
                   <button
                     key={action.id}
@@ -182,21 +182,18 @@ export default function CommandPalette({ actions, onClose }: Props): JSX.Element
                         </span>
                       )}
                     </span>
-                    {shortcuts.length > 0 && (
+                    {shortcut && (
                       <span className="flex shrink-0 items-center gap-1">
-                        {shortcuts.map((shortcut) => (
-                          <kbd
-                            key={`${action.id}-${shortcut}`}
-                            className="rounded-md px-1.5 py-0.5 text-[11px] font-semibold"
-                            style={{
-                              background: 'var(--control-bg)',
-                              border: '1px solid var(--border-subtle)',
-                              color: 'var(--text-secondary)'
-                            }}
-                          >
-                            {shortcut}
-                          </kbd>
-                        ))}
+                        <kbd
+                          className="rounded-md px-1.5 py-0.5 text-[11px] font-semibold"
+                          style={{
+                            background: 'var(--control-bg)',
+                            border: '1px solid var(--border-subtle)',
+                            color: 'var(--text-secondary)'
+                          }}
+                        >
+                          {shortcut}
+                        </kbd>
                       </span>
                     )}
                   </button>

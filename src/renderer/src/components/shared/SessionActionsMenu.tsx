@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Session } from '../../types'
-import { ConfirmDialog, MenuItem, MenuSurface, TextInputDialog } from './designSystem'
+import RenameChatDialog from './RenameChatDialog'
+import { ConfirmDialog, MenuItem, MenuSurface } from './designSystem'
 
 interface Props {
   session: Session
@@ -26,11 +27,12 @@ export default function SessionActionsMenu({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const rename = async (nextName: string): Promise<void> => {
-    if (nextName === session.name) {
+    const trimmed = nextName.trim()
+    if (!trimmed || trimmed === session.name) {
       onClose()
       return
     }
-    await window.api.sessions.updateName(session.id, nextName)
+    await window.api.sessions.updateName(session.id, trimmed)
     onClose()
   }
 
@@ -94,11 +96,9 @@ export default function SessionActionsMenu({
       </MenuSurface>
     )}
     {renaming && (
-      <TextInputDialog
-        title="Rename chat"
+      <RenameChatDialog
         initialValue={session.name}
-        confirmLabel="Rename"
-        onCancel={() => setRenaming(false)}
+        onCancel={onClose}
         onConfirm={(value) => void rename(value)}
       />
     )}

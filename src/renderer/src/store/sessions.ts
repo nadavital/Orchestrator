@@ -25,7 +25,30 @@ export interface BrowserWorkbenchState {
   findVisible: boolean
   findQuery: string
   zoomFactor: number
-  deviceMode: 'desktop' | 'mobile'
+  deviceMode: 'desktop' | 'mobile' | 'custom'
+  viewportWidth: number
+  viewportHeight: number
+  visible: boolean
+  activeTabId: string
+  tabs: BrowserTabState[]
+  nextTabIndex: number
+  inspectorOpen: boolean
+  inspectorMode: 'console' | 'dom' | 'targets' | 'assets' | 'security'
+  approvalMode: 'alwaysAsk' | 'alwaysAllow'
+  historyApprovalMode: 'alwaysAsk' | 'alwaysAllow'
+  allowedOrigins: string[]
+  blockedOrigins: string[]
+  allowedDownloadOrigins: string[]
+  blockedDownloadOrigins: string[]
+  allowedUploadOrigins: string[]
+  blockedUploadOrigins: string[]
+}
+
+export interface BrowserTabState {
+  id: string
+  title: string
+  url: string
+  lastOpened: number
 }
 
 export interface SideQuestionMessage {
@@ -53,7 +76,7 @@ export interface TerminalPanelState {
   nextTabId: number
 }
 
-interface SessionUIState {
+export interface SessionUIState {
   showPlan: boolean
   showDiff: boolean
   showEvents: boolean
@@ -150,7 +173,7 @@ interface SessionState {
 
 const SESSION_STORE_TAIL_MESSAGES = 64
 
-const defaultUI: SessionUIState = {
+export const defaultUI: SessionUIState = {
   showPlan: false,
   showDiff: false,
   showEvents: false,
@@ -168,7 +191,28 @@ const defaultUI: SessionUIState = {
     findVisible: false,
     findQuery: '',
     zoomFactor: 1,
-    deviceMode: 'desktop'
+    deviceMode: 'desktop',
+    viewportWidth: 1280,
+    viewportHeight: 720,
+    visible: true,
+    activeTabId: 'tab-1',
+    tabs: [{
+      id: 'tab-1',
+      title: 'New tab',
+      url: '',
+      lastOpened: 0
+    }],
+    nextTabIndex: 2,
+    inspectorOpen: false,
+    inspectorMode: 'console',
+    approvalMode: 'alwaysAsk',
+    historyApprovalMode: 'alwaysAsk',
+    allowedOrigins: ['localhost', '127.0.0.1'],
+    blockedOrigins: [],
+    allowedDownloadOrigins: [],
+    blockedDownloadOrigins: [],
+    allowedUploadOrigins: [],
+    blockedUploadOrigins: []
   },
   terminalPanel: {
     height: 260,

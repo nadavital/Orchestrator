@@ -23,7 +23,9 @@ import {
   Globe,
   Keyboard,
   ListChecks,
+  Maximize2,
   Menu,
+  Minimize2,
   Monitor,
   MessageSquare,
   Paperclip,
@@ -41,6 +43,7 @@ import {
   Wrench,
   Terminal,
   Users,
+  WrapText,
   X,
   ZoomIn,
   ZoomOut,
@@ -73,7 +76,9 @@ export type IconName =
   | 'file'
   | 'folder'
   | 'keyboard'
+  | 'maximize'
   | 'menu'
+  | 'minimize'
   | 'monitor'
   | 'paperclip'
   | 'pencil'
@@ -90,6 +95,7 @@ export type IconName =
   | 'terminal'
   | 'usage'
   | 'wrench'
+  | 'wrap'
   | 'zoomIn'
   | 'zoomOut'
   | 'warning'
@@ -120,7 +126,9 @@ const icons: Record<IconName, LucideIcon> = {
   file: File,
   folder: Folder,
   keyboard: Keyboard,
+  maximize: Maximize2,
   menu: Menu,
+  minimize: Minimize2,
   monitor: Monitor,
   paperclip: Paperclip,
   pencil: Pencil,
@@ -137,6 +145,7 @@ const icons: Record<IconName, LucideIcon> = {
   terminal: Terminal,
   usage: BarChart3,
   wrench: Wrench,
+  wrap: WrapText,
   zoomIn: ZoomIn,
   zoomOut: ZoomOut,
   warning: AlertTriangle

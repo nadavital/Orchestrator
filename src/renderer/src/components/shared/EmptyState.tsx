@@ -1,13 +1,27 @@
 import { useProjectStore } from '../../store/projects'
+import { useSessionStore } from '../../store/sessions'
 import { pickAndAddProject } from '../Sidebar/Sidebar'
 import Icon from './Icon'
 
 export default function EmptyState(): JSX.Element {
   const { projects, addProject } = useProjectStore()
+  const { addSession, setActiveSession, setShowCapabilities, setShowSettings } = useSessionStore()
   const hasProjects = projects.length > 0
 
-  const handleAddProject = (): void => {
-    pickAndAddProject(addProject)
+  const handleAddProject = async (): Promise<void> => {
+    const project = await pickAndAddProject(addProject)
+    if (!project) return
+    const session = await window.api.sessions.create({
+      projectId: project.id,
+      workDir: project.rootPath,
+      useWorktree: false,
+      repoRoot: project.rootPath
+    })
+    await window.api.projects.addSession(project.id, session.id)
+    addSession(session)
+    setActiveSession(session.id)
+    setShowCapabilities(false)
+    setShowSettings(false)
   }
 
   if (!hasProjects) {
@@ -27,21 +41,21 @@ export default function EmptyState(): JSX.Element {
             boxShadow: 'var(--shadow-soft)'
           }}
         >
-          <Icon name="terminal" size={28} />
+          <Icon name="folder" size={28} />
         </div>
           <div className="text-center">
-            <div className="font-semibold text-sm mb-1" style={{ color: 'var(--color-text)' }}>
-            Orchestrator
+            <div className="font-semibold text-base mb-1" style={{ color: 'var(--color-text)' }}>
+            Open a project
             </div>
           <div className="text-sm mb-5">
-            Add a project folder to get started.
+            Add a project folder to start chatting with your local code.
           </div>
           <button
-            onClick={handleAddProject}
+            onClick={() => { void handleAddProject() }}
             className="px-5 py-2.5 text-sm font-medium transition-opacity hover:opacity-90"
             style={{ background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius-lg)' }}
           >
-            Add Project
+            Add project folder
           </button>
         </div>
       </div>
