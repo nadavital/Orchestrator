@@ -1,4 +1,4 @@
-import { createElement, useEffect, useMemo, useRef, useState } from 'react'
+import { createElement, useEffect, useRef, useState } from 'react'
 import type { BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
 import { Badge, IconButton, MenuSurface, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
@@ -113,12 +113,6 @@ export default function BrowserPanel({
   const viewport = browserViewport(workbench)
   const urlOrigin = safeOrigin(currentUrl)
   const blocked = Boolean(urlOrigin && workbench.blockedOrigins.includes(originKey(urlOrigin)))
-  const capabilitySummary = useMemo(() => [
-    `${workbench.tabs.length} tab${workbench.tabs.length === 1 ? '' : 's'}`,
-    workbench.deviceMode === 'desktop' ? 'default viewport' : `${workbench.viewportWidth} x ${workbench.viewportHeight}`,
-    workbench.inspectorOpen ? 'inspector open' : 'inspector hidden'
-  ], [workbench.deviceMode, workbench.inspectorOpen, workbench.tabs.length, workbench.viewportHeight, workbench.viewportWidth])
-
   useEffect(() => {
     const nextTab = activeBrowserTab(workbench)
     const nextUrl = nextTab.url || initialUrl
@@ -467,9 +461,6 @@ export default function BrowserPanel({
           </button>
         ))}
         <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
-        <div className="ml-auto hidden min-w-0 items-center gap-2 text-[11px] md:flex" style={{ color: 'var(--text-tertiary)' }}>
-          {capabilitySummary.map((label) => <span key={label} className="truncate">{label}</span>)}
-        </div>
       </div>
 
       <form
@@ -718,9 +709,6 @@ export default function BrowserPanel({
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
                 <Icon name="browser" size={26} />
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Browser is hidden</div>
-                <div className="max-w-sm text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                  The session keeps its tab state while the visible surface is hidden.
-                </div>
               </div>
             )
           ) : (
@@ -728,10 +716,7 @@ export default function BrowserPanel({
               <Icon name="browser" size={26} />
               <div className="space-y-1">
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                  Start browsing
-                </div>
-                <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                  Enter a URL or open a local target
+                  Open a URL
                 </div>
               </div>
               <div className="flex flex-wrap justify-center gap-1.5">
@@ -849,7 +834,7 @@ function ConsolePane({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Badge tone="neutral">dev logs {logs.length}</Badge>
+        <Badge tone="neutral">console {logs.length}</Badge>
         {artifactPath && <Badge tone="success">screenshot saved</Badge>}
         <button type="button" className="ml-auto text-xs" style={{ color: 'var(--text-secondary)' }} onClick={onClear}>Clear</button>
       </div>
@@ -881,11 +866,11 @@ function DomPane({ domSnapshot, onInspect }: { domSnapshot: string; onInspect: (
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Badge tone="neutral">DOM snapshot</Badge>
+        <Badge tone="neutral">DOM</Badge>
         <button type="button" className="ml-auto text-xs" style={{ color: 'var(--accent)' }} onClick={onInspect}>Refresh</button>
       </div>
       <pre className="max-h-28 overflow-auto whitespace-pre-wrap rounded-md p-2 text-[11px]" style={{ background: 'var(--control-bg)', color: 'var(--text-primary)' }}>
-        {domSnapshot || 'Run Inspect to capture a compact page snapshot.'}
+        {domSnapshot || 'Inspect to capture DOM.'}
       </pre>
     </div>
   )
@@ -930,13 +915,13 @@ function TargetsPane({
           className="w-full rounded-md px-2 py-1 text-xs outline-none"
           style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
         >
-          <option value="">Visible DOM targets ({targets.length})</option>
+          <option value="">Targets ({targets.length})</option>
           {targets.map((target) => <option key={target.nodeId} value={target.nodeId}>{target.preview}</option>)}
         </select>
         <input
           value={actionText}
           onChange={(event) => onActionTextChange(event.target.value)}
-          placeholder="Text for type action"
+          placeholder="Text to type"
           className="w-full rounded-md px-2 py-1 text-xs outline-none"
           style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
         />
@@ -944,7 +929,7 @@ function TargetsPane({
           <ActionButton label="Click" onClick={() => onRunTargetAction('click')} disabled={!selectedTargetId} />
           <ActionButton label="Double" onClick={() => onRunTargetAction('double_click')} disabled={!selectedTargetId} />
           <ActionButton label="Type" onClick={() => onRunTargetAction('type')} disabled={!selectedTargetId || !actionText} />
-          <ActionButton label="Scroll target" onClick={() => onRunTargetAction('scroll')} disabled={!selectedTargetId} />
+          <ActionButton label="Scroll" onClick={() => onRunTargetAction('scroll')} disabled={!selectedTargetId} />
         </div>
       </div>
       <div className="space-y-2">
@@ -954,15 +939,15 @@ function TargetsPane({
           <SmallNumber label="Scroll" value={coordinateAction.scrollY} onChange={(scrollY) => onCoordinateChange({ ...coordinateAction, scrollY })} />
         </div>
         <div className="flex gap-1">
-          <ActionButton label="Point click" onClick={() => onRunCoordinateAction('click')} />
-          <ActionButton label="Point scroll" onClick={() => onRunCoordinateAction('scroll')} />
+          <ActionButton label="Click x/y" onClick={() => onRunCoordinateAction('click')} />
+          <ActionButton label="Scroll x/y" onClick={() => onRunCoordinateAction('scroll')} />
         </div>
         <div className="flex gap-1">
-          <span className="self-center text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Clipboard</span>
+          <span className="self-center text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Clip</span>
           <input
             value={clipboardText}
             onChange={(event) => onClipboardChange(event.target.value)}
-            placeholder="Clipboard"
+            placeholder="Clip text"
             className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
             style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
           />
@@ -979,7 +964,7 @@ function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetI
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <Badge tone="neutral">assets {inventory?.summary.totalCount ?? 0}</Badge>
-        <Badge tone="neutral">inline svg {inventory?.summary.inlineSvgCount ?? 0}</Badge>
+        <Badge tone="neutral">svg {inventory?.summary.inlineSvgCount ?? 0}</Badge>
         <button type="button" className="ml-auto text-xs font-semibold" style={{ color: 'var(--accent)' }} disabled={!inventory} onClick={onBundle}>Bundle files</button>
       </div>
       {bundlePath && <div className="truncate" style={{ color: 'var(--text-tertiary)' }}>{bundlePath}</div>}
@@ -1027,7 +1012,7 @@ function SecurityPane({
           value={workbench.historyApprovalMode}
           onChange={(historyApprovalMode) => onPatch({ historyApprovalMode })}
         />
-        <div style={{ color: 'var(--text-tertiary)' }}>Current origin: {currentOrigin || 'none'}</div>
+        <div style={{ color: 'var(--text-tertiary)' }}>Origin: {currentOrigin || 'none'}</div>
       </div>
       <div className="space-y-1">
         <PolicyRow label="Allowed" values={workbench.allowedOrigins} onAdd={() => onAddOriginPolicy('allowedOrigins')} onClear={() => onClearOriginPolicy('allowedOrigins')} />
@@ -1049,8 +1034,8 @@ function PolicySelect({ label, value, onChange }: { label: string; value: 'alway
         className="rounded-md px-2 py-1 text-xs outline-none"
         style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
       >
-        <option value="alwaysAsk">Always ask</option>
-        <option value="alwaysAllow">Always allow</option>
+        <option value="alwaysAsk">Ask</option>
+        <option value="alwaysAllow">Allow</option>
       </select>
     </label>
   )

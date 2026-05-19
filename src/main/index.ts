@@ -771,8 +771,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             var browserTargetsPaneWorks =
               document.querySelector('[data-testid="browser-target-select"]') instanceof HTMLSelectElement &&
-              document.body.innerText.includes('Point click') &&
-              document.body.innerText.includes('Clipboard');
+              document.body.innerText.includes('Click x/y') &&
+              document.body.innerText.includes('Clip');
             const assetsInspectorButton = document.querySelector('[data-testid="browser-inspector-assets"]');
             if (assetsInspectorButton instanceof HTMLButtonElement) {
               assetsInspectorButton.click();
