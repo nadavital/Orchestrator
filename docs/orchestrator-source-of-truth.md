@@ -299,6 +299,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-025 | File-card confidence smoke landed. | `Complete` | Transcript-layout smoke proves unresolved relative prose cards are suppressed while explicit absolute missing references still render as missing with disabled actions. |
 | V-026 | Sidebar live-transition smoke landed. | `Complete` | Sidebar smoke drives a pinned chat through running and completed/unread states and verifies its pin order remains stable. |
 | V-027 | Transcript polish gate re-verified. | `Complete` | `transcript-stress`, `session-switch`, and `scroll` smokes passed, covering long-thread virtualization, lazy hydration, search jump, session switching, and manual-scroll behavior during streaming. |
+| V-028 | Packaged pet-overlay smoke passed. | `Complete` | `npm run pack:mac`, `npm run smoke:ui:auto -- --packaged --pet-overlay`, and packaged resource listing verified bundled pet atlases and packaged overlay behavior. |
 
 ### Codex Parity Matrix
 
@@ -327,7 +328,7 @@ The installed Codex app is the reference for desktop polish, but Orchestrator sh
 | Side chat | Side chats are real nested conversation tabs with independent IDs and cleanup on close. | `/btw` side questions are a lightweight side-question panel. | Side questions do not yet feel like durable side conversations. | `Partial` | Promote side questions to closeable side-chat tabs with independent composer/history and unread/error state. |
 | Terminal panel | Bottom panel uses the same app-shell tab-controller ideas, multiple terminal tabs, persisted sizing, and theme-aware xterm colors. | Bottom terminal exists separately and is not integrated with the reusable shell/tab model. | Terminal is functional but less cohesive/persistent. | `Partial` | Persist terminal panel state, support multiple tabs if useful, align theme tokens, and coordinate with right-panel focus/shortcuts. |
 | Plan/tasks/usage/resources | Plan/tasks/rate-limit/resource surfaces exist as polished app pages or side surfaces where useful. | Plan and usage/resource concepts exist, but usage moved out of session sidebar and resources live mainly in Capabilities/settings. | Need clearer split between session-local workbench content and settings/global diagnostics. | `Partial` | Keep usage/provider diagnostics in Settings; put session-local plan/tasks/resources in right-panel tabs only when they help the active run. |
-| Pets/personalization | Pet overlay has precise resize corner affordance and broader personalization settings. | Pet glitch fixes and resize affordance are partially handled; Pets is a Settings section. | Needs packaged verification and closer Codex behavior parity. | `Partial` | Run packaged pet-overlay smoke, inspect sprite load/state transitions, and add personalization controls only when backed by stable behavior. |
+| Pets/personalization | Pet overlay has precise resize corner affordance and broader personalization settings. | Pet overlay has corner-only resize behavior, packaged atlas resources, packaged overlay smoke coverage, and a Pets settings section. | Current practical parity is covered; add personalization controls only when backed by stable product behavior. | `Complete` | Keep packaged pet-overlay smoke and resource listing in the release/install verification path. |
 | Verification discipline | Codex-like polish is validated through rendered UI behavior, not screenshots alone. | Automated UI smokes exist for sidebar, transcript, pet, settings, capabilities, stress, etc. | New parity surfaces need targeted smokes. | `Partial` | Add smoke targets for sidebar hover card, theme editor/import, right-panel tabs, files tab, review tab, and browser tab. |
 
 ### Codex Parity Backlog
@@ -362,7 +363,7 @@ These are the next small, user-visible polish slices to consider after the curre
 | ID | Polish Area | Target UX | Status | Next action |
 | --- | --- | --- | --- | --- |
 | POL-001 | File cards | Cards appear only for confident, useful file references; no review prose, numeric literals, or unresolved relative guesses. | `Complete` | Renderer smoke now proves unresolved relative prose cards are suppressed while explicit absolute missing files still show disabled actions. |
-| POL-002 | Pet overlay | Built-in pets render without white-square glitches and state transitions feel close to Codex. | `Partial` | Run a packaged pet-overlay smoke and inspect sprite atlas loading/state transitions in the installed app. |
+| POL-002 | Pet overlay | Built-in pets render without white-square glitches and state transitions feel close to Codex. | `Complete` | Packaged pet-overlay smoke and packaged resource listing passed after rebuilding `dist/mac-arm64/Orchestrator.app`. |
 | POL-003 | Command palette | Keyboard-first actions feel native and do not duplicate composer slash commands. | `Complete` | Transcript-layout smoke verifies command palette open paths, grouping, recent commands, fuzzy search, shortcut labels, and the search-transcript action. |
 | POL-004 | Sidebar polish | Pinned, unread, running, rename, and project grouping feel stable during live runs. | `Complete` | Sidebar smoke now covers running/completion transitions while a pinned session receives messages, including spinner, unread dot, and stable pinned order. |
 | POL-005 | Transcript polish | Long threads feel complete, searchable, and scroll-stable without exposing implementation copy. | `Complete` | `transcript-stress`, `session-switch`, and `scroll` smokes are the pre-install gate after transcript changes. |
@@ -723,6 +724,7 @@ When implementing against this plan:
 - File-card confidence smoke checkpoint: the transcript-layout fixture now includes both an unresolved relative prose reference and an explicit absolute missing path, and the smoke verifies the relative prose card is suppressed while the absolute missing card keeps disabled actions.
 - Sidebar live-transition checkpoint: the sidebar smoke now drives a pinned row from running to completed/unread while another chat is pinned, and verifies the spinner, completion dot, and pinned order remain stable.
 - Transcript polish gate checkpoint: `npm run smoke:ui:auto -- --transcript-stress`, `npm run smoke:ui:auto -- --session-switch`, and `npm run smoke:ui:auto -- --scroll` passed as the long-thread/session-switch/streaming-scroll verification set.
+- Packaged pet-overlay checkpoint: `npm run pack:mac` rebuilt the packaged app, `npm run smoke:ui:auto -- --packaged --pet-overlay` passed in a renamed temp bundle, and packaged resources include ditto/orchestrator/pika/psyduck `pet.json` plus `spritesheet.webp`.
 
 ### 2026-05-18
 
