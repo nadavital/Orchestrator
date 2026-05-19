@@ -398,6 +398,30 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               typeof browserWebview.getAttribute === 'function' &&
               document.body.innerText.includes('Orchestrator Browser Smoke');
             var browserScreenshotWorks = Boolean(document.querySelector('[data-testid="browser-screenshot-preview"]'));
+            const openBlankSideChat = async () => {
+              const activeTextarea = document.querySelector('textarea');
+              if (!(activeTextarea instanceof HTMLTextAreaElement)) return;
+              const setter = Object.getOwnPropertyDescriptor(activeTextarea.constructor.prototype, 'value')?.set;
+              setter?.call(activeTextarea, '/btw');
+              activeTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(80);
+              const sendButton = [...document.querySelectorAll('button')]
+                .find((button) => button.getAttribute('title')?.startsWith('Send'));
+              if (sendButton instanceof HTMLButtonElement) sendButton.click();
+              await sleep(220);
+            };
+            await openBlankSideChat();
+            await openBlankSideChat();
+            const sideChatTabsBeforeClose = document.querySelectorAll('[data-tab-id^="sidechat:"]').length;
+            var sideChatTabsWork = sideChatTabsBeforeClose >= 2;
+            const closeSideChatButton = [...document.querySelectorAll('[title^="Close Side chat"]')].at(-1);
+            if (closeSideChatButton instanceof HTMLElement) {
+              closeSideChatButton.click();
+              await sleep(160);
+            }
+            var sideChatCloseWorks =
+              sideChatTabsWork &&
+              document.querySelectorAll('[data-tab-id^="sidechat:"]').length === sideChatTabsBeforeClose - 1;
             const changesTabButton = document.querySelector('[data-tab-id="diff"]')?.closest('button');
             if (changesTabButton instanceof HTMLButtonElement) {
               changesTabButton.click();
@@ -531,6 +555,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
             browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
             browserScreenshotWorks: typeof browserScreenshotWorks === 'boolean' ? browserScreenshotWorks : null,
+            sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
+            sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),

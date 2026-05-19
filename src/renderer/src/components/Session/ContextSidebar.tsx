@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSessionStore } from '../../store/sessions'
+import { sideChatIdFromTabId, useSessionStore } from '../../store/sessions'
+import type { RightPanelTabId } from '../../store/sessions'
 import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
 import BrowserPanel from './BrowserPanel'
@@ -13,7 +14,7 @@ import { MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../sha
 import { deriveSessionAgentNodes } from './agentNodes'
 import Icon, { type IconName } from '../shared/Icon'
 
-export type ContextTab = 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser'
+export type ContextTab = RightPanelTabId
 
 interface Props {
   session: Session
@@ -44,6 +45,8 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     openRightPanelTab,
     closeRightPanelTab,
     setRightPanelBrowserUrl,
+    closeSideChat,
+    openSideChat,
     closeRightPanel
   } = useSessionStore()
   const [isResizing, setIsResizing] = useState(false)
@@ -67,10 +70,23 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   const hasSideQuestions = (ui?.sideQuestions?.length ?? 0) > 0
   const hasFilesTab = rightPanel?.tabs.some((tab) => tab.id === 'files') ?? false
   const hasBrowserTab = rightPanel?.tabs.some((tab) => tab.id === 'browser') ?? false
+  const sideChatTabs = (rightPanel?.tabs ?? [])
+    .filter((tab) => tab.kind === 'sidechat')
+    .map((tab) => {
+      const chatId = sideChatIdFromTabId(tab.id)
+      const chat = chatId ? ui?.sideChats?.find((candidate) => candidate.id === chatId) : null
+      return {
+        id: tab.id,
+        label: chat?.title ?? tab.title,
+        icon: 'chat' as const,
+        count: chat?.messages.filter((message) => message.status === 'pending').length
+      }
+    })
   const tabs: ContextTabSpec[] = [
     ...(ui?.showDiff ? [{ id: 'diff' as const, label: 'Changes', icon: 'diff' as const }] : []),
     ...(hasBrowserTab ? [{ id: 'browser' as const, label: 'Browser', icon: 'browser' as const }] : []),
     ...(hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : []),
+    ...sideChatTabs,
     ...(hasPlan ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }] : []),
     ...((hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length }] : []),
     ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
@@ -98,6 +114,11 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   }, [])
 
   const activate = (tab: ContextTab): void => {
+    const sideChatId = sideChatIdFromTabId(tab)
+    if (sideChatId) {
+      openSideChat(session.id, sideChatId)
+      return
+    }
     if (tab === 'files' || tab === 'browser') {
       openRightPanelTab(session.id, tab)
       return
@@ -116,6 +137,8 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     }
     if (tab === 'files') closeRightPanelTab(session.id, 'files')
     if (tab === 'browser') closeRightPanelTab(session.id, 'browser')
+    const sideChatId = sideChatIdFromTabId(tab)
+    if (sideChatId) closeSideChat(session.id, sideChatId)
     if (tab === 'plan' || !tab) setShowPlan(session.id, false)
     if (tab === 'diff' || !tab) setShowDiff(session.id, false)
     if (tab === 'agents' || !tab) setShowEvents(session.id, false)
@@ -243,6 +266,9 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         {effectiveTab === 'files' && <FilesPanel workDir={session.workDir} embedded />}
         {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} workDir={session.workDir} embedded />}
         {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
+        {sideChatIdFromTabId(effectiveTab ?? 'plan') && (
+          <SideQuestionPanel session={session} chatId={sideChatIdFromTabId(effectiveTab ?? 'plan') ?? undefined} embedded />
+        )}
       </div>
       </aside>
     </MotionPanel>

@@ -3,11 +3,12 @@ import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermi
 import { nextPinOrder } from '../types'
 
 export type SettingsSection = 'general' | 'appearance' | 'providers' | 'shortcuts' | 'pets'
-export type RightPanelTabId = 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser'
+export type RightPanelTabKind = 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'sidechat'
+export type RightPanelTabId = Exclude<RightPanelTabKind, 'sidechat'> | `sidechat:${string}`
 
 export interface RightPanelTabState {
   id: RightPanelTabId
-  kind: RightPanelTabId
+  kind: RightPanelTabKind
   title: string
   closable: boolean
 }
@@ -28,6 +29,15 @@ export interface SideQuestionMessage {
   usage?: UsageSummary
 }
 
+export interface SideChatThread {
+  id: string
+  title: string
+  messages: SideQuestionMessage[]
+  createdAt: number
+  updatedAt: number
+  unread?: boolean
+}
+
 interface SessionUIState {
   showPlan: boolean
   showDiff: boolean
@@ -39,6 +49,8 @@ interface SessionUIState {
   activeAgentId?: string | null
   agentTabIds?: string[]
   sideQuestions?: SideQuestionMessage[]
+  sideChats?: SideChatThread[]
+  activeSideChatId?: string | null
   browserUrl?: string
   rightPanel?: RightPanelState
 }
@@ -88,6 +100,10 @@ interface SessionState {
   closeAgentTab: (id: string, agentId: string) => void
   appendSideQuestion: (id: string, message: SideQuestionMessage) => void
   updateSideQuestion: (id: string, messageId: string, patch: Partial<SideQuestionMessage>) => void
+  openSideChat: (id: string, chatId: string, title?: string) => void
+  closeSideChat: (id: string, chatId: string) => void
+  appendSideChatMessage: (id: string, chatId: string, message: SideQuestionMessage) => void
+  updateSideChatMessage: (id: string, chatId: string, messageId: string, patch: Partial<SideQuestionMessage>) => void
   setShowSideQuestions: (id: string, v: boolean) => void
   setRightPanelWidth: (id: string, width: number) => void
   setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
@@ -120,6 +136,8 @@ const defaultUI: SessionUIState = {
   activeAgentId: null,
   agentTabIds: [],
   sideQuestions: [],
+  sideChats: [],
+  activeSideChatId: null,
   browserUrl: '',
   rightPanel: {
     open: false,
@@ -404,6 +422,90 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
     }),
 
+  openSideChat: (id, chatId, title = 'Side chat') =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const now = Date.now()
+      const sideChats = current.sideChats?.some((chat) => chat.id === chatId)
+        ? current.sideChats.map((chat) => chat.id === chatId ? { ...chat, title, updatedAt: now } : chat)
+        : [...(current.sideChats ?? []), { id: chatId, title, messages: [], createdAt: now, updatedAt: now }]
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            sideChats,
+            activeSideChatId: chatId,
+            rightPanel: syncRightPanelTab(current.rightPanel, sideChatTabId(chatId), true)
+          }
+        }
+      }
+    }),
+
+  closeSideChat: (id, chatId) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const sideChats = (current.sideChats ?? []).filter((chat) => chat.id !== chatId)
+      const activeSideChatId = current.activeSideChatId === chatId ? sideChats.at(-1)?.id ?? null : current.activeSideChatId ?? null
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            sideChats,
+            activeSideChatId,
+            rightPanel: syncRightPanelTab(current.rightPanel, sideChatTabId(chatId), false)
+          }
+        }
+      }
+    }),
+
+  appendSideChatMessage: (id, chatId, message) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const now = Date.now()
+      const sideChats = ensureSideChatThread(current.sideChats, chatId).map((chat) =>
+        chat.id === chatId
+          ? { ...chat, messages: [...chat.messages, message], updatedAt: now, title: sideChatTitle(chat.title, message) }
+          : chat
+      )
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            sideChats,
+            activeSideChatId: chatId,
+            rightPanel: syncRightPanelTab(current.rightPanel, sideChatTabId(chatId), true)
+          }
+        }
+      }
+    }),
+
+  updateSideChatMessage: (id, chatId, messageId, patch) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            sideChats: (current.sideChats ?? []).map((chat) =>
+              chat.id === chatId
+                ? {
+                    ...chat,
+                    updatedAt: Date.now(),
+                    messages: chat.messages.map((message) =>
+                      message.id === messageId ? { ...message, ...patch } : message
+                    )
+                  }
+                : chat
+            )
+          }
+        }
+      }
+    }),
+
   setRightPanelWidth: (id, width) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
@@ -560,14 +662,15 @@ export const useSessionStore = create<SessionState>((set) => ({
     }))
 }))
 
-const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabId, string> = {
+const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabKind, string> = {
   plan: 'Plan',
   diff: 'Changes',
   agents: 'Agents',
   extensions: 'Extensions',
   side: 'Side',
   files: 'Files',
-  browser: 'Browser'
+  browser: 'Browser',
+  sidechat: 'Side chat'
 }
 
 function ensureRightPanel(panel?: RightPanelState): RightPanelState {
@@ -581,12 +684,37 @@ function ensureRightPanel(panel?: RightPanelState): RightPanelState {
 }
 
 function rightPanelTab(id: RightPanelTabId): RightPanelTabState {
+  const kind = rightPanelTabKind(id)
   return {
     id,
-    kind: id,
-    title: RIGHT_PANEL_TAB_TITLES[id],
+    kind,
+    title: RIGHT_PANEL_TAB_TITLES[kind],
     closable: true
   }
+}
+
+export function sideChatTabId(chatId: string): `sidechat:${string}` {
+  return `sidechat:${chatId}`
+}
+
+export function sideChatIdFromTabId(tabId: RightPanelTabId): string | null {
+  return tabId.startsWith('sidechat:') ? tabId.slice('sidechat:'.length) : null
+}
+
+function rightPanelTabKind(id: RightPanelTabId): RightPanelTabKind {
+  return id.startsWith('sidechat:') ? 'sidechat' : id as Exclude<RightPanelTabId, `sidechat:${string}`>
+}
+
+function ensureSideChatThread(sideChats: SideChatThread[] | undefined, chatId: string): SideChatThread[] {
+  if (sideChats?.some((chat) => chat.id === chatId)) return sideChats
+  const now = Date.now()
+  return [...(sideChats ?? []), { id: chatId, title: 'Side chat', messages: [], createdAt: now, updatedAt: now }]
+}
+
+function sideChatTitle(currentTitle: string, message: SideQuestionMessage): string {
+  if (currentTitle !== 'Side chat' || message.role !== 'user') return currentTitle
+  const compact = message.content.replace(/\s+/g, ' ').trim()
+  return compact.length > 28 ? `${compact.slice(0, 25)}...` : compact || currentTitle
 }
 
 function syncRightPanelTab(panel: RightPanelState | undefined, id: RightPanelTabId, open: boolean): RightPanelState {

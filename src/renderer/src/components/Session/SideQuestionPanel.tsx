@@ -5,13 +5,16 @@ import { Button, InspectorCard } from '../shared/designSystem'
 
 interface Props {
   session: Session
+  chatId?: string
   embedded?: boolean
 }
 
-export default function SideQuestionPanel({ session, embedded }: Props): JSX.Element {
-  const { uiState, appendSideQuestion, updateSideQuestion } = useSessionStore()
+export default function SideQuestionPanel({ session, chatId, embedded }: Props): JSX.Element {
+  const { uiState, appendSideQuestion, updateSideQuestion, appendSideChatMessage, updateSideChatMessage } = useSessionStore()
   const [question, setQuestion] = useState('')
-  const messages = uiState[session.id]?.sideQuestions ?? []
+  const ui = uiState[session.id]
+  const sideChat = chatId ? ui?.sideChats?.find((chat) => chat.id === chatId) : null
+  const messages = sideChat?.messages ?? ui?.sideQuestions ?? []
   const pending = messages.some((message) => message.status === 'pending')
 
   const submit = async (): Promise<void> => {
@@ -20,20 +23,27 @@ export default function SideQuestionPanel({ session, embedded }: Props): JSX.Ele
     setQuestion('')
     const userId = crypto.randomUUID()
     const answerId = crypto.randomUUID()
-    appendSideQuestion(session.id, { id: userId, role: 'user', content: trimmed, status: 'complete' })
-    appendSideQuestion(session.id, { id: answerId, role: 'assistant', content: 'Thinking...', status: 'pending' })
+    const append = chatId
+      ? (message: Parameters<typeof appendSideChatMessage>[2]): void => appendSideChatMessage(session.id, chatId, message)
+      : (message: Parameters<typeof appendSideQuestion>[1]): void => appendSideQuestion(session.id, message)
+    append({ id: userId, role: 'user', content: trimmed, status: 'complete' })
+    append({ id: answerId, role: 'assistant', content: 'Thinking...', status: 'pending' })
     try {
       const result = await window.api.sessions.answerSideQuestion(session.id, trimmed)
-      updateSideQuestion(session.id, answerId, {
+      const patch = {
         content: result.ok ? result.answer : (result.error ?? 'Side question failed.'),
         status: result.ok ? 'complete' : 'error',
         usage: result.usage
-      })
+      } as const
+      if (chatId) updateSideChatMessage(session.id, chatId, answerId, patch)
+      else updateSideQuestion(session.id, answerId, patch)
     } catch (error) {
-      updateSideQuestion(session.id, answerId, {
+      const patch = {
         content: error instanceof Error ? error.message : 'Side question failed.',
         status: 'error'
-      })
+      } as const
+      if (chatId) updateSideChatMessage(session.id, chatId, answerId, patch)
+      else updateSideQuestion(session.id, answerId, patch)
     }
   }
 
@@ -45,7 +55,7 @@ export default function SideQuestionPanel({ session, embedded }: Props): JSX.Ele
       <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
         {messages.length === 0 ? (
           <InspectorCard className="p-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
-            No side questions yet.
+            No side chat messages yet.
           </InspectorCard>
         ) : (
           messages.map((message) => (

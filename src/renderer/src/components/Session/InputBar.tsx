@@ -26,10 +26,10 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
     setShowSettings,
     setShowCapabilities,
     setShowExtensions,
-    setShowSideQuestions,
     setShowTerminal,
-    appendSideQuestion,
-    updateSideQuestion
+    openSideChat,
+    appendSideChatMessage,
+    updateSideChatMessage
   } = useSessionStore()
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -234,17 +234,18 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       setText('')
       setAttachments([])
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
-      setShowSideQuestions(session.id, true)
+      const sideChatId = crypto.randomUUID()
+      openSideChat(session.id, sideChatId, question ? sideChatTitle(question) : 'Side chat')
       if (!question) return
       const userMessageId = crypto.randomUUID()
       const answerMessageId = crypto.randomUUID()
-      appendSideQuestion(session.id, {
+      appendSideChatMessage(session.id, sideChatId, {
         id: userMessageId,
         role: 'user',
         content: question,
         status: 'complete'
       })
-      appendSideQuestion(session.id, {
+      appendSideChatMessage(session.id, sideChatId, {
         id: answerMessageId,
         role: 'assistant',
         content: 'Thinking...',
@@ -252,13 +253,13 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       })
       try {
         const result = await window.api.sessions.answerSideQuestion(session.id, question)
-        updateSideQuestion(session.id, answerMessageId, {
+        updateSideChatMessage(session.id, sideChatId, answerMessageId, {
           content: result.ok ? result.answer : (result.error ?? 'Side question failed.'),
           status: result.ok ? 'complete' : 'error',
           usage: result.usage
         })
       } catch (error) {
-        updateSideQuestion(session.id, answerMessageId, {
+        updateSideChatMessage(session.id, sideChatId, answerMessageId, {
           content: error instanceof Error ? error.message : 'Side question failed.',
           status: 'error'
         })
@@ -346,7 +347,7 @@ export default function InputBar({ session, isNew, injectedText, onInjectedConsu
       }
       if (command.id === 'extensions') setShowExtensions(session.id, true)
       if (command.id === 'terminal') setShowTerminal(session.id, !currentUi.showTerminal)
-      if (command.id === 'btw') setShowSideQuestions(session.id, true)
+      if (command.id === 'btw') openSideChat(session.id, crypto.randomUUID(), 'Side chat')
       if (command.id === 'pet') {
         window.api.pet.getConfig()
           .then((config) => {
@@ -802,6 +803,11 @@ function PermissionModeChip({
       {opt.label}
     </Chip>
   )
+}
+
+function sideChatTitle(question: string): string {
+  const compact = question.replace(/\s+/g, ' ').trim()
+  return compact.length > 28 ? `${compact.slice(0, 25)}...` : compact || 'Side chat'
 }
 
 function AttachmentChip({
