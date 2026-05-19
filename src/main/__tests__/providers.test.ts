@@ -514,6 +514,31 @@ test('claude resume includes captured session id and granted tools', () => {
   assert.equal(command.args[command.args.indexOf('--allowedTools') + 1], 'Read,Edit')
 })
 
+test('claude resume preserves permission and user-input continuation prompts', () => {
+  const permissionCommand = PROVIDERS.claude.buildResumeCommand(
+    request({
+      prompt: 'Permission granted. Please continue.',
+      providerSessionId: 'claude-session-allow',
+      allowedTools: ['Bash']
+    })
+  )
+  const userInputCommand = PROVIDERS.claude.buildResumeCommand(
+    request({
+      prompt: 'User answered the pending question:\n\nship-it\n\nPlease continue from where you stopped.',
+      providerSessionId: 'claude-session-question'
+    })
+  )
+
+  assert.equal(permissionCommand.args[permissionCommand.args.indexOf('-p') + 1], 'Permission granted. Please continue.')
+  assert.equal(permissionCommand.args[permissionCommand.args.indexOf('--resume') + 1], 'claude-session-allow')
+  assert.equal(permissionCommand.args[permissionCommand.args.indexOf('--allowedTools') + 1], 'Bash')
+  assert.equal(
+    userInputCommand.args[userInputCommand.args.indexOf('-p') + 1],
+    'User answered the pending question:\n\nship-it\n\nPlease continue from where you stopped.'
+  )
+  assert.equal(userInputCommand.args[userInputCommand.args.indexOf('--resume') + 1], 'claude-session-question')
+})
+
 test('claude selected agent maps to native launch flag only for new runs', () => {
   const command = PROVIDERS.claude.buildStartCommand(
     request({

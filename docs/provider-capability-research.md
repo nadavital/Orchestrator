@@ -6,6 +6,48 @@ Canonical active plan: `docs/orchestrator-source-of-truth.md`.
 
 This file is research evidence. Active implementation status and completion gates live in the source-of-truth plan.
 
+## 2026-05-19 Antigravity SDK And Managed-Agent Launch
+
+This pass used launch-day current sources and subagent research. It did not install packages, create a venv, or send provider prompts.
+
+Primary sources:
+
+- Google I/O developer highlights: https://blog.google/innovation-and-ai/technology/developers-tools/google-io-2026-developer-highlights/
+- Managed Agents announcement: https://blog.google/innovation-and-ai/technology/developers-tools/managed-agents-gemini-api/
+- Antigravity Agent docs: https://ai.google.dev/gemini-api/docs/antigravity-agent
+- Managed Agents quickstart: https://ai.google.dev/gemini-api/docs/managed-agents-quickstart
+- Interactions streaming docs: https://ai.google.dev/gemini-api/docs/interactions/streaming
+- Gemini CLI to Antigravity CLI transition: https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/
+- PyPI package page: https://pypi.org/project/google-antigravity/
+
+Current mapping:
+
+| Area | Launch-day finding | Orchestrator implication |
+| --- | --- | --- |
+| Product surface | Google announced Antigravity 2.0 desktop, Antigravity CLI, Antigravity SDK, and Managed Agents in the Gemini API on 2026-05-19. | Track Antigravity as a provider family with SDK/API, CLI, and desktop surfaces; do not assume one surface exposes all semantics. |
+| Managed agent | The Gemini API exposes `antigravity-preview-05-2026` through the Interactions API. It runs in a Google-hosted Linux sandbox, can execute code, manage files, browse/fetch web content, and supports Python, JavaScript, and REST calls. | The first Orchestrator contract target should be a structured SDK/API adapter, not terminal scraping. |
+| Resume/session state | Interactions use `previous_interaction_id` for conversation context and `environment` / environment IDs for filesystem and sandbox state. Files and installed packages can persist across follow-up calls. | Map provider session identity to both interaction ID and environment ID; model these separately instead of squeezing everything into one CLI session id. |
+| Streaming/events | Streaming is Server-Sent Events with `interaction.created`, `step.start`, `step.delta`, `step.stop`, `interaction.completed`, and `done`; final completed events include token usage. | A fixture-backed adapter can map steps to assistant text, thoughts, tool calls, tool results, and usage without a PTY. |
+| Usage/cost | Managed-agent docs show token usage on completed events and launch docs warn that agentic loops can accumulate large token counts. Pricing is pay-as-you-go on underlying Gemini tokens/tools; preview compute is not billed in the docs. | Usage diagnostics should start with tokens/cache/tool/thought fields. Cost should remain estimated until API responses expose stable billable units. |
+| Tools | Managed Antigravity defaults include code execution, Google Search, URL context, and environment-backed file management; some tools like file_search, computer_use, google_maps, function_calling, and MCP are listed as not supported yet in the managed-agent doc. | Do not expose Antigravity MCP/file-search/computer-use capability in product UI until a local SDK or API fixture proves support for the selected runtime. |
+| SDK package | PyPI lists `google-antigravity` 0.1.0, Apache-2.0, Python >=3.10, alpha, with macOS arm64 and Linux wheels and no source distribution for this release. The package docs describe `Agent`, `Conversation`, `ChatResponse`, `Step`, tools, hooks, MCP, triggers, and connection layers. | Treat the Python SDK as promising but unverified locally. Add only research backlog items until a temp venv import probe captures real types/events. |
+| CLI | Google says Antigravity CLI is available today, built in Go, shares the Antigravity harness with desktop, and carries Gemini CLI features like Agent Skills, Hooks, Subagents, and Extensions as plugins. Exact CLI flags and JSON event schema were not available from fetchable docs. | Defer `docs/provider-cli-spec.md` changes until local `antigravity --help` or official CLI docs can be captured without spending quota. |
+
+Non-findings and guardrails:
+
+- The npm `antigravity` package is unrelated and old.
+- Community Antigravity extension SDK pages are not evidence for the new official Google SDK runtime.
+- The fetchable official docs do not yet prove an Orchestrator-style separate `UserInputRequest` shape. SDK policy handlers such as `ask_user` are promising, but need fixture evidence.
+- The fetchable docs do not yet prove stable SDK usage/cost payloads, rate-limit payloads, budget fields, or a local auth probe shape.
+- No user-visible Antigravity provider should ship until auth, streaming, session resume, permission/user-input separation, tool/MCP, and usage telemetry are fixture-backed.
+
+Recommended next spike:
+
+1. Create a temp venv and verify `pip install google-antigravity` metadata/import on macOS arm64 without adding it to repo dependencies.
+2. Capture import-time type names and a no-prompt/no-auth diagnostic path.
+3. If credentials are available and the user approves spending quota, run a minimal no-mutation `Agent.chat()` or Interactions API smoke.
+4. Capture streaming, permission/policy `ask_user`, MCP, session resume, and usage fixtures before adding runtime UI.
+
 ## 2026-05-06 CLI Coverage Gap Baseline
 
 This pass moved the known CLI coverage gaps out of prose-only research and into the provider runtime registry, so diagnostics and tests can track what still needs adapter/UI work.
