@@ -1233,6 +1233,7 @@ function MessageRow({
             {msg.isStreaming && (
               <span
                 aria-label="Streaming"
+                data-testid="streaming-cursor"
                 className="inline-block align-baseline"
                 style={{ color: 'var(--color-accent)', marginLeft: 2 }}
               >

@@ -1430,16 +1430,60 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
       try {
+        win.setMinimumSize(520, 600)
         win.setSize(860, 720)
         const profile = getAppProfile()
         const session = sessionManager.list().find((candidate) => candidate.name === 'Transcript layout smoke')
         if (session) {
           win.webContents.send('pet:navigate', session.id)
           await new Promise((resolve) => setTimeout(resolve, 180))
+          win.webContents.send('session:raw', {
+            id: session.id,
+            data: '{"type":"system","subtype":"raw_event","content":"RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER"}\n'
+          })
+          win.webContents.send('session:events', {
+            id: session.id,
+            events: [{
+              id: 'raw-transcript-layout-event',
+              timestamp: Date.now(),
+              event: {
+                type: 'session.started',
+                providerSessionId: 'RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER'
+              }
+            }]
+          })
         }
         const result = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const layoutProbe = () => {
+              const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+              if (!(scroller instanceof HTMLElement)) return { transcriptFound: false };
+              const viewportWidth = document.documentElement.clientWidth;
+              const docScrollWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+              const scrollerRect = scroller.getBoundingClientRect();
+              const isInsideScroller = (element) => {
+                const rect = element.getBoundingClientRect();
+                return rect.left >= scrollerRect.left - 2 && rect.right <= scrollerRect.right + 2;
+              };
+              const pre = document.querySelector('pre');
+              const table = document.querySelector('table');
+              const tableCells = [...document.querySelectorAll('td, th')].filter((cell) => cell instanceof HTMLElement);
+              return {
+                transcriptFound: true,
+                viewportWidth,
+                docScrollWidth,
+                documentNoHorizontalOverflow: docScrollWidth <= viewportWidth + 2,
+                transcriptNoHorizontalOverflow: scroller.scrollWidth <= scroller.clientWidth + 2,
+                codeBlockBounded: pre instanceof HTMLElement && isInsideScroller(pre),
+                codeBlockInternallyScrollable: pre instanceof HTMLElement && pre.scrollWidth > pre.clientWidth + 24,
+                tableBounded: table instanceof HTMLElement && isInsideScroller(table),
+                tableCellsWrap: tableCells.length > 0 && tableCells.every((cell) => {
+                  const style = window.getComputedStyle(cell);
+                  return style.whiteSpace === 'normal' && (style.overflowWrap === 'anywhere' || style.overflowWrap === 'break-word');
+                })
+              };
+            };
             const waitForText = async (text) => {
               for (let index = 0; index < 80; index += 1) {
                 if (document.body.innerText.includes(text)) return true;
@@ -1492,10 +1536,11 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               return { transcriptFound: false, layoutFixtureVisible, bodyText: document.body.innerText };
             }
 
-            const viewportWidth = document.documentElement.clientWidth;
-            const docScrollWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
-            const documentNoHorizontalOverflow = docScrollWidth <= viewportWidth + 2;
-            const transcriptNoHorizontalOverflow = scroller.scrollWidth <= scroller.clientWidth + 2;
+            const wideLayout = layoutProbe();
+            const viewportWidth = wideLayout.viewportWidth;
+            const docScrollWidth = wideLayout.docScrollWidth;
+            const documentNoHorizontalOverflow = wideLayout.documentNoHorizontalOverflow;
+            const transcriptNoHorizontalOverflow = wideLayout.transcriptNoHorizontalOverflow;
             const scrollerRect = scroller.getBoundingClientRect();
             const isInsideScroller = (element) => {
               const rect = element.getBoundingClientRect();
@@ -1512,9 +1557,10 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const table = document.querySelector('table');
             const fileCards = [...document.querySelectorAll('[data-testid="file-reference-card"]')];
             const messageRowsBounded = messageRows.length > 0 && messageRows.every(isInsideScroller);
-            const codeBlockBounded = pre instanceof HTMLElement && isInsideScroller(pre);
-            const codeBlockInternallyScrollable = pre instanceof HTMLElement && pre.scrollWidth > pre.clientWidth + 24;
-            const tableBounded = table instanceof HTMLElement && isInsideScroller(table);
+            const codeBlockBounded = wideLayout.codeBlockBounded;
+            const codeBlockInternallyScrollable = wideLayout.codeBlockInternallyScrollable;
+            const tableBounded = wideLayout.tableBounded;
+            const tableCellsWrap = wideLayout.tableCellsWrap;
             const fileCardsBounded = fileCards.length > 0 && fileCards.every(isInsideScroller);
             const relativeProseCardSuppressed = !fileCards.some((card) => card.textContent?.includes('DefinitelyMissingRelativeReviewFile.java'));
             const absoluteMissingFileCardDisabled = fileCards.some((card) => {
@@ -1541,6 +1587,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const toolSummaryExpanded = toolButton instanceof HTMLElement && toolButton.getAttribute('aria-expanded') === 'true' && Boolean(toolBody);
             const toolSummaryBounded = toolBody instanceof HTMLElement && isInsideScroller(toolBody) && toolBody.clientHeight <= 240;
             const toolSummaryScrollable = toolBody instanceof HTMLElement && toolBody.scrollHeight > toolBody.clientHeight + 24;
+            const transcriptText = scroller.innerText;
             document.querySelector('[aria-label="Close transcript search"]')?.click();
             await sleep(80);
             window.dispatchEvent(new KeyboardEvent('keydown', {
@@ -1568,17 +1615,6 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             }
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
             await sleep(100);
-            window.dispatchEvent(new KeyboardEvent('keydown', {
-              key: '?',
-              code: 'Slash',
-              metaKey: true,
-              shiftKey: true,
-              bubbles: true,
-              cancelable: true
-            }));
-            await sleep(180);
-            const shortcutsSearch = document.querySelector('#settings-shortcut-search');
-            const keyboardShortcutsShortcutOpens = shortcutsSearch instanceof HTMLInputElement && document.body.innerText.includes('Command Palette');
 
             return {
               transcriptFound: true,
@@ -1592,7 +1628,6 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               commandPaletteFuzzyFindsTerminal,
               commandPaletteSearchActionWorks,
               searchShortcutOpens,
-              keyboardShortcutsShortcutOpens,
               hiddenMessageCopyQuiet: !document.body.innerText.includes('hidden for faster chat switching'),
               documentNoHorizontalOverflow,
               transcriptNoHorizontalOverflow,
@@ -1600,12 +1635,14 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               codeBlockBounded,
               codeBlockInternallyScrollable,
               tableBounded,
+              tableCellsWrap,
               fileCardsBounded,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
               toolSummaryExpanded,
               toolSummaryBounded,
               toolSummaryScrollable,
+              rawEventsHiddenFromTranscript: !transcriptText.includes('RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER'),
               documentNoHorizontalOverflowAfterExpand: expandedDocScrollWidth <= viewportWidth + 2,
               docScrollWidth,
               expandedDocScrollWidth,
@@ -1616,11 +1653,72 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             };
           })()
         `)
+        if (session) {
+          win.setSize(520, 720)
+          win.webContents.send('pet:navigate', session.id)
+          await new Promise((resolve) => setTimeout(resolve, 320))
+        }
+        const narrowResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            await sleep(160);
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) return { transcriptFound: false };
+            for (let index = 0; index < 10; index += 1) {
+              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * (index / 9);
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(120);
+              if (document.querySelector('pre') && document.querySelector('table')) break;
+            }
+            const viewportWidth = document.documentElement.clientWidth;
+            const docScrollWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+            const scrollerRect = scroller.getBoundingClientRect();
+            const isInsideScroller = (element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.left >= scrollerRect.left - 2 && rect.right <= scrollerRect.right + 2;
+            };
+            const pre = document.querySelector('pre');
+            const table = document.querySelector('table');
+            const tableCells = [...document.querySelectorAll('td, th')].filter((cell) => cell instanceof HTMLElement);
+            return {
+              transcriptFound: true,
+              narrowViewportWidth: viewportWidth,
+              narrowDocumentNoHorizontalOverflow: docScrollWidth <= viewportWidth + 2,
+              narrowTranscriptNoHorizontalOverflow: scroller.scrollWidth <= scroller.clientWidth + 2,
+              narrowCodeBlockBounded: pre instanceof HTMLElement && isInsideScroller(pre),
+              narrowCodeBlockInternallyScrollable: pre instanceof HTMLElement && pre.scrollWidth > pre.clientWidth + 24,
+              narrowTableBounded: table instanceof HTMLElement && isInsideScroller(table),
+              narrowTableCellsWrap: tableCells.length > 0 && tableCells.every((cell) => {
+                const style = window.getComputedStyle(cell);
+                return style.whiteSpace === 'normal' && (style.overflowWrap === 'anywhere' || style.overflowWrap === 'break-word');
+              }),
+              narrowRawEventsHiddenFromTranscript: !scroller.innerText.includes('RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER')
+            };
+          })()
+        `)
+        const shortcutResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            window.dispatchEvent(new KeyboardEvent('keydown', {
+              key: '?',
+              code: 'Slash',
+              metaKey: true,
+              shiftKey: true,
+              bubbles: true,
+              cancelable: true
+            }));
+            await sleep(180);
+            const shortcutsSearch = document.querySelector('#settings-shortcut-search');
+            return {
+              keyboardShortcutsShortcutOpens: shortcutsSearch instanceof HTMLInputElement && document.body.innerText.includes('Command Palette')
+            };
+          })()
+        `)
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
-        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result }, screenshotPath }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: { profile, ...result, ...narrowResult, ...shortcutResult }, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
@@ -2264,6 +2362,7 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
             const afterBottomDistance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
             const jump = document.querySelector('[data-testid="jump-to-latest"]');
             const jumpVisibleAfterUpdate = Boolean(jump);
+            const streamingCursorVisibleDuringUpdate = Boolean(document.querySelector('[data-testid="streaming-cursor"]'));
             jump?.click();
             await sleep(180);
             const finalBottomDistance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
@@ -2274,6 +2373,7 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
               afterClientHeight,
               afterBottomDistance,
               jumpVisibleAfterUpdate,
+              streamingCursorVisibleDuringUpdate,
               finalScrollTop: scroller.scrollTop,
               finalBottomDistance,
               jumpVisibleAfterClick: Boolean(document.querySelector('[data-testid="jump-to-latest"]'))
@@ -2281,9 +2381,37 @@ function runAutomatedScrollSmoke(win: BrowserWindow, outputPath: string, screens
           })()
         `)
 
+        const completedSession = sessionManager.list().find((candidate) =>
+          candidate.messages.some((message) => message.id === 'scroll-smoke-stream')
+        )
+        const completedMessage = completedSession?.messages.find((message) => message.id === 'scroll-smoke-stream')
+        if (completedSession && completedMessage?.type === 'text') {
+          sessionManager.upsertMessage(completedSession.id, {
+            ...completedMessage,
+            isStreaming: false
+          })
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 180))
+
+        const complete = await win.webContents.executeJavaScript(`
+          (() => {
+            const scroller = document.querySelector('[data-testid="transcript-scroll"]');
+            if (!(scroller instanceof HTMLElement)) return { transcriptFoundAfterComplete: false };
+            const text = scroller.innerText;
+            const finalLineMatches = text.match(/streaming update line 24/g) ?? [];
+            return {
+              transcriptFoundAfterComplete: true,
+              streamingCursorHiddenAfterComplete: !document.querySelector('[data-testid="streaming-cursor"]'),
+              finalStreamingTextDeduped: finalLineMatches.length === 1
+            };
+          })()
+        `)
+
         const result = {
           ...before,
           ...after,
+          ...complete,
           scrollStayedPut: Boolean(before?.transcriptFound && after?.transcriptFound) &&
             Math.abs((after.afterScrollTop ?? 0) - (before.beforeScrollTop ?? 0)) <= 8,
           streamingDidNotAutoFollow: Boolean(after?.transcriptFound) &&
