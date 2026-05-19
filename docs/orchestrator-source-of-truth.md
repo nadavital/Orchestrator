@@ -296,6 +296,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-022 | Sidebar project actions completed CP-003. | `Complete` | Project headers now support rename, pin/unpin, open folder, archive chats, and remove project. Sidebar smoke verifies project action menu labels, project rename, pinned-project ordering, existing pinned-chat ordering, hover pin, rename, running spinner, and unread/error-only dots. |
 | V-023 | Settings structure split landed. | `Complete` | Settings now separates Providers & models from Provider diagnostics and Data controls. Settings smoke verifies Appearance taxonomy, Provider diagnostics, and Data controls sections. |
 | V-024 | Theme parity parser and settings coverage landed. | `Complete` | `src/types/themeSharing.ts` owns the portable `codex-theme-v1:` schema used by Settings and node tests. `test:providers` verifies round-trip, defaults, bad prefix, invalid variant, invalid hex, invalid contrast, and invalid semantic colors; settings smoke verifies theme import/sharing controls. |
+| V-025 | File-card confidence smoke landed. | `Complete` | Transcript-layout smoke proves unresolved relative prose cards are suppressed while explicit absolute missing references still render as missing with disabled actions. |
 
 ### Codex Parity Matrix
 
@@ -358,7 +359,7 @@ These are the next small, user-visible polish slices to consider after the curre
 
 | ID | Polish Area | Target UX | Status | Next action |
 | --- | --- | --- | --- | --- |
-| POL-001 | File cards | Cards appear only for confident, useful file references; no review prose, numeric literals, or unresolved relative guesses. | `Partial` | Add a renderer smoke fixture that proves unresolved relative prose cards are suppressed while explicit absolute missing files still show disabled actions. |
+| POL-001 | File cards | Cards appear only for confident, useful file references; no review prose, numeric literals, or unresolved relative guesses. | `Complete` | Renderer smoke now proves unresolved relative prose cards are suppressed while explicit absolute missing files still show disabled actions. |
 | POL-002 | Pet overlay | Built-in pets render without white-square glitches and state transitions feel close to Codex. | `Partial` | Run a packaged pet-overlay smoke and inspect sprite atlas loading/state transitions in the installed app. |
 | POL-003 | Command palette | Keyboard-first actions feel native and do not duplicate composer slash commands. | `Complete` | Transcript-layout smoke verifies command palette open paths, grouping, recent commands, fuzzy search, shortcut labels, and the search-transcript action. |
 | POL-004 | Sidebar polish | Pinned, unread, running, rename, and project grouping feel stable during live runs. | `Implemented` | Add a focused smoke for running/completion transitions while a pinned session receives messages. |
@@ -717,6 +718,7 @@ When implementing against this plan:
 - Theme parity coverage checkpoint: portable theme import/export now lives in shared `src/types/themeSharing.ts` so Settings and node tests use the same schema validator.
 - Verification passed for the theme parity coverage checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `npm run test:providers`, and `npm run smoke:ui:auto -- --settings`; the provider test suite now covers valid round-trip, default code themes, missing prefix, invalid variant, invalid hex colors, invalid contrast, and invalid semantic colors.
 - Command palette verification checkpoint: the transcript-layout smoke now explicitly verifies command-palette open shortcuts, grouping, recent commands, fuzzy terminal lookup, shortcut labels, and the command-palette search-transcript action.
+- File-card confidence smoke checkpoint: the transcript-layout fixture now includes both an unresolved relative prose reference and an explicit absolute missing path, and the smoke verifies the relative prose card is suppressed while the absolute missing card keeps disabled actions.
 
 ### 2026-05-18
 

@@ -1191,6 +1191,11 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               return rect.left >= scrollerRect.left - 2 && rect.right <= scrollerRect.right + 2;
             };
 
+            for (let index = 0; index < 20; index += 1) {
+              const cards = [...document.querySelectorAll('[data-testid="file-reference-card"]')];
+              if (cards.some((card) => card.textContent?.includes('explicit-missing-file.ts') && card.textContent?.includes('missing'))) break;
+              await sleep(80);
+            }
             const messageRows = [...document.querySelectorAll('[data-message-id]')];
             const pre = document.querySelector('pre');
             const table = document.querySelector('table');
@@ -1200,6 +1205,14 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const codeBlockInternallyScrollable = pre instanceof HTMLElement && pre.scrollWidth > pre.clientWidth + 24;
             const tableBounded = table instanceof HTMLElement && isInsideScroller(table);
             const fileCardsBounded = fileCards.length > 0 && fileCards.every(isInsideScroller);
+            const relativeProseCardSuppressed = !fileCards.some((card) => card.textContent?.includes('DefinitelyMissingRelativeReviewFile.java'));
+            const absoluteMissingFileCardDisabled = fileCards.some((card) => {
+              const buttons = [...card.querySelectorAll('button')];
+              return card.textContent?.includes('explicit-missing-file.ts') &&
+                card.textContent?.includes('missing') &&
+                buttons.length >= 2 &&
+                buttons.every((button) => button.disabled);
+            });
             let toolSummary = document.querySelector('[data-testid="tool-activity-summary"]');
             for (let index = 0; index < 10 && !toolSummary; index += 1) {
               scroller.scrollTop = Math.max(scroller.scrollHeight, scroller.clientHeight) * ((index + 1) / 10);
@@ -1277,6 +1290,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               codeBlockInternallyScrollable,
               tableBounded,
               fileCardsBounded,
+              relativeProseCardSuppressed,
+              absoluteMissingFileCardDisabled,
               toolSummaryExpanded,
               toolSummaryBounded,
               toolSummaryScrollable,
@@ -2191,6 +2206,7 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
   const baseTime = Date.now()
   const longToken = `TRANSCRIPT_LAYOUT_SMOKE_${'A'.repeat(220)}`
   const longPath = `${process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'}/src/${'deeply-nested-layout-fixture-segment/'.repeat(5)}transcript-layout-fixture.ts`
+  const explicitMissingPath = `${process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'}/explicit-missing-file.ts`
   const messages: ChatMessage[] = [
     {
       id: 'transcript-layout-user',
@@ -2217,7 +2233,10 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
         `| code | ${longToken} |`,
         `| path | ${longPath} |`,
         '',
-        `Referenced fixture: \`${longPath}\``
+        `Referenced fixture: \`${longPath}\``,
+        '',
+        `Explicit missing fixture: \`${explicitMissingPath}\``,
+        'Review prose should not create a card for `DefinitelyMissingRelativeReviewFile.java`.'
       ].join('\n'),
       timestamp: baseTime + 1
     },

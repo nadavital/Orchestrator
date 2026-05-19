@@ -281,6 +281,8 @@ child.on('exit', (code) => {
         codeBlockInternallyScrollable: result.codeBlockInternallyScrollable === true,
         tableBounded: result.tableBounded === true,
         fileCardsBounded: result.fileCardsBounded === true,
+        relativeProseCardSuppressed: result.relativeProseCardSuppressed === true,
+        absoluteMissingFileCardDisabled: result.absoluteMissingFileCardDisabled === true,
         toolSummaryExpanded: result.toolSummaryExpanded === true,
         toolSummaryBounded: result.toolSummaryBounded === true,
         toolSummaryScrollable: result.toolSummaryScrollable === true,
