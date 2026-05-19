@@ -306,6 +306,8 @@ child.on('exit', (code) => {
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
         terminalTabsPersist: captureView !== 'terminal' || result.terminalTabsPersistState === true,
         terminalRestore: captureView !== 'terminal' || result.terminalRestoreWorks === true,
+        themeImport: captureView !== 'settings' || result.themeImportWorks === true,
+        themeSharingControls: captureView !== 'settings' || result.themeSharingControls === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,

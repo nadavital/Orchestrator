@@ -264,6 +264,24 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               .find((button) => button.textContent?.trim() === 'Settings' || button.getAttribute('title') === 'Settings');
             settingsButton?.click();
             await sleep(450);
+            if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
+              const appearanceButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Appearance'));
+              appearanceButton?.click();
+              await sleep(260);
+              const themeImport = document.querySelector('[data-testid="theme-import-input"]');
+              if (themeImport instanceof HTMLTextAreaElement) {
+                const setter = Object.getOwnPropertyDescriptor(themeImport.constructor.prototype, 'value')?.set;
+                setter?.call(themeImport, 'codex-theme-v1:{"variant":"light","codeThemeId":"github-light","theme":{"accent":"#2255aa","surface":"#ffffff","ink":"#111111","contrast":50,"opaqueWindows":false}}');
+                themeImport.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(80);
+                const importButton = document.querySelector('[data-testid="theme-import-button"]');
+                if (importButton instanceof HTMLButtonElement) importButton.click();
+                await sleep(160);
+              }
+              var themeImportWorks = document.querySelector('[data-testid="theme-import-status"]')?.textContent?.includes('Theme imported') === true;
+              var themeSharingControls = Boolean(document.querySelector('[data-testid="copy-light-theme"]')) && Boolean(document.querySelector('[data-testid="appearance-light-chrome-editor"]'));
+            }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
             const capabilitiesButton = [...document.querySelectorAll('button')]
@@ -584,6 +602,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,
             terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,
+            themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
+            themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),

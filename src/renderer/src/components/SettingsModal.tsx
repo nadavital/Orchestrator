@@ -54,6 +54,21 @@ const defaultDarkChromeTheme: ChromeTheme = {
   opaqueWindows: true
 }
 
+const pillButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  padding: '8px 12px',
+  borderRadius: 'var(--radius-pill)',
+  background: 'var(--control-bg)',
+  border: '1px solid var(--border-subtle)',
+  color: 'var(--text-primary)',
+  fontSize: 12,
+  fontWeight: 650,
+  cursor: 'pointer'
+}
+
 interface Props {
   section: SettingsSection
   onClose: () => void
@@ -244,6 +259,29 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     window.api.settings.set(key, value)
   }
 
+  const importPortableTheme = (raw: string): { ok: boolean; error?: string } => {
+    const result = parsePortableTheme(raw)
+    if (!result.ok) return result
+    const { variant, codeThemeId, theme } = result.value
+    if (variant === 'light') {
+      setLightChromeTheme(theme)
+      setLightCodeThemeId(codeThemeId)
+      setAppearanceTheme('light')
+      applyAppearanceModel({ appearanceTheme: 'light', lightChromeTheme: theme, lightCodeThemeId: codeThemeId })
+      window.api.settings.set('appearanceLightChromeTheme', theme)
+      window.api.settings.set('appearanceLightCodeThemeId', codeThemeId)
+    } else {
+      setDarkChromeTheme(theme)
+      setDarkCodeThemeId(codeThemeId)
+      setAppearanceTheme('dark')
+      applyAppearanceModel({ appearanceTheme: 'dark', darkChromeTheme: theme, darkCodeThemeId: codeThemeId })
+      window.api.settings.set('appearanceDarkChromeTheme', theme)
+      window.api.settings.set('appearanceDarkCodeThemeId', codeThemeId)
+    }
+    window.api.settings.set('appearanceTheme', variant)
+    return { ok: true }
+  }
+
   const saveAppearance = (value: Appearance): void => {
     setAppearance(value)
     applyAppearance(value, accent, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont)
@@ -356,6 +394,8 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               appearanceTheme={appearanceTheme}
               lightChromeTheme={lightChromeTheme}
               darkChromeTheme={darkChromeTheme}
+              lightCodeThemeId={lightCodeThemeId}
+              darkCodeThemeId={darkCodeThemeId}
               sansFontSize={sansFontSize}
               codeFontSize={codeFontSize}
               useFontSmoothing={useFontSmoothing}
@@ -374,6 +414,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               onSetChromeTheme={saveChromeTheme}
               onSetThemeFontSize={saveThemeFontSize}
               onSetThemeToggle={saveThemeToggle}
+              onImportPortableTheme={importPortableTheme}
             />
           )}
           {section === 'pets' && <PetsSection />}
@@ -430,6 +471,68 @@ function normalizeChromeTheme(value: unknown, fallback: ChromeTheme): ChromeThem
     fonts: record.fonts,
     semanticColors: record.semanticColors
   }
+}
+
+type PortableTheme = {
+  variant: 'light' | 'dark'
+  codeThemeId: string
+  theme: ChromeTheme
+}
+
+function serializePortableTheme(variant: 'light' | 'dark', theme: ChromeTheme, codeThemeId: string): string {
+  return `codex-theme-v1:${JSON.stringify({ variant, codeThemeId, theme })}`
+}
+
+function parsePortableTheme(raw: string): { ok: true; value: PortableTheme } | { ok: false; error: string } {
+  const trimmed = raw.trim()
+  if (!trimmed.startsWith('codex-theme-v1:')) return { ok: false, error: 'Theme must start with codex-theme-v1:' }
+  try {
+    const parsed = JSON.parse(trimmed.slice('codex-theme-v1:'.length)) as Partial<PortableTheme>
+    if (parsed.variant !== 'light' && parsed.variant !== 'dark') return { ok: false, error: 'Theme variant must be light or dark' }
+    if (!parsed.theme || typeof parsed.theme !== 'object') return { ok: false, error: 'Theme payload is missing' }
+    const theme = normalizeImportedChromeTheme(parsed.theme)
+    if (!theme) return { ok: false, error: 'Theme colors must be #RRGGBB and contrast must be 0-100' }
+    return {
+      ok: true,
+      value: {
+        variant: parsed.variant,
+        codeThemeId: typeof parsed.codeThemeId === 'string' && parsed.codeThemeId.trim() ? parsed.codeThemeId : defaultCodeThemeId(parsed.variant),
+        theme
+      }
+    }
+  } catch {
+    return { ok: false, error: 'Theme JSON is invalid' }
+  }
+}
+
+function normalizeImportedChromeTheme(value: unknown): ChromeTheme | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Partial<ChromeTheme>
+  if (!isHexColor(record.accent) || !isHexColor(record.surface) || !isHexColor(record.ink)) return null
+  if (typeof record.contrast !== 'number' || record.contrast < 0 || record.contrast > 100) return null
+  const semanticColors = record.semanticColors
+  if (semanticColors) {
+    for (const color of [semanticColors.diffAdded, semanticColors.diffRemoved, semanticColors.skill]) {
+      if (color !== undefined && !isHexColor(color)) return null
+    }
+  }
+  return {
+    accent: record.accent,
+    surface: record.surface,
+    ink: record.ink,
+    contrast: record.contrast,
+    opaqueWindows: record.opaqueWindows === true,
+    fonts: record.fonts,
+    semanticColors
+  }
+}
+
+function isHexColor(value: unknown): value is string {
+  return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
+}
+
+function defaultCodeThemeId(variant: 'light' | 'dark'): string {
+  return variant === 'light' ? 'github-light' : 'github-dark'
 }
 
 // ─── General section (app-wide) ───────────────────────────────────────────────
@@ -490,6 +593,8 @@ function AppearanceSection({
   appearanceTheme,
   lightChromeTheme,
   darkChromeTheme,
+  lightCodeThemeId,
+  darkCodeThemeId,
   sansFontSize,
   codeFontSize,
   useFontSmoothing,
@@ -508,6 +613,7 @@ function AppearanceSection({
   onSetChromeTheme,
   onSetThemeFontSize,
   onSetThemeToggle,
+  onImportPortableTheme,
 }: {
   appearance: Appearance
   accent: Accent
@@ -521,6 +627,8 @@ function AppearanceSection({
   appearanceTheme: AppearanceTheme
   lightChromeTheme: ChromeTheme
   darkChromeTheme: ChromeTheme
+  lightCodeThemeId: string
+  darkCodeThemeId: string
   sansFontSize: number
   codeFontSize: number
   useFontSmoothing: boolean
@@ -539,7 +647,10 @@ function AppearanceSection({
   onSetChromeTheme: (variant: 'light' | 'dark', value: ChromeTheme) => void
   onSetThemeFontSize: (kind: 'ui' | 'code', value: number) => void
   onSetThemeToggle: (key: 'useFontSmoothing' | 'usePointerCursors' | 'reduceMotion', value: boolean) => void
+  onImportPortableTheme: (raw: string) => { ok: boolean; error?: string }
 }): JSX.Element {
+  const [themeImportText, setThemeImportText] = useState('')
+  const [themeImportStatus, setThemeImportStatus] = useState<string | null>(null)
   const appearanceOptions: Array<{ id: Appearance; label: string; desc: string }> = [
     { id: 'system', label: 'System', desc: 'Follow macOS' },
     { id: 'mist', label: 'Mist Light', desc: 'Soft light canvas' },
@@ -582,6 +693,19 @@ function AppearanceSection({
     const current = variant === 'light' ? lightChromeTheme : darkChromeTheme
     onSetChromeTheme(variant, { ...current, ...patch })
   }
+  const copyTheme = (variant: 'light' | 'dark'): void => {
+    const value = serializePortableTheme(
+      variant,
+      variant === 'light' ? lightChromeTheme : darkChromeTheme,
+      variant === 'light' ? lightCodeThemeId : darkCodeThemeId
+    )
+    void navigator.clipboard.writeText(value)
+    setThemeImportStatus(`${variant === 'light' ? 'Light' : 'Dark'} theme copied`)
+  }
+  const importTheme = (): void => {
+    const result = onImportPortableTheme(themeImportText)
+    setThemeImportStatus(result.ok ? 'Theme imported' : result.error ?? 'Invalid theme')
+  }
   return (
     <div style={{ padding: '30px 44px 56px', maxWidth: 960, margin: '0 auto' }}>
       <SettingsIntro
@@ -613,6 +737,62 @@ function AppearanceSection({
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
           <ChromeThemeEditor title="Light chrome" variant="light" theme={lightChromeTheme} onChange={updateChrome} />
           <ChromeThemeEditor title="Dark chrome" variant="dark" theme={darkChromeTheme} onChange={updateChrome} />
+        </div>
+      </SettingGroup>
+
+      <SettingGroup title="Theme sharing" description="Import or copy a portable Codex theme string.">
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button
+              type="button"
+              data-testid="copy-light-theme"
+              onClick={() => copyTheme('light')}
+              style={pillButtonStyle}
+            >
+              Copy light theme
+            </button>
+            <button
+              type="button"
+              data-testid="copy-dark-theme"
+              onClick={() => copyTheme('dark')}
+              style={pillButtonStyle}
+            >
+              Copy dark theme
+            </button>
+          </div>
+          <textarea
+            data-testid="theme-import-input"
+            value={themeImportText}
+            onChange={(event) => setThemeImportText(event.currentTarget.value)}
+            placeholder="codex-theme-v1:{...}"
+            style={{
+              minHeight: 76,
+              resize: 'vertical',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--surface-bg)',
+              color: 'var(--text-primary)',
+              padding: 10,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              outline: 'none'
+            }}
+          />
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              data-testid="theme-import-button"
+              onClick={importTheme}
+              style={pillButtonStyle}
+            >
+              Import theme
+            </button>
+            {themeImportStatus && (
+              <span data-testid="theme-import-status" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                {themeImportStatus}
+              </span>
+            )}
+          </div>
         </div>
       </SettingGroup>
 
