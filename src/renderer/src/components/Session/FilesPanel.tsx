@@ -17,6 +17,7 @@ interface WorkspaceFileEntry {
 
 const MAX_WORKSPACE_ENTRIES = 360
 const PREVIEW_LIMIT = 80_000
+type PreviewKind = 'text' | 'image' | 'pdf' | 'binary'
 
 export default function FilesPanel({ workDir, embedded = false }: Props): JSX.Element {
   const [entries, setEntries] = useState<WorkspaceFileEntry[]>([])
@@ -25,6 +26,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
   const [preview, setPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const selectedEntry = selectedPath ? entries.find((entry) => entry.path === selectedPath) ?? null : null
+  const selectedPreviewKind = selectedEntry?.kind === 'file' ? previewKindForPath(selectedEntry.path) : 'text'
   const filteredEntries = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     return normalized
@@ -50,7 +52,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
   }, [workDir])
 
   useEffect(() => {
-    if (!selectedPath || selectedEntry?.kind !== 'file') {
+    if (!selectedPath || selectedEntry?.kind !== 'file' || selectedPreviewKind !== 'text') {
       setPreview(null)
       return
     }
@@ -67,7 +69,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
     return () => {
       cancelled = true
     }
-  }, [selectedEntry?.kind, selectedPath, workDir])
+  }, [selectedEntry?.kind, selectedPath, selectedPreviewKind, workDir])
 
   const openSelected = (): void => {
     if (!selectedPath) return
@@ -172,18 +174,58 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
           {selectedEntry?.kind === 'directory' ? (
             <EmptyFileState title={selectedEntry.path} body="Select a file to preview it." />
           ) : selectedEntry ? (
-            <pre
-              className="min-h-full whitespace-pre-wrap break-words p-3 text-xs"
-              style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}
-            >
-              {preview ?? 'Unable to load file'}
-            </pre>
+            <FilePreview
+              entry={selectedEntry}
+              absolutePath={joinPath(workDir, selectedEntry.path)}
+              preview={preview}
+              previewKind={selectedPreviewKind}
+            />
           ) : (
             <EmptyFileState title="Nothing selected" body="Choose a workspace file from the list." />
           )}
         </div>
       </div>
     </div>
+  )
+}
+
+function FilePreview({
+  entry,
+  absolutePath,
+  preview,
+  previewKind,
+}: {
+  entry: WorkspaceFileEntry
+  absolutePath: string
+  preview: string | null
+  previewKind: PreviewKind
+}): JSX.Element {
+  if (previewKind === 'image') {
+    return (
+      <div className="flex h-full min-h-0 items-center justify-center overflow-auto p-3" data-testid="workspace-image-preview">
+        <img
+          src={fileUrl(absolutePath)}
+          alt={entry.name}
+          className="max-h-full max-w-full rounded-md object-contain"
+          style={{ border: '1px solid var(--border-subtle)' }}
+        />
+      </div>
+    )
+  }
+  if (previewKind === 'pdf') {
+    return <EmptyFileState title={entry.name} body="PDF preview is handled by the system viewer. Use Open file to inspect it." />
+  }
+  if (previewKind === 'binary') {
+    return <EmptyFileState title={entry.name} body="Binary file preview unavailable. Use Open file or Reveal file to inspect it." />
+  }
+  return (
+    <pre
+      data-testid="workspace-text-preview"
+      className="min-h-full whitespace-pre-wrap break-words p-3 text-xs"
+      style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}
+    >
+      {preview ?? 'Unable to load file'}
+    </pre>
   )
 }
 
@@ -227,4 +269,16 @@ function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function previewKindForPath(path: string): PreviewKind {
+  const lower = path.toLowerCase()
+  if (/\.(png|jpe?g|gif|webp|bmp|svg)$/.test(lower)) return 'image'
+  if (/\.pdf$/.test(lower)) return 'pdf'
+  if (/\.(bin|exe|dmg|zip|gz|tgz|br|7z|mp4|mov|mp3|wav|aiff|woff2?|ttf|otf|ico|icns)$/.test(lower)) return 'binary'
+  return 'text'
+}
+
+function fileUrl(path: string): string {
+  return `file://${path.split('/').map(encodeURIComponent).join('/')}`
 }

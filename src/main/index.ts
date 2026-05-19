@@ -454,6 +454,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var filesTabAttachWorks =
               [...document.querySelectorAll('.attachment-pill')]
                 .some((attachment) => attachment.textContent?.includes('nested note.md'));
+            if (fileSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
+              setter?.call(fileSearch, 'binary-preview-smoke');
+              fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(160);
+            }
+            const binaryFileButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('binary-preview-smoke.bin'));
+            if (binaryFileButton instanceof HTMLButtonElement) {
+              binaryFileButton.click();
+              await sleep(160);
+            }
+            var filesBinaryPreviewWorks =
+              document.body.innerText.includes('Binary file preview unavailable') &&
+              !document.querySelector('[data-testid="workspace-text-preview"]');
+            if (fileSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
+              setter?.call(fileSearch, 'does-not-exist-smoke');
+              fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(120);
+            }
+            var filesNoResultsWorks = document.body.innerText.includes('No files in this folder');
             const browserButton = [...document.querySelectorAll('button')]
               .find((button) => button.getAttribute('title') === 'Open browser');
             if (browserButton instanceof HTMLButtonElement) {
@@ -710,6 +732,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
+            filesBinaryPreviewWorks: typeof filesBinaryPreviewWorks === 'boolean' ? filesBinaryPreviewWorks : null,
+            filesNoResultsWorks: typeof filesNoResultsWorks === 'boolean' ? filesNoResultsWorks : null,
             browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
             browserScreenshotWorks: typeof browserScreenshotWorks === 'boolean' ? browserScreenshotWorks : null,
             browserFindWorks: typeof browserFindWorks === 'boolean' ? browserFindWorks : null,
