@@ -887,6 +887,20 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
         }
         const running = sessions.find((session) => session.name === 'Sidebar running')
         if (running) sessionManager.updateStatus(running.id, 'running')
+        const pinnedLive = sessions.find((session) => session.name === 'Sidebar pinned older')
+        if (pinnedLive) {
+          setTimeout(() => sessionManager.updateStatus(pinnedLive.id, 'running'), 700)
+          setTimeout(() => {
+            sessionManager.appendMessage(pinnedLive.id, [{
+              id: `sidebar-live-transition-${Date.now()}`,
+              role: 'assistant',
+              type: 'text',
+              content: 'Sidebar pinned older finished a live transition.',
+              timestamp: Date.now()
+            }])
+            sessionManager.updateStatus(pinnedLive.id, 'idle')
+          }, 1050)
+        }
         const result = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -985,6 +999,31 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const olderAfterPinIndex = afterPinPinnedBlock.indexOf('Sidebar pinned older');
             const renamedPinnedIndex = afterPinPinnedBlock.indexOf('Sidebar renamed by smoke');
             const newPinAppended = olderAfterPinIndex >= 0 && renamedPinnedIndex > olderAfterPinIndex;
+            let pinnedLiveRunningSpinner = false;
+            let pinnedLiveUnreadDot = false;
+            let pinnedLiveOrderStable = false;
+            for (let index = 0; index < 80; index += 1) {
+              const row = rowFor('Sidebar pinned older');
+              if (row?.querySelector('[data-testid="session-status-spinner"]')) {
+                pinnedLiveRunningSpinner = true;
+                break;
+              }
+              await sleep(25);
+            }
+            for (let index = 0; index < 100; index += 1) {
+              const row = rowFor('Sidebar pinned older');
+              if (row?.querySelector('[data-testid="session-status-dot"]')) {
+                pinnedLiveUnreadDot = true;
+                const liveText = document.body.innerText;
+                const liveProjectsIndex = liveText.indexOf('Projects');
+                const livePinnedBlock = liveProjectsIndex >= 0 ? liveText.slice(0, liveProjectsIndex) : liveText;
+                const liveOlderIndex = livePinnedBlock.indexOf('Sidebar pinned older');
+                const liveRenamedIndex = livePinnedBlock.indexOf('Sidebar renamed by smoke');
+                pinnedLiveOrderStable = liveOlderIndex >= 0 && liveRenamedIndex >= 0 && liveOlderIndex < liveRenamedIndex;
+                break;
+              }
+              await sleep(25);
+            }
 
             const unreadRow = await waitForRow('Sidebar unread idle');
             const errorRow = await waitForRow('Sidebar error');
@@ -1091,7 +1130,10 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               normalIdleDotHidden: !normalRow?.querySelector('[data-testid="session-status-dot"]'),
               unreadIdleDotVisible: Boolean(unreadRow?.querySelector('[data-testid="session-status-dot"]')),
               errorDotVisible: Boolean(errorRow?.querySelector('[data-testid="session-status-dot"]')),
-              grayIdleDotsAbsent: allDots.length === 2,
+              pinnedLiveRunningSpinner,
+              pinnedLiveUnreadDot,
+              pinnedLiveOrderStable,
+              grayIdleDotsAbsent: allDots.length === 3,
               projectActionMenuWorks,
               projectRenameWorks,
               projectPinWorks,

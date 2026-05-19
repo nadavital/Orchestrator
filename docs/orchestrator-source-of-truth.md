@@ -297,6 +297,7 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-023 | Settings structure split landed. | `Complete` | Settings now separates Providers & models from Provider diagnostics and Data controls. Settings smoke verifies Appearance taxonomy, Provider diagnostics, and Data controls sections. |
 | V-024 | Theme parity parser and settings coverage landed. | `Complete` | `src/types/themeSharing.ts` owns the portable `codex-theme-v1:` schema used by Settings and node tests. `test:providers` verifies round-trip, defaults, bad prefix, invalid variant, invalid hex, invalid contrast, and invalid semantic colors; settings smoke verifies theme import/sharing controls. |
 | V-025 | File-card confidence smoke landed. | `Complete` | Transcript-layout smoke proves unresolved relative prose cards are suppressed while explicit absolute missing references still render as missing with disabled actions. |
+| V-026 | Sidebar live-transition smoke landed. | `Complete` | Sidebar smoke drives a pinned chat through running and completed/unread states and verifies its pin order remains stable. |
 
 ### Codex Parity Matrix
 
@@ -362,7 +363,7 @@ These are the next small, user-visible polish slices to consider after the curre
 | POL-001 | File cards | Cards appear only for confident, useful file references; no review prose, numeric literals, or unresolved relative guesses. | `Complete` | Renderer smoke now proves unresolved relative prose cards are suppressed while explicit absolute missing files still show disabled actions. |
 | POL-002 | Pet overlay | Built-in pets render without white-square glitches and state transitions feel close to Codex. | `Partial` | Run a packaged pet-overlay smoke and inspect sprite atlas loading/state transitions in the installed app. |
 | POL-003 | Command palette | Keyboard-first actions feel native and do not duplicate composer slash commands. | `Complete` | Transcript-layout smoke verifies command palette open paths, grouping, recent commands, fuzzy search, shortcut labels, and the search-transcript action. |
-| POL-004 | Sidebar polish | Pinned, unread, running, rename, and project grouping feel stable during live runs. | `Implemented` | Add a focused smoke for running/completion transitions while a pinned session receives messages. |
+| POL-004 | Sidebar polish | Pinned, unread, running, rename, and project grouping feel stable during live runs. | `Complete` | Sidebar smoke now covers running/completion transitions while a pinned session receives messages, including spinner, unread dot, and stable pinned order. |
 | POL-005 | Transcript polish | Long threads feel complete, searchable, and scroll-stable without exposing implementation copy. | `Implemented` | Keep stress/session-switch/scroll smokes in the default pre-install checklist after transcript changes. |
 | POL-006 | Codex-style settings taxonomy | Settings follow Codex's sectioned model while keeping Orchestrator behavior provider-neutral. | `Complete` | CP-015 and CP-018 are complete; add future sections only when backed by product behavior. |
 | POL-007 | Theme parity | Theming supports per-variant custom colors, typography, semantic tokens, and import/export. | `Complete` | CP-012 through CP-014 are complete; revisit only when adding new visible theme surfaces. |
@@ -719,6 +720,7 @@ When implementing against this plan:
 - Verification passed for the theme parity coverage checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `npm run test:providers`, and `npm run smoke:ui:auto -- --settings`; the provider test suite now covers valid round-trip, default code themes, missing prefix, invalid variant, invalid hex colors, invalid contrast, and invalid semantic colors.
 - Command palette verification checkpoint: the transcript-layout smoke now explicitly verifies command-palette open shortcuts, grouping, recent commands, fuzzy terminal lookup, shortcut labels, and the command-palette search-transcript action.
 - File-card confidence smoke checkpoint: the transcript-layout fixture now includes both an unresolved relative prose reference and an explicit absolute missing path, and the smoke verifies the relative prose card is suppressed while the absolute missing card keeps disabled actions.
+- Sidebar live-transition checkpoint: the sidebar smoke now drives a pinned row from running to completed/unread while another chat is pinned, and verifies the spinner, completion dot, and pinned order remain stable.
 
 ### 2026-05-18
 
