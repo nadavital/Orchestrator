@@ -184,6 +184,7 @@ function SessionItem({ session }: Props): JSX.Element {
         tabIndex={0}
         aria-current={isActive ? 'page' : undefined}
         aria-describedby={detailsVisible ? `session-hover-${session.id}` : undefined}
+        data-details-visible={detailsVisible ? 'true' : 'false'}
         onMouseEnter={showDetails}
         onMouseLeave={hideDetails}
         onFocus={showDetails}

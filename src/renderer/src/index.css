@@ -975,6 +975,7 @@
   .surface-row:hover .session-item-pin-button,
   .surface-row:focus-within .session-item-pin-button,
   .session-row-shell:focus-visible .session-item-pin-button,
+  .session-row-shell[data-details-visible='true'] .session-item-pin-button,
   .session-item-pin-button[data-pinned='true'] {
     opacity: 1;
     transform: scale(1);

@@ -786,6 +786,9 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
             }
             const telemetry = await window.api.performance.snapshot();
             const mountedVirtualRows = document.querySelectorAll('[data-testid="virtual-transcript-row"]').length;
+            const transcriptList = document.querySelector('[data-testid="virtualized-transcript"]');
+            const renderedMessagesFromDom = Number(transcriptList?.getAttribute('data-rendered-message-count') ?? Number.NaN);
+            const messageCountFromDom = Number(transcriptList?.getAttribute('data-total-message-count') ?? Number.NaN);
             return {
               secondTranscriptFound: transcriptText.includes('SESSION_SWITCH_SMOKE_TWO'),
               secondTitleFound: document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes(${JSON.stringify(second.name)}) ?? false,
@@ -803,8 +806,8 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
               lazyAfterVisibleMessage,
               mountedVirtualRows,
               transcriptSearchFound,
-              renderedMessages: window.__orchestratorSessionSwitchLastPerf?.renderedMessages ?? null,
-              messageCount: window.__orchestratorSessionSwitchLastPerf?.messageCount ?? null,
+              renderedMessages: window.__orchestratorSessionSwitchLastPerf?.renderedMessages ?? (Number.isFinite(renderedMessagesFromDom) ? renderedMessagesFromDom : null),
+              messageCount: window.__orchestratorSessionSwitchLastPerf?.messageCount ?? (Number.isFinite(messageCountFromDom) ? messageCountFromDom : null),
               instrumentedTranscriptReadyMs: window.__orchestratorSessionSwitchLastPerf?.transcriptReadyMs ?? null,
               telemetryRecorded: telemetry.summaries.some((summary) => summary.name === 'session.switch.transcript-ready' || summary.name === 'transcript.initial-page-ready'),
               titleElapsedMs,

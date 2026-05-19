@@ -614,6 +614,8 @@ export default function ChatView({ session, projectName, onSuggestedPrompt }: Pr
           <div
             ref={transcriptListRef}
             data-testid="virtualized-transcript"
+            data-rendered-message-count={visibleMessages.length}
+            data-total-message-count={totalMessageCount}
             className="relative min-w-0"
             style={{ height: virtualWindow.totalHeight }}
           >
