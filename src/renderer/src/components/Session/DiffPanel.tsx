@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { fileStatusLabel, summarizeFileChanges } from '../../types'
 import type { FileChange } from '../../types'
+import type { FilePreviewResult } from '../../env'
 import { Badge, Button, MetricPill, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
 
 interface Props {
@@ -13,6 +14,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [files, setFiles] = useState<FileChange[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileDiff, setFileDiff] = useState('')
+  const [filePreview, setFilePreview] = useState<FilePreviewResult | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [query, setQuery] = useState('')
   const [wrapLines, setWrapLines] = useState(true)
   const summary = summarizeFileChanges(files)
@@ -22,7 +25,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       ? files.filter((file) => file.path.toLowerCase().includes(normalizedQuery))
       : files
   }, [files, query])
-  const selectedChange = selectedFile ? files.find((file) => file.path === selectedFile) ?? null : null
+  const selectedChange = selectedFile ? filteredFiles.find((file) => file.path === selectedFile) ?? null : null
 
   useEffect(() => {
     window.api.sessions.getChangedFiles(sessionId).then((f) => {
@@ -32,9 +35,39 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   }, [sessionId])
 
   useEffect(() => {
-    if (!selectedFile) return
-    window.api.sessions.getDiffForFile(sessionId, selectedFile).then(setFileDiff)
-  }, [selectedFile, sessionId])
+    if (!selectedFile || !selectedChange) {
+      setFileDiff('')
+      setFilePreview(null)
+      setPreviewLoading(false)
+      return
+    }
+    let cancelled = false
+    setFileDiff('')
+    setFilePreview(null)
+    setPreviewLoading(true)
+    Promise.all([
+      window.api.sessions.getDiffForFile(sessionId, selectedFile),
+      selectedChange.status === 'D'
+        ? Promise.resolve<FilePreviewResult>({ kind: 'missing', truncated: false })
+        : window.api.fs.previewFile(joinPath(workDir, selectedFile))
+    ])
+      .then(([diff, preview]) => {
+        if (cancelled) return
+        setFileDiff(diff)
+        setFilePreview(preview)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setFileDiff('')
+        setFilePreview({ kind: 'unreadable', truncated: false })
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedChange, selectedFile, sessionId, workDir])
 
   useEffect(() => {
     if (!selectedFile || filteredFiles.some((file) => file.path === selectedFile)) return
@@ -49,8 +82,18 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   }
 
   const openSelectedFile = (): void => {
-    if (!selectedFile) return
+    if (!selectedFile || !selectedChange || selectedChange.status === 'D') return
     void window.api.fs.openPath(joinPath(workDir, selectedFile))
+  }
+
+  const revealSelectedFile = (): void => {
+    if (!selectedFile || !selectedChange || selectedChange.status === 'D') return
+    void window.api.fs.showInFolder(joinPath(workDir, selectedFile))
+  }
+
+  const copySelectedPath = (): void => {
+    if (!selectedFile || !selectedChange) return
+    void navigator.clipboard.writeText(selectedFile)
   }
 
   return (
@@ -72,8 +115,20 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             <ToolbarButton
               icon="file"
               label="Open file"
-              disabled={!selectedFile}
+              disabled={!selectedChange || selectedChange.status === 'D'}
               onClick={openSelectedFile}
+            />
+            <ToolbarButton
+              icon="folder"
+              label="Reveal file"
+              disabled={!selectedChange || selectedChange.status === 'D'}
+              onClick={revealSelectedFile}
+            />
+            <ToolbarButton
+              icon="copy"
+              label="Copy path"
+              disabled={!selectedChange}
+              onClick={copySelectedPath}
             />
             <ToolbarButton
               icon="refresh"
@@ -148,21 +203,118 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
 
           {/* File diff */}
           <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
-            {selectedFile ? (
-              fileDiff ? (
-                <DiffLines diff={fileDiff} wrap={wrapLines} />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  <span>No diff available</span>
-                  {selectedChange && <span>{fileStatusLabel(selectedChange.status)} · {selectedChange.path}</span>}
-                </div>
-              )
-            ) : null}
+            <ReviewPreview
+              change={selectedChange}
+              diff={fileDiff}
+              preview={filePreview}
+              loading={previewLoading}
+              wrap={wrapLines}
+              absolutePath={selectedFile ? joinPath(workDir, selectedFile) : ''}
+            />
           </div>
         </>
       )}
     </div>
   )
+}
+
+function ReviewPreview({
+  change,
+  diff,
+  preview,
+  loading,
+  wrap,
+  absolutePath
+}: {
+  change: FileChange | null
+  diff: string
+  preview: FilePreviewResult | null
+  loading: boolean
+  wrap: boolean
+  absolutePath: string
+}): JSX.Element {
+  if (!change) {
+    return <ReviewEmptyState title="Nothing selected" body="Choose a changed file from the list." />
+  }
+  if (loading) {
+    return <ReviewEmptyState title={change.path} body="Loading review preview..." />
+  }
+  if (isBinaryDiff(diff) || preview?.kind === 'binary') {
+    return <ReviewEmptyState title={change.path} body="Binary file changed. Use Open file or Reveal file to inspect it." testId="review-binary-state" />
+  }
+  if (preview?.kind === 'image') {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-image-state">
+        <ReviewPreviewHeader change={change} label="Image file changed" />
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3">
+          <img
+            src={fileUrl(absolutePath)}
+            alt={change.path}
+            className="max-h-full max-w-full rounded-md object-contain"
+            style={{ border: '1px solid var(--border-subtle)' }}
+          />
+        </div>
+      </div>
+    )
+  }
+  if (preview?.kind === 'pdf') {
+    return <ReviewEmptyState title={change.path} body="PDF file changed. Use Open file or Reveal file to inspect it." testId="review-pdf-state" />
+  }
+  if (diff.trim()) {
+    return <DiffLines diff={diff} wrap={wrap} />
+  }
+  if (preview?.kind === 'text' && preview.text?.trim()) {
+    return (
+      <div className="min-h-full" data-testid="review-source-preview">
+        <ReviewPreviewHeader change={change} label={preview.truncated ? 'Source preview truncated' : 'Source preview'} />
+        <pre
+          className="min-h-full whitespace-pre-wrap break-words p-3 text-xs"
+          style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}
+        >
+          {preview.text}
+        </pre>
+      </div>
+    )
+  }
+  if (change.status === 'D') {
+    return <ReviewEmptyState title={change.path} body="Deleted file has no source preview. The textual deletion diff appears here when git can provide one." />
+  }
+  if (preview?.kind === 'missing') {
+    return <ReviewEmptyState title={change.path} body="This changed file is no longer available in the workspace." />
+  }
+  if (preview?.kind === 'unreadable') {
+    return <ReviewEmptyState title={change.path} body="Unable to load this file preview. Use Open file or Reveal file to inspect it." />
+  }
+  return <ReviewEmptyState title={change.path} body="No textual diff is available for this change." testId="review-no-content-state" />
+}
+
+function ReviewPreviewHeader({ change, label }: { change: FileChange; label: string }): JSX.Element {
+  return (
+    <div
+      className="flex shrink-0 items-center gap-2 px-3 py-2 text-[11px]"
+      style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)' }}
+    >
+      <Badge tone="neutral">{fileStatusLabel(change.status)}</Badge>
+      <span className="min-w-0 flex-1 truncate">{label} · {change.path}</span>
+    </div>
+  )
+}
+
+function ReviewEmptyState({ title, body, testId }: { title: string; body: string; testId?: string }): JSX.Element {
+  return (
+    <div
+      data-testid={testId}
+      className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs"
+      style={{ color: 'var(--color-text-muted)' }}
+    >
+      <span style={{ color: 'var(--text-secondary)', fontWeight: 650 }}>{title}</span>
+      <span>{body}</span>
+    </div>
+  )
+}
+
+function isBinaryDiff(diff: string): boolean {
+  return diff.split('\n').some((line) => line.startsWith('Binary files ') || line.startsWith('GIT binary patch'))
 }
 
 function FileRow({ file, selected, onClick }: { file: FileChange; selected: boolean; onClick: () => void }): JSX.Element {
@@ -256,4 +408,8 @@ function DiffLines({ diff, wrap }: { diff: string; wrap: boolean }): JSX.Element
 
 function joinPath(root: string, filePath: string): string {
   return `${root.replace(/\/+$/, '')}/${filePath.replace(/^\/+/, '')}`
+}
+
+function fileUrl(path: string): string {
+  return `file://${path.split('/').map(encodeURIComponent).join('/')}`
 }

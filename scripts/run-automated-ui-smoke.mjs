@@ -77,6 +77,7 @@ if (captureView === 'inspector') {
   spawnSync('git', ['commit', '-m', 'baseline'], { cwd: workspaceDir, stdio: 'ignore' })
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\nafter review\n')
   writeFileSync(join(workspaceDir, 'review-new.txt'), 'new review file\n')
+  writeFileSync(join(workspaceDir, 'binary-preview-smoke.bin'), Buffer.from([0, 1, 2, 3, 4, 5, 6, 255]))
   rmSync(join(workspaceDir, 'review-delete.txt'), { force: true })
   browserSmokeServer = createServer((_, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
@@ -312,6 +313,7 @@ child.on('exit', (code) => {
         rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,
         rightPanelExpand: captureView !== 'inspector' || result.rightPanelExpandWorks === true,
         reviewSearch: captureView !== 'inspector' || result.reviewSearchWorks === true,
+        reviewBinaryState: captureView !== 'inspector' || result.reviewBinaryStateWorks === true,
         filesTabSearch: captureView !== 'inspector' || result.filesTabSearchWorks === true,
         filesTabAttach: captureView !== 'inspector' || result.filesTabAttachWorks === true,
         filesBinaryPreview: captureView !== 'inspector' || result.filesBinaryPreviewWorks === true,

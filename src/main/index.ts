@@ -478,6 +478,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.body.innerText.includes('review-base.txt') &&
               document.body.innerText.includes('after review') &&
               document.body.innerText.includes('No diff available') === false;
+            if (diffSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
+              setter?.call(diffSearch, 'binary-preview-smoke');
+              diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(160);
+            }
+            const binaryReviewButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('binary-preview-smoke.bin'));
+            if (binaryReviewButton instanceof HTMLButtonElement) {
+              binaryReviewButton.click();
+              await sleep(220);
+            }
+            var reviewBinaryStateWorks =
+              Boolean(document.querySelector('[data-testid="review-binary-state"]')) &&
+              document.body.innerText.includes('Binary file changed');
+            if (diffSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
+              setter?.call(diffSearch, '');
+              diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(120);
+            }
             const filesButton = [...document.querySelectorAll('button')]
               .find((button) => button.getAttribute('title') === 'Open files');
             if (filesButton instanceof HTMLButtonElement) {
@@ -802,6 +823,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
+            reviewBinaryStateWorks: typeof reviewBinaryStateWorks === 'boolean' ? reviewBinaryStateWorks : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
             filesBinaryPreviewWorks: typeof filesBinaryPreviewWorks === 'boolean' ? filesBinaryPreviewWorks : null,
