@@ -301,6 +301,25 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 appearanceText.includes('Theme editor') &&
                 appearanceText.includes('Sharing') &&
                 appearanceText.includes('Layout and reading');
+              const diagnosticsButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Provider diagnostics'));
+              diagnosticsButton?.click();
+              await sleep(450);
+              const diagnosticsSection = document.querySelector('[data-testid="provider-diagnostics-settings-section"]');
+              var settingsDiagnosticsSectionWorks =
+                diagnosticsSection instanceof HTMLElement &&
+                diagnosticsSection.innerText.includes('Provider details') &&
+                diagnosticsSection.innerText.includes('Config file');
+              const dataButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Data controls'));
+              dataButton?.click();
+              await sleep(220);
+              const dataSection = document.querySelector('[data-testid="data-controls-settings-section"]');
+              var settingsDataControlsWorks =
+                dataSection instanceof HTMLElement &&
+                dataSection.innerText.includes('Local profile') &&
+                dataSection.innerText.includes('User data') &&
+                dataSection.innerText.includes('Open data folder');
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
@@ -633,6 +652,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
+            settingsDiagnosticsSectionWorks: typeof settingsDiagnosticsSectionWorks === 'boolean' ? settingsDiagnosticsSectionWorks : null,
+            settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),

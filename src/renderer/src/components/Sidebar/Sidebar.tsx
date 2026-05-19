@@ -124,6 +124,12 @@ export default function Sidebar(): JSX.Element {
               onClick={() => setSettingsSection('providers')}
             />
             <SidebarNavItem
+              icon="wrench"
+              label="Provider diagnostics"
+              active={settingsSection === 'diagnostics'}
+              onClick={() => setSettingsSection('diagnostics')}
+            />
+            <SidebarNavItem
               icon="keyboard"
               label="Shortcuts"
               active={settingsSection === 'shortcuts'}
@@ -134,6 +140,12 @@ export default function Sidebar(): JSX.Element {
               label="Pets"
               active={settingsSection === 'pets'}
               onClick={() => setSettingsSection('pets')}
+            />
+            <SidebarNavItem
+              icon="folder"
+              label="Data controls"
+              active={settingsSection === 'data'}
+              onClick={() => setSettingsSection('data')}
             />
           </div>
         </>

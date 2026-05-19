@@ -316,6 +316,8 @@ child.on('exit', (code) => {
         themeImport: captureView !== 'settings' || result.themeImportWorks === true,
         themeSharingControls: captureView !== 'settings' || result.themeSharingControls === true,
         settingsTaxonomy: captureView !== 'settings' || result.settingsTaxonomyWorks === true,
+        settingsDiagnosticsSection: captureView !== 'settings' || result.settingsDiagnosticsSectionWorks === true,
+        settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,

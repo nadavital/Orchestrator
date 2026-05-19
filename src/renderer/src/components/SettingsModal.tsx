@@ -20,6 +20,7 @@ import {
 } from '../types'
 import { useSessionStore } from '../store/sessions'
 import type { SettingsSection } from '../store/sessions'
+import type { AppProfile } from '../env'
 import { formatShortcutKeys, visibleShortcutRows } from '../../../types/appCommands'
 import ProviderIcon from './shared/ProviderIcon'
 import Icon from './shared/Icon'
@@ -419,6 +420,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
           )}
           {section === 'pets' && <PetsSection />}
           {section === 'shortcuts' && <ShortcutsSection />}
+          {section === 'data' && <DataControlsSection />}
           {section === 'providers' && (
             <ProvidersSection
               defaultProvider={defaultProvider}
@@ -438,6 +440,16 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               onLoadProviderDiagnostics={loadProviderDiagnostics}
             />
           )}
+          {section === 'diagnostics' && (
+            <ProviderDiagnosticsSection
+              defaultProvider={defaultProvider}
+              providerRuntime={providerRuntime}
+              providerDiagnostics={providerDiagnostics}
+              diagnosticsLoading={diagnosticsLoading}
+              providerAvailability={providerAvailability}
+              onLoadProviderDiagnostics={loadProviderDiagnostics}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -447,8 +459,10 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
 function settingsTitle(section: SettingsSection): string {
   if (section === 'appearance') return 'Appearance'
   if (section === 'providers') return 'Providers & models'
+  if (section === 'diagnostics') return 'Provider diagnostics'
   if (section === 'shortcuts') return 'Shortcuts'
   if (section === 'pets') return 'Pets'
+  if (section === 'data') return 'Data controls'
   return 'General'
 }
 
@@ -456,6 +470,67 @@ function normalizePreferredEditor(value: unknown): PreferredEditor {
   return value === 'vscode' || value === 'vscode-insiders' || value === 'cursor' || value === 'zed'
     ? value
     : 'system'
+}
+
+function DataControlsSection(): JSX.Element {
+  const [profile, setProfile] = useState<AppProfile | null>(null)
+
+  useEffect(() => {
+    window.api.app.getProfile().then(setProfile).catch(() => setProfile(null))
+  }, [])
+
+  return (
+    <div data-testid="data-controls-settings-section" style={{ padding: '30px 44px 56px', maxWidth: 860, margin: '0 auto' }}>
+      <SettingsIntro
+        description="Review where Orchestrator stores local app data. Destructive data actions stay out of this surface until they have explicit confirmation flows."
+      />
+
+      <SettingGroup title="Local profile" description="Current Electron profile and user-data directory for this app window.">
+        <SettingsPanel>
+          <CompactSetting title="Profile">
+            <InlineMutedText>{profile?.displayName ?? 'Default'}{profile?.isIsolated ? ' isolated profile' : ' profile'}</InlineMutedText>
+          </CompactSetting>
+          <CompactSetting title="User data">
+            <div style={{ display: 'grid', gap: 8 }}>
+              <code
+                style={{
+                  display: 'block',
+                  minWidth: 0,
+                  overflowWrap: 'anywhere',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--surface-bg)',
+                  color: 'var(--text-secondary)',
+                  padding: '8px 10px',
+                  fontSize: 11
+                }}
+              >
+                {profile?.userDataDir ?? 'Loading...'}
+              </code>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button
+                  type="button"
+                  disabled={!profile?.userDataDir}
+                  onClick={() => { if (profile?.userDataDir) void window.api.fs.openPath(profile.userDataDir) }}
+                  style={pillButtonStyle}
+                >
+                  Open data folder
+                </button>
+                <button
+                  type="button"
+                  disabled={!profile?.userDataDir}
+                  onClick={() => { if (profile?.userDataDir) void navigator.clipboard.writeText(profile.userDataDir) }}
+                  style={pillButtonStyle}
+                >
+                  Copy path
+                </button>
+              </div>
+            </div>
+          </CompactSetting>
+        </SettingsPanel>
+      </SettingGroup>
+    </div>
+  )
 }
 
 function normalizeChromeTheme(value: unknown, fallback: ChromeTheme): ChromeTheme {
@@ -1353,6 +1428,103 @@ function ProvidersSection({
             )}
           </SettingsPanel>
         )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProviderDiagnosticsSection({
+  defaultProvider,
+  providerRuntime,
+  providerDiagnostics,
+  diagnosticsLoading,
+  providerAvailability,
+  onLoadProviderDiagnostics
+}: {
+  defaultProvider: string
+  providerRuntime: Record<string, ProviderRuntimeInfo>
+  providerDiagnostics: Record<string, ProviderDiagnosticInfo>
+  diagnosticsLoading: Record<string, boolean>
+  providerAvailability: Record<string, boolean>
+  onLoadProviderDiagnostics: (providerId: string) => void
+}): JSX.Element {
+  const providerList = Object.values(PROVIDER_DEFS)
+  const [selectedId, setSelectedId] = useState(defaultProvider)
+  const providerDef = PROVIDER_DEFS[selectedId] ?? PROVIDER_DEFS.claude
+  const installed = providerAvailability[selectedId] !== false
+  const runtime = providerRuntime[selectedId]
+  const diagnostics = providerDiagnostics[selectedId]
+  const loadingDiagnostics = diagnosticsLoading[selectedId] === true
+  const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
+
+  useEffect(() => {
+    onLoadProviderDiagnostics(selectedId)
+  }, [onLoadProviderDiagnostics, selectedId])
+
+  return (
+    <div data-testid="provider-diagnostics-settings-section" style={{ padding: '34px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
+      <SettingsIntro
+        description="Inspect local provider health, safe read-only provider details, and config locations without crowding model defaults."
+      />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '190px minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
+        <ProviderSidePicker
+          providers={providerList}
+          selectedId={selectedId}
+          availability={providerAvailability}
+          onSelect={setSelectedId}
+        />
+
+        <div key={selectedId}>
+          <ProviderHeaderCard
+            providerId={selectedId}
+            providerName={providerDef.name}
+            color={providerDef.color}
+            installed={installed}
+            isDefault={selectedId === defaultProvider}
+            showDefaultControls={false}
+            installCmd={providerDef.installCmd}
+            onSetDefault={() => {}}
+          />
+
+          {settingsCommandSurfaces.length > 0 && (
+            <SettingsPanel>
+              <CompactSetting title="Provider details">
+                <ProviderCommandSurfaces
+                  providerId={selectedId}
+                  color={providerDef.color}
+                  surfaces={settingsCommandSurfaces}
+                />
+              </CompactSetting>
+            </SettingsPanel>
+          )}
+
+          <SettingsPanel>
+            {providerDef.id === 'claude' && (
+              <CompactSetting title="Endpoint">
+                <ClaudeEndpointField color={providerDef.color} />
+              </CompactSetting>
+            )}
+            <CompactSetting title="Config file">
+              <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
+            </CompactSetting>
+            {loadingDiagnostics && !diagnostics && (
+              <CompactSetting title="Status">
+                <InlineMutedText>Checking local CLI...</InlineMutedText>
+              </CompactSetting>
+            )}
+            {diagnostics && (
+              <CompactSetting title="Status">
+                <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
+              </CompactSetting>
+            )}
+            {diagnostics && diagnostics.probes.length > 0 && (
+              <CompactSetting title="Probes">
+                <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
+              </CompactSetting>
+            )}
+          </SettingsPanel>
         </div>
       </div>
     </div>
