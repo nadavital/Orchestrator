@@ -360,7 +360,7 @@ These are the next small, user-visible polish slices to consider after the curre
 | --- | --- | --- | --- | --- |
 | POL-001 | File cards | Cards appear only for confident, useful file references; no review prose, numeric literals, or unresolved relative guesses. | `Partial` | Add a renderer smoke fixture that proves unresolved relative prose cards are suppressed while explicit absolute missing files still show disabled actions. |
 | POL-002 | Pet overlay | Built-in pets render without white-square glitches and state transitions feel close to Codex. | `Partial` | Run a packaged pet-overlay smoke and inspect sprite atlas loading/state transitions in the installed app. |
-| POL-003 | Command palette | Keyboard-first actions feel native and do not duplicate composer slash commands. | `Implemented` | Add a command-palette automated smoke for search, recent commands, and shortcut labels. |
+| POL-003 | Command palette | Keyboard-first actions feel native and do not duplicate composer slash commands. | `Complete` | Transcript-layout smoke verifies command palette open paths, grouping, recent commands, fuzzy search, shortcut labels, and the search-transcript action. |
 | POL-004 | Sidebar polish | Pinned, unread, running, rename, and project grouping feel stable during live runs. | `Implemented` | Add a focused smoke for running/completion transitions while a pinned session receives messages. |
 | POL-005 | Transcript polish | Long threads feel complete, searchable, and scroll-stable without exposing implementation copy. | `Implemented` | Keep stress/session-switch/scroll smokes in the default pre-install checklist after transcript changes. |
 | POL-006 | Codex-style settings taxonomy | Settings follow Codex's sectioned model while keeping Orchestrator behavior provider-neutral. | `Complete` | CP-015 and CP-018 are complete; add future sections only when backed by product behavior. |
@@ -716,6 +716,7 @@ When implementing against this plan:
 - Verification passed for the settings structure checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, and `npm run smoke:ui:auto -- --settings`; settings smoke now asserts `settingsDiagnosticsSection` and `settingsDataControls`.
 - Theme parity coverage checkpoint: portable theme import/export now lives in shared `src/types/themeSharing.ts` so Settings and node tests use the same schema validator.
 - Verification passed for the theme parity coverage checkpoint: `npx tsc -p tsconfig.node.json --noEmit`, `npx tsc -p tsconfig.web.json --noEmit`, `npm run test:providers`, and `npm run smoke:ui:auto -- --settings`; the provider test suite now covers valid round-trip, default code themes, missing prefix, invalid variant, invalid hex colors, invalid contrast, and invalid semantic colors.
+- Command palette verification checkpoint: the transcript-layout smoke now explicitly verifies command-palette open shortcuts, grouping, recent commands, fuzzy terminal lookup, shortcut labels, and the command-palette search-transcript action.
 
 ### 2026-05-18
 

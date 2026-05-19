@@ -1232,6 +1232,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const commandPaletteShiftPOpens = shiftPaletteInput instanceof HTMLInputElement && document.activeElement === shiftPaletteInput;
             const commandPaletteGrouped = Boolean(document.querySelector('[data-command-group="Chat"]'));
             const commandPaletteRecentVisible = Boolean(document.querySelector('[data-command-group="Recent"]'));
+            const commandPaletteShortcutLabels = [...document.querySelectorAll('[data-command-id="new-chat"] kbd')]
+              .some((key) => key.textContent?.includes('⌘N') || key.textContent?.includes('CtrlN'));
             let commandPaletteFuzzyFindsTerminal = false;
             if (shiftPaletteInput instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(shiftPaletteInput.constructor.prototype, 'value')?.set;
@@ -1262,6 +1264,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               commandPaletteShiftPOpens,
               commandPaletteGrouped,
               commandPaletteRecentVisible,
+              commandPaletteShortcutLabels,
               commandPaletteFuzzyFindsTerminal,
               commandPaletteSearchActionWorks,
               searchShortcutOpens,

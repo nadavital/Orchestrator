@@ -268,6 +268,7 @@ child.on('exit', (code) => {
         commandPaletteShiftPOpens: result.commandPaletteShiftPOpens === true,
         commandPaletteGrouped: result.commandPaletteGrouped === true,
         commandPaletteRecentVisible: result.commandPaletteRecentVisible === true,
+        commandPaletteShortcutLabels: result.commandPaletteShortcutLabels === true,
         commandPaletteFuzzyFindsTerminal: result.commandPaletteFuzzyFindsTerminal === true,
         commandPaletteSearchActionWorks: result.commandPaletteSearchActionWorks === true,
         searchShortcutOpens: result.searchShortcutOpens === true,
