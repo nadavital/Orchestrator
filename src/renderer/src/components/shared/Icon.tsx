@@ -16,6 +16,7 @@ import {
   CircleDot,
   Ellipsis,
   Eraser,
+  Expand,
   File,
   Folder,
   GitBranch,
@@ -38,6 +39,7 @@ import {
   ExternalLink,
   Send,
   Settings,
+  Shrink,
   Sparkles,
   Smartphone,
   Wrench,
@@ -70,6 +72,7 @@ export type IconName =
   | 'dot'
   | 'eraser'
   | 'ellipsis'
+  | 'expand'
   | 'diff'
   | 'extensions'
   | 'external'
@@ -90,6 +93,7 @@ export type IconName =
   | 'search'
   | 'send'
   | 'settings'
+  | 'shrink'
   | 'smartphone'
   | 'sparkles'
   | 'terminal'
@@ -120,6 +124,7 @@ const icons: Record<IconName, LucideIcon> = {
   dot: CircleDot,
   eraser: Eraser,
   ellipsis: Ellipsis,
+  expand: Expand,
   diff: GitCompare,
   extensions: Boxes,
   external: ExternalLink,
@@ -140,6 +145,7 @@ const icons: Record<IconName, LucideIcon> = {
   search: Search,
   send: Send,
   settings: Settings,
+  shrink: Shrink,
   smartphone: Smartphone,
   sparkles: Sparkles,
   terminal: Terminal,

@@ -531,7 +531,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const primaryBefore = document.querySelector('[data-testid="session-primary-content"]');
             const primaryWidthBefore = primaryBefore instanceof HTMLElement ? primaryBefore.getBoundingClientRect().width : 0;
             const expandButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Maximize inspector');
+              .find((button) => button.getAttribute('title') === 'Expand panel');
+            const expandButtonLabelBefore = expandButton instanceof HTMLButtonElement
+              ? expandButton.getAttribute('aria-label')
+              : null;
             if (expandButton instanceof HTMLButtonElement) {
               expandButton.click();
               await sleep(180);
@@ -539,21 +542,30 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const rightPanelExpanded = document.querySelector('[data-testid="session-right-panel"]');
             const primaryAfterExpand = document.querySelector('[data-testid="session-primary-content"]');
             const primaryWidthAfterExpand = primaryAfterExpand instanceof HTMLElement ? primaryAfterExpand.getBoundingClientRect().width : 0;
+            const restoreButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Restore panel width');
+            const restoreButtonLabelAfterExpand = restoreButton instanceof HTMLButtonElement
+              ? restoreButton.getAttribute('aria-label')
+              : null;
             var rightPanelExpandDebug = {
               widthBefore,
               dataWidthAfterExpand: Number(rightPanelExpanded?.getAttribute('data-right-panel-width') ?? '0'),
               actualWidthAfterExpand: rightPanelExpanded instanceof HTMLElement ? rightPanelExpanded.getBoundingClientRect().width : 0,
               fullWidthAfterExpand: rightPanelExpanded instanceof HTMLElement ? rightPanelExpanded.dataset.rightPanelFullWidth : null,
               primaryWidthBefore,
-              primaryWidthAfterExpand
+              primaryWidthAfterExpand,
+              expandButtonLabelBefore,
+              restoreButtonLabelAfterExpand
             };
             var rightPanelExpandWorks =
               rightPanelExpanded instanceof HTMLElement &&
               rightPanelExpanded.dataset.rightPanelFullWidth === 'true' &&
               rightPanelExpanded.getBoundingClientRect().width > widthBefore + 40 &&
-              primaryWidthAfterExpand >= primaryWidthBefore - 8;
-            const restoreButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Restore inspector');
+              primaryWidthAfterExpand >= primaryWidthBefore - 8 &&
+              expandButton instanceof HTMLButtonElement &&
+              expandButtonLabelBefore === 'Expand panel' &&
+              restoreButton instanceof HTMLButtonElement &&
+              restoreButtonLabelAfterExpand === 'Restore panel width';
             if (restoreButton instanceof HTMLButtonElement) {
               restoreButton.click();
               await sleep(120);
