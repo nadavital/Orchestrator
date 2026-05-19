@@ -707,12 +707,16 @@ function AppearanceSection({
     setThemeImportStatus(result.ok ? 'Theme imported' : result.error ?? 'Invalid theme')
   }
   return (
-    <div style={{ padding: '30px 44px 56px', maxWidth: 960, margin: '0 auto' }}>
+    <div data-testid="appearance-settings-section" style={{ padding: '30px 44px 56px', maxWidth: 960, margin: '0 auto' }}>
       <SettingsIntro
         description="Tune the app shell, typography, density, and reading rhythm without changing how your agents work."
       />
 
-      <SettingGroup title="Appearance" description="Choose the overall app material and contrast.">
+      <SettingGroup title="Mode" description="Choose whether the app resolves to light, dark, or the current system appearance.">
+        <SegmentedChoice items={themeOptions} value={appearanceTheme} onChange={onSetAppearanceTheme} />
+      </SettingGroup>
+
+      <SettingGroup title="Presets" description="Start from an Orchestrator material preset before tuning colors below.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
           {appearanceOptions.map((option) => {
             const active = appearance === option.id
@@ -729,18 +733,14 @@ function AppearanceSection({
         </div>
       </SettingGroup>
 
-      <SettingGroup title="Theme model" description="Codex-style light, dark, and system theme selection.">
-        <SegmentedChoice items={themeOptions} value={appearanceTheme} onChange={onSetAppearanceTheme} />
-      </SettingGroup>
-
-      <SettingGroup title="Custom colors" description="Tune chrome colors independently for light and dark variants.">
+      <SettingGroup title="Theme editor" description="Tune chrome and semantic colors independently for light and dark variants.">
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
           <ChromeThemeEditor title="Light chrome" variant="light" theme={lightChromeTheme} onChange={updateChrome} />
           <ChromeThemeEditor title="Dark chrome" variant="dark" theme={darkChromeTheme} onChange={updateChrome} />
         </div>
       </SettingGroup>
 
-      <SettingGroup title="Theme sharing" description="Import or copy a portable Codex theme string.">
+      <SettingGroup title="Sharing" description="Import or copy a portable Codex theme string.">
         <div style={{ display: 'grid', gap: 10 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <button
@@ -796,7 +796,7 @@ function AppearanceSection({
         </div>
       </SettingGroup>
 
-      <SettingGroup title="Accent" description="Used for primary actions, focus rings, and active states.">
+      <SettingGroup title="Quick accent" description="A lightweight accent preset for primary actions, focus rings, and active states.">
         <div style={{ display: 'grid', gap: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {accentOptions.map((option) => (
@@ -882,12 +882,9 @@ function AppearanceSection({
         </div>
       </SettingGroup>
 
-      <SettingGroup title="Density" description="Choose between a calm default and a tighter power-user layout.">
-        <SegmentedChoice items={densityOptions} value={density} onChange={onSetDensity} />
-      </SettingGroup>
-
-      <SettingGroup title="Reading" description="Control transcript rhythm and the sidebar material.">
+      <SettingGroup title="Layout and reading" description="Control density, transcript rhythm, and sidebar material.">
         <div style={{ display: 'grid', gap: 12 }}>
+          <SegmentedChoice items={densityOptions} value={density} onChange={onSetDensity} />
           <SegmentedChoice items={transcriptOptions} value={transcriptStyle} onChange={onSetTranscriptStyle} />
           <label
             style={{

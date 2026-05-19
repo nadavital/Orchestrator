@@ -281,6 +281,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               }
               var themeImportWorks = document.querySelector('[data-testid="theme-import-status"]')?.textContent?.includes('Theme imported') === true;
               var themeSharingControls = Boolean(document.querySelector('[data-testid="copy-light-theme"]')) && Boolean(document.querySelector('[data-testid="appearance-light-chrome-editor"]'));
+              const appearanceText = document.querySelector('[data-testid="appearance-settings-section"]')?.textContent ?? '';
+              var settingsTaxonomyWorks =
+                appearanceText.includes('Mode') &&
+                appearanceText.includes('Presets') &&
+                appearanceText.includes('Theme editor') &&
+                appearanceText.includes('Sharing') &&
+                appearanceText.includes('Layout and reading');
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
@@ -604,6 +611,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,
             themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
+            settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),
