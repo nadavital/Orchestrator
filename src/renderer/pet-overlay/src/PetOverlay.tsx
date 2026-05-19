@@ -761,7 +761,7 @@ export default function PetOverlay(): JSX.Element | null {
         overflow: 'hidden',
         userSelect: 'none',
         fontFamily: 'system-ui, -apple-system, sans-serif',
-        cursor: isDraggingVisual ? 'grabbing' : 'grab',
+        cursor: isDraggingVisual ? 'grabbing' : 'default',
       }}
     >
       {/* Notification tray — always rendered so ResizeObserver can track height */}
@@ -928,10 +928,10 @@ export default function PetOverlay(): JSX.Element | null {
           onBlur={() => setIsResizeHandleFocused(false)}
           style={{
             position: 'absolute',
-            right: 0,
-            bottom: 0,
-            width: 48,
-            height: 48,
+            right: -2,
+            bottom: -2,
+            width: 24,
+            height: 24,
             borderRadius: 8,
             border: 0,
             padding: 0,

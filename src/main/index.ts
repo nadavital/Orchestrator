@@ -1268,6 +1268,8 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
                 trayCollapsed: false,
                 trayReopened: false,
                 resizeHandleFound: false,
+                resizeHandleCompact: false,
+                overlayRootCursorDefault: false,
                 resizeGripMascotHoverHidden: false,
                 resizeGripHoverVisible: false,
                 resizeGripFocusVisible: false,
@@ -1363,6 +1365,7 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
               const mascot = document.querySelector('[data-avatar-mascot="true"]');
               const handle = document.querySelector('[data-testid="avatar-overlay-resize-handle"]');
               const grip = document.querySelector('[data-testid="avatar-overlay-resize-grip"]');
+              const root = document.body.firstElementChild;
               if (mascot instanceof HTMLElement) {
                 const rect = mascot.getBoundingClientRect();
                 const eventInit = {
@@ -1396,8 +1399,11 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
               if (handle instanceof HTMLElement) handle.focus({ preventScroll: true });
               await sleep(140);
               const focusOpacity = grip ? Number.parseFloat(getComputedStyle(grip).opacity || '0') : 0;
+              const handleRect = handle instanceof HTMLElement ? handle.getBoundingClientRect() : null;
               return {
                 resizeHandleFound: handle instanceof HTMLElement,
+                resizeHandleCompact: Boolean(handleRect && handleRect.width <= 28 && handleRect.height <= 28),
+                overlayRootCursorDefault: root instanceof HTMLElement && getComputedStyle(root).cursor !== 'nwse-resize',
                 resizeGripMascotHoverHidden: mascotHoverOpacity < 0.2,
                 resizeGripHoverVisible: hoverOpacity > 0.5,
                 resizeGripFocusVisible: focusOpacity > 0.5

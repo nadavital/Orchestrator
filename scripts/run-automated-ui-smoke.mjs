@@ -209,6 +209,8 @@ child.on('exit', (code) => {
         trayCollapsed: result.trayCollapsed === true,
         trayReopened: result.trayReopened === true,
         resizeHandleFound: result.resizeHandleFound === true,
+        resizeHandleCompact: result.resizeHandleCompact === true,
+        overlayRootCursorDefault: result.overlayRootCursorDefault === true,
         resizeGripMascotHoverHidden: result.resizeGripMascotHoverHidden === true,
         resizeGripHoverVisible: result.resizeGripHoverVisible === true,
         resizeGripFocusVisible: result.resizeGripFocusVisible === true,
