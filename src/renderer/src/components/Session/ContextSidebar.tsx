@@ -46,6 +46,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
     closeRightPanelTab,
     moveRightPanelTab,
     setRightPanelBrowserUrl,
+    setRightPanelBrowserWorkbench,
     closeSideChat,
     openSideChat,
     closeRightPanel
@@ -281,7 +282,9 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           <BrowserPanel
             embedded
             initialUrl={ui?.browserUrl ?? ''}
+            browserState={ui?.browserWorkbench}
             onUrlChange={(url) => setRightPanelBrowserUrl(session.id, url)}
+            onBrowserStateChange={(patch) => setRightPanelBrowserWorkbench(session.id, patch)}
           />
         )}
         {effectiveTab === 'files' && <FilesPanel workDir={session.workDir} embedded />}

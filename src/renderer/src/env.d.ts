@@ -57,6 +57,13 @@ export interface AppProfile {
   forceReducedMotion: boolean
 }
 
+export interface FilePreviewResult {
+  kind: 'text' | 'image' | 'pdf' | 'binary' | 'missing' | 'unreadable'
+  size?: number
+  text?: string
+  truncated: boolean
+}
+
 export type SessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
@@ -177,6 +184,7 @@ declare global {
       fs: {
         resolveHome: () => Promise<string>
         readFile: (filePath: string) => Promise<string | null>
+        previewFile: (filePath: string) => Promise<FilePreviewResult>
         writeFile: (filePath: string, content: string) => Promise<void>
         listDir: (dirPath: string) => Promise<string[] | null>
         statPath: (filePath: string) => Promise<{ exists: boolean; isFile?: boolean; isDirectory?: boolean; size?: number }>

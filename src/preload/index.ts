@@ -47,6 +47,13 @@ interface ChromeTheme {
   }
 }
 
+interface FilePreviewResult {
+  kind: 'text' | 'image' | 'pdf' | 'binary' | 'missing' | 'unreadable'
+  size?: number
+  text?: string
+  truncated: boolean
+}
+
 interface AppProfile {
   name: string
   displayName: string
@@ -209,6 +216,7 @@ const api = {
   fs: {
     resolveHome: (): Promise<string> => ipcRenderer.invoke('fs:resolveHome'),
     readFile: (filePath: string): Promise<string | null> => ipcRenderer.invoke('fs:readFile', filePath),
+    previewFile: (filePath: string): Promise<FilePreviewResult> => ipcRenderer.invoke('fs:previewFile', filePath),
     writeFile: (filePath: string, content: string): Promise<void> => ipcRenderer.invoke('fs:writeFile', filePath, content),
     listDir: (dirPath: string): Promise<string[] | null> => ipcRenderer.invoke('fs:listDir', dirPath),
     statPath: (filePath: string): Promise<{ exists: boolean; isFile?: boolean; isDirectory?: boolean; size?: number }> =>

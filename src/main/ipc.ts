@@ -1,8 +1,8 @@
 import type { IpcMain } from 'electron'
 import { dialog, app, shell } from 'electron'
 import { execFile } from 'child_process'
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
-import { basename, dirname } from 'path'
+import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
+import { basename, dirname, extname } from 'path'
 import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, PerformanceMetric, TranscriptPageRequest } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -22,6 +22,18 @@ import { performanceSnapshot, recordPerformanceMetric, resetPerformanceMetrics }
 import { providerManifests } from './providerManifest'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+type FilePreviewResult =
+  | { kind: 'text'; size: number; text: string; truncated: boolean }
+  | { kind: 'image' | 'pdf' | 'binary'; size: number; truncated: boolean }
+  | { kind: 'missing' | 'unreadable'; size?: number; truncated: false }
+
+const FILE_PREVIEW_LIMIT = 80_000
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
+const BINARY_EXTENSIONS = new Set([
+  '.bin', '.exe', '.dmg', '.zip', '.gz', '.tgz', '.br', '.7z', '.mp4', '.mov', '.mp3',
+  '.wav', '.aiff', '.woff', '.woff2', '.ttf', '.otf', '.ico', '.icns', '.wasm', '.sqlite',
+  '.db', '.jar', '.class', '.so', '.dylib'
+])
 
 const EDITOR_APPS: Record<Exclude<PreferredEditor, 'system'>, { label: string; macAppName: string }> = {
   vscode: { label: 'VS Code', macAppName: 'Visual Studio Code' },
@@ -34,6 +46,50 @@ function normalizePreferredEditor(value: unknown): PreferredEditor {
   return value === 'vscode' || value === 'vscode-insiders' || value === 'cursor' || value === 'zed'
     ? value
     : 'system'
+}
+
+function previewFile(filePath: string): FilePreviewResult {
+  try {
+    if (!existsSync(filePath)) return { kind: 'missing', truncated: false }
+    const stat = statSync(filePath)
+    if (!stat.isFile()) return { kind: 'unreadable', size: stat.size, truncated: false }
+    const size = stat.size
+    const extension = extname(filePath).toLowerCase()
+    if (IMAGE_EXTENSIONS.has(extension)) return { kind: 'image', size, truncated: false }
+    if (extension === '.pdf') return { kind: 'pdf', size, truncated: false }
+    if (BINARY_EXTENSIONS.has(extension)) return { kind: 'binary', size, truncated: false }
+
+    const byteCount = Math.min(size, FILE_PREVIEW_LIMIT)
+    const buffer = Buffer.alloc(byteCount)
+    const fd = openSync(filePath, 'r')
+    try {
+      readSync(fd, buffer, 0, byteCount, 0)
+    } finally {
+      closeSync(fd)
+    }
+    if (looksBinary(buffer)) return { kind: 'binary', size, truncated: false }
+    return {
+      kind: 'text',
+      size,
+      text: buffer.toString('utf8'),
+      truncated: size > FILE_PREVIEW_LIMIT
+    }
+  } catch {
+    return { kind: 'unreadable', truncated: false }
+  }
+}
+
+function looksBinary(buffer: Buffer): boolean {
+  if (buffer.length === 0) return false
+  let suspicious = 0
+  const sampleLength = Math.min(buffer.length, 4096)
+  for (let index = 0; index < sampleLength; index += 1) {
+    const byte = buffer[index]
+    if (byte === 0) return true
+    const allowedControl = byte === 7 || byte === 8 || byte === 9 || byte === 10 || byte === 12 || byte === 13 || byte === 27
+    if (byte < 32 && !allowedControl) suspicious += 1
+  }
+  return suspicious / sampleLength > 0.08
 }
 
 async function openPathWithPreferredEditor(filePath: string): Promise<string> {
@@ -200,6 +256,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('fs:readFile', (_, filePath: string): string | null => {
     try { return readFileSync(filePath, 'utf-8') } catch { return null }
   })
+  ipcMain.handle('fs:previewFile', (_, filePath: string): FilePreviewResult => previewFile(filePath))
   ipcMain.handle('fs:writeFile', (_, filePath: string, content: string): void => {
     mkdirSync(dirname(filePath), { recursive: true })
     writeFileSync(filePath, content, 'utf-8')

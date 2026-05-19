@@ -512,6 +512,7 @@
     border-radius: var(--radius-md);
     background: transparent;
     color: var(--text-secondary);
+    cursor: pointer;
     padding: 0 10px;
     font-size: 12px;
     font-weight: 620;
@@ -540,8 +541,11 @@
     width: 17px;
     height: 17px;
     place-items: center;
+    border: 0;
     border-radius: var(--radius-sm);
+    background: transparent;
     color: var(--text-tertiary);
+    padding: 0;
     transition:
       background-color var(--motion-duration-edge) var(--motion-ease-standard),
       color var(--motion-duration-edge) var(--motion-ease-standard);

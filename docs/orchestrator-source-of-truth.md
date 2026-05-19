@@ -300,9 +300,9 @@ Each task below must end with evidence in this file. Prefer exact command names,
 | V-026 | Sidebar live-transition smoke landed. | `Complete` | Sidebar smoke drives a pinned chat through running and completed/unread states and verifies its pin order remains stable. |
 | V-027 | Transcript polish gate re-verified. | `Complete` | `transcript-stress`, `session-switch`, and `scroll` smokes passed, covering long-thread virtualization, lazy hydration, search jump, session switching, and manual-scroll behavior during streaming. |
 | V-028 | Packaged pet-overlay smoke passed. | `Complete` | `npm run pack:mac`, `npm run smoke:ui:auto -- --packaged --pet-overlay`, and packaged resource listing verified bundled pet atlases and packaged overlay behavior. |
-| V-029 | Right-panel tab menu and reorder landed. | `Complete` | Inspector smoke verifies the right-panel tab context menu and persisted tab order changes. |
-| V-030 | Browser workbench controls landed. | `Complete` | Inspector smoke verifies in-page find, zoom, mobile preview, cache reload, screenshot, and embedded local page loading. |
-| V-031 | Files tab binary/empty-state coverage landed. | `Complete` | Inspector smoke verifies text preview, binary preview fallback, no-results state, and add-to-chat from the Files tab. |
+| V-029 | Right-panel tab menu and reorder landed. | `Complete` | Inspector smoke verifies the right-panel tab context menu and active tab order changes. |
+| V-030 | Browser workbench controls landed. | `Complete` | Inspector smoke verifies real in-page find matches, zoom state, mobile viewport width, completed cache reload, screenshot, and embedded local page loading. |
+| V-031 | Files tab binary/empty-state coverage landed. | `Complete` | Inspector smoke verifies bounded preview loading, binary preview fallback, no-results state clearing the stale preview/actions, and add-to-chat from the Files tab. |
 
 ### Codex Parity Matrix
 
@@ -728,9 +728,9 @@ When implementing against this plan:
 - Sidebar live-transition checkpoint: the sidebar smoke now drives a pinned row from running to completed/unread while another chat is pinned, and verifies the spinner, completion dot, and pinned order remain stable.
 - Transcript polish gate checkpoint: `npm run smoke:ui:auto -- --transcript-stress`, `npm run smoke:ui:auto -- --session-switch`, and `npm run smoke:ui:auto -- --scroll` passed as the long-thread/session-switch/streaming-scroll verification set.
 - Packaged pet-overlay checkpoint: `npm run pack:mac` rebuilt the packaged app, `npm run smoke:ui:auto -- --packaged --pet-overlay` passed in a renamed temp bundle, and packaged resources include ditto/orchestrator/pika/psyduck `pet.json` plus `spritesheet.webp`.
-- Right-panel tab shell checkpoint: the right-panel tab strip now follows persisted tab order, exposes a context menu with move-left/move-right/close actions, and inspector smoke verifies the browser/files tab order changes after moving Browser left.
-- Browser workbench checkpoint: Browser tab controls now include in-page find, zoom in/out/reset, desktop/mobile preview, and reload without cache; inspector smoke verifies find focus/query, zoom state, mobile mode, cache reload, screenshot, and local embedded page load.
-- Files workbench checkpoint: Files tab now renders image previews, PDF/system-viewer fallback copy, binary fallback copy, and text previews without trying to decode known binary extensions; inspector smoke verifies text preview, binary fallback, no-results state, and add-to-chat.
+- Right-panel tab shell checkpoint: the right-panel tab strip now follows stored tab order, exposes a context menu with move-left/move-right/close actions, and inspector smoke verifies the browser/files active order changes after moving Browser left.
+- Browser workbench checkpoint: Browser tab controls now include persisted in-page find, zoom in/out/reset, desktop/mobile preview, and reload without cache; webview popups are denied/externalized by the main process. Inspector smoke verifies real find matches, zoom state, mobile viewport width, cache reload completion, screenshot, and local embedded page load.
+- Files workbench checkpoint: Files tab now renders image previews, PDF/system-viewer fallback copy, binary fallback copy, and bounded text previews through a preview IPC that sniffs extensionless binaries before decoding; inspector smoke verifies text preview, binary fallback, no-results state without a stale preview/action, and add-to-chat.
 
 ### 2026-05-18
 

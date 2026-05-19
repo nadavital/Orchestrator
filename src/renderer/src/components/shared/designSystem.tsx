@@ -342,17 +342,24 @@ export function TabButton({
   closeLabel?: string
 }): JSX.Element {
   return (
-    <button
-      type="button"
+    <div
+      role="tab"
+      tabIndex={0}
+      aria-selected={active}
       data-active={active ? 'true' : 'false'}
       className="motion-tab-button"
       onClick={onClick}
       onContextMenu={onContextMenu}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onClick()
+      }}
     >
       <span className="min-w-0 truncate">{children}</span>
       {active && onClose && (
-        <span
-          role="button"
+        <button
+          type="button"
           aria-label={closeLabel}
           title={closeLabel}
           className="motion-tab-close"
@@ -362,9 +369,9 @@ export function TabButton({
           }}
         >
           <Icon name="close" size={11} />
-        </span>
+        </button>
       )}
-    </button>
+    </div>
   )
 }
 

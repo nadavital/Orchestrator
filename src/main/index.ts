@@ -147,6 +147,62 @@ function installBrokenPipeGuards(): void {
 
 installBrokenPipeGuards()
 
+function installWebviewGuards(): void {
+  app.on('web-contents-created', (_event, contents) => {
+    contents.on('will-attach-webview', (event, webPreferences, params) => {
+      const src = typeof params.src === 'string' ? params.src : ''
+      if (!isAllowedWebviewNavigation(src)) {
+        event.preventDefault()
+        return
+      }
+      webPreferences.nodeIntegration = false
+      webPreferences.contextIsolation = true
+      webPreferences.sandbox = true
+      webPreferences.allowRunningInsecureContent = false
+      webPreferences.plugins = false
+      params.allowpopups = 'false'
+    })
+
+    if (contents.getType() !== 'webview') return
+
+    contents.setWindowOpenHandler(({ url }) => {
+      openExternalIfAllowed(url)
+      return { action: 'deny' }
+    })
+    contents.on('will-navigate', (event, url) => {
+      if (isAllowedWebviewNavigation(url)) return
+      event.preventDefault()
+      openExternalIfAllowed(url)
+    })
+    contents.session.setPermissionRequestHandler((_webContents, _permission, callback) => {
+      callback(false)
+    })
+  })
+}
+
+function isAllowedWebviewNavigation(rawUrl: string): boolean {
+  if (!rawUrl || rawUrl === 'about:blank') return true
+  try {
+    const url = new URL(rawUrl)
+    return ['http:', 'https:', 'file:', 'about:'].includes(url.protocol)
+  } catch {
+    return false
+  }
+}
+
+function openExternalIfAllowed(rawUrl: string): void {
+  try {
+    const url = new URL(rawUrl)
+    if (['http:', 'https:', 'mailto:'].includes(url.protocol)) {
+      void shell.openExternal(rawUrl)
+    }
+  } catch {
+    // Ignore malformed popup targets from guest contents.
+  }
+}
+
+installWebviewGuards()
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -475,7 +531,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
               await sleep(120);
             }
-            var filesNoResultsWorks = document.body.innerText.includes('No files in this folder');
+            var filesNoResultsWorks =
+              document.body.innerText.includes('No matching files') &&
+              !document.querySelector('[data-testid="workspace-text-preview"]') &&
+              (addFileButton instanceof HTMLButtonElement ? addFileButton.disabled : true);
             const browserButton = [...document.querySelectorAll('button')]
               .find((button) => button.getAttribute('title') === 'Open browser');
             if (browserButton instanceof HTMLButtonElement) {
@@ -514,8 +573,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 const setter = Object.getOwnPropertyDescriptor(findInput.constructor.prototype, 'value')?.set;
                 setter?.call(findInput, 'Browser');
                 findInput.dispatchEvent(new Event('input', { bubbles: true }));
-                await sleep(120);
-                browserFindWorks = document.activeElement === findInput && findInput.value === 'Browser';
+                for (let index = 0; index < 20; index += 1) {
+                  const matches = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-matches') ?? '0');
+                  if (matches > 0) break;
+                  await sleep(100);
+                }
+                browserFindWorks =
+                  document.activeElement === findInput &&
+                  findInput.value === 'Browser' &&
+                  Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-matches') ?? '0') > 0;
               }
             }
             const zoomInButton = [...document.querySelectorAll('button')]
@@ -532,20 +598,26 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               mobilePreviewButton.click();
               await sleep(120);
             }
+            const browserViewportFrame = document.querySelector('[data-testid="browser-viewport-frame"]');
             var browserDeviceModeWorks =
-              document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'mobile';
+              document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'mobile' &&
+              browserViewportFrame instanceof HTMLElement &&
+              browserViewportFrame.getBoundingClientRect().width <= 410;
             const noCacheButton = [...document.querySelectorAll('button')]
               .find((button) => button.getAttribute('title') === 'Reload without cache');
             if (noCacheButton instanceof HTMLButtonElement) {
               noCacheButton.click();
-              await sleep(120);
+              for (let index = 0; index < 30; index += 1) {
+                if (Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-cache-reloads') ?? '0') > 0) break;
+                await sleep(100);
+              }
             }
             var browserCacheReloadWorks =
               Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-cache-reloads') ?? '0') > 0;
-            const browserTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('button');
+            const browserTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
             var rightPanelContextMenuWorks = false;
             var rightPanelTabReorderWorks = false;
-            if (browserTabButton instanceof HTMLButtonElement) {
+            if (browserTabButton instanceof HTMLElement) {
               const beforeOrder = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
               browserTabButton.dispatchEvent(new MouseEvent('contextmenu', {
                 bubbles: true,
@@ -593,8 +665,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var sideChatCloseWorks =
               sideChatTabsWork &&
               document.querySelectorAll('[data-tab-id^="sidechat:"]').length === sideChatTabsBeforeClose - 1;
-            const changesTabButton = document.querySelector('[data-tab-id="diff"]')?.closest('button');
-            if (changesTabButton instanceof HTMLButtonElement) {
+            const changesTabButton = document.querySelector('[data-tab-id="diff"]')?.closest('[role="tab"]');
+            if (changesTabButton instanceof HTMLElement) {
               changesTabButton.click();
               await sleep(120);
             }
@@ -986,7 +1058,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
         if (running) sessionManager.updateStatus(running.id, 'running')
         const pinnedLive = sessions.find((session) => session.name === 'Sidebar pinned older')
         if (pinnedLive) {
-          setTimeout(() => sessionManager.updateStatus(pinnedLive.id, 'running'), 700)
+          setTimeout(() => sessionManager.updateStatus(pinnedLive.id, 'running'), 1800)
           setTimeout(() => {
             sessionManager.appendMessage(pinnedLive.id, [{
               id: `sidebar-live-transition-${Date.now()}`,
@@ -996,7 +1068,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               timestamp: Date.now()
             }])
             sessionManager.updateStatus(pinnedLive.id, 'idle')
-          }, 1050)
+          }, 4300)
         }
         const result = await win.webContents.executeJavaScript(`
           (async () => {

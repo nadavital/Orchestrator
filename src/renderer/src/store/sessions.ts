@@ -21,6 +21,13 @@ export interface RightPanelState {
   tabs: RightPanelTabState[]
 }
 
+export interface BrowserWorkbenchState {
+  findVisible: boolean
+  findQuery: string
+  zoomFactor: number
+  deviceMode: 'desktop' | 'mobile'
+}
+
 export interface SideQuestionMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -59,6 +66,7 @@ interface SessionUIState {
   sideChats?: SideChatThread[]
   activeSideChatId?: string | null
   browserUrl?: string
+  browserWorkbench?: BrowserWorkbenchState
   terminalPanel?: TerminalPanelState
   rightPanel?: RightPanelState
 }
@@ -119,6 +127,7 @@ interface SessionState {
   closeRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   moveRightPanelTab: (id: string, tabId: RightPanelTabId, direction: 'left' | 'right') => void
   setRightPanelBrowserUrl: (id: string, url: string) => void
+  setRightPanelBrowserWorkbench: (id: string, patch: Partial<BrowserWorkbenchState>) => void
   closeRightPanel: (id: string) => void
   setTerminalHeight: (id: string, height: number) => void
   addTerminalTab: (id: string) => number
@@ -152,6 +161,12 @@ const defaultUI: SessionUIState = {
   sideChats: [],
   activeSideChatId: null,
   browserUrl: '',
+  browserWorkbench: {
+    findVisible: false,
+    findQuery: '',
+    zoomFactor: 1,
+    deviceMode: 'desktop'
+  },
   terminalPanel: {
     height: 260,
     tabs: [0],
@@ -616,6 +631,23 @@ export const useSessionStore = create<SessionState>((set) => ({
           [id]: {
             ...current,
             browserUrl: url
+          }
+        }
+      }
+    }),
+
+  setRightPanelBrowserWorkbench: (id, patch) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            browserWorkbench: {
+              ...(current.browserWorkbench ?? defaultUI.browserWorkbench!),
+              ...patch
+            }
           }
         }
       }

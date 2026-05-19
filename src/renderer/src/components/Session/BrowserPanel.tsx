@@ -1,4 +1,5 @@
 import { createElement, useEffect, useRef, useState } from 'react'
+import type { BrowserWorkbenchState } from '../../store/sessions'
 import { Badge, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
@@ -6,6 +7,8 @@ interface Props {
   initialUrl?: string
   embedded?: boolean
   onUrlChange?: (url: string) => void
+  browserState?: BrowserWorkbenchState
+  onBrowserStateChange?: (patch: Partial<BrowserWorkbenchState>) => void
 }
 
 type WebviewElement = HTMLElement & {
@@ -21,14 +24,16 @@ type WebviewElement = HTMLElement & {
   findInPage: (text: string) => number
   stopFindInPage: (action: 'clearSelection' | 'keepSelection' | 'activateSelection') => void
   setZoomFactor: (factor: number) => void
+  getZoomFactor?: () => number
   capturePage: () => Promise<{ toDataURL: () => string }>
 }
 
 const QUICK_URLS = ['http://localhost:5173', 'http://127.0.0.1:8787']
 const ZOOM_STEP = 0.1
 
-export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlChange }: Props): JSX.Element {
+export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlChange, browserState, onBrowserStateChange }: Props): JSX.Element {
   const webviewRef = useRef<WebviewElement | null>(null)
+  const pendingCacheReloadRef = useRef(false)
   const [address, setAddress] = useState(initialUrl)
   const [currentUrl, setCurrentUrl] = useState(initialUrl)
   const [title, setTitle] = useState('')
@@ -37,16 +42,26 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
   const [canGoForward, setCanGoForward] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [screenshot, setScreenshot] = useState<string | null>(null)
-  const [findVisible, setFindVisible] = useState(false)
-  const [findQuery, setFindQuery] = useState('')
-  const [zoomFactor, setZoomFactor] = useState(1)
-  const [deviceMode, setDeviceMode] = useState<'desktop' | 'mobile'>('desktop')
+  const [findVisible, setFindVisible] = useState(browserState?.findVisible ?? false)
+  const [findQuery, setFindQuery] = useState(browserState?.findQuery ?? '')
+  const [findMatches, setFindMatches] = useState(0)
+  const [zoomFactor, setZoomFactor] = useState(browserState?.zoomFactor ?? 1)
+  const [deviceMode, setDeviceMode] = useState<'desktop' | 'mobile'>(browserState?.deviceMode ?? 'desktop')
   const [cacheReloadCount, setCacheReloadCount] = useState(0)
 
   useEffect(() => {
     setAddress(initialUrl)
     setCurrentUrl(initialUrl)
   }, [initialUrl])
+
+  useEffect(() => {
+    if (!browserState) return
+    setFindVisible(browserState.findVisible)
+    setFindQuery(browserState.findQuery)
+    setZoomFactor(browserState.zoomFactor)
+    setDeviceMode(browserState.deviceMode)
+    webviewRef.current?.setZoomFactor(browserState.zoomFactor)
+  }, [browserState?.deviceMode, browserState?.findQuery, browserState?.findVisible, browserState?.zoomFactor])
 
   useEffect(() => {
     const webview = webviewRef.current
@@ -69,7 +84,13 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
     }
     const stopLoading = (): void => {
       setIsLoading(false)
+      if (pendingCacheReloadRef.current) {
+        pendingCacheReloadRef.current = false
+        setCacheReloadCount((count) => count + 1)
+      }
       updateNavigationState()
+      webview.setZoomFactor?.(zoomFactor)
+      if (findQuery.trim()) webview.findInPage?.(findQuery)
     }
     const failLoad = (event: Event): void => {
       const detail = event as Event & { errorDescription?: string; validatedURL?: string }
@@ -82,6 +103,10 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
       const detail = event as Event & { title?: string }
       setTitle(detail.title ?? webview.getTitle?.() ?? '')
     }
+    const foundInPage = (event: Event): void => {
+      const detail = event as Event & { result?: { matches?: number } }
+      setFindMatches(detail.result?.matches ?? 0)
+    }
 
     webview.addEventListener('did-start-loading', startLoading)
     webview.addEventListener('did-stop-loading', stopLoading)
@@ -89,6 +114,7 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
     webview.addEventListener('did-navigate-in-page', updateNavigationState)
     webview.addEventListener('did-fail-load', failLoad)
     webview.addEventListener('page-title-updated', titleUpdated)
+    webview.addEventListener('found-in-page', foundInPage)
     return () => {
       webview.removeEventListener('did-start-loading', startLoading)
       webview.removeEventListener('did-stop-loading', stopLoading)
@@ -96,8 +122,9 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
       webview.removeEventListener('did-navigate-in-page', updateNavigationState)
       webview.removeEventListener('did-fail-load', failLoad)
       webview.removeEventListener('page-title-updated', titleUpdated)
+      webview.removeEventListener('found-in-page', foundInPage)
     }
-  }, [currentUrl, onUrlChange])
+  }, [currentUrl, findQuery, onUrlChange, zoomFactor])
 
   const navigate = (raw: string): void => {
     const nextUrl = normalizeUrl(raw)
@@ -118,6 +145,8 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
 
   const searchInPage = (query: string): void => {
     setFindQuery(query)
+    setFindMatches(0)
+    onBrowserStateChange?.({ findQuery: query })
     if (!query.trim()) {
       webviewRef.current?.stopFindInPage('clearSelection')
       return
@@ -128,23 +157,44 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
   const closeFind = (): void => {
     setFindVisible(false)
     setFindQuery('')
+    setFindMatches(0)
+    onBrowserStateChange?.({ findVisible: false, findQuery: '' })
     webviewRef.current?.stopFindInPage('clearSelection')
+  }
+
+  const setFindPanelVisible = (visible: boolean): void => {
+    setFindVisible(visible)
+    onBrowserStateChange?.({ findVisible: visible })
+    if (!visible) closeFind()
   }
 
   const changeZoom = (delta: number): void => {
     const nextZoom = Math.max(0.5, Math.min(2, Number((zoomFactor + delta).toFixed(2))))
     setZoomFactor(nextZoom)
     webviewRef.current?.setZoomFactor(nextZoom)
+    window.setTimeout(() => {
+      const appliedZoom = Number(webviewRef.current?.getZoomFactor?.() ?? nextZoom)
+      setZoomFactor(appliedZoom)
+      onBrowserStateChange?.({ zoomFactor: appliedZoom })
+    }, 0)
+    onBrowserStateChange?.({ zoomFactor: nextZoom })
   }
 
   const resetZoom = (): void => {
     setZoomFactor(1)
     webviewRef.current?.setZoomFactor(1)
+    onBrowserStateChange?.({ zoomFactor: 1 })
   }
 
   const reloadWithoutCache = (): void => {
-    setCacheReloadCount((count) => count + 1)
+    pendingCacheReloadRef.current = true
     webviewRef.current?.reloadIgnoringCache?.()
+  }
+
+  const toggleDeviceMode = (): void => {
+    const nextMode = deviceMode === 'desktop' ? 'mobile' : 'desktop'
+    setDeviceMode(nextMode)
+    onBrowserStateChange?.({ deviceMode: nextMode })
   }
 
   const openExternal = (): void => {
@@ -159,7 +209,6 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
         },
         src: currentUrl,
         partition: 'persist:orchestrator-side-browser',
-        allowpopups: 'true',
         'data-testid': 'browser-webview',
         style: {
           flex: 1,
@@ -177,6 +226,7 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
       data-browser-zoom={zoomFactor.toFixed(2)}
       data-browser-device-mode={deviceMode}
       data-browser-cache-reloads={cacheReloadCount}
+      data-browser-find-matches={findMatches}
       style={{
         width: embedded ? '100%' : 440,
         height: embedded ? '100%' : undefined,
@@ -209,7 +259,7 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
             style={{ color: 'var(--text-primary)' }}
           />
         </div>
-        <ToolbarButton icon="search" label="Find in page" disabled={!currentUrl} active={findVisible} onClick={() => setFindVisible((value) => !value)} />
+        <ToolbarButton icon="search" label="Find in page" disabled={!currentUrl} active={findVisible} onClick={() => setFindPanelVisible(!findVisible)} />
         <ToolbarButton icon="zoomOut" label="Zoom out" disabled={!currentUrl || zoomFactor <= 0.5} onClick={() => changeZoom(-ZOOM_STEP)} />
         <button
           type="button"
@@ -227,7 +277,7 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
           label={deviceMode === 'desktop' ? 'Mobile preview' : 'Desktop preview'}
           disabled={!currentUrl}
           active={deviceMode === 'mobile'}
-          onClick={() => setDeviceMode((mode) => mode === 'desktop' ? 'mobile' : 'desktop')}
+          onClick={toggleDeviceMode}
         />
         <ToolbarButton icon="camera" label="Capture screenshot" disabled={!currentUrl || isLoading} onClick={captureScreenshot} />
         <ToolbarButton icon="external" label="Open in external browser" disabled={!currentUrl} onClick={openExternal} />
@@ -244,6 +294,11 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
             className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
             style={{ color: 'var(--text-primary)', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
           />
+          {findQuery.trim() && (
+            <span className="min-w-8 text-right text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+              {findMatches}
+            </span>
+          )}
           <ToolbarButton icon="close" label="Close find" onClick={closeFind} />
         </div>
       )}
@@ -270,6 +325,7 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
       {currentUrl ? (
         <div className="flex min-h-0 flex-1 justify-center overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
           <div
+            data-testid="browser-viewport-frame"
             className="flex min-h-0 flex-1 overflow-hidden"
             style={{
               maxWidth: deviceMode === 'mobile' ? 390 : '100%',

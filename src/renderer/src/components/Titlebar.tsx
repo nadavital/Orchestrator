@@ -14,10 +14,7 @@ export default function Titlebar(): JSX.Element {
     uiState,
     setShowTerminal,
     setShowDiff,
-    setShowEvents,
-    setShowExtensions,
-    setShowPlan,
-    setShowSideQuestions
+    closeRightPanel
   } = useSessionStore()
   const { projects, removeSessionFromProject } = useProjectStore()
   const session = sessions.find((s) => s.id === activeSessionId)
@@ -52,15 +49,18 @@ export default function Titlebar(): JSX.Element {
     }
   }, [session?.workDir])
 
-  const inspectorOpen = Boolean(ui?.showDiff || ui?.showPlan || ui?.showEvents || ui?.showSideQuestions)
+  const inspectorOpen = Boolean(
+    ui?.rightPanel?.open ||
+    ui?.showDiff ||
+    ui?.showPlan ||
+    ui?.showEvents ||
+    ui?.showExtensions ||
+    ui?.showSideQuestions
+  )
   const toggleInspector = (): void => {
     if (!activeSessionId) return
     if (inspectorOpen) {
-      setShowDiff(activeSessionId, false)
-      setShowPlan(activeSessionId, false)
-      setShowEvents(activeSessionId, false)
-      setShowExtensions(activeSessionId, false)
-      setShowSideQuestions(activeSessionId, false)
+      closeRightPanel(activeSessionId)
     } else {
       setShowDiff(activeSessionId, true)
     }

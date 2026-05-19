@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { FilePreviewResult } from '../../env'
 import { Badge, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
@@ -16,32 +17,30 @@ interface WorkspaceFileEntry {
 }
 
 const MAX_WORKSPACE_ENTRIES = 360
-const PREVIEW_LIMIT = 80_000
-type PreviewKind = 'text' | 'image' | 'pdf' | 'binary'
 
 export default function FilesPanel({ workDir, embedded = false }: Props): JSX.Element {
   const [entries, setEntries] = useState<WorkspaceFileEntry[]>([])
   const [query, setQuery] = useState('')
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
+  const [preview, setPreview] = useState<FilePreviewResult | null>(null)
   const [loading, setLoading] = useState(true)
-  const selectedEntry = selectedPath ? entries.find((entry) => entry.path === selectedPath) ?? null : null
-  const selectedPreviewKind = selectedEntry?.kind === 'file' ? previewKindForPath(selectedEntry.path) : 'text'
   const filteredEntries = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     return normalized
       ? entries.filter((entry) => entry.path.toLowerCase().includes(normalized))
       : entries
   }, [entries, query])
+  const selectedEntry = selectedPath ? filteredEntries.find((entry) => entry.path === selectedPath) ?? null : null
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setPreview(null)
     collectWorkspaceEntries(workDir)
       .then((nextEntries) => {
         if (cancelled) return
         setEntries(nextEntries)
-        setSelectedPath((current) => current ?? nextEntries.find((entry) => entry.kind === 'file')?.path ?? null)
+        setSelectedPath(nextEntries.find((entry) => entry.kind === 'file')?.path ?? null)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -52,38 +51,44 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
   }, [workDir])
 
   useEffect(() => {
-    if (!selectedPath || selectedEntry?.kind !== 'file' || selectedPreviewKind !== 'text') {
+    if (selectedPath && !filteredEntries.some((entry) => entry.path === selectedPath)) {
+      setSelectedPath(null)
+    }
+  }, [filteredEntries, selectedPath])
+
+  useEffect(() => {
+    if (!selectedPath || selectedEntry?.kind !== 'file') {
       setPreview(null)
       return
     }
     let cancelled = false
     setPreview(null)
-    window.api.fs.readFile(joinPath(workDir, selectedPath))
-      .then((content) => {
+    window.api.fs.previewFile(joinPath(workDir, selectedPath))
+      .then((result) => {
         if (cancelled) return
-        setPreview(content == null ? null : content.slice(0, PREVIEW_LIMIT))
+        setPreview(result)
       })
       .catch(() => {
-        if (!cancelled) setPreview(null)
+        if (!cancelled) setPreview({ kind: 'unreadable', truncated: false })
       })
     return () => {
       cancelled = true
     }
-  }, [selectedEntry?.kind, selectedPath, selectedPreviewKind, workDir])
+  }, [selectedEntry?.kind, selectedPath, workDir])
 
   const openSelected = (): void => {
-    if (!selectedPath) return
-    void window.api.fs.openPath(joinPath(workDir, selectedPath))
+    if (!selectedEntry) return
+    void window.api.fs.openPath(joinPath(workDir, selectedEntry.path))
   }
 
   const revealSelected = (): void => {
-    if (!selectedPath) return
-    void window.api.fs.showInFolder(joinPath(workDir, selectedPath))
+    if (!selectedEntry) return
+    void window.api.fs.showInFolder(joinPath(workDir, selectedEntry.path))
   }
 
   const copySelected = (): void => {
-    if (!selectedPath) return
-    void navigator.clipboard.writeText(selectedPath)
+    if (!selectedEntry) return
+    void navigator.clipboard.writeText(selectedEntry.path)
   }
 
   const addSelectedToChat = (): void => {
@@ -111,9 +116,9 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
         actions={
           <div className="flex items-center gap-1">
             <ToolbarButton icon="paperclip" label="Add file to chat" disabled={selectedEntry?.kind !== 'file'} onClick={addSelectedToChat} />
-            <ToolbarButton icon="copy" label="Copy path" disabled={!selectedPath} onClick={copySelected} />
-            <ToolbarButton icon="folder" label="Reveal file" disabled={!selectedPath} onClick={revealSelected} />
-            <ToolbarButton icon="file" label="Open file" disabled={!selectedPath} onClick={openSelected} />
+            <ToolbarButton icon="copy" label="Copy path" disabled={!selectedEntry} onClick={copySelected} />
+            <ToolbarButton icon="folder" label="Reveal file" disabled={!selectedEntry} onClick={revealSelected} />
+            <ToolbarButton icon="file" label="Open file" disabled={!selectedEntry} onClick={openSelected} />
           </div>
         }
       />
@@ -140,7 +145,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
             </div>
           ) : filteredEntries.length === 0 ? (
             <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              No files in this folder
+              {query.trim() ? 'No matching files' : 'No files in this folder'}
             </div>
           ) : (
             filteredEntries.map((entry) => (
@@ -178,7 +183,6 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
               entry={selectedEntry}
               absolutePath={joinPath(workDir, selectedEntry.path)}
               preview={preview}
-              previewKind={selectedPreviewKind}
             />
           ) : (
             <EmptyFileState title="Nothing selected" body="Choose a workspace file from the list." />
@@ -193,14 +197,15 @@ function FilePreview({
   entry,
   absolutePath,
   preview,
-  previewKind,
 }: {
   entry: WorkspaceFileEntry
   absolutePath: string
-  preview: string | null
-  previewKind: PreviewKind
+  preview: FilePreviewResult | null
 }): JSX.Element {
-  if (previewKind === 'image') {
+  if (!preview) {
+    return <EmptyFileState title={entry.name} body="Loading preview..." />
+  }
+  if (preview.kind === 'image') {
     return (
       <div className="flex h-full min-h-0 items-center justify-center overflow-auto p-3" data-testid="workspace-image-preview">
         <img
@@ -212,20 +217,36 @@ function FilePreview({
       </div>
     )
   }
-  if (previewKind === 'pdf') {
+  if (preview.kind === 'pdf') {
     return <EmptyFileState title={entry.name} body="PDF preview is handled by the system viewer. Use Open file to inspect it." />
   }
-  if (previewKind === 'binary') {
+  if (preview.kind === 'binary') {
     return <EmptyFileState title={entry.name} body="Binary file preview unavailable. Use Open file or Reveal file to inspect it." />
   }
+  if (preview.kind === 'missing') {
+    return <EmptyFileState title={entry.name} body="This file is no longer available in the workspace." />
+  }
+  if (preview.kind === 'unreadable') {
+    return <EmptyFileState title={entry.name} body="Unable to load this file. Use Open file or Reveal file to inspect it." />
+  }
   return (
-    <pre
-      data-testid="workspace-text-preview"
-      className="min-h-full whitespace-pre-wrap break-words p-3 text-xs"
-      style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}
-    >
-      {preview ?? 'Unable to load file'}
-    </pre>
+    <div className="min-h-full">
+      {preview.truncated && (
+        <div
+          className="px-3 py-2 text-[11px]"
+          style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)' }}
+        >
+          Preview limited to the first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
+        </div>
+      )}
+      <pre
+        data-testid="workspace-text-preview"
+        className="min-h-full whitespace-pre-wrap break-words p-3 text-xs"
+        style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}
+      >
+        {preview.text ?? ''}
+      </pre>
+    </div>
   )
 }
 
@@ -269,14 +290,6 @@ function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function previewKindForPath(path: string): PreviewKind {
-  const lower = path.toLowerCase()
-  if (/\.(png|jpe?g|gif|webp|bmp|svg)$/.test(lower)) return 'image'
-  if (/\.pdf$/.test(lower)) return 'pdf'
-  if (/\.(bin|exe|dmg|zip|gz|tgz|br|7z|mp4|mov|mp3|wav|aiff|woff2?|ttf|otf|ico|icns)$/.test(lower)) return 'binary'
-  return 'text'
 }
 
 function fileUrl(path: string): string {
