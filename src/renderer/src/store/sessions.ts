@@ -42,6 +42,7 @@ export interface SideChatThread {
   messages: SideQuestionMessage[]
   createdAt: number
   updatedAt: number
+  draft?: string
   unread?: boolean
 }
 
@@ -118,6 +119,7 @@ interface SessionState {
   updateSideQuestion: (id: string, messageId: string, patch: Partial<SideQuestionMessage>) => void
   openSideChat: (id: string, chatId: string, title?: string) => void
   closeSideChat: (id: string, chatId: string) => void
+  setSideChatDraft: (id: string, chatId: string, draft: string) => void
   appendSideChatMessage: (id: string, chatId: string, message: SideQuestionMessage) => void
   updateSideChatMessage: (id: string, chatId: string, messageId: string, patch: Partial<SideQuestionMessage>) => void
   setShowSideQuestions: (id: string, v: boolean) => void
@@ -132,6 +134,7 @@ interface SessionState {
   setTerminalHeight: (id: string, height: number) => void
   addTerminalTab: (id: string) => number
   setActiveTerminalTab: (id: string, tabId: number) => void
+  moveTerminalTab: (id: string, tabId: number, direction: 'left' | 'right') => void
   closeTerminalTab: (id: string, tabId: number) => void
   setHasUnread: (id: string, v: boolean) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
@@ -468,7 +471,7 @@ export const useSessionStore = create<SessionState>((set) => ({
       const current = s.uiState[id] ?? defaultUI
       const now = Date.now()
       const sideChats = current.sideChats?.some((chat) => chat.id === chatId)
-        ? current.sideChats.map((chat) => chat.id === chatId ? { ...chat, title, updatedAt: now } : chat)
+        ? current.sideChats.map((chat) => chat.id === chatId ? { ...chat, title: chat.title || title, updatedAt: now, unread: false } : chat)
         : [...(current.sideChats ?? []), { id: chatId, title, messages: [], createdAt: now, updatedAt: now }]
       return {
         uiState: {
@@ -501,13 +504,36 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
     }),
 
+  setSideChatDraft: (id, chatId, draft) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            sideChats: ensureSideChatThread(current.sideChats, chatId).map((chat) =>
+              chat.id === chatId ? { ...chat, draft, updatedAt: Date.now() } : chat
+            )
+          }
+        }
+      }
+    }),
+
   appendSideChatMessage: (id, chatId, message) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
       const now = Date.now()
+      const isActive = current.activeSideChatId === chatId && current.rightPanel?.activeTabId === sideChatTabId(chatId)
       const sideChats = ensureSideChatThread(current.sideChats, chatId).map((chat) =>
         chat.id === chatId
-          ? { ...chat, messages: [...chat.messages, message], updatedAt: now, title: sideChatTitle(chat.title, message) }
+          ? {
+              ...chat,
+              messages: [...chat.messages, message],
+              updatedAt: now,
+              title: sideChatTitle(chat.title, message),
+              unread: message.role === 'assistant' && message.status !== 'pending' && !isActive ? true : chat.unread
+            }
           : chat
       )
       return {
@@ -526,6 +552,8 @@ export const useSessionStore = create<SessionState>((set) => ({
   updateSideChatMessage: (id, chatId, messageId, patch) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
+      const isActive = current.activeSideChatId === chatId && current.rightPanel?.activeTabId === sideChatTabId(chatId)
+      const becomesUnread = !isActive && (patch.status === 'complete' || patch.status === 'error')
       return {
         uiState: {
           ...s.uiState,
@@ -536,6 +564,7 @@ export const useSessionStore = create<SessionState>((set) => ({
                 ? {
                     ...chat,
                     updatedAt: Date.now(),
+                    unread: becomesUnread ? true : chat.unread,
                     messages: chat.messages.map((message) =>
                       message.id === messageId ? { ...message, ...patch } : message
                     )
@@ -725,6 +754,20 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
     }),
 
+  moveTerminalTab: (id, tabId, direction) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            terminalPanel: moveTerminalTab(ensureTerminalPanel(current.terminalPanel), tabId, direction)
+          }
+        }
+      }
+    }),
+
   closeTerminalTab: (id, tabId) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
@@ -841,6 +884,24 @@ function ensureTerminalPanel(panel?: TerminalPanelState): TerminalPanelState {
     activeTabId,
     nextTabId: Math.max(panel?.nextTabId ?? 1, Math.max(...tabs) + 1)
   }
+}
+
+function moveTerminalTab(
+  panel: TerminalPanelState,
+  id: number,
+  direction: 'left' | 'right'
+): TerminalPanelState {
+  const index = panel.tabs.findIndex((tabId) => tabId === id)
+  if (index === -1) return panel
+  const nextIndex = direction === 'left'
+    ? Math.max(0, index - 1)
+    : Math.min(panel.tabs.length - 1, index + 1)
+  if (nextIndex === index) return panel
+  const tabs = [...panel.tabs]
+  const [tab] = tabs.splice(index, 1)
+  if (tab === undefined) return panel
+  tabs.splice(nextIndex, 0, tab)
+  return { ...panel, tabs }
 }
 
 function rightPanelTab(id: RightPanelTabId): RightPanelTabState {

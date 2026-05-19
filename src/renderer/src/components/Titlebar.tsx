@@ -183,6 +183,8 @@ export default function Titlebar(): JSX.Element {
 
       {/* Right: toggle buttons — no-drag */}
       <div
+        data-testid="titlebar-actions"
+        data-header-actions="folder,project,session,provider-session,branch"
         className="flex items-center gap-2 px-3"
         style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
       >
@@ -192,6 +194,7 @@ export default function Titlebar(): JSX.Element {
               icon="ellipsis"
               label="Chat actions"
               active={menuPoint !== null}
+              dataTestId="titlebar-chat-actions"
               onClick={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect()
                 setMenuPoint({ x: rect.right - 196, y: rect.bottom + 6 })
@@ -217,6 +220,8 @@ export default function Titlebar(): JSX.Element {
           session={session}
           x={menuPoint.x}
           y={menuPoint.y}
+          projectRoot={project?.rootPath}
+          branch={branchLabel}
           onClose={() => setMenuPoint(null)}
           onRemove={removeActiveSession}
         />

@@ -157,6 +157,7 @@ interface IconButtonProps {
   className?: string
   style?: CSSProperties
   tooltip?: boolean
+  dataTestId?: string
 }
 
 export function IconButton({
@@ -170,6 +171,7 @@ export function IconButton({
   className = '',
   style,
   tooltip = true,
+  dataTestId,
 }: IconButtonProps): JSX.Element {
   const button = (
     <button
@@ -178,6 +180,7 @@ export function IconButton({
       disabled={disabled}
       title={label}
       aria-label={label}
+      data-testid={dataTestId}
       data-active={active ? 'true' : 'false'}
       className={`motion-icon-button grid shrink-0 place-items-center rounded-md disabled:cursor-default disabled:opacity-45 ${className}`}
       style={{
@@ -203,6 +206,7 @@ export function ToolbarButton({
   active = false,
   disabled = false,
   tone = 'neutral',
+  dataTestId,
 }: {
   icon: IconName
   label: string
@@ -210,6 +214,7 @@ export function ToolbarButton({
   active?: boolean
   disabled?: boolean
   tone?: Tone
+  dataTestId?: string
 }): JSX.Element {
   return (
     <IconButton
@@ -219,6 +224,7 @@ export function ToolbarButton({
       active={active}
       disabled={disabled}
       tone={tone}
+      dataTestId={dataTestId}
       className="toolbar-button"
       style={{
         background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',

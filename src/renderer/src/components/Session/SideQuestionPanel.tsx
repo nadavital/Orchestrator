@@ -10,12 +10,19 @@ interface Props {
 }
 
 export default function SideQuestionPanel({ session, chatId, embedded }: Props): JSX.Element {
-  const { uiState, appendSideQuestion, updateSideQuestion, appendSideChatMessage, updateSideChatMessage } = useSessionStore()
-  const [question, setQuestion] = useState('')
+  const { uiState, appendSideQuestion, updateSideQuestion, appendSideChatMessage, updateSideChatMessage, setSideChatDraft } = useSessionStore()
+  const [legacyQuestion, setLegacyQuestion] = useState('')
   const ui = uiState[session.id]
   const sideChat = chatId ? ui?.sideChats?.find((chat) => chat.id === chatId) : null
   const messages = sideChat?.messages ?? ui?.sideQuestions ?? []
   const pending = messages.some((message) => message.status === 'pending')
+  const errorCount = messages.filter((message) => message.status === 'error').length
+  const question = chatId ? sideChat?.draft ?? '' : legacyQuestion
+
+  const setQuestion = (value: string): void => {
+    if (chatId) setSideChatDraft(session.id, chatId, value)
+    else setLegacyQuestion(value)
+  }
 
   const submit = async (): Promise<void> => {
     const trimmed = question.trim()
@@ -50,8 +57,27 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
   return (
     <div
       className={embedded ? 'h-full min-h-0 flex flex-col p-4' : 'flex flex-col'}
+      data-testid={chatId ? 'side-chat-panel' : 'side-question-panel'}
+      data-side-chat-id={chatId ?? ''}
+      data-side-chat-message-count={messages.length}
+      data-side-chat-pending={pending ? 'true' : 'false'}
+      data-side-chat-errors={errorCount}
       style={{ color: 'var(--color-text)' }}
     >
+      {chatId && (
+        <div className="mb-3 flex shrink-0 items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {sideChat?.title ?? 'Side chat'}
+            </div>
+            <div className="mt-0.5 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+              {messages.length === 0 ? 'Draft a side question' : `${messages.length} message${messages.length === 1 ? '' : 's'}`}
+              {pending ? ' · answering' : ''}
+              {errorCount > 0 ? ` · ${errorCount} error${errorCount === 1 ? '' : 's'}` : ''}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
         {messages.length === 0 ? (
           <InspectorCard className="p-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -88,6 +114,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
         }}
       >
         <input
+          data-testid={chatId ? 'side-chat-input' : 'side-question-input'}
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           placeholder="Ask a side question..."

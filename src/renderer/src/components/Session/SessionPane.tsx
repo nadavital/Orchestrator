@@ -8,7 +8,7 @@ import InputBar from './InputBar'
 import ContextSidebar from './ContextSidebar'
 import RunningAgentsStrip from './RunningAgentsStrip'
 import Icon from '../shared/Icon'
-import { IconButton, MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
+import { IconButton, MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
 
 const MIN_TERMINAL_HEIGHT = 120
 const MAX_TERMINAL_HEIGHT = 600
@@ -23,12 +23,14 @@ export default function SessionPane(): JSX.Element | null {
     setTerminalHeight,
     addTerminalTab,
     setActiveTerminalTab,
+    moveTerminalTab,
     closeTerminalTab
   } = useSessionStore()
   const { projects } = useProjectStore()
   const session = sessions.find((s) => s.id === activeSessionId)
   const [promptInjectorRef] = useState<MutableRefObject<((text: string) => void) | null>>({ current: null })
   const [isTerminalResizing, setIsTerminalResizing] = useState(false)
+  const [terminalMenu, setTerminalMenu] = useState<{ tabId: number; x: number; y: number } | null>(null)
   const dragStartRef = useRef<{ y: number; h: number } | null>(null)
 
   const handleResizeStart = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
@@ -75,11 +77,19 @@ export default function SessionPane(): JSX.Element | null {
   const closeTab = (tabId: number): void => {
     window.api.terminal.kill(terminalId(tabId))
     closeTerminalTab(session.id, tabId)
+    setTerminalMenu(null)
+  }
+
+  const moveTab = (tabId: number, direction: 'left' | 'right'): void => {
+    moveTerminalTab(session.id, tabId, direction)
+    setTerminalMenu(null)
   }
 
   const handleSuggestedPrompt = (text: string): void => {
     promptInjectorRef.current?.(text)
   }
+
+  const terminalMenuIndex = terminalMenu ? tabs.findIndex((tabId) => tabId === terminalMenu.tabId) : -1
 
   return (
     <div className="relative flex flex-col h-full overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
@@ -148,6 +158,10 @@ export default function SessionPane(): JSX.Element | null {
                       active={active}
                       onClick={() => setActiveTerminalTab(session.id, tabId)}
                       onClose={tabs.length > 1 ? () => closeTab(tabId) : undefined}
+                      onContextMenu={(event) => {
+                        event.preventDefault()
+                        setTerminalMenu({ tabId, x: event.clientX, y: event.clientY })
+                      }}
                       closeLabel="Close terminal"
                     >
                       <Icon name="terminal" size={15} />
@@ -168,10 +182,45 @@ export default function SessionPane(): JSX.Element | null {
               <ToolbarButton
                 icon="close"
                 label="Hide terminal"
-                onClick={() => setShowTerminal(session.id, false)}
+                onClick={() => {
+                  setTerminalMenu(null)
+                  setShowTerminal(session.id, false)
+                }}
               />
             </div>
           </div>
+
+          {terminalMenu && (
+            <MenuSurface
+              onClose={() => setTerminalMenu(null)}
+              style={{
+                position: 'fixed',
+                left: Math.max(8, Math.min(terminalMenu.x, window.innerWidth - 190)),
+                top: Math.max(8, Math.min(terminalMenu.y, window.innerHeight - 130)),
+                width: 180,
+                zIndex: 80
+              }}
+            >
+              <MenuItem
+                icon="arrowLeft"
+                label="Move tab left"
+                disabled={terminalMenuIndex <= 0}
+                onClick={() => moveTab(terminalMenu.tabId, 'left')}
+              />
+              <MenuItem
+                icon="arrowRight"
+                label="Move tab right"
+                disabled={terminalMenuIndex < 0 || terminalMenuIndex >= tabs.length - 1}
+                onClick={() => moveTab(terminalMenu.tabId, 'right')}
+              />
+              <MenuItem
+                icon="close"
+                label="Close terminal tab"
+                disabled={tabs.length <= 1}
+                onClick={() => closeTab(terminalMenu.tabId)}
+              />
+            </MenuSurface>
+          )}
 
           <div style={{ height: terminalHeight, flexShrink: 0, overflow: 'hidden', background: 'var(--surface-bg)' }}>
             <TerminalView terminalId={terminalId(activeTab)} workDir={session.workDir} />

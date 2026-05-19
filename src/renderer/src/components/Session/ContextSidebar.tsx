@@ -82,7 +82,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         id: tab.id,
         label: chat?.title ?? tab.title,
         icon: 'chat' as const,
-        count: chat?.messages.filter((message) => message.status === 'pending').length
+        count: sideChatBadgeCount(chat)
       }
     })
   const availableTabs: ContextTabSpec[] = [
@@ -331,6 +331,15 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
 
 function isLiveAgent(agent: AgentNode): boolean {
   return agent.status === 'running' || agent.status === 'queued' || agent.status === 'waiting' || agent.status === 'blocked'
+}
+
+function sideChatBadgeCount(chat: { unread?: boolean; messages: Array<{ status?: string }> } | null | undefined): number | undefined {
+  if (!chat) return undefined
+  const pending = chat.messages.filter((message) => message.status === 'pending').length
+  const errors = chat.messages.filter((message) => message.status === 'error').length
+  if (pending > 0) return pending
+  if (errors > 0) return errors
+  return chat.unread ? 1 : undefined
 }
 
 function hasActiveGoal(events: SessionRunEventRecord[]): boolean {

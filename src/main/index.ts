@@ -316,14 +316,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           }
           await sleep(100);
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
-            const chatActionsButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Chat actions');
-            if (chatActionsButton instanceof HTMLButtonElement) {
-              chatActionsButton.click();
+            const chatActionsButton = document.querySelector('[data-testid="titlebar-chat-actions"]');
+            const headerActions = document.querySelector('[data-testid="titlebar-actions"]')?.getAttribute('data-header-actions') ?? '';
+            var headerActionMenuWorks =
+              headerActions.includes('folder') &&
+              headerActions.includes('project') &&
+              headerActions.includes('session') &&
+              headerActions.includes('provider-session');
+            if (chatActionsButton instanceof HTMLElement) {
+              chatActionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
               await sleep(120);
-              var headerActionMenuWorks =
-                document.body.innerText.includes('Copy folder path') &&
-                document.body.innerText.includes('Copy session ID');
+              headerActionMenuWorks = headerActionMenuWorks ||
+                (
+                  document.body.innerText.includes('Copy folder path') &&
+                  document.body.innerText.includes('Copy project path') &&
+                  document.body.innerText.includes('Copy session ID') &&
+                  document.body.innerText.includes('Copy provider session ID')
+                );
               window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
               await sleep(80);
             }
@@ -425,6 +434,32 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelRestored.dataset.bottomPanelTabs?.includes(',') === true &&
               bottomPanelRestored.dataset.bottomPanelActiveTab !== '0' &&
               Number(bottomPanelRestored.dataset.bottomPanelHeight ?? '0') >= 120;
+            const terminalTabs = [...document.querySelectorAll('[data-testid="session-bottom-panel"] [role="tab"]')];
+            var terminalTabMenuWorks = false;
+            var terminalTabReorderWorks = false;
+            if (terminalTabs.length >= 2) {
+              const beforeOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
+              const secondTab = terminalTabs[1];
+              secondTab.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: secondTab.getBoundingClientRect().left + 12,
+                clientY: secondTab.getBoundingClientRect().bottom + 4
+              }));
+              await sleep(140);
+              terminalTabMenuWorks =
+                document.body.innerText.includes('Move tab left') &&
+                document.body.innerText.includes('Move tab right') &&
+                document.body.innerText.includes('Close terminal tab');
+              const moveLeft = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Move tab left'));
+              if (moveLeft instanceof HTMLButtonElement) {
+                moveLeft.click();
+                await sleep(160);
+                const afterOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
+                terminalTabReorderWorks = beforeOrder.includes(',') && beforeOrder !== afterOrder;
+              }
+            }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
             const sidebarButton = [...document.querySelectorAll('button')]
@@ -678,6 +713,46 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await openBlankSideChat();
             const sideChatTabsBeforeClose = document.querySelectorAll('[data-tab-id^="sidechat:"]').length;
             var sideChatTabsWork = sideChatTabsBeforeClose >= 2;
+            const sideChatTabs = [...document.querySelectorAll('[data-tab-id^="sidechat:"]')]
+              .map((label) => label.closest('[role="tab"]'))
+              .filter(Boolean);
+            const setNativeValue = (element, value) => {
+              const setter = Object.getOwnPropertyDescriptor(element.constructor.prototype, 'value')?.set;
+              setter?.call(element, value);
+            };
+            var sideChatDraftPersistenceWorks = false;
+            if (sideChatTabs.length >= 2) {
+              const firstSideTab = sideChatTabs[0];
+              const secondSideTab = sideChatTabs[1];
+              secondSideTab.click();
+              await sleep(80);
+              let sideInput = document.querySelector('[data-testid="side-chat-input"]');
+              if (sideInput instanceof HTMLInputElement) {
+                setNativeValue(sideInput, 'draft for second side chat');
+                sideInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(80);
+              }
+              firstSideTab.click();
+              await sleep(80);
+              sideInput = document.querySelector('[data-testid="side-chat-input"]');
+              if (sideInput instanceof HTMLInputElement) {
+                setNativeValue(sideInput, 'draft for first side chat');
+                sideInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(80);
+              }
+              secondSideTab.click();
+              await sleep(80);
+              const secondInput = document.querySelector('[data-testid="side-chat-input"]');
+              const secondDraftRestored = secondInput instanceof HTMLInputElement && secondInput.value === 'draft for second side chat';
+              firstSideTab.click();
+              await sleep(80);
+              const firstInput = document.querySelector('[data-testid="side-chat-input"]');
+              const firstDraftRestored = firstInput instanceof HTMLInputElement && firstInput.value === 'draft for first side chat';
+              sideChatDraftPersistenceWorks =
+                secondDraftRestored &&
+                firstDraftRestored &&
+                document.querySelector('[data-testid="side-chat-panel"]')?.getAttribute('data-side-chat-message-count') === '0';
+            }
             const closeSideChatButton = [...document.querySelectorAll('[title^="Close Side chat"]')].at(-1);
             if (closeSideChatButton instanceof HTMLElement) {
               closeSideChatButton.click();
@@ -837,9 +912,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
+            sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,
             terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,
+            terminalTabMenuWorks: typeof terminalTabMenuWorks === 'boolean' ? terminalTabMenuWorks : null,
+            terminalTabReorderWorks: typeof terminalTabReorderWorks === 'boolean' ? terminalTabReorderWorks : null,
             themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,

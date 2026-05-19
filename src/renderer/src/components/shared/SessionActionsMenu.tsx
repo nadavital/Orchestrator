@@ -9,6 +9,8 @@ interface Props {
   y: number
   onClose: () => void
   onRemove?: (session: Session) => void | Promise<void>
+  projectRoot?: string
+  branch?: string | null
 }
 
 export default function SessionActionsMenu({
@@ -16,7 +18,9 @@ export default function SessionActionsMenu({
   x,
   y,
   onClose,
-  onRemove
+  onRemove,
+  projectRoot,
+  branch
 }: Props): JSX.Element {
   const [renaming, setRenaming] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -54,8 +58,8 @@ export default function SessionActionsMenu({
         onClose={onClose}
         style={{
           left: Math.max(8, Math.min(x, window.innerWidth - 208)),
-          top: Math.max(8, Math.min(y, window.innerHeight - 232)),
-          width: 196,
+          top: Math.max(8, Math.min(y, window.innerHeight - 292)),
+          width: 216,
           zIndex: 10000,
         }}
       >
@@ -67,7 +71,20 @@ export default function SessionActionsMenu({
         />
         <div style={{ height: 1, background: 'var(--border-subtle)', margin: '5px 3px' }} />
         <MenuItem icon="copy" label="Copy folder path" onClick={() => void copyToClipboard(session.workDir)} />
+        {projectRoot && projectRoot !== session.workDir && (
+          <MenuItem icon="copy" label="Copy project path" onClick={() => void copyToClipboard(projectRoot)} />
+        )}
+        {session.repoRoot && session.repoRoot !== session.workDir && session.repoRoot !== projectRoot && (
+          <MenuItem icon="copy" label="Copy repo root" onClick={() => void copyToClipboard(session.repoRoot!)} />
+        )}
         <MenuItem icon="copy" label="Copy session ID" onClick={() => void copyToClipboard(session.id)} />
+        <MenuItem
+          icon="copy"
+          label="Copy provider session ID"
+          disabled={!session.providerSessionId}
+          onClick={() => void copyToClipboard(session.providerSessionId ?? '')}
+        />
+        {branch && <MenuItem icon="copy" label="Copy branch name" onClick={() => void copyToClipboard(branch)} />}
         {onRemove && (
           <>
             <div style={{ height: 1, background: 'var(--border-subtle)', margin: '5px 3px' }} />
