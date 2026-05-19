@@ -446,13 +446,18 @@ export default function BrowserPanel({
               <span
                 role="button"
                 tabIndex={0}
-                className="grid size-4 place-items-center rounded opacity-70 hover:opacity-100"
+                aria-label={`Close ${tab.title || shortUrl(tab.url) || 'browser'} tab`}
+                data-testid="browser-tab-close"
+                className="browser-tab-close"
                 onClick={(event) => {
                   event.stopPropagation()
                   closeTab(tab.id)
                 }}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') closeTab(tab.id)
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  closeTab(tab.id)
                 }}
               >
                 <Icon name="close" size={10} />

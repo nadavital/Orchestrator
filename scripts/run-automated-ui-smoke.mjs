@@ -366,6 +366,7 @@ child.on('exit', (code) => {
         browserDeviceMode: captureView !== 'inspector' || result.browserDeviceModeWorks === true,
         browserCacheReload: captureView !== 'inspector' || result.browserCacheReloadWorks === true,
         browserMultiTab: captureView !== 'inspector' || result.browserMultiTabWorks === true,
+        browserTabCloseChrome: captureView !== 'inspector' || result.browserTabCloseChromeWorks === true,
         browserInspection: captureView !== 'inspector' || result.browserInspectionWorks === true,
         browserTargetsPane: captureView !== 'inspector' || result.browserTargetsPaneWorks === true,
         browserTargetsPaneNoHorizontalOverflow: captureView !== 'inspector' || result.browserTargetsPaneNoHorizontalOverflowWorks === true,

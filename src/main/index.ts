@@ -754,6 +754,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var browserMultiTabWorks =
               Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-tab-count') ?? '0') >= 2;
             const browserTabs = [...document.querySelectorAll('[data-testid="browser-tab"]')];
+            const browserTabCloseButtons = [...document.querySelectorAll('[data-testid="browser-tab-close"]')];
+            const browserTabClosesHiddenAtRest =
+              browserTabCloseButtons.length >= 1 &&
+              browserTabCloseButtons.every((button) => Number.parseFloat(getComputedStyle(button).opacity || '0') < 0.25);
+            const firstBrowserClose = browserTabs[0]?.querySelector('[data-testid="browser-tab-close"]');
+            if (firstBrowserClose instanceof HTMLElement) {
+              firstBrowserClose.focus({ preventScroll: true });
+              await sleep(100);
+            }
+            var browserTabCloseChromeWorks =
+              browserTabClosesHiddenAtRest &&
+              firstBrowserClose instanceof HTMLElement &&
+              Number.parseFloat(getComputedStyle(firstBrowserClose).opacity || '0') > 0.75;
             if (browserTabs[0] instanceof HTMLButtonElement) {
               browserTabs[0].click();
               await sleep(240);
@@ -1087,6 +1100,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserDeviceModeWorks: typeof browserDeviceModeWorks === 'boolean' ? browserDeviceModeWorks : null,
             browserCacheReloadWorks: typeof browserCacheReloadWorks === 'boolean' ? browserCacheReloadWorks : null,
             browserMultiTabWorks: typeof browserMultiTabWorks === 'boolean' ? browserMultiTabWorks : null,
+            browserTabCloseChromeWorks: typeof browserTabCloseChromeWorks === 'boolean' ? browserTabCloseChromeWorks : null,
             browserInspectionWorks: typeof browserInspectionWorks === 'boolean' ? browserInspectionWorks : null,
             browserTargetsPaneWorks: typeof browserTargetsPaneWorks === 'boolean' ? browserTargetsPaneWorks : null,
             browserTargetsPaneNoHorizontalOverflowWorks: typeof browserTargetsPaneNoHorizontalOverflowWorks === 'boolean' ? browserTargetsPaneNoHorizontalOverflowWorks : null,

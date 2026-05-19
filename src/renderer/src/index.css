@@ -668,6 +668,39 @@
     outline: none;
   }
 
+  .browser-tab-close {
+    display: grid;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    color: var(--text-tertiary);
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.94);
+    transition:
+      opacity var(--motion-duration-control) var(--motion-ease-control),
+      transform var(--motion-duration-control) var(--motion-ease-control),
+      color var(--motion-duration-edge) var(--motion-ease-standard),
+      background-color var(--motion-duration-edge) var(--motion-ease-standard);
+  }
+
+  .browser-tab:hover .browser-tab-close,
+  .browser-tab:focus-within .browser-tab-close,
+  .browser-tab-close:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: scale(1);
+  }
+
+  .browser-tab-close:hover,
+  .browser-tab-close:focus-visible {
+    background: var(--control-bg-hover);
+    color: var(--text-primary);
+    outline: none;
+  }
+
   .browser-toolbar {
     display: flex;
     min-height: 42px;
