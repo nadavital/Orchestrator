@@ -304,6 +304,8 @@ child.on('exit', (code) => {
         browserScreenshot: captureView !== 'inspector' || result.browserScreenshotWorks === true,
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
+        terminalTabsPersist: captureView !== 'terminal' || result.terminalTabsPersistState === true,
+        terminalRestore: captureView !== 'terminal' || result.terminalRestoreWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,

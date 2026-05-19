@@ -287,6 +287,31 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               .find((button) => button.getAttribute('title') === 'Toggle terminal');
             terminalButton?.click();
             await sleep(700);
+            const newTerminalButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'New terminal');
+            if (newTerminalButton instanceof HTMLButtonElement) {
+              newTerminalButton.click();
+              await sleep(260);
+            }
+            const bottomPanelWithTabs = document.querySelector('[data-testid="session-bottom-panel"]');
+            var terminalTabsPersistState =
+              bottomPanelWithTabs instanceof HTMLElement &&
+              bottomPanelWithTabs.dataset.bottomPanelTabs?.includes(',') === true &&
+              bottomPanelWithTabs.dataset.bottomPanelActiveTab !== '0';
+            const hideTerminalButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Hide terminal');
+            if (hideTerminalButton instanceof HTMLButtonElement) {
+              hideTerminalButton.click();
+              await sleep(180);
+            }
+            terminalButton?.click();
+            await sleep(260);
+            const bottomPanelRestored = document.querySelector('[data-testid="session-bottom-panel"]');
+            var terminalRestoreWorks =
+              bottomPanelRestored instanceof HTMLElement &&
+              bottomPanelRestored.dataset.bottomPanelTabs?.includes(',') === true &&
+              bottomPanelRestored.dataset.bottomPanelActiveTab !== '0' &&
+              Number(bottomPanelRestored.dataset.bottomPanelHeight ?? '0') >= 120;
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
             const sidebarButton = [...document.querySelectorAll('button')]
@@ -557,6 +582,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserScreenshotWorks: typeof browserScreenshotWorks === 'boolean' ? browserScreenshotWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
+            terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,
+            terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),

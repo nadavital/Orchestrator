@@ -38,6 +38,13 @@ export interface SideChatThread {
   unread?: boolean
 }
 
+export interface TerminalPanelState {
+  height: number
+  tabs: number[]
+  activeTabId: number
+  nextTabId: number
+}
+
 interface SessionUIState {
   showPlan: boolean
   showDiff: boolean
@@ -52,6 +59,7 @@ interface SessionUIState {
   sideChats?: SideChatThread[]
   activeSideChatId?: string | null
   browserUrl?: string
+  terminalPanel?: TerminalPanelState
   rightPanel?: RightPanelState
 }
 
@@ -111,6 +119,10 @@ interface SessionState {
   closeRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   setRightPanelBrowserUrl: (id: string, url: string) => void
   closeRightPanel: (id: string) => void
+  setTerminalHeight: (id: string, height: number) => void
+  addTerminalTab: (id: string) => number
+  setActiveTerminalTab: (id: string, tabId: number) => void
+  closeTerminalTab: (id: string, tabId: number) => void
   setHasUnread: (id: string, v: boolean) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
@@ -139,6 +151,12 @@ const defaultUI: SessionUIState = {
   sideChats: [],
   activeSideChatId: null,
   browserUrl: '',
+  terminalPanel: {
+    height: 260,
+    tabs: [0],
+    activeTabId: 0,
+    nextTabId: 1
+  },
   rightPanel: {
     open: false,
     width: 468,
@@ -300,7 +318,14 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   setShowTerminal: (id, v) =>
     set((s) => ({
-      uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), showTerminal: v } }
+      uiState: {
+        ...s.uiState,
+        [id]: {
+          ...(s.uiState[id] ?? defaultUI),
+          showTerminal: v,
+          terminalPanel: ensureTerminalPanel(s.uiState[id]?.terminalPanel)
+        }
+      }
     })),
 
   setShowExtensions: (id, v) =>
@@ -600,6 +625,83 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
     }),
 
+  setTerminalHeight: (id, height) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            terminalPanel: { ...ensureTerminalPanel(current.terminalPanel), height }
+          }
+        }
+      }
+    }),
+
+  addTerminalTab: (id) => {
+    let newTabId = 0
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const terminalPanel = ensureTerminalPanel(current.terminalPanel)
+      newTabId = terminalPanel.nextTabId
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            showTerminal: true,
+            terminalPanel: {
+              ...terminalPanel,
+              tabs: [...terminalPanel.tabs, newTabId],
+              activeTabId: newTabId,
+              nextTabId: newTabId + 1
+            }
+          }
+        }
+      }
+    })
+    return newTabId
+  },
+
+  setActiveTerminalTab: (id, tabId) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            terminalPanel: { ...ensureTerminalPanel(current.terminalPanel), activeTabId: tabId }
+          }
+        }
+      }
+    }),
+
+  closeTerminalTab: (id, tabId) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const terminalPanel = ensureTerminalPanel(current.terminalPanel)
+      const remaining = terminalPanel.tabs.filter((candidate) => candidate !== tabId)
+      const tabs = remaining.length > 0 ? remaining : [0]
+      const activeTabId = terminalPanel.activeTabId === tabId ? tabs.at(-1) ?? 0 : terminalPanel.activeTabId
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            showTerminal: remaining.length > 0 ? current.showTerminal : false,
+            terminalPanel: {
+              ...terminalPanel,
+              tabs,
+              activeTabId,
+              nextTabId: remaining.length > 0 ? terminalPanel.nextTabId : 1
+            }
+          }
+        }
+      }
+    }),
+
   setHasUnread: (id, v) =>
     set((s) => ({
       uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), hasUnread: v } }
@@ -680,6 +782,17 @@ function ensureRightPanel(panel?: RightPanelState): RightPanelState {
     fullWidth: panel?.fullWidth ?? false,
     activeTabId: panel?.activeTabId ?? null,
     tabs: panel?.tabs ?? []
+  }
+}
+
+function ensureTerminalPanel(panel?: TerminalPanelState): TerminalPanelState {
+  const tabs = panel?.tabs?.length ? panel.tabs : [0]
+  const activeTabId = tabs.includes(panel?.activeTabId ?? 0) ? panel?.activeTabId ?? 0 : tabs[0]
+  return {
+    height: panel?.height ?? 260,
+    tabs,
+    activeTabId,
+    nextTabId: Math.max(panel?.nextTabId ?? 1, Math.max(...tabs) + 1)
   }
 }
 
