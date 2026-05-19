@@ -349,6 +349,7 @@ child.on('exit', (code) => {
         themeSharingControls: captureView !== 'settings' || result.themeSharingControls === true,
         settingsTaxonomy: captureView !== 'settings' || result.settingsTaxonomyWorks === true,
         settingsDiagnosticsSection: captureView !== 'settings' || result.settingsDiagnosticsSectionWorks === true,
+        settingsUsageDiagnostics: captureView !== 'settings' || result.settingsUsageDiagnosticsWorks === true,
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,

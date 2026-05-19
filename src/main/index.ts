@@ -375,6 +375,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Provider details') &&
                 diagnosticsSection.innerText.includes('Config file');
+              var settingsUsageDiagnosticsWorks =
+                diagnosticsSection instanceof HTMLElement &&
+                diagnosticsSection.innerText.includes('Usage, cost, and budget') &&
+                diagnosticsSection.innerText.includes('Captured runs') &&
+                diagnosticsSection.innerText.includes('Tokens') &&
+                diagnosticsSection.innerText.includes('Cost') &&
+                diagnosticsSection.innerText.includes('Budget/fallback') &&
+                Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]'));
               const dataButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Data controls'));
               dataButton?.click();
@@ -922,6 +930,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
             settingsDiagnosticsSectionWorks: typeof settingsDiagnosticsSectionWorks === 'boolean' ? settingsDiagnosticsSectionWorks : null,
+            settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
@@ -2587,6 +2596,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-stress') {
     await seedAutomatedTranscriptStressSmokeSession(project.id, project.rootPath)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings') {
+    seedAutomatedSettingsSmokeSession(session.id)
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced'
@@ -2616,6 +2627,39 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
       ]
     })
   }
+}
+
+function seedAutomatedSettingsSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+  sessionManager.save({
+    ...session,
+    provider: 'claude',
+    model: 'claude-sonnet-4-6',
+    usageSummary: {
+      inputTokens: 1200,
+      outputTokens: 340,
+      cacheCreationInputTokens: 80,
+      cacheReadInputTokens: 420,
+      totalTokens: 2040,
+      totalCostUsd: 0.0123,
+      durationMs: 4200,
+      apiDurationMs: 3100,
+      turns: 2,
+      serviceTier: 'standard',
+      modelUsage: {
+        'claude-sonnet-4-6': {
+          inputTokens: 1200,
+          outputTokens: 340,
+          cacheReadInputTokens: 420,
+          cacheCreationInputTokens: 80,
+          costUSD: 0.0123,
+          contextWindow: 200000,
+          maxOutputTokens: 32000
+        }
+      }
+    }
+  })
 }
 
 function seedAutomatedScrollSmokeSession(sessionId: string): void {

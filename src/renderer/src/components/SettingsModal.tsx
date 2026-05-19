@@ -16,7 +16,9 @@ import {
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
   type ProviderDiagnosticInfo,
-  type ProviderRuntimeInfo
+  type ProviderRuntimeInfo,
+  type SessionListItem,
+  type UsageSummary
 } from '../types'
 import { useSessionStore } from '../store/sessions'
 import type { SettingsSection } from '../store/sessions'
@@ -77,7 +79,7 @@ interface Props {
 }
 
 export default function SettingsPage({ section, onClose }: Props): JSX.Element {
-  const { providerAvailability, setProviderModels: storeSetProviderModels } = useSessionStore()
+  const { providerAvailability, sessions, setProviderModels: storeSetProviderModels } = useSessionStore()
   const [defaultProvider, setDefaultProvider] = useState('claude')
   const [defaultModels, setDefaultModels] = useState<Record<string, string>>({})
   const [defaultEfforts, setDefaultEfforts] = useState<Record<string, string>>({})
@@ -448,6 +450,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               providerDiagnostics={providerDiagnostics}
               diagnosticsLoading={diagnosticsLoading}
               providerAvailability={providerAvailability}
+              sessions={sessions}
               onLoadProviderDiagnostics={loadProviderDiagnostics}
             />
           )}
@@ -1379,6 +1382,7 @@ function ProviderDiagnosticsSection({
   providerDiagnostics,
   diagnosticsLoading,
   providerAvailability,
+  sessions,
   onLoadProviderDiagnostics
 }: {
   defaultProvider: string
@@ -1386,6 +1390,7 @@ function ProviderDiagnosticsSection({
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
   diagnosticsLoading: Record<string, boolean>
   providerAvailability: Record<string, boolean>
+  sessions: SessionListItem[]
   onLoadProviderDiagnostics: (providerId: string) => void
 }): JSX.Element {
   const providerList = Object.values(PROVIDER_DEFS)
@@ -1396,6 +1401,7 @@ function ProviderDiagnosticsSection({
   const diagnostics = providerDiagnostics[selectedId]
   const loadingDiagnostics = diagnosticsLoading[selectedId] === true
   const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
+  const usageSnapshot = summarizeProviderUsage(sessions, selectedId)
 
   useEffect(() => {
     onLoadProviderDiagnostics(selectedId)
@@ -1458,6 +1464,14 @@ function ProviderDiagnosticsSection({
                 <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
               </CompactSetting>
             )}
+            <CompactSetting title="Usage, cost, and budget">
+              <ProviderUsageDiagnosticsCard
+                providerId={selectedId}
+                diagnostics={diagnostics}
+                usage={usageSnapshot}
+                color={providerDef.color}
+              />
+            </CompactSetting>
             {diagnostics && diagnostics.probes.length > 0 && (
               <CompactSetting title="Probes">
                 <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
@@ -2690,6 +2704,201 @@ function ProviderDiagnosticsCard({
       ))}
     </div>
   )
+}
+
+interface ProviderUsageSnapshot {
+  sessionCount: number
+  totalTokens: number
+  inputTokens: number
+  outputTokens: number
+  cacheTokens: number
+  totalCostUsd: number
+  durationMs: number
+  apiDurationMs: number
+  turns: number
+  models: string[]
+}
+
+function summarizeProviderUsage(sessions: SessionListItem[], providerId: string): ProviderUsageSnapshot {
+  const snapshot: ProviderUsageSnapshot = {
+    sessionCount: 0,
+    totalTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheTokens: 0,
+    totalCostUsd: 0,
+    durationMs: 0,
+    apiDurationMs: 0,
+    turns: 0,
+    models: []
+  }
+  const models = new Set<string>()
+
+  for (const session of sessions) {
+    if (session.provider !== providerId || !session.usageSummary) continue
+    const usage = session.usageSummary
+    snapshot.sessionCount += 1
+    snapshot.inputTokens += usage.inputTokens ?? 0
+    snapshot.outputTokens += usage.outputTokens ?? 0
+    snapshot.cacheTokens += (usage.cacheCreationInputTokens ?? 0) + (usage.cacheReadInputTokens ?? 0)
+    snapshot.totalTokens += usage.totalTokens ?? sumTokens(usage)
+    snapshot.totalCostUsd += usage.totalCostUsd ?? sumModelCost(usage)
+    snapshot.durationMs += usage.durationMs ?? 0
+    snapshot.apiDurationMs += usage.apiDurationMs ?? 0
+    snapshot.turns += usage.turns ?? 0
+    for (const model of Object.keys(usage.modelUsage ?? {})) models.add(model)
+  }
+
+  snapshot.models = [...models].sort()
+  return snapshot
+}
+
+function sumTokens(usage: UsageSummary): number {
+  return (usage.inputTokens ?? 0) +
+    (usage.outputTokens ?? 0) +
+    (usage.cacheCreationInputTokens ?? 0) +
+    (usage.cacheReadInputTokens ?? 0)
+}
+
+function sumModelCost(usage: UsageSummary): number {
+  return Object.values(usage.modelUsage ?? {}).reduce((total, model) => total + (model.costUSD ?? 0), 0)
+}
+
+function ProviderUsageDiagnosticsCard({
+  providerId,
+  diagnostics,
+  usage,
+  color
+}: {
+  providerId: string
+  diagnostics?: ProviderDiagnosticInfo
+  usage: ProviderUsageSnapshot
+  color: string
+}): JSX.Element {
+  const budget = providerBudgetSupport(providerId)
+  const hasUsage = usage.sessionCount > 0
+  const rows = [
+    {
+      label: 'Captured runs',
+      status: hasUsage ? 'available' : 'unknown',
+      message: hasUsage ? `${usage.sessionCount.toLocaleString()} sessions with usage metadata` : 'No usage-emitting runs recorded in this local profile yet.'
+    },
+    {
+      label: 'Tokens',
+      status: usage.totalTokens > 0 ? 'available' : 'unknown',
+      message: usage.totalTokens > 0
+        ? `${usage.totalTokens.toLocaleString()} total · ${usage.inputTokens.toLocaleString()} in · ${usage.outputTokens.toLocaleString()} out`
+        : 'No token totals captured yet.'
+    },
+    {
+      label: 'Cost',
+      status: usage.totalCostUsd > 0 ? 'available' : 'unknown',
+      message: usage.totalCostUsd > 0 ? formatUsd(usage.totalCostUsd) : 'No provider cost metadata captured yet.'
+    },
+    {
+      label: 'Duration',
+      status: usage.durationMs > 0 || usage.apiDurationMs > 0 ? 'available' : 'unknown',
+      message: usage.durationMs > 0 || usage.apiDurationMs > 0
+        ? `${formatMilliseconds(usage.durationMs)} total${usage.apiDurationMs > 0 ? ` · ${formatMilliseconds(usage.apiDurationMs)} API` : ''}`
+        : 'No duration metadata captured yet.'
+    },
+    {
+      label: 'Quota probe',
+      status: diagnostics?.usage.status ?? 'unknown',
+      message: diagnostics?.usage.message ?? 'Load provider diagnostics to check whether safe quota probes are available.'
+    },
+    {
+      label: 'Budget/fallback',
+      status: budget.status,
+      message: budget.message
+    }
+  ]
+
+  return (
+    <div data-testid="provider-usage-diagnostics-card" style={{ display: 'grid', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            title={row.message}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              minWidth: 0,
+              padding: '8px 10px',
+              borderRadius: 8,
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)'
+            }}
+          >
+            <div
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--color-text)'
+              }}
+            >
+              {row.label}
+            </div>
+            <DiagnosticPill status={row.status} color={color} />
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          fontSize: 11,
+          color: 'var(--color-text-muted)'
+        }}
+      >
+        <span>{usage.models.length > 0 ? `Models: ${usage.models.join(', ')}` : 'Models: none captured'}</span>
+        <span>{usage.cacheTokens > 0 ? `Cache: ${usage.cacheTokens.toLocaleString()} tokens` : 'Cache: none captured'}</span>
+        <span>{usage.turns > 0 ? `Turns: ${usage.turns.toLocaleString()}` : 'Turns: none captured'}</span>
+      </div>
+    </div>
+  )
+}
+
+function providerBudgetSupport(providerId: string): { status: string; message: string } {
+  if (providerId === 'claude') {
+    return {
+      status: 'available',
+      message: 'Claude runs can use max-budget launch limits; fallback policy is still a future advanced launch setting.'
+    }
+  }
+  if (providerId === 'codex') {
+    return {
+      status: 'unknown',
+      message: 'Codex app-server token usage can be captured, but local budget/fallback controls are not promoted yet.'
+    }
+  }
+  return {
+    status: 'unknown',
+    message: 'Budget and fallback controls are not exposed for this provider in Orchestrator yet.'
+  }
+}
+
+function formatUsd(value: number): string {
+  if (value < 0.01) return `$${value.toFixed(4)}`
+  return `$${value.toFixed(2)}`
+}
+
+function formatMilliseconds(ms: number): string {
+  if (ms <= 0) return '0s'
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  const seconds = ms / 1000
+  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainder = Math.round(seconds % 60)
+  return `${minutes}m ${remainder}s`
 }
 
 function ProviderProbeGrid({
