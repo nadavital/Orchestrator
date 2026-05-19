@@ -320,6 +320,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await window.api.projects.addSession(project.id, session.id);
           }
           await sleep(900);
+          const chatEmptyState = document.querySelector('[data-testid="chat-empty-state"]');
+          var chatEmptyStateWorks =
+            chatEmptyState instanceof HTMLElement &&
+            chatEmptyState.innerText.includes('What do you want to build?') &&
+            chatEmptyState.innerText.includes('What do you want to build in') === false;
           const textarea = document.querySelector('textarea');
           textarea?.focus();
           if (textarea && !['composer', 'extensions'].includes(${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)})) {
@@ -1061,6 +1066,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             ),
             headerIdentityWorks,
             headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
+            chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
             hasInspectorTabs: bodyText.includes('Changes') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
             hasRightPanelState: rightPanel instanceof HTMLElement &&
               rightPanel.dataset.rightPanelActiveTab === 'diff' &&
@@ -1161,7 +1167,8 @@ function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, scr
               profile,
               projectCount: projects.length,
               sessionCount: sessions.length,
-              emptyStateVisible: bodyText.includes('Add a project folder') || bodyText.includes('Open a project'),
+              emptyStateVisible: Boolean(document.querySelector('[data-testid="project-empty-state"]')) &&
+                bodyText.includes('No projects'),
               addProjectActionVisible: addProjectButton instanceof HTMLButtonElement
             };
           })()

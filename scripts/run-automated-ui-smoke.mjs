@@ -347,6 +347,7 @@ child.on('exit', (code) => {
         sidebarNavigation: ['settings', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
         headerIdentity: ['settings', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerIdentityWorks === true,
         headerActionMenu: captureView !== 'inspector' || result.headerActionMenuWorks === true,
+        chatEmptyState: captureView !== 'inspector' || result.chatEmptyStateWorks === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
         rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,
         rightPanelExpand: captureView !== 'inspector' || result.rightPanelExpandWorks === true,

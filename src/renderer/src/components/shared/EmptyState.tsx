@@ -27,35 +27,25 @@ export default function EmptyState(): JSX.Element {
   if (!hasProjects) {
     return (
       <div
-        className="flex-1 flex flex-col items-center justify-center gap-5"
+        data-testid="project-empty-state"
+        className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center"
         style={{ color: 'var(--color-text-muted)' }}
       >
-        <div
-          className="flex items-center justify-center"
-          style={{
-            width: 64,
-            height: 64,
-            background: 'var(--surface-bg)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-xl)',
-            boxShadow: 'var(--shadow-soft)'
-          }}
-        >
-          <Icon name="folder" size={28} />
-        </div>
-          <div className="text-center">
-            <div className="font-semibold text-base mb-1" style={{ color: 'var(--color-text)' }}>
-            Open a project
-            </div>
-          <div className="text-sm mb-5">
-            Add a project folder to start chatting with your local code.
+        <Icon name="folder" size={30} />
+        <div>
+          <div className="mb-1 text-base font-semibold" style={{ color: 'var(--color-text)' }}>
+            No projects
+          </div>
+          <div className="mb-5 text-sm">
+            Choose a local folder to start.
           </div>
           <button
             onClick={() => { void handleAddProject() }}
-            className="px-5 py-2.5 text-sm font-medium transition-opacity hover:opacity-90"
-            style={{ background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius-lg)' }}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
+            style={{ background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius-md)' }}
           >
-            Add project folder
+            <Icon name="plus" size={14} />
+            Add project
           </button>
         </div>
       </div>

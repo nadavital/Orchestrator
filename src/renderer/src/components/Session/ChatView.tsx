@@ -526,13 +526,24 @@ export default function ChatView({ session, projectName }: Props): JSX.Element {
   // Hero state: no messages yet
   if (session.messages.length === 0 && session.status !== 'running') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8" style={{ background: 'var(--canvas-bg)' }}>
-        <h1
-          className="text-3xl font-semibold text-center leading-tight"
-          style={{ color: 'var(--text-primary)', maxWidth: 620, fontSize: 30 }}
-        >
-          {projectName ? `What do you want to build in ${projectName}?` : 'What do you want to build?'}
-        </h1>
+      <div
+        data-testid="chat-empty-state"
+        className="flex-1 flex flex-col items-center justify-end px-6 pb-28"
+        style={{ background: 'var(--canvas-bg)' }}
+      >
+        <div className="flex max-w-full flex-col items-center gap-1 text-center">
+          <h1
+            className="text-xl font-semibold leading-tight"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            What do you want to build?
+          </h1>
+          {projectName && (
+            <span className="max-w-[min(480px,100%)] truncate text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              {projectName}
+            </span>
+          )}
+        </div>
       </div>
     )
   }
