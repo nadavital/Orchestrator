@@ -793,10 +793,20 @@
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text-tertiary);
+    opacity: 0;
     padding: 0;
+    pointer-events: none;
     transition:
       background-color var(--motion-duration-edge) var(--motion-ease-standard),
-      color var(--motion-duration-edge) var(--motion-ease-standard);
+      color var(--motion-duration-edge) var(--motion-ease-standard),
+      opacity var(--motion-duration-edge) var(--motion-ease-standard);
+  }
+
+  .motion-tab-button:hover .motion-tab-close,
+  .motion-tab-button:focus-within .motion-tab-close,
+  .motion-tab-close:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .motion-tab-close:hover {
