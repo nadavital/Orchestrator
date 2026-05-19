@@ -414,6 +414,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 dataSection.innerText.includes('Local profile') &&
                 dataSection.innerText.includes('User data') &&
                 dataSection.innerText.includes('Open data folder');
+              const shortcutsButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Shortcuts'));
+              shortcutsButton?.click();
+              await sleep(220);
+              const shortcutsSection = document.querySelector('[data-testid="shortcuts-settings-section"]');
+              const shortcutKeys = [...document.querySelectorAll('[data-testid="settings-shortcut-key"]')];
+              var settingsShortcutsCompactWorks =
+                shortcutsSection instanceof HTMLElement &&
+                shortcutsSection.innerText.includes('Command Palette') &&
+                shortcutKeys.length >= 8 &&
+                shortcutKeys.every((key) => {
+                  const text = key.textContent?.trim() ?? '';
+                  return text.length > 0 && !text.includes(' ');
+                });
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
@@ -1123,6 +1137,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsDiagnosticsSectionWorks: typeof settingsDiagnosticsSectionWorks === 'boolean' ? settingsDiagnosticsSectionWorks : null,
             settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
+            settingsShortcutsCompactWorks: typeof settingsShortcutsCompactWorks === 'boolean' ? settingsShortcutsCompactWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Local Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),

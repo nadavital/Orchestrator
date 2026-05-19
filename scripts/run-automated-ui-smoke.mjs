@@ -389,6 +389,7 @@ child.on('exit', (code) => {
         settingsDiagnosticsSection: captureView !== 'settings' || result.settingsDiagnosticsSectionWorks === true,
         settingsUsageDiagnostics: captureView !== 'settings' || result.settingsUsageDiagnosticsWorks === true,
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,
+        settingsShortcutsCompact: captureView !== 'settings' || result.settingsShortcutsCompactWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
         sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,

@@ -23,7 +23,7 @@ import {
 import { useSessionStore } from '../store/sessions'
 import type { SettingsSection } from '../store/sessions'
 import type { AppProfile } from '../env'
-import { formatShortcutKeys, visibleShortcutRows } from '../../../types/appCommands'
+import { formatShortcutKeys, formatShortcutSequence, visibleShortcutRows } from '../../../types/appCommands'
 import { parsePortableTheme, serializePortableTheme } from '../../../types/themeSharing'
 import ProviderIcon from './shared/ProviderIcon'
 import Icon from './shared/Icon'
@@ -1088,7 +1088,8 @@ function ShortcutsSection(): JSX.Element {
     ...shortcut,
     category: shortcut.group,
     keys: shortcut.shortcuts.map((sequence) => formatShortcutKeys(sequence, shortcutPlatform)),
-    primaryKeys: formatShortcutKeys(shortcut.shortcuts[0], shortcutPlatform)
+    primaryShortcut: formatShortcutSequence(shortcut.shortcuts[0], shortcutPlatform),
+    alternateShortcuts: shortcut.shortcuts.slice(1).map((sequence) => formatShortcutSequence(sequence, shortcutPlatform))
   }))
   const normalizedQuery = query.trim().toLowerCase()
   const visibleShortcuts = shortcuts.filter((shortcut) => {
@@ -1102,8 +1103,8 @@ function ShortcutsSection(): JSX.Element {
   })
 
   return (
-    <div style={{ padding: '30px 44px 56px', maxWidth: 820, margin: '0 auto' }}>
-      <SettingsIntro description="Primary keyboard shortcuts for common workspace actions." />
+    <div data-testid="shortcuts-settings-section" style={{ padding: '30px 44px 56px', maxWidth: 760, margin: '0 auto' }}>
+      <SettingsIntro description="Common keyboard shortcuts." />
       <SettingGroup title="Keyboard" description="">
         <label className="sr-only" htmlFor="settings-shortcut-search">Search keyboard shortcuts</label>
         <input
@@ -1123,44 +1124,40 @@ function ShortcutsSection(): JSX.Element {
           style={{ border: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
         >
           <div
-            className="grid grid-cols-[120px_minmax(0,1fr)_minmax(180px,auto)] gap-3 border-b px-3 py-2 text-[11px] font-semibold uppercase tracking-wide"
+            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b px-3 py-2 text-[11px] font-semibold uppercase tracking-wide"
             style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-tertiary)' }}
           >
-            <span>Section</span>
             <span>Command</span>
             <span className="text-right">Shortcut</span>
           </div>
           {visibleShortcuts.map((shortcut) => (
             <div
               key={shortcut.label}
-              className="grid grid-cols-[120px_minmax(0,1fr)_minmax(180px,auto)] items-center gap-3 border-b px-3 py-2 last:border-b-0"
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b px-3 py-2 last:border-b-0"
               style={{
                 borderColor: 'var(--border-subtle)',
                 color: 'var(--text-primary)'
               }}
             >
-              <span className="min-w-0 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                {shortcut.category}
-              </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{shortcut.label}</span>
+                <span className="mt-0.5 block truncate text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                  {shortcut.category}
+                </span>
               </span>
               <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                <span className="flex items-center gap-1">
-                  {shortcut.primaryKeys.map((key) => (
-                    <kbd
-                      key={`${shortcut.label}-${key}`}
-                      className="min-w-6 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
-                      style={{
-                        background: 'var(--control-bg)',
-                        border: '1px solid var(--border-subtle)',
-                        color: 'var(--text-secondary)'
-                      }}
-                    >
-                      {key}
-                    </kbd>
-                  ))}
-                </span>
+                <kbd
+                  className="rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
+                  data-testid="settings-shortcut-key"
+                  title={shortcut.alternateShortcuts.length > 0 ? `Also: ${shortcut.alternateShortcuts.join(', ')}` : undefined}
+                  style={{
+                    background: 'var(--control-bg)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-secondary)'
+                  }}
+                >
+                  {shortcut.primaryShortcut}
+                </kbd>
               </span>
             </div>
           ))}
