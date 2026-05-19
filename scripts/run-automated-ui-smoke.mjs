@@ -253,6 +253,9 @@ child.on('exit', (code) => {
         unreadIdleDotVisible: result.unreadIdleDotVisible === true,
         errorDotVisible: result.errorDotVisible === true,
         grayIdleDotsAbsent: result.grayIdleDotsAbsent === true,
+        projectActionMenuWorks: result.projectActionMenuWorks === true,
+        projectRenameWorks: result.projectRenameWorks === true,
+        projectPinWorks: result.projectPinWorks === true,
         organizeMenuWorks: result.organizeMenuWorks === true
       }
     : captureView === 'transcript-layout'

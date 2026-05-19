@@ -60,12 +60,14 @@ export default function Sidebar(): JSX.Element {
     return grouped
   }, [sessions, sortMode])
   const visibleProjects = useMemo(() => {
-    if (viewMode !== 'recent-projects') return projects
-    return [...projects].sort((a, b) => {
-      const aLatest = projectLatestTimestamp(sessionsByProject.get(a.id) ?? [])
-      const bLatest = projectLatestTimestamp(sessionsByProject.get(b.id) ?? [])
-      return bLatest - aLatest
-    })
+    const sorted = viewMode !== 'recent-projects'
+      ? [...projects]
+      : [...projects].sort((a, b) => {
+          const aLatest = projectLatestTimestamp(sessionsByProject.get(a.id) ?? [])
+          const bLatest = projectLatestTimestamp(sessionsByProject.get(b.id) ?? [])
+          return bLatest - aLatest
+        })
+    return sorted.sort(compareProjectsByPin)
   }, [projects, sessionsByProject, viewMode])
 
   useEffect(() => {
@@ -281,6 +283,11 @@ function compareSessionsByMode(
 function projectLatestTimestamp(sessions: ReturnType<typeof useSessionStore.getState>['sessions']): number {
   if (sessions.length === 0) return 0
   return Math.max(...sessions.map((session) => session.latestMessageAt ?? session.createdAt))
+}
+
+function compareProjectsByPin(a: Project, b: Project): number {
+  if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1
+  return 0
 }
 
 function readSidebarViewMode(): SidebarViewMode {

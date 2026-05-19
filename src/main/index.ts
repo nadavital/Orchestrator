@@ -969,6 +969,63 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const errorRow = await waitForRow('Sidebar error');
             const runningRow = await waitForRow('Sidebar running');
             const allDots = [...document.querySelectorAll('[data-testid="session-status-dot"]')];
+            const projectHeaderFor = (name) => [...document.querySelectorAll('[data-testid="project-section-header"]')]
+              .find((header) => header.textContent?.includes(name));
+            const projectActionButtonFor = (name) => {
+              const header = projectHeaderFor(name);
+              return header ? [...header.querySelectorAll('button')]
+                .find((button) => button.getAttribute('title') === 'Project actions') : null;
+            };
+            let projectActionMenuWorks = false;
+            let projectRenameWorks = false;
+            let projectPinWorks = false;
+            const primaryProjectActions = projectActionButtonFor('Automated UI Smoke');
+            if (primaryProjectActions instanceof HTMLButtonElement) {
+              primaryProjectActions.click();
+              await sleep(140);
+              const menuText = document.body.innerText;
+              projectActionMenuWorks =
+                menuText.includes('Rename project') &&
+                menuText.includes('Pin project') &&
+                menuText.includes('Open folder') &&
+                menuText.includes('Archive project chats') &&
+                menuText.includes('Remove project');
+              const renameProject = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Rename project'));
+              if (renameProject instanceof HTMLButtonElement) {
+                renameProject.click();
+                await sleep(120);
+                const input = document.querySelector('input');
+                if (input instanceof HTMLInputElement) {
+                  const setter = Object.getOwnPropertyDescriptor(input.constructor.prototype, 'value')?.set;
+                  setter?.call(input, 'Sidebar renamed project');
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                  input.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                  for (let index = 0; index < 60; index += 1) {
+                    if (document.body.innerText.includes('Sidebar renamed project')) break;
+                    await sleep(25);
+                  }
+                  projectRenameWorks = document.body.innerText.includes('Sidebar renamed project');
+                }
+              }
+            }
+            const secondaryProjectActions = projectActionButtonFor('Sidebar secondary project');
+            if (secondaryProjectActions instanceof HTMLButtonElement) {
+              secondaryProjectActions.click();
+              await sleep(140);
+              const pinProject = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Pin project'));
+              if (pinProject instanceof HTMLButtonElement) {
+                pinProject.click();
+                await sleep(180);
+                const nextText = document.body.innerText;
+                const projectsStart = nextText.indexOf('Projects');
+                const projectsText = projectsStart >= 0 ? nextText.slice(projectsStart) : nextText;
+                const secondaryIndex = projectsText.indexOf('Sidebar secondary project');
+                const primaryIndex = projectsText.indexOf('Sidebar renamed project');
+                projectPinWorks = secondaryIndex >= 0 && primaryIndex >= 0 && secondaryIndex < primaryIndex;
+              }
+            }
             const organizeButton = [...document.querySelectorAll('button')]
               .find((button) => button.getAttribute('title') === 'Organize sidebar');
             let organizeMenuWorks = false;
@@ -1014,6 +1071,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               unreadIdleDotVisible: Boolean(unreadRow?.querySelector('[data-testid="session-status-dot"]')),
               errorDotVisible: Boolean(errorRow?.querySelector('[data-testid="session-status-dot"]')),
               grayIdleDotsAbsent: allDots.length === 2,
+              projectActionMenuWorks,
+              projectRenameWorks,
+              projectPinWorks,
               organizeMenuWorks,
               dotCount: allDots.length,
               bodyText: document.body.innerText
@@ -2163,6 +2223,9 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
 
 async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: string): Promise<void> {
   const baseTime = Date.now()
+  if (!projectStore.list().some((project) => project.name === 'Sidebar secondary project')) {
+    projectStore.add('Sidebar secondary project', workDir)
+  }
   const fixtures: Array<{
     name: string
     pinned: boolean

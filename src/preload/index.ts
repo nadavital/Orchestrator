@@ -86,6 +86,10 @@ const api = {
     add: (name: string, rootPath: string): Promise<Project> =>
       ipcRenderer.invoke('projects:add', name, rootPath),
     remove: (id: string): Promise<void> => ipcRenderer.invoke('projects:remove', id),
+    updateName: (id: string, name: string): Promise<void> =>
+      ipcRenderer.invoke('projects:updateName', id, name),
+    updatePinned: (id: string, pinned: boolean): Promise<void> =>
+      ipcRenderer.invoke('projects:updatePinned', id, pinned),
     addSession: (projectId: string, sessionId: string): Promise<void> =>
       ipcRenderer.invoke('projects:addSession', projectId, sessionId),
     removeSession: (projectId: string, sessionId: string): Promise<void> =>

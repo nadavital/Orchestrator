@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import type { MouseEvent } from 'react'
 import type { Project, Session } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
 import SessionItem from './SessionItem'
 import Icon from '../shared/Icon'
-import { ConfirmDialog, IconButton, SurfaceRow } from '../shared/designSystem'
+import { ConfirmDialog, IconButton, MenuItem, MenuSurface, SurfaceRow, TextInputDialog } from '../shared/designSystem'
 
 interface Props {
   project: Project
@@ -15,8 +16,11 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   const [collapsed, setCollapsed] = useState(false)
   const [creating, setCreating] = useState(false)
   const [confirmingRemoval, setConfirmingRemoval] = useState(false)
+  const [confirmingArchive, setConfirmingArchive] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
   const [expanded, setExpanded] = useState(false)
-  const { removeProject, addSessionToProject, removeSessionFromProject } = useProjectStore()
+  const { removeProject, updateProjectName, updateProjectPinned, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const removeSession = useSessionStore((state) => state.removeSession)
   const addSession = useSessionStore((state) => state.addSession)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
@@ -56,13 +60,62 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   }
 
   const handleRemoveProject = async (): Promise<void> => {
-    for (const s of sessions) {
+    for (const s of projectSessions()) {
       await window.api.sessions.remove(s.id)
       removeSession(s.id)
     }
     await window.api.projects.remove(project.id)
     removeProject(project.id)
   }
+
+  const handleArchiveChats = async (): Promise<void> => {
+    for (const s of projectSessions()) {
+      await window.api.sessions.remove(s.id)
+      removeSession(s.id)
+      removeSessionFromProject(project.id, s.id)
+    }
+  }
+
+  const renameProject = async (nextName: string): Promise<void> => {
+    const trimmed = nextName.trim()
+    if (!trimmed || trimmed === project.name) {
+      setRenaming(false)
+      return
+    }
+    updateProjectName(project.id, trimmed)
+    try {
+      await window.api.projects.updateName(project.id, trimmed)
+    } catch (error) {
+      updateProjectName(project.id, project.name)
+      console.error('Failed to rename project', error)
+    } finally {
+      setRenaming(false)
+    }
+  }
+
+  const togglePinnedProject = async (): Promise<void> => {
+    const nextPinned = !project.pinned
+    updateProjectPinned(project.id, nextPinned)
+    setMenuPoint(null)
+    try {
+      await window.api.projects.updatePinned(project.id, nextPinned)
+    } catch (error) {
+      updateProjectPinned(project.id, Boolean(project.pinned))
+      console.error('Failed to pin project', error)
+    }
+  }
+
+  const projectSessions = (): Session[] => (
+    useSessionStore.getState().sessions.filter((session) => session.projectId === project.id)
+  )
+
+  const openProjectMenu = (event: MouseEvent<HTMLElement>): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    setMenuPoint({ x: rect.right - 214, y: rect.bottom + 6 })
+  }
+
   const visibleSessions = expanded ? sessions : sessions.slice(0, 6)
   const hiddenSessionCount = Math.max(0, sessions.length - visibleSessions.length)
 
@@ -70,6 +123,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
     <div style={{ marginBottom: 8 }}>
       {/* Project header */}
       <SurfaceRow
+        dataTestId="project-section-header"
         className="group flex items-center gap-2 cursor-pointer select-none"
         style={{
           padding: '5px 7px',
@@ -79,7 +133,8 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
         onClick={() => setCollapsed((c) => !c)}
         onContextMenu={(e) => {
           e.preventDefault()
-          setConfirmingRemoval(true)
+          const rect = e.currentTarget.getBoundingClientRect()
+          setMenuPoint({ x: e.clientX || rect.right - 214, y: e.clientY || rect.bottom + 6 })
         }}
       >
         <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
@@ -89,7 +144,19 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
         <span className="flex-1 truncate text-[13px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
           {project.name}
         </span>
+        {project.pinned && (
+          <span className="shrink-0" style={{ color: 'var(--text-tertiary)' }} title="Pinned project">
+            <Icon name="pin" size={11} />
+          </span>
+        )}
         <span className="surface-row-secondary">
+          <IconButton
+            icon="ellipsis"
+            label="Project actions"
+            size="sm"
+            tooltip={false}
+            onClick={openProjectMenu}
+          />
           <IconButton
             icon={creating ? 'refresh' : 'plus'}
             label={creating ? 'Creating chat' : 'New chat'}
@@ -149,6 +216,79 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
             void handleRemoveProject()
           }}
         />
+      )}
+      {confirmingArchive && (
+        <ConfirmDialog
+          title={`Archive chats in "${project.name}"?`}
+          description="This removes this project's chats from Orchestrator but keeps the project in the sidebar."
+          confirmLabel="Archive chats"
+          onCancel={() => setConfirmingArchive(false)}
+          onConfirm={() => {
+            setConfirmingArchive(false)
+            void handleArchiveChats()
+          }}
+        />
+      )}
+      {renaming && (
+        <TextInputDialog
+          title="Rename project"
+          initialValue={project.name}
+          confirmLabel="Rename"
+          onCancel={() => setRenaming(false)}
+          onConfirm={(value) => void renameProject(value)}
+        />
+      )}
+      {menuPoint && (
+        <MenuSurface
+          className="fixed p-[5px]"
+          onClose={() => setMenuPoint(null)}
+          style={{
+            left: Math.max(8, Math.min(menuPoint.x, window.innerWidth - 226)),
+            top: Math.max(8, Math.min(menuPoint.y, window.innerHeight - 270)),
+            width: 214,
+            zIndex: 10000
+          }}
+        >
+          <MenuItem
+            icon="pencil"
+            label="Rename project"
+            onClick={() => {
+              setMenuPoint(null)
+              setRenaming(true)
+            }}
+          />
+          <MenuItem
+            icon={project.pinned ? 'check' : 'pin'}
+            label={project.pinned ? 'Unpin project' : 'Pin project'}
+            onClick={() => void togglePinnedProject()}
+          />
+          <MenuItem
+            icon="folder"
+            label="Open folder"
+            onClick={() => {
+              setMenuPoint(null)
+              void window.api.fs.openPath(project.rootPath)
+            }}
+          />
+          <div className="mx-1 my-1 h-px" style={{ background: 'var(--border-subtle)' }} />
+          <MenuItem
+            icon="eraser"
+            label="Archive project chats"
+            onClick={() => {
+              setMenuPoint(null)
+              setConfirmingArchive(true)
+            }}
+          />
+          <MenuItem
+            icon="close"
+            label="Remove project"
+            tone="danger"
+            onClick={() => {
+              setMenuPoint(null)
+              setConfirmingRemoval(true)
+            }}
+          />
+        </MenuSurface>
       )}
     </div>
   )

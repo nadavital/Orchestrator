@@ -3,6 +3,7 @@ export interface Project {
   name: string
   rootPath: string
   sessionIds: string[]
+  pinned?: boolean
 }
 
 // Provider display info — shared between main and renderer

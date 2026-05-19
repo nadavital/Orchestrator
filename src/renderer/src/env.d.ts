@@ -97,6 +97,8 @@ declare global {
         list: () => Promise<Project[]>
         add: (name: string, rootPath: string) => Promise<Project>
         remove: (id: string) => Promise<void>
+        updateName: (id: string, name: string) => Promise<void>
+        updatePinned: (id: string, pinned: boolean) => Promise<void>
         addSession: (projectId: string, sessionId: string) => Promise<void>
         removeSession: (projectId: string, sessionId: string) => Promise<void>
       }

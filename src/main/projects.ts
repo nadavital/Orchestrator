@@ -31,6 +31,25 @@ export const projectStore = {
     store.set('projects', projects)
   },
 
+  updateName(id: string, name: string): void {
+    const projects = store.get('projects', [])
+    const project = projects.find((p) => p.id === id)
+    const trimmed = name.trim()
+    if (project && trimmed) {
+      project.name = trimmed
+      store.set('projects', projects)
+    }
+  },
+
+  updatePinned(id: string, pinned: boolean): void {
+    const projects = store.get('projects', [])
+    const project = projects.find((p) => p.id === id)
+    if (project) {
+      project.pinned = pinned
+      store.set('projects', projects)
+    }
+  },
+
   addSession(projectId: string, sessionId: string): void {
     const projects = store.get('projects', [])
     const p = projects.find((p) => p.id === projectId)
