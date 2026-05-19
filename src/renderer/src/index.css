@@ -784,6 +784,27 @@
     background: color-mix(in srgb, var(--surface-bg) 96%, var(--canvas-bg));
   }
 
+  .browser-targets-pane,
+  .browser-security-pane {
+    display: grid;
+    min-width: 0;
+    gap: 12px;
+  }
+
+  .browser-targets-pane {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 0.48fr);
+  }
+
+  .browser-security-pane {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  @media (max-width: 900px) {
+    .browser-targets-pane {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
   .motion-tab-close {
     display: grid;
     width: 17px;

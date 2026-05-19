@@ -773,6 +773,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.querySelector('[data-testid="browser-target-select"]') instanceof HTMLSelectElement &&
               document.body.innerText.includes('Click x/y') &&
               document.body.innerText.includes('Clip');
+            var browserTargetsPaneNoHorizontalOverflowWorks = (() => {
+              const pane = document.querySelector('.browser-targets-pane');
+              const output = document.querySelector('[data-testid="browser-inspector-output"]');
+              return pane instanceof HTMLElement &&
+                output instanceof HTMLElement &&
+                pane.scrollWidth <= pane.clientWidth + 2 &&
+                output.scrollWidth <= output.clientWidth + 2;
+            })();
             const assetsInspectorButton = document.querySelector('[data-testid="browser-inspector-assets"]');
             if (assetsInspectorButton instanceof HTMLButtonElement) {
               assetsInspectorButton.click();
@@ -799,6 +807,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.body.innerText.includes('Allowed') &&
               document.body.innerText.includes('Downloads') &&
               document.body.innerText.includes('Uploads');
+            var browserSecurityPaneNoHorizontalOverflowWorks = (() => {
+              const drawer = document.querySelector('.browser-inspector-drawer');
+              const output = document.querySelector('[data-testid="browser-inspector-output"]');
+              const securityPane = document.querySelector('.browser-security-pane');
+              return drawer instanceof HTMLElement &&
+                output instanceof HTMLElement &&
+                securityPane instanceof HTMLElement &&
+                drawer.scrollWidth <= drawer.clientWidth + 2 &&
+                output.scrollWidth <= output.clientWidth + 2 &&
+                securityPane.scrollWidth <= securityPane.clientWidth + 2;
+            })();
             const hideBrowserButton = [...document.querySelectorAll('button')]
               .find((button) => button.getAttribute('title') === 'Hide browser surface');
             if (hideBrowserButton instanceof HTMLButtonElement) {
@@ -1062,8 +1081,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserMultiTabWorks: typeof browserMultiTabWorks === 'boolean' ? browserMultiTabWorks : null,
             browserInspectionWorks: typeof browserInspectionWorks === 'boolean' ? browserInspectionWorks : null,
             browserTargetsPaneWorks: typeof browserTargetsPaneWorks === 'boolean' ? browserTargetsPaneWorks : null,
+            browserTargetsPaneNoHorizontalOverflowWorks: typeof browserTargetsPaneNoHorizontalOverflowWorks === 'boolean' ? browserTargetsPaneNoHorizontalOverflowWorks : null,
             browserAssetBundleWorks: typeof browserAssetBundleWorks === 'boolean' ? browserAssetBundleWorks : null,
             browserSecurityPaneWorks: typeof browserSecurityPaneWorks === 'boolean' ? browserSecurityPaneWorks : null,
+            browserSecurityPaneNoHorizontalOverflowWorks: typeof browserSecurityPaneNoHorizontalOverflowWorks === 'boolean' ? browserSecurityPaneNoHorizontalOverflowWorks : null,
             browserVisibilityControlWorks: typeof browserVisibilityControlWorks === 'boolean' ? browserVisibilityControlWorks : null,
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,

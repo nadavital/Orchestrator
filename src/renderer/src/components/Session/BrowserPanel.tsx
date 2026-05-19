@@ -778,7 +778,7 @@ export default function BrowserPanel({
                 Hide
               </button>
             </div>
-            <div className="h-[168px] overflow-auto px-3 py-2 text-xs" data-testid="browser-inspector-output">
+            <div className="h-[168px] overflow-y-auto overflow-x-hidden px-3 py-2 text-xs" data-testid="browser-inspector-output">
               {workbench.inspectorMode === 'console' && (
                 <ConsolePane logs={logs} artifactPath={artifactPath} screenshot={screenshot} onClear={() => setLogs([])} />
               )}
@@ -906,7 +906,7 @@ function TargetsPane({
   onClipboardChange: (value: string) => void
 }): JSX.Element {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_180px] gap-3">
+    <div className="browser-targets-pane">
       <div className="space-y-2">
         <select
           data-testid="browser-target-select"
@@ -1000,7 +1000,7 @@ function SecurityPane({
   onClearOriginPolicy: (key: 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins') => void
 }): JSX.Element {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="browser-security-pane">
       <div className="space-y-2">
         <PolicySelect
           label="Approval"
