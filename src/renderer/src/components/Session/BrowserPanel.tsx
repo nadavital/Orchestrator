@@ -11,16 +11,21 @@ interface Props {
 type WebviewElement = HTMLElement & {
   loadURL: (url: string) => Promise<void> | void
   reload: () => void
+  reloadIgnoringCache: () => void
   goBack: () => void
   goForward: () => void
   canGoBack: () => boolean
   canGoForward: () => boolean
   getURL: () => string
   getTitle: () => string
+  findInPage: (text: string) => number
+  stopFindInPage: (action: 'clearSelection' | 'keepSelection' | 'activateSelection') => void
+  setZoomFactor: (factor: number) => void
   capturePage: () => Promise<{ toDataURL: () => string }>
 }
 
 const QUICK_URLS = ['http://localhost:5173', 'http://127.0.0.1:8787']
+const ZOOM_STEP = 0.1
 
 export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlChange }: Props): JSX.Element {
   const webviewRef = useRef<WebviewElement | null>(null)
@@ -32,6 +37,11 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
   const [canGoForward, setCanGoForward] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [screenshot, setScreenshot] = useState<string | null>(null)
+  const [findVisible, setFindVisible] = useState(false)
+  const [findQuery, setFindQuery] = useState('')
+  const [zoomFactor, setZoomFactor] = useState(1)
+  const [deviceMode, setDeviceMode] = useState<'desktop' | 'mobile'>('desktop')
+  const [cacheReloadCount, setCacheReloadCount] = useState(0)
 
   useEffect(() => {
     setAddress(initialUrl)
@@ -106,6 +116,37 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
     setScreenshot(image.toDataURL())
   }
 
+  const searchInPage = (query: string): void => {
+    setFindQuery(query)
+    if (!query.trim()) {
+      webviewRef.current?.stopFindInPage('clearSelection')
+      return
+    }
+    webviewRef.current?.findInPage(query)
+  }
+
+  const closeFind = (): void => {
+    setFindVisible(false)
+    setFindQuery('')
+    webviewRef.current?.stopFindInPage('clearSelection')
+  }
+
+  const changeZoom = (delta: number): void => {
+    const nextZoom = Math.max(0.5, Math.min(2, Number((zoomFactor + delta).toFixed(2))))
+    setZoomFactor(nextZoom)
+    webviewRef.current?.setZoomFactor(nextZoom)
+  }
+
+  const resetZoom = (): void => {
+    setZoomFactor(1)
+    webviewRef.current?.setZoomFactor(1)
+  }
+
+  const reloadWithoutCache = (): void => {
+    setCacheReloadCount((count) => count + 1)
+    webviewRef.current?.reloadIgnoringCache?.()
+  }
+
   const openExternal = (): void => {
     if (!currentUrl) return
     void window.api.browser.openExternal(currentUrl)
@@ -133,6 +174,9 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
     <div
       className="flex min-h-0 min-w-0 flex-col overflow-hidden"
       data-testid="browser-panel"
+      data-browser-zoom={zoomFactor.toFixed(2)}
+      data-browser-device-mode={deviceMode}
+      data-browser-cache-reloads={cacheReloadCount}
       style={{
         width: embedded ? '100%' : 440,
         height: embedded ? '100%' : undefined,
@@ -150,6 +194,7 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
         <ToolbarButton icon="arrowLeft" label="Back" disabled={!canGoBack} onClick={() => webviewRef.current?.goBack()} />
         <ToolbarButton icon="arrowRight" label="Forward" disabled={!canGoForward} onClick={() => webviewRef.current?.goForward()} />
         <ToolbarButton icon="refresh" label="Reload" disabled={!currentUrl} onClick={() => webviewRef.current?.reload()} />
+        <ToolbarButton icon="eraser" label="Reload without cache" disabled={!currentUrl} onClick={reloadWithoutCache} />
         <div
           className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 py-1"
           style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
@@ -164,9 +209,44 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
             style={{ color: 'var(--text-primary)' }}
           />
         </div>
+        <ToolbarButton icon="search" label="Find in page" disabled={!currentUrl} active={findVisible} onClick={() => setFindVisible((value) => !value)} />
+        <ToolbarButton icon="zoomOut" label="Zoom out" disabled={!currentUrl || zoomFactor <= 0.5} onClick={() => changeZoom(-ZOOM_STEP)} />
+        <button
+          type="button"
+          data-testid="browser-zoom-reset"
+          disabled={!currentUrl}
+          className="rounded-md px-2 py-1 text-[11px] font-semibold disabled:opacity-45"
+          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', background: 'var(--control-bg)' }}
+          onClick={resetZoom}
+        >
+          {Math.round(zoomFactor * 100)}%
+        </button>
+        <ToolbarButton icon="zoomIn" label="Zoom in" disabled={!currentUrl || zoomFactor >= 2} onClick={() => changeZoom(ZOOM_STEP)} />
+        <ToolbarButton
+          icon={deviceMode === 'desktop' ? 'monitor' : 'smartphone'}
+          label={deviceMode === 'desktop' ? 'Mobile preview' : 'Desktop preview'}
+          disabled={!currentUrl}
+          active={deviceMode === 'mobile'}
+          onClick={() => setDeviceMode((mode) => mode === 'desktop' ? 'mobile' : 'desktop')}
+        />
         <ToolbarButton icon="camera" label="Capture screenshot" disabled={!currentUrl || isLoading} onClick={captureScreenshot} />
         <ToolbarButton icon="external" label="Open in external browser" disabled={!currentUrl} onClick={openExternal} />
       </form>
+      {findVisible && (
+        <div className="flex shrink-0 items-center gap-1.5 px-2 pb-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+          <Icon name="search" size={13} />
+          <input
+            data-testid="browser-find-input"
+            value={findQuery}
+            onChange={(event) => searchInPage(event.target.value)}
+            placeholder="Find in page"
+            autoFocus
+            className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
+            style={{ color: 'var(--text-primary)', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
+          />
+          <ToolbarButton icon="close" label="Close find" onClick={closeFind} />
+        </div>
+      )}
       {(title || isLoading || error) && (
         <div className="flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           {isLoading && <Badge tone="neutral">Loading</Badge>}
@@ -188,7 +268,18 @@ export default function BrowserPanel({ initialUrl = '', embedded = false, onUrlC
         </div>
       )}
       {currentUrl ? (
-        webview
+        <div className="flex min-h-0 flex-1 justify-center overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
+          <div
+            className="flex min-h-0 flex-1 overflow-hidden"
+            style={{
+              maxWidth: deviceMode === 'mobile' ? 390 : '100%',
+              borderLeft: deviceMode === 'mobile' ? '1px solid var(--border-subtle)' : 'none',
+              borderRight: deviceMode === 'mobile' ? '1px solid var(--border-subtle)' : 'none'
+            }}
+          >
+            {webview}
+          </div>
+        </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
           <Icon name="browser" size={26} />

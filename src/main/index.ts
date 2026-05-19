@@ -480,6 +480,46 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               typeof browserWebview.getAttribute === 'function' &&
               document.body.innerText.includes('Orchestrator Browser Smoke');
             var browserScreenshotWorks = Boolean(document.querySelector('[data-testid="browser-screenshot-preview"]'));
+            const browserPanel = document.querySelector('[data-testid="browser-panel"]');
+            const findInPageButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Find in page');
+            var browserFindWorks = false;
+            if (findInPageButton instanceof HTMLButtonElement) {
+              findInPageButton.click();
+              await sleep(120);
+              const findInput = document.querySelector('[data-testid="browser-find-input"]');
+              if (findInput instanceof HTMLInputElement) {
+                const setter = Object.getOwnPropertyDescriptor(findInput.constructor.prototype, 'value')?.set;
+                setter?.call(findInput, 'Browser');
+                findInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+                browserFindWorks = document.activeElement === findInput && findInput.value === 'Browser';
+              }
+            }
+            const zoomInButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Zoom in');
+            if (zoomInButton instanceof HTMLButtonElement) {
+              zoomInButton.click();
+              await sleep(120);
+            }
+            var browserZoomWorks =
+              Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-zoom') ?? '1') > 1;
+            const mobilePreviewButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Mobile preview');
+            if (mobilePreviewButton instanceof HTMLButtonElement) {
+              mobilePreviewButton.click();
+              await sleep(120);
+            }
+            var browserDeviceModeWorks =
+              document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'mobile';
+            const noCacheButton = [...document.querySelectorAll('button')]
+              .find((button) => button.getAttribute('title') === 'Reload without cache');
+            if (noCacheButton instanceof HTMLButtonElement) {
+              noCacheButton.click();
+              await sleep(120);
+            }
+            var browserCacheReloadWorks =
+              Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-cache-reloads') ?? '0') > 0;
             const browserTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('button');
             var rightPanelContextMenuWorks = false;
             var rightPanelTabReorderWorks = false;
@@ -672,6 +712,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
             browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
             browserScreenshotWorks: typeof browserScreenshotWorks === 'boolean' ? browserScreenshotWorks : null,
+            browserFindWorks: typeof browserFindWorks === 'boolean' ? browserFindWorks : null,
+            browserZoomWorks: typeof browserZoomWorks === 'boolean' ? browserZoomWorks : null,
+            browserDeviceModeWorks: typeof browserDeviceModeWorks === 'boolean' ? browserDeviceModeWorks : null,
+            browserCacheReloadWorks: typeof browserCacheReloadWorks === 'boolean' ? browserCacheReloadWorks : null,
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,

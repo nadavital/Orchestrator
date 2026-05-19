@@ -24,6 +24,7 @@ import {
   Keyboard,
   ListChecks,
   Menu,
+  Monitor,
   MessageSquare,
   Paperclip,
   Pencil,
@@ -31,14 +32,18 @@ import {
   Plug,
   Plus,
   RotateCw,
+  Search,
   ExternalLink,
   Send,
   Settings,
   Sparkles,
+  Smartphone,
   Wrench,
   Terminal,
   Users,
   X,
+  ZoomIn,
+  ZoomOut,
   type LucideIcon
 } from 'lucide-react'
 
@@ -69,6 +74,7 @@ export type IconName =
   | 'folder'
   | 'keyboard'
   | 'menu'
+  | 'monitor'
   | 'paperclip'
   | 'pencil'
   | 'pin'
@@ -76,12 +82,16 @@ export type IconName =
   | 'plug'
   | 'plus'
   | 'refresh'
+  | 'search'
   | 'send'
   | 'settings'
+  | 'smartphone'
   | 'sparkles'
   | 'terminal'
   | 'usage'
   | 'wrench'
+  | 'zoomIn'
+  | 'zoomOut'
   | 'warning'
 
 const icons: Record<IconName, LucideIcon> = {
@@ -111,6 +121,7 @@ const icons: Record<IconName, LucideIcon> = {
   folder: Folder,
   keyboard: Keyboard,
   menu: Menu,
+  monitor: Monitor,
   paperclip: Paperclip,
   pencil: Pencil,
   pin: Pin,
@@ -118,12 +129,16 @@ const icons: Record<IconName, LucideIcon> = {
   plug: Plug,
   plus: Plus,
   refresh: RotateCw,
+  search: Search,
   send: Send,
   settings: Settings,
+  smartphone: Smartphone,
   sparkles: Sparkles,
   terminal: Terminal,
   usage: BarChart3,
   wrench: Wrench,
+  zoomIn: ZoomIn,
+  zoomOut: ZoomOut,
   warning: AlertTriangle
 }
 
