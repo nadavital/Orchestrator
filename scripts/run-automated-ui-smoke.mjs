@@ -277,6 +277,8 @@ child.on('exit', (code) => {
         hoverCardVisible: result.hoverCardVisible === true,
         singleHoverSurface: result.singleHoverSurfaceWorks === true,
         sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
+        sessionRowsCompact: result.sessionRowsCompact === true,
+        projectHeadersCompact: result.projectHeadersCompact === true,
         environmentIconVisible: result.environmentIconVisible === true,
         actionRenameWorks: result.actionRenameWorks === true,
         runningSpinnerVisible: result.runningSpinnerVisible === true,

@@ -124,9 +124,9 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
       {/* Project header */}
       <SurfaceRow
         dataTestId="project-section-header"
-        className="group flex min-w-0 items-center gap-2 cursor-pointer select-none"
+        className="group flex h-6 min-w-0 items-center gap-1.5 cursor-pointer select-none"
         style={{
-          padding: '3px 6px',
+          padding: '2px 6px',
           borderRadius: 'var(--radius-md)',
           color: 'var(--text-secondary)',
         }}
@@ -174,7 +174,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
           {sessions.length === 0 && (
             <div
               className="cursor-pointer"
-              style={{ color: 'var(--text-secondary)', padding: '4px 8px 4px 28px', fontSize: 12.5 }}
+              style={{ color: 'var(--text-secondary)', padding: '3px 8px 3px 28px', fontSize: 12.5 }}
               onClick={handleNewSession}
             >
               New chat

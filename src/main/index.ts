@@ -1495,6 +1495,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               [...sidebar.querySelectorAll('.overflow-y-auto')].every((element) => (
                 element instanceof HTMLElement && getComputedStyle(element).overflowX === 'hidden'
               ));
+            const sessionRowsCompact = [...document.querySelectorAll('[data-testid="session-row"]')]
+              .filter((row) => row instanceof HTMLElement)
+              .every((row) => row.getBoundingClientRect().height <= 32);
+            const projectHeadersCompact = [...document.querySelectorAll('[data-testid="project-section-header"]')]
+              .filter((header) => header instanceof HTMLElement)
+              .every((header) => header.getBoundingClientRect().height <= 28);
             const environmentIconVisible = Boolean(normalRow?.querySelector('[data-testid="session-environment-icon"]'));
 
             let actionRenameWorks = false;
@@ -1659,6 +1665,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               hoverCardVisible,
               singleHoverSurfaceWorks,
               sidebarNoHorizontalOverflow,
+              sessionRowsCompact,
+              projectHeadersCompact,
               environmentIconVisible,
               actionRenameWorks,
               runningSpinnerVisible: Boolean(runningRow?.querySelector('[data-testid="session-status-spinner"]')),
