@@ -22,6 +22,7 @@ import { useSessionStore } from '../store/sessions'
 import type { SettingsSection } from '../store/sessions'
 import type { AppProfile } from '../env'
 import { formatShortcutKeys, visibleShortcutRows } from '../../../types/appCommands'
+import { parsePortableTheme, serializePortableTheme } from '../../../types/themeSharing'
 import ProviderIcon from './shared/ProviderIcon'
 import Icon from './shared/Icon'
 import {
@@ -546,68 +547,6 @@ function normalizeChromeTheme(value: unknown, fallback: ChromeTheme): ChromeThem
     fonts: record.fonts,
     semanticColors: record.semanticColors
   }
-}
-
-type PortableTheme = {
-  variant: 'light' | 'dark'
-  codeThemeId: string
-  theme: ChromeTheme
-}
-
-function serializePortableTheme(variant: 'light' | 'dark', theme: ChromeTheme, codeThemeId: string): string {
-  return `codex-theme-v1:${JSON.stringify({ variant, codeThemeId, theme })}`
-}
-
-function parsePortableTheme(raw: string): { ok: true; value: PortableTheme } | { ok: false; error: string } {
-  const trimmed = raw.trim()
-  if (!trimmed.startsWith('codex-theme-v1:')) return { ok: false, error: 'Theme must start with codex-theme-v1:' }
-  try {
-    const parsed = JSON.parse(trimmed.slice('codex-theme-v1:'.length)) as Partial<PortableTheme>
-    if (parsed.variant !== 'light' && parsed.variant !== 'dark') return { ok: false, error: 'Theme variant must be light or dark' }
-    if (!parsed.theme || typeof parsed.theme !== 'object') return { ok: false, error: 'Theme payload is missing' }
-    const theme = normalizeImportedChromeTheme(parsed.theme)
-    if (!theme) return { ok: false, error: 'Theme colors must be #RRGGBB and contrast must be 0-100' }
-    return {
-      ok: true,
-      value: {
-        variant: parsed.variant,
-        codeThemeId: typeof parsed.codeThemeId === 'string' && parsed.codeThemeId.trim() ? parsed.codeThemeId : defaultCodeThemeId(parsed.variant),
-        theme
-      }
-    }
-  } catch {
-    return { ok: false, error: 'Theme JSON is invalid' }
-  }
-}
-
-function normalizeImportedChromeTheme(value: unknown): ChromeTheme | null {
-  if (!value || typeof value !== 'object') return null
-  const record = value as Partial<ChromeTheme>
-  if (!isHexColor(record.accent) || !isHexColor(record.surface) || !isHexColor(record.ink)) return null
-  if (typeof record.contrast !== 'number' || record.contrast < 0 || record.contrast > 100) return null
-  const semanticColors = record.semanticColors
-  if (semanticColors) {
-    for (const color of [semanticColors.diffAdded, semanticColors.diffRemoved, semanticColors.skill]) {
-      if (color !== undefined && !isHexColor(color)) return null
-    }
-  }
-  return {
-    accent: record.accent,
-    surface: record.surface,
-    ink: record.ink,
-    contrast: record.contrast,
-    opaqueWindows: record.opaqueWindows === true,
-    fonts: record.fonts,
-    semanticColors
-  }
-}
-
-function isHexColor(value: unknown): value is string {
-  return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
-}
-
-function defaultCodeThemeId(variant: 'light' | 'dark'): string {
-  return variant === 'light' ? 'github-light' : 'github-dark'
 }
 
 // ─── General section (app-wide) ───────────────────────────────────────────────
