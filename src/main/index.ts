@@ -564,7 +564,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             var reviewBinaryStateWorks =
               Boolean(document.querySelector('[data-testid="review-binary-state"]')) &&
-              document.body.innerText.includes('Binary file changed');
+              document.body.innerText.includes('Open or reveal to inspect.');
             if (diffSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
               setter?.call(diffSearch, '');
@@ -627,7 +627,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(160);
             }
             var filesBinaryPreviewWorks =
-              document.body.innerText.includes('Binary file preview unavailable') &&
+              Boolean(document.querySelector('[data-testid="workspace-binary-state"]')) &&
+              document.body.innerText.includes('Open or reveal to inspect.') &&
               !document.querySelector('[data-testid="workspace-text-preview"]');
             if (fileSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
@@ -636,7 +637,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(120);
             }
             var filesNoResultsWorks =
-              document.body.innerText.includes('No matching files') &&
+              Boolean(document.querySelector('[data-testid="workspace-file-empty-list"]')) &&
+              document.body.innerText.includes('No matches') &&
               !document.querySelector('[data-testid="workspace-text-preview"]') &&
               (addFileButton instanceof HTMLButtonElement ? addFileButton.disabled : true);
             const browserPanelTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');

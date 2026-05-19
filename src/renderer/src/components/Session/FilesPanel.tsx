@@ -141,7 +141,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
           data-testid="workspace-file-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search workspace files"
+          placeholder="Search files"
           className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
           style={{
             background: 'var(--control-bg)',
@@ -156,11 +156,11 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
         <div className="min-h-0 overflow-y-auto border-r" style={{ borderColor: 'var(--border-subtle)' }}>
           {loading ? (
             <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              Loading directory entries...
+              Loading...
             </div>
           ) : filteredEntries.length === 0 ? (
-            <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              {query.trim() ? 'No matching files' : 'No files in this folder'}
+            <div data-testid="workspace-file-empty-list" className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              {query.trim() ? 'No matches' : 'No files'}
             </div>
           ) : (
             filteredEntries.map((entry) => (
@@ -192,7 +192,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
         </div>
         <div className="min-h-0 min-w-0 overflow-auto">
           {selectedEntry?.kind === 'directory' ? (
-            <EmptyFileState title={selectedEntry.path} body="Select a file to preview it." />
+            <EmptyFileState title={selectedEntry.path} body="Select a file." />
           ) : selectedEntry ? (
             <FilePreview
               entry={selectedEntry}
@@ -200,7 +200,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
               preview={preview}
             />
           ) : (
-            <EmptyFileState title="Nothing selected" body="Choose a workspace file from the list." />
+            <EmptyFileState title="No file selected" body="Select a file." />
           )}
         </div>
       </div>
@@ -218,7 +218,7 @@ function FilePreview({
   preview: FilePreviewResult | null
 }): JSX.Element {
   if (!preview) {
-    return <EmptyFileState title={entry.name} body="Loading preview..." />
+    return <EmptyFileState title={entry.name} body="Loading..." />
   }
   if (preview.kind === 'image') {
     return (
@@ -259,13 +259,13 @@ function FilePreview({
     )
   }
   if (preview.kind === 'binary') {
-    return <EmptyFileState title={entry.name} body="Binary file preview unavailable. Use Open file or Reveal file to inspect it." />
+    return <EmptyFileState title={entry.name} body="Open or reveal to inspect." testId="workspace-binary-state" />
   }
   if (preview.kind === 'missing') {
-    return <EmptyFileState title={entry.name} body="This file is no longer available in the workspace." />
+    return <EmptyFileState title={entry.name} body="Missing from workspace." />
   }
   if (preview.kind === 'unreadable') {
-    return <EmptyFileState title={entry.name} body="Unable to load this file. Use Open file or Reveal file to inspect it." />
+    return <EmptyFileState title={entry.name} body="Preview unavailable." />
   }
   return (
     <div className="min-h-full">
@@ -274,7 +274,7 @@ function FilePreview({
           className="px-3 py-2 text-[11px]"
           style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)' }}
         >
-          Preview limited to the first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
+          Showing first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
         </div>
       )}
       <pre
@@ -288,11 +288,15 @@ function FilePreview({
   )
 }
 
-function EmptyFileState({ title, body }: { title: string; body: string }): JSX.Element {
+function EmptyFileState({ title, body, testId }: { title: string; body: string; testId?: string }): JSX.Element {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs" style={{ color: 'var(--text-tertiary)' }}>
-      <strong style={{ color: 'var(--text-secondary)' }}>{title}</strong>
-      <span>{body}</span>
+    <div
+      data-testid={testId}
+      className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs"
+      style={{ color: 'var(--text-tertiary)' }}
+    >
+      <strong className="max-w-[260px] truncate" style={{ color: 'var(--text-secondary)' }}>{title}</strong>
+      <span className="max-w-[240px] leading-5">{body}</span>
     </div>
   )
 }

@@ -178,7 +178,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
               data-testid="diff-file-search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search changed files"
+              placeholder="Search changes"
               className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
               style={{
                 background: 'var(--control-bg)',
@@ -199,7 +199,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
           >
             {filteredFiles.length === 0 && (
               <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                No changed files match this search.
+                No matches
               </div>
             )}
             {filteredFiles.map((f) => (
@@ -245,19 +245,19 @@ function ReviewPreview({
   absolutePath: string
 }): JSX.Element {
   if (!change) {
-    return <ReviewEmptyState title="Nothing selected" body="Choose a changed file from the list." />
+    return <ReviewEmptyState title="No file selected" body="Select a change." />
   }
   if (loading) {
-    return <ReviewEmptyState title={change.path} body="Loading review preview..." />
+    return <ReviewEmptyState title={change.path} body="Loading..." />
   }
   const hasNativePreview = preview?.kind === 'image' || preview?.kind === 'pdf' || preview?.kind === 'audio' || preview?.kind === 'video'
   if ((isBinaryDiff(diff) && !hasNativePreview) || preview?.kind === 'binary') {
-    return <ReviewEmptyState title={change.path} body="Binary file changed. Use Open file or Reveal file to inspect it." testId="review-binary-state" />
+    return <ReviewEmptyState title={change.path} body="Open or reveal to inspect." testId="review-binary-state" />
   }
   if (preview?.kind === 'image') {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-image-state">
-        <ReviewPreviewHeader change={change} label="Image file changed" />
+        <ReviewPreviewHeader change={change} label="Image" />
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3">
           <img
             src={fileUrl(absolutePath)}
@@ -272,7 +272,7 @@ function ReviewPreview({
   if (preview?.kind === 'pdf') {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-pdf-state">
-        <ReviewPreviewHeader change={change} label="PDF file changed" />
+        <ReviewPreviewHeader change={change} label="PDF" />
         <iframe title={change.path} src={fileUrl(absolutePath)} className="min-h-0 flex-1 border-0" />
       </div>
     )
@@ -280,7 +280,7 @@ function ReviewPreview({
   if (preview?.kind === 'audio') {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-audio-state">
-        <ReviewPreviewHeader change={change} label="Audio file changed" />
+        <ReviewPreviewHeader change={change} label="Audio" />
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-4 text-center">
           <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{change.path}</span>
           <audio controls src={fileUrl(absolutePath)} className="w-full max-w-[360px]" />
@@ -291,7 +291,7 @@ function ReviewPreview({
   if (preview?.kind === 'video') {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-video-state">
-        <ReviewPreviewHeader change={change} label="Video file changed" />
+        <ReviewPreviewHeader change={change} label="Video" />
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3">
           <video controls src={fileUrl(absolutePath)} className="max-h-full max-w-full rounded-md" />
         </div>
@@ -304,7 +304,7 @@ function ReviewPreview({
   if (preview?.kind === 'text' && preview.text?.trim()) {
     return (
       <div className="min-h-full" data-testid="review-source-preview">
-        <ReviewPreviewHeader change={change} label={preview.truncated ? 'Source preview truncated' : 'Source preview'} />
+        <ReviewPreviewHeader change={change} label={preview.truncated ? 'Source truncated' : 'Source'} />
         <pre
           className="min-h-full whitespace-pre-wrap break-words p-3 text-xs"
           style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}
@@ -315,15 +315,15 @@ function ReviewPreview({
     )
   }
   if (change.status === 'D') {
-    return <ReviewEmptyState title={change.path} body="Deleted file has no source preview. The textual deletion diff appears here when git can provide one." />
+    return <ReviewEmptyState title={change.path} body="Deleted file." />
   }
   if (preview?.kind === 'missing') {
-    return <ReviewEmptyState title={change.path} body="This changed file is no longer available in the workspace." />
+    return <ReviewEmptyState title={change.path} body="Missing from workspace." />
   }
   if (preview?.kind === 'unreadable') {
-    return <ReviewEmptyState title={change.path} body="Unable to load this file preview. Use Open file or Reveal file to inspect it." />
+    return <ReviewEmptyState title={change.path} body="Preview unavailable." />
   }
-  return <ReviewEmptyState title={change.path} body="No textual diff is available for this change." testId="review-no-content-state" />
+  return <ReviewEmptyState title={change.path} body="No preview available." testId="review-no-content-state" />
 }
 
 function ReviewPreviewHeader({ change, label }: { change: FileChange; label: string }): JSX.Element {
@@ -345,8 +345,8 @@ function ReviewEmptyState({ title, body, testId }: { title: string; body: string
       className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs"
       style={{ color: 'var(--color-text-muted)' }}
     >
-      <span style={{ color: 'var(--text-secondary)', fontWeight: 650 }}>{title}</span>
-      <span>{body}</span>
+      <span className="max-w-[260px] truncate" style={{ color: 'var(--text-secondary)', fontWeight: 650 }}>{title}</span>
+      <span className="max-w-[240px] leading-5">{body}</span>
     </div>
   )
 }
