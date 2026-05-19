@@ -444,27 +444,6 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               onLoadProviderDiagnostics={loadProviderDiagnostics}
             />
           )}
-          {section === 'diagnostics' && (
-            <ProvidersSection
-              defaultProvider={defaultProvider}
-              sessions={sessions}
-              defaultModels={defaultModels}
-              defaultEfforts={defaultEfforts}
-              defaultPermissionModes={defaultPermissionModes}
-              providerModels={providerModels}
-              providerRuntime={providerRuntime}
-              providerDiagnostics={providerDiagnostics}
-              diagnosticsLoading={diagnosticsLoading}
-              providerAvailability={providerAvailability}
-              defaultAdvancedOpen
-              onSetDefaultProvider={saveDefaultProvider}
-              onSetDefaultModel={saveDefaultModel}
-              onSetDefaultEffort={saveDefaultEffort}
-              onSetDefaultPermissionMode={saveDefaultPermissionMode}
-              onSetProviderModels={saveProviderModels}
-              onLoadProviderDiagnostics={loadProviderDiagnostics}
-            />
-          )}
         </div>
       </div>
     </div>
@@ -473,7 +452,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
 
 function settingsTitle(section: SettingsSection): string {
   if (section === 'appearance') return 'Appearance'
-  if (section === 'providers' || section === 'diagnostics') return 'Providers'
+  if (section === 'providers') return 'Providers'
   if (section === 'shortcuts') return 'Shortcuts'
   if (section === 'pets') return 'Pets'
   if (section === 'data') return 'Data controls'
@@ -1385,114 +1364,6 @@ function ProvidersSection({
             )}
           </SettingsPanel>
         )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ProviderDiagnosticsSection({
-  defaultProvider,
-  providerRuntime,
-  providerDiagnostics,
-  diagnosticsLoading,
-  providerAvailability,
-  sessions,
-  onLoadProviderDiagnostics
-}: {
-  defaultProvider: string
-  providerRuntime: Record<string, ProviderRuntimeInfo>
-  providerDiagnostics: Record<string, ProviderDiagnosticInfo>
-  diagnosticsLoading: Record<string, boolean>
-  providerAvailability: Record<string, boolean>
-  sessions: SessionListItem[]
-  onLoadProviderDiagnostics: (providerId: string) => void
-}): JSX.Element {
-  const providerList = Object.values(PROVIDER_DEFS)
-  const [selectedId, setSelectedId] = useState(defaultProvider)
-  const providerDef = PROVIDER_DEFS[selectedId] ?? PROVIDER_DEFS.claude
-  const installed = providerAvailability[selectedId] !== false
-  const runtime = providerRuntime[selectedId]
-  const diagnostics = providerDiagnostics[selectedId]
-  const loadingDiagnostics = diagnosticsLoading[selectedId] === true
-  const settingsCommandSurfaces = visibleSettingsCommandSurfaces(selectedId, runtime?.registry.commandSurfaces ?? [])
-  const usageSnapshot = summarizeProviderUsage(sessions, selectedId)
-
-  useEffect(() => {
-    onLoadProviderDiagnostics(selectedId)
-  }, [onLoadProviderDiagnostics, selectedId])
-
-  return (
-    <div data-testid="provider-diagnostics-settings-section" style={{ padding: '34px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
-      <SettingsIntro
-        description="Inspect local provider health, safe read-only provider details, and config locations without crowding model defaults."
-      />
-
-      <div style={{ display: 'grid', gridTemplateColumns: '190px minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
-        <ProviderSidePicker
-          providers={providerList}
-          selectedId={selectedId}
-          availability={providerAvailability}
-          onSelect={setSelectedId}
-        />
-
-        <div key={selectedId}>
-          <ProviderHeaderCard
-            providerId={selectedId}
-            providerName={providerDef.name}
-            color={providerDef.color}
-            installed={installed}
-            isDefault={selectedId === defaultProvider}
-            showDefaultControls={false}
-            installCmd={providerDef.installCmd}
-            onSetDefault={() => {}}
-          />
-
-          {settingsCommandSurfaces.length > 0 && (
-            <SettingsPanel>
-              <CompactSetting title="Provider details">
-                <ProviderCommandSurfaces
-                  providerId={selectedId}
-                  color={providerDef.color}
-                  surfaces={settingsCommandSurfaces}
-                />
-              </CompactSetting>
-            </SettingsPanel>
-          )}
-
-          <SettingsPanel>
-            {providerDef.id === 'claude' && (
-              <CompactSetting title="Endpoint">
-                <ClaudeEndpointField color={providerDef.color} />
-              </CompactSetting>
-            )}
-            <CompactSetting title="Config file">
-              <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
-            </CompactSetting>
-            {loadingDiagnostics && !diagnostics && (
-              <CompactSetting title="Status">
-                <InlineMutedText>Checking local CLI...</InlineMutedText>
-              </CompactSetting>
-            )}
-            {diagnostics && (
-              <CompactSetting title="Status">
-                <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
-              </CompactSetting>
-            )}
-            <CompactSetting title="Usage, cost, and budget">
-              <ProviderUsageDiagnosticsCard
-                providerId={selectedId}
-                diagnostics={diagnostics}
-                usage={usageSnapshot}
-                color={providerDef.color}
-              />
-            </CompactSetting>
-            {diagnostics && diagnostics.probes.length > 0 && (
-              <CompactSetting title="Probes">
-                <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
-              </CompactSetting>
-            )}
-          </SettingsPanel>
         </div>
       </div>
     </div>

@@ -132,7 +132,7 @@ export default function App(): JSX.Element {
     window.dispatchEvent(new CustomEvent('orchestrator:open-transcript-search'))
   }, [])
 
-  const openSettings = useCallback((section: 'general' | 'appearance' | 'providers' | 'diagnostics' | 'shortcuts' | 'pets' | 'data' = 'general'): void => {
+  const openSettings = useCallback((section: 'general' | 'appearance' | 'providers' | 'shortcuts' | 'pets' | 'data' = 'general'): void => {
     setSettingsSection(section)
     setShowCapabilities(false)
     setShowSettings(true)
