@@ -842,7 +842,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const widthBefore = Number(rightPanelBefore?.getAttribute('data-right-panel-width') ?? '0');
             const primaryBefore = document.querySelector('[data-testid="session-primary-content"]');
             const primaryWidthBefore = primaryBefore instanceof HTMLElement ? primaryBefore.getBoundingClientRect().width : 0;
-            const expandButton = findButton('Focus panel');
+            const expandButton = findButton('Maximize panel');
             const expandButtonLabelBefore = expandButton instanceof HTMLButtonElement
               ? expandButton.getAttribute('aria-label')
               : null;
@@ -893,7 +893,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Math.abs(expandedWidth - mainRowWidthAfterExpand) <= 4 &&
               primaryWidthAfterExpand >= primaryWidthBefore - 8 &&
               expandButton instanceof HTMLButtonElement &&
-              expandButtonLabelBefore === 'Focus panel' &&
+              expandButtonLabelBefore === 'Maximize panel' &&
               expandButtonIconBefore === 'maximize' &&
               restoreButton instanceof HTMLButtonElement &&
               restoreButtonLabelAfterExpand === 'Restore panel' &&
