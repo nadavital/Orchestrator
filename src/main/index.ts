@@ -773,6 +773,24 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               fileSearch.getBoundingClientRect().height <= 28 &&
               filesToolbarActions.getBoundingClientRect().height <= 26 &&
               filesEntryCount.textContent?.trim().length > 0;
+            const filesPanelBody = document.querySelector('[data-testid="files-panel-body"]');
+            const filesPanelList = document.querySelector('[data-testid="files-panel-list"]');
+            const filesPanelPreview = document.querySelector('[data-testid="files-panel-preview"]');
+            const filesPanelBodyRect = filesPanelBody instanceof HTMLElement ? filesPanelBody.getBoundingClientRect() : null;
+            const filesPanelListRect = filesPanelList instanceof HTMLElement ? filesPanelList.getBoundingClientRect() : null;
+            const filesPanelPreviewRect = filesPanelPreview instanceof HTMLElement ? filesPanelPreview.getBoundingClientRect() : null;
+            var filesPanelStackedWorks =
+              filesPanelBody instanceof HTMLElement &&
+              filesPanelList instanceof HTMLElement &&
+              filesPanelPreview instanceof HTMLElement &&
+              filesPanelBodyRect !== null &&
+              filesPanelListRect !== null &&
+              filesPanelPreviewRect !== null &&
+              filesPanelListRect.top >= filesPanelBodyRect.top - 2 &&
+              filesPanelPreviewRect.top >= filesPanelListRect.bottom - 2 &&
+              filesPanelPreviewRect.width >= filesPanelListRect.width - 2 &&
+              filesPanelPreviewRect.width >= 300 &&
+              filesPanelBody.scrollWidth <= filesPanelBody.clientWidth + 2;
             if (fileSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'nested note');
@@ -1382,6 +1400,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewBinaryActionsWork: typeof reviewBinaryActionsWork === 'boolean' ? reviewBinaryActionsWork : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
             filesToolbarCompactWorks: typeof filesToolbarCompactWorks === 'boolean' ? filesToolbarCompactWorks : null,
+            filesPanelStackedWorks: typeof filesPanelStackedWorks === 'boolean' ? filesPanelStackedWorks : null,
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
             filesHtmlPreviewWorks: typeof filesHtmlPreviewWorks === 'boolean' ? filesHtmlPreviewWorks : null,
             filesBinaryPreviewWorks: typeof filesBinaryPreviewWorks === 'boolean' ? filesBinaryPreviewWorks : null,

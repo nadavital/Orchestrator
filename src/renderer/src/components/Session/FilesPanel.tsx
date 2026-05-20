@@ -137,7 +137,8 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
 
   return (
     <div
-      className="flex min-h-0 min-w-0 flex-col overflow-hidden"
+      className="files-panel-root flex min-h-0 min-w-0 flex-col overflow-hidden"
+      data-embedded={embedded ? 'true' : 'false'}
       style={{
         width: embedded ? '100%' : 440,
         height: embedded ? '100%' : undefined,
@@ -161,8 +162,8 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
         <Badge tone="neutral" className="files-entry-count">{filteredEntries.length}</Badge>
         {embedded && fileActions}
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(140px,0.42fr)_minmax(0,1fr)]">
-        <div className="min-h-0 overflow-y-auto border-r" style={{ borderColor: 'var(--border-subtle)' }}>
+      <div className="files-panel-body" data-testid="files-panel-body">
+        <div className="files-panel-list" data-testid="files-panel-list">
           {loading ? (
             <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
               Loading...
@@ -178,14 +179,14 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
                 as="button"
                 active={selectedPath === entry.path}
                 onClick={() => setSelectedPath(entry.path)}
-                className="w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left text-xs"
+                className="files-entry-row w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left text-xs"
                 style={{ display: 'flex', paddingLeft: 8 + Math.min(entry.depth, 4) * 10 }}
               >
                 <Icon name={entry.kind === 'directory' ? 'folder' : 'file'} size={12} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{entry.name}</span>
                   {entry.path !== entry.name && (
-                    <span className="block truncate text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+                    <span className="files-entry-path block truncate text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
                       {entry.path}
                     </span>
                   )}
@@ -199,7 +200,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
             ))
           )}
         </div>
-        <div className="min-h-0 min-w-0 overflow-auto">
+        <div className="files-panel-preview" data-testid="files-panel-preview">
           {selectedEntry?.kind === 'directory' ? (
             <EmptyFileState title={selectedEntry.path} body="Select a file." />
           ) : selectedEntry ? (

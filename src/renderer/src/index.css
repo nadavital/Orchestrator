@@ -641,6 +641,45 @@
     height: 24px !important;
   }
 
+  .files-panel-body {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 0%;
+    grid-template-columns: minmax(140px, 0.42fr) minmax(0, 1fr);
+  }
+
+  .files-panel-list {
+    min-height: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--border-subtle);
+  }
+
+  .files-panel-preview {
+    min-height: 0;
+    min-width: 0;
+    overflow: auto;
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .files-panel-root[data-embedded='true'] .files-panel-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(104px, 0.36fr) minmax(0, 1fr);
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .files-panel-root[data-embedded='true'] .files-panel-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .files-panel-root[data-embedded='true'] .files-entry-row {
+    min-height: 28px;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .files-panel-root[data-embedded='true'] .files-entry-path {
+    display: none;
+  }
+
   .extensions-panel-section-heading {
     min-height: 34px;
   }
