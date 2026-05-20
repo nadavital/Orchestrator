@@ -1934,7 +1934,7 @@ function McpDetailsSummary({ details, color }: { details: McpDetail[]; color: st
             >
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: ok ? color : '#EF4444', flexShrink: 0 }} />
               <span style={{ flex: 1 }}>{detail.server}</span>
-              <span style={{ color: ok ? color : '#EF4444', fontSize: 10, textTransform: 'uppercase' }}>{detail.status}</span>
+              <span style={{ color: ok ? color : '#EF4444', fontSize: 11, fontWeight: 650 }}>{detail.status}</span>
             </summary>
             {detail.detail && (
               <pre
@@ -2002,7 +2002,7 @@ function AppServerSurfaceSummary({
                 minWidth: 0
               }}
             >
-              <div style={{ color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 750, textTransform: 'uppercase' }}>{stat.label}</div>
+              <div style={{ color: 'var(--color-text-muted)', fontSize: 11, fontWeight: 650 }}>{stat.label}</div>
               <div className="truncate" style={{ color: stat.tone ?? 'var(--color-text)', fontSize: 15, fontWeight: 750, marginTop: 2 }} title={stat.value}>
                 {stat.value}
               </div>
@@ -2040,7 +2040,7 @@ function AppServerSurfaceSummary({
               </div>
               {item.meta && (
                 <span
-                  className="shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase"
+                  className="shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold"
                   style={{
                     color: item.tone ?? color,
                     background: 'var(--color-surface2)',
@@ -2262,7 +2262,7 @@ function ObjectRow({
   if (depth > 1) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 10, fontWeight: 750, color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{label}</span>
+        <span style={{ fontSize: 11, fontWeight: 650, color: 'var(--color-text-muted)' }}>{label}</span>
         <StructuredValue value={value} color={color} depth={depth + 1} />
       </div>
     )
