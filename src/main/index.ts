@@ -786,6 +786,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.body.innerText.includes('Reduce Plan panel verbosity') &&
               document.body.innerText.includes(hiddenSentence) &&
               Boolean(document.querySelector('[data-testid="plan-goal-full-objective"]'));
+            const agentsTab = document.querySelector('[data-tab-id="agents"]')?.closest('[role="tab"]');
+            var planAgentStatLabelsCalm = false;
+            if (agentsTab instanceof HTMLElement) {
+              agentsTab.click();
+              await sleep(180);
+              const statLabels = [...document.querySelectorAll('[data-testid="agent-stat-label"]')]
+                .filter((label) => label instanceof HTMLElement);
+              planAgentStatLabelsCalm =
+                statLabels.length === 4 &&
+                statLabels.every((label) => {
+                  const text = label.textContent?.trim() ?? '';
+                  return text.length === 0 ||
+                    (text !== text.toUpperCase() && getComputedStyle(label).textTransform !== 'uppercase');
+                });
+              planTab?.click();
+              await sleep(120);
+            }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets') {
             const petsButton = [...document.querySelectorAll('button')]
@@ -2340,6 +2357,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
             compactTaskRowsWork: typeof compactTaskRowsWork === 'boolean' ? compactTaskRowsWork : null,
+            planAgentStatLabelsCalm: typeof planAgentStatLabelsCalm === 'boolean' ? planAgentStatLabelsCalm : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
@@ -5182,6 +5200,17 @@ function seedAutomatedPlanSmokeSession(sessionId: string): void {
         ]
       },
       timestamp: now + 1
+    },
+    {
+      id: 'plan-smoke-agent',
+      role: 'assistant',
+      type: 'tool_use',
+      toolName: 'Task',
+      toolInput: {
+        description: 'Inspect right sidebar polish',
+        prompt: 'Compare the right sidebar against Codex density and label treatment.'
+      },
+      timestamp: now + 2
     }
   ]
   sessionManager.save({

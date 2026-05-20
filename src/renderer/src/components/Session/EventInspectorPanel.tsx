@@ -98,7 +98,11 @@ function AgentStat({ label, value, tone }: { label: string; value: number; tone:
     <InspectorCard
       className="rounded-md px-2 py-1.5 min-w-0"
     >
-      <div className="text-[10px] font-bold uppercase truncate" style={{ color: 'var(--color-text-muted)' }}>
+      <div
+        className="truncate text-[11px] font-semibold tracking-normal"
+        data-testid="agent-stat-label"
+        style={{ color: 'var(--color-text-muted)' }}
+      >
         {label}
       </div>
       <div className="text-xs font-semibold" style={{ color: value > 0 ? tone : 'var(--color-text-muted)' }}>
