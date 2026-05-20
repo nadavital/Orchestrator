@@ -850,6 +850,9 @@
   }
 
   .file-fallback-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-sm);
     background: var(--control-bg);

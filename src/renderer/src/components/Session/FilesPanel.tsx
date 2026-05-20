@@ -419,6 +419,7 @@ function EmptyFileState({
               type="button"
               onClick={action.onClick}
             >
+              <Icon name={fallbackActionIcon(action.label)} size={12} />
               {action.label}
             </button>
           ))}
@@ -426,6 +427,12 @@ function EmptyFileState({
       )}
     </div>
   )
+}
+
+function fallbackActionIcon(label: string): 'external' | 'folder' | 'file' {
+  if (label === 'Open') return 'external'
+  if (label === 'Reveal') return 'folder'
+  return 'file'
 }
 
 async function collectWorkspaceEntries(root: string): Promise<WorkspaceFileEntry[]> {

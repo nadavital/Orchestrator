@@ -489,6 +489,7 @@ function ReviewEmptyState({
               type="button"
               onClick={action.onClick}
             >
+              <Icon name={reviewActionIcon(action.label)} size={12} />
               {action.label}
             </button>
           ))}
@@ -496,6 +497,12 @@ function ReviewEmptyState({
       )}
     </div>
   )
+}
+
+function reviewActionIcon(label: string): 'external' | 'folder' | 'file' {
+  if (label === 'Open') return 'external'
+  if (label === 'Reveal') return 'folder'
+  return 'file'
 }
 
 function isBinaryDiff(diff: string): boolean {
