@@ -288,6 +288,19 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
   const hide = (): void => setVisible(false)
   useExclusiveHoverSurface(idRef.current, hide)
 
+  useEffect(() => {
+    if (!visible) return
+    const hideForViewportChange = (): void => setVisible(false)
+    window.addEventListener('scroll', hideForViewportChange, true)
+    window.addEventListener('resize', hideForViewportChange)
+    window.addEventListener('blur', hideForViewportChange)
+    return () => {
+      window.removeEventListener('scroll', hideForViewportChange, true)
+      window.removeEventListener('resize', hideForViewportChange)
+      window.removeEventListener('blur', hideForViewportChange)
+    }
+  }, [visible])
+
   return (
     <span
       ref={anchorRef}

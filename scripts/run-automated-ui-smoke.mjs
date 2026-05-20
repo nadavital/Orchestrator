@@ -304,6 +304,7 @@ child.on('exit', (code) => {
         hoverCardSurfaceReadable: result.hoverCardSurfaceReadable === true,
         tooltipSurfaceReadable: result.tooltipSurfaceReadable === true,
         singleHoverSurface: result.singleHoverSurfaceWorks === true,
+        tooltipDismissesOnViewportChange: result.tooltipDismissesOnViewportChange === true,
         customTooltipNativeTitlesAbsent: result.customTooltipNativeTitlesAbsent === true,
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
         sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,

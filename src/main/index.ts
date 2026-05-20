@@ -3014,6 +3014,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const hoverCardSurfaceReadable = hoverCard instanceof HTMLElement && hoverSurfaceReadable(hoverCard);
             let singleHoverSurfaceWorks = false;
             let tooltipSurfaceReadable = false;
+            let tooltipDismissesOnViewportChange = false;
             const normalActionsButton = normalRow?.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
             if (normalActionsButton instanceof HTMLElement) {
               const actionRect = normalActionsButton.getBoundingClientRect();
@@ -3031,6 +3032,10 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               singleHoverSurfaceWorks =
                 visibleTooltips.length === 1 &&
                 visibleHoverCards.length === 0;
+              window.dispatchEvent(new Event('resize'));
+              await sleep(80);
+              tooltipDismissesOnViewportChange =
+                document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]').length === 0;
               normalActionsButton.blur();
               normalActionsButton.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
               await sleep(80);
@@ -3243,6 +3248,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               hoverCardSurfaceReadable,
               tooltipSurfaceReadable,
               singleHoverSurfaceWorks,
+              tooltipDismissesOnViewportChange,
               customTooltipNativeTitlesAbsent: customTooltipNativeTitleLeaks.length === 0,
               customTooltipNativeTitleLeaks,
               nativeTitleFreeControlsWork: nativeTitleFreeControlLeaks.length === 0,
