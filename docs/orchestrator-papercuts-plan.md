@@ -51,6 +51,60 @@ This matrix is the higher-level parity ledger. The goal is not to clone Codex bl
 | Styling system | Codex uses tokenized toolbar heights, row padding, tab radii, shadows, surfaces, and settings primitives. | Recent polish aligned individual surfaces, but token use is still partial. | Consolidate app chrome tokens and remove surface-specific styling drift. | `Todo` |
 | Verification | Codex behavior is mature enough to trust through repeated interaction; parity claims should be screenshot and smoke backed. | Existing smoke tests cover surfaces, but not all cross-panel interactions or perceived speed. | Add parity smoke suites and screenshot checkpoints for Workbench, Terminal, Settings, Chat Sidebar, and cross-panel flows. | `Todo` |
 
+## Codex Bundle Deep Dive Notes
+
+### 2026-05-20: Shell, Panel, And Layout Mechanics
+
+Reference chunks:
+
+- `webview/assets/app-shell-CcsLZiAu.js`
+- `webview/assets/app-shell-panel-animation-BXrIvkvo.js`
+- `webview/assets/create-resize-observer-CTl6Pw5t.js`
+
+Findings:
+
+- Codex treats the app shell as a slot system, not separate panels. `AppShell.Root` extracts `LeftPanel`, `RightPanel`, `BottomPanel`, `Header`, `HeaderAction`, `RightPanelOutlet`, `RightPanelTabs`, and bottom-panel equivalents from children, then lays them out through one shell context.
+- The shell context tracks `headerLeftWidth`, `headerRightWidth`, `leftPanelWidth`, `leftPanelAnimatedWidth`, `mainContentWidth`, `shellWidth`, `rightPanelAnimatedWidth`, and a `rightPanelLayoutTick`. Orchestrator currently recreates pieces of this in `SessionPane`, `ContextSidebar`, `TerminalView`, and CSS.
+- Right panel sizing is ratio-based. Codex derives `rightPanelWidthRatio` from a `defaultWidth`, `storageKey`, and current `mainContentWidth`; full-width mode uses a different width mode instead of treating max width as a larger pixel clamp.
+- Right panel resize uses a shared resize handle with edge semantics, pointer scaling, double-click reset to default size, and a close behavior when the dragged width falls below the minimum. Orchestrator resize handles are currently per-surface and do not share reset/close semantics.
+- Codex right panel is an animated `aside` with `data-app-shell-focus-area="right-panel"`, a thin left border, `shadow-xl`, and an inner absolutely positioned pane. The outer shell owns animation/width; panel contents stay overflow-hidden and stable.
+- Codex updates layout state during panel animation through `progress`/`animatedSize`, so dependent layout can respond while the panel animates. Orchestrator mostly reacts after width/state changes and relies on local `ResizeObserver` patches.
+- Codex has explicit breakpoint behavior around shell width. At narrower widths it moves focus back to main, disables full-width/right-panel states when necessary, and collapses left panel where appropriate. Orchestrator has local overlay logic in `ContextSidebar` but not one central breakpoint policy.
+
+Migration implications:
+
+- First extract an Orchestrator `AppShell` layer that owns focus areas, measured shell widths, panel resize handles, toolbar heights, and animated sizes.
+- Move Workbench and Terminal into this shell before adding new Workbench-only features.
+- Treat ratio-based Workbench width as a shell concern, with existing pixel width migrated through a compatibility step.
+- Add double-click reset and below-min close semantics to shared resize handles once both panels use them.
+
+### 2026-05-20: Tabs, Focus, And Shortcut Lifecycle
+
+Reference chunks:
+
+- `webview/assets/app-shell-CcsLZiAu.js`
+- `webview/assets/thread-side-panel-browser-tab-state-C5u0Yb1s.js`
+- `webview/assets/command-keybindings-CahU8007.js`
+- `webview/assets/tabs-Dhgr0Bym.js`
+
+Findings:
+
+- Codex right and bottom panels use the same tab-list renderer contract: controller-provided `tabs$`, `displayedTab$`, `activeTabReactKey$`, `activateTab`, `closeTab`, `reorderTab`, `clearClosingTab`, and `closeActiveTab`.
+- The Codex app-shell tab row supports before-list content, normal after-list content, and sticky after-list content. Sticky actions are measured with `ResizeObserver` so the scroll area reserves enough end padding.
+- Tab overflow is intentional: the strip is horizontally scrollable, hides scrollbars, has left/right edge fades driven by `IntersectionObserver`, and preserves tab labels rather than collapsing to icons.
+- Individual Codex tabs measure label overflow and add a local text fade. Close is an overlay affordance that appears on hover/focus and can be used on non-active tabs; middle-click also closes closable tabs.
+- Codex reorder uses drag sensors with a small activation distance, sortable context data, separator visibility around the active tab, and layout animation for moved tabs. Orchestrator has manual context-menu move but no drag reorder.
+- Codex exposes active shell state to global shortcuts by dispatching `app-shell-shortcut-state-changed` with `focusArea`, `bottomPanelCanCloseActiveTab`, `rightPanelCanCloseActiveTab`, `rightPanelBrowserConversationId`, and image-preview state. The global `close-active-app-shell-tab` command routes to bottom or right based on focus area.
+- Orchestrator currently has keyboard shortcuts, but Workbench/Terminal close behavior is not centralized through an active app-shell focus-area model.
+
+Migration implications:
+
+- Build a reusable `PanelTabController` abstraction for Workbench and Terminal before polishing either tab strip further.
+- Upgrade shared `TabButton` so close is hover/focus overlay and works for non-active tabs, while preserving accessible labels and middle-click close.
+- Add shell-level focus-area state and route close-active-tab/keyboard commands through it.
+- Add overflow fades and sticky action-slot measurement to the shared tab strip, then remove the bespoke Workbench and Terminal tab-row CSS.
+- Use Codex-style controller semantics as the API boundary: panel content should register tabs and actions; shell should render tab chrome.
+
 ## Checklist
 
 | ID | Report | Initial Evidence | Plan | Status |
@@ -84,6 +138,8 @@ This matrix is the higher-level parity ledger. The goal is not to clone Codex bl
 | PP-027 | Workbench tabs still do not fully behave like Codex tabs. | Codex close affordances are built into the tab and available beyond just the active tab; Codex also has stronger edge fades and sticky action slots. | Extend the shared tab primitive/controller so Workbench and Terminal can use Codex-like tab close, overflow, and trailing action semantics. | `Todo` |
 | PP-028 | Workbench sizing should be as smooth and robust as Codex. | Codex stores panel width as a ratio against main content while Orchestrator persists pixel width and uses overlay fallback. | Implement ratio-based Workbench sizing or a compatibility layer that gives the same behavior across normal, narrow, and full-width windows. | `Todo` |
 | PP-029 | Parity needs speed and robustness gates, not only screenshots. | Current verification is mostly TypeScript plus surface smoke. That catches regressions but does not prove resize, typing, scrolling, and tab switching remain fast under live agent load. | Add focused smoke/perf checks for Workbench tab switching, panel resize, composer typing during streaming, long-thread lazy rendering, and cross-panel keyboard handling. | `Todo` |
+| PP-030 | Workbench and Terminal need a shared app-shell tab controller. | Codex uses the same controller-shaped tab renderer for right and bottom panels; Orchestrator renders Workbench tabs in `ContextSidebar` and Terminal tabs in `SessionPane` separately. | Create a shared tab controller/renderer, migrate Workbench first, then Terminal, with Codex-style tab registration, close-active-tab support, overflow fades, sticky actions, and drag reorder hooks. | `Todo` |
+| PP-031 | Shell focus and global close-tab shortcuts need to be centralized. | Codex dispatches shell shortcut state from active focus area and routes `close-active-app-shell-tab` through right/bottom panel controllers. Orchestrator does not have equivalent focus-area command routing. | Add shell focus-area state for main, Workbench, and Terminal; route close-active-tab and related shortcuts through the focused panel. | `Todo` |
 
 ## Verification Log
 
@@ -105,3 +161,4 @@ This matrix is the higher-level parity ledger. The goal is not to clone Codex bl
 - 2026-05-20: User clarified "sidebar" meant both sides. Added canonical surface names: Chat Sidebar for the left rail, Workbench Panel for the right contextual panel, and Terminal Panel for the bottom shell. Added PP-025 for Workbench Panel chrome polish.
 - 2026-05-20: Workbench Panel comparison and polish slice complete. Codex bundle inspection showed labeled right-panel tabs, sticky tab actions, overflow fades, thin bordered pane surfaces, and ratio-based sizing. Orchestrator now uses Workbench Panel labels, calmer right-panel chrome, visible inactive tab labels, and corrected right-panel smoke coverage for true narrow overlay widths. Verification passed: escalated `npm run smoke:ui:auto -- --right-panel` with screenshot review at `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-right-panel-1779312014437.png`.
 - 2026-05-20: Expanded the Workbench comparison into a broader Codex Parity Matrix covering usefulness, efficiency, speed, robustness, shared shell structure, sizing, tab lifecycle, styling tokens, and verification gates. Added PP-026 through PP-029 so future work prioritizes parity before bespoke Orchestrator-specific behavior.
+- 2026-05-20: Completed two deeper Codex bundle dives: shell/panel/layout mechanics and tab/focus/shortcut lifecycle. Added migration notes for a shared Orchestrator app shell, ratio-based Workbench sizing, shared Workbench/Terminal tab controller, hover-overlay close affordances, overflow fades, sticky actions, focus-area shortcut routing, and shared resize semantics. Added PP-030 and PP-031.
