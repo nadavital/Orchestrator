@@ -293,6 +293,8 @@ child.on('exit', (code) => {
         newPinAppended: result.newPinAppended === true,
         hoverPinVisible: result.hoverPinVisible === true,
         hoverCardVisible: result.hoverCardVisible === true,
+        hoverCardSurfaceReadable: result.hoverCardSurfaceReadable === true,
+        tooltipSurfaceReadable: result.tooltipSurfaceReadable === true,
         singleHoverSurface: result.singleHoverSurfaceWorks === true,
         customTooltipNativeTitlesAbsent: result.customTooltipNativeTitlesAbsent === true,
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,

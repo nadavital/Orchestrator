@@ -1508,16 +1508,19 @@
 
   .session-hover-card {
     position: fixed;
-    z-index: 140;
-    width: min(320px, calc(100vw - 320px));
-    min-width: 260px;
+    z-index: 720;
+    width: min(320px, calc(100vw - 32px));
+    min-width: min(260px, calc(100vw - 32px));
     max-width: 320px;
     padding: 10px;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-lg);
     background: var(--tooltip-bg);
+    background-clip: padding-box;
     color: var(--text-primary);
     box-shadow: 0 20px 54px rgba(15, 23, 42, 0.24), 0 0 0 1px color-mix(in srgb, var(--tooltip-bg) 76%, white) inset;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     pointer-events: none;
   }
 
@@ -1573,19 +1576,23 @@
 
   .orchestrator-tooltip {
     position: fixed;
-    z-index: 400;
+    z-index: 760;
     pointer-events: none;
     white-space: nowrap;
     border: 1px solid var(--icon-tooltip-border);
     border-radius: var(--radius-md);
     background: var(--icon-tooltip-bg);
+    background-clip: padding-box;
     color: var(--icon-tooltip-text);
-    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.28);
+    box-shadow: 0 16px 42px rgba(15, 23, 42, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
     font-size: 11px;
-    line-height: 1;
+    font-weight: 650;
+    line-height: 1.1;
     opacity: 0;
-    padding: 6px 7px;
+    padding: 6px 7.5px;
     transform: translate(-50%, -100%) translateY(-3px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     transition:
       opacity var(--motion-duration-edge) var(--motion-ease-standard),
       transform var(--motion-duration-edge) var(--motion-ease-standard);

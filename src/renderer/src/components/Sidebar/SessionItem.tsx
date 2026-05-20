@@ -4,7 +4,7 @@ import { useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
-import { announceHoverSurfaceOpen, IconButton, SurfaceRow, useExclusiveHoverSurface } from '../shared/designSystem'
+import { announceHoverSurfaceOpen, IconButton, SurfaceRow, Tooltip, useExclusiveHoverSurface } from '../shared/designSystem'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 interface Props {
@@ -159,8 +159,13 @@ function SessionItem({ session }: Props): JSX.Element {
   const showDetails = (): void => {
     const rect = rowRef.current?.getBoundingClientRect()
     if (rect) {
+      const estimatedWidth = Math.min(320, Math.max(260, window.innerWidth - 32))
+      const left = Math.min(
+        Math.max(rect.right + 8, 12),
+        Math.max(12, window.innerWidth - estimatedWidth - 12)
+      )
       const cardTop = Math.min(Math.max(rect.top - 10, 10), window.innerHeight - 220)
-      setCardPosition({ left: rect.right + 8, top: cardTop })
+      setCardPosition({ left, top: cardTop })
     }
     announceHoverSurfaceOpen(hoverSurfaceId)
     setDetailsVisible(true)
@@ -203,26 +208,30 @@ function SessionItem({ session }: Props): JSX.Element {
           onContextMenu={openMenu}
         >
           <div className="session-item-pin-slot shrink-0">
-            <button
-              type="button"
-              className="session-item-pin-button"
-              data-testid="session-pin-toggle"
-              title={session.pinned ? 'Unpin chat' : 'Pin chat'}
-              aria-label={session.pinned ? 'Unpin chat' : 'Pin chat'}
-              data-pinned={session.pinned ? 'true' : 'false'}
-              onClick={(event) => void togglePinned(event)}
-            >
-              <Icon name="pin" size={12} />
-            </button>
+            <Tooltip label={session.pinned ? 'Unpin chat' : 'Pin chat'}>
+              <button
+                type="button"
+                className="session-item-pin-button"
+                data-testid="session-pin-toggle"
+                aria-label={session.pinned ? 'Unpin chat' : 'Pin chat'}
+                data-native-title-free="true"
+                data-pinned={session.pinned ? 'true' : 'false'}
+                onClick={(event) => void togglePinned(event)}
+              >
+                <Icon name="pin" size={12} />
+              </button>
+            </Tooltip>
           </div>
-          <span
-            className="session-row-env-icon shrink-0"
-            title={environment.description}
-            aria-label={environment.label}
-            data-testid="session-environment-icon"
-          >
-            <Icon name={environment.icon} size={13} />
-          </span>
+          <Tooltip label={environment.description}>
+            <span
+              className="session-row-env-icon shrink-0"
+              aria-label={environment.label}
+              data-native-title-free="true"
+              data-testid="session-environment-icon"
+            >
+              <Icon name={environment.icon} size={13} />
+            </span>
+          </Tooltip>
           <div className="min-w-0 flex-1">
             <div
               className="text-[12.5px] font-medium truncate leading-4"
@@ -237,24 +246,28 @@ function SessionItem({ session }: Props): JSX.Element {
           </span>
           {showStatusIndicator && (
             isRunning ? (
-              <span
-                className="session-item-running-spinner shrink-0"
-                data-testid="session-status-spinner"
-                title="Running"
-                aria-label="Running"
-              />
+              <Tooltip label="Running">
+                <span
+                  className="session-item-running-spinner shrink-0"
+                  data-testid="session-status-spinner"
+                  data-native-title-free="true"
+                  aria-label="Running"
+                />
+              </Tooltip>
             ) : (
-              <span
-                className="session-item-status-dot shrink-0 rounded-full"
-                data-testid="session-status-dot"
-                title={hasError ? 'Needs attention' : 'Unread updates'}
-                style={{
-                  background: hasError ? statusColor[session.status] : 'var(--color-accent)',
-                  boxShadow: hasError
-                    ? '0 0 4px var(--color-red)'
-                    : '0 0 4px var(--color-accent)'
-                }}
-              />
+              <Tooltip label={hasError ? 'Needs attention' : 'Unread updates'}>
+                <span
+                  className="session-item-status-dot shrink-0 rounded-full"
+                  data-testid="session-status-dot"
+                  data-native-title-free="true"
+                  style={{
+                    background: hasError ? statusColor[session.status] : 'var(--color-accent)',
+                    boxShadow: hasError
+                      ? '0 0 4px var(--color-red)'
+                      : '0 0 4px var(--color-accent)'
+                  }}
+                />
+              </Tooltip>
             )
           )}
           <span className="surface-row-secondary shrink-0">

@@ -5,7 +5,7 @@ import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
 import SessionItem from './SessionItem'
 import Icon from '../shared/Icon'
-import { ConfirmDialog, IconButton, MenuItem, MenuSurface, SurfaceRow, TextInputDialog } from '../shared/designSystem'
+import { ConfirmDialog, IconButton, MenuItem, MenuSurface, SurfaceRow, TextInputDialog, Tooltip } from '../shared/designSystem'
 
 interface Props {
   project: Project
@@ -147,9 +147,15 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
           {project.name}
         </span>
         {project.pinned && (
-          <span className="shrink-0" style={{ color: 'var(--text-tertiary)' }} title="Pinned project">
-            <Icon name="pin" size={11} />
-          </span>
+          <Tooltip label="Pinned project">
+            <span
+              className="shrink-0"
+              data-native-title-free="true"
+              style={{ color: 'var(--text-tertiary)' }}
+            >
+              <Icon name="pin" size={11} />
+            </span>
+          </Tooltip>
         )}
         <span className="surface-row-secondary">
           <IconButton

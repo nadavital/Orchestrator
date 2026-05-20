@@ -1909,6 +1909,24 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               button.getAttribute('title') ??
               button.textContent?.trim() ??
               '';
+            const colorAlpha = (color) => {
+              const match = color.match(/rgba?\\(([^)]+)\\)/);
+              if (!match) return 1;
+              const parts = match[1].split(',').map((part) => part.trim());
+              return parts.length >= 4 ? Number.parseFloat(parts[3]) : 1;
+            };
+            const hoverSurfaceReadable = (element) => {
+              const style = getComputedStyle(element);
+              const rect = element.getBoundingClientRect();
+              return (
+                rect.width >= 20 &&
+                rect.height >= 10 &&
+                colorAlpha(style.backgroundColor) >= 0.98 &&
+                colorAlpha(style.color) >= 0.98 &&
+                Number.parseFloat(style.opacity || '1') >= 0.95 &&
+                style.visibility !== 'hidden'
+              );
+            };
             const findButton = (label) =>
               [...document.querySelectorAll('button')]
                 .find((button) => buttonLabel(button) === label);
@@ -1975,7 +1993,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               hoverCardText.includes('Folder') &&
               hoverCardText.includes('Provider') &&
               hoverCardText.includes('Status');
+            const hoverCardSurfaceReadable = hoverCard instanceof HTMLElement && hoverSurfaceReadable(hoverCard);
             let singleHoverSurfaceWorks = false;
+            let tooltipSurfaceReadable = false;
             const normalActionsButton = normalRow?.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
             if (normalActionsButton instanceof HTMLElement) {
               const actionRect = normalActionsButton.getBoundingClientRect();
@@ -1988,6 +2008,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(180);
               const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
               const visibleHoverCards = [...document.querySelectorAll('[data-testid="session-hover-card"]')];
+              const visibleTooltip = visibleTooltips[0];
+              tooltipSurfaceReadable = visibleTooltip instanceof HTMLElement && hoverSurfaceReadable(visibleTooltip);
               singleHoverSurfaceWorks =
                 visibleTooltips.length === 1 &&
                 visibleHoverCards.length === 0;
@@ -2181,8 +2203,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               [...document.querySelectorAll('button[data-tooltip-label][title]')]
                 .map((button) => (button.getAttribute('data-tooltip-label') ?? '') + ':' + (button.getAttribute('title') ?? ''));
             const nativeTitleFreeControlLeaks =
-              [...document.querySelectorAll('button[data-native-title-free][title]')]
-                .map((button) => (button.getAttribute('aria-label') ?? button.textContent?.trim() ?? '') + ':' + (button.getAttribute('title') ?? ''));
+              [...document.querySelectorAll('[data-native-title-free][title]')]
+                .map((element) => (element.getAttribute('aria-label') ?? element.textContent?.trim() ?? element.tagName) + ':' + (element.getAttribute('title') ?? ''));
             return {
               pinnedAboveProjects,
               pinnedOrderStable,
@@ -2191,6 +2213,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               newPinAppended,
               hoverPinVisible,
               hoverCardVisible,
+              hoverCardSurfaceReadable,
+              tooltipSurfaceReadable,
               singleHoverSurfaceWorks,
               customTooltipNativeTitlesAbsent: customTooltipNativeTitleLeaks.length === 0,
               customTooltipNativeTitleLeaks,
