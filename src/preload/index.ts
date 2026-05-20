@@ -196,7 +196,15 @@ const api = {
       assets: Array<{ id: string; kind: string; name: string; url: string; path: string; contentType: string | null }>
       failures: Array<{ id: string; kind: string; name: string; url: string; reason: string }>
       summary: { requestedCount: number; downloadedCount: number; failedCount: number }
-    }> => ipcRenderer.invoke('browser:bundleAssets', request)
+    }> => ipcRenderer.invoke('browser:bundleAssets', request),
+    setSecurityPolicy: (policy: {
+      downloadApprovalMode?: 'alwaysAsk' | 'alwaysAllow'
+      uploadApprovalMode?: 'alwaysAsk' | 'alwaysAllow'
+      allowedDownloadOrigins?: string[]
+      blockedDownloadOrigins?: string[]
+      allowedUploadOrigins?: string[]
+      blockedUploadOrigins?: string[]
+    }) => ipcRenderer.invoke('browser:setSecurityPolicy', policy)
   },
 
   attachments: {

@@ -23,6 +23,7 @@ import { deleteCapability, updateCapability } from './capabilityManager'
 import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
 import { performanceSnapshot, recordPerformanceMetric, resetPerformanceMetrics } from './performanceTelemetry'
 import { providerManifests } from './providerManifest'
+import { setBrowserSecurityPolicy } from './browserSecurityPolicy'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
 type FilePreviewResult =
@@ -637,6 +638,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('browser:bundleAssets', (_, request: BrowserAssetRequest) =>
     bundleBrowserAssets(request)
+  )
+  ipcMain.handle('browser:setSecurityPolicy', (_, policy: Parameters<typeof setBrowserSecurityPolicy>[0]) =>
+    setBrowserSecurityPolicy(policy)
   )
   ipcMain.handle('attachments:savePastedFile', (_, request: PastedAttachmentRequest) =>
     writePastedAttachment(request)

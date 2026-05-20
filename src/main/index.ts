@@ -1,9 +1,10 @@
 import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
-import type { MenuItemConstructorOptions } from 'electron'
+import type { MenuItemConstructorOptions, Session } from 'electron'
 import { join } from 'path'
 import { writeFileSync } from 'fs'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { configureAppProfile, getAppProfile } from './appProfile'
+import { browserSecurityPolicyAllows } from './browserSecurityPolicy'
 import type { ChatMessage } from '../types'
 import { APP_COMMANDS } from '../types/appCommands'
 import type { AppMenuCommand } from '../types/appCommands'
@@ -18,6 +19,7 @@ let projectStore: typeof import('./projects').projectStore
 let sessionManager: typeof import('./sessions').sessionManager
 
 let mainWindow: BrowserWindow | null = null
+const guardedBrowserSessions = new WeakSet<Session>()
 
 function sendAppMenuCommand(command: AppMenuCommand): void {
   mainWindow?.webContents.send('app:menu-command', command)
@@ -165,6 +167,7 @@ function installWebviewGuards(): void {
 
     if (contents.getType() !== 'webview') return
 
+    installBrowserTransferGuards(contents.session)
     contents.setWindowOpenHandler(({ url }) => {
       openExternalIfAllowed(url)
       return { action: 'deny' }
@@ -174,9 +177,22 @@ function installWebviewGuards(): void {
       event.preventDefault()
       openExternalIfAllowed(url)
     })
-    contents.session.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    contents.session.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+      if (permission === 'fileSystem' && browserSecurityPolicyAllows('upload', details.requestingUrl)) {
+        callback(true)
+        return
+      }
       callback(false)
     })
+  })
+}
+
+function installBrowserTransferGuards(browserSession: Session): void {
+  if (guardedBrowserSessions.has(browserSession)) return
+  guardedBrowserSessions.add(browserSession)
+  browserSession.on('will-download', (event, item) => {
+    if (browserSecurityPolicyAllows('download', item.getURL())) return
+    event.preventDefault()
   })
 }
 

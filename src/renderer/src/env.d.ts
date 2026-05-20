@@ -180,6 +180,21 @@ declare global {
           failures: Array<{ id: string; kind: string; name: string; url: string; reason: string }>
           summary: { requestedCount: number; downloadedCount: number; failedCount: number }
         }>
+        setSecurityPolicy: (policy: {
+          downloadApprovalMode?: 'alwaysAsk' | 'alwaysAllow'
+          uploadApprovalMode?: 'alwaysAsk' | 'alwaysAllow'
+          allowedDownloadOrigins?: string[]
+          blockedDownloadOrigins?: string[]
+          allowedUploadOrigins?: string[]
+          blockedUploadOrigins?: string[]
+        }) => Promise<{
+          downloadApprovalMode: 'alwaysAsk' | 'alwaysAllow'
+          uploadApprovalMode: 'alwaysAsk' | 'alwaysAllow'
+          allowedDownloadOrigins: string[]
+          blockedDownloadOrigins: string[]
+          allowedUploadOrigins: string[]
+          blockedUploadOrigins: string[]
+        }>
       }
       attachments: {
         savePastedFile: (request: { name?: string; mimeType?: string; bytes: ArrayBuffer }) => Promise<SavedPastedAttachment>

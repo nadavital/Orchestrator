@@ -239,6 +239,24 @@ export default function BrowserPanel({
   }, [workbench.zoomFactor])
 
   useEffect(() => {
+    void window.api.browser.setSecurityPolicy({
+      downloadApprovalMode: workbench.downloadApprovalMode,
+      uploadApprovalMode: workbench.uploadApprovalMode,
+      allowedDownloadOrigins: workbench.allowedDownloadOrigins,
+      blockedDownloadOrigins: workbench.blockedDownloadOrigins,
+      allowedUploadOrigins: workbench.allowedUploadOrigins,
+      blockedUploadOrigins: workbench.blockedUploadOrigins
+    })
+  }, [
+    workbench.downloadApprovalMode,
+    workbench.uploadApprovalMode,
+    workbench.allowedDownloadOrigins.join('\u0000'),
+    workbench.blockedDownloadOrigins.join('\u0000'),
+    workbench.allowedUploadOrigins.join('\u0000'),
+    workbench.blockedUploadOrigins.join('\u0000')
+  ])
+
+  useEffect(() => {
     const webview = webviewRef.current
     if (!webview) return
 
