@@ -40,11 +40,13 @@ const captureView = process.argv.includes('--settings-providers')
                       ? 'design-system'
                       : process.argv.includes('--scroll')
                         ? 'scroll'
-                        : process.argv.includes('--inspector')
-                          ? 'inspector'
-                          : process.argv.includes('--terminal')
-                            ? 'terminal'
-                            : 'main'
+                        : process.argv.includes('--browser')
+                          ? 'browser'
+                          : process.argv.includes('--inspector')
+                            ? 'inspector'
+                            : process.argv.includes('--terminal')
+                              ? 'terminal'
+                              : 'main'
 const runPackaged = process.argv.includes('--packaged')
 const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
@@ -68,7 +70,7 @@ if (captureView === 'capabilities') {
   writeFileSync(join(smokeCommandDir, 'orchestrator-smoke.md'), '# Orchestrator smoke command\n\nRun the smoke fixture.\n')
 }
 
-if (captureView === 'inspector') {
+if (captureView === 'inspector' || captureView === 'browser') {
   mkdirSync(join(workspaceDir, 'Nested Folder'), { recursive: true })
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\n')
   writeFileSync(join(workspaceDir, 'review-delete.txt'), 'delete me\n')
@@ -96,6 +98,7 @@ if (captureView === 'inspector') {
       <main class="asset-smoke">
         <h1>Browser smoke page</h1>
         <p>Loaded inside the side panel.</p>
+        <p>Browser search has a second visible match.</p>
         <button id="target-button" onclick="document.body.dataset.clicked='yes'; console.log('browser smoke clicked')">Target button</button>
         <input aria-label="Smoke input" placeholder="Type here">
         <svg role="img" aria-label="Inline smoke icon" width="18" height="18"><circle cx="9" cy="9" r="8"></circle></svg>
@@ -349,6 +352,15 @@ child.on('exit', (code) => {
           surfaceRows: Number(result.surfaceRowCount ?? 0) >= 3,
           buttons: Number(result.buttonCount ?? 0) > 0
         }
+    : captureView === 'browser'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          browserActive: result.browserActive === true,
+          browserLoaded: result.browserLoaded === true,
+          browserFind: result.browserFindWorks === true,
+          browserFindNavigation: result.browserFindNavigationWorks === true,
+          browserNoHorizontalOverflow: result.browserNoHorizontalOverflow === true
+        }
     : {
         isolatedProfile: result.profile?.isIsolated === true,
         profileBadge: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.hasProfileBadge === true,
@@ -371,6 +383,7 @@ child.on('exit', (code) => {
         browserTab: captureView !== 'inspector' || result.browserTabWorks === true,
         browserScreenshot: captureView !== 'inspector' || result.browserScreenshotWorks === true,
         browserFind: captureView !== 'inspector' || result.browserFindWorks === true,
+        browserFindNavigation: captureView !== 'inspector' || result.browserFindNavigationWorks === true,
         browserZoom: captureView !== 'inspector' || result.browserZoomWorks === true,
         browserDeviceMode: captureView !== 'inspector' || result.browserDeviceModeWorks === true,
         browserCacheReload: captureView !== 'inspector' || result.browserCacheReloadWorks === true,

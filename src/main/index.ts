@@ -295,6 +295,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedEmptyStateSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'browser') {
+    runAutomatedBrowserSmoke(win, outputPath, screenshotPath)
+    return
+  }
 
   win.webContents.once('did-finish-load', () => {
     setTimeout(() => {
@@ -769,6 +773,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const findInPageButton = findButton('Find in page');
             var browserFindWorks = false;
+            var browserFindNavigationWorks = false;
             if (findInPageButton instanceof HTMLButtonElement) {
               findInPageButton.click();
               await sleep(120);
@@ -786,6 +791,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   document.activeElement === findInput &&
                   findInput.value === 'Browser' &&
                   Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-matches') ?? '0') > 0;
+                const nextFindButton = findButton('Next result');
+                if (nextFindButton instanceof HTMLButtonElement) {
+                  const beforeActiveMatch = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-active-match') ?? '0');
+                  nextFindButton.click();
+                  for (let index = 0; index < 20; index += 1) {
+                    const activeMatch = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-active-match') ?? '0');
+                    if (activeMatch > 0 && activeMatch !== beforeActiveMatch) break;
+                    await sleep(100);
+                  }
+                  browserFindNavigationWorks =
+                    Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-matches') ?? '0') > 1 &&
+                    Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-active-match') ?? '0') > 0 &&
+                    Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-active-match') ?? '0') !== beforeActiveMatch;
+                }
               }
             }
             const browserActionsButtonAfterFind = document.querySelector('[data-testid="browser-actions-menu"]');
@@ -1179,6 +1198,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
             browserScreenshotWorks: typeof browserScreenshotWorks === 'boolean' ? browserScreenshotWorks : null,
             browserFindWorks: typeof browserFindWorks === 'boolean' ? browserFindWorks : null,
+            browserFindNavigationWorks: typeof browserFindNavigationWorks === 'boolean' ? browserFindNavigationWorks : null,
             browserZoomWorks: typeof browserZoomWorks === 'boolean' ? browserZoomWorks : null,
             browserDeviceModeWorks: typeof browserDeviceModeWorks === 'boolean' ? browserDeviceModeWorks : null,
             browserCacheReloadWorks: typeof browserCacheReloadWorks === 'boolean' ? browserCacheReloadWorks : null,
@@ -1244,6 +1264,127 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
         app.quit()
       })
+    }, 700)
+  })
+}
+
+function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.getAttribute('title') ??
+              button.textContent?.trim() ??
+              '';
+            const findButton = (label) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => buttonLabel(button) === label);
+            const profile = await window.api.app.getProfile();
+            let projects = await window.api.projects.list();
+            if (projects.length === 0) {
+              const root = ${JSON.stringify(process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd())};
+              const project = await window.api.projects.add('Automated UI Smoke', root);
+              projects = [project];
+            }
+            let sessions = await window.api.sessions.list();
+            if (sessions.length === 0) {
+              const project = projects[0];
+              const session = await window.api.sessions.create({
+                projectId: project.id,
+                workDir: project.rootPath,
+                useWorktree: false,
+                repoRoot: project.rootPath
+              });
+              await window.api.projects.addSession(project.id, session.id);
+            }
+            await sleep(900);
+            const browserPanelTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+            if (browserPanelTabButton instanceof HTMLElement) {
+              browserPanelTabButton.click();
+            } else {
+              const inspectorToolsButton = findButton('Add inspector tab');
+              if (inspectorToolsButton instanceof HTMLButtonElement) {
+                inspectorToolsButton.click();
+                await sleep(120);
+                const browserMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Browser'));
+                if (browserMenuItem instanceof HTMLElement) browserMenuItem.click();
+              }
+            }
+            await sleep(260);
+            const browserInput = document.querySelector('[data-testid="browser-url-input"]');
+            if (browserInput instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(browserInput.constructor.prototype, 'value')?.set;
+              setter?.call(browserInput, ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')});
+              browserInput.dispatchEvent(new Event('input', { bubbles: true }));
+              browserInput.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+              await sleep(1200);
+            }
+            const findInPageButton = findButton('Find in page');
+            var browserFindWorks = false;
+            var browserFindNavigationWorks = false;
+            if (findInPageButton instanceof HTMLButtonElement) {
+              findInPageButton.click();
+              await sleep(120);
+              const findInput = document.querySelector('[data-testid="browser-find-input"]');
+              if (findInput instanceof HTMLInputElement) {
+                const setter = Object.getOwnPropertyDescriptor(findInput.constructor.prototype, 'value')?.set;
+                setter?.call(findInput, 'Browser');
+                findInput.dispatchEvent(new Event('input', { bubbles: true }));
+                for (let index = 0; index < 20; index += 1) {
+                  const matches = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-matches') ?? '0');
+                  if (matches > 1) break;
+                  await sleep(100);
+                }
+                browserFindWorks =
+                  findInput.value === 'Browser' &&
+                  Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-matches') ?? '0') > 1;
+                const nextFindButton = findButton('Next result');
+                if (nextFindButton instanceof HTMLButtonElement) {
+                  const beforeActiveMatch = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-active-match') ?? '0');
+                  nextFindButton.click();
+                  for (let index = 0; index < 20; index += 1) {
+                    const activeMatch = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-active-match') ?? '0');
+                    if (activeMatch > 0 && activeMatch !== beforeActiveMatch) break;
+                    await sleep(100);
+                  }
+                  browserFindNavigationWorks =
+                    Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-active-match') ?? '0') > 0 &&
+                    Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-active-match') ?? '0') !== beforeActiveMatch;
+                }
+              }
+            }
+            const browserPanel = document.querySelector('[data-testid="browser-panel"]');
+            const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const browserNoHorizontalOverflow = browserPanel instanceof HTMLElement &&
+              browserPanel.scrollWidth <= browserPanel.clientWidth + 2;
+            return {
+              profile,
+              browserActive: rightPanel instanceof HTMLElement &&
+                rightPanel.dataset.rightPanelActiveTab === 'browser',
+              browserLoaded: Boolean(document.querySelector('[data-testid="browser-webview"]')) &&
+                document.body.innerText.includes('Orchestrator Browser Smoke'),
+              browserFindWorks,
+              browserFindNavigationWorks,
+              browserNoHorizontalOverflow
+            };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
     }, 700)
   })
 }

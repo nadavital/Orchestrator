@@ -21,7 +21,7 @@ type WebviewElement = HTMLElement & {
   canGoForward: () => boolean
   getURL: () => string
   getTitle: () => string
-  findInPage: (text: string) => number
+  findInPage: (text: string, options?: { forward?: boolean; findNext?: boolean }) => number
   stopFindInPage: (action: 'clearSelection' | 'keepSelection' | 'activateSelection') => void
   setZoomFactor: (factor: number) => void
   getZoomFactor?: () => number
@@ -96,6 +96,7 @@ export default function BrowserPanel({
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [artifactPath, setArtifactPath] = useState<string | null>(null)
   const [findMatches, setFindMatches] = useState(0)
+  const [findActiveMatch, setFindActiveMatch] = useState(0)
   const [cacheReloadCount, setCacheReloadCount] = useState(0)
   const [logs, setLogs] = useState<BrowserLogEntry[]>([])
   const [domSnapshot, setDomSnapshot] = useState('')
@@ -120,6 +121,7 @@ export default function BrowserPanel({
     setTitle(nextTab.title === 'New tab' ? '' : nextTab.title)
     setError(null)
     setFindMatches(0)
+    setFindActiveMatch(0)
     setScreenshot(null)
     setArtifactPath(null)
     setDomSnapshot('')
@@ -177,8 +179,9 @@ export default function BrowserPanel({
       patchActiveTab({ title: nextTitle || activeTab.title })
     }
     const foundInPage = (event: Event): void => {
-      const detail = event as Event & { result?: { matches?: number } }
+      const detail = event as Event & { result?: { activeMatchOrdinal?: number; matches?: number } }
       setFindMatches(detail.result?.matches ?? 0)
+      setFindActiveMatch(detail.result?.activeMatchOrdinal ?? 0)
     }
     const consoleMessage = (event: Event): void => {
       const detail = event as Event & { level?: number; message?: string; sourceId?: string }
@@ -277,6 +280,7 @@ export default function BrowserPanel({
 
   const searchInPage = (query: string): void => {
     setFindMatches(0)
+    setFindActiveMatch(0)
     patchWorkbench({ findQuery: query })
     if (!query.trim()) {
       webviewRef.current?.stopFindInPage('clearSelection')
@@ -285,8 +289,15 @@ export default function BrowserPanel({
     webviewRef.current?.findInPage(query)
   }
 
+  const stepFind = (direction: 'previous' | 'next'): void => {
+    const query = workbench.findQuery.trim()
+    if (!query) return
+    webviewRef.current?.findInPage(query, { findNext: true, forward: direction === 'next' })
+  }
+
   const closeFind = (): void => {
     setFindMatches(0)
+    setFindActiveMatch(0)
     patchWorkbench({ findVisible: false, findQuery: '' })
     webviewRef.current?.stopFindInPage('clearSelection')
   }
@@ -411,6 +422,7 @@ export default function BrowserPanel({
       data-browser-device-mode={workbench.deviceMode}
       data-browser-cache-reloads={cacheReloadCount}
       data-browser-find-matches={findMatches}
+      data-browser-find-active-match={findActiveMatch}
       data-browser-tab-count={workbench.tabs.length}
       data-browser-visible={visible ? 'true' : 'false'}
       data-browser-dom-targets={visibleTargets.length}
@@ -639,9 +651,21 @@ export default function BrowserPanel({
           />
           {workbench.findQuery.trim() && (
             <span className="min-w-8 text-right text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
-              {findMatches}
+              {findMatches > 0 ? `${findActiveMatch || 1}/${findMatches}` : '0'}
             </span>
           )}
+          <ToolbarButton
+            icon="arrowLeft"
+            label="Previous result"
+            disabled={!workbench.findQuery.trim() || findMatches <= 1}
+            onClick={() => stepFind('previous')}
+          />
+          <ToolbarButton
+            icon="arrowRight"
+            label="Next result"
+            disabled={!workbench.findQuery.trim() || findMatches <= 1}
+            onClick={() => stepFind('next')}
+          />
           <ToolbarButton icon="close" label="Close find" onClick={closeFind} />
         </div>
       )}
