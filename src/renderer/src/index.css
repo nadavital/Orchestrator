@@ -640,6 +640,26 @@
     height: 24px !important;
   }
 
+  .extensions-panel-section-heading {
+    min-height: 34px;
+  }
+
+  .extension-panel-card.inspector-card {
+    box-shadow: none;
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .extension-panel-card .motion-disclosure-trigger {
+    min-height: 34px;
+    padding: 0 6px;
+  }
+
+  .extension-panel-card textarea {
+    border-radius: var(--radius-sm);
+  }
+
   .motion-panel-right[data-open='false'] {
     border-left-color: transparent;
     box-shadow: none;

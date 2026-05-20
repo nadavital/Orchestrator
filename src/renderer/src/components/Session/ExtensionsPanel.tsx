@@ -719,9 +719,9 @@ function AgentSectionView({
 
   return (
     <div>
-      <div className={embedded ? 'px-3 py-2' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
+      <div className={embedded ? 'extensions-panel-section-heading px-3 py-2' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
-          Local Instructions
+          {embedded ? 'Instructions' : 'Local Instructions'}
         </div>
         {!embedded && (
           <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
@@ -764,8 +764,8 @@ function McpServersView({ servers, accentColor, embedded = false }: {
   const entries = Object.entries(servers)
 
   return (
-    <div className={embedded ? 'px-3 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
-      <InspectorCard className={embedded ? 'p-1.5' : 'p-2'}>
+    <div className={embedded ? 'px-2 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className={embedded ? 'extension-panel-card p-1.5' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono">MCP servers</span>}
           defaultOpen
@@ -819,29 +819,31 @@ function FileEditor({ file, embedded = false, accentColor, onUpdate, onSave }: {
   const isNew = file.content === null
 
   return (
-    <div className={embedded ? 'px-3 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
-      <InspectorCard className={embedded ? 'p-1.5' : 'p-2'}>
+    <div className={embedded ? 'px-2 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className={embedded ? 'extension-panel-card p-1.5' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono" style={{ color: isNew ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{file.label}</span>}
           defaultOpen={file.content !== null}
           meta={isNew ? <Badge>new</Badge> : undefined}
           bodyClassName="pt-2"
         >
-          <div className="text-xs mb-1.5 truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-            {file.path}
-          </div>
+          {!embedded && (
+            <div className="text-xs mb-1.5 truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+              {file.path}
+            </div>
+          )}
           <textarea
             value={file.content ?? ''}
             onChange={(e) => onUpdate(e.target.value)}
             placeholder={isNew ? '# Add instructions here\n' : ''}
             className="w-full resize-y rounded font-mono text-xs"
-            rows={6}
+            rows={embedded ? 5 : 6}
             style={{
               background: 'var(--color-surface2)',
               border: `1px solid ${file.dirty ? (accentColor ?? 'var(--color-accent)') : 'var(--color-border)'}`,
               color: 'var(--color-text)',
               padding: '6px 8px',
-              minHeight: 80,
+              minHeight: embedded ? 72 : 80,
               lineHeight: 1.5,
               outline: 'none',
               userSelect: 'text'
@@ -852,7 +854,7 @@ function FileEditor({ file, embedded = false, accentColor, onUpdate, onSave }: {
               onClick={onSave}
               disabled={!file.dirty || file.saving}
               variant={file.dirty ? 'primary' : 'secondary'}
-              className="px-3 py-1"
+              className={embedded ? 'px-2 py-0.5' : 'px-3 py-1'}
               style={{
                 background: file.dirty ? (accentColor ?? 'var(--accent)') : undefined
               }}
@@ -877,8 +879,8 @@ function CommandsDirView({ dir, embedded = false, onOpenFile }: {
   const exists = dir.files !== null
 
   return (
-    <div className={embedded ? 'px-3 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
-      <InspectorCard className={embedded ? 'p-1.5' : 'p-2'}>
+    <div className={embedded ? 'px-2 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className={embedded ? 'extension-panel-card p-1.5' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono" style={{ color: exists ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{dir.label}</span>}
           meta={<Badge>{!exists ? 'not found' : files.length === 0 ? 'empty' : `${files.length}`}</Badge>}
