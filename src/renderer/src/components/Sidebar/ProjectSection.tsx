@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import type { Project, Session } from '../../types'
 import { useProjectStore } from '../../store/projects'
-import { useSessionStore } from '../../store/sessions'
+import { hasComposerDraft, useSessionStore } from '../../store/sessions'
 import SessionItem from './SessionItem'
 import Icon from '../shared/Icon'
 import { ConfirmDialog, IconButton, MenuItem, MenuSurface, SurfaceRow, TextInputDialog, Tooltip } from '../shared/designSystem'
@@ -31,10 +31,10 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
     setCreating(true)
 
     // Clean up the currently active session if it has no messages
-    const { activeSessionId, sessions: allSessions, removeSession } = useSessionStore.getState()
+    const { activeSessionId, sessions: allSessions, removeSession, uiState } = useSessionStore.getState()
     if (activeSessionId) {
       const active = allSessions.find((s) => s.id === activeSessionId)
-      if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running') {
+      if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running' && !hasComposerDraft(uiState[active.id])) {
         await window.api.sessions.remove(active.id)
         await window.api.projects.removeSession(active.projectId, active.id)
         removeSession(active.id)

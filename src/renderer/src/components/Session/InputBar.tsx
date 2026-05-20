@@ -17,6 +17,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const providerAvailability = useSessionStore((state) => state.providerAvailability)
   const providerModels = useSessionStore((state) => state.providerModels)
   const currentUi = useSessionStore((state) => state.uiState[session.id] ?? defaultUI)
+  const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
   const setShowDiff = useSessionStore((state) => state.setShowDiff)
   const setShowEvents = useSessionStore((state) => state.setShowEvents)
   const setShowPlan = useSessionStore((state) => state.setShowPlan)
@@ -27,7 +28,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const openSideChat = useSessionStore((state) => state.openSideChat)
   const appendSideChatMessage = useSessionStore((state) => state.appendSideChatMessage)
   const updateSideChatMessage = useSessionStore((state) => state.updateSideChatMessage)
-  const [text, setText] = useState('')
+  const [text, setText] = useState(() => currentUi.composerDraft ?? '')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [useWorktree, setUseWorktree] = useState(false)
   const [isGitRepo, setIsGitRepo] = useState(false)
@@ -42,6 +43,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [claudeAgentsStatus, setClaudeAgentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const [isSavingPastedFiles, setIsSavingPastedFiles] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const setComposerText = (next: string, sessionId = session.id): void => {
+    setText(next)
+    setComposerDraft(sessionId, next)
+  }
 
   const resizeTextarea = (textarea: HTMLTextAreaElement): void => {
     textarea.style.height = 'auto'
@@ -90,6 +96,15 @@ function InputBar({ session, isNew }: Props): JSX.Element {
         setClaudeAgentsStatus('error')
       })
   }, [session.provider, showAgentMenu, claudeAgentsStatus])
+
+  useEffect(() => {
+    const nextDraft = useSessionStore.getState().uiState[session.id]?.composerDraft ?? ''
+    setText(nextDraft)
+    setSlashIndex(0)
+    window.setTimeout(() => {
+      if (textareaRef.current) resizeTextarea(textareaRef.current)
+    }, 0)
+  }, [session.id])
 
   useEffect(() => {
     const onAddComposerAttachment = (event: Event): void => {
@@ -213,7 +228,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     const sideQuestion = rawPrompt.match(/^\/btw(?:\s+([\s\S]+))?$/)
     if (sideQuestion) {
       const question = (sideQuestion[1] ?? '').trim()
-      setText('')
+      setComposerText('')
       setAttachments([])
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
       const sideChatId = crypto.randomUUID()
@@ -249,7 +264,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       return
     }
     const prompt = expandedCommandPrompt(rawPrompt) ?? rawPrompt
-    setText('')
+    setComposerText('')
     setAttachments([])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachments)
@@ -317,7 +332,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
-    setText(e.target.value)
+    setComposerText(e.target.value)
     setSlashIndex(0)
     resizeTextarea(e.target)
   }
@@ -342,7 +357,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     const start = textarea.selectionStart
     const end = textarea.selectionEnd
     const next = `${textarea.value.slice(0, start)}${value}${textarea.value.slice(end)}`
-    setText(next)
+    setComposerText(next)
     setSlashIndex(0)
     window.setTimeout(() => {
       if (!textareaRef.current) return
@@ -353,7 +368,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   }
 
   const setTextareaText = (next: string): void => {
-    setText(next)
+    setComposerText(next)
     setSlashIndex(0)
     textareaRef.current?.focus()
     window.setTimeout(() => {
@@ -369,7 +384,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       const detail = (event as CustomEvent<{ text?: string }>).detail
       const nextText = detail?.text?.trim()
       if (!nextText) return
-      setText((current) => current ? `${current.trimEnd()}\n\n${nextText}` : nextText)
+      setComposerText(text ? `${text.trimEnd()}\n\n${nextText}` : nextText)
       setSlashIndex(0)
       textareaRef.current?.focus()
       window.setTimeout(() => {
@@ -380,7 +395,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     }
     window.addEventListener('orchestrator:add-composer-text', onAddComposerText)
     return () => window.removeEventListener('orchestrator:add-composer-text', onAddComposerText)
-  }, [])
+  }, [session.id, text])
 
   const expandedCommandPrompt = (value: string): string | null => {
     const match = value.match(/^(\/\S+)(?:\s+([\s\S]*))?$/)
@@ -393,7 +408,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const applySlashCommand = (command: SlashPaletteCommand): void => {
     if (command.handler === 'app-action') {
-      setText('')
+      setComposerText('')
       setSlashIndex(0)
       if (command.id === 'settings') setShowSettings(true)
       if (command.id === 'diff') setShowDiff(session.id, !currentUi.showDiff)
@@ -470,7 +485,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             providerRuntime={providerRuntime}
             discoveredCommands={extensionCommands}
             onSelect={applySlashCommand}
-            onDismiss={() => setText('')}
+            onDismiss={() => setComposerText('')}
             selectedIndex={slashIndex}
             onSelectedIndexChange={setSlashIndex}
           />

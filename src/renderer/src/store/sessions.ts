@@ -112,6 +112,7 @@ export interface SessionUIState {
   showExtensions: boolean
   showSideQuestions: boolean
   hasUnread: boolean
+  composerDraft?: string
   activeAgentId?: string | null
   agentTabIds?: string[]
   sideQuestions?: SideQuestionMessage[]
@@ -188,6 +189,7 @@ interface SessionState {
   moveTerminalTab: (id: string, tabId: number, direction: 'left' | 'right') => void
   closeTerminalTab: (id: string, tabId: number) => void
   setHasUnread: (id: string, v: boolean) => void
+  setComposerDraft: (id: string, draft: string) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
   setShowSettings: (v: boolean) => void
@@ -209,6 +211,7 @@ export const defaultUI: SessionUIState = {
   showExtensions: false,
   showSideQuestions: false,
   hasUnread: false,
+  composerDraft: '',
   activeAgentId: null,
   agentTabIds: [],
   sideQuestions: [],
@@ -259,6 +262,10 @@ export const defaultUI: SessionUIState = {
     activeTabId: null,
     tabs: []
   }
+}
+
+export function hasComposerDraft(ui?: Pick<SessionUIState, 'composerDraft'>): boolean {
+  return Boolean(ui?.composerDraft?.trim())
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -871,6 +878,11 @@ export const useSessionStore = create<SessionState>((set) => ({
   setHasUnread: (id, v) =>
     set((s) => ({
       uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), hasUnread: v } }
+    })),
+
+  setComposerDraft: (id, draft) =>
+    set((s) => ({
+      uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), composerDraft: draft } }
     })),
 
   setProviderAvailability: (availability) => set({ providerAvailability: availability }),

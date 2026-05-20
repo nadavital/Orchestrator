@@ -2139,6 +2139,68 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(120);
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'composer') {
+            const setNativeValue = (element, value) => {
+              const setter = Object.getOwnPropertyDescriptor(element.constructor.prototype, 'value')?.set;
+              setter?.call(element, value);
+            };
+            const project = projects[0];
+            const firstSession = sessions[0];
+            const secondSession = project && firstSession
+              ? await window.api.sessions.create({
+                  projectId: project.id,
+                  workDir: project.rootPath,
+                  useWorktree: false,
+                  repoRoot: project.rootPath
+                })
+              : null;
+            if (project && firstSession && secondSession) {
+              await window.api.projects.addSession(project.id, secondSession.id);
+              await window.api.sessions.updateName(firstSession.id, 'Draft smoke one');
+              await window.api.sessions.updateName(secondSession.id, 'Draft smoke two');
+              await sleep(300);
+            }
+            const rowForTitle = (title) => {
+              const titleEl = [...document.querySelectorAll('[data-thread-title]')]
+                .find((element) => element.getAttribute('data-thread-title') === title);
+              return titleEl?.closest('[data-testid="session-row"]') ?? null;
+            };
+            const textareaValue = () => {
+              const element = document.querySelector('textarea');
+              return element instanceof HTMLTextAreaElement ? element.value : null;
+            };
+            const setTextareaValue = (value) => {
+              const element = document.querySelector('textarea');
+              if (!(element instanceof HTMLTextAreaElement)) return false;
+              setNativeValue(element, value);
+              element.dispatchEvent(new Event('input', { bubbles: true }));
+              return true;
+            };
+            const firstDraftRow = rowForTitle('Draft smoke one');
+            const secondDraftRow = rowForTitle('Draft smoke two');
+            firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(180);
+            const firstDraftTyped = setTextareaValue('draft belongs to chat one');
+            await sleep(120);
+            secondDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
+            var composerDraftClearedOnSwitch = textareaValue() === '';
+            const secondDraftTyped = setTextareaValue('draft belongs to chat two');
+            await sleep(120);
+            firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
+            var composerFirstDraftRestored = textareaValue() === 'draft belongs to chat one';
+            secondDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
+            var composerSecondDraftRestored = textareaValue() === 'draft belongs to chat two';
+            var composerDraftsPerChat =
+              Boolean(firstDraftRow) &&
+              Boolean(secondDraftRow) &&
+              firstDraftTyped &&
+              secondDraftTyped &&
+              composerDraftClearedOnSwitch &&
+              composerFirstDraftRestored &&
+              composerSecondDraftRestored;
+
             const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
             permissionButton?.click();
             await sleep(140);
@@ -2637,6 +2699,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
             composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,
             composerToolbarResponsiveWorks: typeof composerToolbarResponsiveWorks === 'boolean' ? composerToolbarResponsiveWorks : null,
+            composerDraftsPerChat: typeof composerDraftsPerChat === 'boolean' ? composerDraftsPerChat : null,
+            composerDraftClearedOnSwitch: typeof composerDraftClearedOnSwitch === 'boolean' ? composerDraftClearedOnSwitch : null,
+            composerFirstDraftRestored: typeof composerFirstDraftRestored === 'boolean' ? composerFirstDraftRestored : null,
+            composerSecondDraftRestored: typeof composerSecondDraftRestored === 'boolean' ? composerSecondDraftRestored : null,
             buttonCount: buttons.length,
             buttons: buttons.slice(0, 30)
           };

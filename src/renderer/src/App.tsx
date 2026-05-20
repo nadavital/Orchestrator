@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
-import { useSessionStore } from './store/sessions'
+import { hasComposerDraft, useSessionStore } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
 import Titlebar from './components/Titlebar'
@@ -62,7 +62,7 @@ export default function App(): JSX.Element {
       : projectState.projects.at(-1)
     if (!targetProject) return
 
-    if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running') {
+    if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running' && !hasComposerDraft(sessionState.uiState[active.id])) {
       await window.api.sessions.remove(active.id)
       await window.api.projects.removeSession(active.projectId, active.id)
       sessionState.removeSession(active.id)
@@ -418,8 +418,9 @@ export default function App(): JSX.Element {
         }
 
         // Separate empty sessions (safe to clean up) from live ones
-        const emptySessions = sessions.filter((s) => s.messageCount === 0 && s.status !== 'running')
-        const liveSessions = sessions.filter((s) => s.messageCount > 0 || s.status === 'running')
+        const { uiState } = useSessionStore.getState()
+        const emptySessions = sessions.filter((s) => s.messageCount === 0 && s.status !== 'running' && !hasComposerDraft(uiState[s.id]))
+        const liveSessions = sessions.filter((s) => s.messageCount > 0 || s.status === 'running' || hasComposerDraft(uiState[s.id]))
 
         // Keep one empty session in the target project to reuse; delete all others
         const reuseCandidate = emptySessions

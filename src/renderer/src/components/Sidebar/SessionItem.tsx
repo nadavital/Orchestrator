@@ -1,11 +1,12 @@
 import type { Session } from '../../types'
 import { PROVIDER_DEFS } from '../../types'
-import { useSessionStore } from '../../store/sessions'
+import { hasComposerDraft, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
 import { announceHoverSurfaceOpen, IconButton, SurfaceRow, Tooltip, useExclusiveHoverSurface } from '../shared/designSystem'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 interface Props {
   session: Session
@@ -92,10 +93,10 @@ function SessionItem({ session }: Props): JSX.Element {
   }, [branchLoadedFor, detailsVisible, session.workDir])
 
   const cleanupSessionIfEmpty = async (sessionId: string | null): Promise<void> => {
-    const { sessions, removeSession } = useSessionStore.getState()
+    const { sessions, removeSession, uiState } = useSessionStore.getState()
     if (!sessionId || sessionId === session.id) return
     const active = sessions.find((s) => s.id === sessionId)
-    if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running') {
+    if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running' && !hasComposerDraft(uiState[active.id])) {
       await window.api.sessions.remove(active.id)
       await window.api.projects.removeSession(active.projectId, active.id)
       removeSession(active.id)
@@ -281,7 +282,7 @@ function SessionItem({ session }: Props): JSX.Element {
           </span>
         </SurfaceRow>
       </div>
-      {detailsVisible && cardPosition && (
+      {detailsVisible && cardPosition && createPortal(
         <div
           id={hoverSurfaceId}
           className="session-hover-card"
@@ -298,7 +299,8 @@ function SessionItem({ session }: Props): JSX.Element {
           <SessionHoverRow label="Provider" value={[provider?.name ?? session.provider, model?.label ?? session.model].filter(Boolean).join(' · ')} />
           <SessionHoverRow label="Status" value={statusLabel} />
           <SessionHoverRow label="Updated" value={updatedLabel} />
-        </div>
+        </div>,
+        document.body
       )}
       {menuPoint && (
         <SessionActionsMenu

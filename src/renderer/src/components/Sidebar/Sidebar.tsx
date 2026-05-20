@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Project } from '../../types'
 import { comparePinnedSessions, compareSidebarSessions } from '../../types'
 import { useProjectStore } from '../../store/projects'
-import { useSessionStore } from '../../store/sessions'
+import { hasComposerDraft, useSessionStore } from '../../store/sessions'
 import ProjectSection from './ProjectSection'
 import SessionItem from './SessionItem'
 import Icon from '../shared/Icon'
@@ -24,16 +24,19 @@ export async function pickAndAddProject(addProject: (p: Project) => void): Promi
 }
 
 export default function Sidebar(): JSX.Element {
-  const { projects, addProject } = useProjectStore()
+  const { projects, addProject, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const {
     sessions,
+    addSession,
+    removeSession,
     showSettings,
     showCapabilities,
     settingsSection,
     setSettingsSection,
     setShowCapabilities,
     setShowSettings,
-    activeSessionId
+    activeSessionId,
+    setActiveSession
   } = useSessionStore()
   const [viewMode, setViewMode] = useState<SidebarViewMode>(() => readSidebarViewMode())
   const [sortMode, setSortMode] = useState<SidebarSortMode>(() => readSidebarSortMode())
@@ -80,8 +83,31 @@ export default function Sidebar(): JSX.Element {
     window.localStorage.setItem(SIDEBAR_SORT_KEY, sortMode)
   }, [sortMode])
 
-  const handleAddProject = (): void => {
-    pickAndAddProject(addProject)
+  const handleAddProject = async (): Promise<void> => {
+    const project = await pickAndAddProject(addProject)
+    if (!project) return
+
+    const { sessions: currentSessions, activeSessionId: currentActiveSessionId, uiState } = useSessionStore.getState()
+    const active = currentSessions.find((session) => session.id === currentActiveSessionId)
+    if (active && (active.messageCount ?? active.messages.length) === 0 && active.status !== 'running' && !hasComposerDraft(uiState[active.id])) {
+      await window.api.sessions.remove(active.id)
+      await window.api.projects.removeSession(active.projectId, active.id)
+      removeSession(active.id)
+      removeSessionFromProject(active.projectId, active.id)
+    }
+
+    const session = await window.api.sessions.create({
+      projectId: project.id,
+      workDir: project.rootPath,
+      useWorktree: false,
+      repoRoot: project.rootPath
+    })
+    await window.api.projects.addSession(project.id, session.id)
+    addSession(session)
+    addSessionToProject(project.id, session.id)
+    setActiveSession(session.id)
+    setShowCapabilities(false)
+    setShowSettings(false)
   }
 
   return (
@@ -189,7 +215,7 @@ export default function Sidebar(): JSX.Element {
                 icon="plus"
                 label="Add project"
                 size="sm"
-                onClick={handleAddProject}
+                onClick={() => { void handleAddProject() }}
               />
               {organizeOpen && (
                 <MenuSurface
@@ -245,7 +271,7 @@ export default function Sidebar(): JSX.Element {
                 <div className="min-w-0 px-1 pt-0.5" data-testid="sidebar-project-empty-state">
                   <SurfaceRow
                     as="button"
-                    onClick={handleAddProject}
+                    onClick={() => { void handleAddProject() }}
                     className="flex min-w-0 w-full items-center gap-2 text-left"
                     style={{
                       padding: '6px 8px',

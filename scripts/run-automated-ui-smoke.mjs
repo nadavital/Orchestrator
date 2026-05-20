@@ -753,6 +753,7 @@ child.on('exit', (code) => {
         composerAgentRowLabelsCalm: captureView !== 'composer' || result.composerAgentRowLabelsCalm === true,
         composerAgentOutsideClick: captureView !== 'composer' || result.composerAgentMenuClosedWithOutsideClick === true,
         composerAgentFocusReturned: captureView !== 'composer' || result.composerAgentFocusReturned === true,
+        composerDraftsPerChat: captureView !== 'composer' || result.composerDraftsPerChat === true,
         composerToolbarResponsive: captureView !== 'composer' || result.composerToolbarResponsiveWorks === true,
         buttons: Number(result.buttonCount ?? 0) > 0
       }
