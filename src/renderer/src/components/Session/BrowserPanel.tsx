@@ -88,6 +88,7 @@ interface BrowserTargetReadResult {
 }
 
 type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'read' | 'scroll'
+type BrowserClearDataKind = 'all' | 'cache' | 'cookies' | 'siteData'
 
 interface LocalBrowserTarget {
   url: string
@@ -122,6 +123,7 @@ export default function BrowserPanel({
   const [findActiveMatch, setFindActiveMatch] = useState(0)
   const [cacheReloadCount, setCacheReloadCount] = useState(0)
   const [clearDataCount, setClearDataCount] = useState(0)
+  const [lastClearDataKind, setLastClearDataKind] = useState<BrowserClearDataKind | ''>('')
   const [logs, setLogs] = useState<BrowserLogEntry[]>([])
   const [domSnapshot, setDomSnapshot] = useState('')
   const [visibleTargets, setVisibleTargets] = useState<VisibleTarget[]>([])
@@ -389,8 +391,9 @@ export default function BrowserPanel({
     webviewRef.current?.reloadIgnoringCache?.()
   }
 
-  const clearBrowserData = async (): Promise<void> => {
-    await window.api.browser.clearData()
+  const clearBrowserData = async (kind: BrowserClearDataKind): Promise<void> => {
+    await window.api.browser.clearData(kind)
+    setLastClearDataKind(kind)
     setClearDataCount((count) => count + 1)
     setBrowserMenuOpen(false)
   }
@@ -555,6 +558,7 @@ export default function BrowserPanel({
       data-browser-viewport-height={workbench.viewportHeight}
       data-browser-cache-reloads={cacheReloadCount}
       data-browser-clear-data={clearDataCount}
+      data-browser-clear-data-kind={lastClearDataKind}
       data-browser-find-matches={findMatches}
       data-browser-find-active-match={findActiveMatch}
       data-browser-tab-count={workbench.tabs.length}
@@ -729,17 +733,56 @@ export default function BrowserPanel({
                   <Icon name="external" size={14} />
                   <span>Open in browser</span>
                 </button>
+              </div>
+              <div className="browser-action-section" data-testid="browser-data-actions">
+                <div className="browser-action-label">Data</div>
                 <button
                   type="button"
                   role="menuitem"
-                  aria-label="Clear browser data"
+                  aria-label="Clear browser cache"
+                  className="browser-action-row"
+                  disabled={!visible}
+                  data-testid="browser-clear-cache"
+                  onClick={() => void clearBrowserData('cache')}
+                >
+                  <Icon name="eraser" size={14} />
+                  <span>Clear cache</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-label="Clear browser cookies"
+                  className="browser-action-row"
+                  disabled={!visible}
+                  data-testid="browser-clear-cookies"
+                  onClick={() => void clearBrowserData('cookies')}
+                >
+                  <Icon name="eraser" size={14} />
+                  <span>Clear cookies</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-label="Clear browser site data"
+                  className="browser-action-row"
+                  disabled={!visible}
+                  data-testid="browser-clear-site-data"
+                  onClick={() => void clearBrowserData('siteData')}
+                >
+                  <Icon name="eraser" size={14} />
+                  <span>Clear site data</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-label="Clear all browser data"
                   className="browser-action-row"
                   disabled={!visible}
                   data-testid="browser-clear-data"
-                  onClick={() => void clearBrowserData()}
+                  onClick={() => void clearBrowserData('all')}
                 >
                   <Icon name="eraser" size={14} />
-                  <span>Clear browser data</span>
+                  <span>Clear all data</span>
                 </button>
               </div>
               {workbench.history.length > 0 && (

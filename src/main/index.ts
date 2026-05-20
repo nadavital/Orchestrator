@@ -2338,45 +2338,84 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const historyItems = [...document.querySelectorAll('[data-testid="browser-history-item"]')];
               const browserActionsMenu = document.querySelector('.browser-actions-menu');
               const browserPageActions = document.querySelector('[data-testid="browser-page-actions"]');
+              const browserDataActions = document.querySelector('[data-testid="browser-data-actions"]');
               const browserPageActionRows = browserPageActions instanceof HTMLElement
                 ? [...browserPageActions.querySelectorAll('.browser-action-row')]
+                : [];
+              const browserDataActionRows = browserDataActions instanceof HTMLElement
+                ? [...browserDataActions.querySelectorAll('.browser-action-row')]
                 : [];
               const copyUrlItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy URL'));
               const clearDataItem = document.querySelector('[data-testid="browser-clear-data"]');
+              const clearCacheItem = document.querySelector('[data-testid="browser-clear-cache"]');
+              const clearCookiesItem = document.querySelector('[data-testid="browser-clear-cookies"]');
+              const clearSiteDataItem = document.querySelector('[data-testid="browser-clear-site-data"]');
               browserHistoryMenuWorks =
                 historyMenu instanceof HTMLElement &&
                 historyItems.length > 0 &&
                 historyItems.some((item) => item.textContent?.includes('127.0.0.1')) &&
                 copyUrlItem instanceof HTMLElement &&
-                clearDataItem instanceof HTMLElement;
+                clearDataItem instanceof HTMLElement &&
+                clearCacheItem instanceof HTMLElement &&
+                clearCookiesItem instanceof HTMLElement &&
+                clearSiteDataItem instanceof HTMLElement;
               var browserActionsMenuCompactWorks =
                 browserActionsMenu instanceof HTMLElement &&
                 browserPageActions instanceof HTMLElement &&
-                browserPageActionRows.length === 5 &&
+                browserDataActions instanceof HTMLElement &&
+                browserPageActionRows.length === 4 &&
+                browserDataActionRows.length === 4 &&
                 browserPageActions.scrollWidth <= browserPageActions.clientWidth + 2 &&
+                browserDataActions.scrollWidth <= browserDataActions.clientWidth + 2 &&
                 browserActionsMenu.scrollWidth <= browserActionsMenu.clientWidth + 2 &&
                 browserPageActionRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 30) &&
+                browserDataActionRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 30) &&
                 browserPageActionRows.every((row, index) => {
                   if (!(row instanceof HTMLElement) || index === 0) return row instanceof HTMLElement;
                   const previous = browserPageActionRows[index - 1];
                   return previous instanceof HTMLElement &&
                     row.getBoundingClientRect().top > previous.getBoundingClientRect().top;
+                }) &&
+                browserDataActionRows.every((row, index) => {
+                  if (!(row instanceof HTMLElement) || index === 0) return row instanceof HTMLElement;
+                  const previous = browserDataActionRows[index - 1];
+                  return previous instanceof HTMLElement &&
+                    row.getBoundingClientRect().top > previous.getBoundingClientRect().top;
                 });
               var browserClearDataWorks = false;
-              if (clearDataItem instanceof HTMLButtonElement) {
+              const clearDataTargets = [
+                { testId: 'browser-clear-cache', kind: 'cache' },
+                { testId: 'browser-clear-cookies', kind: 'cookies' },
+                { testId: 'browser-clear-site-data', kind: 'siteData' },
+                { testId: 'browser-clear-data', kind: 'all' }
+              ];
+              let clearDataTargetIndex = 0;
+              for (const target of clearDataTargets) {
+                if (!document.querySelector('.browser-actions-menu')) {
+                  browserActionsButton.click();
+                  await sleep(120);
+                }
+                const clearDataTarget = document.querySelector('[data-testid="' + target.testId + '"]');
+                if (!(clearDataTarget instanceof HTMLButtonElement)) break;
                 const browserPanelBeforeClear = document.querySelector('[data-testid="browser-panel"]');
                 const beforeCount = Number(browserPanelBeforeClear?.getAttribute('data-browser-clear-data') ?? '0');
-                clearDataItem.click();
+                clearDataTarget.click();
+                let targetWorked = false;
                 for (let index = 0; index < 30; index += 1) {
-                  const nextCount = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-clear-data') ?? '0');
-                  if (nextCount > beforeCount) {
-                    browserClearDataWorks = true;
+                  const browserPanelAfterClear = document.querySelector('[data-testid="browser-panel"]');
+                  const nextCount = Number(browserPanelAfterClear?.getAttribute('data-browser-clear-data') ?? '0');
+                  const nextKind = browserPanelAfterClear?.getAttribute('data-browser-clear-data-kind');
+                  if (nextCount > beforeCount && nextKind === target.kind) {
+                    targetWorked = true;
                     break;
                   }
                   await sleep(100);
                 }
+                if (!targetWorked) break;
+                clearDataTargetIndex += 1;
               }
+              browserClearDataWorks = clearDataTargetIndex === clearDataTargets.length;
               if (document.querySelector('.browser-actions-menu')) {
                 browserActionsButton.click();
               }

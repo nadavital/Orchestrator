@@ -497,12 +497,20 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // Browser side panel
   ipcMain.handle('browser:openExternal', (_, url: string): Promise<void> => shell.openExternal(url))
-  ipcMain.handle('browser:clearData', async (): Promise<void> => {
+  ipcMain.handle('browser:clearData', async (_, kind: string = 'all'): Promise<void> => {
     const browserSession = session.fromPartition('persist:orchestrator-side-browser')
-    await browserSession.clearAuthCache()
-    await browserSession.clearData({
-      dataTypes: ['cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
-    })
+    const dataTypesByKind = {
+      all: ['cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
+      cache: ['cache'],
+      cookies: ['cookies'],
+      siteData: ['fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
+    } as const
+    const clearKind =
+      kind === 'cache' || kind === 'cookies' || kind === 'siteData' || kind === 'all' ? kind : 'all'
+    if (clearKind === 'all' || clearKind === 'cookies') {
+      await browserSession.clearAuthCache()
+    }
+    await browserSession.clearData({ dataTypes: [...dataTypesByKind[clearKind]] })
   })
   ipcMain.handle('browser:saveDataUrlArtifact', (_, dataUrl: string, suggestedName?: string) =>
     writeBrowserDataUrlArtifact(dataUrl, suggestedName)
