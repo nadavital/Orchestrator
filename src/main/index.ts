@@ -398,6 +398,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(450);
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
+              const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
               const providerSelects = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('select')]
                 : [];
@@ -430,6 +431,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsSection.innerText.includes('Catalog') &&
                 diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
                 diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Advanced') &&
+                providerModelList instanceof HTMLElement &&
+                providerModelList.dataset.expanded === 'false' &&
+                providerModelList.getBoundingClientRect().height <= 76 &&
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;
@@ -478,6 +482,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(450);
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
+              const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Capabilities') &&
@@ -499,6 +504,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsSection.innerText.includes('Catalog') &&
                 diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
                 diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Advanced') &&
+                providerModelList instanceof HTMLElement &&
+                providerModelList.dataset.expanded === 'false' &&
+                providerModelList.getBoundingClientRect().height <= 76 &&
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;

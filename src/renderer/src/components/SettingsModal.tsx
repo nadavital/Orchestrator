@@ -2894,31 +2894,80 @@ function ModelListManager({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {/* Sortable list */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {visibleIds.map((id) => {
+    <div
+      data-testid="provider-model-list"
+      data-expanded={editing ? 'true' : 'false'}
+      style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+    >
+      {editing ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {visibleIds.map((id) => {
+                const meta = providerDef.models.find((m) => m.id === id)
+                return (
+                  <SortableModelRow
+                    key={id}
+                    id={id}
+                    label={meta?.label ?? id}
+                    modelId={id}
+                    onRemove={() => remove(id)}
+                  />
+                )
+              })}
+              {visibleIds.length === 0 && (
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '8px 0' }}>
+                  No models selected. The catalog defaults are used.
+                </div>
+              )}
+            </div>
+          </SortableContext>
+        </DndContext>
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            minWidth: 0,
+            minHeight: 28,
+            overflow: 'hidden'
+          }}
+        >
+          {visibleIds.length > 0 ? (
+            visibleIds.slice(0, 4).map((id) => {
               const meta = providerDef.models.find((m) => m.id === id)
               return (
-                <SortableModelRow
+                <span
                   key={id}
-                  id={id}
-                  label={meta?.label ?? id}
-                  modelId={id}
-                  onRemove={() => remove(id)}
-                />
+                  style={{
+                    maxWidth: 160,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    padding: '5px 8px',
+                    borderRadius: 999,
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-text)',
+                    fontSize: 11,
+                    fontWeight: 650
+                  }}
+                >
+                  {meta?.label ?? id}
+                </span>
               )
-            })}
-            {visibleIds.length === 0 && (
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '8px 0' }}>
-                No models selected — showing first 5 from catalog by default.
-              </div>
-            )}
-          </div>
-        </SortableContext>
-      </DndContext>
+            })
+          ) : (
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Catalog defaults</span>
+          )}
+          {visibleIds.length > 4 && (
+            <span style={{ fontSize: 11, fontWeight: 650, color: 'var(--color-text-muted)' }}>
+              +{visibleIds.length - 4}
+            </span>
+          )}
+        </div>
+      )}
 
       <button
         onClick={() => setEditing((open) => !open)}
