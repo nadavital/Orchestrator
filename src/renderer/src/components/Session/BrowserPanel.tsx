@@ -535,7 +535,6 @@ export default function BrowserPanel({
                 <button
                   type="button"
                   role="menuitem"
-                  title="Reload without cache"
                   className="browser-action-row"
                   disabled={!currentUrl || !visible}
                   onClick={reloadWithoutCache}
@@ -546,7 +545,6 @@ export default function BrowserPanel({
                 <button
                   type="button"
                   role="menuitem"
-                  title="Capture screenshot"
                   className="browser-action-row"
                   disabled={!currentUrl || isLoading || !visible}
                   onClick={() => {
@@ -560,7 +558,6 @@ export default function BrowserPanel({
                 <button
                   type="button"
                   role="menuitem"
-                  title="Open in external browser"
                   className="browser-action-row"
                   disabled={!currentUrl}
                   onClick={() => {
@@ -580,7 +577,7 @@ export default function BrowserPanel({
                   <button
                     type="button"
                     role="menuitem"
-                    title="Zoom out"
+                    aria-label="Zoom out"
                     className="browser-action-mini"
                     disabled={!currentUrl || workbench.zoomFactor <= 0.5}
                     onClick={() => changeZoom(-ZOOM_STEP)}
@@ -590,7 +587,7 @@ export default function BrowserPanel({
                   <button
                     type="button"
                     role="menuitem"
-                    title="Reset zoom"
+                    aria-label="Reset zoom"
                     data-testid="browser-zoom-reset"
                     className="browser-action-value"
                     disabled={!currentUrl}
@@ -604,7 +601,7 @@ export default function BrowserPanel({
                   <button
                     type="button"
                     role="menuitem"
-                    title="Zoom in"
+                    aria-label="Zoom in"
                     className="browser-action-mini"
                     disabled={!currentUrl || workbench.zoomFactor >= 2}
                     onClick={() => changeZoom(ZOOM_STEP)}
@@ -615,7 +612,7 @@ export default function BrowserPanel({
                 <button
                   type="button"
                   role="menuitem"
-                  title={devicePreviewActive ? 'Desktop preview' : 'Mobile preview'}
+                  aria-label={devicePreviewActive ? 'Desktop preview' : 'Mobile preview'}
                   className="browser-action-row"
                   disabled={!currentUrl}
                   onClick={() => setViewportMode(devicePreviewActive ? 'desktop' : 'mobile')}
@@ -626,7 +623,7 @@ export default function BrowserPanel({
                 <button
                   type="button"
                   role="menuitem"
-                  title={visible ? 'Hide browser surface' : 'Show browser surface'}
+                  aria-label={visible ? 'Hide browser surface' : 'Show browser surface'}
                   className="browser-action-row"
                   onClick={() => patchWorkbench({ visible: !visible })}
                 >

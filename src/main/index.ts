@@ -763,6 +763,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               browserActionsButton.click();
               await sleep(160);
             }
+            var browserActionsNativeTitlesAbsent =
+              document.querySelectorAll('.browser-actions-menu [title]').length === 0;
             const browserWebview = document.querySelector('[data-testid="browser-webview"]');
             const captureBrowserButton = findButton('Capture screenshot');
             if (captureBrowserButton instanceof HTMLButtonElement) {
@@ -1208,6 +1210,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserCacheReloadWorks: typeof browserCacheReloadWorks === 'boolean' ? browserCacheReloadWorks : null,
             browserMultiTabWorks: typeof browserMultiTabWorks === 'boolean' ? browserMultiTabWorks : null,
             browserTabCloseChromeWorks: typeof browserTabCloseChromeWorks === 'boolean' ? browserTabCloseChromeWorks : null,
+            browserActionsNativeTitlesAbsent: typeof browserActionsNativeTitlesAbsent === 'boolean' ? browserActionsNativeTitlesAbsent : null,
             browserInspectionWorks: typeof browserInspectionWorks === 'boolean' ? browserInspectionWorks : null,
             browserTargetsPaneWorks: typeof browserTargetsPaneWorks === 'boolean' ? browserTargetsPaneWorks : null,
             browserTargetsPaneNoHorizontalOverflowWorks: typeof browserTargetsPaneNoHorizontalOverflowWorks === 'boolean' ? browserTargetsPaneNoHorizontalOverflowWorks : null,
