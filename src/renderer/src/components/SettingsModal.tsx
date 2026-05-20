@@ -1517,7 +1517,7 @@ function ProviderCommandSurfaces({
   const runnableSurfaces = surfaces.filter((surface) => surface.quota === 'none' && !surface.mutatesState)
   const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
-  const [openId, setOpenId] = useState<string | null>(runnableSurfaces[0]?.id ?? null)
+  const [openId, setOpenId] = useState<string | null>(surfaces[0]?.id ?? null)
 
   const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
     if (surface.quota !== 'none' || surface.mutatesState) return
@@ -1534,49 +1534,27 @@ function ProviderCommandSurfaces({
   if (surfaces.length === 0) return <></>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {surfaces.map((surface) => {
-          const runnable = surface.quota === 'none' && !surface.mutatesState
-          const active = openId === surface.id
-          const isLoading = loading[surface.id] === true
-          return (
-            <button
-              key={surface.id}
-              onClick={() => runnable ? runSurface(surface) : setOpenId(surface.id)}
-              title={surface.command.length > 0 ? surface.command.join(' ') : surface.label}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                maxWidth: 190,
-                padding: '6px 9px',
-                borderRadius: 8,
-                border: `1px solid ${active ? color : 'var(--color-border)'}`,
-                background: active ? `${color}10` : 'var(--color-surface)',
-                color: runnable ? active ? color : 'var(--color-text)' : 'var(--color-text-muted)',
-                cursor: runnable ? 'pointer' : 'default',
-                fontSize: 11,
-                fontWeight: 650,
-              }}
-            >
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: '50%',
-                  background: runnable ? color : 'var(--color-text-muted)',
-                  opacity: isLoading ? 0.45 : 1,
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {surface.label}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <select
+        value={openId ?? ''}
+        onChange={(event) => setOpenId(event.target.value)}
+        style={{
+          width: 'min(340px, 100%)',
+          height: 32,
+          borderRadius: 7,
+          border: '1px solid var(--color-border)',
+          background: 'var(--color-surface2)',
+          color: 'var(--color-text)',
+          padding: '0 10px',
+          fontSize: 12,
+          fontWeight: 650,
+          outline: 'none',
+        }}
+      >
+        {surfaces.map((surface) => (
+          <option key={surface.id} value={surface.id}>{surface.label}</option>
+        ))}
+      </select>
 
       {openId && (
         <CommandSurfaceOutput
@@ -2338,7 +2316,6 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div
-        title={path}
         style={{
           fontSize: 10.5,
           fontFamily: 'monospace',
@@ -2432,7 +2409,6 @@ function DefaultModelPicker({
             <button
               key={m.id}
               onClick={() => { onSetModel(m.id); setCustomInput('') }}
-              title={m.id}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -2529,7 +2505,6 @@ function ProviderDiagnosticsCard({
       {rows.map((row) => (
         <div
           key={row.label}
-          title={row.message}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -2663,7 +2638,6 @@ function ProviderUsageDiagnosticsCard({
         {rows.map((row) => (
           <div
             key={row.label}
-            title={row.message}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -2756,7 +2730,6 @@ function ProviderProbeGrid({
       {diagnostics.probes.map((probe) => (
         <div
           key={probe.id}
-          title={`${probe.args.join(' ')}\n${probe.output}`}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -2860,10 +2833,10 @@ function ModelListManager({
       {/* Catalog toggle chips */}
       {providerDef.models.length > 0 && (
         <div>
-          <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-            Add from catalog
+          <div style={{ fontSize: 10, fontWeight: 650, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
+            Catalog
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {providerDef.models.map((m) => {
               const included = visibleIds.includes(m.id)
               return (
@@ -2871,10 +2844,10 @@ function ModelListManager({
                   key={m.id}
                   onClick={() => addCatalog(m.id)}
                   style={{
-                    padding: '3px 10px', borderRadius: 6, fontSize: 11,
-                    background: included ? 'var(--color-accent-dim)' : 'var(--color-surface)',
-                    border: `1px solid ${included ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                    color: included ? 'var(--color-accent)' : 'var(--color-text)',
+                    padding: '3px 8px', borderRadius: 6, fontSize: 11,
+                    background: included ? `${providerDef.color}10` : 'var(--color-surface)',
+                    border: `1px solid ${included ? providerDef.color : 'var(--color-border)'}`,
+                    color: included ? providerDef.color : 'var(--color-text)',
                     cursor: 'pointer'
                   }}
                 >
@@ -2887,36 +2860,31 @@ function ModelListManager({
       )}
 
       {/* Custom model ID input */}
-      <div>
-        <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-          Custom model ID
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            value={customInput}
-            onChange={(e) => setCustomInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
-            placeholder="e.g. gpt-5.5-preview"
-            style={{
-              flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace',
-              background: 'var(--color-surface2)', border: '1px solid var(--color-border)',
-              color: 'var(--color-text)', outline: 'none'
-            }}
-          />
-          <button
-            onClick={addCustom}
-            disabled={!customInput.trim()}
-            style={{
-              padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 500, flexShrink: 0,
-              background: customInput.trim() ? 'var(--color-accent)' : 'var(--color-surface2)',
-              border: `1px solid ${customInput.trim() ? 'var(--color-accent)' : 'var(--color-border)'}`,
-              color: customInput.trim() ? '#fff' : 'var(--color-text-muted)',
-              cursor: customInput.trim() ? 'pointer' : 'default'
-            }}
-          >
-            Add
-          </button>
-        </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={customInput}
+          onChange={(e) => setCustomInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
+          placeholder="Custom model ID"
+          style={{
+            flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace',
+            background: 'var(--color-surface2)', border: '1px solid var(--color-border)',
+            color: 'var(--color-text)', outline: 'none'
+          }}
+        />
+        <button
+          onClick={addCustom}
+          disabled={!customInput.trim()}
+          style={{
+            padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 500, flexShrink: 0,
+            background: customInput.trim() ? 'var(--color-accent)' : 'var(--color-surface2)',
+            border: `1px solid ${customInput.trim() ? 'var(--color-accent)' : 'var(--color-border)'}`,
+            color: customInput.trim() ? '#fff' : 'var(--color-text-muted)',
+            cursor: customInput.trim() ? 'pointer' : 'default'
+          }}
+        >
+          Add
+        </button>
       </div>
     </div>
   )
@@ -2936,7 +2904,8 @@ function SortableModelRow({ id, label, modelId, onRemove }: {
         transition,
         opacity: isDragging ? 0.5 : 1,
         display: 'flex', alignItems: 'center', gap: 8,
-        padding: '7px 12px', borderRadius: 8,
+        minHeight: 30,
+        padding: '4px 9px', borderRadius: 7,
         background: 'var(--color-surface)', border: '1px solid var(--color-border)'
       }}
     >
@@ -2948,8 +2917,8 @@ function SortableModelRow({ id, label, modelId, onRemove }: {
       >
         ⠿
       </span>
-      <span style={{ flex: 1, fontSize: 12 }}>{label}</span>
-      <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>{modelId}</span>
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{label}</span>
+      <span style={{ minWidth: 0, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)' }}>{modelId}</span>
       <button
         onClick={onRemove}
         style={{
