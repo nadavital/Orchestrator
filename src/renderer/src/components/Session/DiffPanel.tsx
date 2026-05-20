@@ -160,37 +160,38 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         />
       )}
 
+      <div className="diff-panel-toolbar" data-testid="diff-panel-toolbar">
+        <Badge tone="neutral" className="diff-file-count shrink-0" style={{ maxWidth: 82 }}>
+          {files.length} {files.length === 1 ? 'file' : 'files'}
+        </Badge>
+        <input
+          data-testid="diff-file-search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search"
+          className="diff-panel-search min-w-0 flex-1 rounded-md px-2 text-xs outline-none"
+          style={{
+            background: 'var(--control-bg)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-primary)'
+          }}
+        />
+        <ToolbarButton
+          icon="wrap"
+          label={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
+          active={wrapLines}
+          size="sm"
+          onClick={() => setWrapLines((value) => !value)}
+        />
+        {embedded && changeActions}
+      </div>
+
       {files.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-xs" style={{ color: 'var(--color-text-muted)' }}>
           No changes yet
         </div>
       ) : (
         <>
-          <div className="diff-panel-toolbar" data-testid="diff-panel-toolbar">
-            <Badge tone="neutral" className="diff-file-count shrink-0" style={{ maxWidth: 82 }}>
-              {files.length} {files.length === 1 ? 'file' : 'files'}
-            </Badge>
-            <input
-              data-testid="diff-file-search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search"
-              className="diff-panel-search min-w-0 flex-1 rounded-md px-2 text-xs outline-none"
-              style={{
-                background: 'var(--control-bg)',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--text-primary)'
-              }}
-            />
-            <ToolbarButton
-              icon="wrap"
-              label={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
-              active={wrapLines}
-              size="sm"
-              onClick={() => setWrapLines((value) => !value)}
-            />
-            {embedded && changeActions}
-          </div>
           <div
             className="overflow-y-auto overflow-x-hidden shrink-0"
             style={{ maxHeight: 200, borderBottom: '1px solid var(--border-subtle)' }}
