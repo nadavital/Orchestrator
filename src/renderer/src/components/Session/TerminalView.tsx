@@ -38,22 +38,39 @@ export default function TerminalView({ terminalId, workDir }: Props): JSX.Elemen
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
     termRef.current = term
+    const safeFit = (): boolean => {
+      const container = containerRef.current
+      if (!container || !document.contains(container)) return false
+      const rect = container.getBoundingClientRect()
+      if (rect.width < 8 || rect.height < 8) return false
+      try {
+        fitAddon.fit()
+        return true
+      } catch (error) {
+        console.warn('Terminal fit skipped', error)
+        return false
+      }
+    }
 
     if (containerRef.current) {
       term.open(containerRef.current)
-      requestAnimationFrame(async () => {
-        fitAddon.fit()
+      requestAnimationFrame(() => {
         // spawn is a no-op if shell already exists for this id
-        await window.api.terminal.spawn(terminalId, workDir)
-        window.api.terminal.resize(terminalId, term.cols, term.rows)
-        // replay buffered output so history appears after toggling
-        const buf = await window.api.terminal.getBuffer(terminalId)
-        if (buf) {
-          term.write(buf)
-          setPlainOutput(stripTerminalOutput(buf))
-          term.refresh(0, term.rows - 1)
-        }
-        term.focus()
+        void (async () => {
+          const fitOk = safeFit()
+          await window.api.terminal.spawn(terminalId, workDir)
+          if (fitOk) window.api.terminal.resize(terminalId, term.cols, term.rows)
+          // replay buffered output so history appears after toggling
+          const buf = await window.api.terminal.getBuffer(terminalId)
+          if (buf && termRef.current === term) {
+            term.write(buf)
+            setPlainOutput(stripTerminalOutput(buf))
+            term.refresh(0, term.rows - 1)
+          }
+          term.focus()
+        })().catch((error) => {
+          console.error('Failed to initialize terminal', error)
+        })
       })
     }
 
@@ -67,8 +84,7 @@ export default function TerminalView({ terminalId, workDir }: Props): JSX.Elemen
     })
 
     const observer = new ResizeObserver(() => {
-      fitAddon.fit()
-      window.api.terminal.resize(terminalId, term.cols, term.rows)
+      if (safeFit()) window.api.terminal.resize(terminalId, term.cols, term.rows)
     })
     if (containerRef.current) observer.observe(containerRef.current)
 

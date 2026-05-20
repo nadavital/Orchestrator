@@ -19,10 +19,12 @@ let projectStore: typeof import('./projects').projectStore
 let sessionManager: typeof import('./sessions').sessionManager
 
 let mainWindow: BrowserWindow | null = null
+const appWindows = new Set<BrowserWindow>()
 const guardedBrowserSessions = new WeakSet<Session>()
 
 function sendAppMenuCommand(command: AppMenuCommand): void {
-  mainWindow?.webContents.send('app:menu-command', command)
+  const target = BrowserWindow.getFocusedWindow() ?? mainWindow
+  target?.webContents.send('app:menu-command', command)
 }
 
 function installApplicationMenu(): void {
@@ -44,6 +46,11 @@ function installApplicationMenu(): void {
     {
       label: 'File',
       submenu: [
+        {
+          label: 'New Window',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => createWindow()
+        },
         menuCommand('new-chat'),
         menuCommand('open-command-menu'),
         { type: 'separator' },
@@ -219,12 +226,12 @@ function openExternalIfAllowed(rawUrl: string): void {
 
 installWebviewGuards()
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const isAutomatedUiSmoke = Boolean(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT)
   const shouldForegroundWindow =
     !isAutomatedUiSmoke || process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_FOREGROUND === '1'
 
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 900,
@@ -245,20 +252,34 @@ function createWindow(): void {
       webviewTag: true
     }
   })
+  mainWindow = win
+  appWindows.add(win)
 
-  mainWindow.on('ready-to-show', () => {
-    if (shouldForegroundWindow) {
-      mainWindow!.show()
-    } else {
-      mainWindow!.showInactive()
+  win.on('focus', () => {
+    mainWindow = win
+  })
+
+  win.on('closed', () => {
+    appWindows.delete(win)
+    if (mainWindow === win) {
+      mainWindow = [...appWindows].find((candidate) => !candidate.isDestroyed()) ?? null
     }
-    mainWindow!.setTitle(appProfile.isIsolated ? `Orchestrator - ${appProfile.displayName}` : '')
+    if (appWindows.size === 0) destroyPetOverlayWindow?.()
+  })
+
+  win.on('ready-to-show', () => {
+    if (shouldForegroundWindow) {
+      win.show()
+    } else {
+      win.showInactive()
+    }
+    win.setTitle(appProfile.isIsolated ? `Orchestrator - ${appProfile.displayName}` : '')
     if (!getAppProfile().disablePetOverlay) {
-      createPetOverlayWindow(mainWindow!)
+      createPetOverlayWindow(win)
     }
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
@@ -268,12 +289,13 @@ function createWindow(): void {
     : undefined
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}${rendererHash ? `#${rendererHash}` : ''}`)
+    win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}${rendererHash ? `#${rendererHash}` : ''}`)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'), rendererHash ? { hash: rendererHash } : undefined)
+    win.loadFile(join(__dirname, '../renderer/index.html'), rendererHash ? { hash: rendererHash } : undefined)
   }
 
-  maybeRunAutomatedUiSmoke(mainWindow)
+  maybeRunAutomatedUiSmoke(win)
+  return win
 }
 
 function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
@@ -4522,9 +4544,11 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               }));
             }
             if (normalPin instanceof HTMLElement) normalPin.focus({ preventScroll: true });
-            await sleep(360);
+            await sleep(250);
             const hoverPinVisible = normalPin instanceof HTMLElement &&
               Number.parseFloat(getComputedStyle(normalPin).opacity || '0') > 0.5;
+            const hoverCardDelayed = !document.querySelector('[data-testid="session-hover-card"]');
+            await sleep(560);
             const hoverCard = document.querySelector('[data-testid="session-hover-card"]');
             const hoverCardText = hoverCard instanceof HTMLElement ? hoverCard.innerText : '';
             const hoverCardVisible = hoverCard instanceof HTMLElement &&
@@ -4535,6 +4559,31 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               hoverCardText.includes('Provider') &&
               hoverCardText.includes('Status');
             const hoverCardSurfaceReadable = hoverCard instanceof HTMLElement && hoverSurfaceReadable(hoverCard);
+            let doubleClickRenameWorks = false;
+            let renameDialogCancelWorks = false;
+            let renameDialogChromeQuiet = false;
+            let renameDialogInputFocused = false;
+            if (normalRow instanceof HTMLElement) {
+              normalRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+              await sleep(180);
+              const renameInput = document.querySelector('[data-testid="rename-chat-input"]');
+              const renameDialog = renameInput instanceof HTMLInputElement ? renameInput.closest('[role="dialog"]') : null;
+              const cancelButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.trim() === 'Cancel');
+              doubleClickRenameWorks =
+                renameInput instanceof HTMLInputElement &&
+                renameInput.value === 'Sidebar normal idle' &&
+                cancelButton instanceof HTMLButtonElement;
+              renameDialogInputFocused = document.activeElement === renameInput;
+              renameDialogChromeQuiet =
+                renameDialog instanceof HTMLElement &&
+                !renameDialog.querySelector('.border-b, .border-t');
+              if (cancelButton instanceof HTMLButtonElement) {
+                cancelButton.click();
+                await sleep(140);
+              }
+              renameDialogCancelWorks = !document.querySelector('[data-testid="rename-chat-input"]');
+            }
             let singleHoverSurfaceWorks = false;
             let tooltipSurfaceReadable = false;
             let tooltipDismissesOnViewportChange = false;
@@ -4800,7 +4849,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               newPinAppended,
               hoverPinVisible,
               hoverCardVisible,
+              hoverCardDelayed,
               hoverCardSurfaceReadable,
+              doubleClickRenameWorks,
+              renameDialogCancelWorks,
+              renameDialogChromeQuiet,
+              renameDialogInputFocused,
               tooltipSurfaceReadable,
               singleHoverSurfaceWorks,
               tooltipDismissesOnViewportChange,
@@ -5983,7 +6037,14 @@ app.whenReady().then(async () => {
   createWindow()
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    const existing = [...appWindows].find((candidate) => !candidate.isDestroyed())
+    if (!existing) {
+      createWindow()
+      return
+    }
+    if (existing.isMinimized()) existing.restore()
+    existing.show()
+    existing.focus()
   })
 })
 

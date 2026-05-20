@@ -4,6 +4,7 @@ import { hasComposerDraft, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
+import RenameChatDialog from '../shared/RenameChatDialog'
 import { announceHoverSurfaceOpen, IconButton, SurfaceRow, Tooltip, useExclusiveHoverSurface } from '../shared/designSystem'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -11,6 +12,8 @@ import { createPortal } from 'react-dom'
 interface Props {
   session: Session
 }
+
+const hoverCardIntentDelayMs = 650
 
 const statusColor: Record<Session['status'], string> = {
   idle: 'var(--color-text-muted)',
@@ -42,15 +45,18 @@ function SessionItem({ session }: Props): JSX.Element {
   const unread = useSessionStore((state) => state.uiState[session.id]?.hasUnread ?? false)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
   const removeSession = useSessionStore((state) => state.removeSession)
+  const updateName = useSessionStore((state) => state.updateName)
   const updatePinned = useSessionStore((state) => state.updatePinned)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const { projects, removeSessionFromProject } = useProjectStore()
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
+  const [renaming, setRenaming] = useState(false)
   const [detailsVisible, setDetailsVisible] = useState(false)
   const [cardPosition, setCardPosition] = useState<{ left: number; top: number } | null>(null)
   const [branch, setBranch] = useState<string | null>(null)
   const [branchLoadedFor, setBranchLoadedFor] = useState<string | null>(null)
+  const hoverCardTimerRef = useRef<number | null>(null)
   const hasUnread = !isActive && unread
   const hasError = errorStatuses.has(session.status)
   const isRunning = session.status === 'running' || session.status === 'reconnecting'
@@ -156,10 +162,29 @@ function SessionItem({ session }: Props): JSX.Element {
   }
 
   const hideDetails = (): void => {
+    if (hoverCardTimerRef.current !== null) {
+      window.clearTimeout(hoverCardTimerRef.current)
+      hoverCardTimerRef.current = null
+    }
     setDetailsVisible(false)
   }
 
-  const showDetails = (): void => {
+  useEffect(() => () => {
+    if (hoverCardTimerRef.current !== null) window.clearTimeout(hoverCardTimerRef.current)
+  }, [])
+
+  const showDetails = (delayed = false): void => {
+    if (hoverCardTimerRef.current !== null) {
+      window.clearTimeout(hoverCardTimerRef.current)
+      hoverCardTimerRef.current = null
+    }
+    if (delayed) {
+      hoverCardTimerRef.current = window.setTimeout(() => {
+        hoverCardTimerRef.current = null
+        showDetails(false)
+      }, hoverCardIntentDelayMs)
+      return
+    }
     const rect = rowRef.current?.getBoundingClientRect()
     if (rect) {
       const estimatedWidth = Math.min(320, Math.max(260, window.innerWidth - 32))
@@ -176,6 +201,25 @@ function SessionItem({ session }: Props): JSX.Element {
 
   useExclusiveHoverSurface(hoverSurfaceId, hideDetails)
 
+  const openRename = (event?: React.MouseEvent): void => {
+    event?.preventDefault()
+    event?.stopPropagation()
+    hideDetails()
+    setMenuPoint(null)
+    setRenaming(true)
+  }
+
+  const rename = async (nextName: string): Promise<void> => {
+    const trimmed = nextName.trim()
+    if (!trimmed || trimmed === session.name) {
+      setRenaming(false)
+      return
+    }
+    await window.api.sessions.updateName(session.id, trimmed)
+    updateName(session.id, trimmed)
+    setRenaming(false)
+  }
+
   return (
     <>
       <div
@@ -186,9 +230,9 @@ function SessionItem({ session }: Props): JSX.Element {
         aria-current={isActive ? 'page' : undefined}
         aria-describedby={detailsVisible ? hoverSurfaceId : undefined}
         data-details-visible={detailsVisible ? 'true' : 'false'}
-        onMouseEnter={showDetails}
+        onMouseEnter={() => showDetails(true)}
         onMouseLeave={hideDetails}
-        onFocus={showDetails}
+        onFocus={() => showDetails(false)}
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hideDetails()
         }}
@@ -208,6 +252,7 @@ function SessionItem({ session }: Props): JSX.Element {
             padding: '3px 7px'
           }}
           onClick={handleClick}
+          onDoubleClick={openRename}
           onContextMenu={openMenu}
         >
           <div className="session-item-pin-slot shrink-0">
@@ -309,6 +354,13 @@ function SessionItem({ session }: Props): JSX.Element {
           y={menuPoint.y}
           onClose={() => setMenuPoint(null)}
           onRemove={handleRemove}
+        />
+      )}
+      {renaming && (
+        <RenameChatDialog
+          initialValue={session.name}
+          onCancel={() => setRenaming(false)}
+          onConfirm={(value) => void rename(value)}
         />
       )}
     </>

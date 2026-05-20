@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import Icon from './Icon'
 import { Button, MotionOverlay } from './designSystem'
 
 interface Props {
@@ -17,10 +16,12 @@ export default function RenameChatDialog({ initialValue, onCancel, onConfirm }: 
   const canSubmit = trimmed.length > 0 && !saving
 
   useEffect(() => {
-    window.requestAnimationFrame(() => {
+    const focusInput = (): void => {
       inputRef.current?.focus()
       inputRef.current?.select()
-    })
+    }
+    window.setTimeout(focusInput, 0)
+    window.requestAnimationFrame(focusInput)
   }, [])
 
   const submit = async (): Promise<void> => {
@@ -55,25 +56,25 @@ export default function RenameChatDialog({ initialValue, onCancel, onConfirm }: 
       }}
     >
       <form
+        className="flex min-w-0 flex-col gap-3 p-4"
         onSubmit={(event) => {
           event.preventDefault()
           void submit()
         }}
       >
-        <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: 'var(--border-subtle)' }}>
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg" style={{ background: 'var(--control-bg)', color: 'var(--text-secondary)' }}>
-            <Icon name="pencil" size={14} />
-          </span>
-          <div className="min-w-0 flex-1 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Rename chat
-          </div>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Rename chat</div>
         </div>
-        <div className="px-3 py-2">
+        <div className="min-w-0">
           <label className="sr-only" htmlFor="rename-chat-input">Chat name</label>
           <input
             id="rename-chat-input"
             ref={inputRef}
             value={value}
+            autoFocus
+            onPointerDown={() => {
+              inputRef.current?.focus({ preventScroll: true })
+            }}
             onChange={(event) => setValue(event.currentTarget.value)}
             placeholder="Chat name"
             data-testid="rename-chat-input"
@@ -85,10 +86,8 @@ export default function RenameChatDialog({ initialValue, onCancel, onConfirm }: 
             }}
           />
         </div>
-        <div
-          className="flex items-center justify-end gap-3 border-t px-3 py-2"
-          style={{ borderColor: 'var(--border-subtle)' }}
-        >
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="ghost" type="button" onClick={onCancel}>Cancel</Button>
           <Button variant="primary" type="submit" disabled={!canSubmit}>
             {saving ? 'Renaming...' : 'Rename'}
           </Button>
