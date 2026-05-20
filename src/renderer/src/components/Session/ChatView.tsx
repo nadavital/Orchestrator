@@ -527,13 +527,13 @@ export default function ChatView({ session }: Props): JSX.Element {
     return (
       <div
         data-testid="chat-empty-state"
-        className="flex-1 flex flex-col items-center justify-end px-6 pb-28"
+        className="chat-empty-state flex-1 flex flex-col items-center justify-end px-6 pb-24"
         style={{ background: 'var(--canvas-bg)' }}
       >
         <div className="flex max-w-full flex-col items-center gap-1 text-center">
           <h1
-            className="text-xl font-semibold leading-tight"
-            style={{ color: 'var(--text-primary)' }}
+            className="text-base font-medium leading-tight"
+            style={{ color: 'var(--text-secondary)' }}
           >
             What do you want to build?
           </h1>

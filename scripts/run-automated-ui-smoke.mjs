@@ -557,6 +557,7 @@ child.on('exit', (code) => {
         composerNativeTooltips: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.composerNativeTooltipsWork === true,
         headerActionMenu: captureView !== 'inspector' || result.headerActionMenuWorks === true,
         chatEmptyState: captureView !== 'inspector' || result.chatEmptyStateWorks === true,
+        chatEmptyStateQuiet: captureView !== 'inspector' || result.chatEmptyStateQuietWorks === true,
         chatEmptyStateProjectLabelClean: captureView !== 'inspector' || result.chatEmptyStateProjectLabelClean === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
         rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,

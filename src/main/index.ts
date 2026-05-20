@@ -341,10 +341,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           }
           await sleep(900);
           const chatEmptyState = document.querySelector('[data-testid="chat-empty-state"]');
+          const chatEmptyStateHeading = chatEmptyState instanceof HTMLElement ? chatEmptyState.querySelector('h1') : null;
+          const chatEmptyStateHeadingStyle = chatEmptyStateHeading instanceof HTMLElement ? getComputedStyle(chatEmptyStateHeading) : null;
           var chatEmptyStateWorks =
             chatEmptyState instanceof HTMLElement &&
             chatEmptyState.innerText.includes('What do you want to build?') &&
             chatEmptyState.innerText.includes('What do you want to build in') === false;
+          var chatEmptyStateQuietWorks =
+            chatEmptyState instanceof HTMLElement &&
+            chatEmptyStateHeading instanceof HTMLElement &&
+            chatEmptyStateHeadingStyle !== null &&
+            Number.parseFloat(chatEmptyStateHeadingStyle.fontSize || '0') <= 18 &&
+            Number.parseFloat(chatEmptyStateHeadingStyle.fontWeight || '700') <= 600;
           const primaryContent = document.querySelector('[data-testid="session-primary-content"]');
           const activeProjectName = projects[0]?.name ?? '';
           const activeProjectMentionsInPrimary = activeProjectName && primaryContent instanceof HTMLElement
@@ -2177,6 +2185,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerNativeTooltipsWork,
             headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
             chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
+            chatEmptyStateQuietWorks: typeof chatEmptyStateQuietWorks === 'boolean' ? chatEmptyStateQuietWorks : null,
             chatEmptyStateProjectLabelClean: typeof chatEmptyStateProjectLabelClean === 'boolean' ? chatEmptyStateProjectLabelClean : null,
             hasInspectorTabs: bodyText.includes('Review') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
             hasRightPanelState: rightPanel instanceof HTMLElement &&
