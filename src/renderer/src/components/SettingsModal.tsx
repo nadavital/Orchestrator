@@ -35,7 +35,6 @@ import {
   SegmentedControl as SystemSegmentedControl,
   SettingsIntro,
   SettingsPanel,
-  StatusPill,
   SwitchControl,
   Tooltip
 } from './shared/designSystem'
@@ -1484,6 +1483,11 @@ function ProviderDropdown({
   onSelect: (id: string) => void
   onSetDefault: () => void
 }): JSX.Element {
+  const selectedProvider = providers.find((provider) => provider.id === providerId)
+  const providerStatus = installed
+    ? isDefault ? 'Default · Ready' : 'Ready'
+    : installCmd
+
   return (
     <div
       data-testid="provider-selector-card"
@@ -1521,13 +1525,12 @@ function ProviderDropdown({
           </span>
           <span className="min-w-0" style={{ display: 'grid', gap: 1 }}>
             <span style={{ color: 'var(--color-text)', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              Default provider
+              {selectedProvider?.name ?? 'Provider'}
             </span>
             <span style={{ color: 'var(--color-text-muted)', fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {installed ? 'Ready' : installCmd}
+              {providerStatus}
             </span>
           </span>
-          {isDefault && <StatusPill label="Default" color={color} />}
         </div>
         <select
           aria-label="Provider"
