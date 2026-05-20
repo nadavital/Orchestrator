@@ -1200,6 +1200,16 @@
     min-width: 0;
   }
 
+  .browser-local-targets-empty {
+    min-height: 30px;
+    border: 1px dashed var(--border-subtle);
+    border-radius: var(--radius-md);
+    color: var(--text-tertiary);
+    display: grid;
+    place-items: center;
+    font-size: 11.5px;
+  }
+
   .browser-local-targets-list button {
     display: flex;
     min-width: 0;

@@ -956,33 +956,35 @@ export default function BrowserPanel({
             >
               <Icon name="browser" size={26} />
               <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                Open a page
+                Start browsing
               </div>
               <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                Use the address bar or a local target.
+                Enter a URL to open a page.
               </div>
-              {(localTargetsLoading || localTargets.length > 0) && (
-                <div className="browser-local-targets" data-testid="browser-local-targets">
-                  <div className="browser-local-targets-header">
-                    <span>{localTargetsLoading ? 'Checking local targets' : 'Local targets'}</span>
-                    <button type="button" onClick={() => void refreshLocalTargets()}>Refresh</button>
-                  </div>
-                  <div className="browser-local-targets-list">
-                    {localTargets.map((target) => (
-                      <button
-                        key={target.url}
-                        type="button"
-                        data-testid="browser-local-target"
-                        onClick={() => navigate(target.url)}
-                      >
-                        <Icon name="browser" size={13} />
-                        <span className="min-w-0 flex-1 truncate">{target.title || shortUrl(target.url)}</span>
-                        <span>{shortUrl(target.url)}</span>
-                      </button>
-                    ))}
-                  </div>
+              <div className="browser-local-targets" data-testid="browser-local-targets">
+                <div className="browser-local-targets-header">
+                  <span>{localTargetsLoading ? 'Checking local servers' : 'Local servers'}</span>
+                  <button type="button" onClick={() => void refreshLocalTargets()}>Refresh</button>
                 </div>
-              )}
+                <div className="browser-local-targets-list" aria-live="polite">
+                  {localTargets.length > 0 ? localTargets.map((target) => (
+                    <button
+                      key={target.url}
+                      type="button"
+                      data-testid="browser-local-target"
+                      onClick={() => navigate(target.url)}
+                    >
+                      <Icon name="browser" size={13} />
+                      <span className="min-w-0 flex-1 truncate">{target.title || shortUrl(target.url)}</span>
+                      <span>{shortUrl(target.url)}</span>
+                    </button>
+                  )) : (
+                    <div className="browser-local-targets-empty" data-testid="browser-local-targets-empty">
+                      {localTargetsLoading ? 'Looking for servers...' : 'No local servers'}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
