@@ -441,6 +441,14 @@ export default function BrowserPanel({
     })
   }
 
+  const rotateViewport = (): void => {
+    if (workbench.deviceMode === 'desktop') return
+    patchWorkbench({
+      viewportWidth: workbench.viewportHeight,
+      viewportHeight: workbench.viewportWidth
+    })
+  }
+
   const runInspection = async (): Promise<void> => {
     const webview = webviewRef.current
     if (!webview || !currentUrl) return
@@ -541,6 +549,8 @@ export default function BrowserPanel({
       data-testid="browser-panel"
       data-browser-zoom={workbench.zoomFactor.toFixed(2)}
       data-browser-device-mode={workbench.deviceMode}
+      data-browser-viewport-width={workbench.viewportWidth}
+      data-browser-viewport-height={workbench.viewportHeight}
       data-browser-cache-reloads={cacheReloadCount}
       data-browser-clear-data={clearDataCount}
       data-browser-find-matches={findMatches}
@@ -903,6 +913,12 @@ export default function BrowserPanel({
                   />
                 </>
               )}
+              <ToolbarButton
+                icon="refresh"
+                label="Rotate viewport"
+                size="sm"
+                onClick={rotateViewport}
+              />
             </div>
           )}
         </div>

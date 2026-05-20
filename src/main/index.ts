@@ -1160,10 +1160,24 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(120);
             }
             const browserViewportFrame = document.querySelector('[data-testid="browser-viewport-frame"]');
+            const browserPanelAfterMobilePreview = document.querySelector('[data-testid="browser-panel"]');
+            const viewportWidthBeforeRotate = Number(browserPanelAfterMobilePreview?.getAttribute('data-browser-viewport-width') ?? '0');
+            const viewportHeightBeforeRotate = Number(browserPanelAfterMobilePreview?.getAttribute('data-browser-viewport-height') ?? '0');
+            const rotateViewportButton = findButton('Rotate viewport');
+            if (rotateViewportButton instanceof HTMLButtonElement) {
+              rotateViewportButton.click();
+              await sleep(120);
+            }
+            const browserPanelAfterRotate = document.querySelector('[data-testid="browser-panel"]');
+            var browserViewportRotateWorks =
+              rotateViewportButton instanceof HTMLButtonElement &&
+              Number(browserPanelAfterRotate?.getAttribute('data-browser-viewport-width') ?? '0') === viewportHeightBeforeRotate &&
+              Number(browserPanelAfterRotate?.getAttribute('data-browser-viewport-height') ?? '0') === viewportWidthBeforeRotate;
             var browserDeviceModeWorks =
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'mobile' &&
               browserViewportFrame instanceof HTMLElement &&
-              browserViewportFrame.getBoundingClientRect().width <= 410;
+              viewportWidthBeforeRotate <= 410 &&
+              browserViewportRotateWorks;
             const noCacheButton = findButton('Reload without cache');
             if (noCacheButton instanceof HTMLButtonElement) {
               noCacheButton.click();
@@ -2193,10 +2207,24 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(120);
             }
             const browserViewportFrame = document.querySelector('[data-testid="browser-viewport-frame"]');
+            const browserPanelAfterMobilePreview = document.querySelector('[data-testid="browser-panel"]');
+            const viewportWidthBeforeRotate = Number(browserPanelAfterMobilePreview?.getAttribute('data-browser-viewport-width') ?? '0');
+            const viewportHeightBeforeRotate = Number(browserPanelAfterMobilePreview?.getAttribute('data-browser-viewport-height') ?? '0');
+            const rotateViewportButton = findButton('Rotate viewport');
+            if (rotateViewportButton instanceof HTMLButtonElement) {
+              rotateViewportButton.click();
+              await sleep(120);
+            }
+            const browserPanelAfterRotate = document.querySelector('[data-testid="browser-panel"]');
+            var browserViewportRotateWorks =
+              rotateViewportButton instanceof HTMLButtonElement &&
+              Number(browserPanelAfterRotate?.getAttribute('data-browser-viewport-width') ?? '0') === viewportHeightBeforeRotate &&
+              Number(browserPanelAfterRotate?.getAttribute('data-browser-viewport-height') ?? '0') === viewportWidthBeforeRotate;
             var browserDeviceModeWorks =
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'mobile' &&
               browserViewportFrame instanceof HTMLElement &&
-              browserViewportFrame.getBoundingClientRect().width <= 410;
+              viewportWidthBeforeRotate <= 410 &&
+              browserViewportRotateWorks;
             const desktopPreviewButton = findButton('Desktop preview');
             if (desktopPreviewButton instanceof HTMLButtonElement) {
               desktopPreviewButton.click();
