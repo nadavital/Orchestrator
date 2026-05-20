@@ -118,6 +118,7 @@ export default function BrowserPanel({
   const [clipboardText, setClipboardText] = useState('')
   const [coordinateAction, setCoordinateAction] = useState({ x: 20, y: 20, scrollY: 360 })
   const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
+  const [historyMenuOpen, setHistoryMenuOpen] = useState(false)
   const activeTab = activeBrowserTab(workbench)
   const visible = workbench.visible
   const viewport = browserViewport(workbench)
@@ -588,6 +589,48 @@ export default function BrowserPanel({
       >
         <ToolbarButton icon="arrowLeft" label="Back" size="sm" disabled={!canGoBack || !visible} onClick={() => webviewRef.current?.goBack()} />
         <ToolbarButton icon="arrowRight" label="Forward" size="sm" disabled={!canGoForward || !visible} onClick={() => webviewRef.current?.goForward()} />
+        {workbench.history.length > 0 && (
+          <div className="relative">
+            <ToolbarButton
+              icon="clock"
+              label="Browser history"
+              size="sm"
+              active={historyMenuOpen}
+              onClick={() => {
+                setBrowserMenuOpen(false)
+                setHistoryMenuOpen((open) => !open)
+              }}
+            />
+            {historyMenuOpen && (
+              <MenuSurface
+                onClose={() => setHistoryMenuOpen(false)}
+                className="browser-toolbar-history-menu"
+                style={{ position: 'absolute', left: 0, top: 32, width: 260, zIndex: 100 }}
+              >
+                <div className="browser-action-section" data-testid="browser-toolbar-history-menu">
+                  <div className="browser-action-label">History</div>
+                  {workbench.history.slice(0, 6).map((item) => (
+                    <button
+                      key={`${item.url}-${item.visitedAt}`}
+                      type="button"
+                      role="menuitem"
+                      data-testid="browser-toolbar-history-item"
+                      className="browser-action-row browser-history-row"
+                      onClick={() => {
+                        setHistoryMenuOpen(false)
+                        navigate(item.url)
+                      }}
+                    >
+                      <Icon name="clock" size={13} />
+                      <span className="min-w-0 flex-1 truncate">{item.title || shortUrl(item.url) || item.url}</span>
+                      <span className="browser-history-url min-w-0 truncate">{shortUrl(item.url)}</span>
+                    </button>
+                  ))}
+                </div>
+              </MenuSurface>
+            )}
+          </div>
+        )}
         <ToolbarButton
           icon={isLoading ? 'close' : 'refresh'}
           label={isLoading ? 'Stop loading' : 'Reload'}
@@ -627,7 +670,10 @@ export default function BrowserPanel({
             size="sm"
             active={browserMenuOpen}
             dataTestId="browser-actions-menu"
-            onClick={() => setBrowserMenuOpen((open) => !open)}
+            onClick={() => {
+              setHistoryMenuOpen(false)
+              setBrowserMenuOpen((open) => !open)
+            }}
           />
           {browserMenuOpen && (
             <MenuSurface

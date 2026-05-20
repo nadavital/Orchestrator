@@ -1826,6 +1826,21 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserInputForStop.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
               await sleep(700);
             }
+            const browserToolbarHistoryButton = findButton('Browser history');
+            let browserToolbarHistoryWorks = false;
+            if (browserToolbarHistoryButton instanceof HTMLButtonElement) {
+              browserToolbarHistoryButton.click();
+              await sleep(120);
+              const toolbarHistoryMenu = document.querySelector('[data-testid="browser-toolbar-history-menu"]');
+              const toolbarHistoryItems = [...document.querySelectorAll('[data-testid="browser-toolbar-history-item"]')];
+              browserToolbarHistoryWorks =
+                toolbarHistoryMenu instanceof HTMLElement &&
+                toolbarHistoryItems.length > 0 &&
+                toolbarHistoryItems.some((item) => item.textContent?.includes('127.0.0.1')) &&
+                toolbarHistoryMenu.scrollWidth <= toolbarHistoryMenu.clientWidth + 2;
+              browserToolbarHistoryButton.click();
+              await sleep(80);
+            }
             const browserActionsButton = findButton('Browser actions');
             let browserHistoryMenuWorks = false;
             if (browserActionsButton instanceof HTMLButtonElement) {
@@ -1936,6 +1951,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserFindWorks,
               browserFindNavigationWorks,
               browserStopLoadingWorks,
+              browserToolbarHistoryWorks,
               browserHistoryMenuWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserErrorRecoveryWorks,
