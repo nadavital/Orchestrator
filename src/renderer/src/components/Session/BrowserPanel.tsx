@@ -1280,7 +1280,8 @@ function TargetsPane({
 }): JSX.Element {
   return (
     <div className="browser-targets-pane">
-      <div className="space-y-2">
+      <div className="browser-target-section">
+        <div className="browser-target-section-title">Element</div>
         <select
           data-testid="browser-target-select"
           value={selectedTargetId}
@@ -1298,7 +1299,7 @@ function TargetsPane({
           className="w-full rounded-md px-2 py-1 text-xs outline-none"
           style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
         />
-        <div className="flex flex-wrap gap-1">
+        <div className="browser-target-action-row">
           <ActionButton label="Click" onClick={() => onRunTargetAction('click')} disabled={!selectedTargetId} />
           <ActionButton label="Double" onClick={() => onRunTargetAction('double_click')} disabled={!selectedTargetId} />
           <ActionButton label="Type" onClick={() => onRunTargetAction('type')} disabled={!selectedTargetId || !actionText} />
@@ -1328,27 +1329,32 @@ function TargetsPane({
           </div>
         )}
       </div>
-      <div className="space-y-2">
-        <div className="grid grid-cols-3 gap-1">
-          <SmallNumber label="X" value={coordinateAction.x} onChange={(x) => onCoordinateChange({ ...coordinateAction, x })} />
-          <SmallNumber label="Y" value={coordinateAction.y} onChange={(y) => onCoordinateChange({ ...coordinateAction, y })} />
-          <SmallNumber label="Scroll" value={coordinateAction.scrollY} onChange={(scrollY) => onCoordinateChange({ ...coordinateAction, scrollY })} />
+      <div className="browser-target-side-stack">
+        <div className="browser-target-section">
+          <div className="browser-target-section-title">Pointer</div>
+          <div className="grid grid-cols-3 gap-1">
+            <SmallNumber label="X" value={coordinateAction.x} onChange={(x) => onCoordinateChange({ ...coordinateAction, x })} />
+            <SmallNumber label="Y" value={coordinateAction.y} onChange={(y) => onCoordinateChange({ ...coordinateAction, y })} />
+            <SmallNumber label="Scroll" value={coordinateAction.scrollY} onChange={(scrollY) => onCoordinateChange({ ...coordinateAction, scrollY })} />
+          </div>
+          <div className="browser-target-action-row">
+            <ActionButton label="Click x/y" onClick={() => onRunCoordinateAction('click')} />
+            <ActionButton label="Scroll x/y" onClick={() => onRunCoordinateAction('scroll')} />
+          </div>
         </div>
-        <div className="flex gap-1">
-          <ActionButton label="Click x/y" onClick={() => onRunCoordinateAction('click')} />
-          <ActionButton label="Scroll x/y" onClick={() => onRunCoordinateAction('scroll')} />
-        </div>
-        <div className="flex gap-1">
-          <span className="self-center text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Clip</span>
-          <input
-            value={clipboardText}
-            onChange={(event) => onClipboardChange(event.target.value)}
-            placeholder="Clip text"
-            className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
-            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-          />
-          <ActionButton label="Read" onClick={onReadClipboard} />
-          <ActionButton label="Write" onClick={onWriteClipboard} />
+        <div className="browser-target-section">
+          <div className="browser-target-section-title">Clipboard</div>
+          <div className="flex gap-1">
+            <input
+              value={clipboardText}
+              onChange={(event) => onClipboardChange(event.target.value)}
+              placeholder="Clip text"
+              className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
+              style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+            />
+            <ActionButton label="Read" onClick={onReadClipboard} />
+            <ActionButton label="Write" onClick={onWriteClipboard} />
+          </div>
         </div>
       </div>
     </div>

@@ -1444,6 +1444,36 @@
     grid-template-columns: minmax(0, 1fr) minmax(150px, 0.48fr);
   }
 
+  .browser-target-section,
+  .browser-target-side-stack {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: 8px;
+  }
+
+  .browser-target-section {
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--control-bg) 48%, transparent);
+    padding: 8px;
+  }
+
+  .browser-target-section-title {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .browser-target-action-row {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
   .browser-security-pane {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
