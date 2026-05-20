@@ -341,18 +341,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           }
           await sleep(900);
           const chatEmptyState = document.querySelector('[data-testid="chat-empty-state"]');
-          const chatEmptyStateHeading = chatEmptyState instanceof HTMLElement ? chatEmptyState.querySelector('h1') : null;
-          const chatEmptyStateHeadingStyle = chatEmptyStateHeading instanceof HTMLElement ? getComputedStyle(chatEmptyStateHeading) : null;
+          const textarea = document.querySelector('textarea');
+          const composerPlaceholder = textarea instanceof HTMLTextAreaElement
+            ? textarea.getAttribute('placeholder') ?? ''
+            : '';
           var chatEmptyStateWorks =
             chatEmptyState instanceof HTMLElement &&
-            chatEmptyState.innerText.includes('What do you want to build?') &&
-            chatEmptyState.innerText.includes('What do you want to build in') === false;
+            chatEmptyState.innerText.trim().length === 0 &&
+            composerPlaceholder === 'What do you want to build?';
           var chatEmptyStateQuietWorks =
             chatEmptyState instanceof HTMLElement &&
-            chatEmptyStateHeading instanceof HTMLElement &&
-            chatEmptyStateHeadingStyle !== null &&
-            Number.parseFloat(chatEmptyStateHeadingStyle.fontSize || '0') <= 18 &&
-            Number.parseFloat(chatEmptyStateHeadingStyle.fontWeight || '700') <= 600;
+            chatEmptyState.querySelector('h1, h2, h3, [role="heading"]') === null &&
+            chatEmptyState.innerText.trim().length === 0;
           const primaryContent = document.querySelector('[data-testid="session-primary-content"]');
           const activeProjectName = projects[0]?.name ?? '';
           const activeProjectMentionsInPrimary = activeProjectName && primaryContent instanceof HTMLElement
@@ -363,7 +363,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             Boolean(activeProjectName) &&
             chatEmptyState.innerText.includes(activeProjectName) === false &&
             activeProjectMentionsInPrimary === 0;
-          const textarea = document.querySelector('textarea');
           textarea?.focus();
           if (textarea && !['composer', 'extensions'].includes(${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)})) {
             textarea.value = '/btw smoke check';

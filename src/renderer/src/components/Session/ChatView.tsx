@@ -522,23 +522,15 @@ export default function ChatView({ session }: Props): JSX.Element {
     })
   }, [session.id])
 
-  // Hero state: no messages yet
+  // New threads keep the canvas quiet; the composer owns the prompt.
   if (session.messages.length === 0 && session.status !== 'running') {
     return (
       <div
         data-testid="chat-empty-state"
-        className="chat-empty-state flex-1 flex flex-col items-center justify-end px-6 pb-24"
+        aria-label="New chat ready"
+        className="chat-empty-state flex-1"
         style={{ background: 'var(--canvas-bg)' }}
-      >
-        <div className="flex max-w-full flex-col items-center gap-1 text-center">
-          <h1
-            className="text-base font-medium leading-tight"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            What do you want to build?
-          </h1>
-        </div>
-      </div>
+      />
     )
   }
 
