@@ -2263,8 +2263,10 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const historyMenu = document.querySelector('[data-testid="browser-history-menu"]');
               const historyItems = [...document.querySelectorAll('[data-testid="browser-history-item"]')];
               const browserActionsMenu = document.querySelector('.browser-actions-menu');
-              const browserPageActionGrid = document.querySelector('[data-testid="browser-page-action-grid"]');
-              const browserPageActionTiles = [...document.querySelectorAll('.browser-action-tile')];
+              const browserPageActions = document.querySelector('[data-testid="browser-page-actions"]');
+              const browserPageActionRows = browserPageActions instanceof HTMLElement
+                ? [...browserPageActions.querySelectorAll('.browser-action-row')]
+                : [];
               const copyUrlItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy URL'));
               const clearDataItem = document.querySelector('[data-testid="browser-clear-data"]');
@@ -2276,16 +2278,17 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 clearDataItem instanceof HTMLElement;
               var browserActionsMenuCompactWorks =
                 browserActionsMenu instanceof HTMLElement &&
-                browserPageActionGrid instanceof HTMLElement &&
-                browserPageActionTiles.length === 4 &&
-                browserPageActionGrid.scrollWidth <= browserPageActionGrid.clientWidth + 2 &&
+                browserPageActions instanceof HTMLElement &&
+                browserPageActionRows.length === 5 &&
+                browserPageActions.scrollWidth <= browserPageActions.clientWidth + 2 &&
                 browserActionsMenu.scrollWidth <= browserActionsMenu.clientWidth + 2 &&
-                browserPageActionTiles.every((tile) => tile instanceof HTMLElement && tile.getBoundingClientRect().height <= 46) &&
-                browserPageActionTiles[0] instanceof HTMLElement &&
-                browserPageActionTiles[1] instanceof HTMLElement &&
-                Math.abs(browserPageActionTiles[0].getBoundingClientRect().top - browserPageActionTiles[1].getBoundingClientRect().top) <= 2 &&
-                browserPageActionTiles[2] instanceof HTMLElement &&
-                browserPageActionTiles[2].getBoundingClientRect().top > browserPageActionTiles[0].getBoundingClientRect().bottom - 2;
+                browserPageActionRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 30) &&
+                browserPageActionRows.every((row, index) => {
+                  if (!(row instanceof HTMLElement) || index === 0) return row instanceof HTMLElement;
+                  const previous = browserPageActionRows[index - 1];
+                  return previous instanceof HTMLElement &&
+                    row.getBoundingClientRect().top > previous.getBoundingClientRect().top;
+                });
               var browserClearDataWorks = false;
               if (clearDataItem instanceof HTMLButtonElement) {
                 const browserPanelBeforeClear = document.querySelector('[data-testid="browser-panel"]');
