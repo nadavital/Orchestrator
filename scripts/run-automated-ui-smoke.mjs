@@ -435,6 +435,7 @@ child.on('exit', (code) => {
         sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
         sessionRowsCompact: result.sessionRowsCompact === true,
         projectHeadersCompact: result.projectHeadersCompact === true,
+        sidebarSectionChromeCompact: result.sidebarSectionChromeCompact === true,
         idleRowRecencyHidden: result.idleRowRecencyHidden === true,
         importantRowStatusIconOnly: result.importantRowStatusIconOnly === true,
         environmentIconVisible: result.environmentIconVisible === true,

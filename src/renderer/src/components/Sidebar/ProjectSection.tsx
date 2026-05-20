@@ -120,7 +120,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   const hiddenSessionCount = Math.max(0, sessions.length - visibleSessions.length)
 
   return (
-    <div className="min-w-0" style={{ marginBottom: 4 }}>
+    <div className="min-w-0" style={{ marginBottom: 2 }}>
       {/* Project header */}
       <SurfaceRow
         dataTestId="project-section-header"

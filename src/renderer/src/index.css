@@ -301,6 +301,21 @@
     overflow: hidden;
   }
 
+  .sidebar-section {
+    margin-top: 2px;
+  }
+
+  .sidebar-section-header {
+    min-height: 28px;
+  }
+
+  .sidebar-section-title {
+    color: var(--text-tertiary);
+    font-size: 11.5px;
+    font-weight: 650;
+    line-height: 1.2;
+  }
+
   .content-shell {
     background: var(--canvas-bg);
     border-left: 1px solid var(--border-subtle);

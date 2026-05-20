@@ -147,7 +147,7 @@ export default function Sidebar(): JSX.Element {
         </>
       ) : (
         <>
-          <div className="min-w-0 px-2.5 pb-3">
+          <div className="min-w-0 px-2.5 pb-2">
             <SidebarNavItem
               icon="plug"
               label="Capabilities"
@@ -160,8 +160,8 @@ export default function Sidebar(): JSX.Element {
           </div>
 
           {sortedPinnedSessions.length > 0 && (
-            <div className="min-w-0 px-2.5 pb-3">
-              <div className="px-1.5 pb-1 text-xs font-semibold" style={{ color: 'var(--text-tertiary)' }}>
+            <div className="sidebar-section min-w-0 px-2.5 pb-2" data-testid="sidebar-pinned-section">
+              <div className="sidebar-section-title px-1.5 pb-0.5" style={{ color: 'var(--text-tertiary)' }}>
                 Pinned
               </div>
               <div className="min-w-0 space-y-px">
@@ -172,20 +172,22 @@ export default function Sidebar(): JSX.Element {
             </div>
           )}
 
-          <div className="flex items-center justify-between px-3 pb-1">
-            <span className="text-[13px]" style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+          <div className="sidebar-section-header flex items-center justify-between px-3 pb-0.5" data-testid="sidebar-projects-header">
+            <span className="sidebar-section-title" style={{ color: 'var(--text-secondary)' }}>
               {viewMode === 'chronological' ? 'Recent chats' : 'Projects'}
             </span>
             <div className="relative flex items-center gap-1">
               <IconButton
                 icon="menu"
                 label="Organize sidebar"
+                size="sm"
                 onClick={() => setOrganizeOpen((open) => !open)}
                 active={organizeOpen}
               />
               <IconButton
                 icon="plus"
                 label="Add project"
+                size="sm"
                 onClick={handleAddProject}
               />
               {organizeOpen && (

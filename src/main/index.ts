@@ -3566,6 +3566,19 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const projectHeadersCompact = [...document.querySelectorAll('[data-testid="project-section-header"]')]
               .filter((header) => header instanceof HTMLElement)
               .every((header) => header.getBoundingClientRect().height <= 24);
+            const sidebarProjectsHeader = document.querySelector('[data-testid="sidebar-projects-header"]');
+            const sidebarProjectActionButtons = sidebarProjectsHeader instanceof HTMLElement
+              ? [...sidebarProjectsHeader.querySelectorAll('.motion-icon-button')]
+              : [];
+            const sidebarSectionChromeCompact =
+              sidebarProjectsHeader instanceof HTMLElement &&
+              sidebarProjectsHeader.getBoundingClientRect().height <= 30 &&
+              sidebarProjectActionButtons.length === 2 &&
+              sidebarProjectActionButtons.every((button) => (
+                button instanceof HTMLElement &&
+                button.getBoundingClientRect().width <= 26 &&
+                button.getBoundingClientRect().height <= 26
+              ));
             const idleRowRecencyHidden =
               normalRow instanceof HTMLElement &&
               !normalRow.innerText.includes('now') &&
@@ -3758,6 +3771,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarOverflowDebug,
               sessionRowsCompact,
               projectHeadersCompact,
+              sidebarSectionChromeCompact,
               idleRowRecencyHidden,
               importantRowStatusIconOnly,
               environmentIconVisible,
