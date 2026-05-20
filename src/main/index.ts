@@ -1126,8 +1126,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               csvReviewButton.click();
               await sleep(220);
             }
+            const csvPreviewToggle = [...document.querySelectorAll('button')]
+              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+            if (csvPreviewToggle instanceof HTMLButtonElement) {
+              csvPreviewToggle.click();
+              await sleep(160);
+            }
             const reviewCsvState = document.querySelector('[data-testid="review-csv-state"]');
             var reviewCsvPreviewWorks =
+              csvPreviewToggle instanceof HTMLButtonElement &&
               reviewCsvState instanceof HTMLElement &&
               reviewCsvState.innerText.includes('CSV') &&
               reviewCsvState.innerText.includes('2 rows') &&
@@ -1145,8 +1152,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               documentReviewButton.click();
               await sleep(220);
             }
+            const documentPreviewToggle = [...document.querySelectorAll('button')]
+              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+            if (documentPreviewToggle instanceof HTMLButtonElement) {
+              documentPreviewToggle.click();
+              await sleep(160);
+            }
             const reviewDocumentState = document.querySelector('[data-testid="review-document-state"]');
             var reviewDocumentPreviewWorks =
+              documentPreviewToggle instanceof HTMLButtonElement &&
               reviewDocumentState instanceof HTMLElement &&
               reviewDocumentState.innerText.includes('DOCX') &&
               reviewDocumentState.innerText.includes('Document smoke updated') &&
@@ -1164,8 +1178,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               notebookReviewButton.click();
               await sleep(220);
             }
+            const notebookPreviewToggle = [...document.querySelectorAll('button')]
+              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+            if (notebookPreviewToggle instanceof HTMLButtonElement) {
+              notebookPreviewToggle.click();
+              await sleep(160);
+            }
             const reviewNotebookState = document.querySelector('[data-testid="review-notebook-state"]');
             var reviewNotebookPreviewWorks =
+              notebookPreviewToggle instanceof HTMLButtonElement &&
               reviewNotebookState instanceof HTMLElement &&
               reviewNotebookState.innerText.includes('Notebook') &&
               reviewNotebookState.innerText.includes('3 cells') &&
@@ -3080,31 +3101,73 @@ function runAutomatedFocusedSurfaceSmoke(
                 document.body.innerText.includes('review-base.txt') &&
                 document.body.innerText.includes('after review') &&
                 !document.body.innerText.includes('No diff available');
-              if (diffSearch instanceof HTMLInputElement) {
-                setNativeValue(diffSearch, 'data-preview-smoke');
+              const selectReviewFile = async (query, fileName) => {
+                if (!(diffSearch instanceof HTMLInputElement)) return false;
+                setNativeValue(diffSearch, query);
                 diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(160);
-              }
-              const jsonButton = [...document.querySelectorAll('button')]
-                .find((button) => button.textContent?.includes('data-preview-smoke.json'));
-              if (jsonButton instanceof HTMLButtonElement) {
-                jsonButton.click();
+                const button = [...document.querySelectorAll('button')]
+                  .find((candidate) => candidate.textContent?.includes(fileName));
+                if (!(button instanceof HTMLButtonElement)) return false;
+                button.click();
                 await sleep(180);
-              }
-              const jsonPreviewToggle = [...document.querySelectorAll('button')]
-                .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
-              const reviewDiffFirstWorks =
-                jsonPreviewToggle instanceof HTMLButtonElement &&
-                !(document.querySelector('[data-testid="review-json-state"]') instanceof HTMLElement);
-              if (jsonPreviewToggle instanceof HTMLButtonElement) {
-                jsonPreviewToggle.click();
+                return true;
+              };
+              const clickReviewPreviewToggle = async () => {
+                const toggle = [...document.querySelectorAll('button')]
+                  .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+                if (!(toggle instanceof HTMLButtonElement)) return false;
+                toggle.click();
                 await sleep(160);
-              }
+                return true;
+              };
+              await selectReviewFile('data-preview-smoke', 'data-preview-smoke.json');
+              const jsonDiffFirst = !(document.querySelector('[data-testid="review-json-state"]') instanceof HTMLElement);
+              const jsonToggleClicked = await clickReviewPreviewToggle();
               const reviewJsonState = document.querySelector('[data-testid="review-json-state"]');
               const reviewJsonPreviewWorks =
+                jsonToggleClicked &&
                 reviewJsonState instanceof HTMLElement &&
                 reviewJsonState.innerText.includes('JSON') &&
                 reviewJsonState.innerText.includes('updated');
+              await selectReviewFile('table-preview-smoke', 'table-preview-smoke.csv');
+              const csvDiffFirst = !(document.querySelector('[data-testid="review-csv-state"]') instanceof HTMLElement);
+              const csvToggleClicked = await clickReviewPreviewToggle();
+              const reviewCsvState = document.querySelector('[data-testid="review-csv-state"]');
+              const reviewCsvPreviewWorks =
+                csvToggleClicked &&
+                reviewCsvState instanceof HTMLElement &&
+                reviewCsvState.innerText.includes('CSV') &&
+                reviewCsvState.innerText.includes('2 rows');
+              await selectReviewFile('document-preview-smoke', 'document-preview-smoke.docx');
+              const documentDiffFirst = !(document.querySelector('[data-testid="review-document-state"]') instanceof HTMLElement);
+              const documentToggleClicked = await clickReviewPreviewToggle();
+              const reviewDocumentState = document.querySelector('[data-testid="review-document-state"]');
+              const reviewDocumentPreviewWorks =
+                documentToggleClicked &&
+                reviewDocumentState instanceof HTMLElement &&
+                reviewDocumentState.innerText.includes('DOCX') &&
+                reviewDocumentState.innerText.includes('Document smoke updated');
+              await selectReviewFile('notebook-preview-smoke', 'notebook-preview-smoke.ipynb');
+              const notebookDiffFirst = !(document.querySelector('[data-testid="review-notebook-state"]') instanceof HTMLElement);
+              const notebookToggleClicked = await clickReviewPreviewToggle();
+              const reviewNotebookState = document.querySelector('[data-testid="review-notebook-state"]');
+              const reviewNotebookPreviewWorks =
+                notebookToggleClicked &&
+                reviewNotebookState instanceof HTMLElement &&
+                reviewNotebookState.innerText.includes('Notebook') &&
+                reviewNotebookState.innerText.includes('3 cells') &&
+                reviewNotebookState.innerText.includes('Updated');
+              const reviewDiffFirstWorks = jsonDiffFirst && csvDiffFirst && documentDiffFirst && notebookDiffFirst;
+              await selectReviewFile('image-preview-smoke', 'image-preview-smoke.png');
+              const imageBinaryState = document.querySelector('[data-testid="review-binary-state"]');
+              const imageToggleClicked = await clickReviewPreviewToggle();
+              const reviewImageBinaryDiffFirstWorks =
+                imageBinaryState instanceof HTMLElement &&
+                imageBinaryState.innerText.includes('Binary') &&
+                imageToggleClicked;
+              const reviewImagePreviewWorks =
+                document.querySelector('[data-testid="review-image-state"]') instanceof HTMLElement;
               if (diffSearch instanceof HTMLInputElement) {
                 setNativeValue(diffSearch, 'binary-preview-smoke');
                 diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
@@ -3141,6 +3204,11 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewSearchWorks,
                 reviewDiffFirstWorks,
                 reviewJsonPreviewWorks,
+                reviewCsvPreviewWorks,
+                reviewDocumentPreviewWorks,
+                reviewNotebookPreviewWorks,
+                reviewImageBinaryDiffFirstWorks,
+                reviewImagePreviewWorks,
                 reviewBinaryStateWorks:
                   binaryState instanceof HTMLElement &&
                   binaryState.innerText.includes('Binary') &&

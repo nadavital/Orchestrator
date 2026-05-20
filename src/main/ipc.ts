@@ -24,12 +24,9 @@ import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
 import { performanceSnapshot, recordPerformanceMetric, resetPerformanceMetrics } from './performanceTelemetry'
 import { providerManifests } from './providerManifest'
 import { setBrowserSecurityPolicy } from './browserSecurityPolicy'
+import { editorFileUrl, type OpenPathOptions } from './editorOpen'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
-interface OpenPathOptions {
-  line?: number
-  column?: number
-}
 type FilePreviewResult =
   | { kind: 'text'; size: number; text: string; truncated: boolean }
   | { kind: 'markdown'; size: number; text: string; truncated: boolean }
@@ -492,12 +489,6 @@ async function openPathWithPreferredEditor(filePath: string, options: OpenPathOp
       resolve(`Unable to open in ${appInfo.label}${details ? `: ${details}` : '.'}`)
     })
   })
-}
-
-function editorFileUrl(scheme: string | undefined, filePath: string, options: OpenPathOptions): string | null {
-  if (!scheme || !options.line || !Number.isSafeInteger(options.line)) return null
-  const column = options.column && Number.isSafeInteger(options.column) ? options.column : 1
-  return `${scheme}://file${encodeURI(filePath)}:${options.line}:${column}`
 }
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {

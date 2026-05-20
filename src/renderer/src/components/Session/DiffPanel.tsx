@@ -105,7 +105,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     void navigator.clipboard.writeText(selectedFile)
   }
 
-  const canTogglePreview = Boolean(selectedChange && filePreview && shouldPreferTextDiff(fileDiff) && hasReviewPreview(filePreview))
+  const canTogglePreview = Boolean(selectedChange && filePreview && (shouldPreferTextDiff(fileDiff) || isBinaryDiffText(fileDiff)) && hasReviewPreview(filePreview))
 
   const changeActions = (
     <div className="diff-panel-actions relative">
@@ -286,17 +286,7 @@ function ReviewPreview({
   if (loading) {
     return <ReviewEmptyState title={change.path} body="Loading..." />
   }
-  const hasNativePreview = preview?.kind === 'image' ||
-    preview?.kind === 'pdf' ||
-    preview?.kind === 'html' ||
-    preview?.kind === 'markdown' ||
-    preview?.kind === 'json' ||
-    preview?.kind === 'csv' ||
-    preview?.kind === 'notebook' ||
-    preview?.kind === 'document' ||
-    preview?.kind === 'audio' ||
-    preview?.kind === 'video'
-  if ((isBinaryDiff(diff) && !hasNativePreview) || preview?.kind === 'binary') {
+  if ((isBinaryDiff(diff) && !preferPreview) || preview?.kind === 'binary') {
     return (
       <ReviewEmptyState
         title={change.path}

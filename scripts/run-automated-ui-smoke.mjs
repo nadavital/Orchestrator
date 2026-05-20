@@ -190,6 +190,10 @@ if (['inspector', 'right-panel', 'diff', 'files', 'side-chat', 'browser'].includ
     'Document smoke baseline',
     'This verifies DOCX text preview in the inspector.'
   ]))
+  writeFileSync(
+    join(workspaceDir, 'image-preview-smoke.png'),
+    Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lK3Q6wAAAABJRU5ErkJggg==', 'base64')
+  )
   writeFileSync(join(workspaceDir, 'notebook-preview-smoke.ipynb'), JSON.stringify({
     cells: [
       { cell_type: 'markdown', source: ['# Notebook smoke\n', 'Baseline'] },
@@ -213,6 +217,10 @@ if (['inspector', 'right-panel', 'diff', 'files', 'side-chat', 'browser'].includ
     'Document smoke updated',
     'This verifies DOCX text preview in the inspector.'
   ]))
+  writeFileSync(
+    join(workspaceDir, 'image-preview-smoke.png'),
+    Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', 'base64')
+  )
   writeFileSync(join(workspaceDir, 'notebook-preview-smoke.ipynb'), JSON.stringify({
     cells: [
       { cell_type: 'markdown', source: ['# Notebook smoke\n', 'Updated'] },
@@ -600,6 +608,11 @@ child.on('exit', (code) => {
           reviewSearchClear: result.reviewSearchClearWorks === true,
           reviewDiffFirst: result.reviewDiffFirstWorks === true,
           reviewJsonPreview: result.reviewJsonPreviewWorks === true,
+          reviewCsvPreview: result.reviewCsvPreviewWorks === true,
+          reviewDocumentPreview: result.reviewDocumentPreviewWorks === true,
+          reviewNotebookPreview: result.reviewNotebookPreviewWorks === true,
+          reviewImageBinaryDiffFirst: result.reviewImageBinaryDiffFirstWorks === true,
+          reviewImagePreview: result.reviewImagePreviewWorks === true,
           reviewBinaryState: result.reviewBinaryStateWorks === true,
           reviewBinaryActions: result.reviewBinaryActionsWork === true
         }
