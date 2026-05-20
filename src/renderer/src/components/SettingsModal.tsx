@@ -1100,13 +1100,16 @@ function ShortcutsSection(): JSX.Element {
       shortcut.keys.flat().join(' ')
     ].join(' ').toLowerCase().includes(normalizedQuery)
   })
+  const groupedShortcuts: Array<{ category: string; rows: typeof shortcuts }> = []
+  for (const shortcut of visibleShortcuts) {
+    const group = groupedShortcuts.find((entry) => entry.category === shortcut.category)
+    if (group) group.rows.push(shortcut)
+    else groupedShortcuts.push({ category: shortcut.category, rows: [shortcut] })
+  }
 
   return (
-    <div data-testid="shortcuts-settings-section" style={{ padding: '24px 44px 52px', maxWidth: 740, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 12 }}>
-        <div style={{ color: 'var(--text-primary)', fontSize: 13.5, fontWeight: 700 }}>
-          Keyboard
-        </div>
+    <div data-testid="shortcuts-settings-section" style={{ padding: '24px 44px 52px', maxWidth: 760, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16, marginBottom: 12 }}>
         <label className="sr-only" htmlFor="settings-shortcut-search">Search keyboard shortcuts</label>
         <input
           id="settings-shortcut-search"
@@ -1128,34 +1131,42 @@ function ShortcutsSection(): JSX.Element {
         className="overflow-hidden rounded-lg"
         style={{ border: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
       >
-        {visibleShortcuts.map((shortcut) => (
-          <div
-            key={shortcut.label}
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b px-3 py-1.5 last:border-b-0"
-            style={{
-              borderColor: 'var(--border-subtle)',
-              color: 'var(--text-primary)'
-            }}
-          >
-            <span className="min-w-0">
-              <span className="block truncate text-[13px] font-medium">{shortcut.label}</span>
-              <span className="block truncate text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
-                {shortcut.category}
-              </span>
-            </span>
-            <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-              <kbd
-                className="rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
-                data-testid="settings-shortcut-key"
+        {groupedShortcuts.map((group, groupIndex) => (
+          <div key={group.category} className={groupIndex === 0 ? '' : 'border-t'} style={{ borderColor: 'var(--border-subtle)' }}>
+            <div
+              className="px-3 py-1 text-[10px] font-bold uppercase"
+              style={{
+                background: 'var(--control-bg)',
+                color: 'var(--text-tertiary)'
+              }}
+            >
+              {group.category}
+            </div>
+            {group.rows.map((shortcut, rowIndex) => (
+              <div
+                key={shortcut.label}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t px-3 py-2"
                 style={{
-                  background: 'var(--control-bg)',
-                  border: '1px solid var(--border-subtle)',
-                  color: 'var(--text-secondary)'
+                  borderColor: rowIndex === 0 ? 'transparent' : 'var(--border-subtle)',
+                  color: 'var(--text-primary)'
                 }}
               >
-                {shortcut.primaryShortcut}
-              </kbd>
-            </span>
+                <span className="min-w-0 truncate text-[13px] font-medium">{shortcut.label}</span>
+                <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                  <kbd
+                    className="rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
+                    data-testid="settings-shortcut-key"
+                    style={{
+                      background: 'var(--control-bg)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)'
+                    }}
+                  >
+                    {shortcut.primaryShortcut}
+                  </kbd>
+                </span>
+              </div>
+            ))}
           </div>
         ))}
         {visibleShortcuts.length === 0 && (
