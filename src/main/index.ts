@@ -708,9 +708,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               binaryReviewButton.click();
               await sleep(220);
             }
+            const reviewBinaryStateElement = document.querySelector('[data-testid="review-binary-state"]');
+            const reviewBinaryStateActions = reviewBinaryStateElement instanceof HTMLElement
+              ? [...reviewBinaryStateElement.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
+              : [];
             var reviewBinaryStateWorks =
-              Boolean(document.querySelector('[data-testid="review-binary-state"]')) &&
+              reviewBinaryStateElement instanceof HTMLElement &&
               document.body.innerText.includes('Open or reveal to inspect.');
+            var reviewBinaryActionsWork =
+              reviewBinaryStateActions.includes('Open') &&
+              reviewBinaryStateActions.includes('Reveal');
             if (diffSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
               setter?.call(diffSearch, '');
@@ -1240,6 +1247,26 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var composerAgentMenuClosedWithOutsideClick = !document.querySelector('.motion-popover-surface');
             var composerAgentFocusReturned = document.activeElement === agentButton;
           }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
+            const reviewTabButton = document.querySelector('[data-tab-id="diff"]')?.closest('[role="tab"]');
+            if (reviewTabButton instanceof HTMLElement) {
+              reviewTabButton.click();
+              await sleep(180);
+            }
+            const diffSearchForCapture = document.querySelector('[data-testid="diff-file-search"]');
+            if (diffSearchForCapture instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(diffSearchForCapture.constructor.prototype, 'value')?.set;
+              setter?.call(diffSearchForCapture, 'binary-preview-smoke');
+              diffSearchForCapture.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(180);
+            }
+            const binaryReviewButtonForCapture = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('binary-preview-smoke.bin'));
+            if (binaryReviewButtonForCapture instanceof HTMLButtonElement) {
+              binaryReviewButtonForCapture.click();
+              await sleep(260);
+            }
+          }
           const bodyText = document.body.innerText;
           const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
           const rightSidebarTabbar = document.querySelector('[data-testid="right-sidebar-tabbar"]');
@@ -1326,6 +1353,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             reviewBinaryStateWorks: typeof reviewBinaryStateWorks === 'boolean' ? reviewBinaryStateWorks : null,
+            reviewBinaryActionsWork: typeof reviewBinaryActionsWork === 'boolean' ? reviewBinaryActionsWork : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
             filesToolbarCompactWorks: typeof filesToolbarCompactWorks === 'boolean' ? filesToolbarCompactWorks : null,
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,

@@ -256,7 +256,17 @@ function ReviewPreview({
     preview?.kind === 'audio' ||
     preview?.kind === 'video'
   if ((isBinaryDiff(diff) && !hasNativePreview) || preview?.kind === 'binary') {
-    return <ReviewEmptyState title={change.path} body="Open or reveal to inspect." testId="review-binary-state" />
+    return (
+      <ReviewEmptyState
+        title={change.path}
+        body="Open or reveal to inspect."
+        testId="review-binary-state"
+        actions={[
+          { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
+          { label: 'Reveal', onClick: () => { void window.api.fs.showInFolder(absolutePath) } }
+        ]}
+      />
+    )
   }
   if (preview?.kind === 'image') {
     return (
@@ -347,9 +357,28 @@ function ReviewPreview({
     return <ReviewEmptyState title={change.path} body="Missing from workspace." />
   }
   if (preview?.kind === 'unreadable') {
-    return <ReviewEmptyState title={change.path} body="Preview unavailable." />
+    return (
+      <ReviewEmptyState
+        title={change.path}
+        body="Preview unavailable."
+        actions={[
+          { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
+          { label: 'Reveal', onClick: () => { void window.api.fs.showInFolder(absolutePath) } }
+        ]}
+      />
+    )
   }
-  return <ReviewEmptyState title={change.path} body="No preview available." testId="review-no-content-state" />
+  return (
+    <ReviewEmptyState
+      title={change.path}
+      body="No preview available."
+      testId="review-no-content-state"
+      actions={[
+        { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
+        { label: 'Reveal', onClick: () => { void window.api.fs.showInFolder(absolutePath) } }
+      ]}
+    />
+  )
 }
 
 function ReviewPreviewHeader({ change, label }: { change: FileChange; label: string }): JSX.Element {
@@ -364,15 +393,43 @@ function ReviewPreviewHeader({ change, label }: { change: FileChange; label: str
   )
 }
 
-function ReviewEmptyState({ title, body, testId }: { title: string; body: string; testId?: string }): JSX.Element {
+function ReviewEmptyState({
+  title,
+  body,
+  testId,
+  actions = []
+}: {
+  title: string
+  body: string
+  testId?: string
+  actions?: Array<{ label: string; onClick: () => void }>
+}): JSX.Element {
   return (
     <div
       data-testid={testId}
-      className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs"
+      className="flex h-full flex-col items-center justify-start gap-2 px-4 pt-12 text-center text-xs"
       style={{ color: 'var(--color-text-muted)' }}
     >
       <span className="max-w-[260px] truncate" style={{ color: 'var(--text-secondary)', fontWeight: 650 }}>{title}</span>
       <span className="max-w-[240px] leading-5">{body}</span>
+      {actions.length > 0 && (
+        <span className="mt-1 flex items-center justify-center gap-2">
+          {actions.map((action) => (
+            <button
+              key={action.label}
+              onClick={action.onClick}
+              className="rounded-md px-2 py-1 text-[11px] font-semibold"
+              style={{
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--control-bg)',
+                color: 'var(--text-secondary)'
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </span>
+      )}
     </div>
   )
 }
