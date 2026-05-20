@@ -1315,40 +1315,26 @@ function ProvidersSection({
 
           <SettingsPanel>
             <CompactSetting title="Models">
-              <ModelListManager
-                providerDef={providerDef}
-                visibleIds={visibleIds}
-                onChange={handleVisibleModelsChange}
-              />
+              <div className="provider-models-row">
+                <ModelListManager
+                  providerDef={providerDef}
+                  visibleIds={visibleIds}
+                  onChange={handleVisibleModelsChange}
+                />
+                <button
+                  className="provider-details-toggle"
+                  data-testid="provider-diagnostics-toggle"
+                  aria-expanded={advancedOpen}
+                  aria-label={advancedOpen ? 'Hide provider details' : 'Show provider details'}
+                  onClick={() => setAdvancedOpen((open) => !open)}
+                >
+                  <Icon name="wrench" size={13} />
+                  Details
+                  <Icon name={advancedOpen ? 'chevronDown' : 'chevronRight'} size={12} />
+                </button>
+              </div>
             </CompactSetting>
           </SettingsPanel>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 0 8px' }}>
-            <button
-              data-testid="provider-diagnostics-toggle"
-              aria-expanded={advancedOpen}
-              aria-label={advancedOpen ? 'Hide provider details' : 'Show provider details'}
-              onClick={() => setAdvancedOpen((open) => !open)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                minHeight: 26,
-                padding: '4px 6px',
-                borderRadius: 7,
-                border: '1px solid transparent',
-                background: 'transparent',
-                color: 'var(--color-text-muted)',
-                cursor: 'pointer',
-                fontSize: 11,
-                fontWeight: 650,
-              }}
-            >
-              <Icon name="wrench" size={13} />
-              Details
-              <Icon name={advancedOpen ? 'chevronDown' : 'chevronRight'} size={12} />
-            </button>
-          </div>
 
           {advancedOpen && (
             <div className="provider-details-grid" data-testid="provider-details-grid">
