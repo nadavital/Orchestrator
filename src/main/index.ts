@@ -1108,6 +1108,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var browserInspectionWorks =
               Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-dom-targets') ?? '0') > 0 &&
               Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-asset-count') ?? '0') > 0;
+            const domInspectorButton = document.querySelector('[data-testid="browser-inspector-dom"]');
+            if (domInspectorButton instanceof HTMLButtonElement) {
+              domInspectorButton.click();
+              await sleep(120);
+            }
+            const browserDomPane = document.querySelector('[data-testid="browser-dom-pane"]');
+            var browserDomPaneCompactWorks =
+              browserDomPane instanceof HTMLElement &&
+              browserDomPane.textContent?.includes('Snapshot') &&
+              browserDomPane.textContent?.includes('lines') &&
+              !browserDomPane.querySelector('button') &&
+              browserDomPane.scrollWidth <= browserDomPane.clientWidth + 2;
             const targetsInspectorButton = document.querySelector('[data-testid="browser-inspector-targets"]');
             if (targetsInspectorButton instanceof HTMLButtonElement) {
               targetsInspectorButton.click();
@@ -1779,6 +1791,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserTabCloseChromeWorks: typeof browserTabCloseChromeWorks === 'boolean' ? browserTabCloseChromeWorks : null,
             browserActionsNativeTitlesAbsent: typeof browserActionsNativeTitlesAbsent === 'boolean' ? browserActionsNativeTitlesAbsent : null,
             browserInspectionWorks: typeof browserInspectionWorks === 'boolean' ? browserInspectionWorks : null,
+            browserDomPaneCompactWorks: typeof browserDomPaneCompactWorks === 'boolean' ? browserDomPaneCompactWorks : null,
             browserTargetsPaneWorks: typeof browserTargetsPaneWorks === 'boolean' ? browserTargetsPaneWorks : null,
             browserTargetKeyWorks: typeof browserTargetKeyWorks === 'boolean' ? browserTargetKeyWorks : null,
             browserTargetFillWorks: typeof browserTargetFillWorks === 'boolean' ? browserTargetFillWorks : null,
@@ -2170,6 +2183,18 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 await sleep(100);
               }
             }
+            const domInspectorButton = document.querySelector('[data-testid="browser-inspector-dom"]');
+            if (domInspectorButton instanceof HTMLButtonElement) {
+              domInspectorButton.click();
+              await sleep(120);
+            }
+            const browserDomPane = document.querySelector('[data-testid="browser-dom-pane"]');
+            const browserDomPaneCompactWorks =
+              browserDomPane instanceof HTMLElement &&
+              browserDomPane.textContent?.includes('Snapshot') &&
+              browserDomPane.textContent?.includes('lines') &&
+              !browserDomPane.querySelector('button') &&
+              browserDomPane.scrollWidth <= browserDomPane.clientWidth + 2;
             const browserTargetsButton = document.querySelector('[data-testid="browser-inspector-targets"]');
             if (browserTargetsButton instanceof HTMLButtonElement) {
               browserTargetsButton.click();
@@ -2373,6 +2398,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserHistoryMenuWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserClearDataWorks: typeof browserClearDataWorks === 'boolean' ? browserClearDataWorks : null,
+              browserDomPaneCompactWorks,
               browserTargetKeyWorks,
               browserTargetFillWorks,
               browserTargetTypeWorks,

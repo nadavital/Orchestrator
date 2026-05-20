@@ -1091,7 +1091,7 @@ export default function BrowserPanel({
                   onClear={() => setLogs([])}
                 />
               )}
-              {workbench.inspectorMode === 'dom' && <DomPane domSnapshot={domSnapshot} onInspect={runInspection} />}
+              {workbench.inspectorMode === 'dom' && <DomPane domSnapshot={domSnapshot} />}
               {workbench.inspectorMode === 'targets' && (
                 <TargetsPane
                   targets={visibleTargets}
@@ -1233,15 +1233,16 @@ function ConsolePane({
   )
 }
 
-function DomPane({ domSnapshot, onInspect }: { domSnapshot: string; onInspect: () => void }): JSX.Element {
+function DomPane({ domSnapshot }: { domSnapshot: string }): JSX.Element {
+  const snapshotLines = domSnapshot ? domSnapshot.split('\n').length : 0
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Badge tone="neutral">DOM</Badge>
-        <button type="button" className="ml-auto text-xs" style={{ color: 'var(--accent)' }} onClick={onInspect}>Refresh</button>
+    <div className="browser-dom-pane" data-testid="browser-dom-pane">
+      <div className="browser-dom-summary">
+        <Badge tone="neutral">Snapshot</Badge>
+        <span>{snapshotLines ? `${snapshotLines} lines` : 'No snapshot'}</span>
       </div>
-      <pre className="max-h-28 overflow-auto whitespace-pre-wrap rounded-md p-2 text-[11px]" style={{ background: 'var(--control-bg)', color: 'var(--text-primary)' }}>
-        {domSnapshot || 'Inspect to capture DOM.'}
+      <pre className="browser-dom-snapshot">
+        {domSnapshot || 'Run refresh to capture the page structure.'}
       </pre>
     </div>
   )

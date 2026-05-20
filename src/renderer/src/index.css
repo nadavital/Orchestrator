@@ -1433,6 +1433,32 @@
     font-size: 12px;
   }
 
+  .browser-dom-pane {
+    display: grid;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .browser-dom-summary {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+
+  .browser-dom-snapshot {
+    max-height: 128px;
+    overflow: auto;
+    white-space: pre-wrap;
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--control-bg) 58%, transparent);
+    padding: 8px;
+    color: var(--text-primary);
+    font-size: 11px;
+  }
+
   .browser-targets-pane,
   .browser-security-pane {
     display: grid;
