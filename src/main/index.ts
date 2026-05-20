@@ -1831,7 +1831,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             headerMetadataText.includes('Automated UI Smoke') &&
             headerMetadataText.includes('Claude') &&
             headerMetadataText.length > 'Automated UI Smoke'.length;
-          const headerTooltipIds = ['session-header-environment', 'profile-badge'];
+          const headerTooltipIds = ['session-header-environment', 'active-session-title', 'session-header-metadata', 'profile-badge'];
           if (document.querySelector('[data-testid="session-header-pinned"]')) headerTooltipIds.push('session-header-pinned');
           const headerNativeTooltipsWork =
             headerTooltipIds.every((testId) => {

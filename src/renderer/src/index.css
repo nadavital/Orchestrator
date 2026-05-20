@@ -2112,6 +2112,8 @@
   .orchestrator-tooltip-anchor {
     position: relative;
     display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .orchestrator-tooltip[data-visible='true'] {

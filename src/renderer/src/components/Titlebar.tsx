@@ -124,14 +124,18 @@ export default function Titlebar(): JSX.Element {
             </Tooltip>
             <div className="flex min-w-0 flex-col">
               <div className="flex min-w-0 items-center gap-1.5">
-                <span
-                  data-testid="active-session-title"
-                  className="truncate"
-                  style={{ color: 'var(--text-primary)', maxWidth: 520, fontSize: 14, fontWeight: 540, lineHeight: '18px' }}
-                  title={session.name}
-                >
-                  {session.name}
-                </span>
+                <Tooltip label={session.name}>
+                  <span
+                    data-testid="active-session-title"
+                    className="truncate"
+                    data-tooltip-label={session.name}
+                    data-native-title-free="true"
+                    aria-label={session.name}
+                    style={{ color: 'var(--text-primary)', maxWidth: 520, fontSize: 14, fontWeight: 540, lineHeight: '18px' }}
+                  >
+                    {session.name}
+                  </span>
+                </Tooltip>
                 {session.pinned && (
                   <Tooltip label="Pinned">
                     <span
@@ -147,24 +151,28 @@ export default function Titlebar(): JSX.Element {
                   </Tooltip>
                 )}
               </div>
-              <div
-                data-testid="session-header-metadata"
-                className="flex min-w-0 items-center gap-1 truncate text-[11px]"
-                style={{ color: 'var(--text-tertiary)', lineHeight: '14px', maxWidth: 680 }}
-                title={metadataParts.join(' · ')}
-              >
-                {metadataParts.map((part, index) => (
-                  <span
-                    key={`${part}-${index}`}
-                    data-testid={String(part).startsWith('Branch ') ? 'session-header-branch' : undefined}
-                    className="truncate"
-                    style={{ minWidth: index === 0 ? 0 : undefined }}
-                  >
-                    {index > 0 && <span aria-hidden="true">· </span>}
-                    {part}
-                  </span>
-                ))}
-              </div>
+              <Tooltip label={metadataParts.join(' · ')}>
+                <div
+                  data-testid="session-header-metadata"
+                  className="flex min-w-0 items-center gap-1 truncate text-[11px]"
+                  data-tooltip-label={metadataParts.join(' · ')}
+                  data-native-title-free="true"
+                  aria-label={metadataParts.join(' · ')}
+                  style={{ color: 'var(--text-tertiary)', lineHeight: '14px', maxWidth: 680 }}
+                >
+                  {metadataParts.map((part, index) => (
+                    <span
+                      key={`${part}-${index}`}
+                      data-testid={String(part).startsWith('Branch ') ? 'session-header-branch' : undefined}
+                      className="truncate"
+                      style={{ minWidth: index === 0 ? 0 : undefined }}
+                    >
+                      {index > 0 && <span aria-hidden="true">· </span>}
+                      {part}
+                    </span>
+                  ))}
+                </div>
+              </Tooltip>
             </div>
           </>
         ) : (
