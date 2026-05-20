@@ -341,47 +341,24 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: 'var(--canvas-bg)' }}>
-      <div
-        style={{
-          height: 46,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          padding: '0 14px 0 20px',
-          background: 'var(--surface-bg)',
-          borderBottom: '1px solid var(--border-subtle)',
-          userSelect: 'none',
-          WebkitAppRegion: 'drag'
-        } as React.CSSProperties}
-      >
-        <span style={{ fontSize: 15, fontWeight: 650, color: 'var(--text-primary)' }}>{settingsTitle(section)}</span>
+    <div className="settings-shell">
+      <div className="settings-topbar">
+        <span className="settings-topbar-title">{settingsTitle(section)}</span>
         <Tooltip label="Back to chat">
           <button
             onClick={onClose}
             aria-label="Back to chat"
             data-tooltip-label="Back to chat"
             data-native-title-free="true"
-            className="flex items-center gap-1.5 text-xs"
-            style={{
-              WebkitAppRegion: 'no-drag',
-              background: 'var(--control-bg)',
-              color: 'var(--text-secondary)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-md)',
-              padding: '7px 10px',
-              fontWeight: 600
-            } as React.CSSProperties}
+            className="settings-back-button"
           >
             <Icon name="chat" size={14} />
             Chat
           </button>
         </Tooltip>
       </div>
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', background: 'var(--canvas-bg)' }}>
-        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
+      <div className="settings-body">
+        <div className="settings-scroll">
           {section === 'general' && (
             <GeneralSection
               preferredEditor={preferredEditor}

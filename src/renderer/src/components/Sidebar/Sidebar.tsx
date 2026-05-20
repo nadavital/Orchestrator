@@ -203,7 +203,7 @@ export default function Sidebar(): JSX.Element {
             <span className="sidebar-section-title" style={{ color: 'var(--text-secondary)' }}>
               {viewMode === 'chronological' ? 'Recent chats' : 'Projects'}
             </span>
-            <div className="relative flex items-center gap-1">
+            <div className="sidebar-section-actions relative flex items-center gap-1" data-open={organizeOpen ? 'true' : 'false'}>
               <IconButton
                 icon="menu"
                 label="Organize sidebar"

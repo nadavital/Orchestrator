@@ -114,20 +114,14 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
         {ui.showTerminal && (
           <>
           <div
-            className="flex items-center shrink-0"
+            className="terminal-panel-header"
             data-testid="session-bottom-panel"
             data-app-shell-focus-area="bottom-panel"
             data-bottom-panel-height={terminalHeight}
             data-bottom-panel-tabs={tabs.join(',')}
             data-bottom-panel-active-tab={activeTab}
-            style={{
-              height: 42,
-              background: 'var(--surface-bg)',
-              borderBottom: '1px solid var(--border-subtle)'
-            }}
           >
-            <div className="right-panel-tab-bar-header-spacer h-full w-2 shrink-0" />
-            <div className="flex items-center gap-1 flex-1 overflow-x-auto h-full px-3">
+            <div className="terminal-panel-tab-row" data-app-shell-tab-controller>
               {tabs.map((tabId, idx) => {
                 const active = tabId === activeTab
                 return (
@@ -151,18 +145,20 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
                   </div>
                 )
               })}
-              <IconButton icon="plus" label="New terminal" onClick={addTab} />
             </div>
 
-            <div className="flex items-center gap-0.5 px-2 shrink-0">
+            <div className="terminal-panel-actions">
+              <IconButton icon="plus" label="New terminal" size="sm" onClick={addTab} />
               <ToolbarButton
                 icon="eraser"
                 label="Clear terminal"
+                size="sm"
                 onClick={() => window.api.terminal.clear(terminalId(activeTab))}
               />
               <ToolbarButton
                 icon="close"
                 label="Hide terminal"
+                size="sm"
                 onClick={() => {
                   setTerminalMenu(null)
                   setShowTerminal(session.id, false)
