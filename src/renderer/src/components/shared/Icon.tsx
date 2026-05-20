@@ -29,8 +29,6 @@ import {
   Monitor,
   MessageSquare,
   Paperclip,
-  PanelRightClose,
-  PanelRightOpen,
   Pencil,
   Pin,
   Plug,
@@ -82,8 +80,6 @@ export type IconName =
   | 'menu'
   | 'minimize'
   | 'monitor'
-  | 'panelRightClose'
-  | 'panelRightOpen'
   | 'paperclip'
   | 'pencil'
   | 'pin'
@@ -134,8 +130,6 @@ const icons: Record<IconName, LucideIcon> = {
   menu: Menu,
   minimize: Minimize2,
   monitor: Monitor,
-  panelRightClose: PanelRightClose,
-  panelRightOpen: PanelRightOpen,
   paperclip: Paperclip,
   pencil: Pencil,
   pin: Pin,

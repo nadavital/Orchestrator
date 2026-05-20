@@ -203,6 +203,7 @@ export function IconButton({
       disabled={disabled}
       aria-label={label}
       data-tooltip-label={label}
+      data-icon={icon}
       data-native-title-free="true"
       data-testid={dataTestId}
       data-active={active ? 'true' : 'false'}

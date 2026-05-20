@@ -730,6 +730,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const expandButtonLabelBefore = expandButton instanceof HTMLButtonElement
               ? expandButton.getAttribute('aria-label')
               : null;
+            const expandButtonIconBefore = expandButton instanceof HTMLButtonElement
+              ? expandButton.dataset.icon
+              : null;
             if (expandButton instanceof HTMLButtonElement) {
               expandButton.click();
               await sleep(180);
@@ -750,6 +753,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const restoreButtonLabelAfterExpand = restoreButton instanceof HTMLButtonElement
               ? restoreButton.getAttribute('aria-label')
               : null;
+            const restoreButtonIconAfterExpand = restoreButton instanceof HTMLButtonElement
+              ? restoreButton.dataset.icon
+              : null;
             var rightPanelExpandDebug = {
               widthBefore,
               dataWidthAfterExpand: Number(rightPanelExpanded?.getAttribute('data-right-panel-width') ?? '0'),
@@ -760,7 +766,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               primaryWidthBefore,
               primaryWidthAfterExpand,
               expandButtonLabelBefore,
-              restoreButtonLabelAfterExpand
+              expandButtonIconBefore,
+              restoreButtonLabelAfterExpand,
+              restoreButtonIconAfterExpand
             };
             var rightPanelExpandWorks =
               rightPanelExpanded instanceof HTMLElement &&
@@ -770,8 +778,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               primaryWidthAfterExpand >= primaryWidthBefore - 8 &&
               expandButton instanceof HTMLButtonElement &&
               expandButtonLabelBefore === 'Expand panel' &&
+              expandButtonIconBefore === 'expand' &&
               restoreButton instanceof HTMLButtonElement &&
-              restoreButtonLabelAfterExpand === 'Restore panel width';
+              restoreButtonLabelAfterExpand === 'Restore panel width' &&
+              restoreButtonIconAfterExpand === 'minimize';
             if (restoreButton instanceof HTMLButtonElement) {
               restoreButton.click();
               await sleep(120);
