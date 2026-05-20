@@ -591,7 +591,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsShortcutsCompactWorks =
                 shortcutsSection instanceof HTMLElement &&
                 shortcutsSection.innerText.includes('Command Palette') &&
-                shortcutsSection.innerText.toLowerCase().includes('keybinding') &&
+                shortcutsSection.innerText.includes('Shortcut') &&
+                !shortcutText.toLowerCase().includes('keybinding') &&
                 shortcutKeys.length >= 8 &&
                 shortcutSequences.length >= 8 &&
                 !shortcutText.includes('Navigation') &&

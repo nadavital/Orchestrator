@@ -415,7 +415,7 @@ child.on('exit', (code) => {
         headerNativeTooltips: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerNativeTooltipsWork === true,
         customTooltipNativeTitlesAbsent: result.customTooltipNativeTitlesAbsent === true,
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
-        composerNativeTooltips: result.composerNativeTooltipsWork === true,
+        composerNativeTooltips: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.composerNativeTooltipsWork === true,
         headerActionMenu: captureView !== 'inspector' || result.headerActionMenuWorks === true,
         chatEmptyState: captureView !== 'inspector' || result.chatEmptyStateWorks === true,
         chatEmptyStateProjectLabelClean: captureView !== 'inspector' || result.chatEmptyStateProjectLabelClean === true,

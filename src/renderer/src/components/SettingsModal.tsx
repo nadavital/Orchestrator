@@ -1133,7 +1133,7 @@ function ShortcutsSection(): JSX.Element {
             style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-tertiary)' }}
           >
             <span>Command</span>
-            <span className="text-right">Keybinding</span>
+            <span className="text-right">Shortcut</span>
           </div>
         )}
         {visibleShortcuts.map((shortcut, rowIndex) => (
