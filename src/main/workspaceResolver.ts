@@ -29,6 +29,7 @@ export function resolveWorkspaceFileReference(cwd: string, filePath: string): st
   if (pathExistsAsFile(literalPath)) return literalPath
 
   const hint = referenceHint(root, literalPath, expandedPath)
+  if (!hint) return null
   const hintParts = splitPath(hint)
   const targetName = hintParts.at(-1) ?? basename(literalPath)
   if (!targetName || targetName === '.' || targetName === '..') return null
@@ -83,12 +84,12 @@ function pathExistsAsFile(filePath: string): boolean {
   }
 }
 
-function referenceHint(root: string, literalPath: string, original: string): string {
+function referenceHint(root: string, literalPath: string, original: string): string | null {
   if (!isAbsolute(original)) return original.replace(/^\.\//, '')
 
   const rel = relative(root, literalPath)
   if (rel && !rel.startsWith('..') && !isAbsolute(rel)) return rel
-  return basename(literalPath)
+  return null
 }
 
 function splitPath(value: string): string[] {

@@ -26,7 +26,7 @@ test('resolves bare file references inside the workspace', () => {
   }
 })
 
-test('resolves absolute references against an alternate workspace root by basename', () => {
+test('does not resolve absolute references from another workspace by basename', () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-workspace-'))
   try {
     const sourceDir = join(root, 'xopesweb', 'src', 'main', 'java', 'com', 'ebay', 'xopes', 'web', 'datafetchers')
@@ -36,7 +36,7 @@ test('resolves absolute references against an alternate workspace root by basena
 
     assert.equal(
       resolveWorkspaceFileReference(root, '/Users/navital/Desktop/dynamicplatform/PaymentUpsellFetcher.java'),
-      filePath
+      null
     )
   } finally {
     rmSync(root, { recursive: true, force: true })
