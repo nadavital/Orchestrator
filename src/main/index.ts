@@ -1308,6 +1308,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           const diffToolbarSearch = document.querySelector('[data-testid="diff-file-search"]');
           const diffToolbarActions = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-panel-actions');
           const diffFileCount = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-file-count');
+          const diffToolbarRect = diffToolbar instanceof HTMLElement ? diffToolbar.getBoundingClientRect() : null;
+          const diffSearchRect = diffToolbarSearch instanceof HTMLElement ? diffToolbarSearch.getBoundingClientRect() : null;
+          const diffToolbarSearchDominant =
+            diffToolbarRect !== null &&
+            diffSearchRect !== null &&
+            diffSearchRect.width >= Math.min(180, diffToolbarRect.width * 0.52);
           const diffToolbarCompactWorks =
             diffToolbar instanceof HTMLElement &&
             diffToolbarSearch instanceof HTMLInputElement &&
@@ -1317,6 +1323,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             diffToolbar.scrollWidth <= diffToolbar.clientWidth + 2 &&
             diffToolbarSearch.getBoundingClientRect().height <= 28 &&
             diffToolbarActions.getBoundingClientRect().height <= 26 &&
+            diffToolbarSearchDominant &&
             diffFileCount.textContent?.includes('file') === true;
           const headerMetadataText = document.querySelector('[data-testid="session-header-metadata"]')?.textContent ?? '';
           const headerIdentityWorks =

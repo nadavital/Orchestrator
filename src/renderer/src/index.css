@@ -588,6 +588,7 @@
 
   .diff-file-count {
     height: 20px;
+    min-width: 22px;
     color: var(--text-secondary) !important;
     background: var(--control-bg) !important;
     border-color: var(--border-subtle) !important;

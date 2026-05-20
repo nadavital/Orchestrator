@@ -161,9 +161,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       )}
 
       <div className="diff-panel-toolbar" data-testid="diff-panel-toolbar">
-        <Badge tone="neutral" className="diff-file-count shrink-0" style={{ maxWidth: 82 }}>
-          {files.length} {files.length === 1 ? 'file' : 'files'}
-        </Badge>
         <input
           data-testid="diff-file-search"
           value={query}
@@ -176,6 +173,16 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             color: 'var(--text-primary)'
           }}
         />
+        <Badge tone="neutral" className="diff-file-count shrink-0">
+          {embedded ? (
+            <>
+              {files.length}
+              <span className="sr-only"> {files.length === 1 ? 'file' : 'files'}</span>
+            </>
+          ) : (
+            `${files.length} ${files.length === 1 ? 'file' : 'files'}`
+          )}
+        </Badge>
         <ToolbarButton
           icon="wrap"
           label={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
