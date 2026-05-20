@@ -1,7 +1,7 @@
 import { createElement, useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { BrowserHistoryEntry, BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
-import { Badge, IconButton, MenuSurface, ToolbarButton } from '../shared/designSystem'
+import { Badge, Button, IconButton, MenuSurface, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
 interface Props {
@@ -1029,12 +1029,21 @@ export default function BrowserPanel({
                 </div>
               )
             ) : (
-              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+              <div className="browser-hidden-state" data-testid="browser-hidden-state">
                 <Icon name="browser" size={26} />
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Hidden</div>
                 <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                  Use browser actions to show the page.
+                  The page is still loaded.
                 </div>
+                <Button
+                  ariaLabel="Show browser surface"
+                  dataTestId="browser-hidden-show"
+                  onClick={() => patchWorkbench({ visible: true })}
+                  variant="secondary"
+                >
+                  <Icon name="monitor" size={13} />
+                  <span>Show browser</span>
+                </Button>
               </div>
             )
           ) : (

@@ -539,6 +539,7 @@ child.on('exit', (code) => {
           browserToolbarCompact: result.browserToolbarCompact === true,
           browserInspectorChromeCompact: result.browserInspectorChromeCompactWorks === true,
           browserVisibilityControl: result.browserVisibilityControlWorks === true,
+          browserHiddenState: result.browserHiddenStateWorks === true,
           browserStatusRowQuiet: result.browserStatusRowQuiet === true,
           browserNoHorizontalOverflow: result.browserNoHorizontalOverflow === true,
           smokeWindowPolicy: foregroundSmoke
@@ -620,6 +621,7 @@ child.on('exit', (code) => {
         browserSecurityPaneNoHorizontalOverflow: captureView !== 'inspector' || result.browserSecurityPaneNoHorizontalOverflowWorks === true,
         browserInspectorChromeCompact: captureView !== 'inspector' || result.browserInspectorChromeCompactWorks === true,
         browserVisibilityControl: captureView !== 'inspector' || browserDeepChecksCoveredByBrowserSmoke || result.browserVisibilityControlWorks === true,
+        browserHiddenState: captureView !== 'inspector' || browserDeepChecksCoveredByBrowserSmoke || result.browserHiddenStateWorks === true,
         rightPanelContextMenuWorks: captureView !== 'inspector' || result.rightPanelContextMenuWorks === true,
         rightPanelTabReorderWorks: captureView !== 'inspector' || result.rightPanelTabReorderWorks === true,
         planPanel: captureView !== 'plan' || result.planPanelWorks === true,

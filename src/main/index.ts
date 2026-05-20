@@ -1759,6 +1759,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             var browserVisibilityControlWorks =
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-visible') === 'false';
+            const browserHiddenStateWorks =
+              document.querySelector('[data-testid="browser-hidden-state"]') instanceof HTMLElement &&
+              document.querySelector('[data-testid="browser-hidden-show"]') instanceof HTMLButtonElement;
             const showBrowserButton = findButton('Show browser surface');
             if (showBrowserButton instanceof HTMLButtonElement) {
               showBrowserButton.click();
@@ -2305,6 +2308,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserSecurityPaneNoHorizontalOverflowWorks: typeof browserSecurityPaneNoHorizontalOverflowWorks === 'boolean' ? browserSecurityPaneNoHorizontalOverflowWorks : null,
             browserInspectorChromeCompactWorks: typeof browserInspectorChromeCompactWorks === 'boolean' ? browserInspectorChromeCompactWorks : null,
             browserVisibilityControlWorks: typeof browserVisibilityControlWorks === 'boolean' ? browserVisibilityControlWorks : null,
+            browserHiddenStateWorks: typeof browserHiddenStateWorks === 'boolean' ? browserHiddenStateWorks : null,
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
@@ -2612,6 +2616,9 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             }
             var browserVisibilityControlWorks =
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-visible') === 'false';
+            const browserHiddenStateWorks =
+              document.querySelector('[data-testid="browser-hidden-state"]') instanceof HTMLElement &&
+              document.querySelector('[data-testid="browser-hidden-show"]') instanceof HTMLButtonElement;
             const showBrowserButton = findButton('Show browser surface');
             if (showBrowserButton instanceof HTMLButtonElement) {
               showBrowserButton.click();
@@ -3140,6 +3147,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserToolbarCompact,
               browserInspectorChromeCompactWorks,
               browserVisibilityControlWorks,
+              browserHiddenStateWorks,
               browserStatusRowQuiet
             };
           })()
