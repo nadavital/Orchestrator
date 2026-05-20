@@ -1336,8 +1336,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var filesNoResultsWorks =
               (() => {
                 const fileActionButtonAfterNoResults = findButton('File actions');
-                return Boolean(document.querySelector('[data-testid="workspace-file-empty-list"]')) &&
-                  document.body.innerText.includes('No matches') &&
+                const emptyListState = document.querySelector('[data-testid="workspace-file-empty-list"]');
+                const emptyListStateRect = emptyListState instanceof HTMLElement ? emptyListState.getBoundingClientRect() : null;
+                return emptyListState instanceof HTMLElement &&
+                  emptyListStateRect !== null &&
+                  emptyListState.innerText.includes('No matching files') &&
+                  emptyListState.querySelector('svg') !== null &&
+                  emptyListStateRect.height <= 48 &&
+                  emptyListState.scrollWidth <= emptyListState.clientWidth + 2 &&
                   !document.querySelector('[data-testid="workspace-text-preview"]') &&
                   (fileActionButtonAfterNoResults instanceof HTMLButtonElement ? fileActionButtonAfterNoResults.disabled : true);
               })();

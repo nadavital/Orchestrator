@@ -174,13 +174,13 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
       <div className="files-panel-body" data-testid="files-panel-body">
         <div className="files-panel-list" data-testid="files-panel-list">
           {loading ? (
-            <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              Loading...
-            </div>
+            <FilesListState icon="folder" title="Loading files" />
           ) : filteredEntries.length === 0 ? (
-            <div data-testid="workspace-file-empty-list" className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              {query.trim() ? 'No matches' : 'No files'}
-            </div>
+            <FilesListState
+              icon={query.trim() ? 'search' : 'folder'}
+              title={query.trim() ? 'No matching files' : 'No files in this folder'}
+              testId="workspace-file-empty-list"
+            />
           ) : (
             filteredEntries.map((entry) => (
               <SurfaceRow
@@ -223,6 +223,25 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function FilesListState({
+  icon,
+  title,
+  testId
+}: {
+  icon: 'folder' | 'search'
+  title: string
+  testId?: string
+}): JSX.Element {
+  return (
+    <div data-testid={testId} className="files-list-state">
+      <span aria-hidden="true">
+        <Icon name={icon} size={13} />
+      </span>
+      <strong>{title}</strong>
     </div>
   )
 }
