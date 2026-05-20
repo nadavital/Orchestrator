@@ -366,16 +366,17 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
         background: 'var(--surface-bg)'
       }}
     >
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
-        <ProviderIcon providerId={provider} size={12} color={providerDef.color} />
-        <span className="text-sm font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>
-          {providerDef.name} Extensions
-        </span>
-        {onClose && (
-          <IconButton icon="close" label="Close extensions" onClick={onClose} size="sm" />
-        )}
-      </div>
+      {!embedded && (
+        <div className="flex items-center gap-2 px-4 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
+          <ProviderIcon providerId={provider} size={12} color={providerDef.color} />
+          <span className="text-sm font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>
+            {providerDef.name} Extensions
+          </span>
+          {onClose && (
+            <IconButton icon="close" label="Close extensions" onClick={onClose} size="sm" />
+          )}
+        </div>
+      )}
 
       <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden" style={{ background: 'var(--canvas-bg)' }}>
         {provider === 'codex' && (
@@ -384,6 +385,7 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
             loading={extensionsLoading}
             accentColor={providerDef.color}
             onRefresh={refreshCodexExtensions}
+            embedded={embedded}
           />
         )}
 
@@ -428,6 +430,7 @@ export default function ExtensionsPanel({ provider, workDir, onClose, embedded =
           <AgentSectionView
             key={section.providerId}
             section={section}
+            embedded={embedded}
             onUpdateFile={(fi, v) => updateFile(si, fi, v)}
             onSaveFile={(fi) => saveFile(si, fi)}
             onOpenDirFile={openDirFile}
@@ -444,40 +447,59 @@ function CodexExtensionsView({
   groups,
   loading,
   accentColor,
-  onRefresh
+  onRefresh,
+  embedded = false
 }: {
   groups: ExtensionGroup[]
   loading: boolean
   accentColor: string
   onRefresh: () => void
+  embedded?: boolean
 }): JSX.Element {
   const totalItems = groups.reduce((count, group) => count + group.items.length, 0)
 
   return (
     <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-      <div className="px-4 py-3">
+      <div className={embedded ? 'px-3 py-2' : 'px-4 py-3'}>
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Native Extensions
+          {!embedded && (
+            <div className="min-w-0">
+              <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Native Extensions
+              </div>
+              <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                MCP, apps, plugins, skills, hooks, and agent config in one place.
+              </div>
             </div>
-            <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-              MCP, apps, plugins, skills, hooks, and agent config in one place.
+          )}
+          {embedded && (
+            <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+              <SystemMetricPill><span>Groups</span><strong>{groups.length}</strong></SystemMetricPill>
+              <SystemMetricPill><span>Items</span><strong>{loading ? '...' : totalItems}</strong></SystemMetricPill>
+              <SystemMetricPill tone="danger"><span>Errors</span><strong>{groups.filter((group) => group.status === 'error').length}</strong></SystemMetricPill>
             </div>
-          </div>
+          )}
           <IconButton icon="refresh" label="Refresh extensions" onClick={onRefresh} disabled={loading} tone="accent" />
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-1.5">
-          <SystemMetricPill><span>Groups</span><strong>{groups.length}</strong></SystemMetricPill>
-          <SystemMetricPill><span>Items</span><strong>{loading ? '...' : totalItems}</strong></SystemMetricPill>
-          <SystemMetricPill tone="danger"><span>Errors</span><strong>{groups.filter((group) => group.status === 'error').length}</strong></SystemMetricPill>
-        </div>
+        {!embedded && (
+          <div className="mt-3 grid grid-cols-3 gap-1.5">
+            <SystemMetricPill><span>Groups</span><strong>{groups.length}</strong></SystemMetricPill>
+            <SystemMetricPill><span>Items</span><strong>{loading ? '...' : totalItems}</strong></SystemMetricPill>
+            <SystemMetricPill tone="danger"><span>Errors</span><strong>{groups.filter((group) => group.status === 'error').length}</strong></SystemMetricPill>
+          </div>
+        )}
       </div>
 
-      <div className="px-4 pb-3 grid grid-cols-1 gap-2">
+      <div className={`${embedded ? 'px-3' : 'px-4'} pb-3 grid grid-cols-1 gap-2`}>
         {groups.map((group) => (
-          <ExtensionGroupCard key={group.id} group={group} loading={loading && group.status === 'idle'} accentColor={accentColor} />
+          <ExtensionGroupCard
+            key={group.id}
+            group={group}
+            loading={loading && group.status === 'idle'}
+            accentColor={accentColor}
+            embedded={embedded}
+          />
         ))}
       </div>
     </div>
@@ -487,11 +509,13 @@ function CodexExtensionsView({
 function ExtensionGroupCard({
   group,
   loading,
-  accentColor
+  accentColor,
+  embedded = false
 }: {
   group: ExtensionGroup
   loading: boolean
   accentColor: string
+  embedded?: boolean
 }): JSX.Element {
   const statusText = loading
     ? 'loading'
@@ -514,7 +538,9 @@ function ExtensionGroupCard({
       />
       <span className="min-w-0">
         <span className="block truncate text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{group.label}</span>
-        <span className="block truncate text-[10px]" style={{ color: 'var(--text-secondary)' }}>{group.description}</span>
+        {!embedded && (
+          <span className="block truncate text-[10px]" style={{ color: 'var(--text-secondary)' }}>{group.description}</span>
+        )}
       </span>
     </span>
   )
@@ -546,7 +572,7 @@ function ExtensionGroupCard({
               >
                 <span className="mt-1 shrink-0 rounded-full" style={{ width: 6, height: 6, background: item.tone ?? accentColor }} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium" style={{ color: 'var(--text-primary)' }} title={item.title}>
+                  <span className="block truncate text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
                     {item.title}
                   </span>
                   {item.subtitle && (
@@ -681,9 +707,10 @@ function formatObjectKey(key: string): string {
 // ─── Agent section ───────────────────────────────────────────────────────────
 
 function AgentSectionView({
-  section, onUpdateFile, onSaveFile, onOpenDirFile
+  section, embedded = false, onUpdateFile, onSaveFile, onOpenDirFile
 }: {
   section: AgentSection
+  embedded?: boolean
   onUpdateFile: (fi: number, v: string) => void
   onSaveFile: (fi: number) => void
   onOpenDirFile: (dirPath: string, fileName: string) => void
@@ -692,18 +719,21 @@ function AgentSectionView({
 
   return (
     <div>
-      <div className="px-4 py-3" style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
+      <div className={embedded ? 'px-3 py-2' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
           Local Instructions
         </div>
-        <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
-          Files and folders this provider reads from the workspace or home directory.
-        </div>
+        {!embedded && (
+          <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
+            Files and folders this provider reads from the workspace or home directory.
+          </div>
+        )}
       </div>
       {section.files.map((file, fi) => (
         <FileEditor
           key={file.path}
           file={file}
+          embedded={embedded}
           accentColor={def?.color}
           onUpdate={(v) => onUpdateFile(fi, v)}
           onSave={() => onSaveFile(fi)}
@@ -713,11 +743,12 @@ function AgentSectionView({
         <CommandsDirView
           key={dir.path}
           dir={dir}
+          embedded={embedded}
           onOpenFile={(name) => onOpenDirFile(dir.path, name)}
         />
       ))}
       {section.mcpServers && (
-        <McpServersView servers={section.mcpServers} accentColor={def?.color} />
+        <McpServersView servers={section.mcpServers} accentColor={def?.color} embedded={embedded} />
       )}
     </div>
   )
@@ -725,15 +756,16 @@ function AgentSectionView({
 
 // ─── MCP servers (read-only) ──────────────────────────────────────────────────
 
-function McpServersView({ servers, accentColor }: {
+function McpServersView({ servers, accentColor, embedded = false }: {
   servers: Record<string, McpServer>
   accentColor?: string
+  embedded?: boolean
 }): JSX.Element {
   const entries = Object.entries(servers)
 
   return (
-    <div className="px-4 py-3" style={{ borderTop: '1px solid var(--color-border)' }}>
-      <InspectorCard className="p-2">
+    <div className={embedded ? 'px-3 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className={embedded ? 'p-1.5' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono">MCP servers</span>}
           defaultOpen
@@ -777,8 +809,9 @@ function McpServersView({ servers, accentColor }: {
 
 // ─── File editor ─────────────────────────────────────────────────────────────
 
-function FileEditor({ file, accentColor, onUpdate, onSave }: {
+function FileEditor({ file, embedded = false, accentColor, onUpdate, onSave }: {
   file: SkillFile
+  embedded?: boolean
   accentColor?: string
   onUpdate: (v: string) => void
   onSave: () => void
@@ -786,8 +819,8 @@ function FileEditor({ file, accentColor, onUpdate, onSave }: {
   const isNew = file.content === null
 
   return (
-    <div className="px-4 py-3" style={{ borderTop: '1px solid var(--color-border)' }}>
-      <InspectorCard className="p-2">
+    <div className={embedded ? 'px-3 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className={embedded ? 'p-1.5' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono" style={{ color: isNew ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{file.label}</span>}
           defaultOpen={file.content !== null}
@@ -835,16 +868,17 @@ function FileEditor({ file, accentColor, onUpdate, onSave }: {
 
 // ─── Commands directory ───────────────────────────────────────────────────────
 
-function CommandsDirView({ dir, onOpenFile }: {
+function CommandsDirView({ dir, embedded = false, onOpenFile }: {
   dir: CommandsDir
+  embedded?: boolean
   onOpenFile: (name: string) => void
 }): JSX.Element {
   const files = dir.files?.filter((f) => f.endsWith('.md') || f.endsWith('.mdc')) ?? []
   const exists = dir.files !== null
 
   return (
-    <div className="px-4 py-3" style={{ borderTop: '1px solid var(--color-border)' }}>
-      <InspectorCard className="p-2">
+    <div className={embedded ? 'px-3 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className={embedded ? 'p-1.5' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono" style={{ color: exists ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{dir.label}</span>}
           meta={<Badge>{!exists ? 'not found' : files.length === 0 ? 'empty' : `${files.length}`}</Badge>}
