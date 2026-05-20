@@ -276,38 +276,39 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           ))}
           </div>
           <div className="right-sidebar-tab-actions" data-testid="right-sidebar-tab-actions">
-            <div className="relative">
-              <IconButton
-                icon="plus"
-                label="Add inspector tab"
-                size="sm"
-                active={toolsMenuOpen}
-                disabled={closedToolTabs.length === 0}
-                dataTestId="right-panel-add-tab"
-                onClick={() => setToolsMenuOpen((open) => !open)}
-              />
-              {toolsMenuOpen && closedToolTabs.length > 0 && (
-                <MenuSurface
-                  onClose={() => setToolsMenuOpen(false)}
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 34,
-                    width: 168,
-                    zIndex: 70
-                  }}
-                >
-                  {closedToolTabs.map((tab) => (
-                    <MenuItem
-                      key={tab.id}
-                      icon={tab.icon}
-                      label={tab.label}
-                      onClick={() => openToolTab(tab.id)}
-                    />
-                  ))}
-                </MenuSurface>
-              )}
-            </div>
+            {closedToolTabs.length > 0 && (
+              <div className="relative">
+                <IconButton
+                  icon="plus"
+                  label="Add inspector tab"
+                  size="sm"
+                  active={toolsMenuOpen}
+                  dataTestId="right-panel-add-tab"
+                  onClick={() => setToolsMenuOpen((open) => !open)}
+                />
+                {toolsMenuOpen && (
+                  <MenuSurface
+                    onClose={() => setToolsMenuOpen(false)}
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 34,
+                      width: 168,
+                      zIndex: 70
+                    }}
+                  >
+                    {closedToolTabs.map((tab) => (
+                      <MenuItem
+                        key={tab.id}
+                        icon={tab.icon}
+                        label={tab.label}
+                        onClick={() => openToolTab(tab.id)}
+                      />
+                    ))}
+                  </MenuSurface>
+                )}
+              </div>
+            )}
             <IconButton
               icon={rightPanel?.fullWidth ? 'minimize' : 'monitor'}
               label={rightPanel?.fullWidth ? 'Restore panel' : 'Focus panel'}

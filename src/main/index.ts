@@ -1714,12 +1714,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarTabActions.getBoundingClientRect().height <= 26 &&
             (rightSidebarActiveTabStyle?.boxShadow === 'none' || rightSidebarActiveTabStyle?.boxShadow === '');
           const rightSidebarAddControlStableWorks =
-            rightSidebarAddTabButton instanceof HTMLButtonElement &&
-            rightSidebarAddTabButton.getAttribute('aria-label') === 'Add inspector tab' &&
-            rightSidebarAddTabButton.dataset.icon === 'plus' &&
-            rightSidebarAddTabButton.disabled === true &&
+            rightSidebarAddTabButton === null &&
             rightSidebarTabActions instanceof HTMLElement &&
-            rightSidebarTabActions.querySelectorAll('.motion-icon-button').length >= 2;
+            rightSidebarTabActions.querySelectorAll('.motion-icon-button').length === 1;
           const rightSidebarInactiveTabsCompactWorks =
             rightSidebarActiveTab instanceof HTMLElement &&
             rightSidebarActiveLabel instanceof HTMLElement &&
