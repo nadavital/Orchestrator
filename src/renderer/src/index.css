@@ -2317,11 +2317,38 @@
     line-height: 1.25;
   }
 
+  .provider-settings-shell {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 24px 44px 56px;
+  }
+
+  .provider-settings-stack {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  .provider-settings-stack .settings-panel {
+    margin-top: 10px;
+  }
+
+  .provider-settings-stack .compact-setting {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 9px 12px;
+  }
+
+  .provider-settings-stack .compact-setting-title {
+    padding-top: 0;
+    font-size: 12px;
+  }
+
   .provider-details-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    margin-top: 10px;
+    gap: 8px;
+    margin-top: 8px;
   }
 
   .provider-models-row {
@@ -2405,9 +2432,9 @@
   }
 
   .provider-detail-card-title {
-    min-height: 30px;
+    min-height: 28px;
     border-bottom: 1px solid var(--border-subtle);
-    padding: 7px 10px;
+    padding: 6px 10px;
     color: var(--text-primary);
     font-size: 12px;
     font-weight: 700;
@@ -2415,14 +2442,14 @@
 
   .provider-detail-card-body {
     min-width: 0;
-    padding: 10px;
+    padding: 8px 10px;
   }
 
   .provider-status-card {
     display: grid;
     min-width: 0;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 12px;
+    gap: 10px;
   }
 
   .provider-status-section {
@@ -2442,7 +2469,7 @@
     display: grid;
     min-width: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 8px;
   }
 
   .provider-setup-row {

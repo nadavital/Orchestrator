@@ -1263,8 +1263,8 @@ function ProvidersSection({
   }
 
   return (
-    <div data-testid="provider-settings-section" style={{ padding: '34px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
-      <div style={{ maxWidth: 820, margin: '0 auto' }}>
+    <div className="provider-settings-shell" data-testid="provider-settings-section">
+      <div className="provider-settings-stack">
         <ProviderDropdown
           providers={providerList}
           selectedId={selectedId}
