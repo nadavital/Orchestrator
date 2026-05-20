@@ -270,6 +270,7 @@ function ReviewPreview({
     preview?.kind === 'json' ||
     preview?.kind === 'csv' ||
     preview?.kind === 'notebook' ||
+    preview?.kind === 'document' ||
     preview?.kind === 'audio' ||
     preview?.kind === 'video'
   if ((isBinaryDiff(diff) && !hasNativePreview) || preview?.kind === 'binary') {
@@ -358,6 +359,16 @@ function ReviewPreview({
         preview={preview}
         statusLabel={fileStatusLabel(change.status)}
         testId="review-notebook-state"
+      />
+    )
+  }
+  if (preview?.kind === 'document') {
+    return (
+      <StructuredDataPreview
+        name={change.path}
+        preview={preview}
+        statusLabel={fileStatusLabel(change.status)}
+        testId="review-document-state"
       />
     )
   }

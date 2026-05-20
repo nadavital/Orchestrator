@@ -9,6 +9,10 @@ interface Props {
 }
 
 export default function StructuredDataPreview({ name, preview, testId, statusLabel }: Props): JSX.Element {
+  if (preview.kind === 'document') {
+    return <DocumentPreview name={name} preview={preview} testId={testId} statusLabel={statusLabel} />
+  }
+
   if (preview.kind === 'notebook') {
     return <NotebookPreview name={name} preview={preview} testId={testId} statusLabel={statusLabel} />
   }
@@ -29,6 +33,47 @@ export default function StructuredDataPreview({ name, preview, testId, statusLab
       {preview.kind === 'csv'
         ? <CsvPreview name={name} text={preview.text ?? ''} />
         : <JsonPreview text={preview.text ?? ''} />}
+    </div>
+  )
+}
+
+function DocumentPreview({
+  name,
+  preview,
+  testId,
+  statusLabel
+}: {
+  name: string
+  preview: FilePreviewResult
+  testId: string
+  statusLabel?: string
+}): JSX.Element {
+  const paragraphs = (preview.text ?? '').split(/\n{2,}/).filter((paragraph) => paragraph.trim())
+  return (
+    <div className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden" data-testid={testId}>
+      <div className="file-preview-header">
+        {statusLabel && <Badge tone="neutral">{statusLabel}</Badge>}
+        <Badge tone="neutral">DOCX</Badge>
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+      </div>
+      {preview.truncated && (
+        <div className="file-preview-note">
+          Showing first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
+        </div>
+      )}
+      <div className="file-preview-meta-strip">
+        <span>{paragraphs.length.toLocaleString()} paragraphs</span>
+        <span>{formatBytes(preview.size ?? 0)}</span>
+      </div>
+      <div className="document-preview-body min-h-0 flex-1 overflow-auto">
+        {paragraphs.length > 0 ? (
+          paragraphs.slice(0, 80).map((paragraph, index) => (
+            <p key={index}>{paragraph}</p>
+          ))
+        ) : (
+          <p className="document-preview-empty">No document text found.</p>
+        )}
+      </div>
     </div>
   )
 }

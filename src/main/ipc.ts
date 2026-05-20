@@ -5,6 +5,7 @@ import { request as httpRequest } from 'http'
 import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
+import { inflateRawSync } from 'zlib'
 import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, PerformanceMetric, TranscriptPageRequest } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
@@ -30,6 +31,7 @@ type FilePreviewResult =
   | { kind: 'json'; size: number; text: string; truncated: boolean }
   | { kind: 'csv'; size: number; text: string; truncated: boolean }
   | { kind: 'notebook'; size: number; text: string; truncated: boolean }
+  | { kind: 'document'; size: number; text: string; truncated: boolean }
   | { kind: 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
   | { kind: 'missing' | 'unreadable'; size?: number; truncated: false }
 
@@ -62,6 +64,7 @@ const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdx'])
 const JSON_EXTENSIONS = new Set(['.json', '.jsonl'])
 const CSV_EXTENSIONS = new Set(['.csv', '.tsv'])
 const NOTEBOOK_EXTENSIONS = new Set(['.ipynb'])
+const DOCUMENT_EXTENSIONS = new Set(['.docx'])
 const HTML_EXTENSIONS = new Set(['.html', '.htm'])
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.aiff', '.m4a', '.aac', '.flac', '.ogg'])
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm'])
@@ -78,6 +81,7 @@ const BROWSER_LOCAL_TARGET_PORTS = [
 const MIME_EXTENSIONS: Record<string, string> = {
   'application/json': '.json',
   'application/pdf': '.pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
   'image/bmp': '.bmp',
   'image/gif': '.gif',
   'image/jpeg': '.jpg',
@@ -112,6 +116,7 @@ function previewFile(filePath: string): FilePreviewResult {
     const extension = extname(filePath).toLowerCase()
     if (IMAGE_EXTENSIONS.has(extension)) return { kind: 'image', size, truncated: false }
     if (extension === '.pdf') return { kind: 'pdf', size, truncated: false }
+    if (DOCUMENT_EXTENSIONS.has(extension)) return previewDocxFile(filePath, size)
     if (HTML_EXTENSIONS.has(extension)) return { kind: 'html', size, truncated: false }
     if (AUDIO_EXTENSIONS.has(extension)) return { kind: 'audio', size, truncated: false }
     if (VIDEO_EXTENSIONS.has(extension)) return { kind: 'video', size, truncated: false }
@@ -168,6 +173,87 @@ function previewFile(filePath: string): FilePreviewResult {
   } catch {
     return { kind: 'unreadable', truncated: false }
   }
+}
+
+function previewDocxFile(filePath: string, size: number): FilePreviewResult {
+  const archive = readFileSync(filePath)
+  const documentXml = readZipEntry(archive, 'word/document.xml')
+  if (!documentXml) return { kind: 'unreadable', size, truncated: false }
+
+  const text = extractDocxText(documentXml.toString('utf8'))
+  if (!text.trim()) return { kind: 'document', size, text: '', truncated: false }
+  return {
+    kind: 'document',
+    size,
+    text: text.length > FILE_PREVIEW_LIMIT ? text.slice(0, FILE_PREVIEW_LIMIT) : text,
+    truncated: text.length > FILE_PREVIEW_LIMIT
+  }
+}
+
+function readZipEntry(archive: Buffer, entryName: string): Buffer | null {
+  const eocdOffset = findEndOfCentralDirectory(archive)
+  if (eocdOffset < 0 || eocdOffset + 22 > archive.length) return null
+
+  const entryCount = archive.readUInt16LE(eocdOffset + 10)
+  let offset = archive.readUInt32LE(eocdOffset + 16)
+  for (let index = 0; index < entryCount && offset + 46 <= archive.length; index += 1) {
+    if (archive.readUInt32LE(offset) !== 0x02014b50) return null
+    const method = archive.readUInt16LE(offset + 10)
+    const compressedSize = archive.readUInt32LE(offset + 20)
+    const nameLength = archive.readUInt16LE(offset + 28)
+    const extraLength = archive.readUInt16LE(offset + 30)
+    const commentLength = archive.readUInt16LE(offset + 32)
+    const localHeaderOffset = archive.readUInt32LE(offset + 42)
+    const nameStart = offset + 46
+    const nameEnd = nameStart + nameLength
+    const name = archive.toString('utf8', nameStart, nameEnd)
+    if (name === entryName) {
+      if (localHeaderOffset + 30 > archive.length || archive.readUInt32LE(localHeaderOffset) !== 0x04034b50) return null
+      const localNameLength = archive.readUInt16LE(localHeaderOffset + 26)
+      const localExtraLength = archive.readUInt16LE(localHeaderOffset + 28)
+      const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength
+      const dataEnd = dataStart + compressedSize
+      if (dataEnd > archive.length) return null
+      const data = archive.subarray(dataStart, dataEnd)
+      if (method === 0) return Buffer.from(data)
+      if (method === 8) return inflateRawSync(data)
+      return null
+    }
+    offset = nameEnd + extraLength + commentLength
+  }
+  return null
+}
+
+function findEndOfCentralDirectory(archive: Buffer): number {
+  const minimumOffset = Math.max(0, archive.length - 65_557)
+  for (let offset = archive.length - 22; offset >= minimumOffset; offset -= 1) {
+    if (archive.readUInt32LE(offset) === 0x06054b50) return offset
+  }
+  return -1
+}
+
+function extractDocxText(xml: string): string {
+  const paragraphs = xml.match(/<w:p[\s\S]*?<\/w:p>/g) ?? [xml]
+  return paragraphs
+    .map((paragraph) => {
+      const normalized = paragraph
+        .replace(/<w:tab\s*\/>/g, '\t')
+        .replace(/<w:br\s*\/>/g, '\n')
+      const textRuns = [...normalized.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
+      return textRuns.map((match) => decodeXmlText(match[1] ?? '')).join('')
+    })
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+function decodeXmlText(value: string): string {
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
 }
 
 function writeBrowserDataUrlArtifact(dataUrl: string, suggestedName?: string): { path: string; size: number } {

@@ -889,6 +889,25 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               !document.querySelector('[data-testid="review-source-preview"]');
             if (diffSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
+              setter?.call(diffSearch, 'document-preview-smoke');
+              diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(160);
+            }
+            const documentReviewButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('document-preview-smoke.docx'));
+            if (documentReviewButton instanceof HTMLButtonElement) {
+              documentReviewButton.click();
+              await sleep(220);
+            }
+            const reviewDocumentState = document.querySelector('[data-testid="review-document-state"]');
+            var reviewDocumentPreviewWorks =
+              reviewDocumentState instanceof HTMLElement &&
+              reviewDocumentState.innerText.includes('DOCX') &&
+              reviewDocumentState.innerText.includes('Document smoke updated') &&
+              Boolean(reviewDocumentState.querySelector('.document-preview-body')) &&
+              !document.querySelector('[data-testid="review-source-preview"]');
+            if (diffSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
               setter?.call(diffSearch, 'notebook-preview-smoke');
               diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
               await sleep(160);
@@ -1091,6 +1110,25 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               workspaceCsvPreview.innerText.includes('CSV') &&
               workspaceCsvPreview.innerText.includes('2 rows') &&
               Boolean(workspaceCsvPreview.querySelector('.file-preview-table')) &&
+              !document.querySelector('[data-testid="workspace-text-preview"]');
+            if (fileSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
+              setter?.call(fileSearch, 'document-preview-smoke');
+              fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(160);
+            }
+            const documentFileButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('document-preview-smoke.docx'));
+            if (documentFileButton instanceof HTMLButtonElement) {
+              documentFileButton.click();
+              await sleep(180);
+            }
+            const workspaceDocumentPreview = document.querySelector('[data-testid="workspace-document-preview"]');
+            var filesDocumentPreviewWorks =
+              workspaceDocumentPreview instanceof HTMLElement &&
+              workspaceDocumentPreview.innerText.includes('DOCX') &&
+              workspaceDocumentPreview.innerText.includes('Document smoke updated') &&
+              Boolean(workspaceDocumentPreview.querySelector('.document-preview-body')) &&
               !document.querySelector('[data-testid="workspace-text-preview"]');
             if (fileSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
@@ -2070,6 +2108,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewSearchClearWorks: typeof reviewSearchClearWorks === 'boolean' ? reviewSearchClearWorks : null,
             reviewJsonPreviewWorks: typeof reviewJsonPreviewWorks === 'boolean' ? reviewJsonPreviewWorks : null,
             reviewCsvPreviewWorks: typeof reviewCsvPreviewWorks === 'boolean' ? reviewCsvPreviewWorks : null,
+            reviewDocumentPreviewWorks: typeof reviewDocumentPreviewWorks === 'boolean' ? reviewDocumentPreviewWorks : null,
             reviewNotebookPreviewWorks: typeof reviewNotebookPreviewWorks === 'boolean' ? reviewNotebookPreviewWorks : null,
             reviewBinaryStateWorks: typeof reviewBinaryStateWorks === 'boolean' ? reviewBinaryStateWorks : null,
             reviewBinaryActionsWork: typeof reviewBinaryActionsWork === 'boolean' ? reviewBinaryActionsWork : null,
@@ -2081,6 +2120,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             filesHtmlPreviewWorks: typeof filesHtmlPreviewWorks === 'boolean' ? filesHtmlPreviewWorks : null,
             filesJsonPreviewWorks: typeof filesJsonPreviewWorks === 'boolean' ? filesJsonPreviewWorks : null,
             filesCsvPreviewWorks: typeof filesCsvPreviewWorks === 'boolean' ? filesCsvPreviewWorks : null,
+            filesDocumentPreviewWorks: typeof filesDocumentPreviewWorks === 'boolean' ? filesDocumentPreviewWorks : null,
             filesNotebookPreviewWorks: typeof filesNotebookPreviewWorks === 'boolean' ? filesNotebookPreviewWorks : null,
             filesBinaryPreviewWorks: typeof filesBinaryPreviewWorks === 'boolean' ? filesBinaryPreviewWorks : null,
             filesNoResultsWorks: typeof filesNoResultsWorks === 'boolean' ? filesNoResultsWorks : null,

@@ -835,6 +835,28 @@
     color: var(--text-primary);
   }
 
+  .document-preview-body {
+    padding: 14px;
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .document-preview-body p {
+    margin: 0;
+    max-width: 680px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .document-preview-body p + p {
+    margin-top: 12px;
+  }
+
+  .document-preview-empty {
+    color: var(--text-tertiary);
+  }
+
   .notebook-preview-list {
     padding: 8px;
   }

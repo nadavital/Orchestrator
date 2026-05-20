@@ -284,6 +284,9 @@ function FilePreview({
   if (preview.kind === 'notebook') {
     return <StructuredDataPreview name={entry.name} preview={preview} testId="workspace-notebook-preview" />
   }
+  if (preview.kind === 'document') {
+    return <StructuredDataPreview name={entry.name} preview={preview} testId="workspace-document-preview" />
+  }
   if (preview.kind === 'audio') {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 p-4 text-center">
