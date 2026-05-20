@@ -580,6 +580,7 @@ child.on('exit', (code) => {
         diffListCompact: captureView !== 'inspector' || result.diffListCompactWorks === true,
         diffActionMenuCompact: captureView !== 'inspector' || result.diffActionMenuCompactWorks === true,
         rightPanelExpand: captureView !== 'inspector' || result.rightPanelExpandWorks === true,
+        rightPanelNarrowOverlay: captureView !== 'inspector' || result.rightPanelNarrowOverlayWorks === true,
         reviewSearch: captureView !== 'inspector' || result.reviewSearchWorks === true,
         reviewSearchClear: captureView !== 'inspector' || result.reviewSearchClearWorks === true,
         reviewJsonPreview: captureView !== 'inspector' || result.reviewJsonPreviewWorks === true,

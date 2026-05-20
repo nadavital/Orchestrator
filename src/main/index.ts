@@ -981,6 +981,51 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               restoreButton.click();
               await sleep(120);
             }
+            const mainRowForOverlay = document.querySelector('[data-testid="session-main-row"]');
+            const previousMainRowStyle = mainRowForOverlay instanceof HTMLElement
+              ? {
+                  flex: mainRowForOverlay.style.flex,
+                  width: mainRowForOverlay.style.width,
+                  minWidth: mainRowForOverlay.style.minWidth,
+                  maxWidth: mainRowForOverlay.style.maxWidth
+                }
+              : null;
+            if (mainRowForOverlay instanceof HTMLElement) {
+              mainRowForOverlay.style.flex = '0 0 920px';
+              mainRowForOverlay.style.width = '920px';
+              mainRowForOverlay.style.minWidth = '920px';
+              mainRowForOverlay.style.maxWidth = '920px';
+              window.dispatchEvent(new Event('resize'));
+              await sleep(220);
+            }
+            const rightPanelOverlay = document.querySelector('[data-testid="session-right-panel"]');
+            const rightPanelOverlayContainer = rightPanelOverlay instanceof HTMLElement
+              ? rightPanelOverlay.closest('[data-motion-panel="right"]')
+              : null;
+            const primaryOverlay = document.querySelector('[data-testid="session-primary-content"]');
+            const mainRowOverlayRect = mainRowForOverlay instanceof HTMLElement ? mainRowForOverlay.getBoundingClientRect() : null;
+            const primaryOverlayRect = primaryOverlay instanceof HTMLElement ? primaryOverlay.getBoundingClientRect() : null;
+            const rightPanelOverlayRect = rightPanelOverlay instanceof HTMLElement ? rightPanelOverlay.getBoundingClientRect() : null;
+            var rightPanelNarrowOverlayWorks =
+              mainRowOverlayRect !== null &&
+              primaryOverlayRect !== null &&
+              rightPanelOverlayRect !== null &&
+              rightPanelOverlay instanceof HTMLElement &&
+              rightPanelOverlay.dataset.rightPanelLayout === 'overlay' &&
+              rightPanelOverlayContainer instanceof HTMLElement &&
+              rightPanelOverlayContainer.classList.contains('right-sidebar-overlay') &&
+              primaryOverlayRect.width >= 880 &&
+              rightPanelOverlayRect.width <= mainRowOverlayRect.width - 12 &&
+              rightPanelOverlayRect.right <= mainRowOverlayRect.right + 2 &&
+              Math.abs(rightPanelOverlayRect.top - mainRowOverlayRect.top) <= 2;
+            if (mainRowForOverlay instanceof HTMLElement && previousMainRowStyle) {
+              mainRowForOverlay.style.flex = previousMainRowStyle.flex;
+              mainRowForOverlay.style.width = previousMainRowStyle.width;
+              mainRowForOverlay.style.minWidth = previousMainRowStyle.minWidth;
+              mainRowForOverlay.style.maxWidth = previousMainRowStyle.maxWidth;
+              window.dispatchEvent(new Event('resize'));
+              await sleep(160);
+            }
             const diffSearch = document.querySelector('[data-testid="diff-file-search"]');
             if (diffSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
@@ -2434,6 +2479,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             diffActionMenuCompactWorks,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
+            rightPanelNarrowOverlayWorks: typeof rightPanelNarrowOverlayWorks === 'boolean' ? rightPanelNarrowOverlayWorks : null,
             rightSidebarAddControlStableWorks,
             rightSidebarAddMenuStableWorks,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,

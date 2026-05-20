@@ -24,6 +24,7 @@ const DEFAULT_PANEL_WIDTH = 468
 const MIN_PANEL_WIDTH = 360
 const MAX_PANEL_WIDTH = 720
 const MIN_PRIMARY_CONTENT_WIDTH = 640
+const MIN_OVERLAY_PANEL_WIDTH = 280
 
 interface ContextTabSpec {
   id: ContextTab
@@ -60,12 +61,18 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
   const panelWidth = rightPanel?.width ?? DEFAULT_PANEL_WIDTH
+  const shouldOverlayPanel = !rightPanel?.fullWidth && mainRowWidth < MIN_PRIMARY_CONTENT_WIDTH + MIN_PANEL_WIDTH
   const maxPanelWidth = Math.max(
     MIN_PANEL_WIDTH,
     Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, mainRowWidth - MIN_PRIMARY_CONTENT_WIDTH))
   )
   const panelSize = rightPanel?.fullWidth
     ? Math.max(MIN_PANEL_WIDTH, mainRowWidth)
+    : shouldOverlayPanel
+      ? Math.min(
+          Math.max(MIN_OVERLAY_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, panelWidth)),
+          Math.max(MIN_OVERLAY_PANEL_WIDTH, mainRowWidth - 16)
+        )
     : Math.max(MIN_PANEL_WIDTH, Math.min(maxPanelWidth, panelWidth))
   const events = eventBuffers[session.id] ?? []
   const plans = [
@@ -223,13 +230,13 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       open={Boolean(effectiveTab)}
       side="right"
       size={panelSize}
-      className={`flex ${rightPanel?.fullWidth ? 'right-sidebar-expanded' : ''}`}
+      className={`flex ${rightPanel?.fullWidth ? 'right-sidebar-expanded' : shouldOverlayPanel ? 'right-sidebar-overlay' : ''}`}
       style={{
         borderLeft: '1px solid var(--border-subtle)',
         ...(rightPanel?.fullWidth ? { width: '100%', minWidth: '100%', maxWidth: '100%' } : {})
       }}
     >
-      {!rightPanel?.fullWidth && (
+      {!rightPanel?.fullWidth && !shouldOverlayPanel && (
         <PanelResizeHandle
           orientation="vertical"
           label="Resize panel"
@@ -244,6 +251,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         data-right-panel-active-tab={effectiveTab ?? ''}
         data-right-panel-width={panelSize}
         data-right-panel-full-width={rightPanel?.fullWidth ? 'true' : 'false'}
+        data-right-panel-layout={rightPanel?.fullWidth ? 'full' : shouldOverlayPanel ? 'overlay' : 'docked'}
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
       >
       <div className="right-sidebar-chrome">

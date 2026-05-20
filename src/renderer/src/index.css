@@ -529,6 +529,23 @@
     box-shadow: -14px 0 32px rgba(15, 23, 42, 0.12);
   }
 
+  .motion-panel-right.right-sidebar-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 44;
+    height: 100%;
+    max-width: calc(100% - 16px);
+    box-shadow: -14px 0 32px rgba(15, 23, 42, 0.12);
+  }
+
+  .motion-panel-right.right-sidebar-overlay > aside {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .motion-panel-right.right-sidebar-expanded > aside {
     width: 100%;
     min-width: 100%;
