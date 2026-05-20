@@ -1355,8 +1355,23 @@ function StatusCard({ content }: { content: string }): JSX.Element {
 
 function statusBody(content: string): string {
   if (/^Diff updated/i.test(content)) return content
+  if (/^Goal\b/i.test(content)) return compactGoalStatusBody(content)
   const stripped = content.replace(/^(Goal|Auto-review|MCP progress|Reasoning|Patch updated|Thread compacted|Context compacted|Thread status|Thread renamed|Thread closed|Turn started|Hook started|Hook completed|Realtime|Model rerouted|Model verification|Codex warning|Codex guardian warning|Codex deprecation notice|Codex config warning):?\s*/i, '')
   return stripped.trim() || content
+}
+
+function compactGoalStatusBody(content: string): string {
+  const normalized = content
+    .replace(/^Goal:?\s*/i, '')
+    .split(/\s+·\s+/)[0]
+    ?.replace(/\s+\((active|complete|completed|paused|cancelled|canceled|failed)\)$/i, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean)
+    ?.trim() ?? content.trim()
+  const firstSentence = normalized.match(/^(.+?[.!?])(?:\s|$)/)?.[1]?.trim() ?? normalized
+  if (firstSentence.length <= 132) return firstSentence
+  return `${firstSentence.slice(0, 129).trimEnd()}...`
 }
 
 function statusMeta(content: string): StatusMeta {

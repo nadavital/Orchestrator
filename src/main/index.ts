@@ -512,11 +512,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const goalToggle = document.querySelector('[data-testid="plan-goal-toggle"]');
             const hiddenSentence = 'This hidden sentence should only appear after expanding the full objective.';
             const compactPanelText = planPanel instanceof HTMLElement ? planPanel.innerText : '';
+            const transcriptText = document.querySelector('[data-testid="transcript-scroll"]')?.textContent ?? '';
             const compactGoalWorks =
               planPanel instanceof HTMLElement &&
               compactGoal instanceof HTMLElement &&
               compactGoal.textContent?.includes('Keep the right sidebar calm and useful') === true &&
               !compactPanelText.includes(hiddenSentence) &&
+              !transcriptText.includes(hiddenSentence) &&
               compactGoal.textContent.length < 140;
             if (goalToggle instanceof HTMLButtonElement) {
               goalToggle.click();
