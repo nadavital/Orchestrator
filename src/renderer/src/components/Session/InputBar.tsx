@@ -1181,11 +1181,12 @@ function Chip({
   title?: string
   activeColor?: string
 }): JSX.Element {
-  return (
+  const button = (
     <button
       onClick={onClick}
-      title={title}
       disabled={disabled}
+      data-tooltip-label={title}
+      data-native-title-free="true"
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
         background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
@@ -1201,4 +1202,5 @@ function Chip({
       {children}
     </button>
   )
+  return title ? <Tooltip label={title}>{button}</Tooltip> : button
 }

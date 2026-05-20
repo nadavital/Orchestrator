@@ -1642,7 +1642,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
             permissionButton?.click();
             await sleep(140);
-            var composerPermissionMenuOpened = Boolean(document.querySelector('.motion-popover-surface'));
+            const permissionMenu = document.querySelector('.motion-popover-surface');
+            var composerPermissionMenuOpened = Boolean(permissionMenu);
+            var composerPermissionNativeTooltipsWork = permissionMenu instanceof HTMLElement &&
+              [...permissionMenu.querySelectorAll('button')]
+                .filter((button) => button.getAttribute('data-tooltip-label'))
+                .every((button) => button.getAttribute('title') === null && button.getAttribute('data-native-title-free') === 'true');
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(140);
             var composerPermissionMenuClosedWithEscape = !document.querySelector('.motion-popover-surface');
@@ -1966,6 +1971,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilitySyncActionClicked: typeof capabilitySyncActionClicked === 'boolean' ? capabilitySyncActionClicked : null,
             capabilitySyncSheetOpened: typeof capabilitySyncSheetOpened === 'boolean' ? capabilitySyncSheetOpened : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
+            composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,
             composerPermissionFocusReturned: typeof composerPermissionFocusReturned === 'boolean' ? composerPermissionFocusReturned : null,
             composerAgentMenuOpened: typeof composerAgentMenuOpened === 'boolean' ? composerAgentMenuOpened : null,

@@ -504,6 +504,7 @@ child.on('exit', (code) => {
         capabilityEditSheet: captureView !== 'capabilities' || result.capabilityEditSheetOpened === true,
         capabilitySyncSheet: captureView !== 'capabilities' || result.capabilitySyncSheetOpened === true,
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
+        composerPermissionNativeTooltips: captureView !== 'composer' || result.composerPermissionNativeTooltipsWork === true,
         composerPermissionEscape: captureView !== 'composer' || result.composerPermissionMenuClosedWithEscape === true,
         composerPermissionFocusReturned: captureView !== 'composer' || result.composerPermissionFocusReturned === true,
         composerAgentMenu: captureView !== 'composer' || result.composerAgentMenuOpened === true,
