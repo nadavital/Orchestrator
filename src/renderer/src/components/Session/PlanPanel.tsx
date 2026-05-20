@@ -80,21 +80,21 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
     <PlanSection>
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: 'var(--accent)' }}>
-              Goal
-            </div>
+          <div className="flex min-w-0 items-center gap-1.5">
             {canExpand && (
               <IconButton
                 icon={expanded ? 'chevronDown' : 'chevronRight'}
                 label={expanded ? 'Hide full objective' : 'Show full objective'}
                 size="sm"
-                active={expanded}
+                className="plan-goal-toggle"
                 dataTestId="plan-goal-toggle"
                 ariaExpanded={expanded}
                 onClick={() => setExpanded((value) => !value)}
               />
             )}
+            <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: 'var(--accent)' }}>
+              Goal
+            </div>
           </div>
           <h3
             className="mt-1 text-[13px] font-semibold leading-5"

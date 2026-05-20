@@ -584,6 +584,20 @@
     padding: 0 5px;
   }
 
+  .plan-goal-toggle.motion-icon-button {
+    width: 18px !important;
+    height: 18px !important;
+    border-color: transparent !important;
+    background: transparent !important;
+    color: var(--text-tertiary) !important;
+  }
+
+  .plan-goal-toggle.motion-icon-button:hover,
+  .plan-goal-toggle.motion-icon-button:focus-visible {
+    background: var(--control-bg) !important;
+    color: var(--text-primary) !important;
+  }
+
   .diff-panel-toolbar {
     display: flex;
     min-height: 36px;
