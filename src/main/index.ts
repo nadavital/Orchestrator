@@ -1545,6 +1545,37 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 }
               }
             }
+            const smokeBaseUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
+            const slowUrl = smokeBaseUrl + '/slow';
+            const browserInputForStop = document.querySelector('[data-testid="browser-url-input"]');
+            if (browserInputForStop instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(browserInputForStop.constructor.prototype, 'value')?.set;
+              setter?.call(browserInputForStop, slowUrl);
+              browserInputForStop.dispatchEvent(new Event('input', { bubbles: true }));
+              browserInputForStop.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+              for (let index = 0; index < 20; index += 1) {
+                if (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-loading') === 'true') break;
+                await sleep(50);
+              }
+            }
+            const stopLoadingButton = findButton('Stop loading');
+            const stopButtonVisibleWhileLoading =
+              stopLoadingButton instanceof HTMLButtonElement &&
+              document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-loading') === 'true';
+            if (stopLoadingButton instanceof HTMLButtonElement) {
+              stopLoadingButton.click();
+              await sleep(180);
+            }
+            var browserStopLoadingWorks =
+              stopButtonVisibleWhileLoading &&
+              document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-loading') === 'false';
+            if (browserInputForStop instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(browserInputForStop.constructor.prototype, 'value')?.set;
+              setter?.call(browserInputForStop, smokeBaseUrl);
+              browserInputForStop.dispatchEvent(new Event('input', { bubbles: true }));
+              browserInputForStop.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+              await sleep(700);
+            }
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const expectedUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
             const browserCurrentUrl = browserPanel?.getAttribute('data-browser-current-url') ?? '';
@@ -1572,6 +1603,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 browserCurrentUrl.startsWith(expectedUrl),
               browserFindWorks,
               browserFindNavigationWorks,
+              browserStopLoadingWorks,
               browserSingleTabStripHidden,
               browserNoHorizontalOverflow,
               browserToolbarCompact,

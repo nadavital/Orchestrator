@@ -15,6 +15,7 @@ type WebviewElement = HTMLElement & {
   loadURL: (url: string) => Promise<void> | void
   reload: () => void
   reloadIgnoringCache: () => void
+  stop?: () => void
   goBack: () => void
   goForward: () => void
   canGoBack: () => boolean
@@ -315,6 +316,15 @@ export default function BrowserPanel({
     webviewRef.current?.reloadIgnoringCache?.()
   }
 
+  const stopOrReload = (): void => {
+    if (isLoading) {
+      webviewRef.current?.stop?.()
+      setIsLoading(false)
+      return
+    }
+    webviewRef.current?.reload()
+  }
+
   const setViewportMode = (mode: BrowserWorkbenchState['deviceMode']): void => {
     const preset = viewportPreset(mode, workbench.viewportWidth, workbench.viewportHeight)
     patchWorkbench({
@@ -428,6 +438,7 @@ export default function BrowserPanel({
       data-browser-find-active-match={findActiveMatch}
       data-browser-tab-count={workbench.tabs.length}
       data-browser-visible={visible ? 'true' : 'false'}
+      data-browser-loading={isLoading ? 'true' : 'false'}
       data-browser-current-url={currentUrl}
       data-browser-dom-targets={visibleTargets.length}
       data-browser-asset-count={assetInventory?.summary.totalCount ?? 0}
@@ -492,7 +503,13 @@ export default function BrowserPanel({
       >
         <ToolbarButton icon="arrowLeft" label="Back" size="sm" disabled={!canGoBack || !visible} onClick={() => webviewRef.current?.goBack()} />
         <ToolbarButton icon="arrowRight" label="Forward" size="sm" disabled={!canGoForward || !visible} onClick={() => webviewRef.current?.goForward()} />
-        <ToolbarButton icon="refresh" label="Reload" size="sm" disabled={!currentUrl || !visible} onClick={() => webviewRef.current?.reload()} />
+        <ToolbarButton
+          icon={isLoading ? 'close' : 'refresh'}
+          label={isLoading ? 'Stop loading' : 'Reload'}
+          size="sm"
+          disabled={!currentUrl || !visible}
+          onClick={stopOrReload}
+        />
         <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
         <div
           className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 py-0.5"

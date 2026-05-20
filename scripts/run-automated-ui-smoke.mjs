@@ -94,6 +94,13 @@ if (captureView === 'inspector' || captureView === 'browser') {
       response.end('main{font-family:system-ui;color:#102030}.asset-smoke{background:#f4f8ff}')
       return
     }
+    if (request.url === '/slow') {
+      setTimeout(() => {
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        response.end('<!doctype html><title>Slow smoke</title><main>Slow browser smoke page</main>')
+      }, 2500)
+      return
+    }
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     response.end(`<!doctype html>
       <title>Orchestrator Browser Smoke</title>
@@ -363,6 +370,7 @@ child.on('exit', (code) => {
           browserLoaded: result.browserLoaded === true,
           browserFind: result.browserFindWorks === true,
           browserFindNavigation: result.browserFindNavigationWorks === true,
+          browserStopLoading: result.browserStopLoadingWorks === true,
           browserSingleTabChrome: result.browserSingleTabStripHidden === true,
           browserToolbarCompact: result.browserToolbarCompact === true,
           browserStatusRowQuiet: result.browserStatusRowQuiet === true,
