@@ -2451,7 +2451,7 @@ function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, scr
               sessionCount: sessions.length,
               emptyStateVisible: Boolean(emptyState) &&
                 bodyText.includes('Add a project') &&
-                bodyText.includes('Choose a local folder to start a chat in that workspace.'),
+                bodyText.includes('Open a local folder to start a workspace chat.'),
               emptyStateProminent: Boolean(emptyRect) &&
                 (emptyRect?.width ?? 0) >= 300 &&
                 (emptyRect?.height ?? 0) >= 150,

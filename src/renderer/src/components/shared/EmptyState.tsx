@@ -31,22 +31,15 @@ export default function EmptyState(): JSX.Element {
         className="flex-1 min-w-0 flex items-center justify-center px-8 py-10 text-center"
         style={{ color: 'var(--color-text-muted)' }}
       >
-        <div data-testid="project-empty-state" className="w-full max-w-[460px]">
-          <div
-            className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl"
-            style={{
-              background: 'color-mix(in srgb, var(--accent) 10%, var(--surface-bg))',
-              border: '1px solid color-mix(in srgb, var(--accent) 22%, var(--border-subtle))',
-              color: 'var(--accent)',
-            }}
-          >
-            <Icon name="folder" size={26} />
+        <div data-testid="project-empty-state" className="w-full max-w-[420px] py-8">
+          <div className="mb-3 flex items-center justify-center gap-2">
+            <Icon name="folder" size={18} />
+            <div className="text-xl font-semibold tracking-normal" style={{ color: 'var(--color-text)' }}>
+              Add a project
+            </div>
           </div>
-          <div className="mb-2 text-xl font-semibold tracking-normal" style={{ color: 'var(--color-text)' }}>
-            Add a project
-          </div>
-          <div className="mx-auto mb-6 max-w-[340px] text-sm leading-6">
-            Choose a local folder to start a chat in that workspace.
+          <div className="mx-auto mb-6 max-w-[300px] text-sm leading-6">
+            Open a local folder to start a workspace chat.
           </div>
           <Button
             dataTestId="project-empty-state-add"
