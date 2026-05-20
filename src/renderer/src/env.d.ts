@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../../types'
 import type { AppMenuCommand } from '../../types/appCommands'
 
 export interface AppSettings {
@@ -110,6 +110,7 @@ declare global {
       projects: {
         list: () => Promise<Project[]>
         add: (name: string, rootPath: string) => Promise<Project>
+        importCodex: () => Promise<CodexProjectImportResult>
         remove: (id: string) => Promise<void>
         updateName: (id: string, name: string) => Promise<void>
         updatePinned: (id: string, pinned: boolean) => Promise<void>

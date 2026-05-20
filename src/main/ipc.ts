@@ -489,6 +489,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('projects:add', (_, name: string, rootPath: string) =>
     projectStore.add(name, rootPath)
   )
+  ipcMain.handle('projects:importCodex', () => projectStore.importCodexProjects())
   ipcMain.handle('projects:remove', (_, id: string) => projectStore.remove(id))
   ipcMain.handle('projects:updateName', (_, id: string, name: string) => projectStore.updateName(id, name))
   ipcMain.handle('projects:updatePinned', (_, id: string, pinned: boolean) => projectStore.updatePinned(id, pinned))

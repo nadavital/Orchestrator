@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../types'
 import type { AppMenuCommand } from '../types/appCommands'
 
 interface AppSettings {
@@ -99,6 +99,8 @@ const api = {
     list: (): Promise<Project[]> => ipcRenderer.invoke('projects:list'),
     add: (name: string, rootPath: string): Promise<Project> =>
       ipcRenderer.invoke('projects:add', name, rootPath),
+    importCodex: (): Promise<CodexProjectImportResult> =>
+      ipcRenderer.invoke('projects:importCodex'),
     remove: (id: string): Promise<void> => ipcRenderer.invoke('projects:remove', id),
     updateName: (id: string, name: string): Promise<void> =>
       ipcRenderer.invoke('projects:updateName', id, name),

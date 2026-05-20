@@ -3208,6 +3208,7 @@ function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, scr
             const sidebar = document.querySelector('[data-testid="app-sidebar"]');
             const sidebarEmptyState = document.querySelector('[data-testid="sidebar-project-empty-state"]');
             const addProjectButton = document.querySelector('[data-testid="project-empty-state-add"]');
+            const importCodexButton = document.querySelector('[data-testid="project-empty-state-import-codex"]');
             const sidebarAddProjectButton = sidebarEmptyState instanceof HTMLElement
               ? [...sidebarEmptyState.querySelectorAll('button')]
                   .find((button) => button.textContent?.includes('Add project'))
@@ -3234,6 +3235,8 @@ function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, scr
                 (actionRect?.width ?? 0) >= 96 &&
                 (actionRect?.width ?? 0) <= 150 &&
                 (actionRect?.height ?? 0) <= 34,
+              importCodexActionVisible: importCodexButton instanceof HTMLButtonElement &&
+                importCodexButton.textContent?.includes('Import Codex'),
               sidebarEmptyStateVisible: sidebarAddProjectButton instanceof HTMLButtonElement,
               sidebarNoHorizontalOverflow: sidebar instanceof HTMLElement &&
                 getComputedStyle(sidebar).overflowX === 'hidden' &&

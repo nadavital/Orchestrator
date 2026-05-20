@@ -6,6 +6,12 @@ export interface Project {
   pinned?: boolean
 }
 
+export interface CodexProjectImportResult {
+  imported: Project[]
+  skippedExisting: number
+  scanned: number
+}
+
 // Provider display info — shared between main and renderer
 export interface CursorEffortLevel {
   id: string

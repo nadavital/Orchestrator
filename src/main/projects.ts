@@ -1,7 +1,8 @@
 import Store from 'electron-store'
-import type { Project } from '../types'
+import type { CodexProjectImportResult, Project } from '../types'
 import { v4 as uuidv4 } from 'uuid'
 import { migrateLegacyUserData } from './userDataMigration'
+import { discoverCodexProjectCandidates, normalizeWorkspacePath } from './codexProjectImport'
 
 interface StoreSchema {
   projects: Project[]
@@ -24,6 +25,35 @@ export const projectStore = {
     projects.push(project)
     store.set('projects', projects)
     return project
+  },
+
+  importCodexProjects(): CodexProjectImportResult {
+    const candidates = discoverCodexProjectCandidates()
+    const projects = store.get('projects', [])
+    const existing = new Set(projects.map((project) => normalizeWorkspacePath(project.rootPath).toLowerCase()))
+    const imported: Project[] = []
+    let skippedExisting = 0
+
+    for (const candidate of candidates) {
+      const key = normalizeWorkspacePath(candidate.rootPath).toLowerCase()
+      if (existing.has(key)) {
+        skippedExisting += 1
+        continue
+      }
+
+      const project: Project = {
+        id: uuidv4(),
+        name: candidate.name,
+        rootPath: candidate.rootPath,
+        sessionIds: []
+      }
+      projects.push(project)
+      imported.push(project)
+      existing.add(key)
+    }
+
+    if (imported.length > 0) store.set('projects', projects)
+    return { imported, skippedExisting, scanned: candidates.length }
   },
 
   remove(id: string): void {

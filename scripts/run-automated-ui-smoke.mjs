@@ -310,6 +310,7 @@ child.on('exit', (code) => {
         emptyStateCalm: result.emptyStateCalm === true,
         addProjectActionVisible: result.addProjectActionVisible === true,
         addProjectActionCompact: result.addProjectActionCompact === true,
+        importCodexActionVisible: result.importCodexActionVisible === true,
         sidebarEmptyStateVisible: result.sidebarEmptyStateVisible === true,
         sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
         noStaticSuggestionCards: result.noStaticSuggestionCards === true
