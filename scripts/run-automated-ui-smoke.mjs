@@ -436,7 +436,7 @@ child.on('exit', (code) => {
         sessionRowsCompact: result.sessionRowsCompact === true,
         projectHeadersCompact: result.projectHeadersCompact === true,
         idleRowRecencyHidden: result.idleRowRecencyHidden === true,
-        importantRowStatusVisible: result.importantRowStatusVisible === true,
+        importantRowStatusIconOnly: result.importantRowStatusIconOnly === true,
         environmentIconVisible: result.environmentIconVisible === true,
         actionRenameWorks: result.actionRenameWorks === true,
         runningSpinnerVisible: result.runningSpinnerVisible === true,

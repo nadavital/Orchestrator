@@ -3514,9 +3514,13 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               !normalRow.innerText.includes('m ago');
             const runningRowForMeta = rowFor('Sidebar running');
             const errorRowForMeta = rowFor('Sidebar error');
-            const importantRowStatusVisible =
-              (runningRowForMeta instanceof HTMLElement && runningRowForMeta.innerText.includes('Running')) &&
-              (errorRowForMeta instanceof HTMLElement && errorRowForMeta.innerText.includes('Error'));
+            const errorRowStatusDot = errorRowForMeta instanceof HTMLElement
+              ? errorRowForMeta.querySelector('[data-testid="session-status-dot"]')
+              : null;
+            const importantRowStatusIconOnly =
+              Boolean(runningRowForMeta instanceof HTMLElement && runningRowForMeta.querySelector('[data-testid="session-status-spinner"]')) &&
+              Boolean(errorRowStatusDot instanceof HTMLElement && (errorRowStatusDot.getAttribute('aria-label') ?? '').trim()) &&
+              ![runningRowForMeta, errorRowForMeta].some((row) => row instanceof HTMLElement && row.querySelector('.session-row-right-meta'));
             const environmentIconVisible = Boolean(normalRow?.querySelector('[data-testid="session-environment-icon"]'));
 
             let actionRenameWorks = false;
@@ -3697,7 +3701,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sessionRowsCompact,
               projectHeadersCompact,
               idleRowRecencyHidden,
-              importantRowStatusVisible,
+              importantRowStatusIconOnly,
               environmentIconVisible,
               actionRenameWorks,
               runningSpinnerVisible: Boolean(runningRow?.querySelector('[data-testid="session-status-spinner"]')),
