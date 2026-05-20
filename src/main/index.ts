@@ -1593,6 +1593,21 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserInputForStop.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
               await sleep(700);
             }
+            const browserActionsButton = findButton('Browser actions');
+            let browserHistoryMenuWorks = false;
+            if (browserActionsButton instanceof HTMLButtonElement) {
+              browserActionsButton.click();
+              await sleep(160);
+              const historyMenu = document.querySelector('[data-testid="browser-history-menu"]');
+              const historyItems = [...document.querySelectorAll('[data-testid="browser-history-item"]')];
+              const copyUrlItem = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Copy URL'));
+              browserHistoryMenuWorks =
+                historyMenu instanceof HTMLElement &&
+                historyItems.length > 0 &&
+                historyItems.some((item) => item.textContent?.includes('127.0.0.1')) &&
+                copyUrlItem instanceof HTMLElement;
+            }
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const expectedUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
             const browserCurrentUrl = browserPanel?.getAttribute('data-browser-current-url') ?? '';
@@ -1621,6 +1636,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserFindWorks,
               browserFindNavigationWorks,
               browserStopLoadingWorks,
+              browserHistoryMenuWorks,
               browserSingleTabStripHidden,
               browserNoHorizontalOverflow,
               browserToolbarCompact,

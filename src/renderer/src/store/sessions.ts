@@ -31,6 +31,7 @@ export interface BrowserWorkbenchState {
   visible: boolean
   activeTabId: string
   tabs: BrowserTabState[]
+  history: BrowserHistoryEntry[]
   nextTabIndex: number
   inspectorOpen: boolean
   inspectorMode: 'console' | 'dom' | 'targets' | 'assets' | 'security'
@@ -42,6 +43,12 @@ export interface BrowserWorkbenchState {
   blockedDownloadOrigins: string[]
   allowedUploadOrigins: string[]
   blockedUploadOrigins: string[]
+}
+
+export interface BrowserHistoryEntry {
+  url: string
+  title: string
+  visitedAt: number
 }
 
 export interface BrowserTabState {
@@ -202,6 +209,7 @@ export const defaultUI: SessionUIState = {
       url: '',
       lastOpened: 0
     }],
+    history: [],
     nextTabIndex: 2,
     inspectorOpen: false,
     inspectorMode: 'console',

@@ -915,6 +915,17 @@
     color: var(--text-secondary);
   }
 
+  .browser-history-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 0.52fr);
+  }
+
+  .browser-history-url {
+    color: var(--text-tertiary);
+    font-size: 10.5px;
+    font-weight: 560;
+  }
+
   .browser-action-mini,
   .browser-action-value {
     display: inline-grid;

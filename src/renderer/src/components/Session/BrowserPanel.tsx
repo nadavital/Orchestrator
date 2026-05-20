@@ -1,5 +1,5 @@
 import { createElement, useEffect, useRef, useState } from 'react'
-import type { BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
+import type { BrowserHistoryEntry, BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
 import { Badge, IconButton, MenuSurface, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
@@ -85,6 +85,7 @@ export default function BrowserPanel({
   onBrowserStateChange
 }: Props): JSX.Element {
   const workbench = normalizeWorkbench(browserState, initialUrl)
+  const workbenchRef = useRef(workbench)
   const webviewRef = useRef<WebviewElement | null>(null)
   const pendingCacheReloadRef = useRef(false)
   const [address, setAddress] = useState(activeBrowserTab(workbench).url || initialUrl)
@@ -116,6 +117,10 @@ export default function BrowserPanel({
   const blocked = Boolean(urlOrigin && workbench.blockedOrigins.includes(originKey(urlOrigin)))
   const devicePreviewActive = workbench.deviceMode !== 'desktop'
   const showStatusRow = isLoading || Boolean(error) || blocked || devicePreviewActive
+  useEffect(() => {
+    workbenchRef.current = workbench
+  }, [workbench])
+
   useEffect(() => {
     const nextTab = activeBrowserTab(workbench)
     const nextUrl = nextTab.url || initialUrl
@@ -150,7 +155,10 @@ export default function BrowserPanel({
         setCurrentUrl(nextUrl)
         setAddress(nextUrl)
         onUrlChange?.(nextUrl)
-        patchActiveTab({ url: nextUrl, title: webview.getTitle?.() || nextUrl, lastOpened: Date.now() })
+        const nextTitle = webview.getTitle?.() || nextUrl
+        const now = Date.now()
+        patchActiveTab({ url: nextUrl, title: nextTitle, lastOpened: now })
+        recordHistory({ url: nextUrl, title: nextTitle, visitedAt: now })
       }
       setTitle(webview.getTitle?.() ?? '')
     }
@@ -221,8 +229,20 @@ export default function BrowserPanel({
   }
 
   const patchActiveTab = (patch: Partial<BrowserTabState>): void => {
-    const tabs = workbench.tabs.map((tab) => tab.id === workbench.activeTabId ? { ...tab, ...patch } : tab)
+    const current = workbenchRef.current
+    const tabs = current.tabs.map((tab) => tab.id === current.activeTabId ? { ...tab, ...patch } : tab)
     patchWorkbench({ tabs })
+  }
+
+  const recordHistory = (entry: BrowserHistoryEntry): void => {
+    if (!entry.url || entry.url === 'about:blank') return
+    const current = workbenchRef.current
+    patchWorkbench({
+      history: [
+        entry,
+        ...current.history.filter((item) => item.url !== entry.url)
+      ].slice(0, 12)
+    })
   }
 
   const navigate = (raw: string): void => {
@@ -580,6 +600,20 @@ export default function BrowserPanel({
                 <button
                   type="button"
                   role="menuitem"
+                  aria-label="Copy browser URL"
+                  className="browser-action-row"
+                  disabled={!currentUrl}
+                  onClick={() => {
+                    void navigator.clipboard.writeText(currentUrl)
+                    setBrowserMenuOpen(false)
+                  }}
+                >
+                  <Icon name="copy" size={13} />
+                  <span>Copy URL</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
                   aria-label="Open external browser"
                   className="browser-action-row"
                   disabled={!currentUrl}
@@ -592,6 +626,28 @@ export default function BrowserPanel({
                   <span>Open external</span>
                 </button>
               </div>
+              {workbench.history.length > 0 && (
+                <div className="browser-action-section" data-testid="browser-history-menu">
+                  <div className="browser-action-label">History</div>
+                  {workbench.history.slice(0, 5).map((item) => (
+                    <button
+                      key={`${item.url}-${item.visitedAt}`}
+                      type="button"
+                      role="menuitem"
+                      data-testid="browser-history-item"
+                      className="browser-action-row browser-history-row"
+                      onClick={() => {
+                        setBrowserMenuOpen(false)
+                        navigate(item.url)
+                      }}
+                    >
+                      <Icon name="clock" size={13} />
+                      <span className="min-w-0 flex-1 truncate">{item.title || shortUrl(item.url) || item.url}</span>
+                      <span className="browser-history-url min-w-0 truncate">{shortUrl(item.url)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="browser-action-section">
                 <div className="browser-action-label">View</div>
                 <div className="browser-action-row browser-action-row-static">
@@ -1136,6 +1192,7 @@ function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl
     visible: state?.visible ?? true,
     activeTabId: tabs.some((tab) => tab.id === state?.activeTabId) ? state!.activeTabId : tabs[0].id,
     tabs,
+    history: state?.history ?? [],
     nextTabIndex: Math.max(state?.nextTabIndex ?? 2, tabs.length + 1),
     inspectorOpen: state?.inspectorOpen ?? false,
     inspectorMode: state?.inspectorMode ?? 'console',
