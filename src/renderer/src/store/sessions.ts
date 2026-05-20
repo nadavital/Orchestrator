@@ -21,6 +21,8 @@ export interface RightPanelState {
   tabs: RightPanelTabState[]
 }
 
+export type BrowserApprovalMode = 'alwaysAsk' | 'alwaysAllow'
+
 export interface BrowserWorkbenchState {
   findVisible: boolean
   findQuery: string
@@ -35,8 +37,10 @@ export interface BrowserWorkbenchState {
   nextTabIndex: number
   inspectorOpen: boolean
   inspectorMode: 'console' | 'dom' | 'targets' | 'assets' | 'security'
-  approvalMode: 'alwaysAsk' | 'alwaysAllow'
-  historyApprovalMode: 'alwaysAsk' | 'alwaysAllow'
+  approvalMode: BrowserApprovalMode
+  historyApprovalMode: BrowserApprovalMode
+  downloadApprovalMode: BrowserApprovalMode
+  uploadApprovalMode: BrowserApprovalMode
   allowedOrigins: string[]
   blockedOrigins: string[]
   allowedDownloadOrigins: string[]
@@ -232,6 +236,8 @@ export const defaultUI: SessionUIState = {
     inspectorMode: 'console',
     approvalMode: 'alwaysAsk',
     historyApprovalMode: 'alwaysAsk',
+    downloadApprovalMode: 'alwaysAsk',
+    uploadApprovalMode: 'alwaysAsk',
     allowedOrigins: ['localhost', '127.0.0.1'],
     blockedOrigins: [],
     allowedDownloadOrigins: [],

@@ -1840,10 +1840,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               browserSecurityRows.length === 4 &&
               browserSecurityText.includes('current origin') &&
               browserSecurityText.includes('approval') &&
+              browserSecurityText.includes('history') &&
               browserSecurityText.includes('allowed') &&
               browserSecurityText.includes('blocked') &&
               browserSecurityText.includes('downloads') &&
-              browserSecurityText.includes('uploads');
+              browserSecurityText.includes('uploads') &&
+              browserSecurityPane.querySelectorAll('.browser-policy-select').length === 4;
             var browserSecurityPaneNoHorizontalOverflowWorks = (() => {
               const drawer = document.querySelector('.browser-inspector-drawer');
               const output = document.querySelector('[data-testid="browser-inspector-output"]');

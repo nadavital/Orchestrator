@@ -1,6 +1,6 @@
 import { createElement, useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import type { BrowserDeviceMode, BrowserHistoryEntry, BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
+import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
 import { Badge, Button, IconButton, MenuSurface, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
@@ -1755,6 +1755,16 @@ function SecurityPane({
           value={workbench.historyApprovalMode}
           onChange={(historyApprovalMode) => onPatch({ historyApprovalMode })}
         />
+        <PolicySelect
+          label="Downloads"
+          value={workbench.downloadApprovalMode}
+          onChange={(downloadApprovalMode) => onPatch({ downloadApprovalMode })}
+        />
+        <PolicySelect
+          label="Uploads"
+          value={workbench.uploadApprovalMode}
+          onChange={(uploadApprovalMode) => onPatch({ uploadApprovalMode })}
+        />
       </div>
       <div className="browser-security-card browser-security-policies" data-testid="browser-security-policies">
         <div className="browser-target-section-title">Origins</div>
@@ -1767,13 +1777,13 @@ function SecurityPane({
   )
 }
 
-function PolicySelect({ label, value, onChange }: { label: string; value: 'alwaysAsk' | 'alwaysAllow'; onChange: (value: 'alwaysAsk' | 'alwaysAllow') => void }): JSX.Element {
+function PolicySelect({ label, value, onChange }: { label: string; value: BrowserApprovalMode; onChange: (value: BrowserApprovalMode) => void }): JSX.Element {
   return (
     <label className="browser-policy-select">
       <span>{label}</span>
       <select
         value={value}
-        onChange={(event) => onChange(event.target.value as 'alwaysAsk' | 'alwaysAllow')}
+        onChange={(event) => onChange(event.target.value as BrowserApprovalMode)}
         className="rounded-md px-2 py-1 text-xs outline-none"
         style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
       >
@@ -1875,6 +1885,8 @@ function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl
     inspectorMode: state?.inspectorMode ?? 'console',
     approvalMode: state?.approvalMode ?? 'alwaysAsk',
     historyApprovalMode: state?.historyApprovalMode ?? 'alwaysAsk',
+    downloadApprovalMode: state?.downloadApprovalMode ?? 'alwaysAsk',
+    uploadApprovalMode: state?.uploadApprovalMode ?? 'alwaysAsk',
     allowedOrigins: state?.allowedOrigins ?? ['localhost', '127.0.0.1'],
     blockedOrigins: state?.blockedOrigins ?? [],
     allowedDownloadOrigins: state?.allowedDownloadOrigins ?? [],
