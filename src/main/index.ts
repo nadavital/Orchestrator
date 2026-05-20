@@ -402,6 +402,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerSelects = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('select')]
                 : [];
+              const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               const providerButtonLabels = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
                 : [];
@@ -422,7 +423,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Tokens') &&
                 diagnosticsSection.innerText.includes('Cost') &&
                 diagnosticsSection.innerText.includes('Budget') &&
-                Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]'));
+                Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]')) &&
+                usageStatusStrip instanceof HTMLElement &&
+                usageStatusStrip.getBoundingClientRect().height <= 76 &&
+                !diagnosticsSection.innerText.includes('No cache') &&
+                !diagnosticsSection.innerText.includes('No turns');
               var settingsProviderModelsCollapsedWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Default') &&
@@ -483,6 +488,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
+              const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Capabilities') &&
@@ -495,7 +501,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Tokens') &&
                 diagnosticsSection.innerText.includes('Cost') &&
                 diagnosticsSection.innerText.includes('Budget') &&
-                Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]'));
+                Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]')) &&
+                usageStatusStrip instanceof HTMLElement &&
+                usageStatusStrip.getBoundingClientRect().height <= 76 &&
+                !diagnosticsSection.innerText.includes('No cache') &&
+                !diagnosticsSection.innerText.includes('No turns');
               var settingsProviderModelsCollapsedWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Default') &&

@@ -2717,10 +2717,22 @@ function ProviderUsageDiagnosticsCard({
       message: budget.message
     }
   ]
+  const detailChips = [
+    usage.models.length > 0 ? `Models ${usage.models.join(', ')}` : null,
+    usage.cacheTokens > 0 ? `Cache ${usage.cacheTokens.toLocaleString()}` : null,
+    usage.turns > 0 ? `Turns ${usage.turns.toLocaleString()}` : null
+  ].filter((chip): chip is string => Boolean(chip))
 
   return (
     <div data-testid="provider-usage-diagnostics-card" style={{ display: 'grid', gap: 10 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+      <div
+        data-testid="provider-usage-status-strip"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))',
+          gap: 6
+        }}
+      >
         {rows.map((row) => (
           <div
             key={row.label}
@@ -2728,10 +2740,11 @@ function ProviderUsageDiagnosticsCard({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: 8,
+              gap: 6,
               minWidth: 0,
-              padding: '8px 10px',
-              borderRadius: 8,
+              minHeight: 30,
+              padding: '5px 8px',
+              borderRadius: 7,
               background: 'var(--color-surface)',
               border: '1px solid var(--color-border)'
             }}
@@ -2753,19 +2766,19 @@ function ProviderUsageDiagnosticsCard({
           </div>
         ))}
       </div>
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 8,
-          fontSize: 11,
-          color: 'var(--color-text-muted)'
-        }}
-      >
-        <span>{usage.models.length > 0 ? `Models: ${usage.models.join(', ')}` : 'No models'}</span>
-        <span>{usage.cacheTokens > 0 ? `Cache: ${usage.cacheTokens.toLocaleString()} tokens` : 'No cache'}</span>
-        <span>{usage.turns > 0 ? `Turns: ${usage.turns.toLocaleString()}` : 'No turns'}</span>
-      </div>
+      {detailChips.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+            fontSize: 11,
+            color: 'var(--color-text-muted)'
+          }}
+        >
+          {detailChips.map((chip) => <span key={chip}>{chip}</span>)}
+        </div>
+      )}
     </div>
   )
 }
