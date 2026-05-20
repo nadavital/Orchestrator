@@ -74,7 +74,7 @@ interface VisibleTarget {
   selector: { primary: string | null; candidates: string[] }
 }
 
-type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'key' | 'select' | 'scroll'
+type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'key' | 'select' | 'check' | 'scroll'
 
 interface LocalBrowserTarget {
   url: string
@@ -1283,6 +1283,7 @@ function TargetsPane({
           <ActionButton label="Type" onClick={() => onRunTargetAction('type')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Key" onClick={() => onRunTargetAction('key')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Select" onClick={() => onRunTargetAction('select')} disabled={!selectedTargetId || !actionText} />
+          <ActionButton label="Check" onClick={() => onRunTargetAction('check')} disabled={!selectedTargetId} />
           <ActionButton label="Scroll" onClick={() => onRunTargetAction('scroll')} disabled={!selectedTargetId} />
         </div>
       </div>
@@ -1710,6 +1711,16 @@ const VISIBLE_TARGETS_SCRIPT = `
         const option = [...element.options].find((item) => item.value === text || item.textContent?.trim() === text);
         if (!option) return false;
         element.value = option.value;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }
+      return false;
+    }
+    if (action === 'check') {
+      if (element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio')) {
+        const normalized = String(text || 'true').trim().toLowerCase();
+        element.checked = !['0', 'false', 'off', 'no', 'unchecked'].includes(normalized);
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
         return true;
