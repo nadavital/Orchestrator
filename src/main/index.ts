@@ -962,7 +962,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 firstDraftRestored &&
                 document.querySelector('[data-testid="side-chat-panel"]')?.getAttribute('data-side-chat-message-count') === '0';
             }
-            const closeSideChatButton = [...document.querySelectorAll('[title^="Close Side chat"]')].at(-1);
+            const closeSideChatButton = [...document.querySelectorAll('[aria-label^="Close Side chat"]')].at(-1);
             if (closeSideChatButton instanceof HTMLElement) {
               closeSideChatButton.click();
               await sleep(160);
@@ -1085,6 +1085,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             [...document.querySelectorAll('button[data-tooltip-label][title]')]
               .map((button) => (button.getAttribute('data-tooltip-label') ?? '') + ':' + (button.getAttribute('title') ?? ''));
           const customTooltipNativeTitlesAbsent = customTooltipNativeTitleLeaks.length === 0;
+          const nativeTitleFreeControlLeaks =
+            [...document.querySelectorAll('button[data-native-title-free][title]')]
+              .map((button) => (button.getAttribute('aria-label') ?? button.textContent?.trim() ?? '') + ':' + (button.getAttribute('title') ?? ''));
+          const nativeTitleFreeControlsWork = nativeTitleFreeControlLeaks.length === 0;
           return {
             profile,
             title: document.title,
@@ -1105,6 +1109,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             headerIdentityWorks,
             customTooltipNativeTitlesAbsent,
             customTooltipNativeTitleLeaks,
+            nativeTitleFreeControlsWork,
+            nativeTitleFreeControlLeaks,
             headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
             chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
             hasInspectorTabs: bodyText.includes('Changes') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
@@ -1708,6 +1714,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const customTooltipNativeTitleLeaks =
               [...document.querySelectorAll('button[data-tooltip-label][title]')]
                 .map((button) => (button.getAttribute('data-tooltip-label') ?? '') + ':' + (button.getAttribute('title') ?? ''));
+            const nativeTitleFreeControlLeaks =
+              [...document.querySelectorAll('button[data-native-title-free][title]')]
+                .map((button) => (button.getAttribute('aria-label') ?? button.textContent?.trim() ?? '') + ':' + (button.getAttribute('title') ?? ''));
             return {
               pinnedAboveProjects,
               pinnedOrderStable,
@@ -1719,6 +1728,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               singleHoverSurfaceWorks,
               customTooltipNativeTitlesAbsent: customTooltipNativeTitleLeaks.length === 0,
               customTooltipNativeTitleLeaks,
+              nativeTitleFreeControlsWork: nativeTitleFreeControlLeaks.length === 0,
+              nativeTitleFreeControlLeaks,
               sidebarNoHorizontalOverflow,
               sessionRowsCompact,
               projectHeadersCompact,

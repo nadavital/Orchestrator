@@ -203,6 +203,7 @@ export function IconButton({
       disabled={disabled}
       aria-label={label}
       data-tooltip-label={label}
+      data-native-title-free="true"
       data-testid={dataTestId}
       data-active={active ? 'true' : 'false'}
       className={`motion-icon-button grid shrink-0 place-items-center rounded-md disabled:cursor-default disabled:opacity-45 ${className}`}
@@ -385,7 +386,7 @@ export function PanelResizeHandle({
     <button
       type="button"
       aria-label={label}
-      title={label}
+      data-native-title-free="true"
       data-active={active ? 'true' : 'false'}
       data-orientation={orientation}
       className={`panel-resize-handle ${className}`}
@@ -429,7 +430,7 @@ export function TabButton({
         <button
           type="button"
           aria-label={closeLabel}
-          title={closeLabel}
+          data-native-title-free="true"
           className="motion-tab-close"
           onClick={(event) => {
             event.stopPropagation()
