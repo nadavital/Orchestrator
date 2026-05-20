@@ -1675,6 +1675,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           const rightSidebarTabbar = document.querySelector('[data-testid="right-sidebar-tabbar"]');
           const rightSidebarTabRow = document.querySelector('[data-testid="right-sidebar-tab-row"]');
           const rightSidebarTabActions = document.querySelector('[data-testid="right-sidebar-tab-actions"]');
+          const rightSidebarAddTabButton = document.querySelector('[data-testid="right-panel-add-tab"]');
           const rightSidebarActiveTab = document.querySelector('[data-testid="right-sidebar-tabbar"] .motion-tab-button[data-active="true"]');
           const rightSidebarActiveTabStyle = rightSidebarActiveTab instanceof HTMLElement
             ? getComputedStyle(rightSidebarActiveTab)
@@ -1696,6 +1697,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarTabRow.scrollWidth <= rightSidebarTabRow.clientWidth + 2 &&
             rightSidebarTabActions.getBoundingClientRect().height <= 26 &&
             (rightSidebarActiveTabStyle?.boxShadow === 'none' || rightSidebarActiveTabStyle?.boxShadow === '');
+          const rightSidebarAddControlStableWorks =
+            rightSidebarAddTabButton instanceof HTMLButtonElement &&
+            rightSidebarAddTabButton.getAttribute('aria-label') === 'Add inspector tab' &&
+            rightSidebarAddTabButton.dataset.icon === 'plus' &&
+            rightSidebarAddTabButton.disabled === true &&
+            rightSidebarTabActions instanceof HTMLElement &&
+            rightSidebarTabActions.querySelectorAll('.motion-icon-button').length >= 2;
           const rightSidebarInactiveTabsCompactWorks =
             rightSidebarActiveTab instanceof HTMLElement &&
             rightSidebarActiveLabel instanceof HTMLElement &&
@@ -1849,6 +1857,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             diffActionMenuCompactWorks,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
+            rightSidebarAddControlStableWorks,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             reviewSearchClearWorks: typeof reviewSearchClearWorks === 'boolean' ? reviewSearchClearWorks : null,
             reviewBinaryStateWorks: typeof reviewBinaryStateWorks === 'boolean' ? reviewBinaryStateWorks : null,
