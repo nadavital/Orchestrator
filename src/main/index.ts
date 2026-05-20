@@ -1827,6 +1827,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             [...document.querySelectorAll('button[data-native-title-free][title]')]
               .map((button) => (button.getAttribute('aria-label') ?? button.textContent?.trim() ?? '') + ':' + (button.getAttribute('title') ?? ''));
           const nativeTitleFreeControlsWork = nativeTitleFreeControlLeaks.length === 0;
+          const composerNativeTooltipsWork =
+            ['Attach files', 'Send (↵)'].every((label) => {
+              const button = findButton(label);
+              return button instanceof HTMLButtonElement &&
+                button.getAttribute('title') === null &&
+                button.getAttribute('data-tooltip-label') === label &&
+                button.getAttribute('data-native-title-free') === 'true';
+            });
           return {
             profile,
             title: document.title,
@@ -1849,6 +1857,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             customTooltipNativeTitleLeaks,
             nativeTitleFreeControlsWork,
             nativeTitleFreeControlLeaks,
+            composerNativeTooltipsWork,
             headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
             chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
             chatEmptyStateProjectLabelClean: typeof chatEmptyStateProjectLabelClean === 'boolean' ? chatEmptyStateProjectLabelClean : null,

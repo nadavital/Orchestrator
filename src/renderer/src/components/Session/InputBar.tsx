@@ -6,7 +6,7 @@ import { useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
-import { AttachmentPill, DismissablePopoverSurface } from '../shared/designSystem'
+import { AttachmentPill, DismissablePopoverSurface, Tooltip } from '../shared/designSystem'
 
 interface Props {
   session: Session
@@ -535,7 +535,12 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
 
           <div className="flex-1" />
 
-          <ToolbarBtn active={attachments.length > 0 || isSavingPastedFiles} onClick={attachFiles} title={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}>
+          <ToolbarBtn
+            active={attachments.length > 0 || isSavingPastedFiles}
+            onClick={attachFiles}
+            title={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
+            ariaLabel={isSavingPastedFiles ? 'Saving pasted files' : 'Attach files'}
+          >
             <Icon name="paperclip" size={13} />
           </ToolbarBtn>
 
@@ -796,20 +801,24 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
             </button>
           )}
           {(session.status !== 'running' || canSend) && (
-            <button
-              onClick={send}
-              disabled={!canSend}
-              className="flex items-center justify-center rounded-lg transition-colors"
-              style={{
-                width: 30, height: 30,
-            background: canSend ? 'var(--text-primary)' : 'var(--control-bg)',
-            color: canSend ? 'var(--canvas-bg)' : 'var(--color-text-muted)',
-                cursor: canSend ? 'pointer' : 'default'
-              }}
-              title={sendTitle}
-            >
-              <Icon name="arrowUp" size={14} />
-            </button>
+            <Tooltip label={sendTitle}>
+              <button
+                onClick={send}
+                disabled={!canSend}
+                aria-label={sendTitle}
+                data-tooltip-label={sendTitle}
+                data-native-title-free="true"
+                className="flex items-center justify-center rounded-lg transition-colors"
+                style={{
+                  width: 30, height: 30,
+                  background: canSend ? 'var(--text-primary)' : 'var(--control-bg)',
+                  color: canSend ? 'var(--canvas-bg)' : 'var(--color-text-muted)',
+                  cursor: canSend ? 'pointer' : 'default'
+                }}
+              >
+                <Icon name="arrowUp" size={14} />
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -900,26 +909,29 @@ function formatBytes(value: number): string {
 }
 
 function ToolbarBtn({
-  children, active, onClick, muted, title, providerColor, dataTestId
+  children, active, onClick, muted, title, ariaLabel, providerColor, dataTestId
 }: {
   children: React.ReactNode
   active: boolean
   onClick?: () => void
   muted?: boolean
   title?: string
+  ariaLabel?: string
   providerColor?: string
   dataTestId?: string
 }): JSX.Element {
   const borderColor = active ? 'var(--border-strong)' : 'transparent'
   const textColor = muted ? 'var(--text-tertiary)' : active ? 'var(--text-primary)' : 'var(--text-secondary)'
   void providerColor
-  return (
+  const button = (
     <button
       onClick={(event) => {
         event.currentTarget.focus({ preventScroll: true })
         onClick?.()
       }}
-      title={title}
+      aria-label={ariaLabel}
+      data-tooltip-label={title}
+      data-native-title-free="true"
       data-testid={dataTestId}
       className="flex items-center gap-1.5 text-xs transition-colors"
       style={{
@@ -936,6 +948,7 @@ function ToolbarBtn({
       {children}
     </button>
   )
+  return title ? <Tooltip label={title}>{button}</Tooltip> : button
 }
 
 function Chevron(): JSX.Element {
