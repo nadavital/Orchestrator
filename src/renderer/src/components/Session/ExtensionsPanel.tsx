@@ -766,13 +766,13 @@ function McpServersView({ servers, accentColor, embedded = false }: {
   const entries = Object.entries(servers)
 
   return (
-    <div className={embedded ? 'px-2 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
-      <InspectorCard className={embedded ? 'extension-panel-card p-1.5' : 'p-2'}>
+    <div className={embedded ? 'extensions-panel-embedded-entry px-2 py-0.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono">MCP servers</span>}
           defaultOpen
           meta={<Badge>{entries.length === 0 ? 'none' : entries.length}</Badge>}
-          bodyClassName="pt-2"
+          bodyClassName={embedded ? 'pt-1 pb-1' : 'pt-2'}
         >
           {entries.length === 0 ? (
             <div className="text-xs" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
@@ -787,7 +787,7 @@ function McpServersView({ servers, accentColor, embedded = false }: {
                   <SurfaceRow
                     key={name}
                     index={index}
-                    className="items-start gap-2 rounded-md px-2.5 py-2"
+                    className={embedded ? 'items-start gap-2 rounded-md px-2 py-1.5' : 'items-start gap-2 rounded-md px-2.5 py-2'}
                     style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
                   >
                     <span className="mt-1 shrink-0 rounded-full" style={{ width: 6, height: 6, background: accentColor ?? 'var(--accent)' }} />
@@ -821,13 +821,13 @@ function FileEditor({ file, embedded = false, accentColor, onUpdate, onSave }: {
   const isNew = file.content === null
 
   return (
-    <div className={embedded ? 'px-2 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
-      <InspectorCard className={embedded ? 'extension-panel-card p-1.5' : 'p-2'}>
+    <div className={embedded ? 'extensions-panel-embedded-entry px-2 py-0.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono" style={{ color: isNew ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{file.label}</span>}
           defaultOpen={embedded ? false : file.content !== null}
           meta={isNew ? <Badge>new</Badge> : undefined}
-          bodyClassName="pt-2"
+          bodyClassName={embedded ? 'pt-1 pb-1' : 'pt-2'}
         >
           {!embedded && (
             <div className="text-xs mb-1.5 truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
@@ -881,12 +881,12 @@ function CommandsDirView({ dir, embedded = false, onOpenFile }: {
   const exists = dir.files !== null
 
   return (
-    <div className={embedded ? 'px-2 py-1.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
-      <InspectorCard className={embedded ? 'extension-panel-card p-1.5' : 'p-2'}>
+    <div className={embedded ? 'extensions-panel-embedded-entry px-2 py-0.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+      <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono" style={{ color: exists ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{dir.label}</span>}
           meta={<Badge>{!exists ? 'not found' : files.length === 0 ? 'empty' : `${files.length}`}</Badge>}
-          bodyClassName="pt-2"
+          bodyClassName={embedded ? 'pt-1 pb-1' : 'pt-2'}
         >
           {files.length === 0 ? (
             <div className="text-xs" style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>

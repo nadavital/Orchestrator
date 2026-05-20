@@ -956,7 +956,7 @@
   }
 
   .extensions-panel-section-heading {
-    min-height: 34px;
+    min-height: 30px;
   }
 
   .extensions-panel-summary {
@@ -994,9 +994,17 @@
     background: transparent;
   }
 
+  .extensions-panel-embedded-entry {
+    border-top-color: var(--border-subtle) !important;
+  }
+
   .extension-panel-card .motion-disclosure-trigger {
-    min-height: 34px;
-    padding: 0 6px;
+    min-height: 28px;
+    padding: 0 4px;
+  }
+
+  .extension-panel-card .motion-disclosure-content {
+    padding-left: 18px;
   }
 
   .extension-panel-card textarea {
