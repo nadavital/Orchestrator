@@ -1260,15 +1260,26 @@ function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, scr
             const projects = await window.api.projects.list();
             const sessions = await window.api.sessions.list();
             const bodyText = document.body.innerText;
+            const emptyState = document.querySelector('[data-testid="project-empty-state"]');
             const addProjectButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.includes('Add project'));
+            const emptyRect = emptyState?.getBoundingClientRect();
+            const actionRect = addProjectButton?.getBoundingClientRect();
             return {
               profile,
               projectCount: projects.length,
               sessionCount: sessions.length,
-              emptyStateVisible: Boolean(document.querySelector('[data-testid="project-empty-state"]')) &&
-                bodyText.includes('No projects'),
-              addProjectActionVisible: addProjectButton instanceof HTMLButtonElement
+              emptyStateVisible: Boolean(emptyState) &&
+                bodyText.includes('Add a project') &&
+                bodyText.includes('Choose a local folder to start a chat in that workspace.'),
+              emptyStateProminent: Boolean(emptyRect) &&
+                (emptyRect?.width ?? 0) >= 300 &&
+                (emptyRect?.height ?? 0) >= 150,
+              addProjectActionVisible: addProjectButton instanceof HTMLButtonElement,
+              addProjectActionProminent: addProjectButton instanceof HTMLButtonElement &&
+                (actionRect?.width ?? 0) >= 110 &&
+                (actionRect?.height ?? 0) >= 34,
+              noStaticSuggestionCards: !bodyText.includes('Try asking')
             };
           })()
         `)

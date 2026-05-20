@@ -1,6 +1,7 @@
 import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
 import { pickAndAddProject } from '../Sidebar/Sidebar'
+import { Button } from './designSystem'
 import Icon from './Icon'
 
 export default function EmptyState(): JSX.Element {
@@ -27,26 +28,35 @@ export default function EmptyState(): JSX.Element {
   if (!hasProjects) {
     return (
       <div
-        data-testid="project-empty-state"
-        className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center"
+        className="flex-1 min-w-0 flex items-center justify-center px-8 py-10 text-center"
         style={{ color: 'var(--color-text-muted)' }}
       >
-        <Icon name="folder" size={30} />
-        <div>
-          <div className="mb-1 text-base font-semibold" style={{ color: 'var(--color-text)' }}>
-            No projects
+        <div data-testid="project-empty-state" className="w-full max-w-[460px]">
+          <div
+            className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl"
+            style={{
+              background: 'color-mix(in srgb, var(--accent) 10%, var(--surface-bg))',
+              border: '1px solid color-mix(in srgb, var(--accent) 22%, var(--border-subtle))',
+              color: 'var(--accent)',
+            }}
+          >
+            <Icon name="folder" size={26} />
           </div>
-          <div className="mb-5 text-sm">
-            Choose a local folder to start.
+          <div className="mb-2 text-xl font-semibold tracking-normal" style={{ color: 'var(--color-text)' }}>
+            Add a project
           </div>
-          <button
+          <div className="mx-auto mb-6 max-w-[340px] text-sm leading-6">
+            Choose a local folder to start a chat in that workspace.
+          </div>
+          <Button
+            dataTestId="project-empty-state-add"
+            variant="primary"
             onClick={() => { void handleAddProject() }}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-            style={{ background: 'var(--accent)', color: '#fff', borderRadius: 'var(--radius-md)' }}
+            className="px-4 py-2 text-sm"
           >
             <Icon name="plus" size={14} />
             Add project
-          </button>
+          </Button>
         </div>
       </div>
     )

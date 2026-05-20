@@ -163,7 +163,10 @@ child.on('exit', (code) => {
         noProjects: result.projectCount === 0,
         noSessions: result.sessionCount === 0,
         emptyStateVisible: result.emptyStateVisible === true,
-        addProjectActionVisible: result.addProjectActionVisible === true
+        emptyStateProminent: result.emptyStateProminent === true,
+        addProjectActionVisible: result.addProjectActionVisible === true,
+        addProjectActionProminent: result.addProjectActionProminent === true,
+        noStaticSuggestionCards: result.noStaticSuggestionCards === true
       }
     : captureView === 'session-switch'
     ? {
