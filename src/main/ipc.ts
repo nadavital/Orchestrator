@@ -29,6 +29,7 @@ type FilePreviewResult =
   | { kind: 'markdown'; size: number; text: string; truncated: boolean }
   | { kind: 'json'; size: number; text: string; truncated: boolean }
   | { kind: 'csv'; size: number; text: string; truncated: boolean }
+  | { kind: 'notebook'; size: number; text: string; truncated: boolean }
   | { kind: 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
   | { kind: 'missing' | 'unreadable'; size?: number; truncated: false }
 
@@ -60,6 +61,7 @@ const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bm
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdx'])
 const JSON_EXTENSIONS = new Set(['.json', '.jsonl'])
 const CSV_EXTENSIONS = new Set(['.csv', '.tsv'])
+const NOTEBOOK_EXTENSIONS = new Set(['.ipynb'])
 const HTML_EXTENSIONS = new Set(['.html', '.htm'])
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.aiff', '.m4a', '.aac', '.flac', '.ogg'])
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm'])
@@ -125,6 +127,14 @@ function previewFile(filePath: string): FilePreviewResult {
     }
     if (looksBinary(buffer)) return { kind: 'binary', size, truncated: false }
     const text = buffer.toString('utf8')
+    if (NOTEBOOK_EXTENSIONS.has(extension)) {
+      return {
+        kind: 'notebook',
+        size,
+        text,
+        truncated: size > FILE_PREVIEW_LIMIT
+      }
+    }
     if (JSON_EXTENSIONS.has(extension)) {
       return {
         kind: 'json',

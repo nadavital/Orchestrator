@@ -82,6 +82,15 @@ if (captureView === 'inspector' || captureView === 'browser') {
   writeFileSync(join(workspaceDir, 'preview-page.html'), '<!doctype html><main><h1>HTML preview smoke</h1><p>Rendered in the file inspector.</p></main>\n')
   writeFileSync(join(workspaceDir, 'data-preview-smoke.json'), JSON.stringify({ status: 'baseline', items: [{ name: 'alpha', count: 1 }] }, null, 2))
   writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,1,baseline\n')
+  writeFileSync(join(workspaceDir, 'notebook-preview-smoke.ipynb'), JSON.stringify({
+    cells: [
+      { cell_type: 'markdown', source: ['# Notebook smoke\n', 'Baseline'] },
+      { cell_type: 'code', source: ['value = 1\n', 'value'] }
+    ],
+    metadata: { kernelspec: { display_name: 'Python 3' } },
+    nbformat: 4,
+    nbformat_minor: 5
+  }, null, 2))
   writeFileSync(join(workspaceDir, 'binary-preview-smoke.bin'), Buffer.from([0, 1, 2, 3, 4, 5, 255]))
   spawnSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: workspaceDir, stdio: 'ignore' })
@@ -92,6 +101,16 @@ if (captureView === 'inspector' || captureView === 'browser') {
   writeFileSync(join(workspaceDir, 'review-new.txt'), 'new review file\n')
   writeFileSync(join(workspaceDir, 'data-preview-smoke.json'), JSON.stringify({ status: 'updated', items: [{ name: 'alpha', count: 2 }, { name: 'beta', count: 3 }] }, null, 2))
   writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,2,updated\nbeta,3,new\n')
+  writeFileSync(join(workspaceDir, 'notebook-preview-smoke.ipynb'), JSON.stringify({
+    cells: [
+      { cell_type: 'markdown', source: ['# Notebook smoke\n', 'Updated'] },
+      { cell_type: 'code', source: ['value = 2\n', 'value'] },
+      { cell_type: 'markdown', source: ['Summary cell'] }
+    ],
+    metadata: { kernelspec: { display_name: 'Python 3' } },
+    nbformat: 4,
+    nbformat_minor: 5
+  }, null, 2))
   writeFileSync(join(workspaceDir, 'binary-preview-smoke.bin'), Buffer.from([0, 1, 2, 3, 4, 5, 6, 255]))
   rmSync(join(workspaceDir, 'review-delete.txt'), { force: true })
   browserSmokeServer = createServer((request, response) => {
@@ -449,6 +468,7 @@ child.on('exit', (code) => {
         reviewSearchClear: captureView !== 'inspector' || result.reviewSearchClearWorks === true,
         reviewJsonPreview: captureView !== 'inspector' || result.reviewJsonPreviewWorks === true,
         reviewCsvPreview: captureView !== 'inspector' || result.reviewCsvPreviewWorks === true,
+        reviewNotebookPreview: captureView !== 'inspector' || result.reviewNotebookPreviewWorks === true,
         reviewBinaryState: captureView !== 'inspector' || result.reviewBinaryStateWorks === true,
         reviewBinaryActions: captureView !== 'inspector' || result.reviewBinaryActionsWork === true,
         filesTabSearch: captureView !== 'inspector' || result.filesTabSearchWorks === true,
@@ -459,6 +479,7 @@ child.on('exit', (code) => {
         filesHtmlPreview: captureView !== 'inspector' || result.filesHtmlPreviewWorks === true,
         filesJsonPreview: captureView !== 'inspector' || result.filesJsonPreviewWorks === true,
         filesCsvPreview: captureView !== 'inspector' || result.filesCsvPreviewWorks === true,
+        filesNotebookPreview: captureView !== 'inspector' || result.filesNotebookPreviewWorks === true,
         filesBinaryPreview: captureView !== 'inspector' || result.filesBinaryPreviewWorks === true,
         filesNoResults: captureView !== 'inspector' || result.filesNoResultsWorks === true,
         filesSearchClear: captureView !== 'inspector' || result.filesSearchClearWorks === true,

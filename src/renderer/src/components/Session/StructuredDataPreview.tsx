@@ -9,6 +9,10 @@ interface Props {
 }
 
 export default function StructuredDataPreview({ name, preview, testId, statusLabel }: Props): JSX.Element {
+  if (preview.kind === 'notebook') {
+    return <NotebookPreview name={name} preview={preview} testId={testId} statusLabel={statusLabel} />
+  }
+
   const label = preview.kind === 'csv' ? (name.toLowerCase().endsWith('.tsv') ? 'TSV' : 'CSV') : 'JSON'
   return (
     <div className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden" data-testid={testId}>
@@ -25,6 +29,59 @@ export default function StructuredDataPreview({ name, preview, testId, statusLab
       {preview.kind === 'csv'
         ? <CsvPreview name={name} text={preview.text ?? ''} />
         : <JsonPreview text={preview.text ?? ''} />}
+    </div>
+  )
+}
+
+function NotebookPreview({
+  name,
+  preview,
+  testId,
+  statusLabel
+}: {
+  name: string
+  preview: FilePreviewResult
+  testId: string
+  statusLabel?: string
+}): JSX.Element {
+  const notebook = parseNotebook(preview.text ?? '')
+  return (
+    <div className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden" data-testid={testId}>
+      <div className="file-preview-header">
+        {statusLabel && <Badge tone="neutral">{statusLabel}</Badge>}
+        <Badge tone="neutral">Notebook</Badge>
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+      </div>
+      {preview.truncated && (
+        <div className="file-preview-note">
+          Showing first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
+        </div>
+      )}
+      <div className="file-preview-meta-strip">
+        <span>{notebook.cells.length.toLocaleString()} cells</span>
+        {notebook.kernel && <span>{notebook.kernel}</span>}
+        {!notebook.valid && <span>Raw JSON shown</span>}
+      </div>
+      {notebook.valid ? (
+        <div className="notebook-preview-list min-h-0 flex-1 overflow-auto">
+          {notebook.cells.slice(0, 40).map((cell, index) => (
+            <section className="notebook-preview-cell" key={index}>
+              <div className="notebook-preview-cell-header">
+                <Badge tone="neutral">{cell.type}</Badge>
+                <span>Cell {index + 1}</span>
+              </div>
+              <pre>{cell.source || 'Empty cell'}</pre>
+            </section>
+          ))}
+          {notebook.cells.length > 40 && (
+            <div className="file-preview-note">First 40 cells shown.</div>
+          )}
+        </div>
+      ) : (
+        <pre className="file-preview-code min-h-0 flex-1 overflow-auto" data-valid="false">
+          {preview.text ?? ''}
+        </pre>
+      )}
     </div>
   )
 }
@@ -140,6 +197,39 @@ function parseDelimitedRows(text: string, delimiter: string): string[][] {
     rows.push(row)
   }
   return rows.filter((currentRow) => currentRow.some((value) => value.length > 0))
+}
+
+function parseNotebook(text: string): {
+  valid: boolean
+  kernel: string | null
+  cells: Array<{ type: string; source: string }>
+} {
+  try {
+    const parsed = JSON.parse(text) as {
+      metadata?: { kernelspec?: { display_name?: unknown; name?: unknown } }
+      cells?: Array<{ cell_type?: unknown; source?: unknown }>
+    }
+    const cells = Array.isArray(parsed.cells)
+      ? parsed.cells.map((cell) => ({
+        type: typeof cell.cell_type === 'string' ? cell.cell_type : 'cell',
+        source: normalizeNotebookSource(cell.source).trim()
+      }))
+      : []
+    const kernel = parsed.metadata?.kernelspec?.display_name ?? parsed.metadata?.kernelspec?.name
+    return {
+      valid: true,
+      kernel: typeof kernel === 'string' && kernel.trim() ? kernel : null,
+      cells
+    }
+  } catch {
+    return { valid: false, kernel: null, cells: [] }
+  }
+}
+
+function normalizeNotebookSource(source: unknown): string {
+  if (Array.isArray(source)) return source.map((part) => String(part)).join('')
+  if (typeof source === 'string') return source
+  return ''
 }
 
 function formatBytes(value: number): string {

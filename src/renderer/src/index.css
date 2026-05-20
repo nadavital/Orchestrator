@@ -835,6 +835,45 @@
     color: var(--text-primary);
   }
 
+  .notebook-preview-list {
+    padding: 8px;
+  }
+
+  .notebook-preview-cell {
+    border: 1px solid var(--border-subtle);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--surface-bg) 84%, var(--control-bg));
+    overflow: hidden;
+  }
+
+  .notebook-preview-cell + .notebook-preview-cell {
+    margin-top: 8px;
+  }
+
+  .notebook-preview-cell-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 6px 8px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .notebook-preview-cell pre {
+    max-height: 220px;
+    margin: 0;
+    overflow: auto;
+    padding: 8px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-code-size);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   .motion-panel-right:not(.right-sidebar-expanded) .files-panel-root[data-embedded='true'] .files-panel-body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(104px, 0.36fr) minmax(0, 1fr);

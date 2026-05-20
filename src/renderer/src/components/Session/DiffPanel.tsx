@@ -269,6 +269,7 @@ function ReviewPreview({
     preview?.kind === 'markdown' ||
     preview?.kind === 'json' ||
     preview?.kind === 'csv' ||
+    preview?.kind === 'notebook' ||
     preview?.kind === 'audio' ||
     preview?.kind === 'video'
   if ((isBinaryDiff(diff) && !hasNativePreview) || preview?.kind === 'binary') {
@@ -347,6 +348,16 @@ function ReviewPreview({
         preview={preview}
         statusLabel={fileStatusLabel(change.status)}
         testId="review-csv-state"
+      />
+    )
+  }
+  if (preview?.kind === 'notebook') {
+    return (
+      <StructuredDataPreview
+        name={change.path}
+        preview={preview}
+        statusLabel={fileStatusLabel(change.status)}
+        testId="review-notebook-state"
       />
     )
   }
