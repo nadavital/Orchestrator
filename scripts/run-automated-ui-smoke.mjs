@@ -50,6 +50,8 @@ const captureView = process.argv.includes('--settings-providers')
                               ? 'terminal'
                               : 'main'
 const runPackaged = process.argv.includes('--packaged')
+const foregroundSmoke = process.argv.includes('--foreground') ||
+  process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_FOREGROUND === '1'
 const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
@@ -137,6 +139,7 @@ const child = spawn(launch.bin, launch.args, {
     ORCHESTRATOR_SMOKE_WORKSPACE_DIR: workspaceDir,
     ORCHESTRATOR_DISABLE_PET_OVERLAY: ['pet-overlay', 'motion-reduced'].includes(captureView) ? '0' : '1',
     ORCHESTRATOR_FORCE_REDUCED_MOTION: captureView === 'motion-reduced' ? '1' : process.env.ORCHESTRATOR_FORCE_REDUCED_MOTION,
+    ORCHESTRATOR_AUTOMATED_UI_SMOKE_FOREGROUND: foregroundSmoke ? '1' : '0',
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT: outputPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_SCREENSHOT: screenshotPath,
     ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW: captureView,
@@ -406,7 +409,12 @@ child.on('exit', (code) => {
           browserToolbarCompact: result.browserToolbarCompact === true,
           browserVisibilityControl: result.browserVisibilityControlWorks === true,
           browserStatusRowQuiet: result.browserStatusRowQuiet === true,
-          browserNoHorizontalOverflow: result.browserNoHorizontalOverflow === true
+          browserNoHorizontalOverflow: result.browserNoHorizontalOverflow === true,
+          smokeWindowPolicy: foregroundSmoke
+            ? result.smokeWindow?.foregroundAllowed === true
+            : result.smokeWindow?.foregroundAllowed === false &&
+              result.smokeWindow?.focused === false &&
+              result.smokeWindow?.visible === true
         }
     : {
         isolatedProfile: result.profile?.isIsolated === true,

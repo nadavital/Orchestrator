@@ -1992,6 +1992,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           };
         })()
       `).then(async (result) => {
+        result.smokeWindow = {
+          foregroundAllowed: process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_FOREGROUND === '1',
+          focused: win.isFocused(),
+          visible: win.isVisible()
+        }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
@@ -2620,6 +2625,11 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             };
           })()
         `)
+        result.smokeWindow = {
+          foregroundAllowed: process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_FOREGROUND === '1',
+          focused: win.isFocused(),
+          visible: win.isVisible()
+        }
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
