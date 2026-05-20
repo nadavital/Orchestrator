@@ -1085,9 +1085,11 @@ export default function BrowserPanel({
                     >
                       <Icon name="browser" size={13} />
                       <span className="min-w-0 flex-1 truncate">{target.title || shortUrl(target.url)}</span>
-                      <span className="browser-local-target-meta">
-                        <span>Running</span>
-                        <span>{target.source === 'recent' ? 'Recent' : 'Port'}</span>
+                      <span
+                        className="browser-local-target-meta"
+                        aria-label={`${target.source === 'recent' ? 'Recent' : 'Port'} local server ${shortUrl(target.url)}`}
+                      >
+                        <span className="browser-local-target-status-dot" aria-hidden="true" />
                         <span>{shortUrl(target.url)}</span>
                       </span>
                     </button>

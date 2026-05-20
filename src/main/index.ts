@@ -2491,6 +2491,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserLocalTargets.some((target) => target instanceof HTMLElement && Boolean(target.dataset.localTargetSource)) &&
               browserLocalTargetSortBefore === 'recent' &&
               browserLocalTargetSortAfter === 'port' &&
+              browserLocalTargets.every((target) => target instanceof HTMLElement && target.getBoundingClientRect().height <= 30) &&
+              browserLocalTargets.every((target) => !target.textContent?.includes('Running')) &&
               browserLocalTargets.every((target) => target instanceof HTMLElement && target.scrollWidth <= target.clientWidth + 2);
             const browserInput = document.querySelector('[data-testid="browser-url-input"]');
             var browserAddressSearchWorks = false;
