@@ -1109,29 +1109,38 @@ function ShortcutsSection(): JSX.Element {
   })
 
   return (
-    <div data-testid="shortcuts-settings-section" style={{ padding: '24px 44px 52px', maxWidth: 760, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16, marginBottom: 12 }}>
-        <label className="sr-only" htmlFor="settings-shortcut-search">Search keyboard shortcuts</label>
-        <input
-          id="settings-shortcut-search"
-          value={query}
-          onChange={(event) => setQuery(event.currentTarget.value)}
-          placeholder="Search shortcuts"
-          className="rounded-lg px-3 text-sm outline-none"
-          style={{
-            width: 'min(360px, 100%)',
-            height: 34,
-            background: 'var(--control-bg)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-primary)'
-          }}
-        />
-      </div>
-
+    <div data-testid="shortcuts-settings-section" style={{ padding: '18px 44px 52px', maxWidth: 760, margin: '0 auto' }}>
       <div
         className="overflow-hidden rounded-lg"
         style={{ border: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
       >
+        <div
+          className="flex items-center gap-3 border-b px-3 py-2"
+          style={{ borderColor: 'var(--border-subtle)' }}
+        >
+          <label className="sr-only" htmlFor="settings-shortcut-search">Search keyboard shortcuts</label>
+          <div className="inspector-search-field min-w-0 flex-1" style={{ height: 30 }}>
+            <Icon name="search" size={13} />
+            <input
+              id="settings-shortcut-search"
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              placeholder="Search shortcuts"
+              className="inspector-search-input min-w-0 flex-1 text-sm outline-none"
+            />
+            {query.trim() && (
+              <button
+                type="button"
+                aria-label="Clear shortcut search"
+                data-testid="settings-shortcut-search-clear"
+                className="inspector-search-clear"
+                onClick={() => setQuery('')}
+              >
+                <Icon name="close" size={11} />
+              </button>
+            )}
+          </div>
+        </div>
         {visibleShortcuts.length > 0 && (
           <div
             className="grid grid-cols-[minmax(0,1fr)_minmax(120px,auto)] gap-3 border-b px-3 py-2 text-[10px] font-bold uppercase"

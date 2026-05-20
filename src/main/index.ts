@@ -610,11 +610,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const shortcutsSection = document.querySelector('[data-testid="shortcuts-settings-section"]');
               const shortcutKeys = [...document.querySelectorAll('[data-testid="settings-shortcut-key"]')];
               const shortcutSequences = [...document.querySelectorAll('[data-testid="settings-shortcut-sequence"]')];
+              const shortcutSearch = document.querySelector('#settings-shortcut-search');
+              if (shortcutSearch instanceof HTMLInputElement) {
+                const setter = Object.getOwnPropertyDescriptor(shortcutSearch.constructor.prototype, 'value')?.set;
+                setter?.call(shortcutSearch, 'terminal');
+                shortcutSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+              }
+              const shortcutSearchClear = document.querySelector('[data-testid="settings-shortcut-search-clear"]');
+              if (shortcutSearchClear instanceof HTMLButtonElement) {
+                shortcutSearchClear.click();
+                await sleep(120);
+              }
               const shortcutText = shortcutsSection instanceof HTMLElement ? shortcutsSection.innerText : '';
               var settingsShortcutsCompactWorks =
                 shortcutsSection instanceof HTMLElement &&
                 shortcutsSection.innerText.includes('Command Palette') &&
                 shortcutsSection.innerText.includes('Shortcut') &&
+                shortcutSearch instanceof HTMLInputElement &&
+                shortcutSearch.value === '' &&
+                Boolean(shortcutsSection.querySelector('.inspector-search-field')) &&
+                !document.querySelector('[data-testid="settings-shortcut-search-clear"]') &&
                 !shortcutText.toLowerCase().includes('keybinding') &&
                 shortcutKeys.length >= 8 &&
                 shortcutSequences.length >= 8 &&
