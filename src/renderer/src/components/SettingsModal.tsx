@@ -1432,11 +1432,7 @@ function ProviderDropdown({
       style={{
         display: 'grid',
         gap: 10,
-        marginBottom: 14,
-        padding: 10,
-        borderRadius: 8,
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)'
+        marginBottom: 14
       }}
     >
       <div
