@@ -3401,7 +3401,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 clientY: actionRect.top + 8
               }));
               normalActionsButton.focus({ preventScroll: true });
-              await sleep(180);
+              await sleep(360);
               const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
               const visibleHoverCards = [...document.querySelectorAll('[data-testid="session-hover-card"]')];
               const visibleTooltip = visibleTooltips[0];
