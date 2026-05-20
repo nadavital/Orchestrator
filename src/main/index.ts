@@ -827,7 +827,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var browserTabWorks =
               browserWebview instanceof HTMLElement &&
               typeof browserWebview.getAttribute === 'function' &&
-              document.body.innerText.includes('Orchestrator Browser Smoke');
+              (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-current-url') ?? '')
+                .startsWith(${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')});
             var browserScreenshotWorks = Boolean(document.querySelector('[data-testid="browser-screenshot-preview"]'));
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const findInPageButton = findButton('Find in page');
@@ -989,6 +990,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 drawer.scrollWidth <= drawer.clientWidth + 2 &&
                 output.scrollWidth <= output.clientWidth + 2 &&
                 securityPane.scrollWidth <= securityPane.clientWidth + 2;
+            })();
+            var browserInspectorChromeCompactWorks = (() => {
+              const toolbar = document.querySelector('[data-testid="browser-inspector-toolbar"]');
+              const refresh = document.querySelector('[data-testid="browser-refresh-inspection"]');
+              const activeTabs = document.querySelectorAll('.browser-inspector-tab[data-active="true"]');
+              return toolbar instanceof HTMLElement &&
+                refresh instanceof HTMLButtonElement &&
+                refresh.textContent?.trim() === 'Refresh' &&
+                activeTabs.length === 1 &&
+                toolbar.getBoundingClientRect().height <= 34 &&
+                toolbar.scrollWidth <= toolbar.clientWidth + 2;
             })();
             const hideBrowserButton = findButton('Hide browser surface');
             if (hideBrowserButton instanceof HTMLButtonElement) {
@@ -1271,6 +1283,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserAssetBundleWorks: typeof browserAssetBundleWorks === 'boolean' ? browserAssetBundleWorks : null,
             browserSecurityPaneWorks: typeof browserSecurityPaneWorks === 'boolean' ? browserSecurityPaneWorks : null,
             browserSecurityPaneNoHorizontalOverflowWorks: typeof browserSecurityPaneNoHorizontalOverflowWorks === 'boolean' ? browserSecurityPaneNoHorizontalOverflowWorks : null,
+            browserInspectorChromeCompactWorks: typeof browserInspectorChromeCompactWorks === 'boolean' ? browserInspectorChromeCompactWorks : null,
             browserVisibilityControlWorks: typeof browserVisibilityControlWorks === 'boolean' ? browserVisibilityControlWorks : null,
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,

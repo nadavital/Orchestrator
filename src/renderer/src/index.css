@@ -839,6 +839,66 @@
     background: color-mix(in srgb, var(--surface-bg) 96%, var(--canvas-bg));
   }
 
+  .browser-inspector-toolbar {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 3px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 4px 6px;
+  }
+
+  .browser-inspector-tab,
+  .browser-inspector-action {
+    min-height: 24px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1;
+  }
+
+  .browser-inspector-tab {
+    padding: 0 7px;
+    text-transform: capitalize;
+  }
+
+  .browser-inspector-action {
+    padding: 0 8px;
+    color: var(--text-tertiary);
+  }
+
+  .browser-inspector-tab[data-active='true'] {
+    border-color: var(--border-subtle);
+    background: var(--control-bg);
+    color: var(--text-primary);
+  }
+
+  .browser-inspector-tab:not([data-active='true']):hover,
+  .browser-inspector-tab:not([data-active='true']):focus-visible,
+  .browser-inspector-action:not(:disabled):hover,
+  .browser-inspector-action:not(:disabled):focus-visible {
+    background: var(--control-bg-hover);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .browser-inspector-action:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  .browser-inspector-output {
+    height: 172px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
   .browser-targets-pane,
   .browser-security-pane {
     display: grid;

@@ -404,6 +404,7 @@ child.on('exit', (code) => {
         browserAssetBundle: captureView !== 'inspector' || result.browserAssetBundleWorks === true,
         browserSecurityPane: captureView !== 'inspector' || result.browserSecurityPaneWorks === true,
         browserSecurityPaneNoHorizontalOverflow: captureView !== 'inspector' || result.browserSecurityPaneNoHorizontalOverflowWorks === true,
+        browserInspectorChromeCompact: captureView !== 'inspector' || result.browserInspectorChromeCompactWorks === true,
         browserVisibilityControl: captureView !== 'inspector' || result.browserVisibilityControlWorks === true,
         rightPanelContextMenuWorks: captureView !== 'inspector' || result.rightPanelContextMenuWorks === true,
         rightPanelTabReorderWorks: captureView !== 'inspector' || result.rightPanelTabReorderWorks === true,

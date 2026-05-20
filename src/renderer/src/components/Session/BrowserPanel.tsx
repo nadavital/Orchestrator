@@ -773,18 +773,14 @@ export default function BrowserPanel({
 
         {workbench.inspectorOpen && (
           <div className="browser-inspector-drawer">
-            <div className="flex items-center gap-1 overflow-x-auto px-2 py-1.5" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+            <div className="browser-inspector-toolbar" data-testid="browser-inspector-toolbar">
               {(['console', 'dom', 'targets', 'assets', 'security'] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
                   data-testid={`browser-inspector-${mode}`}
-                  className="rounded-md px-2 py-1 text-xs capitalize"
-                  style={{
-                    background: workbench.inspectorMode === mode ? 'var(--control-bg-active)' : 'transparent',
-                    border: `1px solid ${workbench.inspectorMode === mode ? 'var(--border-strong)' : 'transparent'}`,
-                    color: workbench.inspectorMode === mode ? 'var(--text-primary)' : 'var(--text-secondary)'
-                  }}
+                  className="browser-inspector-tab"
+                  data-active={workbench.inspectorMode === mode ? 'true' : 'false'}
                   onClick={() => patchWorkbench({ inspectorMode: mode })}
                 >
                   {mode}
@@ -793,23 +789,21 @@ export default function BrowserPanel({
               <button
                 type="button"
                 data-testid="browser-refresh-inspection"
-                className="ml-auto rounded-md px-2 py-1 text-xs font-semibold"
-                style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)' }}
+                className="browser-inspector-action ml-auto"
                 disabled={!currentUrl || !visible}
                 onClick={runInspection}
               >
-                Inspect
+                Refresh
               </button>
               <button
                 type="button"
-                className="rounded-md px-2 py-1 text-xs"
-                style={{ color: 'var(--text-tertiary)' }}
+                className="browser-inspector-action"
                 onClick={() => patchWorkbench({ inspectorOpen: false })}
               >
                 Hide
               </button>
             </div>
-            <div className="h-[168px] overflow-y-auto overflow-x-hidden px-3 py-2 text-xs" data-testid="browser-inspector-output">
+            <div className="browser-inspector-output" data-testid="browser-inspector-output">
               {workbench.inspectorMode === 'console' && (
                 <ConsolePane logs={logs} artifactPath={artifactPath} screenshot={screenshot} onClear={() => setLogs([])} />
               )}
