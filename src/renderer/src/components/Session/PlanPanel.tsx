@@ -91,7 +91,11 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
                 onClick={() => setExpanded((value) => !value)}
               />
             )}
-            <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: 'var(--accent)' }}>
+            <div
+              className="text-[11px] font-semibold tracking-normal"
+              data-testid="plan-goal-label"
+              style={{ color: 'var(--accent)' }}
+            >
               Goal
             </div>
           </div>

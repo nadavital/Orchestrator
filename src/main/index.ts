@@ -742,7 +742,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(240);
             }
             const planPanel = document.querySelector('[data-testid="plan-panel"]');
+            const statusCardLabel = document.querySelector('[data-testid="status-card-label"]');
             const compactGoal = document.querySelector('[data-testid="plan-goal-compact-objective"]');
+            const goalLabel = document.querySelector('[data-testid="plan-goal-label"]');
             const goalToggle = document.querySelector('[data-testid="plan-goal-toggle"]');
             const taskList = document.querySelector('[data-testid="plan-task-list"]');
             const hiddenSentence = 'This hidden sentence should only appear after expanding the full objective.';
@@ -751,7 +753,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const transcriptText = document.querySelector('[data-testid="transcript-scroll"]')?.textContent ?? '';
             const compactGoalWorks =
               planPanel instanceof HTMLElement &&
+              statusCardLabel instanceof HTMLElement &&
+              getComputedStyle(statusCardLabel).textTransform !== 'uppercase' &&
               compactGoal instanceof HTMLElement &&
+              goalLabel instanceof HTMLElement &&
+              getComputedStyle(goalLabel).textTransform !== 'uppercase' &&
               compactGoal.textContent?.includes('Keep the right sidebar calm and useful') === true &&
               !compactPanelText.includes(hiddenSentence) &&
               !transcriptText.includes(hiddenSentence) &&

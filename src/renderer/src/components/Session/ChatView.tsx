@@ -1327,7 +1327,11 @@ function StatusCard({ content }: { content: string }): JSX.Element {
           {meta.icon}
         </span>
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: meta.tone }}>
+          <div
+            className="text-[11px] font-semibold tracking-normal"
+            data-testid="status-card-label"
+            style={{ color: meta.tone }}
+          >
             {meta.label}
           </div>
           <div className="mt-0.5" style={{ color: 'var(--color-text)', overflowWrap: 'anywhere' }}>
