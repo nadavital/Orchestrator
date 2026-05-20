@@ -80,8 +80,27 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
     <PlanSection>
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: 'var(--accent)' }}>
-            Goal
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: 'var(--accent)' }}>
+              Goal
+            </div>
+            {canExpand && (
+              <button
+                type="button"
+                className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                data-testid="plan-goal-toggle"
+                aria-expanded={expanded}
+                aria-label={expanded ? 'Hide full objective' : 'Show full objective'}
+                style={{
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--control-bg)'
+                }}
+                onClick={() => setExpanded((value) => !value)}
+              >
+                {expanded ? 'Hide' : 'Details'}
+              </button>
+            )}
           </div>
           <h3
             className="mt-1 text-[13px] font-semibold leading-5"
@@ -90,19 +109,6 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
           >
             {compactObjective}
           </h3>
-          {canExpand && (
-            <button
-              type="button"
-              className="mt-2 text-[11px] font-semibold"
-              data-testid="plan-goal-toggle"
-              aria-expanded={expanded}
-              aria-label={expanded ? 'Hide full objective' : 'Show full objective'}
-              style={{ color: 'var(--text-tertiary)' }}
-              onClick={() => setExpanded((value) => !value)}
-            >
-              {expanded ? 'Less' : 'Details'}
-            </button>
-          )}
           {expanded && (
             <div
               className="mt-2 text-xs"
