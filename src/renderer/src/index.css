@@ -1668,6 +1668,12 @@
     gap: 8px;
   }
 
+  .browser-assets-inline {
+    display: grid;
+    min-width: 0;
+    gap: 6px;
+  }
+
   .browser-assets-header,
   .browser-assets-row,
   .browser-assets-bundle-path {

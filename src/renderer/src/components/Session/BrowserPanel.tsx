@@ -581,6 +581,7 @@ export default function BrowserPanel({
       data-browser-current-url={currentUrl}
       data-browser-dom-targets={visibleTargets.length}
       data-browser-asset-count={assetInventory?.summary.totalCount ?? 0}
+      data-browser-inline-svg-count={assetInventory?.summary.inlineSvgCount ?? 0}
       data-browser-log-count={logs.length}
       data-browser-artifact-path={artifactPath ?? ''}
       data-browser-asset-bundle-path={assetBundlePath ?? ''}
@@ -1493,6 +1494,7 @@ function targetActionNeedsText(action: BrowserTargetAction): boolean {
 function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetInventory | null; bundlePath: string | null; onBundle: () => void }): JSX.Element {
   const kindEntries = Object.entries(inventory?.summary.byKind ?? {})
   const visibleAssets = (inventory?.assets ?? []).slice(0, 7)
+  const visibleInlineSvgs = (inventory?.inlineSvgs ?? []).slice(0, 4)
   return (
     <div className="browser-assets-pane" data-testid="browser-assets-pane">
       <div className="browser-assets-header">
@@ -1547,8 +1549,32 @@ function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetI
           </div>
         )}
       </div>
+      {visibleInlineSvgs.length > 0 && (
+        <div className="browser-assets-inline" data-testid="browser-inline-svg-list">
+          <div className="browser-target-section-title">Inline SVGs</div>
+          <div className="browser-assets-list">
+            {visibleInlineSvgs.map((asset) => (
+              <div key={asset.id} className="browser-assets-row" data-testid="browser-inline-svg-row">
+                <Badge tone="neutral">svg</Badge>
+                <div className="min-w-0">
+                  <div className="browser-assets-name">{asset.name}</div>
+                  <div className="browser-assets-meta">
+                    <span>{formatBytes(asset.markup.length)}</span>
+                    <span>inline markup</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  return `${(bytes / 1024).toFixed(1)} KB`
 }
 
 function assetOrigin(url: string): string {

@@ -1616,6 +1616,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const browserAssetsPane = document.querySelector('[data-testid="browser-assets-pane"]');
             const browserAssetsKindGrid = document.querySelector('[data-testid="browser-assets-kind-grid"]');
             const browserAssetRows = [...document.querySelectorAll('[data-testid="browser-assets-row"]')];
+            const browserInlineSvgList = document.querySelector('[data-testid="browser-inline-svg-list"]');
+            const browserInlineSvgRows = [...document.querySelectorAll('[data-testid="browser-inline-svg-row"]')];
             const bundleAssetsButton = document.querySelector('[data-testid="browser-assets-bundle"]');
             if (bundleAssetsButton instanceof HTMLButtonElement) {
               bundleAssetsButton.click();
@@ -1634,6 +1636,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               browserAssetsBundlePath instanceof HTMLElement &&
               browserAssetsBundlePath.scrollWidth <= browserAssetsBundlePath.clientWidth + 2 &&
               (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-asset-bundle-path') ?? '').includes('manifest.json');
+            var browserInlineSvgInventoryWorks =
+              Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-inline-svg-count') ?? '0') > 0 &&
+              browserInlineSvgList instanceof HTMLElement &&
+              browserInlineSvgRows.length > 0 &&
+              browserInlineSvgRows.every((row) => row instanceof HTMLElement && row.scrollWidth <= row.clientWidth + 2) &&
+              browserInlineSvgRows.some((row) => row.textContent?.includes('Inline smoke icon'));
             const securityInspectorButton = document.querySelector('[data-testid="browser-inspector-security"]');
             if (securityInspectorButton instanceof HTMLButtonElement) {
               securityInspectorButton.click();
@@ -2194,6 +2202,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserTargetCheckWorks: typeof browserTargetCheckWorks === 'boolean' ? browserTargetCheckWorks : null,
             browserTargetsPaneNoHorizontalOverflowWorks: typeof browserTargetsPaneNoHorizontalOverflowWorks === 'boolean' ? browserTargetsPaneNoHorizontalOverflowWorks : null,
             browserAssetBundleWorks: typeof browserAssetBundleWorks === 'boolean' ? browserAssetBundleWorks : null,
+            browserInlineSvgInventoryWorks: typeof browserInlineSvgInventoryWorks === 'boolean' ? browserInlineSvgInventoryWorks : null,
             browserSecurityPaneWorks: typeof browserSecurityPaneWorks === 'boolean' ? browserSecurityPaneWorks : null,
             browserSecurityPaneNoHorizontalOverflowWorks: typeof browserSecurityPaneNoHorizontalOverflowWorks === 'boolean' ? browserSecurityPaneNoHorizontalOverflowWorks : null,
             browserInspectorChromeCompactWorks: typeof browserInspectorChromeCompactWorks === 'boolean' ? browserInspectorChromeCompactWorks : null,

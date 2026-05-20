@@ -609,6 +609,7 @@ child.on('exit', (code) => {
         browserTargetCheck: captureView !== 'inspector' || browserDeepChecksCoveredByBrowserSmoke || result.browserTargetCheckWorks === true,
         browserTargetsPaneNoHorizontalOverflow: captureView !== 'inspector' || browserDeepChecksCoveredByBrowserSmoke || result.browserTargetsPaneNoHorizontalOverflowWorks === true,
         browserAssetBundle: captureView !== 'inspector' || result.browserAssetBundleWorks === true,
+        browserInlineSvgInventory: captureView !== 'inspector' || result.browserInlineSvgInventoryWorks === true,
         browserSecurityPane: captureView !== 'inspector' || result.browserSecurityPaneWorks === true,
         browserSecurityPaneNoHorizontalOverflow: captureView !== 'inspector' || result.browserSecurityPaneNoHorizontalOverflowWorks === true,
         browserInspectorChromeCompact: captureView !== 'inspector' || result.browserInspectorChromeCompactWorks === true,
