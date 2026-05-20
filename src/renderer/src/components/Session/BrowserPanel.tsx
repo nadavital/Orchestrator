@@ -1491,30 +1491,72 @@ function targetActionNeedsText(action: BrowserTargetAction): boolean {
 }
 
 function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetInventory | null; bundlePath: string | null; onBundle: () => void }): JSX.Element {
+  const kindEntries = Object.entries(inventory?.summary.byKind ?? {})
+  const visibleAssets = (inventory?.assets ?? []).slice(0, 7)
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Badge tone="neutral">assets {inventory?.summary.totalCount ?? 0}</Badge>
-        <Badge tone="neutral">svg {inventory?.summary.inlineSvgCount ?? 0}</Badge>
-        <button type="button" className="ml-auto text-xs font-semibold" style={{ color: 'var(--accent)' }} disabled={!inventory} onClick={onBundle}>Bundle files</button>
-      </div>
-      {bundlePath && <div className="truncate" style={{ color: 'var(--text-tertiary)' }}>{bundlePath}</div>}
-      <div className="grid grid-cols-2 gap-1">
-        {Object.entries(inventory?.summary.byKind ?? {}).map(([kind, count]) => (
-          <div key={kind} className="rounded-md px-2 py-1" style={{ background: 'var(--control-bg)', color: 'var(--text-secondary)' }}>
-            {kind}: {count}
+    <div className="browser-assets-pane" data-testid="browser-assets-pane">
+      <div className="browser-assets-header">
+        <div className="min-w-0">
+          <div className="browser-target-section-title">Inventory</div>
+          <div className="browser-assets-summary">
+            <span>{inventory?.summary.totalCount ?? 0} files</span>
+            <span>{inventory?.summary.inlineSvgCount ?? 0} inline svg</span>
           </div>
-        ))}
+        </div>
+        <button
+          type="button"
+          data-testid="browser-assets-bundle"
+          className="browser-assets-bundle"
+          disabled={!inventory}
+          onClick={onBundle}
+        >
+          Bundle
+        </button>
       </div>
-      <div className="space-y-1">
-        {(inventory?.assets ?? []).slice(0, 6).map((asset) => (
-          <div key={asset.id} className="truncate rounded-md px-2 py-1" style={{ background: 'var(--control-bg)', color: 'var(--text-primary)' }}>
-            {asset.kind} · {asset.name}
+      {bundlePath && (
+        <div className="browser-assets-bundle-path" data-testid="browser-assets-bundle-path">
+          <span>manifest</span>
+          <span>{bundlePath}</span>
+        </div>
+      )}
+      {kindEntries.length > 0 && (
+        <div className="browser-assets-kind-grid" data-testid="browser-assets-kind-grid">
+          {kindEntries.map(([kind, count]) => (
+            <div key={kind} className="browser-assets-kind">
+              <span>{kind}</span>
+              <strong>{count}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="browser-assets-list" data-testid="browser-assets-list">
+        {visibleAssets.length > 0 ? visibleAssets.map((asset) => (
+          <div key={asset.id} className="browser-assets-row" data-testid="browser-assets-row">
+            <Badge tone="neutral">{asset.kind}</Badge>
+            <div className="min-w-0">
+              <div className="browser-assets-name">{asset.name}</div>
+              <div className="browser-assets-meta">
+                <span>{assetOrigin(asset.url)}</span>
+                <span>{asset.sources.length} source{asset.sources.length === 1 ? '' : 's'}</span>
+              </div>
+            </div>
           </div>
-        ))}
+        )) : (
+          <div className="browser-assets-empty" data-testid="browser-assets-empty">
+            Inspect a loaded page to collect assets.
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+function assetOrigin(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return 'inline'
+  }
 }
 
 function SecurityPane({

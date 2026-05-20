@@ -1427,8 +1427,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               assetsInspectorButton.click();
               await sleep(120);
             }
-            const bundleAssetsButton = [...document.querySelectorAll('button')]
-              .find((button) => button.textContent?.includes('Bundle files'));
+            const browserAssetsPane = document.querySelector('[data-testid="browser-assets-pane"]');
+            const browserAssetsKindGrid = document.querySelector('[data-testid="browser-assets-kind-grid"]');
+            const browserAssetRows = [...document.querySelectorAll('[data-testid="browser-assets-row"]')];
+            const bundleAssetsButton = document.querySelector('[data-testid="browser-assets-bundle"]');
             if (bundleAssetsButton instanceof HTMLButtonElement) {
               bundleAssetsButton.click();
               for (let index = 0; index < 30; index += 1) {
@@ -1436,7 +1438,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(100);
               }
             }
+            const browserAssetsBundlePath = document.querySelector('[data-testid="browser-assets-bundle-path"]');
             var browserAssetBundleWorks =
+              browserAssetsPane instanceof HTMLElement &&
+              browserAssetsKindGrid instanceof HTMLElement &&
+              browserAssetRows.length > 0 &&
+              browserAssetRows.every((row) => row instanceof HTMLElement && row.scrollWidth <= row.clientWidth + 2) &&
+              bundleAssetsButton instanceof HTMLButtonElement &&
+              browserAssetsBundlePath instanceof HTMLElement &&
+              browserAssetsBundlePath.scrollWidth <= browserAssetsBundlePath.clientWidth + 2 &&
               (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-asset-bundle-path') ?? '').includes('manifest.json');
             const securityInspectorButton = document.querySelector('[data-testid="browser-inspector-security"]');
             if (securityInspectorButton instanceof HTMLButtonElement) {

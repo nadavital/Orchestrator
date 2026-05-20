@@ -1453,11 +1453,126 @@
     font-size: 11px;
   }
 
+  .browser-assets-pane,
   .browser-targets-pane,
   .browser-security-pane {
     display: grid;
     min-width: 0;
     gap: 12px;
+  }
+
+  .browser-assets-pane {
+    gap: 8px;
+  }
+
+  .browser-assets-header,
+  .browser-assets-row,
+  .browser-assets-bundle-path {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--control-bg) 48%, transparent);
+    padding: 8px;
+  }
+
+  .browser-assets-header {
+    justify-content: space-between;
+  }
+
+  .browser-assets-summary,
+  .browser-assets-meta,
+  .browser-assets-bundle-path {
+    min-width: 0;
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+
+  .browser-assets-summary,
+  .browser-assets-meta {
+    display: flex;
+    gap: 8px;
+  }
+
+  .browser-assets-bundle {
+    min-height: 28px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--control-bg);
+    padding: 0 10px;
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .browser-assets-bundle:disabled {
+    opacity: 0.45;
+  }
+
+  .browser-assets-bundle-path span:last-child,
+  .browser-assets-name,
+  .browser-assets-meta span {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .browser-assets-bundle-path span:first-child {
+    color: var(--text-secondary);
+    font-weight: 700;
+  }
+
+  .browser-assets-kind-grid {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 6px;
+  }
+
+  .browser-assets-kind {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--control-bg) 58%, transparent);
+    padding: 6px 8px;
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  .browser-assets-kind span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .browser-assets-list {
+    display: grid;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .browser-assets-row {
+    align-items: start;
+  }
+
+  .browser-assets-name {
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .browser-assets-empty {
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--control-bg) 48%, transparent);
+    padding: 12px;
+    color: var(--text-tertiary);
+    text-align: center;
   }
 
   .browser-targets-pane {
