@@ -864,13 +864,13 @@ export default function BrowserPanel({
                 <button
                   type="button"
                   role="menuitem"
-                  aria-label={devicePreviewActive ? 'Desktop preview' : 'Mobile preview'}
+                  aria-label={devicePreviewActive ? 'Reset viewport' : 'Mobile preview'}
                   className="browser-action-row"
                   disabled={!currentUrl}
                   onClick={() => setViewportMode(devicePreviewActive ? 'desktop' : 'mobile')}
                 >
                   <Icon name={devicePreviewActive ? 'monitor' : 'smartphone'} size={13} />
-                  <span>{devicePreviewActive ? 'Desktop preview' : 'Mobile preview'}</span>
+                  <span>{devicePreviewActive ? 'Reset viewport' : 'Mobile preview'}</span>
                 </button>
                 <button
                   type="button"

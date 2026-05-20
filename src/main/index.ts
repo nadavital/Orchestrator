@@ -2481,11 +2481,17 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserViewportFrame instanceof HTMLElement &&
               viewportWidthBeforeRotate <= 410 &&
               browserViewportRotateWorks;
-            const desktopPreviewButton = findButton('Desktop preview');
-            if (desktopPreviewButton instanceof HTMLButtonElement) {
-              desktopPreviewButton.click();
+            const resetViewportButton = findButton('Reset viewport');
+            if (resetViewportButton instanceof HTMLButtonElement) {
+              resetViewportButton.click();
               await sleep(120);
             }
+            const browserPanelAfterReset = document.querySelector('[data-testid="browser-panel"]');
+            var browserViewportResetWorks =
+              resetViewportButton instanceof HTMLButtonElement &&
+              browserPanelAfterReset?.getAttribute('data-browser-device-mode') === 'desktop' &&
+              Number(browserPanelAfterReset?.getAttribute('data-browser-viewport-width') ?? '0') === 1280 &&
+              Number(browserPanelAfterReset?.getAttribute('data-browser-viewport-height') ?? '0') === 720;
             const noCacheButton = findButton('Reload without cache');
             if (noCacheButton instanceof HTMLButtonElement) {
               noCacheButton.click();
@@ -2985,6 +2991,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserFindNavigationWorks,
               browserZoomWorks,
               browserDeviceModeWorks,
+              browserViewportResetWorks,
               browserCacheReloadWorks,
               browserStopLoadingWorks,
               browserToolbarHistoryWorks,
