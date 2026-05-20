@@ -1337,7 +1337,7 @@ function ProvidersSection({
 
           {advancedOpen && (
             <div className="provider-details-grid" data-testid="provider-details-grid">
-              <ProviderDetailCard title="Status" wide>
+              <ProviderDetailCard wide>
                 <ProviderStatusDetails
                   providerId={selectedId}
                   diagnostics={diagnostics}
@@ -1390,13 +1390,13 @@ function ProviderDetailCard({
   children,
   wide = false
 }: {
-  title: string
+  title?: string
   children: ReactNode
   wide?: boolean
 }): JSX.Element {
   return (
     <section className="provider-detail-card" data-wide={wide ? 'true' : 'false'}>
-      <div className="provider-detail-card-title">{title}</div>
+      {title && <div className="provider-detail-card-title">{title}</div>}
       <div className="provider-detail-card-body">{children}</div>
     </section>
   )
@@ -1418,7 +1418,7 @@ function ProviderStatusDetails({
   return (
     <div className="provider-status-card" data-testid="provider-status-card">
       <div className="provider-status-section">
-        <div className="provider-status-section-title">Health</div>
+        <div className="provider-status-section-title">Status</div>
         {loadingDiagnostics && !diagnostics ? (
           <InlineMutedText>Checking local CLI...</InlineMutedText>
         ) : diagnostics ? (

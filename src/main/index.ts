@@ -454,7 +454,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Capabilities') &&
                 diagnosticsSection.innerText.includes('Config') &&
                 diagnosticsSection.innerText.includes('Setup') &&
-                diagnosticsSection.innerText.includes('Health') &&
                 diagnosticsSection.innerText.includes('Status') &&
                 providerDetailsGrid instanceof HTMLElement &&
                 providerDetailsGrid.getBoundingClientRect().height <= 360 &&
@@ -470,9 +469,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsSection.innerText.includes('auth status');
               var settingsProviderStatusUnifiedWorks =
                 providerStatusCard instanceof HTMLElement &&
-                providerStatusCard.innerText.includes('Health') &&
+                providerStatusCard.innerText.includes('Status') &&
                 providerStatusCard.innerText.includes('Usage') &&
                 providerStatusCard.querySelector('[data-testid="provider-usage-diagnostics-card"]') instanceof HTMLElement &&
+                !providerStatusCard.innerText.includes('Health') &&
                 providerStatusCard.getBoundingClientRect().height <= 180 &&
                 providerStatusCard.scrollWidth <= providerStatusCard.clientWidth + 2;
               var settingsUsageDiagnosticsWorks =
@@ -575,7 +575,6 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Capabilities') &&
                 diagnosticsSection.innerText.includes('Config') &&
                 diagnosticsSection.innerText.includes('Setup') &&
-                diagnosticsSection.innerText.includes('Health') &&
                 diagnosticsSection.innerText.includes('Status') &&
                 providerDetailsGrid instanceof HTMLElement &&
                 providerDetailsGrid.getBoundingClientRect().height <= 360 &&
@@ -591,9 +590,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !diagnosticsSection.innerText.includes('auth status');
               var settingsProviderStatusUnifiedWorks =
                 providerStatusCard instanceof HTMLElement &&
-                providerStatusCard.innerText.includes('Health') &&
+                providerStatusCard.innerText.includes('Status') &&
                 providerStatusCard.innerText.includes('Usage') &&
                 providerStatusCard.querySelector('[data-testid="provider-usage-diagnostics-card"]') instanceof HTMLElement &&
+                !providerStatusCard.innerText.includes('Health') &&
                 providerStatusCard.getBoundingClientRect().height <= 180 &&
                 providerStatusCard.scrollWidth <= providerStatusCard.clientWidth + 2;
               var settingsUsageDiagnosticsWorks =
