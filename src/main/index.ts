@@ -1708,14 +1708,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const refresh = document.querySelector('[data-testid="browser-refresh-inspection"]');
               const hide = document.querySelector('[data-testid="browser-hide-inspection"]');
               const activeTabs = document.querySelectorAll('.browser-inspector-tab[data-active="true"]');
+              const activeLabel = document.querySelector('.browser-inspector-tab[data-active="true"] span');
+              const inactiveLabels = [...document.querySelectorAll('.browser-inspector-tab:not([data-active="true"]) span')]
+                .filter((label) => label instanceof HTMLElement);
               return toolbar instanceof HTMLElement &&
                 refresh instanceof HTMLButtonElement &&
                 hide instanceof HTMLButtonElement &&
+                activeLabel instanceof HTMLElement &&
                 refresh.getAttribute('aria-label') === 'Refresh browser inspector' &&
                 hide.getAttribute('aria-label') === 'Hide browser inspector' &&
                 refresh.textContent?.trim() === '' &&
                 hide.textContent?.trim() === '' &&
                 activeTabs.length === 1 &&
+                getComputedStyle(activeLabel).display !== 'none' &&
+                inactiveLabels.length >= 3 &&
+                inactiveLabels.every((label) => getComputedStyle(label).display === 'none') &&
                 toolbar.getBoundingClientRect().height <= 34 &&
                 toolbar.scrollWidth <= toolbar.clientWidth + 2;
             })();
@@ -3022,6 +3029,19 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserStatusRowQuiet =
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'desktop' &&
               !document.querySelector('[data-testid="browser-status-row"]');
+            const browserInspectorChromeCompactWorks = (() => {
+              const toolbar = document.querySelector('[data-testid="browser-inspector-toolbar"]');
+              const activeLabel = document.querySelector('.browser-inspector-tab[data-active="true"] span');
+              const inactiveLabels = [...document.querySelectorAll('.browser-inspector-tab:not([data-active="true"]) span')]
+                .filter((label) => label instanceof HTMLElement);
+              return toolbar instanceof HTMLElement &&
+                activeLabel instanceof HTMLElement &&
+                getComputedStyle(activeLabel).display !== 'none' &&
+                inactiveLabels.length >= 3 &&
+                inactiveLabels.every((label) => getComputedStyle(label).display === 'none') &&
+                toolbar.getBoundingClientRect().height <= 34 &&
+                toolbar.scrollWidth <= toolbar.clientWidth + 2;
+            })();
             return {
               profile,
               browserActive: rightPanel instanceof HTMLElement &&
@@ -3059,6 +3079,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserSingleTabStripHidden,
               browserNoHorizontalOverflow,
               browserToolbarCompact,
+              browserInspectorChromeCompactWorks,
               browserVisibilityControlWorks,
               browserStatusRowQuiet
             };

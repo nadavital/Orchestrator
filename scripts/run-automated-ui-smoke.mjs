@@ -535,6 +535,7 @@ child.on('exit', (code) => {
           browserLoadErrorPanel: result.browserLoadErrorPanelWorks === true,
           browserSingleTabChrome: result.browserSingleTabStripHidden === true,
           browserToolbarCompact: result.browserToolbarCompact === true,
+          browserInspectorChromeCompact: result.browserInspectorChromeCompactWorks === true,
           browserVisibilityControl: result.browserVisibilityControlWorks === true,
           browserStatusRowQuiet: result.browserStatusRowQuiet === true,
           browserNoHorizontalOverflow: result.browserNoHorizontalOverflow === true,

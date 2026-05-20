@@ -90,6 +90,15 @@ interface BrowserTargetReadResult {
 
 type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'read' | 'scroll'
 type BrowserClearDataKind = 'all' | 'cache' | 'cookies' | 'siteData'
+type BrowserInspectorMode = BrowserWorkbenchState['inspectorMode']
+
+const BROWSER_INSPECTOR_TABS: Array<{ mode: BrowserInspectorMode; label: string; icon: Parameters<typeof Icon>[0]['name'] }> = [
+  { mode: 'console', label: 'Console', icon: 'terminal' },
+  { mode: 'dom', label: 'DOM', icon: 'file' },
+  { mode: 'targets', label: 'Targets', icon: 'dot' },
+  { mode: 'assets', label: 'Assets', icon: 'folder' },
+  { mode: 'security', label: 'Security', icon: 'warning' }
+]
 
 interface LocalBrowserTarget {
   url: string
@@ -1155,16 +1164,18 @@ export default function BrowserPanel({
         {workbench.inspectorOpen && (
           <div className="browser-inspector-drawer">
             <div className="browser-inspector-toolbar" data-testid="browser-inspector-toolbar">
-              {(['console', 'dom', 'targets', 'assets', 'security'] as const).map((mode) => (
+              {BROWSER_INSPECTOR_TABS.map(({ mode, label, icon }) => (
                 <button
                   key={mode}
                   type="button"
+                  aria-label={label}
                   data-testid={`browser-inspector-${mode}`}
                   className="browser-inspector-tab"
                   data-active={workbench.inspectorMode === mode ? 'true' : 'false'}
                   onClick={() => patchWorkbench({ inspectorMode: mode })}
                 >
-                  {mode}
+                  <Icon name={icon} size={13} />
+                  <span>{label}</span>
                 </button>
               ))}
               <div className="browser-inspector-actions">
