@@ -776,7 +776,7 @@ function McpServersView({ servers, accentColor, embedded = false }: {
         >
           {entries.length === 0 ? (
             <div className="text-xs" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
-              No MCP servers configured in ~/.claude/settings.json
+              No MCP servers configured.
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">

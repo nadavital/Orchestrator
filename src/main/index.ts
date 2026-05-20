@@ -1938,6 +1938,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 const summary = extensionPanel.querySelector('[data-testid="extensions-panel-summary"]');
                 return bodyText.includes('Instructions') &&
                   !bodyText.includes('Local Instructions') &&
+                  !bodyText.includes('~/.claude/settings.json') &&
                   extensionTextareas.length === 0 &&
                   extensionPanel.scrollWidth <= extensionPanel.clientWidth + 2 &&
                   (!(summary instanceof HTMLElement) || summary.getBoundingClientRect().height <= 24);
