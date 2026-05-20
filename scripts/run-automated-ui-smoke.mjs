@@ -570,6 +570,7 @@ child.on('exit', (code) => {
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
         rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,
         rightSidebarChromeCompact: captureView !== 'inspector' || result.rightSidebarChromeCompactWorks === true,
+        rightSidebarTrailingFade: captureView !== 'inspector' || result.rightSidebarTrailingFadeWorks === true,
         rightSidebarInactiveTabsCompact: captureView !== 'inspector' || result.rightSidebarInactiveTabsCompactWorks === true,
         rightSidebarInactiveTabTooltip: captureView !== 'inspector' || result.rightSidebarInactiveTabTooltipWorks === true,
         rightSidebarAddControlStable: captureView !== 'inspector' || result.rightSidebarAddControlStableWorks === true,

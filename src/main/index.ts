@@ -2178,6 +2178,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarTabRow.scrollWidth <= rightSidebarTabRow.clientWidth + 2 &&
             rightSidebarTabActions.getBoundingClientRect().height <= 26 &&
             (rightSidebarActiveTabStyle?.boxShadow === 'none' || rightSidebarActiveTabStyle?.boxShadow === '');
+          const rightSidebarTrailingFadeStyle = rightSidebarTabActions instanceof HTMLElement
+            ? getComputedStyle(rightSidebarTabActions, '::before')
+            : null;
+          const rightSidebarTrailingFadeWorks =
+            rightSidebarTrailingFadeStyle !== null &&
+            rightSidebarTrailingFadeStyle.content !== 'none' &&
+            rightSidebarTrailingFadeStyle.backgroundImage.includes('linear-gradient') &&
+            Number.parseFloat(rightSidebarTrailingFadeStyle.width || '0') >= 16 &&
+            rightSidebarTrailingFadeStyle.pointerEvents === 'none';
           const rightSidebarAddControlStableWorks =
             rightSidebarAddTabButton instanceof HTMLButtonElement &&
             rightSidebarAddTabButton.getAttribute('aria-label') === 'Add panel tab' &&
@@ -2381,6 +2390,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
             rightSidebarChromeCompactWorks,
+            rightSidebarTrailingFadeWorks,
             rightSidebarInactiveTabsCompactWorks,
             rightSidebarInactiveTabTooltipWorks,
             diffToolbarCompactWorks,
