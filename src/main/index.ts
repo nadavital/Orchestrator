@@ -1441,6 +1441,9 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserToolbar instanceof HTMLElement &&
               browserToolbar.getBoundingClientRect().height <= 38 &&
               (!(browserFindRow instanceof HTMLElement) || browserFindRow.getBoundingClientRect().height <= 34);
+            const browserStatusRowQuiet =
+              document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'desktop' &&
+              !document.querySelector('[data-testid="browser-status-row"]');
             return {
               profile,
               browserActive: rightPanel instanceof HTMLElement &&
@@ -1452,7 +1455,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserFindNavigationWorks,
               browserSingleTabStripHidden,
               browserNoHorizontalOverflow,
-              browserToolbarCompact
+              browserToolbarCompact,
+              browserStatusRowQuiet
             };
           })()
         `)

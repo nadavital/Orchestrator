@@ -114,6 +114,7 @@ export default function BrowserPanel({
   const urlOrigin = safeOrigin(currentUrl)
   const blocked = Boolean(urlOrigin && workbench.blockedOrigins.includes(originKey(urlOrigin)))
   const devicePreviewActive = workbench.deviceMode !== 'desktop'
+  const showStatusRow = isLoading || Boolean(error) || blocked || devicePreviewActive
   useEffect(() => {
     const nextTab = activeBrowserTab(workbench)
     const nextUrl = nextTab.url || initialUrl
@@ -676,49 +677,53 @@ export default function BrowserPanel({
         </div>
       )}
 
-      <div className="browser-status-row">
-        <div className="flex min-w-0 items-center gap-2">
-          {isLoading && <Badge tone="neutral">Loading</Badge>}
-          {error && <Badge tone="danger">Failed</Badge>}
-          {blocked && <Badge tone="warning">Blocked origin</Badge>}
-          <span className="min-w-0 flex-1 truncate" style={{ color: error ? 'var(--state-danger)' : 'var(--text-tertiary)' }}>
-            {error ?? title ?? currentUrl}
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <select
-            data-testid="browser-viewport-mode"
-            value={workbench.deviceMode}
-            onChange={(event) => setViewportMode(event.target.value as BrowserWorkbenchState['deviceMode'])}
-            className="rounded-md px-2 py-1 text-xs outline-none"
-            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-          >
-            <option value="desktop">Responsive</option>
-            <option value="mobile">iPhone 15 Pro</option>
-            <option value="pixel">Pixel 8</option>
-            <option value="ipad">iPad Air</option>
-            <option value="custom">Custom</option>
-          </select>
-          {workbench.deviceMode === 'custom' && (
-            <>
-              <input
-                aria-label="Viewport width"
-                value={workbench.viewportWidth}
-                onChange={(event) => patchWorkbench({ viewportWidth: Number(event.target.value) || 1280 })}
-                className="w-14 rounded-md px-1 py-1 text-xs outline-none"
+      {showStatusRow && (
+        <div className="browser-status-row" data-testid="browser-status-row">
+          <div className="flex min-w-0 items-center gap-2">
+            {isLoading && <Badge tone="neutral">Loading</Badge>}
+            {error && <Badge tone="danger">Failed</Badge>}
+            {blocked && <Badge tone="warning">Blocked origin</Badge>}
+            <span className="min-w-0 flex-1 truncate" style={{ color: error ? 'var(--state-danger)' : 'var(--text-tertiary)' }}>
+              {error ?? title ?? currentUrl}
+            </span>
+          </div>
+          {devicePreviewActive && (
+            <div className="flex items-center gap-1">
+              <select
+                data-testid="browser-viewport-mode"
+                value={workbench.deviceMode}
+                onChange={(event) => setViewportMode(event.target.value as BrowserWorkbenchState['deviceMode'])}
+                className="rounded-md px-2 py-0.5 text-xs outline-none"
                 style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-              />
-              <input
-                aria-label="Viewport height"
-                value={workbench.viewportHeight}
-                onChange={(event) => patchWorkbench({ viewportHeight: Number(event.target.value) || 720 })}
-                className="w-14 rounded-md px-1 py-1 text-xs outline-none"
-                style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-              />
-            </>
+              >
+                <option value="desktop">Responsive</option>
+                <option value="mobile">iPhone 15 Pro</option>
+                <option value="pixel">Pixel 8</option>
+                <option value="ipad">iPad Air</option>
+                <option value="custom">Custom</option>
+              </select>
+              {workbench.deviceMode === 'custom' && (
+                <>
+                  <input
+                    aria-label="Viewport width"
+                    value={workbench.viewportWidth}
+                    onChange={(event) => patchWorkbench({ viewportWidth: Number(event.target.value) || 1280 })}
+                    className="w-14 rounded-md px-1 py-0.5 text-xs outline-none"
+                    style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                  />
+                  <input
+                    aria-label="Viewport height"
+                    value={workbench.viewportHeight}
+                    onChange={(event) => patchWorkbench({ viewportHeight: Number(event.target.value) || 720 })}
+                    className="w-14 rounded-md px-1 py-0.5 text-xs outline-none"
+                    style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                  />
+                </>
+              )}
+            </div>
           )}
         </div>
-      </div>
+      )}
 
       <div
         className="grid min-h-0 flex-1 overflow-hidden"
