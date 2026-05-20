@@ -3594,6 +3594,15 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const projectHeadersCompact = [...document.querySelectorAll('[data-testid="project-section-header"]')]
               .filter((header) => header instanceof HTMLElement)
               .every((header) => header.getBoundingClientRect().height <= 24);
+            const emptyProjectNewChatRows = [...document.querySelectorAll('[data-testid="project-empty-new-chat"]')]
+              .filter((row) => row instanceof HTMLElement);
+            const emptyProjectNewChatCompact =
+              emptyProjectNewChatRows.length > 0 &&
+              emptyProjectNewChatRows.every((row) => (
+                row.getBoundingClientRect().height <= 28 &&
+                row.textContent?.trim() === 'New Chat' &&
+                row.querySelector('svg') instanceof SVGElement
+              ));
             const sidebarProjectsHeader = document.querySelector('[data-testid="sidebar-projects-header"]');
             const sidebarProjectActionButtons = sidebarProjectsHeader instanceof HTMLElement
               ? [...sidebarProjectsHeader.querySelectorAll('.motion-icon-button')]
@@ -3799,6 +3808,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarOverflowDebug,
               sessionRowsCompact,
               projectHeadersCompact,
+              emptyProjectNewChatCompact,
               sidebarSectionChromeCompact,
               idleRowRecencyHidden,
               importantRowStatusIconOnly,

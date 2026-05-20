@@ -178,12 +178,24 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
       {!collapsed && (
         <div>
           {sessions.length === 0 && (
-            <div
-              className="cursor-pointer"
-              style={{ color: 'var(--text-secondary)', padding: '2px 8px 2px 28px', fontSize: 12 }}
-              onClick={handleNewSession}
-            >
-              New chat
+            <div className="pl-5 pr-1 py-px">
+              <SurfaceRow
+                as="button"
+                dataTestId="project-empty-new-chat"
+                className="flex h-6 min-w-0 w-full items-center gap-1.5 text-left"
+                style={{
+                  padding: '2px 6px',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-secondary)',
+                  fontSize: 12,
+                  fontWeight: 600
+                }}
+                ariaLabel="New chat"
+                onClick={handleNewSession}
+              >
+                <Icon name="plus" size={12} />
+                <span className="min-w-0 flex-1 truncate">New Chat</span>
+              </SurfaceRow>
             </div>
           )}
           {visibleSessions.map((session) => (
