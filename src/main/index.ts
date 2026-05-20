@@ -1210,6 +1210,22 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           }
           const bodyText = document.body.innerText;
           const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+          const rightSidebarTabbar = document.querySelector('[data-testid="right-sidebar-tabbar"]');
+          const rightSidebarTabRow = document.querySelector('[data-testid="right-sidebar-tab-row"]');
+          const rightSidebarTabActions = document.querySelector('[data-testid="right-sidebar-tab-actions"]');
+          const rightSidebarActiveTab = document.querySelector('[data-testid="right-sidebar-tabbar"] .motion-tab-button[data-active="true"]');
+          const rightSidebarActiveTabStyle = rightSidebarActiveTab instanceof HTMLElement
+            ? getComputedStyle(rightSidebarActiveTab)
+            : null;
+          const rightSidebarChromeCompactWorks =
+            rightSidebarTabbar instanceof HTMLElement &&
+            rightSidebarTabRow instanceof HTMLElement &&
+            rightSidebarTabActions instanceof HTMLElement &&
+            rightSidebarActiveTab instanceof HTMLElement &&
+            rightSidebarTabbar.getBoundingClientRect().height <= 38 &&
+            rightSidebarTabRow.scrollWidth <= rightSidebarTabRow.clientWidth + 2 &&
+            rightSidebarTabActions.getBoundingClientRect().height <= 26 &&
+            (rightSidebarActiveTabStyle?.boxShadow === 'none' || rightSidebarActiveTabStyle?.boxShadow === '');
           const headerMetadataText = document.querySelector('[data-testid="session-header-metadata"]')?.textContent ?? '';
           const headerIdentityWorks =
             Boolean(document.querySelector('[data-testid="session-header-environment"]')) &&
@@ -1258,6 +1274,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               rightPanel.dataset.rightPanelActiveTab === 'diff' &&
               rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
+            rightSidebarChromeCompactWorks,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,

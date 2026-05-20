@@ -380,6 +380,7 @@ child.on('exit', (code) => {
         chatEmptyState: captureView !== 'inspector' || result.chatEmptyStateWorks === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
         rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,
+        rightSidebarChromeCompact: captureView !== 'inspector' || result.rightSidebarChromeCompactWorks === true,
         rightPanelExpand: captureView !== 'inspector' || result.rightPanelExpandWorks === true,
         reviewSearch: captureView !== 'inspector' || result.reviewSearchWorks === true,
         reviewBinaryState: captureView !== 'inspector' || result.reviewBinaryStateWorks === true,

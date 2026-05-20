@@ -247,8 +247,8 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
       >
       <div className="right-sidebar-chrome">
-        <div className="right-sidebar-tabbar">
-          <div className="right-sidebar-tab-row" data-app-shell-tab-controller>
+        <div className="right-sidebar-tabbar" data-testid="right-sidebar-tabbar">
+          <div className="right-sidebar-tab-row" data-testid="right-sidebar-tab-row" data-app-shell-tab-controller>
           {tabs.map((tab) => (
             <TabButton
               key={tab.id}
@@ -273,7 +273,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
             </TabButton>
           ))}
           </div>
-          <div className="right-sidebar-tab-actions">
+          <div className="right-sidebar-tab-actions" data-testid="right-sidebar-tab-actions">
             {closedToolTabs.length > 0 && (
               <div className="relative">
                 <IconButton
