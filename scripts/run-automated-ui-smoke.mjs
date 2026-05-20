@@ -648,6 +648,7 @@ child.on('exit', (code) => {
         settingsProviderStatusUnified: !['settings', 'settings-providers'].includes(captureView) || result.settingsProviderStatusUnifiedWorks === true,
         settingsUsageDiagnostics: !['settings', 'settings-providers'].includes(captureView) || result.settingsUsageDiagnosticsWorks === true,
         settingsProviderModelsCollapsed: !['settings', 'settings-providers'].includes(captureView) || result.settingsProviderModelsCollapsedWorks === true,
+        settingsProviderControlSurfaceUnified: captureView !== 'settings-providers' || result.settingsProviderControlSurfaceUnifiedWorks === true,
         settingsProviderCatalogLabelCalm: captureView !== 'settings-providers' || result.settingsProviderCatalogLabelCalm === true,
         settingsDiagnosticsDisclosureCompact: !['settings', 'settings-providers'].includes(captureView) || result.settingsDiagnosticsDisclosureCompactWorks === true,
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,

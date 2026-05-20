@@ -428,6 +428,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
+              const providerControlPanels = diagnosticsSection instanceof HTMLElement
+                ? [...diagnosticsSection.querySelectorAll('.provider-settings-stack .settings-panel')]
+                : [];
+              const providerControlPanelText = providerControlPanels[0] instanceof HTMLElement
+                ? providerControlPanels[0].innerText
+                : '';
               const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
                 ? usageDiagnosticsCard.innerText.replace(/\\s+/g, ' ')
                 : '';
@@ -506,6 +512,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;
+              var settingsProviderControlSurfaceUnifiedWorks =
+                providerControlPanels.length === 1 &&
+                providerControlPanelText.includes('Default') &&
+                providerControlPanelText.includes('Models') &&
+                providerControlPanelText.includes('Capabilities') &&
+                providerControlPanelText.indexOf('Default') < providerControlPanelText.indexOf('Models') &&
+                providerControlPanelText.indexOf('Models') < providerControlPanelText.indexOf('Capabilities');
               const diagnosticsToggle = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
               var settingsDiagnosticsDisclosureCompactWorks =
                 diagnosticsToggle instanceof HTMLElement &&
@@ -2448,6 +2461,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderStatusUnifiedWorks: typeof settingsProviderStatusUnifiedWorks === 'boolean' ? settingsProviderStatusUnifiedWorks : null,
             settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
             settingsProviderModelsCollapsedWorks: typeof settingsProviderModelsCollapsedWorks === 'boolean' ? settingsProviderModelsCollapsedWorks : null,
+            settingsProviderControlSurfaceUnifiedWorks: typeof settingsProviderControlSurfaceUnifiedWorks === 'boolean' ? settingsProviderControlSurfaceUnifiedWorks : null,
             settingsProviderCatalogLabelCalm: typeof settingsProviderCatalogLabelCalm === 'boolean' ? settingsProviderCatalogLabelCalm : null,
             settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,

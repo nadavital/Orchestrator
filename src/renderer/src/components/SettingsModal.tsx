@@ -1310,9 +1310,7 @@ function ProvidersSection({
                 />
               </CompactSetting>
             )}
-          </SettingsPanel>
 
-          <SettingsPanel>
             <CompactSetting title="Models">
               <div className="provider-models-row">
                 <ModelListManager
@@ -1333,6 +1331,16 @@ function ProvidersSection({
                 </button>
               </div>
             </CompactSetting>
+
+            {settingsCommandSurfaces.length > 0 && (
+              <CompactSetting title="Capabilities">
+                <ProviderCommandSurfaces
+                  providerId={selectedId}
+                  color={providerDef.color}
+                  surfaces={settingsCommandSurfaces}
+                />
+              </CompactSetting>
+            )}
           </SettingsPanel>
 
           {advancedOpen && (
@@ -1355,18 +1363,6 @@ function ProvidersSection({
                 <ProviderSetupDetails providerDef={providerDef} />
               </ProviderDetailCard>
             </div>
-          )}
-
-          {settingsCommandSurfaces.length > 0 && (
-            <SettingsPanel>
-              <CompactSetting title="Capabilities">
-                <ProviderCommandSurfaces
-                  providerId={selectedId}
-                  color={providerDef.color}
-                  surfaces={settingsCommandSurfaces}
-                />
-              </CompactSetting>
-            </SettingsPanel>
           )}
         </div>
       </div>
