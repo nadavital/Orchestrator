@@ -1223,140 +1223,137 @@ function ProvidersSection({
 
   return (
     <div data-testid="provider-settings-section" style={{ padding: '34px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
-      <SettingsIntro description="Provider defaults, local health, and config." />
-
-      <div style={{ display: 'grid', gridTemplateColumns: '190px minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
-        <ProviderSidePicker
+      <div style={{ maxWidth: 820, margin: '0 auto' }}>
+        <ProviderDropdown
           providers={providerList}
           selectedId={selectedId}
-          availability={providerAvailability}
           onSelect={setSelectedId}
         />
 
         {/* Per-provider content — key forces clean remount on provider switch, stopping DnD jitter */}
         <div key={selectedId}>
-        <ProviderHeaderCard
-          providerId={selectedId}
-          providerName={providerDef.name}
-          color={providerDef.color}
-          installed={installed}
-          isDefault={defaultProvider === selectedId}
-          installCmd={providerDef.installCmd}
-          onSetDefault={() => onSetDefaultProvider(selectedId)}
-        />
+          <ProviderHeaderCard
+            providerId={selectedId}
+            providerName={providerDef.name}
+            color={providerDef.color}
+            installed={installed}
+            isDefault={defaultProvider === selectedId}
+            installCmd={providerDef.installCmd}
+            onSetDefault={() => onSetDefaultProvider(selectedId)}
+          />
 
-        <SettingsPanel>
-          <CompactSetting title="Models">
-            <ModelListManager
-              providerDef={providerDef}
-              visibleIds={visibleIds}
-              onChange={handleVisibleModelsChange}
-            />
-          </CompactSetting>
-        </SettingsPanel>
-
-        <SettingsPanel>
-          <CompactSetting title="Default">
-            <DefaultModelPicker
-              providerDef={providerDef}
-              models={visibleModels}
-              currentModel={modelForPicker}
-              onSetModel={(id) => onSetDefaultModel(selectedId, id)}
-            />
-          </CompactSetting>
-
-          {providerDef.supportsEffort && providerDef.effortLevels.length > 0 && (
-            <CompactSetting title="Thinking">
-              <SegmentedControl
-                items={providerDef.effortLevels}
-                value={currentEffort}
-                color={providerDef.color}
-                onChange={(id) => onSetDefaultEffort(selectedId, id)}
-              />
-            </CompactSetting>
-          )}
-
-          {primaryPermissionModes.length > 0 && (
-            <CompactSetting title="Mode">
-              <SegmentedControl
-                items={primaryPermissionModes}
-                value={currentPermissionMode}
-                color={providerDef.color}
-                onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
-              />
-            </CompactSetting>
-          )}
-        </SettingsPanel>
-
-        {settingsCommandSurfaces.length > 0 && (
           <SettingsPanel>
-            <CompactSetting title="Provider details">
-              <ProviderCommandSurfaces
-                providerId={selectedId}
-                color={providerDef.color}
-                surfaces={settingsCommandSurfaces}
+            <CompactSetting title="Models">
+              <ModelListManager
+                providerDef={providerDef}
+                visibleIds={visibleIds}
+                onChange={handleVisibleModelsChange}
               />
             </CompactSetting>
           </SettingsPanel>
-        )}
 
-        <button
-          onClick={() => setAdvancedOpen((open) => !open)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            width: '100%',
-            marginTop: 14,
-            padding: '10px 12px',
-            borderRadius: 8,
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface)',
-            color: 'var(--color-text)',
-            cursor: 'pointer',
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-        >
-          Advanced
-          <span style={{ color: 'var(--color-text-muted)' }}>{advancedOpen ? 'Hide' : 'Show'}</span>
-        </button>
-
-        {advancedOpen && (
           <SettingsPanel>
-            {providerDef.id === 'claude' && (
-              <CompactSetting title="Endpoint">
-                <ClaudeEndpointField color={providerDef.color} />
-              </CompactSetting>
-            )}
-            <CompactSetting title="Config file">
-              <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
-            </CompactSetting>
-            {loadingDiagnostics && !diagnostics && (
-              <CompactSetting title="Status">
-                <InlineMutedText>Checking local CLI...</InlineMutedText>
-              </CompactSetting>
-            )}
-            {diagnostics && (
-              <CompactSetting title="Status">
-                <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
-              </CompactSetting>
-            )}
-            <CompactSetting title="Usage">
-              <ProviderUsageDiagnosticsCard
-                providerId={selectedId}
-                diagnostics={diagnostics}
-                usage={usageSnapshot}
-                color={providerDef.color}
+            <CompactSetting title="Default">
+              <DefaultModelPicker
+                providerDef={providerDef}
+                models={visibleModels}
+                currentModel={modelForPicker}
+                onSetModel={(id) => onSetDefaultModel(selectedId, id)}
               />
             </CompactSetting>
-            {diagnostics && diagnostics.probes.length > 0 && (
-              <CompactSetting title="Probes">
-                <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
+
+            {providerDef.supportsEffort && providerDef.effortLevels.length > 0 && (
+              <CompactSetting title="Thinking">
+                <SegmentedControl
+                  items={providerDef.effortLevels}
+                  value={currentEffort}
+                  color={providerDef.color}
+                  onChange={(id) => onSetDefaultEffort(selectedId, id)}
+                />
+              </CompactSetting>
+            )}
+
+            {primaryPermissionModes.length > 0 && (
+              <CompactSetting title="Mode">
+                <SegmentedControl
+                  items={primaryPermissionModes}
+                  value={currentPermissionMode}
+                  color={providerDef.color}
+                  onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
+                />
               </CompactSetting>
             )}
           </SettingsPanel>
-        )}
+
+          {settingsCommandSurfaces.length > 0 && (
+            <SettingsPanel>
+              <CompactSetting title="Provider details">
+                <ProviderCommandSurfaces
+                  providerId={selectedId}
+                  color={providerDef.color}
+                  surfaces={settingsCommandSurfaces}
+                />
+              </CompactSetting>
+            </SettingsPanel>
+          )}
+
+          <button
+            onClick={() => setAdvancedOpen((open) => !open)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              marginTop: 14,
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            Advanced
+            <span style={{ color: 'var(--color-text-muted)' }}>{advancedOpen ? 'Hide' : 'Show'}</span>
+          </button>
+
+          {advancedOpen && (
+            <SettingsPanel>
+              {providerDef.id === 'claude' && (
+                <CompactSetting title="Endpoint">
+                  <ClaudeEndpointField color={providerDef.color} />
+                </CompactSetting>
+              )}
+              <CompactSetting title="Config file">
+                <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
+              </CompactSetting>
+              {loadingDiagnostics && !diagnostics && (
+                <CompactSetting title="Status">
+                  <InlineMutedText>Checking local CLI...</InlineMutedText>
+                </CompactSetting>
+              )}
+              {diagnostics && (
+                <CompactSetting title="Status">
+                  <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
+                </CompactSetting>
+              )}
+              <CompactSetting title="Usage">
+                <ProviderUsageDiagnosticsCard
+                  providerId={selectedId}
+                  diagnostics={diagnostics}
+                  usage={usageSnapshot}
+                  color={providerDef.color}
+                />
+              </CompactSetting>
+              {diagnostics && diagnostics.probes.length > 0 && (
+                <CompactSetting title="Probes">
+                  <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
+                </CompactSetting>
+              )}
+            </SettingsPanel>
+          )}
         </div>
       </div>
     </div>
@@ -1379,35 +1376,36 @@ function visibleSettingsCommandSurfaces(providerId: string, surfaces: ProviderCo
   return surfaces.filter((surface) => CODEX_SETTINGS_COMMAND_SURFACE_IDS.has(surface.id))
 }
 
-function ProviderSidePicker({
+function ProviderDropdown({
   providers,
   selectedId,
-  availability,
   onSelect,
 }: {
   providers: Array<typeof PROVIDER_DEFS[string]>
   selectedId: string
-  availability: Record<string, boolean>
   onSelect: (id: string) => void
 }): JSX.Element {
   return (
     <div
       style={{
-        position: 'sticky',
-        top: 0,
-        padding: 10,
-        borderRadius: 10,
-        border: '1px solid var(--color-border)',
-        background: 'var(--color-surface)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        marginBottom: 12
       }}
     >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <span style={{ color: 'var(--color-text)', fontSize: 13, fontWeight: 700 }}>
+          Provider
+        </span>
+      </div>
       <select
         value={selectedId}
         onChange={(event) => onSelect(event.target.value)}
         style={{
-          width: '100%',
+          width: 'min(300px, 100%)',
           height: 32,
-          marginBottom: 8,
           borderRadius: 7,
           border: '1px solid var(--color-border)',
           background: 'var(--color-surface2)',
@@ -1422,40 +1420,6 @@ function ProviderSidePicker({
           <option key={provider.id} value={provider.id}>{provider.name}</option>
         ))}
       </select>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {providers.map((provider) => {
-          const ok = availability[provider.id] !== false
-          const active = selectedId === provider.id
-          return (
-            <button
-              key={provider.id}
-              onClick={() => onSelect(provider.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                width: '100%',
-                padding: '8px 9px',
-                borderRadius: 7,
-                border: `1px solid ${active ? provider.color : 'transparent'}`,
-                background: active ? `${provider.color}12` : 'transparent',
-                color: ok ? (active ? provider.color : 'var(--color-text)') : 'var(--color-text-muted)',
-                cursor: 'pointer',
-                opacity: ok ? 1 : 0.55,
-                textAlign: 'left',
-                fontSize: 12,
-                fontWeight: active ? 650 : 500,
-              }}
-            >
-              <ProviderIcon providerId={provider.id} size={13} color={ok ? provider.color : 'var(--color-text-muted)'} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {provider.name}
-              </span>
-            </button>
-          )
-        })}
-      </div>
     </div>
   )
 }

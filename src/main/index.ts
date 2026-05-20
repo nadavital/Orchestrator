@@ -366,11 +366,49 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(80);
             }
           }
-          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets') {
+          if (
+            ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings' ||
+            ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings-providers' ||
+            ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets'
+          ) {
             const settingsButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.trim() === 'Settings' || buttonLabel(button) === 'Settings');
             settingsButton?.click();
             await sleep(450);
+            if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings-providers') {
+              const diagnosticsButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Providers'));
+              diagnosticsButton?.click();
+              await sleep(450);
+              const advancedButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Advanced'));
+              advancedButton?.click();
+              await sleep(450);
+              const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
+              const providerSelects = diagnosticsSection instanceof HTMLElement
+                ? [...diagnosticsSection.querySelectorAll('select')]
+                : [];
+              const providerButtonLabels = diagnosticsSection instanceof HTMLElement
+                ? [...diagnosticsSection.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
+                : [];
+              var settingsProviderDropdownWorks =
+                diagnosticsSection instanceof HTMLElement &&
+                diagnosticsSection.innerText.includes('Provider') &&
+                providerSelects.some((select) => [...select.options].some((option) => option.textContent?.includes('Codex CLI'))) &&
+                !providerButtonLabels.some((label) => ['Claude Code', 'GitHub Copilot', 'Codex CLI', 'Cursor'].includes(label));
+              var settingsDiagnosticsSectionWorks =
+                diagnosticsSection instanceof HTMLElement &&
+                diagnosticsSection.innerText.includes('Provider details') &&
+                diagnosticsSection.innerText.includes('Config file');
+              var settingsUsageDiagnosticsWorks =
+                diagnosticsSection instanceof HTMLElement &&
+                diagnosticsSection.innerText.includes('Usage') &&
+                diagnosticsSection.innerText.includes('Captured runs') &&
+                diagnosticsSection.innerText.includes('Tokens') &&
+                diagnosticsSection.innerText.includes('Cost') &&
+                diagnosticsSection.innerText.includes('Budget/fallback') &&
+                Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]'));
+            }
             if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
               const appearanceButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Appearance'));
@@ -1153,6 +1191,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
+            settingsProviderDropdownWorks: typeof settingsProviderDropdownWorks === 'boolean' ? settingsProviderDropdownWorks : null,
             settingsDiagnosticsSectionWorks: typeof settingsDiagnosticsSectionWorks === 'boolean' ? settingsDiagnosticsSectionWorks : null,
             settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,

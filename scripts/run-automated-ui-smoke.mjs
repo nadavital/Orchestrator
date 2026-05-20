@@ -8,7 +8,9 @@ import { fileURLToPath } from 'url'
 import { prepareMacSmokeBundle } from './lib/packaged-smoke-bundle.mjs'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const captureView = process.argv.includes('--settings')
+const captureView = process.argv.includes('--settings-providers')
+  ? 'settings-providers'
+  : process.argv.includes('--settings')
   ? 'settings'
   : process.argv.includes('--capabilities')
     ? 'capabilities'
@@ -346,10 +348,10 @@ child.on('exit', (code) => {
         }
     : {
         isolatedProfile: result.profile?.isIsolated === true,
-        profileBadge: ['settings', 'resources', 'capabilities', 'pets'].includes(captureView) || result.hasProfileBadge === true,
+        profileBadge: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.hasProfileBadge === true,
         composer: result.hasComposer === true,
-        sidebarNavigation: ['settings', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
-        headerIdentity: ['settings', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerIdentityWorks === true,
+        sidebarNavigation: ['settings', 'settings-providers', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
+        headerIdentity: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerIdentityWorks === true,
         customTooltipNativeTitlesAbsent: result.customTooltipNativeTitlesAbsent === true,
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
         headerActionMenu: captureView !== 'inspector' || result.headerActionMenuWorks === true,
@@ -390,13 +392,14 @@ child.on('exit', (code) => {
         themeImport: captureView !== 'settings' || result.themeImportWorks === true,
         themeSharingControls: captureView !== 'settings' || result.themeSharingControls === true,
         settingsTaxonomy: captureView !== 'settings' || result.settingsTaxonomyWorks === true,
-        settingsDiagnosticsSection: captureView !== 'settings' || result.settingsDiagnosticsSectionWorks === true,
-        settingsUsageDiagnostics: captureView !== 'settings' || result.settingsUsageDiagnosticsWorks === true,
+        settingsProviderDropdown: captureView !== 'settings-providers' || result.settingsProviderDropdownWorks === true,
+        settingsDiagnosticsSection: !['settings', 'settings-providers'].includes(captureView) || result.settingsDiagnosticsSectionWorks === true,
+        settingsUsageDiagnostics: !['settings', 'settings-providers'].includes(captureView) || result.settingsUsageDiagnosticsWorks === true,
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,
         settingsShortcutsCompact: captureView !== 'settings' || result.settingsShortcutsCompactWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
-        sideQuestionCommand: ['terminal', 'settings', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,
+        sideQuestionCommand: ['terminal', 'settings', 'settings-providers', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,
         capabilityCreateMenu: captureView !== 'capabilities' || result.capabilityMenuOpened === true,
         capabilityMenuArrowFocus: captureView !== 'capabilities' || result.capabilityMenuArrowFocus === true,
         capabilityMenuEscape: captureView !== 'capabilities' || result.capabilityMenuClosedWithEscape === true,
