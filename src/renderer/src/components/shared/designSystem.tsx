@@ -201,8 +201,8 @@ export function IconButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      title={label}
       aria-label={label}
+      data-tooltip-label={label}
       data-testid={dataTestId}
       data-active={active ? 'true' : 'false'}
       className={`motion-icon-button grid shrink-0 place-items-center rounded-md disabled:cursor-default disabled:opacity-45 ${className}`}

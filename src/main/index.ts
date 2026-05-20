@@ -301,6 +301,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
       win.webContents.executeJavaScript(`
         (async () => {
           const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const buttonLabel = (button) =>
+            button.getAttribute('aria-label') ??
+            button.getAttribute('data-tooltip-label') ??
+            button.getAttribute('title') ??
+            button.textContent?.trim() ??
+            '';
+          const findButton = (label) =>
+            [...document.querySelectorAll('button')]
+              .find((button) => buttonLabel(button) === label);
+          const findButtonStartingWith = (labelPrefix) =>
+            [...document.querySelectorAll('button')]
+              .find((button) => buttonLabel(button).startsWith(labelPrefix));
           const profile = await window.api.app.getProfile();
           let projects = await window.api.projects.list();
           if (projects.length === 0) {
@@ -356,7 +368,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets') {
             const settingsButton = [...document.querySelectorAll('button')]
-              .find((button) => button.textContent?.trim() === 'Settings' || button.getAttribute('title') === 'Settings');
+              .find((button) => button.textContent?.trim() === 'Settings' || buttonLabel(button) === 'Settings');
             settingsButton?.click();
             await sleep(450);
             if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
@@ -448,12 +460,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(450);
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'terminal') {
-            const terminalButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Toggle terminal');
+            const terminalButton = findButton('Toggle terminal');
             terminalButton?.click();
             await sleep(700);
-            const newTerminalButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'New terminal');
+            const newTerminalButton = findButton('New terminal');
             if (newTerminalButton instanceof HTMLButtonElement) {
               newTerminalButton.click();
               await sleep(260);
@@ -463,8 +473,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelWithTabs instanceof HTMLElement &&
               bottomPanelWithTabs.dataset.bottomPanelTabs?.includes(',') === true &&
               bottomPanelWithTabs.dataset.bottomPanelActiveTab !== '0';
-            const hideTerminalButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Hide terminal');
+            const hideTerminalButton = findButton('Hide terminal');
             if (hideTerminalButton instanceof HTMLButtonElement) {
               hideTerminalButton.click();
               await sleep(180);
@@ -505,8 +514,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
-            const sidebarButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Toggle sidebar');
+            const sidebarButton = findButton('Toggle sidebar');
             sidebarButton?.click();
             await sleep(700);
           }
@@ -530,8 +538,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const widthBefore = Number(rightPanelBefore?.getAttribute('data-right-panel-width') ?? '0');
             const primaryBefore = document.querySelector('[data-testid="session-primary-content"]');
             const primaryWidthBefore = primaryBefore instanceof HTMLElement ? primaryBefore.getBoundingClientRect().width : 0;
-            const expandButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Expand panel');
+            const expandButton = findButton('Expand panel');
             const expandButtonLabelBefore = expandButton instanceof HTMLButtonElement
               ? expandButton.getAttribute('aria-label')
               : null;
@@ -542,8 +549,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const rightPanelExpanded = document.querySelector('[data-testid="session-right-panel"]');
             const primaryAfterExpand = document.querySelector('[data-testid="session-primary-content"]');
             const primaryWidthAfterExpand = primaryAfterExpand instanceof HTMLElement ? primaryAfterExpand.getBoundingClientRect().width : 0;
-            const restoreButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Restore panel width');
+            const restoreButton = findButton('Restore panel width');
             const restoreButtonLabelAfterExpand = restoreButton instanceof HTMLButtonElement
               ? restoreButton.getAttribute('aria-label')
               : null;
@@ -606,8 +612,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             if (filesTabButton instanceof HTMLElement) {
               filesTabButton.click();
             } else {
-              const inspectorToolsButton = [...document.querySelectorAll('button')]
-                .find((button) => button.getAttribute('title') === 'Add inspector tab');
+              const inspectorToolsButton = findButton('Add inspector tab');
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);
@@ -632,8 +637,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               nestedFileButton.click();
               await sleep(220);
             }
-            const addFileButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Add file to chat');
+            const addFileButton = findButton('Add file to chat');
             if (addFileButton instanceof HTMLButtonElement) {
               addFileButton.click();
               await sleep(180);
@@ -676,8 +680,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             if (browserPanelTabButton instanceof HTMLElement) {
               browserPanelTabButton.click();
             } else {
-              const inspectorToolsButton = [...document.querySelectorAll('button')]
-                .find((button) => button.getAttribute('title') === 'Add inspector tab');
+              const inspectorToolsButton = findButton('Add inspector tab');
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);
@@ -703,8 +706,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(160);
             }
             const browserWebview = document.querySelector('[data-testid="browser-webview"]');
-            const captureBrowserButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Capture screenshot');
+            const captureBrowserButton = findButton('Capture screenshot');
             if (captureBrowserButton instanceof HTMLButtonElement) {
               captureBrowserButton.click();
               await sleep(500);
@@ -715,8 +717,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.body.innerText.includes('Orchestrator Browser Smoke');
             var browserScreenshotWorks = Boolean(document.querySelector('[data-testid="browser-screenshot-preview"]'));
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
-            const findInPageButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Find in page');
+            const findInPageButton = findButton('Find in page');
             var browserFindWorks = false;
             if (findInPageButton instanceof HTMLButtonElement) {
               findInPageButton.click();
@@ -742,16 +743,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               browserActionsButtonAfterFind.click();
               await sleep(120);
             }
-            const zoomInButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Zoom in');
+            const zoomInButton = findButton('Zoom in');
             if (zoomInButton instanceof HTMLButtonElement) {
               zoomInButton.click();
               await sleep(120);
             }
             var browserZoomWorks =
               Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-zoom') ?? '1') > 1;
-            const mobilePreviewButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Mobile preview');
+            const mobilePreviewButton = findButton('Mobile preview');
             if (mobilePreviewButton instanceof HTMLButtonElement) {
               mobilePreviewButton.click();
               await sleep(120);
@@ -761,8 +760,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'mobile' &&
               browserViewportFrame instanceof HTMLElement &&
               browserViewportFrame.getBoundingClientRect().width <= 410;
-            const noCacheButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Reload without cache');
+            const noCacheButton = findButton('Reload without cache');
             if (noCacheButton instanceof HTMLButtonElement) {
               noCacheButton.click();
               for (let index = 0; index < 30; index += 1) {
@@ -864,16 +862,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 output.scrollWidth <= output.clientWidth + 2 &&
                 securityPane.scrollWidth <= securityPane.clientWidth + 2;
             })();
-            const hideBrowserButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Hide browser surface');
+            const hideBrowserButton = findButton('Hide browser surface');
             if (hideBrowserButton instanceof HTMLButtonElement) {
               hideBrowserButton.click();
               await sleep(120);
             }
             var browserVisibilityControlWorks =
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-visible') === 'false';
-            const showBrowserButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Show browser surface');
+            const showBrowserButton = findButton('Show browser surface');
             if (showBrowserButton instanceof HTMLButtonElement) {
               showBrowserButton.click();
               await sleep(120);
@@ -918,8 +914,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               setter?.call(activeTextarea, '/btw');
               activeTextarea.dispatchEvent(new Event('input', { bubbles: true }));
               await sleep(80);
-              const sendButton = [...document.querySelectorAll('button')]
-                .find((button) => button.getAttribute('title')?.startsWith('Send'));
+              const sendButton = findButtonStartingWith('Send');
               if (sendButton instanceof HTMLButtonElement) sendButton.click();
               await sleep(220);
             };
@@ -1086,6 +1081,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             title: button.getAttribute('title') ?? '',
             label: button.getAttribute('aria-label') ?? ''
           }));
+          const customTooltipNativeTitleLeaks =
+            [...document.querySelectorAll('button[data-tooltip-label][title]')]
+              .map((button) => (button.getAttribute('data-tooltip-label') ?? '') + ':' + (button.getAttribute('title') ?? ''));
+          const customTooltipNativeTitlesAbsent = customTooltipNativeTitleLeaks.length === 0;
           return {
             profile,
             title: document.title,
@@ -1104,6 +1103,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               button.text.includes('Resources')
             ),
             headerIdentityWorks,
+            customTooltipNativeTitlesAbsent,
+            customTooltipNativeTitleLeaks,
             headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
             chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
             hasInspectorTabs: bodyText.includes('Changes') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
@@ -1447,6 +1448,15 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
         const result = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.getAttribute('title') ??
+              button.textContent?.trim() ??
+              '';
+            const findButton = (label) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => buttonLabel(button) === label);
             const rowFor = (name) => [...document.querySelectorAll('[data-testid="session-row"]')]
               .find((row) => row.textContent?.includes(name));
             const waitForRow = async (name) => {
@@ -1614,7 +1624,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const projectActionButtonFor = (name) => {
               const header = projectHeaderFor(name);
               return header ? [...header.querySelectorAll('button')]
-                .find((button) => button.getAttribute('title') === 'Project actions') : null;
+                .find((button) => buttonLabel(button) === 'Project actions') : null;
             };
             let projectActionMenuWorks = false;
             let projectRenameWorks = false;
@@ -1666,8 +1676,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 projectPinWorks = secondaryIndex >= 0 && primaryIndex >= 0 && secondaryIndex < primaryIndex;
               }
             }
-            const organizeButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Organize sidebar');
+            const organizeButton = findButton('Organize sidebar');
             let organizeMenuWorks = false;
             if (organizeButton instanceof HTMLButtonElement) {
               organizeButton.click();
@@ -1696,6 +1705,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   document.body.innerText.includes('Projects');
               }
             }
+            const customTooltipNativeTitleLeaks =
+              [...document.querySelectorAll('button[data-tooltip-label][title]')]
+                .map((button) => (button.getAttribute('data-tooltip-label') ?? '') + ':' + (button.getAttribute('title') ?? ''));
             return {
               pinnedAboveProjects,
               pinnedOrderStable,
@@ -1705,6 +1717,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               hoverPinVisible,
               hoverCardVisible,
               singleHoverSurfaceWorks,
+              customTooltipNativeTitlesAbsent: customTooltipNativeTitleLeaks.length === 0,
+              customTooltipNativeTitleLeaks,
               sidebarNoHorizontalOverflow,
               sessionRowsCompact,
               projectHeadersCompact,
@@ -2456,6 +2470,15 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
         const mainResult = await win.webContents.executeJavaScript(`
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.getAttribute('title') ??
+              button.textContent?.trim() ??
+              '';
+            const findButton = (label) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => buttonLabel(button) === label);
             let projects = await window.api.projects.list();
             if (projects.length === 0) {
               const root = ${JSON.stringify(process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd())};
@@ -2489,15 +2512,13 @@ function runAutomatedReducedMotionSmoke(win: BrowserWindow, outputPath: string, 
             };
             const allZero = (values) => values.length === 0 || values.every(isZeroDuration);
 
-            const sidebarButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Toggle sidebar');
+            const sidebarButton = findButton('Toggle sidebar');
             sidebarButton?.click();
             await sleep(120);
             const rightPanel = document.querySelector('[data-motion-panel="right"]');
             const rightPanelDurations = rightPanel ? getComputedStyle(rightPanel).transitionDuration.split(',').map((value) => value.trim()) : [];
 
-            const terminalButton = [...document.querySelectorAll('button')]
-              .find((button) => button.getAttribute('title') === 'Toggle terminal');
+            const terminalButton = findButton('Toggle terminal');
             terminalButton?.click();
             await sleep(120);
             const bottomPanel = document.querySelector('[data-motion-panel="bottom"]');
