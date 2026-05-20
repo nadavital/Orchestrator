@@ -110,7 +110,7 @@ if (captureView === 'inspector' || captureView === 'browser') {
         <p>Loaded inside the side panel.</p>
         <p>Browser search has a second visible match.</p>
         <button id="target-button" onclick="document.body.dataset.clicked='yes'; console.log('browser smoke clicked')">Target button</button>
-        <input aria-label="Smoke input" placeholder="Type here">
+        <input aria-label="Smoke input" placeholder="Type here" onkeydown="document.body.dataset.keyPressed=event.key">
         <svg role="img" aria-label="Inline smoke icon" width="18" height="18"><circle cx="9" cy="9" r="8"></circle></svg>
       </main>`)
   })
@@ -381,6 +381,7 @@ child.on('exit', (code) => {
           browserHistoryMenu: result.browserHistoryMenuWorks === true,
           browserActionsMenuCompact: result.browserActionsMenuCompactWorks === true,
           browserClearData: result.browserClearDataWorks === true,
+          browserTargetKey: result.browserTargetKeyWorks === true,
           browserErrorRecovery: result.browserErrorRecoveryWorks === true,
           browserLoadErrorPanel: result.browserLoadErrorPanelWorks === true,
           browserSingleTabChrome: result.browserSingleTabStripHidden === true,
@@ -433,6 +434,7 @@ child.on('exit', (code) => {
         browserActionsNativeTitlesAbsent: captureView !== 'inspector' || result.browserActionsNativeTitlesAbsent === true,
         browserInspection: captureView !== 'inspector' || result.browserInspectionWorks === true,
         browserTargetsPane: captureView !== 'inspector' || result.browserTargetsPaneWorks === true,
+        browserTargetKey: captureView !== 'inspector' || result.browserTargetKeyWorks === true,
         browserTargetsPaneNoHorizontalOverflow: captureView !== 'inspector' || result.browserTargetsPaneNoHorizontalOverflowWorks === true,
         browserAssetBundle: captureView !== 'inspector' || result.browserAssetBundleWorks === true,
         browserSecurityPane: captureView !== 'inspector' || result.browserSecurityPaneWorks === true,

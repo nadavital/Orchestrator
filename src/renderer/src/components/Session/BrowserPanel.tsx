@@ -74,6 +74,8 @@ interface VisibleTarget {
   selector: { primary: string | null; candidates: string[] }
 }
 
+type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'key' | 'scroll'
+
 interface LocalBrowserTarget {
   url: string
   title: string | null
@@ -441,7 +443,7 @@ export default function BrowserPanel({
     if (!selectedTargetId && targets[0]) setSelectedTargetId(targets[0].nodeId)
   }
 
-  const runTargetAction = async (action: 'click' | 'double_click' | 'type' | 'scroll'): Promise<void> => {
+  const runTargetAction = async (action: BrowserTargetAction): Promise<void> => {
     if (!selectedTargetId || !webviewRef.current) return
     await webviewRef.current.executeJavaScript(
       `window.__orchestratorBrowserAction(${JSON.stringify({ action, nodeId: selectedTargetId, text: actionText, x: 0, y: coordinateAction.scrollY })})`,
@@ -1250,7 +1252,7 @@ function TargetsPane({
   onCoordinateChange: (value: { x: number; y: number; scrollY: number }) => void
   onReadClipboard: () => void
   onRunCoordinateAction: (action: 'click' | 'scroll') => void
-  onRunTargetAction: (action: 'click' | 'double_click' | 'type' | 'scroll') => void
+  onRunTargetAction: (action: BrowserTargetAction) => void
   onSelectTarget: (id: string) => void
   onWriteClipboard: () => void
   onClipboardChange: (value: string) => void
@@ -1271,7 +1273,7 @@ function TargetsPane({
         <input
           value={actionText}
           onChange={(event) => onActionTextChange(event.target.value)}
-          placeholder="Text to type"
+          placeholder="Text or key"
           className="w-full rounded-md px-2 py-1 text-xs outline-none"
           style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
         />
@@ -1279,6 +1281,7 @@ function TargetsPane({
           <ActionButton label="Click" onClick={() => onRunTargetAction('click')} disabled={!selectedTargetId} />
           <ActionButton label="Double" onClick={() => onRunTargetAction('double_click')} disabled={!selectedTargetId} />
           <ActionButton label="Type" onClick={() => onRunTargetAction('type')} disabled={!selectedTargetId || !actionText} />
+          <ActionButton label="Key" onClick={() => onRunTargetAction('key')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Scroll" onClick={() => onRunTargetAction('scroll')} disabled={!selectedTargetId} />
         </div>
       </div>
@@ -1691,6 +1694,14 @@ const VISIBLE_TARGETS_SCRIPT = `
       } else {
         document.execCommand('insertText', false, text || '');
       }
+      return true;
+    }
+    if (action === 'key') {
+      const key = text || 'Enter';
+      const eventInit = { key, code: key.length === 1 ? 'Key' + key.toUpperCase() : key, bubbles: true, cancelable: true };
+      element.focus();
+      element.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+      element.dispatchEvent(new KeyboardEvent('keyup', eventInit));
       return true;
     }
     element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
