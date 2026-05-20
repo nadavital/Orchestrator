@@ -238,13 +238,34 @@ export default function Sidebar(): JSX.Element {
                 ))}
               </div>
             ) : (
-              visibleProjects.map((project) => (
-                <ProjectSection
-                  key={project.id}
-                  project={project}
-                  sessions={sessionsByProject.get(project.id) ?? []}
-                />
-              ))
+              visibleProjects.length === 0 ? (
+                <div className="min-w-0 px-1 pt-0.5" data-testid="sidebar-project-empty-state">
+                  <SurfaceRow
+                    as="button"
+                    onClick={handleAddProject}
+                    className="flex min-w-0 w-full items-center gap-2 text-left"
+                    style={{
+                      padding: '6px 8px',
+                      borderRadius: 'var(--radius-md)',
+                      color: 'var(--text-secondary)',
+                      fontSize: 12,
+                      fontWeight: 600
+                    }}
+                    ariaLabel="Add project"
+                  >
+                    <Icon name="plus" size={13} />
+                    <span className="min-w-0 flex-1 truncate">Add project</span>
+                  </SurfaceRow>
+                </div>
+              ) : (
+                visibleProjects.map((project) => (
+                  <ProjectSection
+                    key={project.id}
+                    project={project}
+                    sessions={sessionsByProject.get(project.id) ?? []}
+                  />
+                ))
+              )
             )}
           </div>
         </>

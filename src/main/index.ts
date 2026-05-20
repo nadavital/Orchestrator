@@ -2647,8 +2647,13 @@ function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, scr
             const sessions = await window.api.sessions.list();
             const bodyText = document.body.innerText;
             const emptyState = document.querySelector('[data-testid="project-empty-state"]');
-            const addProjectButton = [...document.querySelectorAll('button')]
-              .find((button) => button.textContent?.includes('Add project'));
+            const sidebar = document.querySelector('[data-testid="app-sidebar"]');
+            const sidebarEmptyState = document.querySelector('[data-testid="sidebar-project-empty-state"]');
+            const addProjectButton = document.querySelector('[data-testid="project-empty-state-add"]');
+            const sidebarAddProjectButton = sidebarEmptyState instanceof HTMLElement
+              ? [...sidebarEmptyState.querySelectorAll('button')]
+                  .find((button) => button.textContent?.includes('Add project'))
+              : null;
             const emptyRect = emptyState?.getBoundingClientRect();
             const actionRect = addProjectButton?.getBoundingClientRect();
             return {
@@ -2665,6 +2670,10 @@ function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, scr
               addProjectActionProminent: addProjectButton instanceof HTMLButtonElement &&
                 (actionRect?.width ?? 0) >= 110 &&
                 (actionRect?.height ?? 0) >= 34,
+              sidebarEmptyStateVisible: sidebarAddProjectButton instanceof HTMLButtonElement,
+              sidebarNoHorizontalOverflow: sidebar instanceof HTMLElement &&
+                getComputedStyle(sidebar).overflowX === 'hidden' &&
+                sidebar.scrollWidth <= sidebar.clientWidth + 2,
               noStaticSuggestionCards: !bodyText.includes('Try asking')
             };
           })()

@@ -182,6 +182,8 @@ child.on('exit', (code) => {
         emptyStateProminent: result.emptyStateProminent === true,
         addProjectActionVisible: result.addProjectActionVisible === true,
         addProjectActionProminent: result.addProjectActionProminent === true,
+        sidebarEmptyStateVisible: result.sidebarEmptyStateVisible === true,
+        sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
         noStaticSuggestionCards: result.noStaticSuggestionCards === true
       }
     : captureView === 'session-switch'
