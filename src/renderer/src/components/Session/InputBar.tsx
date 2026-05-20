@@ -437,7 +437,8 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
       }}
     >
       <div
-        className="overflow-visible mx-auto"
+        className="composer-shell overflow-visible mx-auto"
+        data-testid="composer-shell"
         style={{
           maxWidth: isNew ? 700 : 860,
           background: 'var(--surface-bg)',
@@ -488,7 +489,7 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
         )}
 
         {/* Bottom toolbar */}
-        <div className="flex items-center px-3 pb-2 gap-1.5">
+        <div className="composer-toolbar flex items-center px-3 pb-2 gap-1.5" data-testid="composer-toolbar">
 
           {/* Left side */}
           {isNew ? (
@@ -500,9 +501,12 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
                 muted={!isGitRepo}
                 title={!isGitRepo ? 'Not a git repository' : undefined}
                 dataTestId="composer-worktree-menu"
+                className="composer-worktree-trigger"
               >
                 <Icon name={effectiveMode ? 'branch' : 'folder'} size={13} />
-                {effectiveMode ? 'Branch' : 'Local'}
+                <span className="composer-control-label composer-control-label-sm">
+                  {effectiveMode ? 'Branch' : 'Local'}
+                </span>
                 {isGitRepo && <Chevron />}
               </ToolbarBtn>
 
@@ -552,9 +556,10 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
                 onClick={() => setShowAgentMenu((v) => !v)}
                 providerColor={provider.color}
                 dataTestId="composer-agent-menu"
+                className="composer-agent-trigger"
               >
                 <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
-                {agentLabel}
+                <span className="composer-control-label">{agentLabel}</span>
                 <Chevron />
               </ToolbarBtn>
 
@@ -680,9 +685,14 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
 
           {/* Permission mode picker — always shown */}
           <div className="relative">
-            <ToolbarBtn active={permissionMode !== defaultPermissionMode} onClick={() => setShowPermMenu((v) => !v)} dataTestId="composer-permission-menu">
+            <ToolbarBtn
+              active={permissionMode !== defaultPermissionMode}
+              onClick={() => setShowPermMenu((v) => !v)}
+              dataTestId="composer-permission-menu"
+              className="composer-permission-trigger"
+            >
               <ProviderIcon providerId={provider.id} size={11} color={provider.color} />
-              {permLabel}
+              <span className="composer-control-label composer-control-label-xs">{permLabel}</span>
               {resolvedPermission?.support === 'unsupported' && <PolicyBadge policy={resolvedPermission} compact />}
               <Chevron />
             </ToolbarBtn>
@@ -909,7 +919,7 @@ function formatBytes(value: number): string {
 }
 
 function ToolbarBtn({
-  children, active, onClick, muted, title, ariaLabel, providerColor, dataTestId
+  children, active, onClick, muted, title, ariaLabel, providerColor, dataTestId, className
 }: {
   children: React.ReactNode
   active: boolean
@@ -919,6 +929,7 @@ function ToolbarBtn({
   ariaLabel?: string
   providerColor?: string
   dataTestId?: string
+  className?: string
 }): JSX.Element {
   const borderColor = active ? 'var(--border-strong)' : 'transparent'
   const textColor = muted ? 'var(--text-tertiary)' : active ? 'var(--text-primary)' : 'var(--text-secondary)'
@@ -933,7 +944,7 @@ function ToolbarBtn({
       data-tooltip-label={title}
       data-native-title-free="true"
       data-testid={dataTestId}
-      className="flex items-center gap-1.5 text-xs transition-colors"
+      className={`flex items-center gap-1.5 text-xs transition-colors ${className ?? ''}`}
       style={{
         background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
         color: textColor,

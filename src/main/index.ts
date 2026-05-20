@@ -1976,6 +1976,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(140);
             var composerAgentMenuClosedWithOutsideClick = !document.querySelector('.motion-popover-surface');
             var composerAgentFocusReturned = document.activeElement === agentButton;
+
+            const composerShell = document.querySelector('[data-testid="composer-shell"]');
+            const composerToolbar = document.querySelector('[data-testid="composer-toolbar"]');
+            const previousComposerWidth = composerShell instanceof HTMLElement ? composerShell.style.width : '';
+            const previousComposerMaxWidth = composerShell instanceof HTMLElement ? composerShell.style.maxWidth : '';
+            if (composerShell instanceof HTMLElement) {
+              composerShell.style.width = '420px';
+              composerShell.style.maxWidth = '420px';
+            }
+            await sleep(180);
+            var composerToolbarResponsiveWorks =
+              composerToolbar instanceof HTMLElement &&
+              composerToolbar.scrollWidth <= composerToolbar.clientWidth + 2 &&
+              (!(agentButton instanceof HTMLElement) ||
+                (
+                  agentButton instanceof HTMLElement &&
+                  getComputedStyle(agentButton.querySelector('.composer-control-label') ?? agentButton).display === 'none'
+                ));
+            if (composerShell instanceof HTMLElement) {
+              composerShell.style.width = previousComposerWidth;
+              composerShell.style.maxWidth = previousComposerMaxWidth;
+            }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
             const reviewTabButton = document.querySelector('[data-tab-id="diff"]')?.closest('[role="tab"]');
@@ -2345,6 +2367,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAgentMenuOpened: typeof composerAgentMenuOpened === 'boolean' ? composerAgentMenuOpened : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
             composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,
+            composerToolbarResponsiveWorks: typeof composerToolbarResponsiveWorks === 'boolean' ? composerToolbarResponsiveWorks : null,
             buttonCount: buttons.length,
             buttons: buttons.slice(0, 30)
           };

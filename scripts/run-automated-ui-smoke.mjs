@@ -664,6 +664,7 @@ child.on('exit', (code) => {
         composerAgentMenu: captureView !== 'composer' || result.composerAgentMenuOpened === true,
         composerAgentOutsideClick: captureView !== 'composer' || result.composerAgentMenuClosedWithOutsideClick === true,
         composerAgentFocusReturned: captureView !== 'composer' || result.composerAgentFocusReturned === true,
+        composerToolbarResponsive: captureView !== 'composer' || result.composerToolbarResponsiveWorks === true,
         buttons: Number(result.buttonCount ?? 0) > 0
       }
   const failed = Object.entries(checks).filter(([, ok]) => !ok)

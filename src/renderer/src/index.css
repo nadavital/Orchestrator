@@ -324,6 +324,40 @@
     box-shadow: -1px 0 0 rgba(255, 255, 255, 0.42);
   }
 
+  .composer-toolbar {
+    container: composer-toolbar / inline-size;
+    min-width: 0;
+  }
+
+  .composer-toolbar button {
+    min-width: 0;
+  }
+
+  .composer-control-label {
+    min-width: 0;
+    max-width: min(260px, 38cqw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @container composer-toolbar (width <= 560px) {
+    .composer-agent-trigger .composer-control-label {
+      max-width: min(176px, 32cqw);
+    }
+
+    .composer-permission-trigger .composer-control-label {
+      display: none;
+    }
+  }
+
+  @container composer-toolbar (width <= 440px) {
+    .composer-worktree-trigger .composer-control-label,
+    .composer-agent-trigger .composer-control-label {
+      display: none;
+    }
+  }
+
   pre, code {
     font-family: var(--font-mono);
     font-size: 12px;
