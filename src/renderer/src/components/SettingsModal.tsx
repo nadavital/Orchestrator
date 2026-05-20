@@ -1159,20 +1159,17 @@ function ShortcutsSection(): JSX.Element {
                   data-testid="settings-shortcut-sequence"
                   aria-label={shortcut.primaryKeys.join(' ')}
                 >
-                  {shortcut.primaryKeys.map((key, keyIndex) => (
-                    <kbd
-                      key={`${shortcut.label}-${keyIndex}-${key}`}
-                      className="min-w-5 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
-                      data-testid="settings-shortcut-key"
-                      style={{
-                        background: 'var(--control-bg)',
-                        border: '1px solid var(--border-subtle)',
-                        color: 'var(--text-secondary)'
-                      }}
-                    >
-                      {key}
-                    </kbd>
-                  ))}
+                  <kbd
+                    className="min-w-9 rounded-md px-2 py-0.5 text-center text-[11px] font-semibold"
+                    data-testid="settings-shortcut-key"
+                    style={{
+                      background: 'var(--control-bg)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)'
+                    }}
+                  >
+                    {shortcut.primaryKeys.join('')}
+                  </kbd>
                 </span>
               </div>
             ))}
