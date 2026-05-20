@@ -469,35 +469,27 @@ function ReviewEmptyState({
   return (
     <div
       data-testid={testId}
-      className="flex h-full flex-col items-start justify-start gap-2.5 px-3 py-4 text-left text-xs"
+      className="file-fallback-state"
       style={{ color: 'var(--color-text-muted)' }}
     >
-      <span className="flex max-w-full items-center gap-2">
-        <span
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-md"
-          style={{ background: 'var(--control-bg)', color: 'var(--text-secondary)' }}
-        >
-          <Icon name="file" size={14} />
-        </span>
-        <span className="min-w-0">
-          <span className="block max-w-full truncate" style={{ color: 'var(--text-secondary)', fontWeight: 650 }}>{title}</span>
-          {meta && <span className="block truncate text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{meta}</span>}
-        </span>
+      <span
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-lg"
+        style={{ background: 'var(--control-bg)', color: 'var(--text-secondary)' }}
+      >
+        <Icon name="file" size={18} />
       </span>
-      <span className="max-w-[300px] leading-5">{body}</span>
+      <span className="min-w-0 max-w-full">
+        <span className="block max-w-full truncate" style={{ color: 'var(--text-secondary)', fontWeight: 650 }}>{title}</span>
+        {meta && <span className="mt-1 block truncate text-[11px]" style={{ color: 'var(--text-tertiary)' }}>{meta}</span>}
+      </span>
+      <span className="max-w-[280px] leading-5">{body}</span>
       {actions.length > 0 && (
-        <span className="flex items-center gap-2 pt-1">
+        <span className="file-fallback-actions">
           {actions.map((action) => (
             <button
               key={action.label}
               type="button"
               onClick={action.onClick}
-              className="rounded-md px-2 py-1 text-[11px] font-semibold"
-              style={{
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--control-bg)',
-                color: 'var(--text-secondary)'
-              }}
             >
               {action.label}
             </button>
