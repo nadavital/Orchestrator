@@ -1181,6 +1181,105 @@
     outline: none;
   }
 
+  .browser-load-error {
+    display: grid;
+    width: min(520px, calc(100% - 32px));
+    align-self: center;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--surface-bg) 94%, var(--canvas-bg));
+    box-shadow: var(--shadow-card);
+    padding: 16px;
+    color: var(--text-primary);
+  }
+
+  .browser-load-error-icon {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: var(--radius-md);
+    background: var(--control-bg);
+    color: var(--state-danger);
+  }
+
+  .browser-load-error-copy {
+    min-width: 0;
+  }
+
+  .browser-load-error-title {
+    font-size: 14px;
+    font-weight: 760;
+    line-height: 1.25;
+  }
+
+  .browser-load-error-summary {
+    margin-top: 3px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .browser-load-error-code {
+    margin-top: 7px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+  }
+
+  .browser-load-error-actions,
+  .browser-load-error-suggestions {
+    grid-column: 1 / -1;
+  }
+
+  .browser-load-error-actions {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .browser-load-error-actions button {
+    height: 26px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    padding: 0 9px;
+    font-size: 11px;
+    font-weight: 720;
+  }
+
+  .browser-load-error-actions button:first-child {
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--border-subtle));
+    background: color-mix(in srgb, var(--accent) 13%, var(--control-bg));
+    color: var(--text-primary);
+  }
+
+  .browser-load-error-actions button:hover,
+  .browser-load-error-actions button:focus-visible {
+    background: var(--control-bg-hover);
+    color: var(--text-primary);
+    outline: none;
+  }
+
+  .browser-load-error-suggestions {
+    display: grid;
+    gap: 4px;
+    color: var(--text-secondary);
+    font-size: 11.5px;
+  }
+
+  .browser-load-error-suggestions span {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-weight: 760;
+    text-transform: uppercase;
+  }
+
   .browser-inspector-drawer {
     min-height: 0;
     overflow: hidden;

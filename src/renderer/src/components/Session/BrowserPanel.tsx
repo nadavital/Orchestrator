@@ -336,6 +336,19 @@ export default function BrowserPanel({
     webviewRef.current?.reloadIgnoringCache?.()
   }
 
+  const hardReloadCurrentPage = (): void => {
+    const target = currentUrl || address
+    if (!target) return
+    if (webviewRef.current) {
+      reloadWithoutCache()
+      return
+    }
+    pendingCacheReloadRef.current = true
+    setError(null)
+    setIsLoading(true)
+    navigate(target)
+  }
+
   const stopOrReload = (): void => {
     if (isLoading) {
       webviewRef.current?.stop?.()
@@ -831,20 +844,31 @@ export default function BrowserPanel({
         <div className="flex min-h-0 justify-center overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
           {currentUrl ? (
             visible ? (
-              <div
-                data-testid="browser-viewport-frame"
-                className="flex min-h-0 overflow-hidden"
-                style={{
-                  width: viewport.width,
-                  maxWidth: '100%',
-                  height: viewport.height,
-                  maxHeight: '100%',
-                  borderLeft: workbench.deviceMode !== 'desktop' ? '1px solid var(--border-subtle)' : 'none',
-                  borderRight: workbench.deviceMode !== 'desktop' ? '1px solid var(--border-subtle)' : 'none'
-                }}
-              >
-                {webview}
-              </div>
+              error ? (
+                <BrowserLoadErrorPane
+                  error={error}
+                  url={currentUrl}
+                  onCopyUrl={copyCurrentUrl}
+                  onHardReload={hardReloadCurrentPage}
+                  onOpenExternal={openExternal}
+                  onRetry={retryCurrentPage}
+                />
+              ) : (
+                <div
+                  data-testid="browser-viewport-frame"
+                  className="flex min-h-0 overflow-hidden"
+                  style={{
+                    width: viewport.width,
+                    maxWidth: '100%',
+                    height: viewport.height,
+                    maxHeight: '100%',
+                    borderLeft: workbench.deviceMode !== 'desktop' ? '1px solid var(--border-subtle)' : 'none',
+                    borderRight: workbench.deviceMode !== 'desktop' ? '1px solid var(--border-subtle)' : 'none'
+                  }}
+                >
+                  {webview}
+                </div>
+              )
             ) : (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
                 <Icon name="browser" size={26} />
@@ -939,6 +963,52 @@ export default function BrowserPanel({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function BrowserLoadErrorPane({
+  error,
+  url,
+  onCopyUrl,
+  onHardReload,
+  onOpenExternal,
+  onRetry
+}: {
+  error: string
+  url: string
+  onCopyUrl: () => void
+  onHardReload: () => void
+  onOpenExternal: () => void
+  onRetry: () => void
+}): JSX.Element {
+  const host = urlHost(url)
+  const suggestions = loadErrorSuggestions(error)
+
+  return (
+    <div className="browser-load-error" data-testid="browser-load-error">
+      <div className="browser-load-error-icon">
+        <Icon name="browser" size={22} />
+      </div>
+      <div className="browser-load-error-copy">
+        <div className="browser-load-error-title">This page could not be loaded</div>
+        <div className="browser-load-error-summary">
+          {loadErrorSummary(error, host)}
+        </div>
+        <div className="browser-load-error-code">{error}</div>
+      </div>
+      <div className="browser-load-error-actions">
+        <button type="button" data-testid="browser-load-error-retry" onClick={onRetry}>Retry</button>
+        <button type="button" data-testid="browser-load-error-hard-reload" onClick={onHardReload}>Hard reload</button>
+        <button type="button" data-testid="browser-load-error-copy-url" onClick={onCopyUrl}>Copy URL</button>
+        <button type="button" data-testid="browser-load-error-open-external" onClick={onOpenExternal}>Open external</button>
+      </div>
+      <div className="browser-load-error-suggestions">
+        <span>Try</span>
+        {suggestions.map((suggestion) => (
+          <div key={suggestion}>{suggestion}</div>
+        ))}
       </div>
     </div>
   )
@@ -1297,6 +1367,38 @@ function shortUrl(url: string): string {
   } catch {
     return url
   }
+}
+
+function urlHost(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
+}
+
+function loadErrorSummary(error: string, host: string): string {
+  const normalized = error.toLowerCase()
+  if (normalized.includes('refused')) return `${host} refused the connection.`
+  if (normalized.includes('not found') || normalized.includes('dns')) return `${host} could not be resolved.`
+  if (normalized.includes('timeout') || normalized.includes('timed out')) return `${host} took too long to respond.`
+  if (normalized.includes('certificate') || normalized.includes('cert')) return `${host}'s certificate could not be verified.`
+  if (normalized.includes('offline') || normalized.includes('internet')) return `${host} could not be reached from this network.`
+  return `${host} could not be reached.`
+}
+
+function loadErrorSuggestions(error: string): string[] {
+  const normalized = error.toLowerCase()
+  if (normalized.includes('refused')) {
+    return ['Start the local server', 'Check the port in the address bar', 'Retry when the process is ready']
+  }
+  if (normalized.includes('not found') || normalized.includes('dns')) {
+    return ['Check the hostname', 'Use localhost for local apps', 'Verify DNS or VPN settings']
+  }
+  if (normalized.includes('certificate') || normalized.includes('cert')) {
+    return ['Open externally to inspect certificate details', 'Use http for local dev servers', 'Check system trust settings']
+  }
+  return ['Check your connection', 'Retry without cache', 'Open externally if the site blocks embedded browsers']
 }
 
 function consoleLevel(level?: number): BrowserLogEntry['level'] {

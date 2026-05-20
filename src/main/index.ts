@@ -1823,6 +1823,11 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserErrorStatusRow = document.querySelector('[data-testid="browser-status-row"]');
             const browserErrorRetry = document.querySelector('[data-testid="browser-error-retry"]');
             const browserErrorCopyUrl = document.querySelector('[data-testid="browser-error-copy-url"]');
+            const browserLoadError = document.querySelector('[data-testid="browser-load-error"]');
+            const browserLoadErrorRetry = document.querySelector('[data-testid="browser-load-error-retry"]');
+            const browserLoadErrorHardReload = document.querySelector('[data-testid="browser-load-error-hard-reload"]');
+            const browserLoadErrorCopyUrl = document.querySelector('[data-testid="browser-load-error-copy-url"]');
+            const browserLoadErrorOpenExternal = document.querySelector('[data-testid="browser-load-error-open-external"]');
             var browserErrorRecoveryWorks =
               (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-error') ?? '').length > 0 &&
               browserErrorStatusRow instanceof HTMLElement &&
@@ -1830,6 +1835,15 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserErrorRetry instanceof HTMLButtonElement &&
               browserErrorCopyUrl instanceof HTMLButtonElement &&
               browserErrorStatusRow.scrollWidth <= browserErrorStatusRow.clientWidth + 2;
+            var browserLoadErrorPanelWorks =
+              browserLoadError instanceof HTMLElement &&
+              browserLoadError.textContent?.includes('This page could not be loaded') &&
+              browserLoadError.textContent?.includes('Try') &&
+              browserLoadErrorRetry instanceof HTMLButtonElement &&
+              browserLoadErrorHardReload instanceof HTMLButtonElement &&
+              browserLoadErrorCopyUrl instanceof HTMLButtonElement &&
+              browserLoadErrorOpenExternal instanceof HTMLButtonElement &&
+              browserLoadError.scrollWidth <= browserLoadError.clientWidth + 2;
             if (browserInputForStop instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(browserInputForStop.constructor.prototype, 'value')?.set;
               setter?.call(browserInputForStop, smokeBaseUrl);
@@ -1839,7 +1853,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 const panel = document.querySelector('[data-testid="browser-panel"]');
                 const url = panel?.getAttribute('data-browser-current-url') ?? '';
                 const error = panel?.getAttribute('data-browser-error') ?? '';
-                if (url.startsWith(smokeBaseUrl) && !error) break;
+                const loading = panel?.getAttribute('data-browser-loading') === 'true';
+                if (url.startsWith(smokeBaseUrl) && !error && !loading) break;
                 await sleep(100);
               }
             }
@@ -1874,6 +1889,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserHistoryMenuWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserErrorRecoveryWorks,
+              browserLoadErrorPanelWorks,
               browserSingleTabStripHidden,
               browserNoHorizontalOverflow,
               browserToolbarCompact,
