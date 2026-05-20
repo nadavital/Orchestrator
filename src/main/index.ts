@@ -347,9 +347,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             ? primaryContent.innerText.split(activeProjectName).length - 1
             : 0;
           var chatEmptyStateProjectLabelClean =
-            !(chatEmptyState instanceof HTMLElement) ||
-            !activeProjectName ||
-            activeProjectMentionsInPrimary <= 1;
+            chatEmptyState instanceof HTMLElement &&
+            Boolean(activeProjectName) &&
+            chatEmptyState.innerText.includes(activeProjectName) === false &&
+            activeProjectMentionsInPrimary === 0;
           const textarea = document.querySelector('textarea');
           textarea?.focus();
           if (textarea && !['composer', 'extensions'].includes(${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)})) {

@@ -1,6 +1,5 @@
 import { memo, useState, useRef, useCallback } from 'react'
 import { defaultUI, useSessionStore } from '../../store/sessions'
-import { useProjectStore } from '../../store/projects'
 import type { Session } from '../../types'
 import ChatView from './ChatView'
 import TerminalView from './TerminalView'
@@ -26,7 +25,6 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
   const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const moveTerminalTab = useSessionStore((state) => state.moveTerminalTab)
   const closeTerminalTab = useSessionStore((state) => state.closeTerminalTab)
-  const { projects } = useProjectStore()
   const session = sessions.find((s) => s.id === sessionId)
   const [isTerminalResizing, setIsTerminalResizing] = useState(false)
   const [terminalMenu, setTerminalMenu] = useState<{ tabId: number; x: number; y: number } | null>(null)
@@ -60,7 +58,6 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
   if (!session) return null
 
   const isNew = (session.messageCount ?? session.messages.length) === 0 && session.status !== 'running'
-  const project = projects.find((p) => p.id === session.projectId)
   const terminalPanel = ui.terminalPanel ?? { height: DEFAULT_TERMINAL_HEIGHT, tabs: [0], activeTabId: 0, nextTabId: 1 }
   const terminalHeight = terminalPanel.height
   const tabs = terminalPanel.tabs
@@ -91,7 +88,7 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
       <div className="relative flex-1 flex min-w-0 overflow-hidden" data-testid="session-main-row">
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden" data-testid="session-primary-content">
           <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-            <ChatView session={session} projectName={project?.name} />
+            <ChatView session={session} />
           </div>
           <RunningAgentsStrip session={session} />
           <InputBar session={session} isNew={isNew} />

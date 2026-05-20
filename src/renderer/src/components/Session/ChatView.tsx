@@ -42,7 +42,6 @@ interface TranscriptPrependAnchor {
 
 interface Props {
   session: Session
-  projectName?: string
 }
 
 const TOOL_SUMMARY_SCROLL_THRESHOLD = 8
@@ -55,7 +54,7 @@ const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
 const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
 const TRANSCRIPT_VIRTUAL_ROW_GAP = 14
 
-export default function ChatView({ session, projectName }: Props): JSX.Element {
+export default function ChatView({ session }: Props): JSX.Element {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -538,11 +537,6 @@ export default function ChatView({ session, projectName }: Props): JSX.Element {
           >
             What do you want to build?
           </h1>
-          {projectName && (
-            <span className="max-w-[min(480px,100%)] truncate text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              {projectName}
-            </span>
-          )}
         </div>
       </div>
     )
