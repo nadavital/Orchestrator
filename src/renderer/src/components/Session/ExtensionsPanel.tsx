@@ -457,6 +457,7 @@ function CodexExtensionsView({
   embedded?: boolean
 }): JSX.Element {
   const totalItems = groups.reduce((count, group) => count + group.items.length, 0)
+  const errorCount = groups.filter((group) => group.status === 'error').length
 
   return (
     <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
@@ -473,10 +474,11 @@ function CodexExtensionsView({
             </div>
           )}
           {embedded && (
-            <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
-              <SystemMetricPill><span>Groups</span><strong>{groups.length}</strong></SystemMetricPill>
-              <SystemMetricPill><span>Items</span><strong>{loading ? '...' : totalItems}</strong></SystemMetricPill>
-              <SystemMetricPill tone="danger"><span>Errors</span><strong>{groups.filter((group) => group.status === 'error').length}</strong></SystemMetricPill>
+            <div className="extensions-panel-summary" data-testid="extensions-panel-summary">
+              <span>Extensions</span>
+              <strong>{groups.length}</strong>
+              <span>{loading ? 'loading' : `${totalItems} items`}</span>
+              {errorCount > 0 && <span className="extensions-panel-summary-error">{errorCount} errors</span>}
             </div>
           )}
           <IconButton icon="refresh" label="Refresh extensions" onClick={onRefresh} disabled={loading} tone="accent" />
@@ -486,7 +488,7 @@ function CodexExtensionsView({
           <div className="mt-3 grid grid-cols-3 gap-1.5">
             <SystemMetricPill><span>Groups</span><strong>{groups.length}</strong></SystemMetricPill>
             <SystemMetricPill><span>Items</span><strong>{loading ? '...' : totalItems}</strong></SystemMetricPill>
-            <SystemMetricPill tone="danger"><span>Errors</span><strong>{groups.filter((group) => group.status === 'error').length}</strong></SystemMetricPill>
+            <SystemMetricPill tone="danger"><span>Errors</span><strong>{errorCount}</strong></SystemMetricPill>
           </div>
         )}
       </div>
@@ -823,7 +825,7 @@ function FileEditor({ file, embedded = false, accentColor, onUpdate, onSave }: {
       <InspectorCard className={embedded ? 'extension-panel-card p-1.5' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono" style={{ color: isNew ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{file.label}</span>}
-          defaultOpen={file.content !== null}
+          defaultOpen={embedded ? false : file.content !== null}
           meta={isNew ? <Badge>new</Badge> : undefined}
           bodyClassName="pt-2"
         >

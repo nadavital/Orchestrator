@@ -1590,6 +1590,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             extensionsEmbeddedCopyCompact: ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} !== 'extensions' ||
               (bodyText.includes('Instructions') && !bodyText.includes('Local Instructions')),
+            extensionsPanelCalmWorks: ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} !== 'extensions' ||
+              (() => {
+                const extensionPanel = document.querySelector('[data-testid="session-right-panel"]');
+                if (!(extensionPanel instanceof HTMLElement)) return false;
+                const extensionTextareas = [...extensionPanel.querySelectorAll('textarea')];
+                const summary = extensionPanel.querySelector('[data-testid="extensions-panel-summary"]');
+                return bodyText.includes('Instructions') &&
+                  !bodyText.includes('Local Instructions') &&
+                  extensionTextareas.length === 0 &&
+                  extensionPanel.scrollWidth <= extensionPanel.clientWidth + 2 &&
+                  (!(summary instanceof HTMLElement) || summary.getBoundingClientRect().height <= 24);
+              })(),
             hasSideQuestionCommandText: bodyText.includes('/btw') || Boolean(textarea && textarea.value.includes('/btw')),
             capabilityMenuOpened: typeof capabilityMenuOpened === 'boolean' ? capabilityMenuOpened : null,
             capabilityMenuArrowFocus: typeof capabilityMenuArrowFocus === 'boolean' ? capabilityMenuArrowFocus : null,
