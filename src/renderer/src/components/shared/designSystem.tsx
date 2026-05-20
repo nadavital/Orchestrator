@@ -328,6 +328,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
       ref={anchorRef}
       className="orchestrator-tooltip-anchor"
       onMouseEnter={scheduleShow}
+      onMouseOver={scheduleShow}
       onMouseLeave={hide}
       onFocus={showNow}
       onBlur={hide}

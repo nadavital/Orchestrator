@@ -1958,9 +1958,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarTabActions.getBoundingClientRect().height <= 26 &&
             (rightSidebarActiveTabStyle?.boxShadow === 'none' || rightSidebarActiveTabStyle?.boxShadow === '');
           const rightSidebarAddControlStableWorks =
-            rightSidebarAddTabButton === null &&
+            rightSidebarAddTabButton instanceof HTMLButtonElement &&
+            rightSidebarAddTabButton.getAttribute('aria-label') === 'Add inspector tab' &&
+            rightSidebarAddTabButton.getAttribute('data-icon') === 'plus' &&
             rightSidebarTabActions instanceof HTMLElement &&
-            rightSidebarTabActions.querySelectorAll('.motion-icon-button').length === 1;
+            rightSidebarTabActions.querySelectorAll('.motion-icon-button').length === 2;
+          let rightSidebarAddMenuStableWorks = false;
+          if (rightSidebarAddTabButton instanceof HTMLButtonElement) {
+            rightSidebarAddTabButton.click();
+            await sleep(120);
+            const toolMenuItems = [...document.querySelectorAll('[role="menuitem"]')]
+              .filter((item) => item.textContent?.includes('Browser') || item.textContent?.includes('Files'));
+            rightSidebarAddMenuStableWorks =
+              toolMenuItems.length === 2 &&
+              toolMenuItems.every((item) => item instanceof HTMLButtonElement && item.disabled);
+            rightSidebarAddTabButton.click();
+            await sleep(80);
+          }
           const rightSidebarInactiveTabsCompactWorks =
             rightSidebarActiveTab instanceof HTMLElement &&
             rightSidebarActiveLabel instanceof HTMLElement &&
@@ -1981,7 +1995,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               clientY: inactiveTabRect.top + inactiveTabRect.height / 2
             }));
             inactiveBrowserTab.focus({ preventScroll: true });
-            await sleep(180);
+            await sleep(360);
             const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
             const visibleTooltip = visibleTooltips
               .find((tooltip) => tooltip.textContent?.trim() === expectedTooltip);
@@ -2136,6 +2150,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
             rightSidebarAddControlStableWorks,
+            rightSidebarAddMenuStableWorks,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             reviewSearchClearWorks: typeof reviewSearchClearWorks === 'boolean' ? reviewSearchClearWorks : null,
             reviewJsonPreviewWorks: typeof reviewJsonPreviewWorks === 'boolean' ? reviewJsonPreviewWorks : null,

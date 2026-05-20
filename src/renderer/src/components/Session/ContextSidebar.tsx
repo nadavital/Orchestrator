@@ -209,9 +209,9 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
   }
 
   const tabMenuIndex = tabMenu ? tabs.findIndex((tab) => tab.id === tabMenu.tabId) : -1
-  const closedToolTabs: ContextTabSpec[] = [
-    ...(!hasBrowserTab ? [{ id: 'browser' as const, label: 'Browser', icon: 'browser' as const }] : []),
-    ...(!hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : [])
+  const toolTabs = [
+    { id: 'browser' as const, label: 'Browser', icon: 'browser' as const, open: hasBrowserTab },
+    { id: 'files' as const, label: 'Files', icon: 'folder' as const, open: hasFilesTab }
   ]
   const openToolTab = (tab: ContextTab): void => {
     setToolsMenuOpen(false)
@@ -276,39 +276,38 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
           ))}
           </div>
           <div className="right-sidebar-tab-actions" data-testid="right-sidebar-tab-actions">
-            {closedToolTabs.length > 0 && (
-              <div className="relative">
-                <IconButton
-                  icon="plus"
-                  label="Add inspector tab"
-                  size="sm"
-                  active={toolsMenuOpen}
-                  dataTestId="right-panel-add-tab"
-                  onClick={() => setToolsMenuOpen((open) => !open)}
-                />
-                {toolsMenuOpen && (
-                  <MenuSurface
-                    onClose={() => setToolsMenuOpen(false)}
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: 34,
-                      width: 168,
-                      zIndex: 70
-                    }}
-                  >
-                    {closedToolTabs.map((tab) => (
-                      <MenuItem
-                        key={tab.id}
-                        icon={tab.icon}
-                        label={tab.label}
-                        onClick={() => openToolTab(tab.id)}
-                      />
-                    ))}
-                  </MenuSurface>
-                )}
-              </div>
-            )}
+            <div className="relative">
+              <IconButton
+                icon="plus"
+                label="Add inspector tab"
+                size="sm"
+                active={toolsMenuOpen}
+                dataTestId="right-panel-add-tab"
+                onClick={() => setToolsMenuOpen((open) => !open)}
+              />
+              {toolsMenuOpen && (
+                <MenuSurface
+                  onClose={() => setToolsMenuOpen(false)}
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 34,
+                    width: 168,
+                    zIndex: 70
+                  }}
+                >
+                  {toolTabs.map((tab) => (
+                    <MenuItem
+                      key={tab.id}
+                      icon={tab.icon}
+                      label={tab.open ? `${tab.label} open` : tab.label}
+                      disabled={tab.open}
+                      onClick={() => openToolTab(tab.id)}
+                    />
+                  ))}
+                </MenuSurface>
+              )}
+            </div>
             <IconButton
               icon={rightPanel?.fullWidth ? 'minimize' : 'maximize'}
               label={rightPanel?.fullWidth ? 'Restore panel' : 'Focus panel'}
