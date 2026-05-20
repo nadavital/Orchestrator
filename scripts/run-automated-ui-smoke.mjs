@@ -395,6 +395,7 @@ child.on('exit', (code) => {
           browserHistoryMenu: result.browserHistoryMenuWorks === true,
           browserActionsMenuCompact: result.browserActionsMenuCompactWorks === true,
           browserClearData: result.browserClearDataWorks === true,
+          browserContextMenu: result.browserContextMenuWorks === true,
           browserDomPaneCompact: result.browserDomPaneCompactWorks === true,
           browserTargetsPane: result.browserTargetsPaneWorks === true,
           browserTargetKey: result.browserTargetKeyWorks === true,

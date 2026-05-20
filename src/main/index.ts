@@ -2421,6 +2421,37 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               }
               await sleep(80);
             }
+            var browserContextMenuWorks = false;
+            const browserContextViewportFrame = document.querySelector('[data-testid="browser-viewport-frame"]');
+            if (browserContextViewportFrame instanceof HTMLElement) {
+              const frameBounds = browserContextViewportFrame.getBoundingClientRect();
+              browserContextViewportFrame.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: frameBounds.left + Math.min(80, frameBounds.width / 2),
+                clientY: frameBounds.top + Math.min(80, frameBounds.height / 2)
+              }));
+              await sleep(160);
+              const browserContextMenu = document.querySelector('.browser-page-context-menu');
+              const contextBack = document.querySelector('[data-testid="browser-context-back"]');
+              const contextForward = document.querySelector('[data-testid="browser-context-forward"]');
+              const contextReload = document.querySelector('[data-testid="browser-context-reload"]');
+              const contextInspect = document.querySelector('[data-testid="browser-context-inspect"]');
+              const contextRows = browserContextMenu instanceof HTMLElement
+                ? [...browserContextMenu.querySelectorAll('.browser-action-row')]
+                : [];
+              browserContextMenuWorks =
+                browserContextMenu instanceof HTMLElement &&
+                contextBack instanceof HTMLButtonElement &&
+                contextForward instanceof HTMLButtonElement &&
+                contextReload instanceof HTMLButtonElement &&
+                contextInspect instanceof HTMLButtonElement &&
+                contextRows.length === 4 &&
+                browserContextMenu.scrollWidth <= browserContextMenu.clientWidth + 2 &&
+                browserContextMenu.getBoundingClientRect().right <= window.innerWidth;
+              document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+              await sleep(80);
+            }
             const badBrowserUrl = 'http://127.0.0.1:1/orchestrator-error-smoke';
             if (browserInputForStop instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(browserInputForStop.constructor.prototype, 'value')?.set;
@@ -2713,6 +2744,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserHistoryMenuWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserClearDataWorks: typeof browserClearDataWorks === 'boolean' ? browserClearDataWorks : null,
+              browserContextMenuWorks,
               browserDomPaneCompactWorks,
               browserTargetsPaneWorks,
               browserTargetKeyWorks,

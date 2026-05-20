@@ -1,4 +1,5 @@
 import { createElement, useEffect, useRef, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { BrowserHistoryEntry, BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
 import { Badge, IconButton, MenuSurface, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
@@ -137,6 +138,7 @@ export default function BrowserPanel({
   const [clipboardText, setClipboardText] = useState('')
   const [coordinateAction, setCoordinateAction] = useState({ x: 20, y: 20, scrollY: 360 })
   const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
+  const [pageContextMenu, setPageContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [localTargetSort, setLocalTargetSort] = useState<'recent' | 'port'>('recent')
   const activeTab = activeBrowserTab(workbench)
   const visible = workbench.visible
@@ -531,6 +533,16 @@ export default function BrowserPanel({
     void window.api.browser.openExternal(currentUrl)
   }
 
+  const openPageContextMenu = (event: ReactMouseEvent): void => {
+    if (!currentUrl || !visible || error) return
+    event.preventDefault()
+    setBrowserMenuOpen(false)
+    setPageContextMenu({
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 196)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 152))
+    })
+  }
+
   const webview = currentUrl && visible
     ? createElement('webview', {
         ref: (node: WebviewElement | null) => {
@@ -539,6 +551,7 @@ export default function BrowserPanel({
         src: currentUrl,
         partition: 'persist:orchestrator-side-browser',
         'data-testid': 'browser-webview',
+        onContextMenu: openPageContextMenu,
         style: {
           flex: 1,
           minHeight: 0,
@@ -973,7 +986,11 @@ export default function BrowserPanel({
         className="grid min-h-0 flex-1 overflow-hidden"
         style={{ gridTemplateRows: workbench.inspectorOpen ? 'minmax(0, 1fr) 210px' : 'minmax(0, 1fr)' }}
       >
-        <div className="flex min-h-0 justify-center overflow-hidden" style={{ background: 'var(--canvas-bg)' }}>
+        <div
+          className="relative flex min-h-0 justify-center overflow-hidden"
+          onContextMenu={openPageContextMenu}
+          style={{ background: 'var(--canvas-bg)' }}
+        >
           {currentUrl ? (
             visible ? (
               error ? (
@@ -1063,6 +1080,74 @@ export default function BrowserPanel({
                 </div>
               </div>
             </div>
+          )}
+          {pageContextMenu && (
+            <MenuSurface
+              onClose={() => setPageContextMenu(null)}
+              className="browser-page-context-menu"
+              style={{
+                position: 'fixed',
+                left: pageContextMenu.x,
+                top: pageContextMenu.y,
+                width: 180,
+                zIndex: 120
+              }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                className="browser-action-row"
+                disabled={!canGoBack}
+                data-testid="browser-context-back"
+                onClick={() => {
+                  webviewRef.current?.goBack()
+                  setPageContextMenu(null)
+                }}
+              >
+                <Icon name="arrowLeft" size={14} />
+                <span>Back</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="browser-action-row"
+                disabled={!canGoForward}
+                data-testid="browser-context-forward"
+                onClick={() => {
+                  webviewRef.current?.goForward()
+                  setPageContextMenu(null)
+                }}
+              >
+                <Icon name="arrowRight" size={14} />
+                <span>Forward</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="browser-action-row"
+                data-testid="browser-context-reload"
+                onClick={() => {
+                  webviewRef.current?.reload()
+                  setPageContextMenu(null)
+                }}
+              >
+                <Icon name="refresh" size={14} />
+                <span>Reload</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="browser-action-row"
+                data-testid="browser-context-inspect"
+                onClick={() => {
+                  setPageContextMenu(null)
+                  void runInspection()
+                }}
+              >
+                <Icon name="wrench" size={14} />
+                <span>Inspect</span>
+              </button>
+            </MenuSurface>
           )}
         </div>
 
