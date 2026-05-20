@@ -916,6 +916,10 @@
     padding-top: 6px;
   }
 
+  .browser-action-section-grid {
+    padding-bottom: 5px;
+  }
+
   .browser-action-label {
     padding: 2px 6px 4px;
     color: var(--text-tertiary);
@@ -923,6 +927,12 @@
     font-weight: 750;
     letter-spacing: 0;
     text-transform: uppercase;
+  }
+
+  .browser-action-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
   }
 
   .browser-action-row {
@@ -942,8 +952,34 @@
     font-weight: 620;
   }
 
+  .browser-action-tile {
+    display: grid;
+    min-width: 0;
+    min-height: 43px;
+    place-items: center;
+    gap: 4px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    padding: 6px 5px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .browser-action-tile span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .browser-action-row:not(:disabled):hover,
   .browser-action-row:not(:disabled):focus-visible,
+  .browser-action-tile:not(:disabled):hover,
+  .browser-action-tile:not(:disabled):focus-visible,
   .browser-action-mini:not(:disabled):hover,
   .browser-action-mini:not(:disabled):focus-visible,
   .browser-action-value:not(:disabled):hover,
@@ -954,6 +990,7 @@
   }
 
   .browser-action-row:disabled,
+  .browser-action-tile:disabled,
   .browser-action-mini:disabled,
   .browser-action-value:disabled {
     cursor: default;

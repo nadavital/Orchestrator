@@ -374,6 +374,7 @@ child.on('exit', (code) => {
           browserFindNavigation: result.browserFindNavigationWorks === true,
           browserStopLoading: result.browserStopLoadingWorks === true,
           browserHistoryMenu: result.browserHistoryMenuWorks === true,
+          browserActionsMenuCompact: result.browserActionsMenuCompactWorks === true,
           browserErrorRecovery: result.browserErrorRecoveryWorks === true,
           browserSingleTabChrome: result.browserSingleTabStripHidden === true,
           browserToolbarCompact: result.browserToolbarCompact === true,

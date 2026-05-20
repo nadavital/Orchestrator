@@ -588,61 +588,63 @@ export default function BrowserPanel({
               className="browser-actions-menu"
               style={{ position: 'absolute', right: 0, top: 32, width: 236, zIndex: 100 }}
             >
-              <div className="browser-action-section">
+              <div className="browser-action-section browser-action-section-grid">
                 <div className="browser-action-label">Page</div>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Reload without cache"
-                  className="browser-action-row"
-                  disabled={!currentUrl || !visible}
-                  onClick={reloadWithoutCache}
-                >
-                  <Icon name="eraser" size={13} />
-                  <span>Hard reload</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Capture screenshot"
-                  className="browser-action-row"
-                  disabled={!currentUrl || isLoading || !visible}
-                  onClick={() => {
-                    setBrowserMenuOpen(false)
-                    void captureScreenshot()
-                  }}
-                >
-                  <Icon name="camera" size={13} />
-                  <span>Screenshot</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Copy browser URL"
-                  className="browser-action-row"
-                  disabled={!currentUrl}
-                  onClick={() => {
-                    void navigator.clipboard.writeText(currentUrl)
-                    setBrowserMenuOpen(false)
-                  }}
-                >
-                  <Icon name="copy" size={13} />
-                  <span>Copy URL</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Open external browser"
-                  className="browser-action-row"
-                  disabled={!currentUrl}
-                  onClick={() => {
-                    setBrowserMenuOpen(false)
-                    openExternal()
-                  }}
-                >
-                  <Icon name="external" size={13} />
-                  <span>Open external</span>
-                </button>
+                <div className="browser-action-grid" data-testid="browser-page-action-grid">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-label="Reload without cache"
+                    className="browser-action-tile"
+                    disabled={!currentUrl || !visible}
+                    onClick={reloadWithoutCache}
+                  >
+                    <Icon name="eraser" size={14} />
+                    <span>Hard reload</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-label="Capture screenshot"
+                    className="browser-action-tile"
+                    disabled={!currentUrl || isLoading || !visible}
+                    onClick={() => {
+                      setBrowserMenuOpen(false)
+                      void captureScreenshot()
+                    }}
+                  >
+                    <Icon name="camera" size={14} />
+                    <span>Screenshot</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-label="Copy browser URL"
+                    className="browser-action-tile"
+                    disabled={!currentUrl}
+                    onClick={() => {
+                      void navigator.clipboard.writeText(currentUrl)
+                      setBrowserMenuOpen(false)
+                    }}
+                  >
+                    <Icon name="copy" size={14} />
+                    <span>Copy URL</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-label="Open external browser"
+                    className="browser-action-tile"
+                    disabled={!currentUrl}
+                    onClick={() => {
+                      setBrowserMenuOpen(false)
+                      openExternal()
+                    }}
+                  >
+                    <Icon name="external" size={14} />
+                    <span>Open external</span>
+                  </button>
+                </div>
               </div>
               {workbench.history.length > 0 && (
                 <div className="browser-action-section" data-testid="browser-history-menu">

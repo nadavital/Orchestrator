@@ -1679,6 +1679,9 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(160);
               const historyMenu = document.querySelector('[data-testid="browser-history-menu"]');
               const historyItems = [...document.querySelectorAll('[data-testid="browser-history-item"]')];
+              const browserActionsMenu = document.querySelector('.browser-actions-menu');
+              const browserPageActionGrid = document.querySelector('[data-testid="browser-page-action-grid"]');
+              const browserPageActionTiles = [...document.querySelectorAll('.browser-action-tile')];
               const copyUrlItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy URL'));
               browserHistoryMenuWorks =
@@ -1686,6 +1689,18 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 historyItems.length > 0 &&
                 historyItems.some((item) => item.textContent?.includes('127.0.0.1')) &&
                 copyUrlItem instanceof HTMLElement;
+              var browserActionsMenuCompactWorks =
+                browserActionsMenu instanceof HTMLElement &&
+                browserPageActionGrid instanceof HTMLElement &&
+                browserPageActionTiles.length === 4 &&
+                browserPageActionGrid.scrollWidth <= browserPageActionGrid.clientWidth + 2 &&
+                browserActionsMenu.scrollWidth <= browserActionsMenu.clientWidth + 2 &&
+                browserPageActionTiles.every((tile) => tile instanceof HTMLElement && tile.getBoundingClientRect().height <= 46) &&
+                browserPageActionTiles[0] instanceof HTMLElement &&
+                browserPageActionTiles[1] instanceof HTMLElement &&
+                Math.abs(browserPageActionTiles[0].getBoundingClientRect().top - browserPageActionTiles[1].getBoundingClientRect().top) <= 2 &&
+                browserPageActionTiles[2] instanceof HTMLElement &&
+                browserPageActionTiles[2].getBoundingClientRect().top > browserPageActionTiles[0].getBoundingClientRect().bottom - 2;
               browserActionsButton.click();
               await sleep(80);
             }
@@ -1752,6 +1767,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserFindNavigationWorks,
               browserStopLoadingWorks,
               browserHistoryMenuWorks,
+              browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserErrorRecoveryWorks,
               browserSingleTabStripHidden,
               browserNoHorizontalOverflow,
