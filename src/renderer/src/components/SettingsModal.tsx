@@ -1296,28 +1296,33 @@ function ProvidersSection({
             </CompactSetting>
           </SettingsPanel>
 
-          <button
-            onClick={() => setAdvancedOpen((open) => !open)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              marginTop: -2,
-              marginBottom: 14,
-              padding: '10px 12px',
-              borderRadius: 8,
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-surface)',
-              color: 'var(--color-text)',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            Diagnostics
-            <span style={{ color: 'var(--color-text-muted)' }}>{advancedOpen ? 'Close' : 'Open'}</span>
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -4, marginBottom: 12 }}>
+            <button
+              data-testid="provider-diagnostics-toggle"
+              aria-expanded={advancedOpen}
+              onClick={() => setAdvancedOpen((open) => !open)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                minHeight: 26,
+                padding: '4px 8px',
+                borderRadius: 7,
+                border: '1px solid var(--color-border)',
+                background: 'transparent',
+                color: 'var(--color-text-muted)',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 650,
+              }}
+            >
+              <Icon name="wrench" size={13} />
+              Diagnostics
+              <span style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                {advancedOpen ? 'Shown' : 'Hidden'}
+              </span>
+            </button>
+          </div>
 
           {advancedOpen && (
             <SettingsPanel>

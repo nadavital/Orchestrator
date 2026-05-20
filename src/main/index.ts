@@ -434,6 +434,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;
+              const diagnosticsToggle = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
+              var settingsDiagnosticsDisclosureCompactWorks =
+                diagnosticsToggle instanceof HTMLElement &&
+                diagnosticsToggle.getBoundingClientRect().height <= 32 &&
+                diagnosticsToggle.getAttribute('aria-expanded') === 'true';
               const editModelListButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Edit model list'));
               editModelListButton?.scrollIntoView({ block: 'center' });
@@ -496,6 +501,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;
+              const providerDiagnosticsToggle = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
+              var settingsDiagnosticsDisclosureCompactWorks =
+                providerDiagnosticsToggle instanceof HTMLElement &&
+                providerDiagnosticsToggle.getBoundingClientRect().height <= 32 &&
+                providerDiagnosticsToggle.getAttribute('aria-expanded') === 'true';
               const dataButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Data controls'));
               dataButton?.click();
@@ -1594,6 +1604,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsDiagnosticsSectionWorks: typeof settingsDiagnosticsSectionWorks === 'boolean' ? settingsDiagnosticsSectionWorks : null,
             settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
             settingsProviderModelsCollapsedWorks: typeof settingsProviderModelsCollapsedWorks === 'boolean' ? settingsProviderModelsCollapsedWorks : null,
+            settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
             settingsShortcutsCompactWorks: typeof settingsShortcutsCompactWorks === 'boolean' ? settingsShortcutsCompactWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Instructions'),
