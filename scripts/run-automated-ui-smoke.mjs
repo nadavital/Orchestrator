@@ -111,6 +111,7 @@ if (captureView === 'inspector' || captureView === 'browser') {
         <p>Browser search has a second visible match.</p>
         <button id="target-button" onclick="document.body.dataset.clicked='yes'; console.log('browser smoke clicked')">Target button</button>
         <input aria-label="Smoke input" placeholder="Type here" onkeydown="document.body.dataset.keyPressed=event.key">
+        <select aria-label="Smoke select" onchange="document.body.dataset.selectedOption=this.value"><option value="alpha">Alpha</option><option value="beta">Beta</option></select>
         <svg role="img" aria-label="Inline smoke icon" width="18" height="18"><circle cx="9" cy="9" r="8"></circle></svg>
       </main>`)
   })
@@ -382,6 +383,7 @@ child.on('exit', (code) => {
           browserActionsMenuCompact: result.browserActionsMenuCompactWorks === true,
           browserClearData: result.browserClearDataWorks === true,
           browserTargetKey: result.browserTargetKeyWorks === true,
+          browserTargetSelect: result.browserTargetSelectWorks === true,
           browserErrorRecovery: result.browserErrorRecoveryWorks === true,
           browserLoadErrorPanel: result.browserLoadErrorPanelWorks === true,
           browserSingleTabChrome: result.browserSingleTabStripHidden === true,
@@ -435,6 +437,7 @@ child.on('exit', (code) => {
         browserInspection: captureView !== 'inspector' || result.browserInspectionWorks === true,
         browserTargetsPane: captureView !== 'inspector' || result.browserTargetsPaneWorks === true,
         browserTargetKey: captureView !== 'inspector' || result.browserTargetKeyWorks === true,
+        browserTargetSelect: captureView !== 'inspector' || result.browserTargetSelectWorks === true,
         browserTargetsPaneNoHorizontalOverflow: captureView !== 'inspector' || result.browserTargetsPaneNoHorizontalOverflowWorks === true,
         browserAssetBundle: captureView !== 'inspector' || result.browserAssetBundleWorks === true,
         browserSecurityPane: captureView !== 'inspector' || result.browserSecurityPaneWorks === true,

@@ -1149,6 +1149,38 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 }
               }
             }
+            let browserTargetSelectWorks = false;
+            const browserTargetSelectForSelect = document.querySelector('[data-testid="browser-target-select"]');
+            const browserTargetActionInputForSelect = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
+            if (browserTargetSelectForSelect instanceof HTMLSelectElement && browserTargetActionInputForSelect instanceof HTMLInputElement) {
+              const smokeSelectOption = [...browserTargetSelectForSelect.options]
+                .find((option) => option.textContent?.includes('Smoke select'));
+              if (smokeSelectOption) {
+                const selectSetter = Object.getOwnPropertyDescriptor(browserTargetSelectForSelect.constructor.prototype, 'value')?.set;
+                selectSetter?.call(browserTargetSelectForSelect, smokeSelectOption.value);
+                browserTargetSelectForSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                const inputSetter = Object.getOwnPropertyDescriptor(browserTargetActionInputForSelect.constructor.prototype, 'value')?.set;
+                inputSetter?.call(browserTargetActionInputForSelect, 'beta');
+                browserTargetActionInputForSelect.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+                const selectButton = [...document.querySelectorAll('.browser-targets-pane button')]
+                  .find((button) => button.textContent?.trim() === 'Select');
+                if (selectButton instanceof HTMLButtonElement) {
+                  selectButton.click();
+                  const browserWebview = document.querySelector('[data-testid="browser-webview"]');
+                  for (let index = 0; index < 30; index += 1) {
+                    const selected = browserWebview && 'executeJavaScript' in browserWebview
+                      ? await browserWebview.executeJavaScript('document.body.dataset.selectedOption || ""')
+                      : '';
+                    if (selected === 'beta') {
+                      browserTargetSelectWorks = true;
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                }
+              }
+            }
             var browserTargetsPaneNoHorizontalOverflowWorks = (() => {
               const pane = document.querySelector('.browser-targets-pane');
               const output = document.querySelector('[data-testid="browser-inspector-output"]');
@@ -1651,6 +1683,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserInspectionWorks: typeof browserInspectionWorks === 'boolean' ? browserInspectionWorks : null,
             browserTargetsPaneWorks: typeof browserTargetsPaneWorks === 'boolean' ? browserTargetsPaneWorks : null,
             browserTargetKeyWorks: typeof browserTargetKeyWorks === 'boolean' ? browserTargetKeyWorks : null,
+            browserTargetSelectWorks: typeof browserTargetSelectWorks === 'boolean' ? browserTargetSelectWorks : null,
             browserTargetsPaneNoHorizontalOverflowWorks: typeof browserTargetsPaneNoHorizontalOverflowWorks === 'boolean' ? browserTargetsPaneNoHorizontalOverflowWorks : null,
             browserAssetBundleWorks: typeof browserAssetBundleWorks === 'boolean' ? browserAssetBundleWorks : null,
             browserSecurityPaneWorks: typeof browserSecurityPaneWorks === 'boolean' ? browserSecurityPaneWorks : null,
@@ -2072,6 +2105,38 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 }
               }
             }
+            let browserTargetSelectWorks = false;
+            const browserTargetSelectForSelect = document.querySelector('[data-testid="browser-target-select"]');
+            const browserTargetActionInputForSelect = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
+            if (browserTargetSelectForSelect instanceof HTMLSelectElement && browserTargetActionInputForSelect instanceof HTMLInputElement) {
+              const smokeSelectOption = [...browserTargetSelectForSelect.options]
+                .find((option) => option.textContent?.includes('Smoke select'));
+              if (smokeSelectOption) {
+                const selectSetter = Object.getOwnPropertyDescriptor(browserTargetSelectForSelect.constructor.prototype, 'value')?.set;
+                selectSetter?.call(browserTargetSelectForSelect, smokeSelectOption.value);
+                browserTargetSelectForSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                const inputSetter = Object.getOwnPropertyDescriptor(browserTargetActionInputForSelect.constructor.prototype, 'value')?.set;
+                inputSetter?.call(browserTargetActionInputForSelect, 'beta');
+                browserTargetActionInputForSelect.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+                const selectButton = [...document.querySelectorAll('.browser-targets-pane button')]
+                  .find((button) => button.textContent?.trim() === 'Select');
+                if (selectButton instanceof HTMLButtonElement) {
+                  selectButton.click();
+                  const browserWebview = document.querySelector('[data-testid="browser-webview"]');
+                  for (let index = 0; index < 30; index += 1) {
+                    const selected = browserWebview && 'executeJavaScript' in browserWebview
+                      ? await browserWebview.executeJavaScript('document.body.dataset.selectedOption || ""')
+                      : '';
+                    if (selected === 'beta') {
+                      browserTargetSelectWorks = true;
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                }
+              }
+            }
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const expectedUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
             const browserCurrentUrl = browserPanel?.getAttribute('data-browser-current-url') ?? '';
@@ -2109,6 +2174,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserClearDataWorks: typeof browserClearDataWorks === 'boolean' ? browserClearDataWorks : null,
               browserTargetKeyWorks,
+              browserTargetSelectWorks,
               browserErrorRecoveryWorks,
               browserLoadErrorPanelWorks,
               browserSingleTabStripHidden,

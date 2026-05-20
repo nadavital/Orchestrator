@@ -74,7 +74,7 @@ interface VisibleTarget {
   selector: { primary: string | null; candidates: string[] }
 }
 
-type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'key' | 'scroll'
+type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'key' | 'select' | 'scroll'
 
 interface LocalBrowserTarget {
   url: string
@@ -1282,6 +1282,7 @@ function TargetsPane({
           <ActionButton label="Double" onClick={() => onRunTargetAction('double_click')} disabled={!selectedTargetId} />
           <ActionButton label="Type" onClick={() => onRunTargetAction('type')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Key" onClick={() => onRunTargetAction('key')} disabled={!selectedTargetId || !actionText} />
+          <ActionButton label="Select" onClick={() => onRunTargetAction('select')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Scroll" onClick={() => onRunTargetAction('scroll')} disabled={!selectedTargetId} />
         </div>
       </div>
@@ -1703,6 +1704,17 @@ const VISIBLE_TARGETS_SCRIPT = `
       element.dispatchEvent(new KeyboardEvent('keydown', eventInit));
       element.dispatchEvent(new KeyboardEvent('keyup', eventInit));
       return true;
+    }
+    if (action === 'select') {
+      if (element instanceof HTMLSelectElement) {
+        const option = [...element.options].find((item) => item.value === text || item.textContent?.trim() === text);
+        if (!option) return false;
+        element.value = option.value;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }
+      return false;
     }
     element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
     return true;
