@@ -1451,13 +1451,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const securityInspectorButton = document.querySelector('[data-testid="browser-inspector-security"]');
             if (securityInspectorButton instanceof HTMLButtonElement) {
               securityInspectorButton.click();
-              await sleep(120);
+              for (let index = 0; index < 20; index += 1) {
+                if (document.querySelector('[data-testid="browser-security-pane"]')) break;
+                await sleep(100);
+              }
             }
+            const browserSecurityPane = document.querySelector('[data-testid="browser-security-pane"]');
+            const browserSecurityOrigin = document.querySelector('[data-testid="browser-security-origin"]');
+            const browserSecurityRows = [...document.querySelectorAll('[data-testid="browser-security-policy-row"]')];
+            const browserSecurityText = browserSecurityPane instanceof HTMLElement
+              ? browserSecurityPane.textContent?.toLowerCase() ?? ''
+              : '';
             var browserSecurityPaneWorks =
-              document.body.innerText.includes('Approval') &&
-              document.body.innerText.includes('Allowed') &&
-              document.body.innerText.includes('Downloads') &&
-              document.body.innerText.includes('Uploads');
+              browserSecurityPane instanceof HTMLElement &&
+              browserSecurityOrigin instanceof HTMLElement &&
+              browserSecurityRows.length === 4 &&
+              browserSecurityText.includes('current origin') &&
+              browserSecurityText.includes('approval') &&
+              browserSecurityText.includes('allowed') &&
+              browserSecurityText.includes('blocked') &&
+              browserSecurityText.includes('downloads') &&
+              browserSecurityText.includes('uploads');
             var browserSecurityPaneNoHorizontalOverflowWorks = (() => {
               const drawer = document.querySelector('.browser-inspector-drawer');
               const output = document.querySelector('[data-testid="browser-inspector-output"]');

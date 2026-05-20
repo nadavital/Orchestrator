@@ -1573,8 +1573,13 @@ function SecurityPane({
   onClearOriginPolicy: (key: 'allowedOrigins' | 'blockedOrigins' | 'allowedDownloadOrigins' | 'blockedDownloadOrigins' | 'allowedUploadOrigins' | 'blockedUploadOrigins') => void
 }): JSX.Element {
   return (
-    <div className="browser-security-pane">
-      <div className="space-y-2">
+    <div className="browser-security-pane" data-testid="browser-security-pane">
+      <div className="browser-security-card" data-testid="browser-security-origin">
+        <div className="browser-target-section-title">Current origin</div>
+        <div className="browser-security-origin">{currentOrigin || 'none'}</div>
+      </div>
+      <div className="browser-security-card">
+        <div className="browser-target-section-title">Defaults</div>
         <PolicySelect
           label="Approval"
           value={workbench.approvalMode}
@@ -1585,13 +1590,13 @@ function SecurityPane({
           value={workbench.historyApprovalMode}
           onChange={(historyApprovalMode) => onPatch({ historyApprovalMode })}
         />
-        <div style={{ color: 'var(--text-tertiary)' }}>Origin: {currentOrigin || 'none'}</div>
       </div>
-      <div className="space-y-1">
+      <div className="browser-security-card browser-security-policies" data-testid="browser-security-policies">
+        <div className="browser-target-section-title">Origins</div>
         <PolicyRow label="Allowed" values={workbench.allowedOrigins} onAdd={() => onAddOriginPolicy('allowedOrigins')} onClear={() => onClearOriginPolicy('allowedOrigins')} />
         <PolicyRow label="Blocked" values={workbench.blockedOrigins} onAdd={() => onAddOriginPolicy('blockedOrigins')} onClear={() => onClearOriginPolicy('blockedOrigins')} />
-        <PolicyRow label="Downloads" values={workbench.allowedDownloadOrigins} onAdd={() => onAddOriginPolicy('allowedDownloadOrigins')} onClear={() => onClearOriginPolicy('allowedDownloadOrigins')} />
-        <PolicyRow label="Uploads" values={workbench.allowedUploadOrigins} onAdd={() => onAddOriginPolicy('allowedUploadOrigins')} onClear={() => onClearOriginPolicy('allowedUploadOrigins')} />
+        <PolicyRow label="Downloads" values={workbench.allowedDownloadOrigins} blockedValues={workbench.blockedDownloadOrigins} onAdd={() => onAddOriginPolicy('allowedDownloadOrigins')} onClear={() => onClearOriginPolicy('allowedDownloadOrigins')} />
+        <PolicyRow label="Uploads" values={workbench.allowedUploadOrigins} blockedValues={workbench.blockedUploadOrigins} onAdd={() => onAddOriginPolicy('allowedUploadOrigins')} onClear={() => onClearOriginPolicy('allowedUploadOrigins')} />
       </div>
     </div>
   )
@@ -1599,8 +1604,8 @@ function SecurityPane({
 
 function PolicySelect({ label, value, onChange }: { label: string; value: 'alwaysAsk' | 'alwaysAllow'; onChange: (value: 'alwaysAsk' | 'alwaysAllow') => void }): JSX.Element {
   return (
-    <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+    <label className="browser-policy-select">
+      <span>{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as 'alwaysAsk' | 'alwaysAllow')}
@@ -1614,13 +1619,34 @@ function PolicySelect({ label, value, onChange }: { label: string; value: 'alway
   )
 }
 
-function PolicyRow({ label, values, onAdd, onClear }: { label: string; values: string[]; onAdd: () => void; onClear: () => void }): JSX.Element {
+function PolicyRow({
+  label,
+  values,
+  blockedValues = [],
+  onAdd,
+  onClear
+}: {
+  label: string
+  values: string[]
+  blockedValues?: string[]
+  onAdd: () => void
+  onClear: () => void
+}): JSX.Element {
+  const summary = values.length > 0
+    ? values.join(', ')
+    : blockedValues.length > 0
+      ? `blocked: ${blockedValues.join(', ')}`
+      : 'none'
   return (
-    <div className="grid grid-cols-[72px_minmax(0,1fr)_auto_auto] items-center gap-1">
-      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-      <span className="truncate" style={{ color: 'var(--text-tertiary)' }}>{values.join(', ') || 'none'}</span>
-      <ActionButton label="Add" onClick={onAdd} />
-      <ActionButton label="Clear" onClick={onClear} disabled={values.length === 0} />
+    <div className="browser-policy-row" data-testid="browser-security-policy-row">
+      <div className="min-w-0">
+        <div className="browser-policy-name">{label}</div>
+        <div className="browser-policy-value">{summary}</div>
+      </div>
+      <div className="browser-policy-actions">
+        <ActionButton label="Add" onClick={onAdd} />
+        <ActionButton label="Clear" onClick={onClear} disabled={values.length === 0} />
+      </div>
     </div>
   )
 }

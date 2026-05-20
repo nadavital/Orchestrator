@@ -1669,6 +1669,70 @@
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
+  .browser-security-card {
+    display: grid;
+    min-width: 0;
+    gap: 8px;
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--control-bg) 48%, transparent);
+    padding: 8px;
+  }
+
+  .browser-security-origin {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .browser-security-policies {
+    grid-column: 1 / -1;
+  }
+
+  .browser-policy-select,
+  .browser-policy-row {
+    display: grid;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .browser-policy-select {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .browser-policy-select > span,
+  .browser-policy-name {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .browser-policy-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--control-bg) 58%, transparent);
+    padding: 6px;
+  }
+
+  .browser-policy-value {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .browser-policy-actions {
+    display: flex;
+    min-width: 0;
+    gap: 4px;
+  }
+
   @media (max-width: 900px) {
     .browser-target-action-controls {
       grid-template-columns: minmax(0, 1fr);
