@@ -28,24 +28,31 @@ export default function EmptyState(): JSX.Element {
   if (!hasProjects) {
     return (
       <div
-        className="flex-1 min-w-0 flex items-center justify-center px-8 py-10 text-center"
+        className="flex-1 min-w-0 flex items-start justify-center px-8 pb-10 pt-[18vh] text-center"
         style={{ color: 'var(--color-text-muted)' }}
       >
-        <div data-testid="project-empty-state" className="w-full max-w-[420px] py-8">
-          <div className="mb-3 flex items-center justify-center gap-2">
-            <Icon name="folder" size={18} />
-            <div className="text-xl font-semibold tracking-normal" style={{ color: 'var(--color-text)' }}>
-              Add a project
-            </div>
+        <div data-testid="project-empty-state" className="w-full max-w-[460px]">
+          <div
+            className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-xl"
+            style={{
+              background: 'var(--control-bg)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-secondary)'
+            }}
+          >
+            <Icon name="folder" size={20} />
           </div>
-          <div className="mx-auto mb-6 max-w-[300px] text-sm leading-6">
+          <div className="text-[22px] font-semibold leading-7 tracking-normal" style={{ color: 'var(--color-text)' }}>
+            Add a project
+          </div>
+          <div className="mx-auto mb-6 mt-2 max-w-[320px] text-sm leading-6">
             Open a local folder to start a workspace chat.
           </div>
           <Button
             dataTestId="project-empty-state-add"
             variant="primary"
             onClick={() => { void handleAddProject() }}
-            className="px-4 py-2 text-sm"
+            className="h-9 px-4 text-sm"
           >
             <Icon name="plus" size={14} />
             Add project
