@@ -24,10 +24,12 @@ import {
   Globe,
   Keyboard,
   ListChecks,
+  Maximize2,
   Menu,
   Minimize2,
   Monitor,
   MessageSquare,
+  PanelRight,
   Paperclip,
   Pencil,
   Pin,
@@ -77,9 +79,11 @@ export type IconName =
   | 'file'
   | 'folder'
   | 'keyboard'
+  | 'maximize'
   | 'menu'
   | 'minimize'
   | 'monitor'
+  | 'panelRight'
   | 'paperclip'
   | 'pencil'
   | 'pin'
@@ -127,9 +131,11 @@ const icons: Record<IconName, LucideIcon> = {
   file: File,
   folder: Folder,
   keyboard: Keyboard,
+  maximize: Maximize2,
   menu: Menu,
   minimize: Minimize2,
   monitor: Monitor,
+  panelRight: PanelRight,
   paperclip: Paperclip,
   pencil: Pencil,
   pin: Pin,

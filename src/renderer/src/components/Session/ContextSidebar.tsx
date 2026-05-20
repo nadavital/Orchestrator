@@ -310,7 +310,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
               </div>
             )}
             <IconButton
-              icon={rightPanel?.fullWidth ? 'minimize' : 'monitor'}
+              icon={rightPanel?.fullWidth ? 'minimize' : 'maximize'}
               label={rightPanel?.fullWidth ? 'Restore panel' : 'Focus panel'}
               size="sm"
               active={rightPanel?.fullWidth}

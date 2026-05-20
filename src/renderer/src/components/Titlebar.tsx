@@ -208,9 +208,10 @@ export default function Titlebar(): JSX.Element {
               }}
             />
             <ToolbarButton
-              icon="diff"
+              icon="panelRight"
               label="Toggle sidebar"
               active={inspectorOpen}
+              dataTestId="titlebar-toggle-sidebar"
               onClick={toggleInspector}
             />
             <ToolbarButton

@@ -360,12 +360,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           await sleep(100);
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
             const chatActionsButton = document.querySelector('[data-testid="titlebar-chat-actions"]');
+            const titlebarToggleSidebar = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
             const headerActions = document.querySelector('[data-testid="titlebar-actions"]')?.getAttribute('data-header-actions') ?? '';
             var headerActionMenuWorks =
               headerActions.includes('folder') &&
               headerActions.includes('project') &&
               headerActions.includes('session') &&
               headerActions.includes('provider-session');
+            var titlebarSidebarToggleWorks =
+              titlebarToggleSidebar instanceof HTMLButtonElement &&
+              titlebarToggleSidebar.getAttribute('aria-label') === 'Toggle sidebar' &&
+              titlebarToggleSidebar.dataset.icon === 'panelRight';
             if (chatActionsButton instanceof HTMLElement) {
               chatActionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
               await sleep(120);
@@ -809,7 +814,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               primaryWidthAfterExpand >= primaryWidthBefore - 8 &&
               expandButton instanceof HTMLButtonElement &&
               expandButtonLabelBefore === 'Focus panel' &&
-              expandButtonIconBefore === 'monitor' &&
+              expandButtonIconBefore === 'maximize' &&
               restoreButton instanceof HTMLButtonElement &&
               restoreButtonLabelAfterExpand === 'Restore panel' &&
               restoreButtonIconAfterExpand === 'minimize';
@@ -1868,6 +1873,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             ),
             headerIdentityWorks,
             headerNativeTooltipsWork,
+            titlebarSidebarToggleWorks: typeof titlebarSidebarToggleWorks === 'boolean' ? titlebarSidebarToggleWorks : null,
             customTooltipNativeTitlesAbsent,
             customTooltipNativeTitleLeaks,
             nativeTitleFreeControlsWork,
