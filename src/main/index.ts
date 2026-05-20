@@ -663,6 +663,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(120);
               }
               const shortcutText = shortcutsSection instanceof HTMLElement ? shortcutsSection.innerText : '';
+              const shortcutRows = [...document.querySelectorAll('[data-testid="shortcuts-settings-section"] .settings-shortcut-row')]
+                .filter((row) => row instanceof HTMLElement);
+              const shortcutRowRects = shortcutRows.map((row) => row.getBoundingClientRect());
+              const shortcutKeyRects = shortcutKeys
+                .filter((key) => key instanceof HTMLElement)
+                .map((key) => key.getBoundingClientRect());
               var settingsShortcutsCompactWorks =
                 shortcutsSection instanceof HTMLElement &&
                 shortcutsSection.innerText.includes('Command Palette') &&
@@ -674,6 +680,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !shortcutText.toLowerCase().includes('keybinding') &&
                 shortcutKeys.length >= 8 &&
                 shortcutSequences.length >= 8 &&
+                shortcutRows.length >= 8 &&
+                shortcutRowRects.every((rect) => rect.height <= 38) &&
+                shortcutKeyRects.every((rect) => rect.height <= 24 && rect.width <= 74) &&
                 !shortcutText.includes('Navigation') &&
                 !shortcutText.includes('Panels') &&
                 !shortcutText.includes('Toggle Inspector') &&

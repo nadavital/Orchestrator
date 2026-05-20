@@ -2209,23 +2209,24 @@
   }
 
   .settings-shortcuts-search {
-    min-height: 40px;
+    min-height: 34px;
   }
 
   .settings-shortcuts-head {
-    min-height: 30px;
+    min-height: 26px;
     align-items: center;
   }
 
   .settings-shortcut-row {
-    min-height: 42px;
+    min-height: 34px;
   }
 
   .settings-shortcut-row kbd {
-    min-width: 34px;
+    min-width: 28px;
     border-radius: var(--radius-sm);
-    padding: 2px 7px;
-    font-size: 10.5px;
+    padding: 1px 6px;
+    font-size: 10px;
+    line-height: 1.25;
   }
 
   .provider-details-grid {
