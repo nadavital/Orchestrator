@@ -1931,13 +1931,37 @@
   }
 
   .browser-target-action-controls {
-    grid-template-columns: minmax(96px, 0.8fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(90px, 0.72fr) minmax(0, 1fr) 28px;
     align-items: center;
+  }
+
+  .browser-target-run-button {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--text-primary);
+    color: var(--surface-bg);
+  }
+
+  .browser-target-run-button:disabled {
+    background: var(--control-bg);
+    color: var(--text-tertiary);
+    opacity: 0.65;
+  }
+
+  .browser-target-run-button:not(:disabled):hover,
+  .browser-target-run-button:not(:disabled):focus-visible {
+    background: color-mix(in srgb, var(--text-primary) 90%, var(--accent));
+    outline: none;
   }
 
   .browser-targets-pane input,
   .browser-targets-pane select,
-  .browser-targets-pane button {
+  .browser-targets-pane button:not(.browser-target-run-button) {
     min-width: 0;
     min-height: 24px;
     padding-top: 3px;

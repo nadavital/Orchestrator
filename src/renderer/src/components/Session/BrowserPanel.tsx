@@ -1449,12 +1449,17 @@ function TargetsPane({
             className="w-full rounded-md px-2 py-1 text-xs outline-none"
             style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
           />
-          <ActionButton
-            label="Run"
-            dataTestId="browser-target-run-action"
+          <button
+            type="button"
+            aria-label="Run target action"
+            data-testid="browser-target-run-action"
+            className="browser-target-run-button"
             onClick={() => onRunTargetAction(targetAction)}
             disabled={!canRunAction}
-          />
+          >
+            <Icon name="send" size={13} />
+            <span className="sr-only">Run</span>
+          </button>
         </div>
         {targetReadResult && (
           <div
