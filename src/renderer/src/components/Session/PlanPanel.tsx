@@ -32,10 +32,14 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
         background: 'var(--surface-bg)'
       }}
     >
-      <PanelHeader title="Plan" subtitle="Goal, task state, and plan mode updates." />
+      {!embedded && <PanelHeader title="Plan" subtitle="Goal, task state, and plan mode updates." />}
 
       {!hasContent ? (
-        <EmptyText>Goals, plan mode updates, and task lists will appear here as the agent organizes the work.</EmptyText>
+        <EmptyText>
+          {embedded
+            ? 'No plan yet.'
+            : 'Goals, plan mode updates, and task lists will appear here as the agent organizes the work.'}
+        </EmptyText>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 flex flex-col gap-3">
           {goal && <GoalBlock goal={goal} />}

@@ -35,16 +35,18 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
         background: 'var(--surface-bg)'
       }}
     >
-      <PanelHeader
-        title="Agent Activity"
-        subtitle="Subagents, side tasks, and transcript handoffs."
-        actions={<MetricPill tone={stats.active > 0 ? 'success' : 'neutral'}>{stats.total} total</MetricPill>}
-      />
+      {!embedded && (
+        <PanelHeader
+          title="Agent Activity"
+          subtitle="Subagents, side tasks, and transcript handoffs."
+          actions={<MetricPill tone={stats.active > 0 ? 'success' : 'neutral'}>{stats.total} total</MetricPill>}
+        />
+      )}
 
-      <AgentOverview stats={stats} />
+      {(!embedded || stats.total > 0) && <AgentOverview stats={stats} embedded={embedded} />}
 
       {visibleAgents.length === 0 ? (
-        <EmptyState providerId={session.provider ?? 'provider'} />
+        <EmptyState providerId={session.provider ?? 'provider'} embedded={embedded} />
       ) : (
         <div className="flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
@@ -72,12 +74,17 @@ export default function EventInspectorPanel({ session, embedded = false, activeA
 }
 
 function AgentOverview({
-  stats
+  stats,
+  embedded = false
 }: {
   stats: ReturnType<typeof agentStats>
+  embedded?: boolean
 }): JSX.Element {
   return (
-    <div className="shrink-0 grid grid-cols-4 gap-1.5 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+    <div
+      className={`shrink-0 grid grid-cols-4 gap-1.5 ${embedded ? 'px-2 py-2' : 'px-4 py-3'}`}
+      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+    >
       <AgentStat label="Active" value={stats.active} tone="var(--color-green)" />
       <AgentStat label="Waiting" value={stats.waiting} tone="var(--color-yellow)" />
       <AgentStat label="Done" value={stats.completed} tone="var(--color-accent)" />
@@ -101,15 +108,20 @@ function AgentStat({ label, value, tone }: { label: string; value: number; tone:
   )
 }
 
-function EmptyState({ providerId }: { providerId: string }): JSX.Element {
+function EmptyState({ providerId, embedded = false }: { providerId: string; embedded?: boolean }): JSX.Element {
+  const title = embedded ? 'No agents yet' : 'No agent activity yet'
+  const body = embedded
+    ? 'Agent transcripts will appear here.'
+    : `When ${providerId} starts a subagent or side task, its status and transcript will appear here.`
+
   return (
     <div className="flex-1 min-h-0 p-3">
       <InspectorCard className="p-3">
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
-          No agent activity yet
+          {title}
         </div>
         <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)', lineHeight: 1.45 }}>
-          When {providerId} starts a subagent or side task, its status and transcript will appear here.
+          {body}
         </div>
       </InspectorCard>
     </div>
