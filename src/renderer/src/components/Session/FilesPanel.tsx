@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
@@ -242,6 +244,20 @@ function FilePreview({
       />
     )
   }
+  if (preview.kind === 'html') {
+    return (
+      <iframe
+        title={entry.name}
+        src={fileUrl(absolutePath)}
+        sandbox=""
+        className="h-full w-full border-0"
+        data-testid="workspace-html-preview"
+      />
+    )
+  }
+  if (preview.kind === 'markdown') {
+    return <MarkdownPreview name={entry.name} preview={preview} testId="workspace-markdown-preview" />
+  }
   if (preview.kind === 'audio') {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 p-4 text-center">
@@ -284,6 +300,33 @@ function FilePreview({
       >
         {preview.text ?? ''}
       </pre>
+    </div>
+  )
+}
+
+function MarkdownPreview({ name, preview, testId }: { name: string; preview: FilePreviewResult; testId: string }): JSX.Element {
+  return (
+    <div className="min-h-full overflow-auto" data-testid={testId}>
+      <div
+        className="flex items-center gap-2 px-3 py-2 text-[11px]"
+        style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)' }}
+      >
+        <Badge tone="neutral">Markdown</Badge>
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+      </div>
+      {preview.truncated && (
+        <div
+          className="px-3 py-2 text-[11px]"
+          style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)' }}
+        >
+          Showing first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
+        </div>
+      )}
+      <div className="markdown-surface p-3 text-sm" style={{ color: 'var(--text-primary)', lineHeight: 1.5 }}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {preview.text ?? ''}
+        </ReactMarkdown>
+      </div>
     </div>
   )
 }

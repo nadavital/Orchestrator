@@ -25,7 +25,8 @@ import { providerManifests } from './providerManifest'
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
 type FilePreviewResult =
   | { kind: 'text'; size: number; text: string; truncated: boolean }
-  | { kind: 'image' | 'pdf' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
+  | { kind: 'markdown'; size: number; text: string; truncated: boolean }
+  | { kind: 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
   | { kind: 'missing' | 'unreadable'; size?: number; truncated: false }
 
 interface BrowserAssetRequest {
@@ -47,6 +48,8 @@ interface PastedAttachmentRequest {
 
 const FILE_PREVIEW_LIMIT = 80_000
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
+const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdx'])
+const HTML_EXTENSIONS = new Set(['.html', '.htm'])
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.aiff', '.m4a', '.aac', '.flac', '.ogg'])
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm'])
 const BINARY_EXTENSIONS = new Set([
@@ -93,6 +96,7 @@ function previewFile(filePath: string): FilePreviewResult {
     const extension = extname(filePath).toLowerCase()
     if (IMAGE_EXTENSIONS.has(extension)) return { kind: 'image', size, truncated: false }
     if (extension === '.pdf') return { kind: 'pdf', size, truncated: false }
+    if (HTML_EXTENSIONS.has(extension)) return { kind: 'html', size, truncated: false }
     if (AUDIO_EXTENSIONS.has(extension)) return { kind: 'audio', size, truncated: false }
     if (VIDEO_EXTENSIONS.has(extension)) return { kind: 'video', size, truncated: false }
     if (BINARY_EXTENSIONS.has(extension)) return { kind: 'binary', size, truncated: false }
@@ -106,10 +110,19 @@ function previewFile(filePath: string): FilePreviewResult {
       closeSync(fd)
     }
     if (looksBinary(buffer)) return { kind: 'binary', size, truncated: false }
+    const text = buffer.toString('utf8')
+    if (MARKDOWN_EXTENSIONS.has(extension)) {
+      return {
+        kind: 'markdown',
+        size,
+        text,
+        truncated: size > FILE_PREVIEW_LIMIT
+      }
+    }
     return {
       kind: 'text',
       size,
-      text: buffer.toString('utf8'),
+      text,
       truncated: size > FILE_PREVIEW_LIMIT
     }
   } catch {

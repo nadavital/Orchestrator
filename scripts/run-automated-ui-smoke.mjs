@@ -75,6 +75,7 @@ if (captureView === 'inspector' || captureView === 'browser') {
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\n')
   writeFileSync(join(workspaceDir, 'review-delete.txt'), 'delete me\n')
   writeFileSync(join(workspaceDir, 'Nested Folder', 'nested note.md'), '# Nested file smoke preview\n\nThis verifies spaces in paths.\n')
+  writeFileSync(join(workspaceDir, 'preview-page.html'), '<!doctype html><main><h1>HTML preview smoke</h1><p>Rendered in the file inspector.</p></main>\n')
   writeFileSync(join(workspaceDir, 'binary-preview-smoke.bin'), Buffer.from([0, 1, 2, 3, 4, 5, 255]))
   spawnSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: workspaceDir, stdio: 'ignore' })
@@ -379,6 +380,7 @@ child.on('exit', (code) => {
         reviewBinaryState: captureView !== 'inspector' || result.reviewBinaryStateWorks === true,
         filesTabSearch: captureView !== 'inspector' || result.filesTabSearchWorks === true,
         filesTabAttach: captureView !== 'inspector' || result.filesTabAttachWorks === true,
+        filesHtmlPreview: captureView !== 'inspector' || result.filesHtmlPreviewWorks === true,
         filesBinaryPreview: captureView !== 'inspector' || result.filesBinaryPreviewWorks === true,
         filesNoResults: captureView !== 'inspector' || result.filesNoResultsWorks === true,
         browserTab: captureView !== 'inspector' || result.browserTabWorks === true,

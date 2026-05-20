@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { fileStatusLabel, summarizeFileChanges } from '../../types'
 import type { FileChange } from '../../types'
 import type { FilePreviewResult } from '../../env'
@@ -245,7 +247,12 @@ function ReviewPreview({
   if (loading) {
     return <ReviewEmptyState title={change.path} body="Loading..." />
   }
-  const hasNativePreview = preview?.kind === 'image' || preview?.kind === 'pdf' || preview?.kind === 'audio' || preview?.kind === 'video'
+  const hasNativePreview = preview?.kind === 'image' ||
+    preview?.kind === 'pdf' ||
+    preview?.kind === 'html' ||
+    preview?.kind === 'markdown' ||
+    preview?.kind === 'audio' ||
+    preview?.kind === 'video'
   if ((isBinaryDiff(diff) && !hasNativePreview) || preview?.kind === 'binary') {
     return <ReviewEmptyState title={change.path} body="Open or reveal to inspect." testId="review-binary-state" />
   }
@@ -269,6 +276,28 @@ function ReviewPreview({
       <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-pdf-state">
         <ReviewPreviewHeader change={change} label="PDF" />
         <iframe title={change.path} src={fileUrl(absolutePath)} className="min-h-0 flex-1 border-0" />
+      </div>
+    )
+  }
+  if (preview?.kind === 'html') {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-html-state">
+        <ReviewPreviewHeader change={change} label="HTML" />
+        <iframe title={change.path} src={fileUrl(absolutePath)} sandbox="" className="min-h-0 flex-1 border-0" />
+      </div>
+    )
+  }
+  if (preview?.kind === 'markdown') {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-markdown-state">
+        <ReviewPreviewHeader change={change} label={preview.truncated ? 'Markdown truncated' : 'Markdown'} />
+        <div className="min-h-0 flex-1 overflow-auto p-3">
+          <div className="markdown-surface text-sm" style={{ color: 'var(--text-primary)', lineHeight: 1.5 }}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {preview.text ?? ''}
+            </ReactMarkdown>
+          </div>
+        </div>
       </div>
     )
   }

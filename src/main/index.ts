@@ -699,10 +699,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var filesTabSearchWorks =
               document.body.innerText.includes('nested note.md') &&
               document.body.innerText.includes('Nested file smoke preview') &&
-              document.body.innerText.includes('Nested Folder');
+              document.body.innerText.includes('Nested Folder') &&
+              Boolean(document.querySelector('[data-testid="workspace-markdown-preview"]')) &&
+              !document.querySelector('[data-testid="workspace-text-preview"]');
             var filesTabAttachWorks =
               [...document.querySelectorAll('.attachment-pill')]
                 .some((attachment) => attachment.textContent?.includes('nested note.md'));
+            if (fileSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
+              setter?.call(fileSearch, 'preview-page');
+              fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(160);
+            }
+            const htmlFileButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('preview-page.html'));
+            if (htmlFileButton instanceof HTMLButtonElement) {
+              htmlFileButton.click();
+              await sleep(160);
+            }
+            var filesHtmlPreviewWorks =
+              Boolean(document.querySelector('[data-testid="workspace-html-preview"]')) &&
+              !document.querySelector('[data-testid="workspace-text-preview"]');
             if (fileSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'binary-preview-smoke');
@@ -1199,6 +1216,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewBinaryStateWorks: typeof reviewBinaryStateWorks === 'boolean' ? reviewBinaryStateWorks : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
+            filesHtmlPreviewWorks: typeof filesHtmlPreviewWorks === 'boolean' ? filesHtmlPreviewWorks : null,
             filesBinaryPreviewWorks: typeof filesBinaryPreviewWorks === 'boolean' ? filesBinaryPreviewWorks : null,
             filesNoResultsWorks: typeof filesNoResultsWorks === 'boolean' ? filesNoResultsWorks : null,
             browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
