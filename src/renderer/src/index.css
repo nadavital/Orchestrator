@@ -1046,19 +1046,33 @@
   }
 
   .motion-panel-right:not(.right-sidebar-expanded) .file-fallback-state {
-    min-height: 120px;
-    gap: 8px;
-    padding: 14px;
+    display: grid;
+    height: auto;
+    min-height: 0;
+    grid-template-columns: 30px minmax(0, 1fr);
+    align-items: center;
+    justify-content: initial;
+    gap: 4px 10px;
+    padding: 12px 14px;
+    text-align: left;
     font-size: 11px;
   }
 
   .motion-panel-right:not(.right-sidebar-expanded) .file-fallback-state > span:first-child {
+    grid-row: 1 / 4;
     width: 30px;
     height: 30px;
     border-radius: var(--radius-md);
   }
 
+  .motion-panel-right:not(.right-sidebar-expanded) .file-fallback-state > span:nth-child(3),
   .motion-panel-right:not(.right-sidebar-expanded) .file-fallback-state .file-fallback-actions {
+    grid-column: 2;
+    max-width: 100%;
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .file-fallback-state .file-fallback-actions {
+    justify-content: flex-start;
     gap: 6px;
   }
 

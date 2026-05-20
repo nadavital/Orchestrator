@@ -275,7 +275,7 @@ function ReviewPreview({
     return (
       <ReviewEmptyState
         title={change.path}
-        body="Cannot preview this file here."
+        body="Binary file not shown."
         meta={preview?.size !== undefined ? `Binary, ${formatBytes(preview.size)}` : 'Binary'}
         testId="review-binary-state"
         actions={[

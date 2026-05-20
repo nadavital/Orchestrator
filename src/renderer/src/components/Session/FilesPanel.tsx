@@ -307,7 +307,7 @@ function FilePreview({
     return (
       <EmptyFileState
         title={entry.name}
-        body="Cannot preview this file here."
+        body="Binary file not shown."
         meta={`Binary, ${formatBytes(preview.size)}`}
         testId="workspace-binary-state"
         actions={[

@@ -1024,18 +1024,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const reviewPreview = document.querySelector('[data-testid="review-preview"]');
             const reviewBinaryStateRect = reviewBinaryStateElement instanceof HTMLElement ? reviewBinaryStateElement.getBoundingClientRect() : null;
             const reviewPreviewRect = reviewPreview instanceof HTMLElement ? reviewPreview.getBoundingClientRect() : null;
-            const reviewBinaryStateCentered = reviewBinaryStateRect !== null && reviewPreviewRect !== null &&
-              Math.abs(
-                (reviewBinaryStateRect.top + reviewBinaryStateRect.height / 2) -
-                (reviewPreviewRect.top + reviewPreviewRect.height / 2)
-              ) <= 48;
+            const reviewBinaryStateCompact = reviewBinaryStateRect !== null && reviewPreviewRect !== null &&
+              reviewBinaryStateRect.top <= reviewPreviewRect.top + 24 &&
+              reviewBinaryStateRect.height <= 126;
             var reviewBinaryStateWorks =
               reviewBinaryStateElement instanceof HTMLElement &&
               reviewBinaryStateRect !== null &&
               reviewPreviewRect !== null &&
-              reviewBinaryStateCentered &&
+              reviewBinaryStateCompact &&
               reviewBinaryStateElement.innerText.includes('Binary') &&
-              document.body.innerText.includes('Cannot preview this file here.');
+              document.body.innerText.includes('Binary file not shown.');
             var reviewBinaryActionsWork =
               reviewBinaryStateActions.includes('Open') &&
               reviewBinaryStateActions.includes('Reveal');
@@ -1252,17 +1250,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               : [];
             const binaryStateRect = binaryState instanceof HTMLElement ? binaryState.getBoundingClientRect() : null;
             const binaryPreviewRect = filesPanelPreview instanceof HTMLElement ? filesPanelPreview.getBoundingClientRect() : null;
-            const filesBinaryStateCentered = binaryStateRect !== null && binaryPreviewRect !== null &&
-              Math.abs(
-                (binaryStateRect.top + binaryStateRect.height / 2) -
-                (binaryPreviewRect.top + binaryPreviewRect.height / 2)
-              ) <= 48;
+            const filesBinaryStateCompact = binaryStateRect !== null && binaryPreviewRect !== null &&
+              binaryStateRect.top <= binaryPreviewRect.top + 24 &&
+              binaryStateRect.height <= 126;
             var filesBinaryPreviewWorks =
               binaryState instanceof HTMLElement &&
               binaryStateRect !== null &&
               binaryPreviewRect !== null &&
-              filesBinaryStateCentered &&
-              document.body.innerText.includes('Cannot preview this file here.') &&
+              filesBinaryStateCompact &&
+              document.body.innerText.includes('Binary file not shown.') &&
               binaryState.innerText.includes('Binary') &&
               binaryStateButtons.includes('Open') &&
               binaryStateButtons.includes('Reveal') &&
