@@ -96,19 +96,18 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
               className="mt-2 text-[11px] font-semibold"
               data-testid="plan-goal-toggle"
               aria-expanded={expanded}
+              aria-label={expanded ? 'Hide full objective' : 'Show full objective'}
               style={{ color: 'var(--text-tertiary)' }}
               onClick={() => setExpanded((value) => !value)}
             >
-              {expanded ? 'Hide full objective' : 'Show full objective'}
+              {expanded ? 'Less' : 'Details'}
             </button>
           )}
           {expanded && (
             <div
-              className="mt-2 rounded-md p-2 text-xs"
+              className="mt-2 text-xs"
               data-testid="plan-goal-full-objective"
               style={{
-                background: 'var(--control-bg)',
-                border: '1px solid var(--border-subtle)',
                 color: 'var(--text-secondary)',
                 lineHeight: 1.45,
                 overflowWrap: 'anywhere'
