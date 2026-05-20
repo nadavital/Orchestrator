@@ -606,6 +606,40 @@
     height: 24px !important;
   }
 
+  .files-panel-toolbar {
+    display: flex;
+    min-height: 36px;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 5px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 5px 8px;
+  }
+
+  .files-panel-search {
+    height: 26px;
+  }
+
+  .files-entry-count {
+    height: 20px;
+    min-width: 22px;
+    color: var(--text-secondary) !important;
+    background: var(--control-bg) !important;
+    border-color: var(--border-subtle) !important;
+  }
+
+  .files-panel-actions {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .files-panel-actions .motion-icon-button {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
   .motion-panel-right[data-open='false'] {
     border-left-color: transparent;
     box-shadow: none;

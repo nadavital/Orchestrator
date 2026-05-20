@@ -386,6 +386,7 @@ child.on('exit', (code) => {
         reviewSearch: captureView !== 'inspector' || result.reviewSearchWorks === true,
         reviewBinaryState: captureView !== 'inspector' || result.reviewBinaryStateWorks === true,
         filesTabSearch: captureView !== 'inspector' || result.filesTabSearchWorks === true,
+        filesToolbarCompact: captureView !== 'inspector' || result.filesToolbarCompactWorks === true,
         filesTabAttach: captureView !== 'inspector' || result.filesTabAttachWorks === true,
         filesHtmlPreview: captureView !== 'inspector' || result.filesHtmlPreviewWorks === true,
         filesBinaryPreview: captureView !== 'inspector' || result.filesBinaryPreviewWorks === true,

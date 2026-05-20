@@ -715,6 +715,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(260);
             }
             const fileSearch = document.querySelector('[data-testid="workspace-file-search"]');
+            const filesToolbar = document.querySelector('[data-testid="files-panel-toolbar"]');
+            const filesToolbarActions = document.querySelector('[data-testid="files-panel-toolbar"] .files-panel-actions');
+            const filesEntryCount = document.querySelector('[data-testid="files-panel-toolbar"] .files-entry-count');
+            var filesToolbarCompactWorks =
+              filesToolbar instanceof HTMLElement &&
+              fileSearch instanceof HTMLInputElement &&
+              filesToolbarActions instanceof HTMLElement &&
+              filesEntryCount instanceof HTMLElement &&
+              filesToolbar.getBoundingClientRect().height <= 38 &&
+              filesToolbar.scrollWidth <= filesToolbar.clientWidth + 2 &&
+              fileSearch.getBoundingClientRect().height <= 28 &&
+              filesToolbarActions.getBoundingClientRect().height <= 26 &&
+              filesEntryCount.textContent?.trim().length > 0;
             if (fileSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'nested note');
@@ -1295,6 +1308,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             reviewBinaryStateWorks: typeof reviewBinaryStateWorks === 'boolean' ? reviewBinaryStateWorks : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
+            filesToolbarCompactWorks: typeof filesToolbarCompactWorks === 'boolean' ? filesToolbarCompactWorks : null,
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
             filesHtmlPreviewWorks: typeof filesHtmlPreviewWorks === 'boolean' ? filesHtmlPreviewWorks : null,
             filesBinaryPreviewWorks: typeof filesBinaryPreviewWorks === 'boolean' ? filesBinaryPreviewWorks : null,

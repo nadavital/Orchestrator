@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
-import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
+import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
 interface Props {
@@ -106,11 +106,18 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
   }
 
   const fileActions = (
-    <div className="relative flex items-center gap-1">
-      <ToolbarButton icon="paperclip" label="Add file to chat" disabled={selectedEntry?.kind !== 'file'} onClick={addSelectedToChat} />
+    <div className="files-panel-actions relative">
+      <IconButton
+        icon="paperclip"
+        label="Add file to chat"
+        size="sm"
+        disabled={selectedEntry?.kind !== 'file'}
+        onClick={addSelectedToChat}
+      />
       <IconButton
         icon="ellipsis"
         label="File actions"
+        size="sm"
         disabled={!selectedEntry}
         active={actionMenuOpen}
         onClick={() => setActionMenuOpen((open) => !open)}
@@ -138,20 +145,20 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
       }}
     >
       {!embedded && <PanelHeader title="Files" actions={fileActions} />}
-      <div className="flex shrink-0 items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+      <div className="files-panel-toolbar" data-testid="files-panel-toolbar">
         <input
           data-testid="workspace-file-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search files"
-          className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
+          className="files-panel-search min-w-0 flex-1 rounded-md px-2 text-xs outline-none"
           style={{
             background: 'var(--control-bg)',
             border: '1px solid var(--border-subtle)',
             color: 'var(--text-primary)'
           }}
         />
-        <Badge tone="neutral">{filteredEntries.length}</Badge>
+        <Badge tone="neutral" className="files-entry-count">{filteredEntries.length}</Badge>
         {embedded && fileActions}
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(140px,0.42fr)_minmax(0,1fr)]">
