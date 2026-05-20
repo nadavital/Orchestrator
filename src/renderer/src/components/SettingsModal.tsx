@@ -1102,12 +1102,6 @@ function ShortcutsSection(): JSX.Element {
       shortcut.keys.flat().join(' ')
     ].join(' ').toLowerCase().includes(normalizedQuery)
   })
-  const groupedShortcuts: Array<{ category: string; rows: typeof shortcuts }> = []
-  for (const shortcut of visibleShortcuts) {
-    const group = groupedShortcuts.find((entry) => entry.category === shortcut.category)
-    if (group) group.rows.push(shortcut)
-    else groupedShortcuts.push({ category: shortcut.category, rows: [shortcut] })
-  }
 
   return (
     <div data-testid="shortcuts-settings-section" style={{ padding: '24px 44px 52px', maxWidth: 760, margin: '0 auto' }}>
@@ -1133,46 +1127,42 @@ function ShortcutsSection(): JSX.Element {
         className="overflow-hidden rounded-lg"
         style={{ border: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
       >
-        {groupedShortcuts.map((group, groupIndex) => (
-          <div key={group.category} className={groupIndex === 0 ? '' : 'border-t'} style={{ borderColor: 'var(--border-subtle)' }}>
-            <div
-              className="px-3 py-1 text-[10px] font-bold uppercase"
-              style={{
-                background: 'var(--control-bg)',
-                color: 'var(--text-tertiary)'
-              }}
+        {visibleShortcuts.length > 0 && (
+          <div
+            className="grid grid-cols-[minmax(0,1fr)_minmax(120px,auto)] gap-3 border-b px-3 py-2 text-[10px] font-bold uppercase"
+            style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-tertiary)' }}
+          >
+            <span>Command</span>
+            <span className="text-right">Keybinding</span>
+          </div>
+        )}
+        {visibleShortcuts.map((shortcut, rowIndex) => (
+          <div
+            key={shortcut.label}
+            className="grid grid-cols-[minmax(0,1fr)_minmax(120px,auto)] items-center gap-3 border-t px-3 py-2"
+            style={{
+              borderColor: rowIndex === 0 ? 'transparent' : 'var(--border-subtle)',
+              color: 'var(--text-primary)'
+            }}
+          >
+            <span className="min-w-0 truncate text-[13px] font-medium">{shortcut.displayLabel}</span>
+            <span
+              className="flex shrink-0 items-center justify-end gap-1"
+              data-testid="settings-shortcut-sequence"
+              aria-label={shortcut.primaryKeys.join(' ')}
             >
-              {group.category}
-            </div>
-            {group.rows.map((shortcut, rowIndex) => (
-              <div
-                key={shortcut.label}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t px-3 py-2"
+              <kbd
+                className="min-w-9 rounded-md px-2 py-0.5 text-center text-[11px] font-semibold"
+                data-testid="settings-shortcut-key"
                 style={{
-                  borderColor: rowIndex === 0 ? 'transparent' : 'var(--border-subtle)',
-                  color: 'var(--text-primary)'
+                  background: 'var(--control-bg)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-secondary)'
                 }}
               >
-                <span className="min-w-0 truncate text-[13px] font-medium">{shortcut.displayLabel}</span>
-                <span
-                  className="flex shrink-0 items-center justify-end gap-1"
-                  data-testid="settings-shortcut-sequence"
-                  aria-label={shortcut.primaryKeys.join(' ')}
-                >
-                  <kbd
-                    className="min-w-9 rounded-md px-2 py-0.5 text-center text-[11px] font-semibold"
-                    data-testid="settings-shortcut-key"
-                    style={{
-                      background: 'var(--control-bg)',
-                      border: '1px solid var(--border-subtle)',
-                      color: 'var(--text-secondary)'
-                    }}
-                  >
-                    {shortcut.primaryKeys.join('')}
-                  </kbd>
-                </span>
-              </div>
-            ))}
+                {shortcut.primaryKeys.join('')}
+              </kbd>
+            </span>
           </div>
         ))}
         {visibleShortcuts.length === 0 && (
@@ -2808,8 +2798,8 @@ function ProviderUsageDiagnosticsCard({
         data-testid="provider-usage-status-strip"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))',
-          gap: 6
+          gridTemplateColumns: 'repeat(auto-fit, minmax(84px, 1fr))',
+          gap: 3
         }}
       >
         {!hasUsageMetrics && (
@@ -2821,8 +2811,8 @@ function ProviderUsageDiagnosticsCard({
               justifyContent: 'space-between',
               gap: 8,
               minWidth: 0,
-              minHeight: 30,
-              padding: '5px 8px',
+              minHeight: 22,
+              padding: '3px 6px',
               borderRadius: 7,
               background: 'var(--color-surface)',
               border: '1px solid var(--color-border)'
@@ -2834,7 +2824,7 @@ function ProviderUsageDiagnosticsCard({
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 600,
                 color: 'var(--color-text)'
               }}
@@ -2847,7 +2837,7 @@ function ProviderUsageDiagnosticsCard({
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-                fontSize: 11,
+                fontSize: 10,
                 color: 'var(--color-text-muted)'
               }}
             >
@@ -2862,10 +2852,10 @@ function ProviderUsageDiagnosticsCard({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: 6,
+              gap: 5,
               minWidth: 0,
-              minHeight: 30,
-              padding: '5px 8px',
+              minHeight: 22,
+              padding: '3px 6px',
               borderRadius: 7,
               background: 'var(--color-surface)',
               border: '1px solid var(--color-border)'
@@ -2877,7 +2867,7 @@ function ProviderUsageDiagnosticsCard({
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 600,
                 color: 'var(--color-text)'
               }}

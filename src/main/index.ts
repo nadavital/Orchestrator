@@ -407,6 +407,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
                 ? usageDiagnosticsCard.innerText.replace(/\\s+/g, ' ')
                 : '';
+              const hasUsageEmptyState = Boolean(document.querySelector('[data-testid="provider-usage-empty"]'));
+              const hasUsageMetrics = usageDiagnosticsText.includes('Tokens') &&
+                usageDiagnosticsText.includes('Cost') &&
+                usageDiagnosticsText.includes('Time');
               const providerCapabilitySummary = document.querySelector('[data-testid="provider-capability-summary"]');
               const providerButtonLabels = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
@@ -429,9 +433,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Usage') &&
                 usageDiagnosticsText.includes('Runs') &&
                 usageDiagnosticsText.includes('Budget') &&
-                usageDiagnosticsText.includes('No usage yet') &&
                 usageDiagnosticsCard instanceof HTMLElement &&
-                Boolean(document.querySelector('[data-testid="provider-usage-empty"]')) &&
+                (hasUsageEmptyState ? usageDiagnosticsText.includes('No usage yet') : hasUsageMetrics) &&
                 usageStatusStrip instanceof HTMLElement &&
                 usageStatusStrip.getBoundingClientRect().height <= 76 &&
                 !usageDiagnosticsText.includes('Tokens Unknown') &&
@@ -505,6 +508,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
                 ? usageDiagnosticsCard.innerText.replace(/\\s+/g, ' ')
                 : '';
+              const hasUsageEmptyState = Boolean(document.querySelector('[data-testid="provider-usage-empty"]'));
+              const hasUsageMetrics = usageDiagnosticsText.includes('Tokens') &&
+                usageDiagnosticsText.includes('Cost') &&
+                usageDiagnosticsText.includes('Time');
               const providerCapabilitySummary = document.querySelector('[data-testid="provider-capability-summary"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
@@ -519,9 +526,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Usage') &&
                 usageDiagnosticsText.includes('Runs') &&
                 usageDiagnosticsText.includes('Budget') &&
-                usageDiagnosticsText.includes('No usage yet') &&
                 usageDiagnosticsCard instanceof HTMLElement &&
-                Boolean(document.querySelector('[data-testid="provider-usage-empty"]')) &&
+                (hasUsageEmptyState ? usageDiagnosticsText.includes('No usage yet') : hasUsageMetrics) &&
                 usageStatusStrip instanceof HTMLElement &&
                 usageStatusStrip.getBoundingClientRect().height <= 76 &&
                 !usageDiagnosticsText.includes('Tokens Unknown') &&
@@ -573,8 +579,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsShortcutsCompactWorks =
                 shortcutsSection instanceof HTMLElement &&
                 shortcutsSection.innerText.includes('Command Palette') &&
+                shortcutsSection.innerText.toLowerCase().includes('keybinding') &&
                 shortcutKeys.length >= 8 &&
                 shortcutSequences.length >= 8 &&
+                !shortcutText.includes('Navigation') &&
+                !shortcutText.includes('Panels') &&
                 !shortcutText.includes('Toggle Inspector') &&
                 !shortcutText.includes('Toggle Terminal') &&
                 !shortcutText.includes('Pin or Unpin Chat') &&
