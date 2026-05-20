@@ -1819,6 +1819,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             headerMetadataText.includes('Automated UI Smoke') &&
             headerMetadataText.includes('Claude') &&
             headerMetadataText.length > 'Automated UI Smoke'.length;
+          const headerNativeTooltipsWork =
+            ['session-header-environment', 'profile-badge'].every((testId) => {
+              const element = document.querySelector('[data-testid="' + testId + '"]');
+              return element instanceof HTMLElement &&
+                element.getAttribute('title') === null &&
+                element.getAttribute('data-native-title-free') === 'true' &&
+                (element.getAttribute('data-tooltip-label') ?? '').trim().length > 0;
+            });
           const buttons = [...document.querySelectorAll('button')].map((button) => ({
             text: button.textContent?.trim() ?? '',
             title: button.getAttribute('title') ?? '',
@@ -1858,6 +1866,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               button.text.includes('Resources')
             ),
             headerIdentityWorks,
+            headerNativeTooltipsWork,
             customTooltipNativeTitlesAbsent,
             customTooltipNativeTitleLeaks,
             nativeTitleFreeControlsWork,

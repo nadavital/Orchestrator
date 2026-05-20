@@ -5,7 +5,7 @@ import type { AppProfile } from '../env'
 import { PROVIDER_DEFS } from '../types'
 import Icon from './shared/Icon'
 import SessionActionsMenu from './shared/SessionActionsMenu'
-import { ToolbarButton } from './shared/designSystem'
+import { ToolbarButton, Tooltip } from './shared/designSystem'
 
 export default function Titlebar(): JSX.Element {
   const {
@@ -110,15 +110,18 @@ export default function Titlebar(): JSX.Element {
       <div className="flex min-w-0 items-center gap-2 px-4" style={{ flex: 1 }}>
         {session ? (
           <>
-            <span
-              data-testid="session-header-environment"
-              title={environment.label}
-              aria-label={environment.label}
-              className="grid shrink-0 place-items-center"
-              style={{ color: 'var(--text-tertiary)', width: 18, height: 18 }}
-            >
-              <Icon name={environment.icon} size={13} />
-            </span>
+            <Tooltip label={environment.label}>
+              <span
+                data-testid="session-header-environment"
+                data-tooltip-label={environment.label}
+                data-native-title-free="true"
+                aria-label={environment.label}
+                className="grid shrink-0 place-items-center"
+                style={{ color: 'var(--text-tertiary)', width: 18, height: 18 }}
+              >
+                <Icon name={environment.icon} size={13} />
+              </span>
+            </Tooltip>
             <div className="flex min-w-0 flex-col">
               <div className="flex min-w-0 items-center gap-1.5">
                 <span
@@ -167,17 +170,21 @@ export default function Titlebar(): JSX.Element {
           className="flex items-center gap-2"
           style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
         >
-          <span
-            className="text-xs font-medium rounded-md px-2 py-0.5"
-            title={`User data: ${profile.userDataDir}`}
-            style={{
-              color: 'var(--text-secondary)',
-              border: '1px solid var(--border-subtle)',
-              background: 'var(--control-bg)'
-            }}
-          >
-            {profile.displayName} profile
-          </span>
+          <Tooltip label={`User data: ${profile.userDataDir}`}>
+            <span
+              className="text-xs font-medium rounded-md px-2 py-0.5"
+              data-testid="profile-badge"
+              data-tooltip-label={`User data: ${profile.userDataDir}`}
+              data-native-title-free="true"
+              style={{
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--control-bg)'
+              }}
+            >
+              {profile.displayName} profile
+            </span>
+          </Tooltip>
         </div>
       )}
 

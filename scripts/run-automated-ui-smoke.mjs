@@ -412,6 +412,7 @@ child.on('exit', (code) => {
         composer: result.hasComposer === true,
         sidebarNavigation: ['settings', 'settings-providers', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
         headerIdentity: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerIdentityWorks === true,
+        headerNativeTooltips: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerNativeTooltipsWork === true,
         customTooltipNativeTitlesAbsent: result.customTooltipNativeTitlesAbsent === true,
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
         composerNativeTooltips: result.composerNativeTooltipsWork === true,
