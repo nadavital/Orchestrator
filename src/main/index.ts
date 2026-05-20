@@ -316,6 +316,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedBrowserSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (['header', 'right-panel', 'diff', 'files', 'side-chat'].includes(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW ?? '')) {
+    runAutomatedFocusedSurfaceSmoke(
+      win,
+      outputPath,
+      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
+      screenshotPath
+    )
+    return
+  }
 
   win.webContents.once('did-finish-load', () => {
     setTimeout(() => {
@@ -2648,6 +2657,556 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
         app.quit()
       })
+    }, 700)
+  })
+}
+
+function runAutomatedFocusedSurfaceSmoke(
+  win: BrowserWindow,
+  outputPath: string,
+  surface: 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
+  screenshotPath?: string
+): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const result = await win.webContents.executeJavaScript(`
+          (async () => {
+            const surface = ${JSON.stringify(surface)};
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.getAttribute('title') ??
+              button.textContent?.trim() ??
+              '';
+            const findButton = (label) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => buttonLabel(button) === label);
+            const findButtonStartingWith = (labelPrefix) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => buttonLabel(button).startsWith(labelPrefix));
+            const setNativeValue = (element, value) => {
+              const setter = Object.getOwnPropertyDescriptor(element.constructor.prototype, 'value')?.set;
+              setter?.call(element, value);
+            };
+            const textOf = (element) => element instanceof HTMLElement ? element.innerText : '';
+            const profile = await window.api.app.getProfile();
+            await sleep(850);
+
+            const openRightPanel = async () => {
+              const visiblePanel = document.querySelector('[data-testid="session-right-panel"]');
+              if (visiblePanel instanceof HTMLElement && visiblePanel.getBoundingClientRect().width > 120) return;
+              const sidebarButton = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle sidebar');
+              if (sidebarButton instanceof HTMLElement) {
+                sidebarButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              }
+              for (let index = 0; index < 12; index += 1) {
+                if (document.querySelector('[data-testid="session-right-panel"]')) break;
+                await sleep(120);
+              }
+            };
+            const openPanelTab = async (tabId, label) => {
+              await openRightPanel();
+              const existing = document.querySelector('[data-tab-id="' + tabId + '"]')?.closest('[role="tab"]');
+              if (existing instanceof HTMLElement) {
+                existing.click();
+                await sleep(180);
+                return;
+              }
+              const addButton = findButton('Add panel tab');
+              if (addButton instanceof HTMLElement) {
+                addButton.click();
+                await sleep(120);
+                const menuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes(label));
+                if (menuItem instanceof HTMLElement) menuItem.click();
+                await sleep(260);
+              }
+            };
+
+            const runHeader = async () => {
+              const headerMetadataText = document.querySelector('[data-testid="session-header-metadata"]')?.textContent ?? '';
+              const activeSessionTitle = document.querySelector('[data-testid="active-session-title"]');
+              const titlebarToggleSidebar = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
+              const chatActionsButton = document.querySelector('[data-testid="titlebar-chat-actions"]');
+              const headerActions = document.querySelector('[data-testid="titlebar-actions"]')?.getAttribute('data-header-actions') ?? '';
+              let headerActionMenuWorks =
+                headerActions.includes('folder') &&
+                headerActions.includes('project') &&
+                headerActions.includes('session') &&
+                headerActions.includes('provider-session');
+              if (chatActionsButton instanceof HTMLElement) {
+                chatActionsButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                await sleep(120);
+                headerActionMenuWorks = headerActionMenuWorks ||
+                  document.body.innerText.includes('Copy folder path') &&
+                  document.body.innerText.includes('Copy project path') &&
+                  document.body.innerText.includes('Copy session ID') &&
+                  document.body.innerText.includes('Copy provider session ID');
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                await sleep(80);
+              }
+              const headerTooltipIds = ['active-session-title', 'session-header-metadata', 'profile-badge'];
+              if (document.querySelector('[data-testid="session-header-pinned"]')) headerTooltipIds.push('session-header-pinned');
+              return {
+                profile,
+                hasComposer: document.querySelector('textarea') instanceof HTMLTextAreaElement,
+                headerIdentityWorks:
+                  activeSessionTitle instanceof HTMLElement &&
+                  !document.querySelector('[data-testid="session-header-environment"]') &&
+                  headerMetadataText.includes('Automated UI Smoke') &&
+                  headerMetadataText.includes('Claude') &&
+                  headerMetadataText.length > 'Automated UI Smoke'.length,
+                headerNativeTooltipsWork: headerTooltipIds.every((testId) => {
+                  const element = document.querySelector('[data-testid="' + testId + '"]');
+                  return element instanceof HTMLElement &&
+                    element.getAttribute('title') === null &&
+                    element.getAttribute('data-native-title-free') === 'true' &&
+                    (element.getAttribute('data-tooltip-label') ?? '').trim().length > 0;
+                }),
+                headerActions,
+                titlebarSidebarToggleWorks:
+                  titlebarToggleSidebar instanceof HTMLButtonElement &&
+                  titlebarToggleSidebar.getAttribute('aria-label') === 'Toggle sidebar' &&
+                  titlebarToggleSidebar.dataset.icon === 'panelRight',
+                headerActionMenuWorks
+              };
+            };
+
+            if (surface === 'header') return await runHeader();
+
+            if (surface === 'right-panel') {
+              await openPanelTab('files', 'Files');
+              await openPanelTab('browser', 'Browser');
+              const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+              const tabbar = document.querySelector('[data-testid="right-sidebar-tabbar"]');
+              const tabRow = document.querySelector('[data-testid="right-sidebar-tab-row"]');
+              const tabActions = document.querySelector('[data-testid="right-sidebar-tab-actions"]');
+              const addButton = document.querySelector('[data-testid="right-panel-add-tab"]');
+              const expandButton = findButton('Expand panel');
+              const widthBefore = Number(rightPanel?.getAttribute('data-right-panel-width') ?? '0');
+              let rightPanelContextMenuWorks = false;
+              let rightPanelTabReorderWorks = false;
+              const browserTab = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+              if (browserTab instanceof HTMLElement) {
+                const beforeOrder = rightPanel?.getAttribute('data-right-panel-tabs') ?? '';
+                browserTab.dispatchEvent(new MouseEvent('contextmenu', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: browserTab.getBoundingClientRect().left + 12,
+                  clientY: browserTab.getBoundingClientRect().bottom + 4
+                }));
+                await sleep(140);
+                rightPanelContextMenuWorks =
+                  document.body.innerText.includes('Move tab left') &&
+                  document.body.innerText.includes('Move tab right') &&
+                  document.body.innerText.includes('Close tab');
+                const moveLeft = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Move tab left'));
+                if (moveLeft instanceof HTMLElement) {
+                  moveLeft.click();
+                  await sleep(160);
+                  const afterOrder = rightPanel?.getAttribute('data-right-panel-tabs') ?? '';
+                  rightPanelTabReorderWorks = beforeOrder !== afterOrder && afterOrder.includes('browser,files');
+                }
+              }
+              let rightPanelExpandWorks = false;
+              let rightPanelNarrowOverlayWorks = false;
+              if (expandButton instanceof HTMLButtonElement) {
+                const mainRow = document.querySelector('[data-testid="session-main-row"]');
+                const primaryBefore = document.querySelector('[data-testid="session-primary-content"]');
+                const primaryWidthBefore = primaryBefore instanceof HTMLElement ? primaryBefore.getBoundingClientRect().width : 0;
+                expandButton.click();
+                await sleep(180);
+                const expanded = document.querySelector('[data-testid="session-right-panel"]');
+                const container = expanded instanceof HTMLElement ? expanded.closest('[data-motion-panel="right"]') : null;
+                const mainRowRect = mainRow instanceof HTMLElement ? mainRow.getBoundingClientRect() : null;
+                const expandedRect = expanded instanceof HTMLElement ? expanded.getBoundingClientRect() : null;
+                const primaryAfter = document.querySelector('[data-testid="session-primary-content"]');
+                const primaryWidthAfter = primaryAfter instanceof HTMLElement ? primaryAfter.getBoundingClientRect().width : 0;
+                rightPanelExpandWorks =
+                  expanded instanceof HTMLElement &&
+                  expanded.dataset.rightPanelFullWidth === 'true' &&
+                  container instanceof HTMLElement &&
+                  mainRowRect !== null &&
+                  expandedRect !== null &&
+                  Math.abs(expandedRect.width - mainRowRect.width) <= 4 &&
+                  primaryWidthAfter >= primaryWidthBefore - 8;
+                const restoreButton = findButton('Restore panel width');
+                if (restoreButton instanceof HTMLButtonElement) {
+                  restoreButton.click();
+                  await sleep(140);
+                }
+                if (mainRow instanceof HTMLElement) {
+                  const previous = {
+                    flex: mainRow.style.flex,
+                    width: mainRow.style.width,
+                    minWidth: mainRow.style.minWidth,
+                    maxWidth: mainRow.style.maxWidth
+                  };
+                  mainRow.style.flex = '0 0 920px';
+                  mainRow.style.width = '920px';
+                  mainRow.style.minWidth = '920px';
+                  mainRow.style.maxWidth = '920px';
+                  window.dispatchEvent(new Event('resize'));
+                  await sleep(220);
+                  const overlayPanel = document.querySelector('[data-testid="session-right-panel"]');
+                  const overlayContainer = overlayPanel instanceof HTMLElement ? overlayPanel.closest('[data-motion-panel="right"]') : null;
+                  const overlayRect = overlayPanel instanceof HTMLElement ? overlayPanel.getBoundingClientRect() : null;
+                  const rowRect = mainRow.getBoundingClientRect();
+                  rightPanelNarrowOverlayWorks =
+                    overlayPanel instanceof HTMLElement &&
+                    overlayPanel.dataset.rightPanelLayout === 'overlay' &&
+                    overlayContainer instanceof HTMLElement &&
+                    overlayContainer.classList.contains('right-sidebar-overlay') &&
+                    overlayRect !== null &&
+                    overlayRect.width <= rowRect.width - 12 &&
+                    overlayRect.right <= rowRect.right + 2;
+                  mainRow.style.flex = previous.flex;
+                  mainRow.style.width = previous.width;
+                  mainRow.style.minWidth = previous.minWidth;
+                  mainRow.style.maxWidth = previous.maxWidth;
+                  window.dispatchEvent(new Event('resize'));
+                }
+              }
+              return {
+                profile,
+                hasRightPanelState: rightPanel instanceof HTMLElement &&
+                  rightPanel.dataset.rightPanelTabs?.includes('files') === true &&
+                  rightPanel.dataset.rightPanelTabs?.includes('browser') === true &&
+                  Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
+                rightSidebarChromeCompactWorks:
+                  rightPanel instanceof HTMLElement &&
+                  tabbar instanceof HTMLElement &&
+                  tabRow instanceof HTMLElement &&
+                  tabActions instanceof HTMLElement &&
+                  tabbar.getBoundingClientRect().height <= 42 &&
+                  tabbar.scrollWidth <= tabbar.clientWidth + 2 &&
+                  tabRow.scrollWidth <= tabRow.clientWidth + 40,
+                rightSidebarAddControlStableWorks:
+                  addButton instanceof HTMLButtonElement &&
+                  addButton.dataset.icon === 'plus' &&
+                  addButton.getAttribute('aria-label') === 'Add panel tab',
+                rightPanelExpandWorks,
+                rightPanelNarrowOverlayWorks,
+                rightPanelContextMenuWorks,
+                rightPanelTabReorderWorks,
+                widthBefore
+              };
+            }
+
+            if (surface === 'diff') {
+              await openPanelTab('diff', 'Review');
+              const diffSearch = document.querySelector('[data-testid="diff-file-search"]');
+              const diffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
+              const diffPanelList = document.querySelector('.diff-panel-list');
+              const diffRows = [...document.querySelectorAll('.diff-file-row')].filter((row) => row instanceof HTMLElement);
+              let diffActionMenuCompactWorks = false;
+              const actionMenuButton = [...document.querySelectorAll('button')]
+                .find((button) => button.getAttribute('aria-label') === 'Change actions');
+              if (actionMenuButton instanceof HTMLButtonElement) {
+                actionMenuButton.click();
+                await sleep(100);
+                const menuLabels = [...document.querySelectorAll('[role="menuitem"]')]
+                  .map((item) => item.textContent?.trim() ?? '');
+                diffActionMenuCompactWorks =
+                  menuLabels.includes('Refresh changes') &&
+                  menuLabels.some((label) => label.includes('line wrap')) &&
+                  menuLabels.includes('Open file') &&
+                  menuLabels.includes('Reveal file') &&
+                  menuLabels.includes('Copy path');
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                await sleep(80);
+              }
+              if (diffSearch instanceof HTMLInputElement) {
+                setNativeValue(diffSearch, 'review-base');
+                diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(160);
+              }
+              const reviewSearchWorks =
+                document.body.innerText.includes('review-base.txt') &&
+                document.body.innerText.includes('after review') &&
+                !document.body.innerText.includes('No diff available');
+              if (diffSearch instanceof HTMLInputElement) {
+                setNativeValue(diffSearch, 'data-preview-smoke');
+                diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(160);
+              }
+              const jsonButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('data-preview-smoke.json'));
+              if (jsonButton instanceof HTMLButtonElement) {
+                jsonButton.click();
+                await sleep(180);
+              }
+              const reviewJsonState = document.querySelector('[data-testid="review-json-state"]');
+              const reviewJsonPreviewWorks =
+                reviewJsonState instanceof HTMLElement &&
+                reviewJsonState.innerText.includes('JSON') &&
+                reviewJsonState.innerText.includes('updated');
+              if (diffSearch instanceof HTMLInputElement) {
+                setNativeValue(diffSearch, 'binary-preview-smoke');
+                diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(160);
+              }
+              const binaryButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('binary-preview-smoke.bin'));
+              if (binaryButton instanceof HTMLButtonElement) {
+                binaryButton.click();
+                await sleep(180);
+              }
+              const binaryState = document.querySelector('[data-testid="review-binary-state"]');
+              const binaryActions = binaryState instanceof HTMLElement
+                ? [...binaryState.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
+                : [];
+              const clearButton = document.querySelector('[data-testid="diff-file-search-clear"]');
+              if (clearButton instanceof HTMLButtonElement) {
+                clearButton.click();
+                await sleep(100);
+              }
+              return {
+                profile,
+                diffToolbarCompactWorks:
+                  diffToolbar instanceof HTMLElement &&
+                  diffSearch instanceof HTMLInputElement &&
+                  diffToolbar.getBoundingClientRect().height <= 38 &&
+                  diffToolbar.scrollWidth <= diffToolbar.clientWidth + 2,
+                diffListCompactWorks:
+                  diffPanelList instanceof HTMLElement &&
+                  diffPanelList.scrollWidth <= diffPanelList.clientWidth + 2 &&
+                  diffRows.length > 0 &&
+                  diffRows.every((row) => row.getBoundingClientRect().height <= 42),
+                diffActionMenuCompactWorks,
+                reviewSearchWorks,
+                reviewJsonPreviewWorks,
+                reviewBinaryStateWorks:
+                  binaryState instanceof HTMLElement &&
+                  binaryState.innerText.includes('Binary') &&
+                  document.body.innerText.includes('Binary file not shown.'),
+                reviewBinaryActionsWork:
+                  binaryActions.includes('Open') &&
+                  binaryActions.includes('Reveal'),
+                reviewSearchClearWorks:
+                  diffSearch instanceof HTMLInputElement &&
+                  diffSearch.value === '' &&
+                  !document.querySelector('[data-testid="diff-file-search-clear"]')
+              };
+            }
+
+            if (surface === 'files') {
+              await openPanelTab('files', 'Files');
+              const fileSearch = document.querySelector('[data-testid="workspace-file-search"]');
+              const filesToolbar = document.querySelector('[data-testid="files-panel-toolbar"]');
+              const filesBody = document.querySelector('[data-testid="files-panel-body"]');
+              const filesList = document.querySelector('[data-testid="files-panel-list"]');
+              const filesPreview = document.querySelector('[data-testid="files-panel-preview"]');
+              if (fileSearch instanceof HTMLInputElement) {
+                setNativeValue(fileSearch, 'nested note');
+                fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(220);
+              }
+              const nestedButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('nested note.md'));
+              if (nestedButton instanceof HTMLButtonElement) {
+                nestedButton.click();
+                await sleep(180);
+              }
+              let filesActionMenuCompactWorks = false;
+              const fileActionMenuButton = findButton('File actions');
+              if (fileActionMenuButton instanceof HTMLButtonElement) {
+                fileActionMenuButton.click();
+                await sleep(100);
+                const menuItems = [...document.querySelectorAll('[role="menuitem"]')];
+                const labels = menuItems.map((item) => item.textContent?.trim() ?? '');
+                const addToChat = menuItems.find((item) => item.textContent?.includes('Add to chat'));
+                filesActionMenuCompactWorks =
+                  labels.includes('Add to chat') &&
+                  labels.includes('Copy path') &&
+                  labels.includes('Reveal file') &&
+                  labels.includes('Open file');
+                if (addToChat instanceof HTMLElement) addToChat.click();
+                await sleep(140);
+              }
+              const filesTabSearchWorks =
+                document.body.innerText.includes('nested note.md') &&
+                document.body.innerText.includes('Nested file smoke preview') &&
+                Boolean(document.querySelector('[data-testid="workspace-markdown-preview"]'));
+              const filesTabAttachWorks =
+                [...document.querySelectorAll('.attachment-pill')]
+                  .some((attachment) => attachment.textContent?.includes('nested note.md'));
+              const previewChecks = {};
+              const previewTargets = [
+                ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
+                ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
+                ['filesCsvPreviewWorks', 'table-preview-smoke', 'table-preview-smoke.csv', 'workspace-csv-preview'],
+                ['filesDocumentPreviewWorks', 'document-preview-smoke', 'document-preview-smoke.docx', 'workspace-document-preview'],
+                ['filesNotebookPreviewWorks', 'notebook-preview-smoke', 'notebook-preview-smoke.ipynb', 'workspace-notebook-preview'],
+                ['filesBinaryPreviewWorks', 'binary-preview-smoke', 'binary-preview-smoke.bin', 'workspace-binary-state']
+              ];
+              for (const [key, query, fileName, testId] of previewTargets) {
+                if (fileSearch instanceof HTMLInputElement) {
+                  setNativeValue(fileSearch, query);
+                  fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                  await sleep(150);
+                }
+                const fileButton = [...document.querySelectorAll('button')]
+                  .find((button) => button.textContent?.includes(fileName));
+                if (fileButton instanceof HTMLButtonElement) {
+                  fileButton.click();
+                  await sleep(180);
+                }
+                previewChecks[key] = Boolean(document.querySelector('[data-testid="' + testId + '"]'));
+              }
+              if (fileSearch instanceof HTMLInputElement) {
+                setNativeValue(fileSearch, 'does-not-exist');
+                fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(140);
+              }
+              const filesNoResultsWorks = document.body.innerText.includes('No matching files');
+              const clearButton = document.querySelector('[data-testid="workspace-file-search-clear"]');
+              if (clearButton instanceof HTMLButtonElement) {
+                clearButton.click();
+                await sleep(100);
+              }
+              const bodyRect = filesBody instanceof HTMLElement ? filesBody.getBoundingClientRect() : null;
+              const listRect = filesList instanceof HTMLElement ? filesList.getBoundingClientRect() : null;
+              const previewRect = filesPreview instanceof HTMLElement ? filesPreview.getBoundingClientRect() : null;
+              return {
+                profile,
+                filesToolbarCompactWorks:
+                  filesToolbar instanceof HTMLElement &&
+                  fileSearch instanceof HTMLInputElement &&
+                  filesToolbar.getBoundingClientRect().height <= 38 &&
+                  filesToolbar.scrollWidth <= filesToolbar.clientWidth + 2,
+                filesPanelStackedWorks:
+                  filesBody instanceof HTMLElement &&
+                  filesList instanceof HTMLElement &&
+                  filesPreview instanceof HTMLElement &&
+                  bodyRect !== null &&
+                  listRect !== null &&
+                  previewRect !== null &&
+                  previewRect.top >= listRect.bottom - 2 &&
+                  filesBody.scrollWidth <= filesBody.clientWidth + 2,
+                filesActionMenuCompactWorks,
+                filesTabSearchWorks,
+                filesTabAttachWorks,
+                ...previewChecks,
+                filesNoResultsWorks,
+                filesSearchClearWorks:
+                  fileSearch instanceof HTMLInputElement &&
+                  fileSearch.value === '' &&
+                  !document.querySelector('[data-testid="workspace-file-search-clear"]')
+              };
+            }
+
+            if (surface === 'side-chat') {
+              const openSideChat = async (question = '') => {
+                const activeTextarea = document.querySelector('textarea');
+                if (!(activeTextarea instanceof HTMLTextAreaElement)) return;
+                setNativeValue(activeTextarea, question ? '/btw ' + question : '/btw');
+                activeTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(80);
+                const sendButton = findButtonStartingWith('Send');
+                if (sendButton instanceof HTMLButtonElement) sendButton.click();
+                await sleep(question ? 640 : 240);
+              };
+              await openSideChat();
+              await openSideChat();
+              const sideChatTabs = [...document.querySelectorAll('[data-tab-id^="sidechat:"]')]
+                .map((label) => label.closest('[role="tab"]'))
+                .filter(Boolean);
+              const sideChatTabsWork = sideChatTabs.length >= 2;
+              let sideChatDraftPersistenceWorks = false;
+              let sideChatComposerCompactWorks = false;
+              if (sideChatTabs.length >= 2) {
+                const firstTab = sideChatTabs[0];
+                const secondTab = sideChatTabs[1];
+                secondTab.click();
+                await sleep(80);
+                let sideInput = document.querySelector('[data-testid="side-chat-input"]');
+                if (sideInput instanceof HTMLInputElement) {
+                  setNativeValue(sideInput, 'draft for second side chat');
+                  sideInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                firstTab.click();
+                await sleep(80);
+                sideInput = document.querySelector('[data-testid="side-chat-input"]');
+                if (sideInput instanceof HTMLInputElement) {
+                  setNativeValue(sideInput, 'draft for first side chat');
+                  sideInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                secondTab.click();
+                await sleep(80);
+                const secondInput = document.querySelector('[data-testid="side-chat-input"]');
+                const secondDraftRestored = secondInput instanceof HTMLInputElement &&
+                  secondInput.value === 'draft for second side chat';
+                firstTab.click();
+                await sleep(80);
+                const firstInput = document.querySelector('[data-testid="side-chat-input"]');
+                const firstDraftRestored = firstInput instanceof HTMLInputElement &&
+                  firstInput.value === 'draft for first side chat';
+                const composer = document.querySelector('[data-testid="side-chat-composer"]');
+                const send = document.querySelector('[data-testid="side-chat-send"]');
+                sideChatDraftPersistenceWorks =
+                  secondDraftRestored &&
+                  firstDraftRestored;
+                sideChatComposerCompactWorks =
+                  composer instanceof HTMLElement &&
+                  send instanceof HTMLElement &&
+                  composer.getBoundingClientRect().height <= 38 &&
+                  composer.scrollWidth <= composer.clientWidth + 2 &&
+                  send.textContent?.trim() === '';
+              }
+              await openSideChat('smoke label check');
+              for (let index = 0; index < 12; index += 1) {
+                const panel = document.querySelector('[data-testid="side-chat-panel"]');
+                if (panel?.getAttribute('data-side-chat-message-count') === '2') break;
+                await sleep(120);
+              }
+              const labels = [...document.querySelectorAll('[data-testid="side-chat-message-label"]')]
+                .filter((label) => label instanceof HTMLElement);
+              const sideChatMessageLabelsCalm =
+                labels.length >= 2 &&
+                labels.every((label) => {
+                  const text = label.textContent?.trim() ?? '';
+                  return text.length > 0 &&
+                    text !== text.toUpperCase() &&
+                    getComputedStyle(label).textTransform !== 'uppercase';
+                });
+              const beforeClose = document.querySelectorAll('[data-tab-id^="sidechat:"]').length;
+              const closeButton = [...document.querySelectorAll('[data-tab-id^="sidechat:"]')]
+                .at(-1)
+                ?.closest('[role="tab"]')
+                ?.querySelector('[aria-label^="Close "]');
+              if (closeButton instanceof HTMLElement) {
+                closeButton.click();
+                await sleep(160);
+              }
+              return {
+                profile,
+                sideChatTabsWork,
+                sideChatComposerCompactWorks,
+                sideChatDraftPersistenceWorks,
+                sideChatMessageLabelsCalm,
+                sideChatCloseWorks:
+                  sideChatTabsWork &&
+                  document.querySelectorAll('[data-tab-id^="sidechat:"]').length === beforeClose - 1
+              };
+            }
+
+            return { profile, unsupportedSurface: surface };
+          })()
+        `)
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
     }, 700)
   })
 }

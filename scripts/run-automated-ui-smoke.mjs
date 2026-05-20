@@ -20,6 +20,16 @@ const captureView = process.argv.includes('--settings-providers')
         ? 'composer'
       : process.argv.includes('--pets')
         ? 'pets'
+      : process.argv.includes('--header')
+        ? 'header'
+      : process.argv.includes('--right-panel')
+        ? 'right-panel'
+      : process.argv.includes('--diff')
+        ? 'diff'
+      : process.argv.includes('--files')
+        ? 'files'
+      : process.argv.includes('--side-chat')
+        ? 'side-chat'
       : process.argv.includes('--motion-reduced')
           ? 'motion-reduced'
         : process.argv.includes('--empty-state')
@@ -168,7 +178,7 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;')
 }
 
-if (captureView === 'inspector' || captureView === 'browser') {
+if (['inspector', 'right-panel', 'diff', 'files', 'side-chat', 'browser'].includes(captureView)) {
   mkdirSync(join(workspaceDir, 'Nested Folder'), { recursive: true })
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\n')
   writeFileSync(join(workspaceDir, 'review-delete.txt'), 'delete me\n')
@@ -554,6 +564,64 @@ child.on('exit', (code) => {
             : result.smokeWindow?.foregroundAllowed === false &&
               result.smokeWindow?.focused === false &&
               result.smokeWindow?.visible === true
+        }
+    : captureView === 'header'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          composer: result.hasComposer === true,
+          headerIdentity: result.headerIdentityWorks === true,
+          headerNativeTooltips: result.headerNativeTooltipsWork === true,
+          titlebarSidebarToggle: result.titlebarSidebarToggleWorks === true,
+          headerActionMenu: result.headerActionMenuWorks === true
+        }
+    : captureView === 'right-panel'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          rightPanelState: result.hasRightPanelState === true,
+          rightSidebarChromeCompact: result.rightSidebarChromeCompactWorks === true,
+          rightSidebarAddControlStable: result.rightSidebarAddControlStableWorks === true,
+          rightPanelExpand: result.rightPanelExpandWorks === true,
+          rightPanelNarrowOverlay: result.rightPanelNarrowOverlayWorks === true,
+          rightPanelContextMenuWorks: result.rightPanelContextMenuWorks === true,
+          rightPanelTabReorderWorks: result.rightPanelTabReorderWorks === true
+        }
+    : captureView === 'diff'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          diffToolbarCompact: result.diffToolbarCompactWorks === true,
+          diffListCompact: result.diffListCompactWorks === true,
+          diffActionMenuCompact: result.diffActionMenuCompactWorks === true,
+          reviewSearch: result.reviewSearchWorks === true,
+          reviewSearchClear: result.reviewSearchClearWorks === true,
+          reviewJsonPreview: result.reviewJsonPreviewWorks === true,
+          reviewBinaryState: result.reviewBinaryStateWorks === true,
+          reviewBinaryActions: result.reviewBinaryActionsWork === true
+        }
+    : captureView === 'files'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          filesToolbarCompact: result.filesToolbarCompactWorks === true,
+          filesActionMenuCompact: result.filesActionMenuCompactWorks === true,
+          filesPanelStacked: result.filesPanelStackedWorks === true,
+          filesTabSearch: result.filesTabSearchWorks === true,
+          filesTabAttach: result.filesTabAttachWorks === true,
+          filesHtmlPreview: result.filesHtmlPreviewWorks === true,
+          filesJsonPreview: result.filesJsonPreviewWorks === true,
+          filesCsvPreview: result.filesCsvPreviewWorks === true,
+          filesDocumentPreview: result.filesDocumentPreviewWorks === true,
+          filesNotebookPreview: result.filesNotebookPreviewWorks === true,
+          filesBinaryPreview: result.filesBinaryPreviewWorks === true,
+          filesNoResults: result.filesNoResultsWorks === true,
+          filesSearchClear: result.filesSearchClearWorks === true
+        }
+    : captureView === 'side-chat'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          sideChatTabs: result.sideChatTabsWork === true,
+          sideChatComposerCompact: result.sideChatComposerCompactWorks === true,
+          sideChatDraftPersistence: result.sideChatDraftPersistenceWorks === true,
+          sideChatMessageLabelsCalm: result.sideChatMessageLabelsCalm === true,
+          sideChatClose: result.sideChatCloseWorks === true
         }
     : {
         isolatedProfile: result.profile?.isIsolated === true,
