@@ -3127,9 +3127,8 @@
 
   .capabilities-scope-select span {
     color: var(--text-tertiary);
-    font-size: 10px;
-    font-weight: 760;
-    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 680;
   }
 
   .capabilities-scope-select select {
@@ -3408,9 +3407,8 @@
 
   .capability-row-status {
     justify-self: end;
-    font-size: 10px;
-    font-weight: 800;
-    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 700;
   }
 
   .capability-row-actions {

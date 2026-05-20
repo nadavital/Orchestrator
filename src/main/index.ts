@@ -2009,6 +2009,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               .find((button) => button.textContent?.includes('Skills'));
             skillsTab?.click();
             await sleep(180);
+            const capabilitiesScopeLabel = document.querySelector('.capabilities-scope-select span');
+            const capabilityStatusLabels = [...document.querySelectorAll('.capability-row-status')]
+              .filter((label) => label instanceof HTMLElement);
+            var capabilityPageLabelsCalm =
+              capabilitiesScopeLabel instanceof HTMLElement &&
+              getComputedStyle(capabilitiesScopeLabel).textTransform !== 'uppercase' &&
+              capabilityStatusLabels.length > 0 &&
+              capabilityStatusLabels.every((label) => getComputedStyle(label).textTransform !== 'uppercase');
 
             const openCapabilityAction = async (label) => {
               const actionButtons = [...document.querySelectorAll('button')]
@@ -2471,6 +2479,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilityMenuArrowFocus: typeof capabilityMenuArrowFocus === 'boolean' ? capabilityMenuArrowFocus : null,
             capabilityMenuClosedWithEscape: typeof capabilityMenuClosedWithEscape === 'boolean' ? capabilityMenuClosedWithEscape : null,
             capabilityMenuFocusReturned: typeof capabilityMenuFocusReturned === 'boolean' ? capabilityMenuFocusReturned : null,
+            capabilityPageLabelsCalm: typeof capabilityPageLabelsCalm === 'boolean' ? capabilityPageLabelsCalm : null,
             capabilitySheetOpened: typeof capabilitySheetOpened === 'boolean' ? capabilitySheetOpened : null,
             capabilitySheetFocused: typeof capabilitySheetFocused === 'boolean' ? capabilitySheetFocused : null,
             capabilitySheetFocusStayedInside: typeof capabilitySheetFocusStayedInside === 'boolean' ? capabilitySheetFocusStayedInside : null,
