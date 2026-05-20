@@ -74,6 +74,12 @@ interface VisibleTarget {
   selector: { primary: string | null; candidates: string[] }
 }
 
+interface LocalBrowserTarget {
+  url: string
+  title: string | null
+  source: 'port-scan' | 'recent'
+}
+
 const ZOOM_STEP = 0.1
 const DEFAULT_TAB: BrowserTabState = { id: 'tab-1', title: 'New tab', url: '', lastOpened: 0 }
 
@@ -105,6 +111,8 @@ export default function BrowserPanel({
   const [visibleTargets, setVisibleTargets] = useState<VisibleTarget[]>([])
   const [assetInventory, setAssetInventory] = useState<PageAssetInventory | null>(null)
   const [assetBundlePath, setAssetBundlePath] = useState<string | null>(null)
+  const [localTargets, setLocalTargets] = useState<LocalBrowserTarget[]>([])
+  const [localTargetsLoading, setLocalTargetsLoading] = useState(false)
   const [selectedTargetId, setSelectedTargetId] = useState('')
   const [actionText, setActionText] = useState('')
   const [clipboardText, setClipboardText] = useState('')
@@ -120,6 +128,32 @@ export default function BrowserPanel({
   useEffect(() => {
     workbenchRef.current = workbench
   }, [workbench])
+
+  const refreshLocalTargets = async (): Promise<void> => {
+    setLocalTargetsLoading(true)
+    try {
+      const targets = await window.api.browser.discoverLocalTargets(workbenchRef.current.history.map((item) => item.url))
+      setLocalTargets(targets)
+    } finally {
+      setLocalTargetsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (currentUrl) return
+    let cancelled = false
+    setLocalTargetsLoading(true)
+    window.api.browser.discoverLocalTargets(workbench.history.map((item) => item.url))
+      .then((targets) => {
+        if (!cancelled) setLocalTargets(targets)
+      })
+      .finally(() => {
+        if (!cancelled) setLocalTargetsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentUrl])
 
   useEffect(() => {
     const nextTab = activeBrowserTab(workbench)
@@ -880,7 +914,7 @@ export default function BrowserPanel({
             )
           ) : (
             <div
-              className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+              className="browser-empty-state"
               data-testid="browser-empty-state"
             >
               <Icon name="browser" size={26} />
@@ -890,6 +924,28 @@ export default function BrowserPanel({
               <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
                 Enter a URL in the address bar.
               </div>
+              {(localTargetsLoading || localTargets.length > 0) && (
+                <div className="browser-local-targets" data-testid="browser-local-targets">
+                  <div className="browser-local-targets-header">
+                    <span>{localTargetsLoading ? 'Checking local targets' : 'Local targets'}</span>
+                    <button type="button" onClick={() => void refreshLocalTargets()}>Refresh</button>
+                  </div>
+                  <div className="browser-local-targets-list">
+                    {localTargets.map((target) => (
+                      <button
+                        key={target.url}
+                        type="button"
+                        data-testid="browser-local-target"
+                        onClick={() => navigate(target.url)}
+                      >
+                        <Icon name="browser" size={13} />
+                        <span className="min-w-0 flex-1 truncate">{target.title || shortUrl(target.url)}</span>
+                        <span>{shortUrl(target.url)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -180,6 +180,8 @@ const api = {
     openExternal: (url: string): Promise<void> => ipcRenderer.invoke('browser:openExternal', url),
     saveDataUrlArtifact: (dataUrl: string, suggestedName?: string): Promise<{ path: string; size: number }> =>
       ipcRenderer.invoke('browser:saveDataUrlArtifact', dataUrl, suggestedName),
+    discoverLocalTargets: (recentUrls?: string[]): Promise<Array<{ url: string; title: string | null; source: 'port-scan' | 'recent' }>> =>
+      ipcRenderer.invoke('browser:discoverLocalTargets', recentUrls),
     bundleAssets: (request: {
       inventoryId: string
       pageUrl?: string | null

@@ -1,6 +1,7 @@
 import type { IpcMain } from 'electron'
 import { dialog, app, shell } from 'electron'
 import { execFile } from 'child_process'
+import { request as httpRequest } from 'http'
 import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
@@ -40,6 +41,12 @@ interface BrowserAssetRequest {
   }>
 }
 
+interface BrowserLocalTarget {
+  url: string
+  title: string | null
+  source: 'port-scan' | 'recent'
+}
+
 interface PastedAttachmentRequest {
   name?: string
   mimeType?: string
@@ -59,6 +66,9 @@ const BINARY_EXTENSIONS = new Set([
 
 const BROWSER_ARTIFACT_DIR = 'orchestrator-browser-artifacts'
 const COMPOSER_ATTACHMENT_DIR = 'orchestrator-composer-attachments'
+const BROWSER_LOCAL_TARGET_PORTS = [
+  3000, 3001, 3020, 4000, 4010, 5000, 5010, 5173, 5174, 6006, 7000, 8000, 8080, 8888, 9000
+]
 const MIME_EXTENSIONS: Record<string, string> = {
   'application/json': '.json',
   'application/pdf': '.pdf',
@@ -223,6 +233,80 @@ async function bundleBrowserAssets(request: BrowserAssetRequest): Promise<{
       failedCount: failures.length
     }
   }
+}
+
+async function discoverBrowserLocalTargets(recentUrls: string[] = []): Promise<BrowserLocalTarget[]> {
+  const candidates = new Map<string, BrowserLocalTarget['source']>()
+  for (const port of BROWSER_LOCAL_TARGET_PORTS) {
+    candidates.set(`http://127.0.0.1:${port}/`, 'port-scan')
+  }
+  const smokeUrl = normalizeLocalBrowserUrl(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL)
+  if (smokeUrl) candidates.set(smokeUrl, 'recent')
+  for (const url of recentUrls.slice(0, 12)) {
+    const normalized = normalizeLocalBrowserUrl(url)
+    if (normalized) candidates.set(normalized, 'recent')
+  }
+
+  const targets = await Promise.all(
+    [...candidates.entries()].slice(0, 28).map(([url, source]) => probeBrowserLocalTarget(url, source))
+  )
+  const seen = new Set<string>()
+  return targets
+    .filter((target): target is BrowserLocalTarget => Boolean(target))
+    .filter((target) => {
+      const key = target.url.replace(/\/+$/, '')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .slice(0, 6)
+}
+
+function normalizeLocalBrowserUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null
+  try {
+    const parsed = new URL(raw.trim())
+    if (parsed.protocol !== 'http:') return null
+    if (!['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]'].includes(parsed.hostname)) return null
+    parsed.hostname = '127.0.0.1'
+    parsed.hash = ''
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
+function probeBrowserLocalTarget(url: string, source: BrowserLocalTarget['source']): Promise<BrowserLocalTarget | null> {
+  return new Promise((resolve) => {
+    const request = httpRequest(url, {
+      method: 'GET',
+      timeout: 700,
+      headers: {
+        Accept: 'text/html,application/xhtml+xml,*/*;q=0.1',
+        'User-Agent': 'Orchestrator local browser discovery'
+      }
+    }, (response) => {
+      const chunks: Buffer[] = []
+      let length = 0
+      response.on('data', (chunk: Buffer) => {
+        if (length >= 16_384) return
+        const next = chunk.subarray(0, Math.max(0, 16_384 - length))
+        chunks.push(next)
+        length += next.byteLength
+      })
+      response.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8')
+        const title = /<title[^>]*>([^<]+)<\/title>/i.exec(body)?.[1]?.replace(/\s+/g, ' ').trim() || null
+        resolve({ url, title, source })
+      })
+    })
+    request.on('timeout', () => {
+      request.destroy()
+      resolve(null)
+    })
+    request.on('error', () => resolve(null))
+    request.end()
+  })
 }
 
 function sanitizeArtifactName(name: string): string {
@@ -415,6 +499,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('browser:openExternal', (_, url: string): Promise<void> => shell.openExternal(url))
   ipcMain.handle('browser:saveDataUrlArtifact', (_, dataUrl: string, suggestedName?: string) =>
     writeBrowserDataUrlArtifact(dataUrl, suggestedName)
+  )
+  ipcMain.handle('browser:discoverLocalTargets', (_, recentUrls?: string[]) =>
+    discoverBrowserLocalTargets(recentUrls)
   )
   ipcMain.handle('browser:bundleAssets', (_, request: BrowserAssetRequest) =>
     bundleBrowserAssets(request)

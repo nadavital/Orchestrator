@@ -1704,6 +1704,16 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserEmptyState instanceof HTMLElement &&
               browserEmptyState.innerText.includes('Start browsing') &&
               browserEmptyState.innerText.includes('Enter a URL in the address bar.');
+            for (let index = 0; index < 20; index += 1) {
+              if (document.querySelectorAll('[data-testid="browser-local-target"]').length > 0) break;
+              await sleep(100);
+            }
+            const browserLocalTargets = [...document.querySelectorAll('[data-testid="browser-local-target"]')];
+            var browserLocalTargetsWorks =
+              document.querySelector('[data-testid="browser-local-targets"]') instanceof HTMLElement &&
+              browserLocalTargets.length > 0 &&
+              browserLocalTargets.some((target) => target.textContent?.includes('127.0.0.1')) &&
+              browserLocalTargets.every((target) => target instanceof HTMLElement && target.scrollWidth <= target.clientWidth + 2);
             const browserInput = document.querySelector('[data-testid="browser-url-input"]');
             if (browserInput instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(browserInput.constructor.prototype, 'value')?.set;
@@ -1881,6 +1891,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserActive: rightPanel instanceof HTMLElement &&
                 rightPanel.dataset.rightPanelActiveTab === 'browser',
               browserEmptyStateWorks,
+              browserLocalTargetsWorks,
               browserLoaded: Boolean(document.querySelector('[data-testid="browser-webview"]')) &&
                 browserCurrentUrl.startsWith(expectedUrl),
               browserFindWorks,
