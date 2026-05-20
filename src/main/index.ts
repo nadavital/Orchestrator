@@ -2121,26 +2121,31 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(120);
             }
             await closeBrowserActionsMenu();
-            const toolbarScreenshotButton = document.querySelector('[data-testid="browser-capture-screenshot"]');
-            const toolbarOpenExternalButton = document.querySelector('[data-testid="browser-open-external"]');
+            const toolbarScreenshotButton = document.querySelector('.browser-toolbar [data-testid="browser-capture-screenshot"]');
+            const toolbarOpenExternalButton = document.querySelector('.browser-toolbar [data-testid="browser-open-external"]');
+            await openBrowserActionsMenu();
+            const menuScreenshotButton = document.querySelector('[data-testid="browser-menu-capture-screenshot"]');
+            const menuOpenExternalButton = document.querySelector('[data-testid="browser-menu-open-external"]');
             var browserToolbarExternalWorks =
-              toolbarOpenExternalButton instanceof HTMLButtonElement &&
-              toolbarOpenExternalButton.getAttribute('aria-label') === 'Open external browser' &&
-              !toolbarOpenExternalButton.disabled;
+              !(toolbarOpenExternalButton instanceof HTMLButtonElement) &&
+              menuOpenExternalButton instanceof HTMLButtonElement &&
+              menuOpenExternalButton.getAttribute('aria-label') === 'Open external browser' &&
+              !menuOpenExternalButton.disabled;
             var browserToolbarScreenshotWorks = false;
-            if (toolbarScreenshotButton instanceof HTMLButtonElement) {
+            if (menuScreenshotButton instanceof HTMLButtonElement) {
               for (let index = 0; index < 20; index += 1) {
-                if (!toolbarScreenshotButton.disabled) break;
+                if (!menuScreenshotButton.disabled) break;
                 await sleep(100);
               }
-              const screenshotButtonEnabled = !toolbarScreenshotButton.disabled;
-              toolbarScreenshotButton.click();
+              const screenshotButtonEnabled = !menuScreenshotButton.disabled;
+              menuScreenshotButton.click();
               for (let index = 0; index < 30; index += 1) {
                 if (document.querySelector('[data-testid="browser-inspector-toolbar"]')) break;
                 await sleep(100);
               }
               browserToolbarScreenshotWorks =
                 screenshotButtonEnabled &&
+                !(toolbarScreenshotButton instanceof HTMLButtonElement) &&
                 document.querySelector('[data-testid="browser-inspector-toolbar"]') instanceof HTMLElement;
             }
             const smokeBaseUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
@@ -2499,6 +2504,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserFindRow = document.querySelector('[data-testid="browser-find-input"]')?.closest('.flex.shrink-0');
             const browserToolbarCompact =
               browserToolbar instanceof HTMLElement &&
+              !(document.querySelector('.browser-toolbar [data-testid="browser-capture-screenshot"]') instanceof HTMLButtonElement) &&
+              !(document.querySelector('.browser-toolbar [data-testid="browser-open-external"]') instanceof HTMLButtonElement) &&
               browserToolbar.getBoundingClientRect().height <= 38 &&
               (!(browserFindRow instanceof HTMLElement) || browserFindRow.getBoundingClientRect().height <= 34);
             const browserStatusRowQuiet =

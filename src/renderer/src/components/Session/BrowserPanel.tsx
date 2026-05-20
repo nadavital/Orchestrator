@@ -680,22 +680,6 @@ export default function BrowserPanel({
         </div>
         <ToolbarButton icon="search" label="Find in page" size="sm" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
         <ToolbarButton
-          icon="camera"
-          label="Capture screenshot"
-          size="sm"
-          disabled={!currentUrl || isLoading || !visible}
-          dataTestId="browser-capture-screenshot"
-          onClick={() => void captureScreenshot()}
-        />
-        <ToolbarButton
-          icon="external"
-          label="Open external browser"
-          size="sm"
-          disabled={!currentUrl || !visible}
-          dataTestId="browser-open-external"
-          onClick={openExternal}
-        />
-        <ToolbarButton
           icon="wrench"
           label="Inspect browser"
           size="sm"
@@ -740,6 +724,7 @@ export default function BrowserPanel({
                     type="button"
                     role="menuitem"
                     aria-label="Capture screenshot"
+                    data-testid="browser-menu-capture-screenshot"
                     className="browser-action-tile"
                     disabled={!currentUrl || isLoading || !visible}
                     onClick={() => {
@@ -768,6 +753,7 @@ export default function BrowserPanel({
                     type="button"
                     role="menuitem"
                     aria-label="Open external browser"
+                    data-testid="browser-menu-open-external"
                     className="browser-action-tile"
                     disabled={!currentUrl}
                     onClick={() => {
