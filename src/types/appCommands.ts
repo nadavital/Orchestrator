@@ -32,6 +32,15 @@ export interface AppCommandDefinition {
   showInShortcuts?: boolean
 }
 
+export interface ShortcutKeyboardEvent {
+  key: string
+  code?: string
+  metaKey?: boolean
+  ctrlKey?: boolean
+  altKey?: boolean
+  shiftKey?: boolean
+}
+
 export const APP_COMMANDS: Record<StableAppCommand, AppCommandDefinition> = {
   'open-command-menu': {
     id: 'open-command-menu',
@@ -201,4 +210,51 @@ export function formatShortcutKeys(sequence: ShortcutSequence, platform: 'mac' |
     if (key === 'ctrl') return platform === 'mac' ? '⌃' : 'Ctrl'
     return key
   })
+}
+
+export function appMenuCommandForKeyboardEvent(event: ShortcutKeyboardEvent): AppMenuCommand | null {
+  const key = event.key.toLowerCase()
+  if (hasModifier(event, 'mod') && !event.altKey && !event.shiftKey && /^[1-9]$/.test(key)) {
+    return `go-chat-${Number(key) as ChatSlot}`
+  }
+  for (const command of appCommandDefinitions()) {
+    if (command.shortcuts.some((shortcut) => shortcutMatchesEvent(shortcut, event))) return command.id
+  }
+  return null
+}
+
+export function shortcutMatchesEvent(sequence: ShortcutSequence, event: ShortcutKeyboardEvent): boolean {
+  const shortcut = new Set(sequence.map((token) => token.toLowerCase()))
+  const requiresMod = shortcut.has('mod')
+  const requiresShift = shortcut.has('shift')
+  const requiresAlt = shortcut.has('alt')
+  const requiresCtrl = shortcut.has('ctrl')
+  const ctrlUsedAsMod = requiresMod && !event.metaKey && Boolean(event.ctrlKey)
+  const actualCtrl = Boolean(event.ctrlKey && !ctrlUsedAsMod)
+  const actualMod = Boolean(event.metaKey || (event.ctrlKey && !requiresCtrl))
+
+  if (requiresMod !== actualMod) return false
+  if (requiresShift !== Boolean(event.shiftKey)) return false
+  if (requiresAlt !== Boolean(event.altKey)) return false
+  if (requiresCtrl !== actualCtrl) return false
+
+  const keyToken = sequence.find((token) => !['mod', 'shift', 'alt', 'ctrl'].includes(token.toLowerCase()))
+  return Boolean(keyToken && keyTokenMatchesEvent(keyToken, event))
+}
+
+function hasModifier(event: ShortcutKeyboardEvent, modifier: 'mod'): boolean {
+  if (modifier === 'mod') return Boolean(event.metaKey || event.ctrlKey)
+  return false
+}
+
+function keyTokenMatchesEvent(token: string, event: ShortcutKeyboardEvent): boolean {
+  const expected = token.toLowerCase()
+  const key = event.key.toLowerCase()
+  const code = event.code?.toLowerCase()
+  if (expected === 'tab') return key === 'tab'
+  if (expected === '[') return key === '[' || code === 'bracketleft'
+  if (expected === ']') return key === ']' || code === 'bracketright'
+  if (expected === '/') return key === '/' || key === '?' || code === 'slash'
+  if (expected === '`') return key === '`' || code === 'backquote'
+  return key === expected
 }

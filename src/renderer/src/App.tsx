@@ -14,7 +14,7 @@ import { MotionView } from './components/shared/designSystem'
 import EmptyState from './components/shared/EmptyState'
 import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
-import { APP_COMMANDS, formatShortcutSequence } from '../../types/appCommands'
+import { APP_COMMANDS, appMenuCommandForKeyboardEvent, formatShortcutSequence } from '../../types/appCommands'
 import type { AppMenuCommand, StableAppCommand } from '../../types/appCommands'
 
 export default function App(): JSX.Element {
@@ -541,92 +541,18 @@ export default function App(): JSX.Element {
 
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.isComposing) return
-      const command = event.metaKey || event.ctrlKey
-      const key = event.key.toLowerCase()
-
-      if (event.ctrlKey && !event.metaKey && !event.altKey && key === 'tab') {
+      const command = appMenuCommandForKeyboardEvent(event)
+      if (command) {
         event.preventDefault()
-        switchChat(event.shiftKey ? -1 : 1)
-        return
-      }
-
-      if (!command) return
-
-      if (event.altKey) {
-        if (key === 'r' && !event.shiftKey) {
-          event.preventDefault()
-          if (useSessionStore.getState().activeSessionId) setRenamingActiveChat(true)
-          return
-        }
-        if (key === 'p' && !event.shiftKey) {
-          event.preventDefault()
-          void toggleActiveChatPin()
-        }
-        return
-      }
-
-      if ((key === 'k' && !event.shiftKey) || (key === 'p' && event.shiftKey)) {
-        event.preventDefault()
-        setCommandPaletteOpen(true)
-        return
-      }
-      if (key === 'n' && !event.shiftKey) {
-        event.preventDefault()
-        void createNewChat()
-        return
-      }
-      if (event.shiftKey && event.code === 'BracketLeft') {
-        event.preventDefault()
-        switchChat(-1)
-        return
-      }
-      if (event.shiftKey && event.code === 'BracketRight') {
-        event.preventDefault()
-        switchChat(1)
-        return
-      }
-      if (key === 'b' && !event.shiftKey) {
-        event.preventDefault()
-        toggleInspector()
-        return
-      }
-      if (event.code === 'Backquote' && !event.shiftKey) {
-        event.preventDefault()
-        toggleTerminal()
-        return
-      }
-      if (key === 'j' && !event.shiftKey) {
-        event.preventDefault()
-        toggleTerminal()
-        return
-      }
-      if (key === ',' && !event.shiftKey) {
-        event.preventDefault()
-        openSettings('general')
-        return
-      }
-      if (event.shiftKey && event.code === 'Slash') {
-        event.preventDefault()
-        openSettings('shortcuts')
-        return
-      }
-      if (!event.shiftKey && /^[1-9]$/.test(key)) {
-        event.preventDefault()
-        switchChatSlot(Number(key))
+        runAppCommand(command)
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [
-    createNewChat,
     isDesignSystemPreview,
-    openSettings,
-    switchChat,
-    switchChatSlot,
-    toggleInspector,
-    toggleActiveChatPin,
-    toggleTerminal
+    runAppCommand
   ])
 
   useEffect(() => {
