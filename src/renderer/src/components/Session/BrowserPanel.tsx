@@ -715,7 +715,7 @@ export default function BrowserPanel({
                   }}
                 >
                   <Icon name="external" size={14} />
-                  <span>Open external</span>
+                  <span>Open in browser</span>
                 </button>
                 <button
                   type="button"
@@ -943,9 +943,9 @@ export default function BrowserPanel({
             ) : (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
                 <Icon name="browser" size={26} />
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Browser hidden</div>
+                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Hidden</div>
                 <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                  Show it again from browser actions.
+                  Use browser actions to show the page.
                 </div>
               </div>
             )
@@ -956,10 +956,10 @@ export default function BrowserPanel({
             >
               <Icon name="browser" size={26} />
               <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                Start browsing
+                Open a page
               </div>
               <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                Search or enter a URL in the address bar.
+                Use the address bar or a local target.
               </div>
               {(localTargetsLoading || localTargets.length > 0) && (
                 <div className="browser-local-targets" data-testid="browser-local-targets">
@@ -1096,7 +1096,7 @@ function BrowserLoadErrorPane({
         <Icon name="browser" size={22} />
       </div>
       <div className="browser-load-error-copy">
-        <div className="browser-load-error-title">This page could not be loaded</div>
+        <div className="browser-load-error-title">Page unavailable</div>
         <div className="browser-load-error-summary">
           {loadErrorSummary(error, host)}
         </div>
@@ -1106,7 +1106,7 @@ function BrowserLoadErrorPane({
         <button type="button" data-testid="browser-load-error-retry" onClick={onRetry}>Retry</button>
         <button type="button" data-testid="browser-load-error-hard-reload" onClick={onHardReload}>Hard reload</button>
         <button type="button" data-testid="browser-load-error-copy-url" onClick={onCopyUrl}>Copy URL</button>
-        <button type="button" data-testid="browser-load-error-open-external" onClick={onOpenExternal}>Open external</button>
+        <button type="button" data-testid="browser-load-error-open-external" onClick={onOpenExternal}>Open in browser</button>
       </div>
       <div className="browser-load-error-suggestions">
         <span>Try</span>

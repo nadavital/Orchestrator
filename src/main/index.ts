@@ -2058,8 +2058,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserEmptyState = document.querySelector('[data-testid="browser-empty-state"]');
             var browserEmptyStateWorks =
               browserEmptyState instanceof HTMLElement &&
-              browserEmptyState.innerText.includes('Start browsing') &&
-              browserEmptyState.innerText.includes('Search or enter a URL in the address bar.');
+              browserEmptyState.innerText.includes('Open a page') &&
+              browserEmptyState.innerText.includes('Use the address bar or a local target.');
             for (let index = 0; index < 20; index += 1) {
               if (document.querySelectorAll('[data-testid="browser-local-target"]').length > 0) break;
               await sleep(100);
@@ -2339,7 +2339,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserLoadErrorOpenExternal instanceof HTMLButtonElement;
             var browserLoadErrorPanelWorks =
               browserLoadError instanceof HTMLElement &&
-              browserLoadError.textContent?.includes('This page could not be loaded') &&
+              browserLoadError.textContent?.includes('Page unavailable') &&
               browserLoadError.textContent?.includes('Try') &&
               browserLoadErrorRetry instanceof HTMLButtonElement &&
               browserLoadErrorHardReload instanceof HTMLButtonElement &&
