@@ -1828,6 +1828,11 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               }
             }
             const toolbarScreenshotButton = document.querySelector('[data-testid="browser-capture-screenshot"]');
+            const toolbarOpenExternalButton = document.querySelector('[data-testid="browser-open-external"]');
+            var browserToolbarExternalWorks =
+              toolbarOpenExternalButton instanceof HTMLButtonElement &&
+              toolbarOpenExternalButton.getAttribute('aria-label') === 'Open external browser' &&
+              !toolbarOpenExternalButton.disabled;
             var browserToolbarScreenshotWorks = false;
             if (toolbarScreenshotButton instanceof HTMLButtonElement) {
               for (let index = 0; index < 20; index += 1) {
@@ -1996,6 +2001,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserEmptyStateWorks,
               browserLocalTargetsWorks,
               browserAddressSearchWorks,
+              browserToolbarExternalWorks,
               browserToolbarScreenshotWorks,
               browserLoaded: Boolean(document.querySelector('[data-testid="browser-webview"]')) &&
                 browserCurrentUrl.startsWith(expectedUrl),

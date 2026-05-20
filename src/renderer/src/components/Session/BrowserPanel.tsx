@@ -663,6 +663,14 @@ export default function BrowserPanel({
           onClick={() => void captureScreenshot()}
         />
         <ToolbarButton
+          icon="external"
+          label="Open external browser"
+          size="sm"
+          disabled={!currentUrl || !visible}
+          dataTestId="browser-open-external"
+          onClick={openExternal}
+        />
+        <ToolbarButton
           icon="wrench"
           label="Inspect browser"
           size="sm"
