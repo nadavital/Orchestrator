@@ -548,10 +548,10 @@ function ExtensionGroupCard({
   )
 
   return (
-    <InspectorCard className="overflow-hidden p-2">
+    <InspectorCard className="extension-panel-card overflow-hidden p-2">
       <DisclosureSection
         title={title}
-        defaultOpen
+        defaultOpen={embedded ? group.status === 'error' : true}
         meta={<Badge tone={group.status === 'error' ? 'danger' : 'neutral'}>{statusText}</Badge>}
         bodyClassName="pt-2"
       >
@@ -770,7 +770,7 @@ function McpServersView({ servers, accentColor, embedded = false }: {
       <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
           title={<span className="font-mono">MCP servers</span>}
-          defaultOpen
+          defaultOpen={!embedded}
           meta={<Badge>{entries.length === 0 ? 'none' : entries.length}</Badge>}
           bodyClassName={embedded ? 'pt-1 pb-1' : 'pt-2'}
         >
