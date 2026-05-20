@@ -996,6 +996,21 @@ export const sessionManager = {
     if (!session) return { ok: false, answer: '', error: `Session ${sessionId} not found.` }
     const trimmed = question.trim()
     if (!trimmed) return { ok: false, answer: '', error: 'Question is empty.' }
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+      return {
+        ok: true,
+        answer: `Smoke side answer for: ${trimmed}`,
+        usage: {
+          inputTokens: 12,
+          outputTokens: 8,
+          totalTokens: 20,
+          totalCostUsd: 0,
+          durationMs: 120,
+          apiDurationMs: 80,
+          turns: 1
+        }
+      }
+    }
 
     const provider = getProvider(session.provider ?? 'claude')
     const request: RunRequest = {

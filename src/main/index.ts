@@ -1861,19 +1861,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 }
               }
             }
-            const openBlankSideChat = async () => {
+            const openSideChat = async (question = '') => {
               const activeTextarea = document.querySelector('textarea');
               if (!(activeTextarea instanceof HTMLTextAreaElement)) return;
               const setter = Object.getOwnPropertyDescriptor(activeTextarea.constructor.prototype, 'value')?.set;
-              setter?.call(activeTextarea, '/btw');
+              setter?.call(activeTextarea, question ? '/btw ' + question : '/btw');
               activeTextarea.dispatchEvent(new Event('input', { bubbles: true }));
               await sleep(80);
               const sendButton = findButtonStartingWith('Send');
               if (sendButton instanceof HTMLButtonElement) sendButton.click();
-              await sleep(220);
+              await sleep(question ? 640 : 220);
             };
-            await openBlankSideChat();
-            await openBlankSideChat();
+            await openSideChat();
+            await openSideChat();
             const sideChatTabsBeforeClose = document.querySelectorAll('[data-tab-id^="sidechat:"]').length;
             var sideChatTabsWork = sideChatTabsBeforeClose >= 2;
             const sideChatTabs = [...document.querySelectorAll('[data-tab-id^="sidechat:"]')]
@@ -1930,14 +1930,35 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !findButton('Ask') &&
                 sideChatEmptyState.textContent?.trim() === 'No side chat yet.';
             }
-            const closeSideChatButton = [...document.querySelectorAll('[aria-label^="Close Side chat"]')].at(-1);
+            await openSideChat('smoke label check');
+            var sideChatMessageLabelsCalm = false;
+            for (let index = 0; index < 12; index += 1) {
+              const sideChatPanel = document.querySelector('[data-testid="side-chat-panel"]');
+              if (sideChatPanel?.getAttribute('data-side-chat-message-count') === '2') break;
+              await sleep(120);
+            }
+            const sideChatMessageLabels = [...document.querySelectorAll('[data-testid="side-chat-message-label"]')]
+              .filter((label) => label instanceof HTMLElement);
+            sideChatMessageLabelsCalm =
+              sideChatMessageLabels.length >= 2 &&
+              sideChatMessageLabels.every((label) => {
+                const text = label.textContent?.trim() ?? '';
+                return text.length > 0 &&
+                  text !== text.toUpperCase() &&
+                  getComputedStyle(label).textTransform !== 'uppercase';
+              });
+            const sideChatTabsBeforeCloseForClose = document.querySelectorAll('[data-tab-id^="sidechat:"]').length;
+            const closeSideChatButton = [...document.querySelectorAll('[data-tab-id^="sidechat:"]')]
+              .at(-1)
+              ?.closest('[role="tab"]')
+              ?.querySelector('[aria-label^="Close "]');
             if (closeSideChatButton instanceof HTMLElement) {
               closeSideChatButton.click();
               await sleep(160);
             }
             var sideChatCloseWorks =
               sideChatTabsWork &&
-              document.querySelectorAll('[data-tab-id^="sidechat:"]').length === sideChatTabsBeforeClose - 1;
+              document.querySelectorAll('[data-tab-id^="sidechat:"]').length === sideChatTabsBeforeCloseForClose - 1;
             const changesTabButton = document.querySelector('[data-tab-id="diff"]')?.closest('[role="tab"]');
             if (changesTabButton instanceof HTMLElement) {
               changesTabButton.click();
@@ -2404,6 +2425,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
+            sideChatMessageLabelsCalm: typeof sideChatMessageLabelsCalm === 'boolean' ? sideChatMessageLabelsCalm : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,
             terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,

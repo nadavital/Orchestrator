@@ -633,6 +633,7 @@ child.on('exit', (code) => {
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,
         sideChatComposerCompact: captureView !== 'inspector' || result.sideChatComposerCompactWorks === true,
         sideChatDraftPersistence: captureView !== 'inspector' || result.sideChatDraftPersistenceWorks === true,
+        sideChatMessageLabelsCalm: captureView !== 'inspector' || result.sideChatMessageLabelsCalm === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
         terminalTabsPersist: captureView !== 'terminal' || result.terminalTabsPersistState === true,
         terminalRestore: captureView !== 'terminal' || result.terminalRestoreWorks === true,

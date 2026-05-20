@@ -95,7 +95,11 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
                 color: message.status === 'error' ? 'var(--color-red)' : 'var(--color-text)'
               }}
             >
-              <div className="mb-1 text-[10px] font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>
+              <div
+                className="mb-1 text-[11px] font-semibold tracking-normal"
+                data-testid="side-chat-message-label"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
                 {message.role === 'user' ? 'You' : message.status === 'pending' ? 'Answering' : 'Side answer'}
               </div>
               <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.content}</div>
