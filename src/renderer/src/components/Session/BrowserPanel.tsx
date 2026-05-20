@@ -655,6 +655,14 @@ export default function BrowserPanel({
         </div>
         <ToolbarButton icon="search" label="Find in page" size="sm" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
         <ToolbarButton
+          icon="camera"
+          label="Capture screenshot"
+          size="sm"
+          disabled={!currentUrl || isLoading || !visible}
+          dataTestId="browser-capture-screenshot"
+          onClick={() => void captureScreenshot()}
+        />
+        <ToolbarButton
           icon="wrench"
           label="Inspect browser"
           size="sm"

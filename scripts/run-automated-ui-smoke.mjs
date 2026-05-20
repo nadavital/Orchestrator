@@ -371,6 +371,7 @@ child.on('exit', (code) => {
           browserEmptyState: result.browserEmptyStateWorks === true,
           browserLocalTargets: result.browserLocalTargetsWorks === true,
           browserAddressSearch: result.browserAddressSearchWorks === true,
+          browserToolbarScreenshot: result.browserToolbarScreenshotWorks === true,
           browserLoaded: result.browserLoaded === true,
           browserFind: result.browserFindWorks === true,
           browserFindNavigation: result.browserFindNavigationWorks === true,

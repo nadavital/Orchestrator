@@ -1774,7 +1774,13 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               setter?.call(browserInput, ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')});
               browserInput.dispatchEvent(new Event('input', { bubbles: true }));
               browserInput.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-              await sleep(1200);
+              for (let index = 0; index < 30; index += 1) {
+                const panel = document.querySelector('[data-testid="browser-panel"]');
+                const url = panel?.getAttribute('data-browser-current-url') ?? '';
+                const loading = panel?.getAttribute('data-browser-loading') === 'true';
+                if (url.startsWith(${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')}) && !loading) break;
+                await sleep(100);
+              }
             }
             const findInPageButton = findButton('Find in page');
             var browserFindWorks = false;
@@ -1809,6 +1815,23 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                     Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-active-match') ?? '0') !== beforeActiveMatch;
                 }
               }
+            }
+            const toolbarScreenshotButton = document.querySelector('[data-testid="browser-capture-screenshot"]');
+            var browserToolbarScreenshotWorks = false;
+            if (toolbarScreenshotButton instanceof HTMLButtonElement) {
+              for (let index = 0; index < 20; index += 1) {
+                if (!toolbarScreenshotButton.disabled) break;
+                await sleep(100);
+              }
+              const screenshotButtonEnabled = !toolbarScreenshotButton.disabled;
+              toolbarScreenshotButton.click();
+              for (let index = 0; index < 30; index += 1) {
+                if (document.querySelector('[data-testid="browser-inspector-toolbar"]')) break;
+                await sleep(100);
+              }
+              browserToolbarScreenshotWorks =
+                screenshotButtonEnabled &&
+                document.querySelector('[data-testid="browser-inspector-toolbar"]') instanceof HTMLElement;
             }
             const smokeBaseUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
             const slowUrl = smokeBaseUrl + '/slow';
@@ -1962,6 +1985,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserEmptyStateWorks,
               browserLocalTargetsWorks,
               browserAddressSearchWorks,
+              browserToolbarScreenshotWorks,
               browserLoaded: Boolean(document.querySelector('[data-testid="browser-webview"]')) &&
                 browserCurrentUrl.startsWith(expectedUrl),
               browserFindWorks,
