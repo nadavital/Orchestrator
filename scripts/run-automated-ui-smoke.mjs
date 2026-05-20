@@ -518,6 +518,7 @@ child.on('exit', (code) => {
           browserFindNavigation: result.browserFindNavigationWorks === true,
           browserZoom: result.browserZoomWorks === true,
           browserDeviceMode: result.browserDeviceModeWorks === true,
+          browserDevicePresetCatalog: result.browserDevicePresetCatalogWorks === true,
           browserViewportReset: result.browserViewportResetWorks === true,
           browserCacheReload: result.browserCacheReloadWorks === true,
           browserStopLoading: result.browserStopLoadingWorks === true,

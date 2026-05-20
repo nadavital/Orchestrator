@@ -25,7 +25,7 @@ export interface BrowserWorkbenchState {
   findVisible: boolean
   findQuery: string
   zoomFactor: number
-  deviceMode: 'desktop' | 'mobile' | 'pixel' | 'ipad' | 'custom'
+  deviceMode: BrowserDeviceMode
   viewportWidth: number
   viewportHeight: number
   visible: boolean
@@ -44,6 +44,22 @@ export interface BrowserWorkbenchState {
   allowedUploadOrigins: string[]
   blockedUploadOrigins: string[]
 }
+
+export type BrowserDeviceMode =
+  | 'desktop'
+  | 'mobile'
+  | 'iphoneSe'
+  | 'iphone15ProMax'
+  | 'pixel'
+  | 'galaxyS24Ultra'
+  | 'ipadMini'
+  | 'ipad'
+  | 'surfaceDuo'
+  | 'surfacePro7'
+  | 'laptop'
+  | 'laptopLarge'
+  | 'desktop4k'
+  | 'custom'
 
 export interface BrowserHistoryEntry {
   url: string

@@ -2831,6 +2831,21 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserViewportFrame instanceof HTMLElement &&
               viewportWidthBeforeRotate <= 410 &&
               browserViewportRotateWorks;
+            const browserViewportModeSelect = document.querySelector('[data-testid="browser-viewport-mode"]');
+            let browserDevicePresetCatalogWorks = false;
+            if (browserViewportModeSelect instanceof HTMLSelectElement) {
+              const optionLabels = [...browserViewportModeSelect.options].map((option) => option.textContent?.trim() ?? '');
+              browserViewportModeSelect.value = 'galaxyS24Ultra';
+              browserViewportModeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              await sleep(120);
+              const browserPanelAfterPreset = document.querySelector('[data-testid="browser-panel"]');
+              browserDevicePresetCatalogWorks =
+                ['iPhone SE', 'iPhone 15 Pro Max', 'Galaxy S24 Ultra', 'iPad Mini', 'Surface Duo', 'Surface Pro 7', 'Laptop', 'Laptop L', '4K']
+                  .every((label) => optionLabels.includes(label)) &&
+                browserPanelAfterPreset?.getAttribute('data-browser-device-mode') === 'galaxyS24Ultra' &&
+                Number(browserPanelAfterPreset?.getAttribute('data-browser-viewport-width') ?? '0') === 384 &&
+                Number(browserPanelAfterPreset?.getAttribute('data-browser-viewport-height') ?? '0') === 854;
+            }
             const resetViewportButton = findButton('Reset viewport');
             if (resetViewportButton instanceof HTMLButtonElement) {
               resetViewportButton.click();
@@ -3397,6 +3412,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserFindNavigationWorks,
               browserZoomWorks,
               browserDeviceModeWorks,
+              browserDevicePresetCatalogWorks,
               browserViewportResetWorks,
               browserCacheReloadWorks,
               browserStopLoadingWorks,

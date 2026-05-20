@@ -1,6 +1,6 @@
 import { createElement, useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import type { BrowserHistoryEntry, BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
+import type { BrowserDeviceMode, BrowserHistoryEntry, BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
 import { Badge, Button, IconButton, MenuSurface, ToolbarButton } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
@@ -91,6 +91,23 @@ interface BrowserTargetReadResult {
 type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'read' | 'scroll'
 type BrowserClearDataKind = 'all' | 'cache' | 'cookies' | 'siteData'
 type BrowserInspectorMode = BrowserWorkbenchState['inspectorMode']
+
+const VIEWPORT_PRESETS: Array<{ mode: BrowserDeviceMode; label: string; group: 'Responsive' | 'Phone' | 'Tablet' | 'Desktop' }> = [
+  { mode: 'desktop', label: 'Responsive', group: 'Responsive' },
+  { mode: 'mobile', label: 'iPhone 15 Pro', group: 'Phone' },
+  { mode: 'iphoneSe', label: 'iPhone SE', group: 'Phone' },
+  { mode: 'iphone15ProMax', label: 'iPhone 15 Pro Max', group: 'Phone' },
+  { mode: 'pixel', label: 'Pixel 8', group: 'Phone' },
+  { mode: 'galaxyS24Ultra', label: 'Galaxy S24 Ultra', group: 'Phone' },
+  { mode: 'ipadMini', label: 'iPad Mini', group: 'Tablet' },
+  { mode: 'ipad', label: 'iPad Air', group: 'Tablet' },
+  { mode: 'surfaceDuo', label: 'Surface Duo', group: 'Tablet' },
+  { mode: 'surfacePro7', label: 'Surface Pro 7', group: 'Tablet' },
+  { mode: 'laptop', label: 'Laptop', group: 'Desktop' },
+  { mode: 'laptopLarge', label: 'Laptop L', group: 'Desktop' },
+  { mode: 'desktop4k', label: '4K', group: 'Desktop' },
+  { mode: 'custom', label: 'Custom', group: 'Responsive' }
+]
 
 const BROWSER_INSPECTOR_TABS: Array<{ mode: BrowserInspectorMode; label: string; icon: Parameters<typeof Icon>[0]['name'] }> = [
   { mode: 'console', label: 'Console', icon: 'terminal' },
@@ -987,11 +1004,15 @@ export default function BrowserPanel({
                 className="rounded-md px-2 py-0.5 text-xs outline-none"
                 style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
               >
-                <option value="desktop">Responsive</option>
-                <option value="mobile">iPhone 15 Pro</option>
-                <option value="pixel">Pixel 8</option>
-                <option value="ipad">iPad Air</option>
-                <option value="custom">Custom</option>
+                {(['Responsive', 'Phone', 'Tablet', 'Desktop'] as const).map((group) => (
+                  <optgroup key={group} label={group}>
+                    {VIEWPORT_PRESETS
+                      .filter((preset) => preset.group === group)
+                      .map((preset) => (
+                        <option key={preset.mode} value={preset.mode}>{preset.label}</option>
+                      ))}
+                  </optgroup>
+                ))}
               </select>
               {workbench.deviceMode === 'custom' && (
                 <>
@@ -1869,10 +1890,28 @@ function viewportPreset(
       return { width: 1280, height: 720 }
     case 'mobile':
       return { width: 393, height: 852 }
+    case 'iphoneSe':
+      return { width: 375, height: 667 }
+    case 'iphone15ProMax':
+      return { width: 430, height: 932 }
     case 'pixel':
       return { width: 412, height: 915 }
+    case 'galaxyS24Ultra':
+      return { width: 384, height: 854 }
+    case 'ipadMini':
+      return { width: 744, height: 1133 }
     case 'ipad':
       return { width: 820, height: 1180 }
+    case 'surfaceDuo':
+      return { width: 540, height: 720 }
+    case 'surfacePro7':
+      return { width: 912, height: 1368 }
+    case 'laptop':
+      return { width: 1366, height: 768 }
+    case 'laptopLarge':
+      return { width: 1440, height: 900 }
+    case 'desktop4k':
+      return { width: 3840, height: 2160 }
     case 'custom':
       return { width: currentWidth, height: currentHeight }
   }
