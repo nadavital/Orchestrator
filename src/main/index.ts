@@ -518,6 +518,24 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const editModelListButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Edit model list'));
               editModelListButton?.scrollIntoView({ block: 'center' });
+              var settingsProviderCatalogLabelCalm = false;
+              if (editModelListButton instanceof HTMLButtonElement) {
+                editModelListButton.click();
+                await sleep(160);
+                const catalogLabel = document.querySelector('[data-testid="provider-model-catalog-label"]');
+                const catalogText = catalogLabel?.textContent?.trim() ?? '';
+                settingsProviderCatalogLabelCalm =
+                  catalogLabel instanceof HTMLElement &&
+                  catalogText === 'Catalog' &&
+                  catalogText !== catalogText.toUpperCase() &&
+                  getComputedStyle(catalogLabel).textTransform !== 'uppercase';
+                const doneModelListButton = [...document.querySelectorAll('button')]
+                  .find((button) => button.textContent?.trim() === 'Done');
+                if (doneModelListButton instanceof HTMLButtonElement) {
+                  doneModelListButton.click();
+                  await sleep(100);
+                }
+              }
             }
             if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
               const appearanceButton = [...document.querySelectorAll('button')]
@@ -2375,6 +2393,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderStatusUnifiedWorks: typeof settingsProviderStatusUnifiedWorks === 'boolean' ? settingsProviderStatusUnifiedWorks : null,
             settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
             settingsProviderModelsCollapsedWorks: typeof settingsProviderModelsCollapsedWorks === 'boolean' ? settingsProviderModelsCollapsedWorks : null,
+            settingsProviderCatalogLabelCalm: typeof settingsProviderCatalogLabelCalm === 'boolean' ? settingsProviderCatalogLabelCalm : null,
             settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
             settingsShortcutsCompactWorks: typeof settingsShortcutsCompactWorks === 'boolean' ? settingsShortcutsCompactWorks : null,

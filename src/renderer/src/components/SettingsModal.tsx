@@ -3148,7 +3148,10 @@ function ModelListManager({
       {/* Catalog toggle chips */}
       {editing && providerDef.models.length > 0 && (
         <div>
-          <div style={{ fontSize: 10, fontWeight: 650, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
+          <div
+            data-testid="provider-model-catalog-label"
+            style={{ fontSize: 11, fontWeight: 650, color: 'var(--color-text-muted)', marginBottom: 5 }}
+          >
             Catalog
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
