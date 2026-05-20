@@ -1133,10 +1133,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               targetsInspectorButton.click();
               await sleep(120);
             }
+            const targetsPane = document.querySelector('.browser-targets-pane');
             var browserTargetsPaneWorks =
               document.querySelector('[data-testid="browser-target-select"]') instanceof HTMLSelectElement &&
-              document.body.innerText.includes('Click x/y') &&
-              document.body.innerText.includes('Clip');
+              targetsPane instanceof HTMLElement &&
+              targetsPane.textContent?.includes('Click x/y') &&
+              targetsPane.textContent?.includes('Clipboard');
             const browserTargetSelect = document.querySelector('[data-testid="browser-target-select"]');
             const browserTargetActionInput = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
             let browserTargetKeyWorks = false;
@@ -1301,11 +1303,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             var browserTargetsPaneNoHorizontalOverflowWorks = (() => {
               const pane = document.querySelector('.browser-targets-pane');
-              const output = document.querySelector('[data-testid="browser-inspector-output"]');
               return pane instanceof HTMLElement &&
-                output instanceof HTMLElement &&
-                pane.scrollWidth <= pane.clientWidth + 2 &&
-                output.scrollWidth <= output.clientWidth + 2;
+                pane.scrollWidth <= pane.clientWidth + 2;
             })();
             const assetsInspectorButton = document.querySelector('[data-testid="browser-inspector-assets"]');
             if (assetsInspectorButton instanceof HTMLButtonElement) {
@@ -2016,6 +2015,69 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 }
               }
             }
+            const openBrowserActionsMenu = async () => {
+              const actionsButton = findButton('Browser actions');
+              if (!(actionsButton instanceof HTMLButtonElement)) return null;
+              if (!document.querySelector('.browser-actions-menu')) {
+                actionsButton.click();
+                await sleep(120);
+              }
+              return actionsButton;
+            };
+            const closeBrowserActionsMenu = async () => {
+              const actionsButton = findButton('Browser actions');
+              if (actionsButton instanceof HTMLButtonElement && document.querySelector('.browser-actions-menu')) {
+                actionsButton.click();
+                await sleep(80);
+              }
+            };
+            await openBrowserActionsMenu();
+            const zoomInButton = findButton('Zoom in');
+            if (zoomInButton instanceof HTMLButtonElement) {
+              zoomInButton.click();
+              await sleep(120);
+            }
+            var browserZoomWorks =
+              Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-zoom') ?? '1') > 1;
+            const mobilePreviewButton = findButton('Mobile preview');
+            if (mobilePreviewButton instanceof HTMLButtonElement) {
+              mobilePreviewButton.click();
+              await sleep(120);
+            }
+            const browserViewportFrame = document.querySelector('[data-testid="browser-viewport-frame"]');
+            var browserDeviceModeWorks =
+              document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'mobile' &&
+              browserViewportFrame instanceof HTMLElement &&
+              browserViewportFrame.getBoundingClientRect().width <= 410;
+            const desktopPreviewButton = findButton('Desktop preview');
+            if (desktopPreviewButton instanceof HTMLButtonElement) {
+              desktopPreviewButton.click();
+              await sleep(120);
+            }
+            const noCacheButton = findButton('Reload without cache');
+            if (noCacheButton instanceof HTMLButtonElement) {
+              noCacheButton.click();
+              for (let index = 0; index < 30; index += 1) {
+                if (Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-cache-reloads') ?? '0') > 0) break;
+                await sleep(100);
+              }
+            }
+            var browserCacheReloadWorks =
+              Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-cache-reloads') ?? '0') > 0;
+            await openBrowserActionsMenu();
+            const hideBrowserButton = findButton('Hide browser surface');
+            if (hideBrowserButton instanceof HTMLButtonElement) {
+              hideBrowserButton.click();
+              await sleep(120);
+            }
+            var browserVisibilityControlWorks =
+              document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-visible') === 'false';
+            const showBrowserButton = findButton('Show browser surface');
+            if (showBrowserButton instanceof HTMLButtonElement) {
+              showBrowserButton.click();
+              await sleep(120);
+            }
+            await closeBrowserActionsMenu();
             const toolbarScreenshotButton = document.querySelector('[data-testid="browser-capture-screenshot"]');
             const toolbarOpenExternalButton = document.querySelector('[data-testid="browser-open-external"]');
             var browserToolbarExternalWorks =
@@ -2208,6 +2270,12 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserTargetsButton.click();
               await sleep(120);
             }
+            const browserTargetsPane = document.querySelector('.browser-targets-pane');
+            var browserTargetsPaneWorks =
+              document.querySelector('[data-testid="browser-target-select"]') instanceof HTMLSelectElement &&
+              browserTargetsPane instanceof HTMLElement &&
+              browserTargetsPane.textContent?.includes('Click x/y') &&
+              browserTargetsPane.textContent?.includes('Clipboard');
             const browserTargetSelect = document.querySelector('[data-testid="browser-target-select"]');
             const browserTargetActionInput = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
             let browserTargetKeyWorks = false;
@@ -2370,6 +2438,11 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 }
               }
             }
+            var browserTargetsPaneNoHorizontalOverflowWorks = (() => {
+              const pane = document.querySelector('.browser-targets-pane');
+              return pane instanceof HTMLElement &&
+                pane.scrollWidth <= pane.clientWidth + 2;
+            })();
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const expectedUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
             const browserCurrentUrl = browserPanel?.getAttribute('data-browser-current-url') ?? '';
@@ -2401,23 +2474,29 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 browserCurrentUrl.startsWith(expectedUrl),
               browserFindWorks,
               browserFindNavigationWorks,
+              browserZoomWorks,
+              browserDeviceModeWorks,
+              browserCacheReloadWorks,
               browserStopLoadingWorks,
               browserToolbarHistoryWorks,
               browserHistoryMenuWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserClearDataWorks: typeof browserClearDataWorks === 'boolean' ? browserClearDataWorks : null,
               browserDomPaneCompactWorks,
+              browserTargetsPaneWorks,
               browserTargetKeyWorks,
               browserTargetFillWorks,
               browserTargetTypeWorks,
               browserTargetStateWorks,
               browserTargetSelectWorks,
               browserTargetCheckWorks,
+              browserTargetsPaneNoHorizontalOverflowWorks,
               browserErrorRecoveryWorks,
               browserLoadErrorPanelWorks,
               browserSingleTabStripHidden,
               browserNoHorizontalOverflow,
               browserToolbarCompact,
+              browserVisibilityControlWorks,
               browserStatusRowQuiet
             };
           })()

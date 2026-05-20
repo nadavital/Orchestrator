@@ -1467,21 +1467,33 @@
   }
 
   .browser-targets-pane {
-    grid-template-columns: minmax(0, 1fr) minmax(150px, 0.48fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .browser-target-section,
   .browser-target-side-stack {
     display: grid;
     min-width: 0;
+    max-width: 100%;
     align-content: start;
     gap: 8px;
+    overflow-x: hidden;
   }
 
   .browser-target-section {
     border-radius: var(--radius-lg);
     background: color-mix(in srgb, var(--control-bg) 48%, transparent);
     padding: 8px;
+  }
+
+  .browser-target-side-stack {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
+  .browser-targets-pane input,
+  .browser-targets-pane select,
+  .browser-targets-pane button {
+    min-width: 0;
   }
 
   .browser-target-section-title {
