@@ -1753,7 +1753,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             var browserEmptyStateWorks =
               browserEmptyState instanceof HTMLElement &&
               browserEmptyState.innerText.includes('Start browsing') &&
-              browserEmptyState.innerText.includes('Enter a URL in the address bar.');
+              browserEmptyState.innerText.includes('Search or enter a URL in the address bar.');
             for (let index = 0; index < 20; index += 1) {
               if (document.querySelectorAll('[data-testid="browser-local-target"]').length > 0) break;
               await sleep(100);

@@ -976,7 +976,7 @@ export default function BrowserPanel({
                 Start browsing
               </div>
               <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                Enter a URL in the address bar.
+                Search or enter a URL in the address bar.
               </div>
               {(localTargetsLoading || localTargets.length > 0) && (
                 <div className="browser-local-targets" data-testid="browser-local-targets">
