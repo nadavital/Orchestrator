@@ -393,9 +393,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 .find((button) => button.textContent?.includes('Providers'));
               providersNavButton?.click();
               await sleep(450);
-              const diagnosticsButton = [...document.querySelectorAll('button')]
-                .find((button) => button.textContent?.includes('Diagnostics'));
-              diagnosticsButton?.click();
+              const diagnosticsButton = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
+              if (diagnosticsButton instanceof HTMLElement) diagnosticsButton.click();
               await sleep(450);
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
@@ -430,7 +429,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Edit model list') &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
                 diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
-                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Diagnostics') &&
+                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Advanced') &&
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;
@@ -438,7 +437,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsDiagnosticsDisclosureCompactWorks =
                 diagnosticsToggle instanceof HTMLElement &&
                 diagnosticsToggle.getBoundingClientRect().height <= 32 &&
-                diagnosticsToggle.getAttribute('aria-expanded') === 'true';
+                diagnosticsToggle.getAttribute('aria-expanded') === 'true' &&
+                diagnosticsToggle.textContent?.includes('Advanced') &&
+                !diagnosticsToggle.textContent?.includes('Shown') &&
+                !diagnosticsToggle.textContent?.includes('Hidden');
               const editModelListButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Edit model list'));
               editModelListButton?.scrollIntoView({ block: 'center' });
@@ -471,9 +473,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 .find((button) => button.textContent?.includes('Providers'));
               diagnosticsButton?.click();
               await sleep(450);
-              const diagnosticsPanelButton = [...document.querySelectorAll('button')]
-                .find((button) => button.textContent?.includes('Diagnostics'));
-              diagnosticsPanelButton?.click();
+              const diagnosticsPanelButton = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
+              if (diagnosticsPanelButton instanceof HTMLElement) diagnosticsPanelButton.click();
               await sleep(450);
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
@@ -497,7 +498,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Edit model list') &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
                 diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
-                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Diagnostics') &&
+                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Advanced') &&
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;
@@ -505,7 +506,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsDiagnosticsDisclosureCompactWorks =
                 providerDiagnosticsToggle instanceof HTMLElement &&
                 providerDiagnosticsToggle.getBoundingClientRect().height <= 32 &&
-                providerDiagnosticsToggle.getAttribute('aria-expanded') === 'true';
+                providerDiagnosticsToggle.getAttribute('aria-expanded') === 'true' &&
+                providerDiagnosticsToggle.textContent?.includes('Advanced') &&
+                !providerDiagnosticsToggle.textContent?.includes('Shown') &&
+                !providerDiagnosticsToggle.textContent?.includes('Hidden');
               const dataButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Data controls'));
               dataButton?.click();
