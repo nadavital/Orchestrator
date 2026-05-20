@@ -1151,6 +1151,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             let browserTargetFillWorks = false;
             let browserTargetTypeWorks = false;
+            let browserTargetStateWorks = false;
             const browserTargetSelectForText = document.querySelector('[data-testid="browser-target-select"]');
             const browserTargetActionInputForText = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
             if (browserTargetSelectForText instanceof HTMLSelectElement && browserTargetActionInputForText instanceof HTMLInputElement) {
@@ -1193,6 +1194,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       : '';
                     if (value === 'filled plus') {
                       browserTargetTypeWorks = true;
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                }
+                const stateButton = [...document.querySelectorAll('.browser-targets-pane button')]
+                  .find((button) => button.textContent?.trim() === 'State');
+                if (stateButton instanceof HTMLButtonElement) {
+                  stateButton.click();
+                  for (let index = 0; index < 30; index += 1) {
+                    const output = document.querySelector('[data-testid="browser-target-read-output"]');
+                    const text = output instanceof HTMLElement ? output.innerText : '';
+                    if (text.includes('input') && text.includes('enabled') && text.includes('visible') && text.includes('filled plus')) {
+                      browserTargetStateWorks = true;
                       break;
                     }
                     await sleep(100);
@@ -1768,6 +1783,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserTargetKeyWorks: typeof browserTargetKeyWorks === 'boolean' ? browserTargetKeyWorks : null,
             browserTargetFillWorks: typeof browserTargetFillWorks === 'boolean' ? browserTargetFillWorks : null,
             browserTargetTypeWorks: typeof browserTargetTypeWorks === 'boolean' ? browserTargetTypeWorks : null,
+            browserTargetStateWorks: typeof browserTargetStateWorks === 'boolean' ? browserTargetStateWorks : null,
             browserTargetSelectWorks: typeof browserTargetSelectWorks === 'boolean' ? browserTargetSelectWorks : null,
             browserTargetCheckWorks: typeof browserTargetCheckWorks === 'boolean' ? browserTargetCheckWorks : null,
             browserTargetsPaneNoHorizontalOverflowWorks: typeof browserTargetsPaneNoHorizontalOverflowWorks === 'boolean' ? browserTargetsPaneNoHorizontalOverflowWorks : null,
@@ -2257,6 +2273,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             }
             let browserTargetFillWorks = false;
             let browserTargetTypeWorks = false;
+            let browserTargetStateWorks = false;
             const browserTargetSelectForText = document.querySelector('[data-testid="browser-target-select"]');
             const browserTargetActionInputForText = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
             if (browserTargetSelectForText instanceof HTMLSelectElement && browserTargetActionInputForText instanceof HTMLInputElement) {
@@ -2304,6 +2321,20 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                     await sleep(100);
                   }
                 }
+                const stateButton = [...document.querySelectorAll('.browser-targets-pane button')]
+                  .find((button) => button.textContent?.trim() === 'State');
+                if (stateButton instanceof HTMLButtonElement) {
+                  stateButton.click();
+                  for (let index = 0; index < 30; index += 1) {
+                    const output = document.querySelector('[data-testid="browser-target-read-output"]');
+                    const text = output instanceof HTMLElement ? output.innerText : '';
+                    if (text.includes('input') && text.includes('enabled') && text.includes('visible') && text.includes('filled plus')) {
+                      browserTargetStateWorks = true;
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                }
               }
             }
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
@@ -2345,6 +2376,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserTargetKeyWorks,
               browserTargetFillWorks,
               browserTargetTypeWorks,
+              browserTargetStateWorks,
               browserTargetSelectWorks,
               browserTargetCheckWorks,
               browserErrorRecoveryWorks,

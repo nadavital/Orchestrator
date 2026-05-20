@@ -74,7 +74,20 @@ interface VisibleTarget {
   selector: { primary: string | null; candidates: string[] }
 }
 
-type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'scroll'
+interface BrowserTargetReadResult {
+  tagName: string
+  role: string | null
+  ariaName: string | null
+  text: string | null
+  value: string | null
+  href: string | null
+  checked: boolean | null
+  enabled: boolean
+  visible: boolean
+  selector: string | null
+}
+
+type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'read' | 'scroll'
 
 interface LocalBrowserTarget {
   url: string
@@ -118,6 +131,7 @@ export default function BrowserPanel({
   const [localTargetsLoading, setLocalTargetsLoading] = useState(false)
   const [selectedTargetId, setSelectedTargetId] = useState('')
   const [actionText, setActionText] = useState('')
+  const [targetReadResult, setTargetReadResult] = useState<BrowserTargetReadResult | null>(null)
   const [clipboardText, setClipboardText] = useState('')
   const [coordinateAction, setCoordinateAction] = useState({ x: 20, y: 20, scrollY: 360 })
   const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
@@ -445,10 +459,11 @@ export default function BrowserPanel({
 
   const runTargetAction = async (action: BrowserTargetAction): Promise<void> => {
     if (!selectedTargetId || !webviewRef.current) return
-    await webviewRef.current.executeJavaScript(
+    const result = await webviewRef.current.executeJavaScript<BrowserTargetReadResult | boolean>(
       `window.__orchestratorBrowserAction(${JSON.stringify({ action, nodeId: selectedTargetId, text: actionText, x: 0, y: coordinateAction.scrollY })})`,
       true
     )
+    setTargetReadResult(action === 'read' && result && typeof result === 'object' ? result : null)
     await runInspection()
   }
 
@@ -1082,6 +1097,7 @@ export default function BrowserPanel({
                   targets={visibleTargets}
                   selectedTargetId={selectedTargetId}
                   actionText={actionText}
+                  targetReadResult={targetReadResult}
                   coordinateAction={coordinateAction}
                   clipboardText={clipboardText}
                   onActionTextChange={setActionText}
@@ -1089,7 +1105,10 @@ export default function BrowserPanel({
                   onReadClipboard={readClipboard}
                   onRunCoordinateAction={runCoordinateAction}
                   onRunTargetAction={runTargetAction}
-                  onSelectTarget={setSelectedTargetId}
+                  onSelectTarget={(id) => {
+                    setSelectedTargetId(id)
+                    setTargetReadResult(null)
+                  }}
                   onWriteClipboard={writeClipboard}
                   onClipboardChange={setClipboardText}
                 />
@@ -1232,6 +1251,7 @@ function TargetsPane({
   targets,
   selectedTargetId,
   actionText,
+  targetReadResult,
   coordinateAction,
   clipboardText,
   onActionTextChange,
@@ -1246,6 +1266,7 @@ function TargetsPane({
   targets: VisibleTarget[]
   selectedTargetId: string
   actionText: string
+  targetReadResult: BrowserTargetReadResult | null
   coordinateAction: { x: number; y: number; scrollY: number }
   clipboardText: string
   onActionTextChange: (value: string) => void
@@ -1285,8 +1306,27 @@ function TargetsPane({
           <ActionButton label="Key" onClick={() => onRunTargetAction('key')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Select" onClick={() => onRunTargetAction('select')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Check" onClick={() => onRunTargetAction('check')} disabled={!selectedTargetId} />
+          <ActionButton label="State" onClick={() => onRunTargetAction('read')} disabled={!selectedTargetId} />
           <ActionButton label="Scroll" onClick={() => onRunTargetAction('scroll')} disabled={!selectedTargetId} />
         </div>
+        {targetReadResult && (
+          <div
+            data-testid="browser-target-read-output"
+            className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1 rounded-md p-2 text-[11px]"
+            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+          >
+            <span style={{ color: 'var(--text-tertiary)' }}>target</span>
+            <span className="truncate" style={{ color: 'var(--text-primary)' }}>
+              {targetReadResult.tagName}{targetReadResult.role ? ` · ${targetReadResult.role}` : ''}
+            </span>
+            <span style={{ color: 'var(--text-tertiary)' }}>state</span>
+            <span className="truncate">{targetReadResult.visible ? 'visible' : 'hidden'} · {targetReadResult.enabled ? 'enabled' : 'disabled'}{targetReadResult.checked === null ? '' : ` · ${targetReadResult.checked ? 'checked' : 'unchecked'}`}</span>
+            <span style={{ color: 'var(--text-tertiary)' }}>value</span>
+            <span className="truncate">{targetReadResult.value || targetReadResult.text || targetReadResult.ariaName || targetReadResult.href || 'empty'}</span>
+            <span style={{ color: 'var(--text-tertiary)' }}>selector</span>
+            <span className="truncate">{targetReadResult.selector || 'none'}</span>
+          </div>
+        )}
       </div>
       <div className="space-y-2">
         <div className="grid grid-cols-3 gap-1">
@@ -1738,6 +1778,23 @@ const VISIBLE_TARGETS_SCRIPT = `
         return true;
       }
       return false;
+    }
+    if (action === 'read') {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const disabled = element.disabled === true || element.getAttribute('aria-disabled') === 'true';
+      return {
+        tagName: element.tagName.toLowerCase(),
+        role: element.getAttribute('role'),
+        ariaName: element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || null,
+        text: (element.innerText || element.textContent || '').replace(/\\s+/g, ' ').trim() || null,
+        value: 'value' in element ? String(element.value || '') : null,
+        href: element instanceof HTMLAnchorElement ? element.href : null,
+        checked: element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio') ? element.checked : null,
+        enabled: !disabled,
+        visible: style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0,
+        selector: element.dataset.orchestratorNodeId ? '[data-orchestrator-node-id="' + element.dataset.orchestratorNodeId + '"]' : null
+      };
     }
     element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
     return true;
