@@ -232,7 +232,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       {!rightPanel?.fullWidth && (
         <PanelResizeHandle
           orientation="vertical"
-          label="Resize inspector"
+          label="Resize panel"
           active={isResizing}
           onPointerDown={handleResizeStart}
         />
@@ -279,7 +279,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
             <div className="relative">
               <IconButton
                 icon="plus"
-                label="Add inspector tab"
+                label="Add panel tab"
                 size="sm"
                 active={toolsMenuOpen}
                 dataTestId="right-panel-add-tab"
@@ -310,7 +310,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
             </div>
             <IconButton
               icon={rightPanel?.fullWidth ? 'minimize' : 'maximize'}
-              label={rightPanel?.fullWidth ? 'Restore panel' : 'Maximize panel'}
+              label={rightPanel?.fullWidth ? 'Restore panel width' : 'Expand panel'}
               size="sm"
               active={rightPanel?.fullWidth}
               dataTestId="right-panel-expand-toggle"

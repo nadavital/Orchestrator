@@ -861,7 +861,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const widthBefore = Number(rightPanelBefore?.getAttribute('data-right-panel-width') ?? '0');
             const primaryBefore = document.querySelector('[data-testid="session-primary-content"]');
             const primaryWidthBefore = primaryBefore instanceof HTMLElement ? primaryBefore.getBoundingClientRect().width : 0;
-            const expandButton = findButton('Maximize panel');
+            const expandButton = findButton('Expand panel');
             const expandButtonLabelBefore = expandButton instanceof HTMLButtonElement
               ? expandButton.getAttribute('aria-label')
               : null;
@@ -884,7 +884,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const expandedWidth = rightPanelExpandedContainer instanceof HTMLElement
               ? rightPanelExpandedContainer.getBoundingClientRect().width
               : expandedContentWidth;
-            const restoreButton = findButton('Restore panel');
+            const restoreButton = findButton('Restore panel width');
             const restoreButtonLabelAfterExpand = restoreButton instanceof HTMLButtonElement
               ? restoreButton.getAttribute('aria-label')
               : null;
@@ -912,10 +912,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Math.abs(expandedWidth - mainRowWidthAfterExpand) <= 4 &&
               primaryWidthAfterExpand >= primaryWidthBefore - 8 &&
               expandButton instanceof HTMLButtonElement &&
-              expandButtonLabelBefore === 'Maximize panel' &&
+              expandButtonLabelBefore === 'Expand panel' &&
               expandButtonIconBefore === 'maximize' &&
               restoreButton instanceof HTMLButtonElement &&
-              restoreButtonLabelAfterExpand === 'Restore panel' &&
+              restoreButtonLabelAfterExpand === 'Restore panel width' &&
               restoreButtonIconAfterExpand === 'minimize';
             if (restoreButton instanceof HTMLButtonElement) {
               restoreButton.click();
@@ -1056,7 +1056,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             if (filesTabButton instanceof HTMLElement) {
               filesTabButton.click();
             } else {
-              const inspectorToolsButton = findButton('Add inspector tab');
+              const inspectorToolsButton = findButton('Add panel tab');
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);
@@ -1297,7 +1297,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             if (browserPanelTabButton instanceof HTMLElement) {
               browserPanelTabButton.click();
             } else {
-              const inspectorToolsButton = findButton('Add inspector tab');
+              const inspectorToolsButton = findButton('Add panel tab');
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);
@@ -2066,7 +2066,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             (rightSidebarActiveTabStyle?.boxShadow === 'none' || rightSidebarActiveTabStyle?.boxShadow === '');
           const rightSidebarAddControlStableWorks =
             rightSidebarAddTabButton instanceof HTMLButtonElement &&
-            rightSidebarAddTabButton.getAttribute('aria-label') === 'Add inspector tab' &&
+            rightSidebarAddTabButton.getAttribute('aria-label') === 'Add panel tab' &&
             rightSidebarAddTabButton.getAttribute('data-icon') === 'plus' &&
             rightSidebarTabActions instanceof HTMLElement &&
             rightSidebarTabActions.querySelectorAll('.motion-icon-button').length === 2;
@@ -2454,7 +2454,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             if (browserPanelTabButton instanceof HTMLElement) {
               browserPanelTabButton.click();
             } else {
-              const inspectorToolsButton = findButton('Add inspector tab');
+              const inspectorToolsButton = findButton('Add panel tab');
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);
