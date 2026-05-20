@@ -1356,10 +1356,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var browserInspectorChromeCompactWorks = (() => {
               const toolbar = document.querySelector('[data-testid="browser-inspector-toolbar"]');
               const refresh = document.querySelector('[data-testid="browser-refresh-inspection"]');
+              const hide = document.querySelector('[data-testid="browser-hide-inspection"]');
               const activeTabs = document.querySelectorAll('.browser-inspector-tab[data-active="true"]');
               return toolbar instanceof HTMLElement &&
                 refresh instanceof HTMLButtonElement &&
-                refresh.textContent?.trim() === 'Refresh' &&
+                hide instanceof HTMLButtonElement &&
+                refresh.getAttribute('aria-label') === 'Refresh browser inspector' &&
+                hide.getAttribute('aria-label') === 'Hide browser inspector' &&
+                refresh.textContent?.trim() === '' &&
+                hide.textContent?.trim() === '' &&
                 activeTabs.length === 1 &&
                 toolbar.getBoundingClientRect().height <= 34 &&
                 toolbar.scrollWidth <= toolbar.clientWidth + 2;

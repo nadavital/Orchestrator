@@ -1383,8 +1383,7 @@
     padding: 4px 6px;
   }
 
-  .browser-inspector-tab,
-  .browser-inspector-action {
+  .browser-inspector-tab {
     min-height: 24px;
     border: 1px solid transparent;
     border-radius: var(--radius-md);
@@ -1393,16 +1392,20 @@
     font-size: 11px;
     font-weight: 650;
     line-height: 1;
-  }
-
-  .browser-inspector-tab {
     padding: 0 7px;
     text-transform: capitalize;
   }
 
-  .browser-inspector-action {
-    padding: 0 8px;
-    color: var(--text-tertiary);
+  .browser-inspector-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 3px;
+    margin-left: auto;
+  }
+
+  .browser-inspector-actions .motion-icon-button {
+    width: 24px !important;
+    height: 24px !important;
   }
 
   .browser-inspector-tab[data-active='true'] {
@@ -1412,17 +1415,10 @@
   }
 
   .browser-inspector-tab:not([data-active='true']):hover,
-  .browser-inspector-tab:not([data-active='true']):focus-visible,
-  .browser-inspector-action:not(:disabled):hover,
-  .browser-inspector-action:not(:disabled):focus-visible {
+  .browser-inspector-tab:not([data-active='true']):focus-visible {
     background: var(--control-bg-hover);
     color: var(--text-primary);
     outline: none;
-  }
-
-  .browser-inspector-action:disabled {
-    cursor: default;
-    opacity: 0.45;
   }
 
   .browser-inspector-output {

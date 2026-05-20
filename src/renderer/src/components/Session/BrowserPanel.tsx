@@ -1064,22 +1064,23 @@ export default function BrowserPanel({
                   {mode}
                 </button>
               ))}
-              <button
-                type="button"
-                data-testid="browser-refresh-inspection"
-                className="browser-inspector-action ml-auto"
-                disabled={!currentUrl || !visible}
-                onClick={runInspection}
-              >
-                Refresh
-              </button>
-              <button
-                type="button"
-                className="browser-inspector-action"
-                onClick={() => patchWorkbench({ inspectorOpen: false })}
-              >
-                Hide
-              </button>
+              <div className="browser-inspector-actions">
+                <ToolbarButton
+                  icon="refresh"
+                  label="Refresh browser inspector"
+                  size="sm"
+                  dataTestId="browser-refresh-inspection"
+                  disabled={!currentUrl || !visible}
+                  onClick={runInspection}
+                />
+                <ToolbarButton
+                  icon="close"
+                  label="Hide browser inspector"
+                  size="sm"
+                  dataTestId="browser-hide-inspection"
+                  onClick={() => patchWorkbench({ inspectorOpen: false })}
+                />
+              </div>
             </div>
             <div className="browser-inspector-output" data-testid="browser-inspector-output">
               {workbench.inspectorMode === 'console' && (
