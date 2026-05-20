@@ -267,8 +267,8 @@ export const defaultUI: SessionUIState = {
   }
 }
 
-export function hasComposerDraft(ui?: Pick<SessionUIState, 'composerDraft'>): boolean {
-  return Boolean(ui?.composerDraft?.trim())
+export function hasComposerDraft(ui?: Pick<SessionUIState, 'composerDraft' | 'composerAttachments'>): boolean {
+  return Boolean(ui?.composerDraft?.trim() || (ui?.composerAttachments?.length ?? 0) > 0)
 }
 
 export const useSessionStore = create<SessionState>((set) => ({

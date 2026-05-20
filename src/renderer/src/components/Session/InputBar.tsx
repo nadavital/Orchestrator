@@ -13,6 +13,14 @@ interface Props {
   isNew: boolean
 }
 
+interface PendingAttachment {
+  id: string
+  name: string
+  size?: number
+  status: 'saving' | 'error'
+  error?: string
+}
+
 function InputBar({ session, isNew }: Props): JSX.Element {
   const providerAvailability = useSessionStore((state) => state.providerAvailability)
   const providerModels = useSessionStore((state) => state.providerModels)
@@ -31,6 +39,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const updateSideChatMessage = useSessionStore((state) => state.updateSideChatMessage)
   const [text, setText] = useState(() => currentUi.composerDraft ?? '')
   const attachments = currentUi.composerAttachments ?? []
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [useWorktree, setUseWorktree] = useState(false)
   const [isGitRepo, setIsGitRepo] = useState(false)
   const [showModeMenu, setShowModeMenu] = useState(false)
@@ -43,7 +52,10 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [claudeAgents, setClaudeAgents] = useState<ProviderAgentDef[]>([])
   const [claudeAgentsStatus, setClaudeAgentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const [isSavingPastedFiles, setIsSavingPastedFiles] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const cancelledPendingAttachments = useRef<Set<string>>(new Set())
+  const activeAttachmentSaves = useRef<Set<string>>(new Set())
 
   const setComposerText = (next: string, sessionId = session.id): void => {
     setText(next)
@@ -101,6 +113,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   useEffect(() => {
     const nextDraft = useSessionStore.getState().uiState[session.id]?.composerDraft ?? ''
     setText(nextDraft)
+    setPendingAttachments([])
+    setIsSavingPastedFiles(false)
+    setDragActive(false)
     setSlashIndex(0)
     window.setTimeout(() => {
       if (textareaRef.current) resizeTextarea(textareaRef.current)
@@ -287,37 +302,74 @@ function InputBar({ session, isNew }: Props): JSX.Element {
 
   const attachPastedFiles = async (files: File[]): Promise<void> => {
     if (files.length === 0) return
+    const targetSessionId = session.id
+    const pending = files.map((file): PendingAttachment => ({
+      id: crypto.randomUUID(),
+      name: file.name || 'Pasted file',
+      size: file.size,
+      status: 'saving'
+    }))
+    for (const item of pending) activeAttachmentSaves.current.add(item.id)
+    setPendingAttachments((current) => [...current, ...pending])
     setIsSavingPastedFiles(true)
     try {
-      const saved = await Promise.all(files.map(async (file): Promise<Attachment | null> => {
+      const saved = await Promise.all(files.map(async (file, index): Promise<{ pendingId: string; attachment?: Attachment; error?: string }> => {
+        const pendingId = pending[index].id
         try {
           const bytes = await file.arrayBuffer()
+          if (cancelledPendingAttachments.current.has(pendingId)) return { pendingId }
           const attachment = await window.api.attachments.savePastedFile({
             name: file.name || undefined,
             mimeType: file.type || undefined,
             bytes
           })
+          if (cancelledPendingAttachments.current.has(pendingId)) return { pendingId }
           return {
-            id: crypto.randomUUID(),
-            kind: 'local_file',
-            path: attachment.path,
-            name: attachment.name,
-            size: attachment.size,
-            mimeType: attachment.mimeType
+            pendingId,
+            attachment: {
+              id: crypto.randomUUID(),
+              kind: 'local_file',
+              path: attachment.path,
+              name: attachment.name,
+              size: attachment.size,
+              mimeType: attachment.mimeType
+            }
           }
         } catch (error) {
           console.warn('Unable to attach pasted file', error)
-          return null
+          return {
+            pendingId,
+            error: error instanceof Error ? error.message : 'Unable to attach file.'
+          }
         }
       }))
-      const next = saved.filter((attachment): attachment is Attachment => attachment !== null)
+      const next = saved.flatMap((result) => result.attachment ? [result.attachment] : [])
       if (next.length > 0) {
-        setComposerAttachments(session.id, (current) => dedupeAttachments([...current, ...next]))
-        textareaRef.current?.focus()
+        setComposerAttachments(targetSessionId, (current) => dedupeAttachments([...current, ...next]))
+        if (useSessionStore.getState().activeSessionId === targetSessionId) {
+          textareaRef.current?.focus()
+        }
       }
+      const completedIds = new Set(saved.filter((result) => result.attachment || !result.error).map((result) => result.pendingId))
+      const failed = new Map(saved.filter((result) => result.error).map((result) => [result.pendingId, result.error!]))
+      setPendingAttachments((current) => current
+        .map((item): PendingAttachment => failed.has(item.id) ? { ...item, status: 'error', error: failed.get(item.id) } : item)
+        .filter((item) => !completedIds.has(item.id))
+      )
     } finally {
-      setIsSavingPastedFiles(false)
+      for (const item of pending) {
+        cancelledPendingAttachments.current.delete(item.id)
+        activeAttachmentSaves.current.delete(item.id)
+      }
+      setIsSavingPastedFiles(activeAttachmentSaves.current.size > 0)
     }
+  }
+
+  const cancelPendingAttachment = (id: string): void => {
+    cancelledPendingAttachments.current.add(id)
+    activeAttachmentSaves.current.delete(id)
+    setIsSavingPastedFiles(activeAttachmentSaves.current.size > 0)
+    setPendingAttachments((current) => current.filter((item) => item.id !== id))
   }
 
   const slashQuery = getSlashQuery(text)
@@ -352,6 +404,23 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       resizeTextarea(textarea)
       moveTextareaCursorToEnd(textarea)
     }, 0)
+  }
+
+  const handleDragEvent = (event: React.DragEvent<HTMLDivElement>): void => {
+    if (!hasDataTransferFiles(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.type === 'dragenter' || event.type === 'dragover') setDragActive(true)
+    if (event.type === 'dragleave') setDragActive(false)
+  }
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>): void => {
+    if (!hasDataTransferFiles(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setDragActive(false)
+    const files = Array.from(event.dataTransfer.files ?? [])
+    if (files.length > 0) void attachPastedFiles(files)
   }
 
   const insertTextAtSelection = (textarea: HTMLTextAreaElement, value: string): void => {
@@ -470,6 +539,11 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       <div
         className="composer-shell overflow-visible mx-auto"
         data-testid="composer-shell"
+        data-drag-active={dragActive ? 'true' : 'false'}
+        onDragEnter={handleDragEvent}
+        onDragOver={handleDragEvent}
+        onDragLeave={handleDragEvent}
+        onDrop={handleDrop}
         style={{
           maxWidth: isNew ? 700 : 860,
           background: 'var(--surface-bg)',
@@ -480,6 +554,19 @@ function InputBar({ session, isNew }: Props): JSX.Element {
           transition: 'box-shadow 140ms ease, border-color 140ms ease'
         }}
       >
+        {dragActive && (
+          <div
+            className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[inherit] border text-sm font-medium"
+            data-testid="composer-drop-overlay"
+            style={{
+              color: 'var(--accent)',
+              background: 'color-mix(in srgb, var(--surface-bg) 86%, var(--accent) 14%)',
+              borderColor: 'var(--accent)'
+            }}
+          >
+            Drop files to attach
+          </div>
+        )}
         {showSlash && (
           <SlashCommandPalette
             query={slashQuery!}
@@ -507,13 +594,20 @@ function InputBar({ session, isNew }: Props): JSX.Element {
             style={{ color: 'var(--text-primary)', lineHeight: 1.5, maxHeight: 180, userSelect: 'text', fontSize: 14 }}
           />
         </div>
-        {attachments.length > 0 && (
+        {(attachments.length > 0 || pendingAttachments.length > 0) && (
           <div className="flex flex-wrap gap-1.5 px-4 pb-2" aria-label="Attachments">
             {attachments.map((attachment) => (
               <AttachmentChip
                 key={attachment.id}
                 attachment={attachment}
                 onRemove={() => setComposerAttachments(session.id, (current) => current.filter((item) => item.id !== attachment.id))}
+              />
+            ))}
+            {pendingAttachments.map((attachment) => (
+              <PendingAttachmentChip
+                key={attachment.id}
+                attachment={attachment}
+                onRemove={() => cancelPendingAttachment(attachment.id)}
               />
             ))}
           </div>
@@ -946,6 +1040,28 @@ function AttachmentChip({
   )
 }
 
+function PendingAttachmentChip({
+  attachment,
+  onRemove
+}: {
+  attachment: PendingAttachment
+  onRemove: () => void
+}): JSX.Element {
+  const meta = attachment.status === 'saving'
+    ? attachment.size !== undefined ? `Saving, ${formatBytes(attachment.size)}` : 'Saving'
+    : 'Failed'
+  return (
+    <AttachmentPill
+      label={attachment.name}
+      title={attachment.error ?? attachment.name}
+      meta={meta}
+      tone={attachment.status === 'error' ? 'danger' : 'accent'}
+      onRemove={onRemove}
+      className="composer-pending-attachment"
+    />
+  )
+}
+
 function dedupeAttachments(attachments: Attachment[]): Attachment[] {
   const seen = new Set<string>()
   return attachments.filter((attachment) => {
@@ -965,6 +1081,11 @@ function getClipboardFiles(clipboardData: DataTransfer): File[] {
     .filter((item) => item.kind === 'file')
     .map((item) => item.getAsFile())
     .filter((file): file is File => file !== null)
+}
+
+function hasDataTransferFiles(dataTransfer: DataTransfer): boolean {
+  if (dataTransfer.files?.length > 0) return true
+  return Array.from(dataTransfer.items ?? []).some((item) => item.kind === 'file')
 }
 
 function formatBytes(value: number): string {

@@ -775,6 +775,9 @@ child.on('exit', (code) => {
         composerDraftsPerChat: captureView !== 'composer' || result.composerDraftsPerChat === true,
         composerAttachmentsPerChat: captureView !== 'composer' || result.composerAttachmentsPerChat === true,
         composerAttachmentsClearedOnSwitch: captureView !== 'composer' || result.composerAttachmentsClearedOnSwitch === true,
+        composerAttachmentOnlySessionPreserved: captureView !== 'composer' || result.composerAttachmentOnlySessionPreserved === true,
+        composerDropOverlay: captureView !== 'composer' || result.composerDropOverlayWorks === true,
+        composerDragDropAttachment: captureView !== 'composer' || result.composerDragDropAttachmentWorks === true,
         composerToolbarResponsive: captureView !== 'composer' || result.composerToolbarResponsiveWorks === true,
         buttons: Number(result.buttonCount ?? 0) > 0
       }

@@ -2207,10 +2207,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   repoRoot: project.rootPath
                 })
               : null;
-            if (project && firstSession && secondSession) {
+            const attachmentOnlySession = project && firstSession
+              ? await window.api.sessions.create({
+                  projectId: project.id,
+                  workDir: project.rootPath,
+                  useWorktree: false,
+                  repoRoot: project.rootPath
+                })
+              : null;
+            if (project && firstSession && secondSession && attachmentOnlySession) {
               await window.api.projects.addSession(project.id, secondSession.id);
+              await window.api.projects.addSession(project.id, attachmentOnlySession.id);
               await window.api.sessions.updateName(firstSession.id, 'Draft smoke one');
               await window.api.sessions.updateName(secondSession.id, 'Draft smoke two');
+              await window.api.sessions.updateName(attachmentOnlySession.id, 'Attachment only smoke');
               await sleep(300);
             }
             const rowForTitle = (title) => {
@@ -2288,6 +2298,46 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               composerSecondAttachmentRestored &&
               attachmentLabels().some((label) => label.includes('draft-one.txt')) &&
               !attachmentLabels().some((label) => label.includes('draft-two.txt'));
+            const attachmentOnlyRow = rowForTitle('Attachment only smoke');
+            attachmentOnlyRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
+            addComposerAttachment('attachment-only.txt', '/tmp/orchestrator-attachment-only.txt');
+            await sleep(120);
+            secondDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
+            const attachmentOnlyRowAfterSwitch = rowForTitle('Attachment only smoke');
+            attachmentOnlyRowAfterSwitch?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
+            var composerAttachmentOnlySessionPreserved =
+              Boolean(attachmentOnlyRow) &&
+              Boolean(attachmentOnlyRowAfterSwitch) &&
+              attachmentLabels().some((label) => label.includes('attachment-only.txt'));
+            const composerDropShell = document.querySelector('[data-testid="composer-shell"]');
+            var composerDropOverlayWorks = false;
+            var composerDragDropAttachmentWorks = false;
+            if (composerDropShell instanceof HTMLElement && typeof File === 'function' && typeof DataTransfer === 'function') {
+              try {
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(new File(['drag drop smoke'], 'drag-drop-smoke.txt', { type: 'text/plain' }));
+                const dragEnterEvent = new Event('dragenter', { bubbles: true, cancelable: true });
+                Object.defineProperty(dragEnterEvent, 'dataTransfer', { value: dataTransfer });
+                composerDropShell.dispatchEvent(dragEnterEvent);
+                await sleep(80);
+                composerDropOverlayWorks =
+                  composerDropShell.dataset.dragActive === 'true' &&
+                  document.querySelector('[data-testid="composer-drop-overlay"]') instanceof HTMLElement;
+                const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
+                Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
+                composerDropShell.dispatchEvent(dropEvent);
+                await sleep(500);
+                composerDragDropAttachmentWorks =
+                  composerDropShell.dataset.dragActive === 'false' &&
+                  attachmentLabels().some((label) => label.includes('drag-drop-smoke'));
+              } catch {
+                composerDropOverlayWorks = false;
+                composerDragDropAttachmentWorks = false;
+              }
+            }
 
             const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
             permissionButton?.click();
@@ -2796,6 +2846,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAttachmentsClearedOnSwitch: typeof composerAttachmentsClearedOnSwitch === 'boolean' ? composerAttachmentsClearedOnSwitch : null,
             composerFirstAttachmentRestored: typeof composerFirstAttachmentRestored === 'boolean' ? composerFirstAttachmentRestored : null,
             composerSecondAttachmentRestored: typeof composerSecondAttachmentRestored === 'boolean' ? composerSecondAttachmentRestored : null,
+            composerAttachmentOnlySessionPreserved: typeof composerAttachmentOnlySessionPreserved === 'boolean' ? composerAttachmentOnlySessionPreserved : null,
+            composerDropOverlayWorks,
+            composerDragDropAttachmentWorks,
             buttonCount: buttons.length,
             buttons: buttons.slice(0, 30)
           };
