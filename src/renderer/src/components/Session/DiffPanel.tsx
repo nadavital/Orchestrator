@@ -22,6 +22,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [previewLoading, setPreviewLoading] = useState(false)
   const [query, setQuery] = useState('')
   const [wrapLines, setWrapLines] = useState(true)
+  const [showPreview, setShowPreview] = useState(false)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const filteredFiles = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -74,6 +75,10 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   }, [selectedChange, selectedFile, sessionId, workDir])
 
   useEffect(() => {
+    setShowPreview(false)
+  }, [selectedFile])
+
+  useEffect(() => {
     if (!selectedFile || filteredFiles.some((file) => file.path === selectedFile)) return
     setSelectedFile(filteredFiles[0]?.path ?? null)
   }, [filteredFiles, selectedFile])
@@ -100,6 +105,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     void navigator.clipboard.writeText(selectedFile)
   }
 
+  const canTogglePreview = Boolean(selectedChange && filePreview && shouldPreferTextDiff(fileDiff) && hasReviewPreview(filePreview))
+
   const changeActions = (
     <div className="diff-panel-actions relative">
       <IconButton
@@ -123,6 +130,12 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             icon="wrap"
             label={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
             onClick={() => { setWrapLines((value) => !value); setActionMenuOpen(false) }}
+          />
+          <MenuItem
+            icon="file"
+            label={showPreview ? 'Show diff' : 'Show preview'}
+            disabled={!canTogglePreview}
+            onClick={() => { setShowPreview((value) => !value); setActionMenuOpen(false) }}
           />
           <MenuItem
             icon="file"
@@ -198,6 +211,15 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             `${files.length} ${files.length === 1 ? 'file' : 'files'}`
           )}
         </Badge>
+        {canTogglePreview && (
+          <IconButton
+            icon={showPreview ? 'branch' : 'file'}
+            label={showPreview ? 'Show diff' : 'Show preview'}
+            size="sm"
+            active={showPreview}
+            onClick={() => setShowPreview((value) => !value)}
+          />
+        )}
         {embedded && changeActions}
       </div>
 
@@ -231,6 +253,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
               preview={filePreview}
               loading={previewLoading}
               wrap={wrapLines}
+              preferPreview={showPreview}
               absolutePath={selectedFile ? joinPath(workDir, selectedFile) : ''}
             />
           </div>
@@ -246,6 +269,7 @@ function ReviewPreview({
   preview,
   loading,
   wrap,
+  preferPreview,
   absolutePath
 }: {
   change: FileChange | null
@@ -253,6 +277,7 @@ function ReviewPreview({
   preview: FilePreviewResult | null
   loading: boolean
   wrap: boolean
+  preferPreview: boolean
   absolutePath: string
 }): JSX.Element {
   if (!change) {
@@ -285,7 +310,7 @@ function ReviewPreview({
       />
     )
   }
-  if (shouldPreferTextDiff(diff)) {
+  if (shouldPreferTextDiff(diff) && !preferPreview) {
     return <DiffLines diff={diff} wrap={wrap} />
   }
   if (preview?.kind === 'image') {
@@ -510,6 +535,20 @@ function reviewActionIcon(label: string): 'external' | 'folder' | 'file' {
 
 function isBinaryDiff(diff: string): boolean {
   return isBinaryDiffText(diff)
+}
+
+function hasReviewPreview(preview: FilePreviewResult): boolean {
+  return preview.kind === 'image' ||
+    preview.kind === 'pdf' ||
+    preview.kind === 'html' ||
+    preview.kind === 'markdown' ||
+    preview.kind === 'json' ||
+    preview.kind === 'csv' ||
+    preview.kind === 'notebook' ||
+    preview.kind === 'document' ||
+    preview.kind === 'audio' ||
+    preview.kind === 'video' ||
+    (preview.kind === 'text' && Boolean(preview.text?.trim()))
 }
 
 function formatBytes(value: number): string {

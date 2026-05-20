@@ -1098,6 +1098,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               jsonReviewButton.click();
               await sleep(220);
             }
+            const jsonPreviewToggle = [...document.querySelectorAll('button')]
+              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+            var reviewDiffFirstWorks =
+              jsonPreviewToggle instanceof HTMLButtonElement &&
+              !(document.querySelector('[data-testid="review-json-state"]') instanceof HTMLElement);
+            if (jsonPreviewToggle instanceof HTMLButtonElement) {
+              jsonPreviewToggle.click();
+              await sleep(160);
+            }
             const reviewJsonState = document.querySelector('[data-testid="review-json-state"]');
             var reviewJsonPreviewWorks =
               reviewJsonState instanceof HTMLElement &&
@@ -2636,6 +2645,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarAddMenuStableWorks,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             reviewSearchClearWorks: typeof reviewSearchClearWorks === 'boolean' ? reviewSearchClearWorks : null,
+            reviewDiffFirstWorks: typeof reviewDiffFirstWorks === 'boolean' ? reviewDiffFirstWorks : null,
             reviewJsonPreviewWorks: typeof reviewJsonPreviewWorks === 'boolean' ? reviewJsonPreviewWorks : null,
             reviewCsvPreviewWorks: typeof reviewCsvPreviewWorks === 'boolean' ? reviewCsvPreviewWorks : null,
             reviewDocumentPreviewWorks: typeof reviewDocumentPreviewWorks === 'boolean' ? reviewDocumentPreviewWorks : null,
@@ -3081,6 +3091,15 @@ function runAutomatedFocusedSurfaceSmoke(
                 jsonButton.click();
                 await sleep(180);
               }
+              const jsonPreviewToggle = [...document.querySelectorAll('button')]
+                .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+              const reviewDiffFirstWorks =
+                jsonPreviewToggle instanceof HTMLButtonElement &&
+                !(document.querySelector('[data-testid="review-json-state"]') instanceof HTMLElement);
+              if (jsonPreviewToggle instanceof HTMLButtonElement) {
+                jsonPreviewToggle.click();
+                await sleep(160);
+              }
               const reviewJsonState = document.querySelector('[data-testid="review-json-state"]');
               const reviewJsonPreviewWorks =
                 reviewJsonState instanceof HTMLElement &&
@@ -3120,6 +3139,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffRows.every((row) => row.getBoundingClientRect().height <= 42),
                 diffActionMenuCompactWorks,
                 reviewSearchWorks,
+                reviewDiffFirstWorks,
                 reviewJsonPreviewWorks,
                 reviewBinaryStateWorks:
                   binaryState instanceof HTMLElement &&

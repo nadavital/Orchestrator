@@ -598,6 +598,7 @@ child.on('exit', (code) => {
           diffActionMenuCompact: result.diffActionMenuCompactWorks === true,
           reviewSearch: result.reviewSearchWorks === true,
           reviewSearchClear: result.reviewSearchClearWorks === true,
+          reviewDiffFirst: result.reviewDiffFirstWorks === true,
           reviewJsonPreview: result.reviewJsonPreviewWorks === true,
           reviewBinaryState: result.reviewBinaryStateWorks === true,
           reviewBinaryActions: result.reviewBinaryActionsWork === true
