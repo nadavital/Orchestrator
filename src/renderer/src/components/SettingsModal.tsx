@@ -1622,9 +1622,9 @@ function ProviderCommandSurfaces({
           color: 'var(--color-text-muted)'
         }}
       >
-        <ProviderCapabilityMetric label="Safe checks" value={runnableSurfaces.length} color={color} />
+        <ProviderCapabilityMetric label="Checks" value={runnableSurfaces.length} color={color} />
         {mutatingSurfaces.length > 0 && (
-          <ProviderCapabilityMetric label="Handoff" value={mutatingSurfaces.length} />
+          <ProviderCapabilityMetric label="Actions" value={mutatingSurfaces.length} />
         )}
         {quotaSurfaces.length > 0 && (
           <ProviderCapabilityMetric label="Quota" value={quotaSurfaces.length} />

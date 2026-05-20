@@ -461,7 +461,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerSetupCard instanceof HTMLElement &&
                 providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
                 providerCapabilitySummary instanceof HTMLElement &&
-                providerCapabilitySummary.innerText.includes('Safe checks') &&
+                providerCapabilitySummary.innerText.includes('Checks') &&
                 providerCapabilitySelect instanceof HTMLSelectElement &&
                 providerCapabilitySelect.value === '' &&
                 providerCapabilityOutput === null &&
@@ -580,7 +580,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerSetupCard instanceof HTMLElement &&
                 providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
                 providerCapabilitySummary instanceof HTMLElement &&
-                providerCapabilitySummary.innerText.includes('Safe checks') &&
+                providerCapabilitySummary.innerText.includes('Checks') &&
                 providerCapabilitySelect instanceof HTMLSelectElement &&
                 providerCapabilitySelect.value === '' &&
                 providerCapabilityOutput === null &&
