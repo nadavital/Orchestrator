@@ -25,7 +25,7 @@ export interface BrowserWorkbenchState {
   findVisible: boolean
   findQuery: string
   zoomFactor: number
-  deviceMode: 'desktop' | 'mobile' | 'custom'
+  deviceMode: 'desktop' | 'mobile' | 'pixel' | 'ipad' | 'custom'
   viewportWidth: number
   viewportHeight: number
   visible: boolean

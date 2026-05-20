@@ -113,6 +113,7 @@ export default function BrowserPanel({
   const viewport = browserViewport(workbench)
   const urlOrigin = safeOrigin(currentUrl)
   const blocked = Boolean(urlOrigin && workbench.blockedOrigins.includes(originKey(urlOrigin)))
+  const devicePreviewActive = workbench.deviceMode !== 'desktop'
   useEffect(() => {
     const nextTab = activeBrowserTab(workbench)
     const nextUrl = nextTab.url || initialUrl
@@ -314,10 +315,11 @@ export default function BrowserPanel({
   }
 
   const setViewportMode = (mode: BrowserWorkbenchState['deviceMode']): void => {
+    const preset = viewportPreset(mode, workbench.viewportWidth, workbench.viewportHeight)
     patchWorkbench({
       deviceMode: mode,
-      viewportWidth: mode === 'desktop' ? 1280 : mode === 'mobile' ? 390 : workbench.viewportWidth,
-      viewportHeight: mode === 'desktop' ? 720 : mode === 'mobile' ? 760 : workbench.viewportHeight
+      viewportWidth: preset.width,
+      viewportHeight: preset.height
     })
   }
 
@@ -613,13 +615,13 @@ export default function BrowserPanel({
                 <button
                   type="button"
                   role="menuitem"
-                  title={workbench.deviceMode === 'mobile' ? 'Desktop preview' : 'Mobile preview'}
+                  title={devicePreviewActive ? 'Desktop preview' : 'Mobile preview'}
                   className="browser-action-row"
                   disabled={!currentUrl}
-                  onClick={() => setViewportMode(workbench.deviceMode === 'mobile' ? 'desktop' : 'mobile')}
+                  onClick={() => setViewportMode(devicePreviewActive ? 'desktop' : 'mobile')}
                 >
-                  <Icon name={workbench.deviceMode === 'mobile' ? 'monitor' : 'smartphone'} size={13} />
-                  <span>{workbench.deviceMode === 'mobile' ? 'Desktop preview' : 'Mobile preview'}</span>
+                  <Icon name={devicePreviewActive ? 'monitor' : 'smartphone'} size={13} />
+                  <span>{devicePreviewActive ? 'Desktop preview' : 'Mobile preview'}</span>
                 </button>
                 <button
                   type="button"
@@ -687,8 +689,10 @@ export default function BrowserPanel({
             className="rounded-md px-2 py-1 text-xs outline-none"
             style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
           >
-            <option value="desktop">1280 x 720</option>
-            <option value="mobile">390 x 760</option>
+            <option value="desktop">Responsive</option>
+            <option value="mobile">iPhone 15 Pro</option>
+            <option value="pixel">Pixel 8</option>
+            <option value="ipad">iPad Air</option>
             <option value="custom">Custom</option>
           </select>
           {workbench.deviceMode === 'custom' && (
@@ -1126,6 +1130,25 @@ function browserViewport(workbench: BrowserWorkbenchState): { width: number | st
   return {
     width: Math.max(280, workbench.viewportWidth),
     height: Math.max(420, workbench.viewportHeight)
+  }
+}
+
+function viewportPreset(
+  mode: BrowserWorkbenchState['deviceMode'],
+  currentWidth: number,
+  currentHeight: number
+): { width: number; height: number } {
+  switch (mode) {
+    case 'desktop':
+      return { width: 1280, height: 720 }
+    case 'mobile':
+      return { width: 393, height: 852 }
+    case 'pixel':
+      return { width: 412, height: 915 }
+    case 'ipad':
+      return { width: 820, height: 1180 }
+    case 'custom':
+      return { width: currentWidth, height: currentHeight }
   }
 }
 
