@@ -260,10 +260,11 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
                 setTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY })
               }}
               closeLabel={`Close ${tab.label}`}
+              ariaLabel={tab.label}
             >
               <span className="inline-flex min-w-0 items-center gap-1.5" data-tab-id={tab.id}>
                 <Icon name={tab.icon} size={13} />
-                <span className="truncate">{tab.label}</span>
+                <span className="right-sidebar-tab-label truncate">{tab.label}</span>
                 {tab.count !== undefined && tab.count > 0 && (
                   <span className="right-sidebar-tab-count">
                     {tab.count}

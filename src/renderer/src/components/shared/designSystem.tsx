@@ -405,6 +405,7 @@ export function TabButton({
   onClose,
   onContextMenu,
   closeLabel,
+  ariaLabel,
 }: {
   children: ReactNode
   active: boolean
@@ -412,12 +413,15 @@ export function TabButton({
   onClose?: () => void
   onContextMenu?: (event: React.MouseEvent) => void
   closeLabel?: string
+  ariaLabel?: string
 }): JSX.Element {
   return (
     <div
       role="tab"
       tabIndex={0}
+      aria-label={ariaLabel}
       aria-selected={active}
+      data-native-title-free="true"
       data-active={active ? 'true' : 'false'}
       className="motion-tab-button"
       onClick={onClick}

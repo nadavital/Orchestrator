@@ -523,14 +523,26 @@
 
   .right-sidebar-tabbar .motion-tab-button {
     min-height: 24px;
+    min-width: 26px;
     border-radius: var(--radius-sm);
     color: var(--text-tertiary);
-    padding: 0 7px;
+    padding: 0 6px;
     font-size: 11px;
     font-weight: 650;
   }
 
+  .right-sidebar-tabbar .motion-tab-button:not([data-active='true']) {
+    flex: 0 0 26px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .right-sidebar-tabbar .motion-tab-button:not([data-active='true']) .right-sidebar-tab-label {
+    display: none;
+  }
+
   .right-sidebar-tabbar .motion-tab-button[data-active='true'] {
+    max-width: 142px;
     border-color: transparent;
     background: var(--control-bg);
     box-shadow: none;

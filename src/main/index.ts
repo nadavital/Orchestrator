@@ -1313,6 +1313,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           const rightSidebarActiveTabStyle = rightSidebarActiveTab instanceof HTMLElement
             ? getComputedStyle(rightSidebarActiveTab)
             : null;
+          const rightSidebarInactiveTabs = [...document.querySelectorAll('[data-testid="right-sidebar-tabbar"] .motion-tab-button:not([data-active="true"])')]
+            .filter((tab) => tab instanceof HTMLElement);
+          const rightSidebarActiveLabel = rightSidebarActiveTab instanceof HTMLElement
+            ? rightSidebarActiveTab.querySelector('.right-sidebar-tab-label')
+            : null;
+          const rightSidebarInactiveLabels = rightSidebarInactiveTabs
+            .map((tab) => tab.querySelector('.right-sidebar-tab-label'))
+            .filter((label) => label instanceof HTMLElement);
           const rightSidebarChromeCompactWorks =
             rightSidebarTabbar instanceof HTMLElement &&
             rightSidebarTabRow instanceof HTMLElement &&
@@ -1322,6 +1330,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarTabRow.scrollWidth <= rightSidebarTabRow.clientWidth + 2 &&
             rightSidebarTabActions.getBoundingClientRect().height <= 26 &&
             (rightSidebarActiveTabStyle?.boxShadow === 'none' || rightSidebarActiveTabStyle?.boxShadow === '');
+          const rightSidebarInactiveTabsCompactWorks =
+            rightSidebarActiveTab instanceof HTMLElement &&
+            rightSidebarActiveLabel instanceof HTMLElement &&
+            getComputedStyle(rightSidebarActiveLabel).display !== 'none' &&
+            rightSidebarInactiveTabs.length >= 2 &&
+            rightSidebarInactiveLabels.length === rightSidebarInactiveTabs.length &&
+            rightSidebarInactiveLabels.every((label) => getComputedStyle(label).display === 'none') &&
+            rightSidebarInactiveTabs.every((tab) => (tab.getAttribute('aria-label') ?? '').trim().length > 0) &&
+            rightSidebarInactiveTabs.every((tab) => tab.getBoundingClientRect().width <= 30);
           const diffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
           const diffToolbarSearch = document.querySelector('[data-testid="diff-file-search"]');
           const diffToolbarActions = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-panel-actions');
@@ -1392,6 +1409,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
             rightSidebarChromeCompactWorks,
+            rightSidebarInactiveTabsCompactWorks,
             diffToolbarCompactWorks,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
