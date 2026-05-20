@@ -2681,6 +2681,13 @@ function ProviderUsageDiagnosticsCard({
 }): JSX.Element {
   const budget = providerBudgetSupport(providerId)
   const hasUsage = usage.sessionCount > 0
+  const hasUsageMetrics =
+    hasUsage ||
+    usage.totalTokens > 0 ||
+    usage.totalCostUsd > 0 ||
+    usage.durationMs > 0 ||
+    usage.apiDurationMs > 0 ||
+    (diagnostics?.usage.status !== undefined && diagnostics.usage.status !== 'unknown')
   const rows = [
     {
       label: 'Runs',
@@ -2717,6 +2724,7 @@ function ProviderUsageDiagnosticsCard({
       message: budget.message
     }
   ]
+  const visibleRows = rows.filter((row) => row.status !== 'unknown' || row.label === 'Budget')
   const detailChips = [
     usage.models.length > 0 ? `Models ${usage.models.join(', ')}` : null,
     usage.cacheTokens > 0 ? `Cache ${usage.cacheTokens.toLocaleString()}` : null,
@@ -2733,7 +2741,50 @@ function ProviderUsageDiagnosticsCard({
           gap: 6
         }}
       >
-        {rows.map((row) => (
+        {!hasUsageMetrics && (
+          <div
+            data-testid="provider-usage-empty"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              minWidth: 0,
+              minHeight: 30,
+              padding: '5px 8px',
+              borderRadius: 7,
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)'
+            }}
+          >
+            <div
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--color-text)'
+              }}
+            >
+              Runs
+            </div>
+            <div
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontSize: 11,
+                color: 'var(--color-text-muted)'
+              }}
+            >
+              No usage yet
+            </div>
+          </div>
+        )}
+        {visibleRows.map((row) => (
           <div
             key={row.label}
             style={{

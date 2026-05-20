@@ -403,6 +403,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 ? [...diagnosticsSection.querySelectorAll('select')]
                 : [];
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
+              const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
+              const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
+                ? usageDiagnosticsCard.innerText.replace(/\\s+/g, ' ')
+                : '';
               const providerButtonLabels = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
                 : [];
@@ -419,13 +423,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Usage') &&
-                diagnosticsSection.innerText.includes('Runs') &&
-                diagnosticsSection.innerText.includes('Tokens') &&
-                diagnosticsSection.innerText.includes('Cost') &&
-                diagnosticsSection.innerText.includes('Budget') &&
-                Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]')) &&
+                usageDiagnosticsText.includes('Runs') &&
+                usageDiagnosticsText.includes('Budget') &&
+                usageDiagnosticsText.includes('No usage yet') &&
+                usageDiagnosticsCard instanceof HTMLElement &&
+                Boolean(document.querySelector('[data-testid="provider-usage-empty"]')) &&
                 usageStatusStrip instanceof HTMLElement &&
                 usageStatusStrip.getBoundingClientRect().height <= 76 &&
+                !usageDiagnosticsText.includes('Tokens Unknown') &&
+                !usageDiagnosticsText.includes('Cost Unknown') &&
+                !usageDiagnosticsText.includes('Time Unknown') &&
+                !usageDiagnosticsText.includes('Quota Unknown') &&
                 !diagnosticsSection.innerText.includes('No cache') &&
                 !diagnosticsSection.innerText.includes('No turns');
               var settingsProviderModelsCollapsedWorks =
@@ -489,6 +497,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
+              const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
+              const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
+                ? usageDiagnosticsCard.innerText.replace(/\\s+/g, ' ')
+                : '';
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Capabilities') &&
@@ -497,13 +509,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Usage') &&
-                diagnosticsSection.innerText.includes('Runs') &&
-                diagnosticsSection.innerText.includes('Tokens') &&
-                diagnosticsSection.innerText.includes('Cost') &&
-                diagnosticsSection.innerText.includes('Budget') &&
-                Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]')) &&
+                usageDiagnosticsText.includes('Runs') &&
+                usageDiagnosticsText.includes('Budget') &&
+                usageDiagnosticsText.includes('No usage yet') &&
+                usageDiagnosticsCard instanceof HTMLElement &&
+                Boolean(document.querySelector('[data-testid="provider-usage-empty"]')) &&
                 usageStatusStrip instanceof HTMLElement &&
                 usageStatusStrip.getBoundingClientRect().height <= 76 &&
+                !usageDiagnosticsText.includes('Tokens Unknown') &&
+                !usageDiagnosticsText.includes('Cost Unknown') &&
+                !usageDiagnosticsText.includes('Time Unknown') &&
+                !usageDiagnosticsText.includes('Quota Unknown') &&
                 !diagnosticsSection.innerText.includes('No cache') &&
                 !diagnosticsSection.innerText.includes('No turns');
               var settingsProviderModelsCollapsedWorks =
