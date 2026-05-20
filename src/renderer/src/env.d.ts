@@ -165,6 +165,7 @@ declare global {
       }
       browser: {
         openExternal: (url: string) => Promise<void>
+        clearData: () => Promise<void>
         saveDataUrlArtifact: (dataUrl: string, suggestedName?: string) => Promise<{ path: string; size: number }>
         discoverLocalTargets: (recentUrls?: string[]) => Promise<Array<{ url: string; title: string | null; source: 'port-scan' | 'recent' }>>
         bundleAssets: (request: {

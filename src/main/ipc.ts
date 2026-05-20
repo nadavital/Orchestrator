@@ -1,5 +1,5 @@
 import type { IpcMain } from 'electron'
-import { dialog, app, shell } from 'electron'
+import { dialog, app, shell, session } from 'electron'
 import { execFile } from 'child_process'
 import { request as httpRequest } from 'http'
 import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
@@ -497,6 +497,13 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
 
   // Browser side panel
   ipcMain.handle('browser:openExternal', (_, url: string): Promise<void> => shell.openExternal(url))
+  ipcMain.handle('browser:clearData', async (): Promise<void> => {
+    const browserSession = session.fromPartition('persist:orchestrator-side-browser')
+    await browserSession.clearAuthCache()
+    await browserSession.clearData({
+      dataTypes: ['cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL']
+    })
+  })
   ipcMain.handle('browser:saveDataUrlArtifact', (_, dataUrl: string, suggestedName?: string) =>
     writeBrowserDataUrlArtifact(dataUrl, suggestedName)
   )

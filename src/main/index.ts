@@ -1907,11 +1907,13 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const browserPageActionTiles = [...document.querySelectorAll('.browser-action-tile')];
               const copyUrlItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy URL'));
+              const clearDataItem = document.querySelector('[data-testid="browser-clear-data"]');
               browserHistoryMenuWorks =
                 historyMenu instanceof HTMLElement &&
                 historyItems.length > 0 &&
                 historyItems.some((item) => item.textContent?.includes('127.0.0.1')) &&
-                copyUrlItem instanceof HTMLElement;
+                copyUrlItem instanceof HTMLElement &&
+                clearDataItem instanceof HTMLElement;
               var browserActionsMenuCompactWorks =
                 browserActionsMenu instanceof HTMLElement &&
                 browserPageActionGrid instanceof HTMLElement &&
@@ -1924,7 +1926,23 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 Math.abs(browserPageActionTiles[0].getBoundingClientRect().top - browserPageActionTiles[1].getBoundingClientRect().top) <= 2 &&
                 browserPageActionTiles[2] instanceof HTMLElement &&
                 browserPageActionTiles[2].getBoundingClientRect().top > browserPageActionTiles[0].getBoundingClientRect().bottom - 2;
-              browserActionsButton.click();
+              var browserClearDataWorks = false;
+              if (clearDataItem instanceof HTMLButtonElement) {
+                const browserPanelBeforeClear = document.querySelector('[data-testid="browser-panel"]');
+                const beforeCount = Number(browserPanelBeforeClear?.getAttribute('data-browser-clear-data') ?? '0');
+                clearDataItem.click();
+                for (let index = 0; index < 30; index += 1) {
+                  const nextCount = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-clear-data') ?? '0');
+                  if (nextCount > beforeCount) {
+                    browserClearDataWorks = true;
+                    break;
+                  }
+                  await sleep(100);
+                }
+              }
+              if (document.querySelector('.browser-actions-menu')) {
+                browserActionsButton.click();
+              }
               await sleep(80);
             }
             const badBrowserUrl = 'http://127.0.0.1:1/orchestrator-error-smoke';
@@ -2011,6 +2029,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserToolbarHistoryWorks,
               browserHistoryMenuWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
+              browserClearDataWorks: typeof browserClearDataWorks === 'boolean' ? browserClearDataWorks : null,
               browserErrorRecoveryWorks,
               browserLoadErrorPanelWorks,
               browserSingleTabStripHidden,

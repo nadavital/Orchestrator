@@ -106,6 +106,7 @@ export default function BrowserPanel({
   const [findMatches, setFindMatches] = useState(0)
   const [findActiveMatch, setFindActiveMatch] = useState(0)
   const [cacheReloadCount, setCacheReloadCount] = useState(0)
+  const [clearDataCount, setClearDataCount] = useState(0)
   const [logs, setLogs] = useState<BrowserLogEntry[]>([])
   const [domSnapshot, setDomSnapshot] = useState('')
   const [visibleTargets, setVisibleTargets] = useState<VisibleTarget[]>([])
@@ -371,6 +372,12 @@ export default function BrowserPanel({
     webviewRef.current?.reloadIgnoringCache?.()
   }
 
+  const clearBrowserData = async (): Promise<void> => {
+    await window.api.browser.clearData()
+    setClearDataCount((count) => count + 1)
+    setBrowserMenuOpen(false)
+  }
+
   const hardReloadCurrentPage = (): void => {
     const target = currentUrl || address
     if (!target) return
@@ -519,6 +526,7 @@ export default function BrowserPanel({
       data-browser-zoom={workbench.zoomFactor.toFixed(2)}
       data-browser-device-mode={workbench.deviceMode}
       data-browser-cache-reloads={cacheReloadCount}
+      data-browser-clear-data={clearDataCount}
       data-browser-find-matches={findMatches}
       data-browser-find-active-match={findActiveMatch}
       data-browser-tab-count={workbench.tabs.length}
@@ -754,6 +762,18 @@ export default function BrowserPanel({
                     <span>Open external</span>
                   </button>
                 </div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-label="Clear browser data"
+                  className="browser-action-row mt-1"
+                  disabled={!visible}
+                  data-testid="browser-clear-data"
+                  onClick={() => void clearBrowserData()}
+                >
+                  <Icon name="eraser" size={14} />
+                  <span>Clear browser data</span>
+                </button>
               </div>
               {workbench.history.length > 0 && (
                 <div className="browser-action-section" data-testid="browser-history-menu">

@@ -178,6 +178,7 @@ const api = {
 
   browser: {
     openExternal: (url: string): Promise<void> => ipcRenderer.invoke('browser:openExternal', url),
+    clearData: (): Promise<void> => ipcRenderer.invoke('browser:clearData'),
     saveDataUrlArtifact: (dataUrl: string, suggestedName?: string): Promise<{ path: string; size: number }> =>
       ipcRenderer.invoke('browser:saveDataUrlArtifact', dataUrl, suggestedName),
     discoverLocalTargets: (recentUrls?: string[]): Promise<Array<{ url: string; title: string | null; source: 'port-scan' | 'recent' }>> =>
