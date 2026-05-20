@@ -7,10 +7,15 @@ type JsonObject = Record<string, unknown>
 type PendingKind = 'permission' | 'user_input' | 'mcp_elicitation'
 
 interface CodexAppServerProcess {
-  stdin: { write(data: string): unknown; end(): unknown }
+  stdin: {
+    write(data: string, callback?: (error?: Error | null) => void): unknown
+    end(): unknown
+    on?(event: 'error', handler: (error: Error) => void): unknown
+  }
   stdout: { on(event: 'data', handler: (chunk: Buffer) => void): unknown }
   stderr: { on(event: 'data', handler: (chunk: Buffer) => void): unknown }
-  on(event: 'exit', handler: () => void): unknown
+  on(event: 'exit', handler: (code: number | null, signal: NodeJS.Signals | null) => void): unknown
+  on(event: 'error', handler: (error: Error) => void): unknown
   kill(signal?: NodeJS.Signals | number): unknown
 }
 
@@ -61,6 +66,9 @@ class CodexAppServerSession implements CodexAppServerRun {
   private readonly pendingServerRequests = new Map<string | number, PendingServerRequest>()
   private readonly streamedAgentItems = new Set<string>()
   private stopped = false
+  private terminalRunEventSeen = false
+  private exitHandled = false
+  private transportFailed = false
 
   constructor(
     private readonly options: CodexAppServerRunOptions,
@@ -91,10 +99,14 @@ class CodexAppServerSession implements CodexAppServerRun {
       const data = chunk.toString('utf8')
       this.options.onRawData(data)
     })
-    this.process.on('exit', () => {
-      if (this.stopped) return
-      this.stopped = true
-      this.options.onExit()
+    this.process.stdin.on?.('error', (error: Error) => {
+      this.failTransport('Codex app-server stdin failed', error)
+    })
+    this.process.on('error', (error: Error) => {
+      this.failTransport('Codex app-server process failed', error)
+    })
+    this.process.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
+      this.handleExit(code, signal)
     })
 
     this.initialize()
@@ -203,6 +215,7 @@ class CodexAppServerSession implements CodexAppServerRun {
       this.sendNotification('initialized')
       this.startOrResumeThread()
     }, (error) => {
+      if (this.transportFailed) return
       this.options.onParsedEvents([{ type: 'run.failed', content: stringifyContent(error) }])
     })
   }
@@ -232,6 +245,7 @@ class CodexAppServerSession implements CodexAppServerRun {
       this.options.onParsedEvents([{ type: 'session.started', providerSessionId: threadId }])
       this.startTurn(threadId)
     }, (error) => {
+      if (this.transportFailed) return
       this.options.onParsedEvents([{ type: 'run.failed', content: stringifyContent(error) }])
     })
   }
@@ -248,6 +262,7 @@ class CodexAppServerSession implements CodexAppServerRun {
       const turnId = stringValue(turn?.id)
       if (turnId) this.turnId = turnId
     }, (error) => {
+      if (this.transportFailed) return
       this.options.onParsedEvents([{ type: 'run.failed', content: stringifyContent(error) }])
     })
   }
@@ -278,6 +293,9 @@ class CodexAppServerSession implements CodexAppServerRun {
 
     this.trackServerRequest(obj)
     const parsed = this.options.provider.parseOutputLine(line)
+    if (parsed.some((event) => event.type === 'run.completed' || event.type === 'run.failed')) {
+      this.terminalRunEventSeen = true
+    }
     const filtered = this.filterStreamingDuplicates(obj, parsed)
     this.options.onParsedEvents(filtered)
   }
@@ -333,7 +351,10 @@ class CodexAppServerSession implements CodexAppServerRun {
   ): string {
     const id = `orchestrator-${this.nextId++}`
     this.pendingClientRequests.set(id, { onResult, onError })
-    this.send({ method, id, params })
+    if (!this.send({ method, id, params })) {
+      this.pendingClientRequests.delete(id)
+      onError?.({ message: 'Codex app-server transport is not available.' })
+    }
     return id
   }
 
@@ -349,12 +370,56 @@ class CodexAppServerSession implements CodexAppServerRun {
     this.send({ id, error: { code, message } })
   }
 
-  private send(message: JsonObject): void {
+  private send(message: JsonObject): boolean {
+    if (this.stopped || !this.process) return false
     try {
-      this.process?.stdin.write(`${JSON.stringify(message)}\n`)
-    } catch {
-      /* ignore write races */
+      this.process.stdin.write(`${JSON.stringify(message)}\n`, (error?: Error | null) => {
+        if (error) this.failTransport('Codex app-server write failed', error)
+      })
+      return true
+    } catch (error) {
+      this.failTransport('Codex app-server write failed', error)
+      return false
     }
+  }
+
+  private handleExit(code: number | null, signal: NodeJS.Signals | null): void {
+    if (this.exitHandled) return
+    this.exitHandled = true
+
+    if (!this.stopped && !this.terminalRunEventSeen) {
+      this.emitTransportFailure(`Codex app-server exited unexpectedly${exitDetail(code, signal)}.`)
+    }
+
+    this.stopped = true
+    this.rejectPendingClientRequests('Codex app-server exited before responding.')
+    this.pendingServerRequests.clear()
+    this.options.onExit()
+  }
+
+  private failTransport(prefix: string, error: unknown): void {
+    if (this.exitHandled || this.stopped) return
+    this.exitHandled = true
+    const message = `${prefix}: ${errorMessage(error)}`
+    this.emitTransportFailure(message)
+    this.stopped = true
+    this.rejectPendingClientRequests(message)
+    this.pendingServerRequests.clear()
+    try { this.process?.kill('SIGTERM') } catch { /* ignore transport cleanup races */ }
+    this.options.onExit()
+  }
+
+  private emitTransportFailure(content: string): void {
+    this.transportFailed = true
+    this.terminalRunEventSeen = true
+    this.options.onParsedEvents([{ type: 'run.failed', content }])
+  }
+
+  private rejectPendingClientRequests(message: string): void {
+    for (const [, pending] of this.pendingClientRequests) {
+      pending.onError?.({ message })
+    }
+    this.pendingClientRequests.clear()
   }
 }
 
@@ -413,6 +478,19 @@ function defaultSpawn(
   options: SpawnOptionsWithoutStdio
 ): ChildProcessWithoutNullStreams {
   return childSpawn(binary, args, options)
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
+
+function exitDetail(code: number | null, signal: NodeJS.Signals | null): string {
+  const details = [
+    code == null ? null : `code ${code}`,
+    signal ? `signal ${signal}` : null
+  ].filter(Boolean)
+  return details.length > 0 ? ` (${details.join(', ')})` : ''
 }
 
 function threadConfigFromRequest(request: RunRequest): JsonObject {

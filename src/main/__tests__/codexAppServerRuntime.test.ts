@@ -20,13 +20,30 @@ class FakePipe {
 class FakeStdin {
   writes: string[] = []
   ended = false
+  errorHandlers: Array<(error: Error) => void> = []
+  nextWriteError: Error | null = null
 
-  write(data: string): void {
+  write(data: string, callback?: (error?: Error | null) => void): void {
     this.writes.push(data)
+    if (this.nextWriteError) {
+      const error = this.nextWriteError
+      this.nextWriteError = null
+      callback?.(error)
+      return
+    }
+    callback?.(null)
   }
 
   end(): void {
     this.ended = true
+  }
+
+  on(event: 'error', handler: (error: Error) => void): void {
+    if (event === 'error') this.errorHandlers.push(handler)
+  }
+
+  emitError(error: Error): void {
+    for (const handler of this.errorHandlers) handler(error)
   }
 }
 
@@ -34,11 +51,15 @@ class FakeAppServerProcess {
   stdin = new FakeStdin()
   stdout = new FakePipe()
   stderr = new FakePipe()
-  exitHandlers: Array<() => void> = []
+  exitHandlers: Array<(code: number | null, signal: NodeJS.Signals | null) => void> = []
+  errorHandlers: Array<(error: Error) => void> = []
   kills: Array<NodeJS.Signals | number | undefined> = []
 
-  on(event: 'exit', handler: () => void): void {
-    if (event === 'exit') this.exitHandlers.push(handler)
+  on(event: 'exit', handler: (code: number | null, signal: NodeJS.Signals | null) => void): void
+  on(event: 'error', handler: (error: Error) => void): void
+  on(event: 'exit' | 'error', handler: ((code: number | null, signal: NodeJS.Signals | null) => void) | ((error: Error) => void)): void {
+    if (event === 'exit') this.exitHandlers.push(handler as (code: number | null, signal: NodeJS.Signals | null) => void)
+    if (event === 'error') this.errorHandlers.push(handler as (error: Error) => void)
   }
 
   kill(signal?: NodeJS.Signals | number): void {
@@ -49,8 +70,12 @@ class FakeAppServerProcess {
     this.stdout.emitData(`${JSON.stringify(obj)}\n`)
   }
 
-  emitExit(): void {
-    for (const handler of this.exitHandlers) handler()
+  emitExit(code: number | null = 0, signal: NodeJS.Signals | null = null): void {
+    for (const handler of this.exitHandlers) handler(code, signal)
+  }
+
+  emitError(error: Error): void {
+    for (const handler of this.errorHandlers) handler(error)
   }
 }
 
@@ -244,4 +269,148 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
   proc.emitExit()
   assert.equal(exited, true)
   assert.equal(manager.has(session.id), false)
+})
+
+test('codex app-server runtime fails loudly when the process exits before responding', () => {
+  let fake: FakeAppServerProcess | null = null
+  const spawn: CodexAppServerSpawn = () => {
+    fake = new FakeAppServerProcess()
+    return fake
+  }
+  const manager = new CodexAppServerRuntimeManager(spawn)
+  const events: RunEvent[] = []
+  let exited = false
+
+  const result = manager.start({
+    sessionId: session.id,
+    session,
+    provider,
+    request: {
+      prompt: 'hello codex',
+      cwd: process.cwd(),
+      model: 'gpt-5.4',
+      effort: 'high',
+      providerSessionId: null,
+      executionPolicy: 'default',
+      allowedTools: [],
+      runtime: 'app-server'
+    },
+    mode: 'start',
+    onRawData: () => {},
+    onParsedEvents: (parsed) => events.push(...parsed),
+    onExit: () => { exited = true }
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(manager.has(session.id), true)
+  assert.ok(fake)
+  ;(fake as FakeAppServerProcess).emitExit(1, null)
+
+  assert.equal(exited, true)
+  assert.equal(manager.has(session.id), false)
+  const failures = events.filter((event) => event.type === 'run.failed')
+  assert.equal(failures.length, 1)
+  const failure = failures[0]
+  assert.equal(failure?.type, 'run.failed')
+  assert.match(failure.content ?? '', /exited unexpectedly.*code 1/)
+})
+
+test('codex app-server runtime reports stdin and child process transport errors', () => {
+  let fake: FakeAppServerProcess | null = null
+  const spawn: CodexAppServerSpawn = () => {
+    fake = new FakeAppServerProcess()
+    return fake
+  }
+  const manager = new CodexAppServerRuntimeManager(spawn)
+  const events: RunEvent[] = []
+  let exitCount = 0
+
+  const result = manager.start({
+    sessionId: session.id,
+    session,
+    provider,
+    request: {
+      prompt: 'hello codex',
+      cwd: process.cwd(),
+      model: 'gpt-5.4',
+      effort: 'high',
+      providerSessionId: null,
+      executionPolicy: 'default',
+      allowedTools: [],
+      runtime: 'app-server'
+    },
+    mode: 'start',
+    onRawData: () => {},
+    onParsedEvents: (parsed) => events.push(...parsed),
+    onExit: () => { exitCount += 1 }
+  })
+
+  assert.equal(result.ok, true)
+  assert.ok(fake)
+  const proc = fake as FakeAppServerProcess
+  proc.stdin.emitError(new Error('write EPIPE'))
+
+  assert.equal(exitCount, 1)
+  assert.equal(manager.has(session.id), false)
+  assert.equal(proc.kills.includes('SIGTERM'), true)
+  const failure = events.find((event) => event.type === 'run.failed')
+  assert.equal(failure?.type, 'run.failed')
+  assert.match(failure.content ?? '', /stdin failed: write EPIPE/)
+
+  proc.emitError(new Error('late child error'))
+  assert.equal(exitCount, 1)
+})
+
+test('codex app-server runtime turns write callback failures into run failures', () => {
+  let fake: FakeAppServerProcess | null = null
+  const spawn: CodexAppServerSpawn = () => {
+    fake = new FakeAppServerProcess()
+    return fake
+  }
+  const manager = new CodexAppServerRuntimeManager(spawn)
+  const events: RunEvent[] = []
+  let exited = false
+
+  const result = manager.start({
+    sessionId: session.id,
+    session,
+    provider,
+    request: {
+      prompt: 'hello codex',
+      cwd: process.cwd(),
+      model: 'gpt-5.4',
+      effort: 'high',
+      providerSessionId: null,
+      executionPolicy: 'default',
+      allowedTools: [],
+      runtime: 'app-server'
+    },
+    mode: 'start',
+    onRawData: () => {},
+    onParsedEvents: (parsed) => events.push(...parsed),
+    onExit: () => { exited = true }
+  })
+
+  assert.equal(result.ok, true)
+  assert.ok(fake)
+  const proc = fake as FakeAppServerProcess
+  let writes = writtenJson(proc)
+  proc.emitStdout({ id: writes[0].id, result: { protocolVersion: 'v2' } })
+  writes = writtenJson(proc)
+  proc.emitStdout({
+    id: writes[2].id,
+    result: { thread: { id: 'thread-1' }, model: 'gpt-5.4', cwd: process.cwd() }
+  })
+  writes = writtenJson(proc)
+  proc.emitStdout({ id: writes[3].id, result: { turn: { id: 'turn-1' } } })
+
+  proc.stdin.nextWriteError = new Error('broken pipe')
+  manager.interrupt(session.id)
+
+  assert.equal(exited, true)
+  assert.equal(manager.has(session.id), false)
+  assert.equal(proc.kills.includes('SIGTERM'), true)
+  const failure = events.findLast((event) => event.type === 'run.failed')
+  assert.equal(failure?.type, 'run.failed')
+  assert.match(failure.content ?? '', /write failed: broken pipe/)
 })
