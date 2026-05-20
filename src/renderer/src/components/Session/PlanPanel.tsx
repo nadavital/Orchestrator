@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { useSessionStore } from '../../store/sessions'
 import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import type { PlanItemStatus, PlanState, RunEvent, Session, SessionRunEventRecord } from '../../types'
-import { Badge, InspectorCard, MetricPill, PanelHeader } from '../shared/designSystem'
+import { Badge, MetricPill, PanelHeader } from '../shared/designSystem'
 
 interface Props {
   session: Session
@@ -42,7 +42,7 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
             : 'Goals, plan mode updates, and task lists will appear here as the agent organizes the work.'}
         </EmptyText>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 flex flex-col gap-3">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           {goal && <GoalBlock goal={goal} />}
           {current && <PlanBlock plan={current} />}
         </div>
@@ -77,14 +77,14 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
   ].filter(Boolean)
 
   return (
-    <InspectorCard className="p-3">
+    <PlanSection>
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: 'var(--color-accent)' }}>
+          <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: 'var(--accent)' }}>
             Goal
           </div>
           <h3
-            className="mt-1 text-sm font-semibold"
+            className="mt-1 text-[13px] font-semibold leading-5"
             data-testid="plan-goal-compact-objective"
             style={{ color: 'var(--color-text)', overflowWrap: 'anywhere' }}
           >
@@ -139,7 +139,7 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
           />
         </div>
       )}
-    </InspectorCard>
+    </PlanSection>
   )
 }
 
@@ -183,14 +183,14 @@ function PlanBlock({ plan }: { plan: PlanState }): JSX.Element {
   const title = plan.title ?? (plan.items.length > 0 ? 'Tasks' : plan.mode === 'plan' ? 'Planning' : 'Plan')
 
   return (
-    <InspectorCard className="p-3">
+    <PlanSection>
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+          <h3 className="truncate text-[13px] font-semibold" style={{ color: 'var(--color-text)' }}>
             {title}
           </h3>
           {plan.mode && (
-            <div className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            <div className="mt-0.5 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
               {plan.mode === 'plan' ? 'Planning' : 'Ready to execute'}
             </div>
           )}
@@ -238,13 +238,13 @@ function PlanBlock({ plan }: { plan: PlanState }): JSX.Element {
       )}
 
       {plan.items.length > 0 && (
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="mt-3 flex flex-col gap-1.5" data-testid="plan-task-list">
           {plan.items.map((item, index) => (
-            <div key={item.id ?? `${item.status}-${index}`} className="flex min-w-0 items-start gap-2">
+            <div key={item.id ?? `${item.status}-${index}`} className="flex min-w-0 items-start gap-2 py-0.5">
               <StatusDot status={item.status} />
               <div className="min-w-0 flex-1">
                 <div
-                  className="text-sm"
+                  className="text-[13px] leading-5"
                   style={{
                     color: item.status === 'completed' ? 'var(--color-text-muted)' : 'var(--color-text)',
                     textDecoration: item.status === 'completed' ? 'line-through' : 'none',
@@ -253,15 +253,12 @@ function PlanBlock({ plan }: { plan: PlanState }): JSX.Element {
                 >
                   {item.content}
                 </div>
-                <div className="mt-0.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  {statusLabel(item.status)}
-                </div>
               </div>
             </div>
           ))}
         </div>
       )}
-    </InspectorCard>
+    </PlanSection>
   )
 }
 
@@ -299,6 +296,8 @@ function PlanBadge({ plan }: { plan: PlanState }): JSX.Element {
 function StatusDot({ status }: { status: PlanItemStatus }): JSX.Element {
   return (
     <span
+      role="img"
+      aria-label={statusLabel(status)}
       className="mt-1 rounded-full shrink-0"
       style={{
         width: 7,
@@ -306,6 +305,17 @@ function StatusDot({ status }: { status: PlanItemStatus }): JSX.Element {
         background: statusColor(status)
       }}
     />
+  )
+}
+
+function PlanSection({ children }: { children: React.ReactNode }): JSX.Element {
+  return (
+    <section
+      className="min-w-0 px-4 py-3"
+      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+    >
+      {children}
+    </section>
   )
 }
 

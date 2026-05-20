@@ -529,8 +529,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const planPanel = document.querySelector('[data-testid="plan-panel"]');
             const compactGoal = document.querySelector('[data-testid="plan-goal-compact-objective"]');
             const goalToggle = document.querySelector('[data-testid="plan-goal-toggle"]');
+            const taskList = document.querySelector('[data-testid="plan-task-list"]');
             const hiddenSentence = 'This hidden sentence should only appear after expanding the full objective.';
             const compactPanelText = planPanel instanceof HTMLElement ? planPanel.innerText : '';
+            const taskListText = taskList instanceof HTMLElement ? taskList.innerText : '';
             const transcriptText = document.querySelector('[data-testid="transcript-scroll"]')?.textContent ?? '';
             const compactGoalWorks =
               planPanel instanceof HTMLElement &&
@@ -539,12 +541,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               !compactPanelText.includes(hiddenSentence) &&
               !transcriptText.includes(hiddenSentence) &&
               compactGoal.textContent.length < 140;
+            var compactTaskRowsWork =
+              taskList instanceof HTMLElement &&
+              taskListText.includes('Reduce Plan panel verbosity') &&
+              !taskListText.includes('Completed') &&
+              !taskListText.includes('In progress') &&
+              !taskListText.includes('Pending');
             if (goalToggle instanceof HTMLButtonElement) {
               goalToggle.click();
               await sleep(120);
             }
             var planPanelWorks =
               compactGoalWorks &&
+              compactTaskRowsWork &&
               document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'plan' &&
               document.body.innerText.includes('Reduce Plan panel verbosity') &&
               document.body.innerText.includes(hiddenSentence) &&
@@ -1381,6 +1390,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
+            compactTaskRowsWork: typeof compactTaskRowsWork === 'boolean' ? compactTaskRowsWork : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,

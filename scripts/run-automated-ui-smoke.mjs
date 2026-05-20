@@ -413,6 +413,7 @@ child.on('exit', (code) => {
         rightPanelContextMenuWorks: captureView !== 'inspector' || result.rightPanelContextMenuWorks === true,
         rightPanelTabReorderWorks: captureView !== 'inspector' || result.rightPanelTabReorderWorks === true,
         planPanel: captureView !== 'plan' || result.planPanelWorks === true,
+        planCompactRows: captureView !== 'plan' || result.compactTaskRowsWork === true,
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,
         sideChatDraftPersistence: captureView !== 'inspector' || result.sideChatDraftPersistenceWorks === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
