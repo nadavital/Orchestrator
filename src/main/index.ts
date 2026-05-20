@@ -341,6 +341,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             chatEmptyState instanceof HTMLElement &&
             chatEmptyState.innerText.includes('What do you want to build?') &&
             chatEmptyState.innerText.includes('What do you want to build in') === false;
+          const primaryContent = document.querySelector('[data-testid="session-primary-content"]');
+          const activeProjectName = projects[0]?.name ?? '';
+          const activeProjectMentionsInPrimary = activeProjectName && primaryContent instanceof HTMLElement
+            ? primaryContent.innerText.split(activeProjectName).length - 1
+            : 0;
+          var chatEmptyStateProjectLabelClean =
+            !(chatEmptyState instanceof HTMLElement) ||
+            !activeProjectName ||
+            activeProjectMentionsInPrimary <= 1;
           const textarea = document.querySelector('textarea');
           textarea?.focus();
           if (textarea && !['composer', 'extensions'].includes(${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)})) {
@@ -1522,6 +1531,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             nativeTitleFreeControlLeaks,
             headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
             chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
+            chatEmptyStateProjectLabelClean: typeof chatEmptyStateProjectLabelClean === 'boolean' ? chatEmptyStateProjectLabelClean : null,
             hasInspectorTabs: bodyText.includes('Review') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
             hasRightPanelState: rightPanel instanceof HTMLElement &&
               rightPanel.dataset.rightPanelActiveTab === 'diff' &&

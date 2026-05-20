@@ -391,6 +391,7 @@ child.on('exit', (code) => {
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
         headerActionMenu: captureView !== 'inspector' || result.headerActionMenuWorks === true,
         chatEmptyState: captureView !== 'inspector' || result.chatEmptyStateWorks === true,
+        chatEmptyStateProjectLabelClean: captureView !== 'inspector' || result.chatEmptyStateProjectLabelClean === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
         rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,
         rightSidebarChromeCompact: captureView !== 'inspector' || result.rightSidebarChromeCompactWorks === true,

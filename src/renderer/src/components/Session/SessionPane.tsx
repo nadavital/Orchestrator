@@ -7,7 +7,6 @@ import TerminalView from './TerminalView'
 import InputBar from './InputBar'
 import ContextSidebar from './ContextSidebar'
 import RunningAgentsStrip from './RunningAgentsStrip'
-import Icon from '../shared/Icon'
 import { IconButton, MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
 
 const MIN_TERMINAL_HEIGHT = 120
@@ -91,16 +90,6 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
       {/* Main content row: chat + optional side panels */}
       <div className="relative flex-1 flex min-w-0 overflow-hidden" data-testid="session-main-row">
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden" data-testid="session-primary-content">
-          {/* Project label shown when new */}
-          {isNew && project && (
-            <div
-              className="flex items-center gap-2 px-6 pt-6 shrink-0"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
-              <Icon name="folder" size={13} />
-              <span className="text-xs">{project.name}</span>
-            </div>
-          )}
           <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
             <ChatView session={session} projectName={project?.name} />
           </div>
