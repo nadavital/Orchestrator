@@ -1152,10 +1152,13 @@ export type {
   ComposerSendState
 } from './sessionControls'
 export {
+  compareSidebarSessions,
   comparePinnedSessions,
   ensurePinnedSessionOrders,
   nextPinOrder
 } from './sessionOrdering'
 export type {
-  PinOrderedSession
+  PinOrderedSession,
+  SidebarSessionOrderOptions,
+  SidebarSessionSortMode
 } from './sessionOrdering'

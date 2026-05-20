@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { comparePinnedSessions, ensurePinnedSessionOrders, nextPinOrder } from '../../types'
+import { comparePinnedSessions, compareSidebarSessions, ensurePinnedSessionOrders, nextPinOrder } from '../../types'
 import type { PinOrderedSession } from '../../types'
 
 test('pin order migration preserves the previous visible recency order once', () => {
@@ -65,4 +65,34 @@ test('unpinning clears pin order and excludes the session from pinned sort', () 
     ['first']
   )
   assert.equal(removed.pinOrder, undefined)
+})
+
+test('sidebar ordering keeps the active blank chat above recently updated inactive chats', () => {
+  const sessions: PinOrderedSession[] = [
+    { id: 'recent-inactive', createdAt: 100, latestMessageAt: 1000, status: 'idle', messageCount: 8 },
+    { id: 'blank-active', createdAt: 900, latestMessageAt: 900, status: 'idle', messageCount: 0 },
+    { id: 'older-inactive', createdAt: 50, latestMessageAt: 50, status: 'idle', messageCount: 2 }
+  ]
+
+  assert.deepEqual(
+    [...sessions].sort((a, b) => compareSidebarSessions(a, b, { sortMode: 'updated', activeSessionId: 'blank-active' })).map((session) => session.id),
+    ['blank-active', 'recent-inactive', 'older-inactive']
+  )
+})
+
+test('sidebar ordering keeps live chats stable above inactive chats', () => {
+  const sessions: PinOrderedSession[] = [
+    { id: 'inactive-newest', createdAt: 300, latestMessageAt: 3000, status: 'idle', messageCount: 6 },
+    { id: 'live-older', createdAt: 100, latestMessageAt: 9000, status: 'running', messageCount: 4 },
+    { id: 'waiting-newer', createdAt: 200, latestMessageAt: 250, status: 'waiting_for_permission', messageCount: 3 }
+  ]
+
+  const sorted = [...sessions].sort((a, b) => compareSidebarSessions(a, b, { sortMode: 'updated', activeSessionId: null }))
+
+  sorted[1].latestMessageAt = 10_000
+
+  assert.deepEqual(
+    [...sorted].sort((a, b) => compareSidebarSessions(a, b, { sortMode: 'updated', activeSessionId: null })).map((session) => session.id),
+    ['waiting-newer', 'live-older', 'inactive-newest']
+  )
 })

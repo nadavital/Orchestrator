@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Project } from '../../types'
-import { comparePinnedSessions } from '../../types'
+import { comparePinnedSessions, compareSidebarSessions } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import { useSessionStore } from '../../store/sessions'
 import ProjectSection from './ProjectSection'
@@ -32,7 +32,8 @@ export default function Sidebar(): JSX.Element {
     settingsSection,
     setSettingsSection,
     setShowCapabilities,
-    setShowSettings
+    setShowSettings,
+    activeSessionId
   } = useSessionStore()
   const [viewMode, setViewMode] = useState<SidebarViewMode>(() => readSidebarViewMode())
   const [sortMode, setSortMode] = useState<SidebarSortMode>(() => readSidebarSortMode())
@@ -45,8 +46,8 @@ export default function Sidebar(): JSX.Element {
   const unpinnedSessions = useMemo(() => {
     return [...sessions]
       .filter((session) => !session.pinned)
-      .sort((a, b) => compareSessionsByMode(a, b, sortMode))
-  }, [sessions, sortMode])
+      .sort((a, b) => compareSidebarSessions(a, b, { sortMode, activeSessionId }))
+  }, [activeSessionId, sessions, sortMode])
   const sessionsByProject = useMemo(() => {
     const grouped = new Map<string, typeof sessions>()
     for (const session of sessions) {
@@ -56,10 +57,10 @@ export default function Sidebar(): JSX.Element {
       else grouped.set(session.projectId, [session])
     }
     for (const group of grouped.values()) {
-      group.sort((a, b) => compareSessionsByMode(a, b, sortMode))
+      group.sort((a, b) => compareSidebarSessions(a, b, { sortMode, activeSessionId }))
     }
     return grouped
-  }, [sessions, sortMode])
+  }, [activeSessionId, sessions, sortMode])
   const visibleProjects = useMemo(() => {
     const sorted = viewMode !== 'recent-projects'
       ? [...projects]
@@ -302,15 +303,6 @@ export default function Sidebar(): JSX.Element {
       </div>
     </aside>
   )
-}
-
-function compareSessionsByMode(
-  a: ReturnType<typeof useSessionStore.getState>['sessions'][number],
-  b: ReturnType<typeof useSessionStore.getState>['sessions'][number],
-  sortMode: SidebarSortMode
-): number {
-  if (sortMode === 'created') return b.createdAt - a.createdAt
-  return (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt)
 }
 
 function projectLatestTimestamp(sessions: ReturnType<typeof useSessionStore.getState>['sessions']): number {

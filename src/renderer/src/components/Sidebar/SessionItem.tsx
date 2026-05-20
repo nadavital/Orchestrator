@@ -53,8 +53,9 @@ function SessionItem({ session }: Props): JSX.Element {
   const hasUnread = !isActive && unread
   const hasError = errorStatuses.has(session.status)
   const isRunning = session.status === 'running' || session.status === 'reconnecting'
+  const isWaiting = session.status === 'waiting_for_permission' || session.status === 'waiting_for_user'
   const hasUncheckedCompletion = hasUnread && session.status === 'idle'
-  const showStatusIndicator = isRunning || hasUncheckedCompletion || hasError
+  const showStatusIndicator = isRunning || isWaiting || hasUncheckedCompletion || hasError
   const project = projects.find((p) => p.id === session.projectId)
   const provider = PROVIDER_DEFS[session.provider]
   const model = provider?.models.find((candidate) => candidate.id === session.model)
@@ -232,46 +233,51 @@ function SessionItem({ session }: Props): JSX.Element {
               {session.name}
             </div>
           </div>
-          {showStatusIndicator && (
-            isRunning ? (
-              <Tooltip label="Running">
-                <span
-                  className="session-item-running-spinner shrink-0"
-                  data-testid="session-status-spinner"
-                  data-native-title-free="true"
-                  aria-label="Running"
-                />
-              </Tooltip>
-            ) : (
-              <Tooltip label={hasError ? 'Needs attention' : 'Unread updates'}>
-                <span
-                  className="session-item-status-dot shrink-0 rounded-full"
-                  data-testid="session-status-dot"
-                  data-native-title-free="true"
-                  aria-label={hasError ? statusLabel : 'Unread updates'}
-                  style={{
-                    background: hasError ? statusColor[session.status] : 'var(--color-accent)',
-                    boxShadow: hasError
-                      ? '0 0 4px var(--color-red)'
-                      : '0 0 4px var(--color-accent)'
-                  }}
-                />
-              </Tooltip>
-            )
-          )}
-          {!showStatusIndicator && (
-            <span className="session-row-right-meta shrink-0" aria-label={`Created ${createdLabel}`}>
-              {createdLabel}
+          <span className="session-row-right-slot shrink-0">
+            <span className="session-row-state-control">
+              {showStatusIndicator ? (
+                isRunning ? (
+                  <Tooltip label={statusLabel}>
+                    <span
+                      className="session-item-running-spinner"
+                      data-testid="session-status-spinner"
+                      data-native-title-free="true"
+                      aria-label={statusLabel}
+                    />
+                  </Tooltip>
+                ) : (
+                  <Tooltip label={statusLabel}>
+                    <span
+                      className="session-item-status-dot rounded-full"
+                      data-testid="session-status-dot"
+                      data-native-title-free="true"
+                      aria-label={statusLabel}
+                      style={{
+                        background: hasError || isWaiting ? statusColor[session.status] : 'var(--color-accent)',
+                        boxShadow: hasError
+                          ? '0 0 4px var(--color-red)'
+                          : isWaiting
+                            ? '0 0 4px var(--color-yellow)'
+                            : '0 0 4px var(--color-accent)'
+                      }}
+                    />
+                  </Tooltip>
+                )
+              ) : (
+                <span className="session-row-right-meta" aria-label={`Created ${createdLabel}`}>
+                  {createdLabel}
+                </span>
+              )}
             </span>
-          )}
-          <span className="surface-row-secondary shrink-0">
-            <IconButton
-              icon="ellipsis"
-              label="Chat actions"
-              size="sm"
-              onClick={openMenu}
-              style={{ color: 'var(--text-tertiary)' }}
-            />
+            <span className="surface-row-secondary session-row-actions">
+              <IconButton
+                icon="ellipsis"
+                label="Chat actions"
+                size="sm"
+                onClick={openMenu}
+                style={{ color: 'var(--text-tertiary)' }}
+              />
+            </span>
           </span>
         </SurfaceRow>
       </div>

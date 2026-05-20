@@ -449,6 +449,13 @@
     transform-origin: top center;
   }
 
+  .motion-overlay-surface {
+    border: 1px solid var(--border-subtle);
+    background: color-mix(in srgb, var(--surface-bg) 94%, var(--panel-bg-solid));
+    box-shadow: var(--shadow-menu), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    color: var(--text-primary);
+  }
+
   .motion-menu-item {
     transition:
       background-color var(--motion-duration-control) var(--motion-ease-standard),
@@ -2928,7 +2935,7 @@
   }
 
   .session-row-right-meta {
-    max-width: 48px;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2943,9 +2950,34 @@
       transform var(--motion-duration-control) var(--motion-ease-control);
   }
 
-  .surface-row:hover .session-row-right-meta,
-  .surface-row:focus-within .session-row-right-meta,
-  .session-row-shell:focus-visible .session-row-right-meta {
+  .session-row-right-slot {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 20px;
+  }
+
+  .session-row-state-control {
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    max-width: 100%;
+    transition:
+      opacity var(--motion-duration-control) var(--motion-ease-control),
+      transform var(--motion-duration-control) var(--motion-ease-control);
+  }
+
+  .session-row-actions {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+  }
+
+  .surface-row:hover .session-row-state-control,
+  .surface-row:focus-within .session-row-state-control,
+  .session-row-shell:focus-visible .session-row-state-control {
     opacity: 0;
     transform: translateX(4px);
   }
@@ -3072,8 +3104,10 @@
     position: fixed;
     z-index: 760;
     pointer-events: none;
+    width: max-content;
     max-width: min(18rem, calc(100vw - 16px));
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+    word-break: normal;
     white-space: normal;
     border: 1px solid var(--icon-tooltip-border);
     border-radius: var(--radius-md);

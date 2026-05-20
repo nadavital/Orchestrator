@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
 import { useSessionStore } from './store/sessions'
@@ -49,6 +49,7 @@ export default function App(): JSX.Element {
   } = useSessionStore()
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [renamingActiveChat, setRenamingActiveChat] = useState(false)
+  const waitingNotificationKeysRef = useRef(new Set<string>())
   const activeSession = sessions.find((session) => session.id === activeSessionId)
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
 
@@ -470,6 +471,31 @@ export default function App(): JSX.Element {
         addSession(event.session)
       } else if (event.type === 'status') {
         updateStatus(event.id, event.status)
+        const isWaitingStatus = event.status === 'waiting_for_permission' || event.status === 'waiting_for_user'
+        if (!isWaitingStatus) {
+          waitingNotificationKeysRef.current.forEach((key) => {
+            if (key.startsWith(`${event.id}:`)) waitingNotificationKeysRef.current.delete(key)
+          })
+        }
+        if (isWaitingStatus) {
+          const currentActiveId = useSessionStore.getState().activeSessionId
+          if (event.id !== currentActiveId) setHasUnread(event.id, true)
+          const key = `${event.id}:${event.status}`
+          if (!document.hasFocus() && !waitingNotificationKeysRef.current.has(key)) {
+            const session = useSessionStore.getState().sessions.find((s) => s.id === event.id)
+            if (session && typeof Notification !== 'undefined') {
+              try {
+                new Notification(event.status === 'waiting_for_permission' ? 'Permission needed' : 'Answer needed', {
+                  body: session.name,
+                  silent: false
+                })
+                waitingNotificationKeysRef.current.add(key)
+              } catch {
+                waitingNotificationKeysRef.current.add(key)
+              }
+            }
+          }
+        }
         if (event.status === 'idle') {
           const currentActiveId = useSessionStore.getState().activeSessionId
           if (event.id !== currentActiveId) {

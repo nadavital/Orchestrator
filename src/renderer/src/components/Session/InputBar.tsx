@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react'
+import { memo, useState, useRef, useEffect } from 'react'
 import type { Attachment, ProviderAgentDef, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
-import { useSessionStore } from '../../store/sessions'
+import { defaultUI, useSessionStore } from '../../store/sessions'
 import SlashCommandPalette, { getSlashQuery } from './SlashCommandPalette'
 import ProviderIcon from '../shared/ProviderIcon'
 import Icon from '../shared/Icon'
@@ -13,22 +13,20 @@ interface Props {
   isNew: boolean
 }
 
-export default function InputBar({ session, isNew }: Props): JSX.Element {
-  const {
-    providerAvailability,
-    providerModels,
-    uiState,
-    setShowDiff,
-    setShowEvents,
-    setShowPlan,
-    setShowSettings,
-    setShowCapabilities,
-    setShowExtensions,
-    setShowTerminal,
-    openSideChat,
-    appendSideChatMessage,
-    updateSideChatMessage
-  } = useSessionStore()
+function InputBar({ session, isNew }: Props): JSX.Element {
+  const providerAvailability = useSessionStore((state) => state.providerAvailability)
+  const providerModels = useSessionStore((state) => state.providerModels)
+  const currentUi = useSessionStore((state) => state.uiState[session.id] ?? defaultUI)
+  const setShowDiff = useSessionStore((state) => state.setShowDiff)
+  const setShowEvents = useSessionStore((state) => state.setShowEvents)
+  const setShowPlan = useSessionStore((state) => state.setShowPlan)
+  const setShowSettings = useSessionStore((state) => state.setShowSettings)
+  const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
+  const setShowExtensions = useSessionStore((state) => state.setShowExtensions)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const openSideChat = useSessionStore((state) => state.openSideChat)
+  const appendSideChatMessage = useSessionStore((state) => state.appendSideChatMessage)
+  const updateSideChatMessage = useSessionStore((state) => state.updateSideChatMessage)
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [useWorktree, setUseWorktree] = useState(false)
@@ -127,7 +125,6 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
   const permissionMode = session.permissionMode ?? defaultPermissionMode
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
-  const currentUi = uiState[session.id] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, hasUnread: false }
   const resolvedPermission = providerRuntime?.policies[permissionMode] ?? (providerRuntime
     ? {
         policy: permissionMode,
@@ -858,6 +855,26 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
   )
 }
 
+export default memo(InputBar, (prev, next) => {
+  return prev.isNew === next.isNew &&
+    prev.session.id === next.session.id &&
+    prev.session.workDir === next.session.workDir &&
+    prev.session.provider === next.session.provider &&
+    prev.session.model === next.session.model &&
+    prev.session.effort === next.session.effort &&
+    prev.session.agentName === next.session.agentName &&
+    prev.session.permissionMode === next.session.permissionMode &&
+    prev.session.status === next.session.status &&
+    prev.session.useWorktree === next.session.useWorktree &&
+    prev.session.runtime === next.session.runtime &&
+    prev.session.useThinking === next.session.useThinking &&
+    prev.session.useFast === next.session.useFast &&
+    shallowEqualArray(prev.session.allowedTools, next.session.allowedTools) &&
+    shallowEqualArray(prev.session.disallowedTools, next.session.disallowedTools) &&
+    shallowEqualArray(prev.session.availableTools, next.session.availableTools) &&
+    shallowEqualArray(prev.session.additionalDirs, next.session.additionalDirs)
+})
+
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
 function PermissionModeChip({
@@ -1203,6 +1220,12 @@ function providerShortName(providerId: string): string {
     cursor: 'Cursor'
   }
   return names[providerId] ?? providerId
+}
+
+function shallowEqualArray<T>(a?: T[], b?: T[]): boolean {
+  if (a === b) return true
+  if (!a || !b || a.length !== b.length) return false
+  return a.every((value, index) => value === b[index])
 }
 
 function Chip({

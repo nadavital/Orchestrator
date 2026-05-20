@@ -1032,7 +1032,7 @@ export function MotionOverlay({
   return (
     <div
       className={`motion-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center ${className}`}
-      style={{ background: 'rgba(16, 24, 40, 0.28)', backdropFilter: 'blur(16px)', ...backdropStyle }}
+      style={{ background: 'rgba(16, 24, 40, 0.18)', backdropFilter: 'blur(4px)', ...backdropStyle }}
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
       <div
