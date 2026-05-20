@@ -22,6 +22,7 @@ const focusableSelector = [
 ].join(',')
 
 const hoverSurfaceOpenEvent = 'orchestrator:hover-surface-open'
+const tooltipHoverDelayMs = 140
 
 export function announceHoverSurfaceOpen(id: string): void {
   window.dispatchEvent(new CustomEvent(hoverSurfaceOpenEvent, { detail: { id } }))
@@ -268,10 +269,18 @@ export function ToolbarButton({
 export function Tooltip({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   const idRef = useRef(`tooltip-${Math.random().toString(36).slice(2)}`)
   const anchorRef = useRef<HTMLSpanElement | null>(null)
+  const showTimeoutRef = useRef<number | null>(null)
   const [visible, setVisible] = useState(false)
   const [position, setPosition] = useState<{ left: number; top: number; placement: 'top' | 'bottom' } | null>(null)
 
-  const show = (): void => {
+  const clearShowTimeout = (): void => {
+    if (showTimeoutRef.current === null) return
+    window.clearTimeout(showTimeoutRef.current)
+    showTimeoutRef.current = null
+  }
+
+  const showNow = (): void => {
+    clearShowTimeout()
     const rect = anchorRef.current?.getBoundingClientRect()
     if (!rect) return
     const estimatedWidth = Math.min(Math.max(label.length * 6.2 + 18, 52), 240)
@@ -285,8 +294,21 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
     setVisible(true)
   }
 
-  const hide = (): void => setVisible(false)
+  const scheduleShow = (): void => {
+    clearShowTimeout()
+    showTimeoutRef.current = window.setTimeout(() => {
+      showTimeoutRef.current = null
+      showNow()
+    }, tooltipHoverDelayMs)
+  }
+
+  const hide = (): void => {
+    clearShowTimeout()
+    setVisible(false)
+  }
   useExclusiveHoverSurface(idRef.current, hide)
+
+  useEffect(() => () => clearShowTimeout(), [])
 
   useEffect(() => {
     if (!visible) return
@@ -305,9 +327,9 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
     <span
       ref={anchorRef}
       className="orchestrator-tooltip-anchor"
-      onMouseEnter={show}
+      onMouseEnter={scheduleShow}
       onMouseLeave={hide}
-      onFocus={show}
+      onFocus={showNow}
       onBlur={hide}
       onMouseDownCapture={hide}
     >
