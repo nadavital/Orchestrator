@@ -1244,18 +1244,35 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(120);
             }
             const targetsPane = document.querySelector('.browser-targets-pane');
-            const targetInputRow = document.querySelector('.browser-target-input-row');
-            const targetMoreActions = document.querySelector('[data-testid="browser-target-more-actions"]');
+            const targetActionControls = document.querySelector('.browser-target-action-controls');
+            const targetActionSelect = document.querySelector('[data-testid="browser-target-action-select"]');
+            const targetPointerPanel = document.querySelector('[data-testid="browser-target-pointer-panel"]');
+            const targetClipboardPanel = document.querySelector('[data-testid="browser-target-clipboard-panel"]');
             var browserTargetsPaneWorks =
               document.querySelector('[data-testid="browser-target-select"]') instanceof HTMLSelectElement &&
               targetsPane instanceof HTMLElement &&
-              targetInputRow instanceof HTMLElement &&
-              targetInputRow.scrollWidth <= targetInputRow.clientWidth + 2 &&
-              targetMoreActions instanceof HTMLDetailsElement &&
-              targetMoreActions.open === false &&
-              targetsPane.textContent?.includes('More actions') &&
-              targetsPane.textContent?.includes('Click x/y') &&
-              targetsPane.textContent?.includes('Clipboard');
+              targetActionControls instanceof HTMLElement &&
+              targetActionControls.scrollWidth <= targetActionControls.clientWidth + 2 &&
+              targetActionSelect instanceof HTMLSelectElement &&
+              targetPointerPanel instanceof HTMLDetailsElement &&
+              targetPointerPanel.open === false &&
+              targetClipboardPanel instanceof HTMLDetailsElement &&
+              targetClipboardPanel.open === false;
+            const setBrowserTargetAction = async (action) => {
+              const actionSelect = document.querySelector('[data-testid="browser-target-action-select"]');
+              if (!(actionSelect instanceof HTMLSelectElement)) return false;
+              const actionSetter = Object.getOwnPropertyDescriptor(actionSelect.constructor.prototype, 'value')?.set;
+              actionSetter?.call(actionSelect, action);
+              actionSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              await sleep(100);
+              return true;
+            };
+            const clickBrowserTargetRun = () => {
+              const runButton = document.querySelector('[data-testid="browser-target-run-action"]');
+              if (!(runButton instanceof HTMLButtonElement) || runButton.disabled) return false;
+              runButton.click();
+              return true;
+            };
             const browserTargetSelect = document.querySelector('[data-testid="browser-target-select"]');
             const browserTargetActionInput = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
             let browserTargetKeyWorks = false;
@@ -1270,10 +1287,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 inputSetter?.call(browserTargetActionInput, 'Enter');
                 browserTargetActionInput.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(120);
-                const keyButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'Key');
-                if (keyButton instanceof HTMLButtonElement) {
-                  keyButton.click();
+                if (await setBrowserTargetAction('key') && clickBrowserTargetRun()) {
                   const browserWebview = document.querySelector('[data-testid="browser-webview"]');
                   for (let index = 0; index < 30; index += 1) {
                     const pressed = browserWebview && 'executeJavaScript' in browserWebview
@@ -1304,13 +1318,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 inputSetter?.call(browserTargetActionInputForText, 'filled');
                 browserTargetActionInputForText.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(120);
-                const fillButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'Fill');
-                const typeButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'Type');
                 const browserWebview = document.querySelector('[data-testid="browser-webview"]');
-                if (fillButton instanceof HTMLButtonElement) {
-                  fillButton.click();
+                if (await setBrowserTargetAction('fill') && clickBrowserTargetRun()) {
                   for (let index = 0; index < 30; index += 1) {
                     const value = browserWebview && 'executeJavaScript' in browserWebview
                       ? await browserWebview.executeJavaScript('document.body.dataset.inputValue || ""')
@@ -1325,8 +1334,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 inputSetter?.call(browserTargetActionInputForText, ' plus');
                 browserTargetActionInputForText.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(120);
-                if (typeButton instanceof HTMLButtonElement) {
-                  typeButton.click();
+                if (await setBrowserTargetAction('type') && clickBrowserTargetRun()) {
                   for (let index = 0; index < 30; index += 1) {
                     const value = browserWebview && 'executeJavaScript' in browserWebview
                       ? await browserWebview.executeJavaScript('document.body.dataset.inputValue || ""')
@@ -1338,10 +1346,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                     await sleep(100);
                   }
                 }
-                const stateButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'State');
-                if (stateButton instanceof HTMLButtonElement) {
-                  stateButton.click();
+                if (await setBrowserTargetAction('read') && clickBrowserTargetRun()) {
                   for (let index = 0; index < 30; index += 1) {
                     const output = document.querySelector('[data-testid="browser-target-read-output"]');
                     const text = output instanceof HTMLElement ? output.innerText : '';
@@ -1368,10 +1373,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 inputSetter?.call(browserTargetActionInputForSelect, 'beta');
                 browserTargetActionInputForSelect.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(120);
-                const selectButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'Select');
-                if (selectButton instanceof HTMLButtonElement) {
-                  selectButton.click();
+                if (await setBrowserTargetAction('select') && clickBrowserTargetRun()) {
                   const browserWebview = document.querySelector('[data-testid="browser-webview"]');
                   for (let index = 0; index < 30; index += 1) {
                     const selected = browserWebview && 'executeJavaScript' in browserWebview
@@ -1400,10 +1402,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 inputSetter?.call(browserTargetActionInputForCheck, 'true');
                 browserTargetActionInputForCheck.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(120);
-                const checkButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'Check');
-                if (checkButton instanceof HTMLButtonElement) {
-                  checkButton.click();
+                if (await setBrowserTargetAction('check') && clickBrowserTargetRun()) {
                   const browserWebview = document.querySelector('[data-testid="browser-webview"]');
                   for (let index = 0; index < 30; index += 1) {
                     const checked = browserWebview && 'executeJavaScript' in browserWebview
@@ -2530,11 +2529,35 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(120);
             }
             const browserTargetsPane = document.querySelector('.browser-targets-pane');
+            const browserTargetActionControls = document.querySelector('.browser-target-action-controls');
+            const browserTargetActionSelect = document.querySelector('[data-testid="browser-target-action-select"]');
+            const browserTargetPointerPanel = document.querySelector('[data-testid="browser-target-pointer-panel"]');
+            const browserTargetClipboardPanel = document.querySelector('[data-testid="browser-target-clipboard-panel"]');
             var browserTargetsPaneWorks =
               document.querySelector('[data-testid="browser-target-select"]') instanceof HTMLSelectElement &&
               browserTargetsPane instanceof HTMLElement &&
-              browserTargetsPane.textContent?.includes('Click x/y') &&
-              browserTargetsPane.textContent?.includes('Clipboard');
+              browserTargetActionControls instanceof HTMLElement &&
+              browserTargetActionControls.scrollWidth <= browserTargetActionControls.clientWidth + 2 &&
+              browserTargetActionSelect instanceof HTMLSelectElement &&
+              browserTargetPointerPanel instanceof HTMLDetailsElement &&
+              browserTargetPointerPanel.open === false &&
+              browserTargetClipboardPanel instanceof HTMLDetailsElement &&
+              browserTargetClipboardPanel.open === false;
+            const setBrowserTargetAction = async (action) => {
+              const actionSelect = document.querySelector('[data-testid="browser-target-action-select"]');
+              if (!(actionSelect instanceof HTMLSelectElement)) return false;
+              const actionSetter = Object.getOwnPropertyDescriptor(actionSelect.constructor.prototype, 'value')?.set;
+              actionSetter?.call(actionSelect, action);
+              actionSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              await sleep(100);
+              return true;
+            };
+            const clickBrowserTargetRun = () => {
+              const runButton = document.querySelector('[data-testid="browser-target-run-action"]');
+              if (!(runButton instanceof HTMLButtonElement) || runButton.disabled) return false;
+              runButton.click();
+              return true;
+            };
             const browserTargetSelect = document.querySelector('[data-testid="browser-target-select"]');
             const browserTargetActionInput = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
             let browserTargetKeyWorks = false;
@@ -2549,10 +2572,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 inputSetter?.call(browserTargetActionInput, 'Enter');
                 browserTargetActionInput.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(120);
-                const keyButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'Key');
-                if (keyButton instanceof HTMLButtonElement) {
-                  keyButton.click();
+                if (await setBrowserTargetAction('key') && clickBrowserTargetRun()) {
                   const browserWebview = document.querySelector('[data-testid="browser-webview"]');
                   for (let index = 0; index < 30; index += 1) {
                     const pressed = browserWebview && 'executeJavaScript' in browserWebview
@@ -2581,10 +2601,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 inputSetter?.call(browserTargetActionInputForSelect, 'beta');
                 browserTargetActionInputForSelect.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(120);
-                const selectButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'Select');
-                if (selectButton instanceof HTMLButtonElement) {
-                  selectButton.click();
+                if (await setBrowserTargetAction('select') && clickBrowserTargetRun()) {
                   const browserWebview = document.querySelector('[data-testid="browser-webview"]');
                   for (let index = 0; index < 30; index += 1) {
                     const selected = browserWebview && 'executeJavaScript' in browserWebview
@@ -2613,10 +2630,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 inputSetter?.call(browserTargetActionInputForCheck, 'true');
                 browserTargetActionInputForCheck.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(120);
-                const checkButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'Check');
-                if (checkButton instanceof HTMLButtonElement) {
-                  checkButton.click();
+                if (await setBrowserTargetAction('check') && clickBrowserTargetRun()) {
                   const browserWebview = document.querySelector('[data-testid="browser-webview"]');
                   for (let index = 0; index < 30; index += 1) {
                     const checked = browserWebview && 'executeJavaScript' in browserWebview
@@ -2647,13 +2661,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 inputSetter?.call(browserTargetActionInputForText, 'filled');
                 browserTargetActionInputForText.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(120);
-                const fillButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'Fill');
-                const typeButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'Type');
                 const browserWebview = document.querySelector('[data-testid="browser-webview"]');
-                if (fillButton instanceof HTMLButtonElement) {
-                  fillButton.click();
+                if (await setBrowserTargetAction('fill') && clickBrowserTargetRun()) {
                   for (let index = 0; index < 30; index += 1) {
                     const value = browserWebview && 'executeJavaScript' in browserWebview
                       ? await browserWebview.executeJavaScript('document.body.dataset.inputValue || ""')
@@ -2668,8 +2677,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 inputSetter?.call(browserTargetActionInputForText, ' plus');
                 browserTargetActionInputForText.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(120);
-                if (typeButton instanceof HTMLButtonElement) {
-                  typeButton.click();
+                if (await setBrowserTargetAction('type') && clickBrowserTargetRun()) {
                   for (let index = 0; index < 30; index += 1) {
                     const value = browserWebview && 'executeJavaScript' in browserWebview
                       ? await browserWebview.executeJavaScript('document.body.dataset.inputValue || ""')
@@ -2681,10 +2689,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                     await sleep(100);
                   }
                 }
-                const stateButton = [...document.querySelectorAll('.browser-targets-pane button')]
-                  .find((button) => button.textContent?.trim() === 'State');
-                if (stateButton instanceof HTMLButtonElement) {
-                  stateButton.click();
+                if (await setBrowserTargetAction('read') && clickBrowserTargetRun()) {
                   for (let index = 0; index < 30; index += 1) {
                     const output = document.querySelector('[data-testid="browser-target-read-output"]');
                     const text = output instanceof HTMLElement ? output.innerText : '';

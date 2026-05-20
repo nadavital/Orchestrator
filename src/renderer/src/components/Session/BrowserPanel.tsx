@@ -1382,11 +1382,15 @@ function TargetsPane({
   onWriteClipboard: () => void
   onClipboardChange: (value: string) => void
 }): JSX.Element {
+  const [targetAction, setTargetAction] = useState<BrowserTargetAction>('click')
+  const actionNeedsText = targetActionNeedsText(targetAction)
+  const canRunAction = Boolean(selectedTargetId) && (!actionNeedsText || Boolean(actionText))
+
   return (
     <div className="browser-targets-pane">
       <div className="browser-target-section">
         <div className="browser-target-section-title">Element</div>
-        <div className="browser-target-input-row">
+        <div className="browser-target-select-row">
           <select
             data-testid="browser-target-select"
             value={selectedTargetId}
@@ -1397,6 +1401,26 @@ function TargetsPane({
             <option value="">Targets ({targets.length})</option>
             {targets.map((target) => <option key={target.nodeId} value={target.nodeId}>{target.preview}</option>)}
           </select>
+        </div>
+        <div className="browser-target-action-controls">
+          <select
+            aria-label="Target action"
+            data-testid="browser-target-action-select"
+            value={targetAction}
+            onChange={(event) => setTargetAction(event.target.value as BrowserTargetAction)}
+            className="w-full rounded-md px-2 py-1 text-xs outline-none"
+            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+          >
+            <option value="click">Click</option>
+            <option value="type">Type</option>
+            <option value="fill">Fill</option>
+            <option value="read">State</option>
+            <option value="double_click">Double click</option>
+            <option value="key">Key</option>
+            <option value="select">Select</option>
+            <option value="check">Check</option>
+            <option value="scroll">Scroll</option>
+          </select>
           <input
             value={actionText}
             onChange={(event) => onActionTextChange(event.target.value)}
@@ -1404,23 +1428,13 @@ function TargetsPane({
             className="w-full rounded-md px-2 py-1 text-xs outline-none"
             style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
           />
+          <ActionButton
+            label="Run"
+            dataTestId="browser-target-run-action"
+            onClick={() => onRunTargetAction(targetAction)}
+            disabled={!canRunAction}
+          />
         </div>
-        <div className="browser-target-action-row browser-target-primary-actions">
-          <ActionButton label="Click" onClick={() => onRunTargetAction('click')} disabled={!selectedTargetId} />
-          <ActionButton label="Type" onClick={() => onRunTargetAction('type')} disabled={!selectedTargetId || !actionText} />
-          <ActionButton label="Fill" onClick={() => onRunTargetAction('fill')} disabled={!selectedTargetId || !actionText} />
-          <ActionButton label="State" onClick={() => onRunTargetAction('read')} disabled={!selectedTargetId} />
-        </div>
-        <details className="browser-target-more-actions" data-testid="browser-target-more-actions">
-          <summary>More actions</summary>
-          <div className="browser-target-action-row">
-            <ActionButton label="Double" onClick={() => onRunTargetAction('double_click')} disabled={!selectedTargetId} />
-            <ActionButton label="Key" onClick={() => onRunTargetAction('key')} disabled={!selectedTargetId || !actionText} />
-            <ActionButton label="Select" onClick={() => onRunTargetAction('select')} disabled={!selectedTargetId || !actionText} />
-            <ActionButton label="Check" onClick={() => onRunTargetAction('check')} disabled={!selectedTargetId} />
-            <ActionButton label="Scroll" onClick={() => onRunTargetAction('scroll')} disabled={!selectedTargetId} />
-          </div>
-        </details>
         {targetReadResult && (
           <div
             data-testid="browser-target-read-output"
@@ -1441,8 +1455,8 @@ function TargetsPane({
         )}
       </div>
       <div className="browser-target-side-stack">
-        <div className="browser-target-section">
-          <div className="browser-target-section-title">Pointer</div>
+        <details className="browser-target-secondary-panel" data-testid="browser-target-pointer-panel">
+          <summary>Pointer</summary>
           <div className="grid grid-cols-3 gap-1">
             <SmallNumber label="X" value={coordinateAction.x} onChange={(x) => onCoordinateChange({ ...coordinateAction, x })} />
             <SmallNumber label="Y" value={coordinateAction.y} onChange={(y) => onCoordinateChange({ ...coordinateAction, y })} />
@@ -1452,9 +1466,9 @@ function TargetsPane({
             <ActionButton label="Click x/y" onClick={() => onRunCoordinateAction('click')} />
             <ActionButton label="Scroll x/y" onClick={() => onRunCoordinateAction('scroll')} />
           </div>
-        </div>
-        <div className="browser-target-section">
-          <div className="browser-target-section-title">Clipboard</div>
+        </details>
+        <details className="browser-target-secondary-panel" data-testid="browser-target-clipboard-panel">
+          <summary>Clipboard</summary>
           <div className="flex gap-1">
             <input
               value={clipboardText}
@@ -1466,10 +1480,14 @@ function TargetsPane({
             <ActionButton label="Read" onClick={onReadClipboard} />
             <ActionButton label="Write" onClick={onWriteClipboard} />
           </div>
-        </div>
+        </details>
       </div>
     </div>
   )
+}
+
+function targetActionNeedsText(action: BrowserTargetAction): boolean {
+  return action === 'type' || action === 'fill' || action === 'key' || action === 'select'
 }
 
 function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetInventory | null; bundlePath: string | null; onBundle: () => void }): JSX.Element {
@@ -1565,11 +1583,22 @@ function PolicyRow({ label, values, onAdd, onClear }: { label: string; values: s
   )
 }
 
-function ActionButton({ label, onClick, disabled = false }: { label: string; onClick: () => void; disabled?: boolean }): JSX.Element {
+function ActionButton({
+  label,
+  onClick,
+  disabled = false,
+  dataTestId
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  dataTestId?: string
+}): JSX.Element {
   return (
     <button
       type="button"
       disabled={disabled}
+      data-testid={dataTestId}
       className="rounded-md px-2 py-1 text-[11px] font-semibold disabled:opacity-45"
       style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
       onClick={onClick}

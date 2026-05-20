@@ -1465,7 +1465,8 @@
   }
 
   .browser-target-section,
-  .browser-target-side-stack {
+  .browser-target-side-stack,
+  .browser-target-secondary-panel {
     display: grid;
     min-width: 0;
     max-width: 100%;
@@ -1474,7 +1475,8 @@
     overflow-x: hidden;
   }
 
-  .browser-target-section {
+  .browser-target-section,
+  .browser-target-secondary-panel {
     border-radius: var(--radius-lg);
     background: color-mix(in srgb, var(--control-bg) 48%, transparent);
     padding: 8px;
@@ -1484,11 +1486,16 @@
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   }
 
-  .browser-target-input-row {
+  .browser-target-select-row,
+  .browser-target-action-controls {
     display: grid;
     min-width: 0;
-    grid-template-columns: minmax(0, 1.2fr) minmax(128px, 0.8fr);
     gap: 6px;
+  }
+
+  .browser-target-action-controls {
+    grid-template-columns: minmax(96px, 0.8fr) minmax(0, 1fr) auto;
+    align-items: center;
   }
 
   .browser-targets-pane input,
@@ -1513,36 +1520,33 @@
     gap: 4px;
   }
 
-  .browser-target-primary-actions {
-    padding-top: 1px;
-  }
-
-  .browser-target-more-actions {
+  .browser-target-secondary-panel {
     min-width: 0;
     color: var(--text-secondary);
     font-size: 11px;
   }
 
-  .browser-target-more-actions > summary {
+  .browser-target-secondary-panel > summary {
     display: inline-flex;
-    min-height: 24px;
+    min-height: 22px;
     cursor: pointer;
     list-style: none;
     align-items: center;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    background: var(--control-bg);
-    padding: 0 8px;
+    justify-content: space-between;
+    color: var(--text-tertiary);
+    font-size: 10px;
     font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1;
+    text-transform: uppercase;
   }
 
-  .browser-target-more-actions > summary::-webkit-details-marker {
+  .browser-target-secondary-panel > summary::-webkit-details-marker {
     display: none;
   }
 
-  .browser-target-more-actions[open] > summary {
+  .browser-target-secondary-panel[open] > summary {
     margin-bottom: 6px;
-    background: var(--control-bg-hover);
     color: var(--text-primary);
   }
 
@@ -1551,7 +1555,7 @@
   }
 
   @media (max-width: 900px) {
-    .browser-target-input-row {
+    .browser-target-action-controls {
       grid-template-columns: minmax(0, 1fr);
     }
 
