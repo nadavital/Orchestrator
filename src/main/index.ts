@@ -395,12 +395,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             : '';
           var chatEmptyStateWorks =
             chatEmptyState instanceof HTMLElement &&
-            chatEmptyState.innerText.trim().length === 0 &&
+            chatEmptyState.innerText.includes('What should we build in') &&
+            chatEmptyState.innerText.includes('Review this branch') &&
             composerPlaceholder === 'What do you want to build?';
           var chatEmptyStateQuietWorks =
             chatEmptyState instanceof HTMLElement &&
             chatEmptyState.querySelector('h1, h2, h3, [role="heading"]') === null &&
-            chatEmptyState.innerText.trim().length === 0;
+            chatEmptyState.getBoundingClientRect().height <= 220;
           const primaryContent = document.querySelector('[data-testid="session-primary-content"]');
           const activeProjectName = projects[0]?.name ?? '';
           const activeProjectMentionsInPrimary = activeProjectName && primaryContent instanceof HTMLElement
@@ -409,8 +410,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           var chatEmptyStateProjectLabelClean =
             chatEmptyState instanceof HTMLElement &&
             Boolean(activeProjectName) &&
-            chatEmptyState.innerText.includes(activeProjectName) === false &&
-            activeProjectMentionsInPrimary === 0;
+            chatEmptyState.innerText.includes(activeProjectName) === true &&
+            activeProjectMentionsInPrimary <= 2;
           textarea?.focus();
           if (textarea && !['composer', 'extensions'].includes(${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)})) {
             textarea.value = '/btw smoke check';
@@ -4555,9 +4556,11 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               hoverCardText.includes('Sidebar normal idle') &&
               hoverCardText.includes('Project') &&
               hoverCardText.includes('Automated UI Smoke') &&
-              hoverCardText.includes('Folder') &&
-              hoverCardText.includes('Provider') &&
-              hoverCardText.includes('Status');
+              !hoverCardText.includes('Folder') &&
+              !hoverCardText.includes('Provider') &&
+              !hoverCardText.includes('Status') &&
+              !hoverCardText.includes('Updated') &&
+              !hoverCardText.includes('Environment');
             const hoverCardSurfaceReadable = hoverCard instanceof HTMLElement && hoverSurfaceReadable(hoverCard);
             let doubleClickRenameWorks = false;
             let renameDialogCancelWorks = false;

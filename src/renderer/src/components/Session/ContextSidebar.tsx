@@ -22,8 +22,8 @@ interface Props {
 
 const DEFAULT_PANEL_WIDTH = 468
 const MIN_PANEL_WIDTH = 360
-const MAX_PANEL_WIDTH = 720
-const MIN_PRIMARY_CONTENT_WIDTH = 640
+const MAX_PANEL_WIDTH = 960
+const MIN_PRIMARY_CONTENT_WIDTH = 360
 const MIN_OVERLAY_PANEL_WIDTH = 280
 
 interface ContextTabSpec {

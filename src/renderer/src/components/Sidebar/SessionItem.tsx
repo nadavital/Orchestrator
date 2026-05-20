@@ -1,12 +1,11 @@
 import type { Session } from '../../types'
-import { PROVIDER_DEFS } from '../../types'
 import { hasComposerDraft, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
 import RenameChatDialog from '../shared/RenameChatDialog'
 import { announceHoverSurfaceOpen, IconButton, SurfaceRow, Tooltip, useExclusiveHoverSurface } from '../shared/designSystem'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 interface Props {
@@ -64,23 +63,9 @@ function SessionItem({ session }: Props): JSX.Element {
   const hasUncheckedCompletion = hasUnread && session.status === 'idle'
   const showStatusIndicator = isRunning || isWaiting || hasUncheckedCompletion || hasError
   const project = projects.find((p) => p.id === session.projectId)
-  const provider = PROVIDER_DEFS[session.provider]
-  const model = provider?.models.find((candidate) => candidate.id === session.model)
   const statusLabel = statusLabelFor(session.status, hasUnread)
-  const environment = session.useWorktree
-    ? { label: 'Worktree' }
-    : { label: 'Local' }
-  const updatedLabel = formatRelativeTime(session.latestMessageAt ?? session.createdAt)
   const createdLabel = formatRelativeTime(session.createdAt)
-  const cwdLabel = project ? relativePath(project.rootPath, session.workDir) : session.workDir
   const branchLabel = branch ?? inferredWorktreeBranch(session)
-  const preview = useMemo(() => {
-    if (session.previewText) return compactPreview(session.previewText, session.name, session.status)
-    const lastMessage = session.messages.findLast((m) => m.type === 'text' && m.role !== 'system')
-    return lastMessage && lastMessage.type === 'text'
-      ? compactPreview(lastMessage.content, session.name, session.status)
-      : ''
-  }, [session.messages, session.name, session.previewText, session.status])
 
   useEffect(() => {
     if (!detailsVisible || branchLoadedFor === session.workDir) return
@@ -336,14 +321,8 @@ function SessionItem({ session }: Props): JSX.Element {
           role="tooltip"
         >
           <div className="session-hover-card-title">{session.name}</div>
-          {preview && <div className="session-hover-card-preview">{preview}</div>}
           <SessionHoverRow label="Project" value={project?.name ?? 'No project'} />
-          <SessionHoverRow label="Folder" value={cwdLabel} />
           {branchLabel && <SessionHoverRow label="Branch" value={branchLabel} />}
-          <SessionHoverRow label="Environment" value={environment.label} />
-          <SessionHoverRow label="Provider" value={[provider?.name ?? session.provider, model?.label ?? session.model].filter(Boolean).join(' · ')} />
-          <SessionHoverRow label="Status" value={statusLabel} />
-          <SessionHoverRow label="Updated" value={updatedLabel} />
         </div>,
         document.body
       )}
@@ -374,15 +353,6 @@ function SessionHoverRow({ label, value }: { label: string; value: string }): JS
       <strong>{value}</strong>
     </div>
   )
-}
-
-function compactPreview(content: string, name: string, status: Session['status']): string {
-  if (status === 'waiting_for_permission') return 'Waiting for approval'
-  if (status === 'waiting_for_user') return 'Waiting for answer'
-
-  const compact = content.replace(/\s+/g, ' ').trim()
-  if (!compact || compact === name) return ''
-  return compact.length > 44 ? `${compact.slice(0, 41)}...` : compact
 }
 
 function statusLabelFor(status: Session['status'], hasUnread: boolean): string {
@@ -425,18 +395,6 @@ function formatRelativeTime(timestamp: number): string {
   const elapsedWeeks = Math.floor(elapsedDays / 7)
   if (elapsedWeeks < 8) return `${elapsedWeeks}w`
   return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
-function relativePath(rootPath: string, workDir: string): string {
-  const normalizedRoot = rootPath.replace(/\/+$/, '')
-  const normalizedWorkDir = workDir.replace(/\/+$/, '')
-  if (normalizedWorkDir === normalizedRoot) return basename(normalizedRoot)
-  if (normalizedWorkDir.startsWith(`${normalizedRoot}/`)) return `./${normalizedWorkDir.slice(normalizedRoot.length + 1)}`
-  return workDir
-}
-
-function basename(path: string): string {
-  return path.split('/').filter(Boolean).pop() ?? path
 }
 
 function inferredWorktreeBranch(session: Session): string | null {

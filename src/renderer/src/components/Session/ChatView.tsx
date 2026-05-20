@@ -29,6 +29,7 @@ import type { Session, ChatMessage, FileReference, ResultMessage, ToolResultMess
 import type { Attachment } from '../../types'
 import type { TranscriptSearchResult } from '../../types'
 import { useSessionStore } from '../../store/sessions'
+import { useProjectStore } from '../../store/projects'
 import { markRendererStart, recordRendererMetric } from '../../performance'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
@@ -55,6 +56,7 @@ const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
 const TRANSCRIPT_VIRTUAL_ROW_GAP = 14
 
 export default function ChatView({ session }: Props): JSX.Element {
+  const projectName = useProjectStore((state) => state.projects.find((project) => project.id === session.projectId)?.name)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -522,15 +524,45 @@ export default function ChatView({ session }: Props): JSX.Element {
     })
   }, [session.id])
 
-  // New threads keep the canvas quiet; the composer owns the prompt.
   if (session.messages.length === 0 && session.status !== 'running') {
+    const promptTarget = projectName ?? 'this project'
     return (
       <div
         data-testid="chat-empty-state"
         aria-label="New chat ready"
-        className="chat-empty-state flex-1"
+        className="chat-empty-state flex-1 flex items-center justify-center px-6"
         style={{ background: 'var(--canvas-bg)' }}
-      />
+      >
+        <div className="w-full max-w-[460px] text-center">
+          <div
+            className="text-[17px] font-medium"
+            style={{ color: 'var(--text-primary)', letterSpacing: 0 }}
+          >
+            What should we build in {promptTarget}?
+          </div>
+          <div
+            className="mt-2 text-[13px] leading-5"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            Start with a goal, a bug, a branch, or a file you want to understand.
+          </div>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {['Review this branch', 'Fix a flaky test', 'Plan the next slice'].map((suggestion) => (
+              <span
+                key={suggestion}
+                className="rounded-full border px-3 py-1 text-[12px]"
+                style={{
+                  borderColor: 'var(--border-subtle)',
+                  background: 'var(--surface-bg)',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                {suggestion}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
     )
   }
 
