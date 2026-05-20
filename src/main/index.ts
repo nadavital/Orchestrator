@@ -743,8 +743,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 if (browserMenuItem instanceof HTMLElement) browserMenuItem.click();
               }
             }
-            {
-              await sleep(260);
+            for (let index = 0; index < 20; index += 1) {
+              if (document.querySelector('[data-testid="browser-url-input"]')) break;
+              const browserTabMarker = document.querySelector('[data-tab-id="browser"]');
+              const browserTab = browserTabMarker?.closest('[role="tab"]') ?? browserTabMarker;
+              if (browserTab instanceof HTMLElement) browserTab.click();
+              await sleep(100);
             }
             const browserInput = document.querySelector('[data-testid="browser-url-input"]');
             if (browserInput instanceof HTMLInputElement) {
@@ -1361,6 +1365,9 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const browserSingleTabStripHidden =
+              Number(browserPanel?.getAttribute('data-browser-tab-count') ?? '0') === 1 &&
+              !document.querySelector('[data-testid="browser-tab-strip"]');
             const browserNoHorizontalOverflow = browserPanel instanceof HTMLElement &&
               browserPanel.scrollWidth <= browserPanel.clientWidth + 2;
             return {
@@ -1371,6 +1378,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 document.body.innerText.includes('Orchestrator Browser Smoke'),
               browserFindWorks,
               browserFindNavigationWorks,
+              browserSingleTabStripHidden,
               browserNoHorizontalOverflow
             };
           })()

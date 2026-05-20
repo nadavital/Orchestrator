@@ -438,24 +438,24 @@ export default function BrowserPanel({
         background: 'var(--surface-bg)'
       }}
     >
-      <div className="browser-tab-strip">
-        {workbench.tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            data-testid="browser-tab"
-            data-active={tab.id === workbench.activeTabId ? 'true' : 'false'}
-            className="browser-tab"
-            style={{
-              background: tab.id === workbench.activeTabId ? 'var(--surface-bg)' : 'transparent',
-              borderColor: tab.id === workbench.activeTabId ? 'var(--border-subtle)' : 'transparent',
-              color: 'var(--text-primary)'
-            }}
-            onClick={() => selectTab(tab.id)}
-          >
-            <Icon name="browser" size={12} />
-            <span className="min-w-0 flex-1 truncate">{tab.title || shortUrl(tab.url) || 'New tab'}</span>
-            {workbench.tabs.length > 1 && (
+      {workbench.tabs.length > 1 && (
+        <div className="browser-tab-strip" data-testid="browser-tab-strip">
+          {workbench.tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              data-testid="browser-tab"
+              data-active={tab.id === workbench.activeTabId ? 'true' : 'false'}
+              className="browser-tab"
+              style={{
+                background: tab.id === workbench.activeTabId ? 'var(--surface-bg)' : 'transparent',
+                borderColor: tab.id === workbench.activeTabId ? 'var(--border-subtle)' : 'transparent',
+                color: 'var(--text-primary)'
+              }}
+              onClick={() => selectTab(tab.id)}
+            >
+              <Icon name="browser" size={12} />
+              <span className="min-w-0 flex-1 truncate">{tab.title || shortUrl(tab.url) || 'New tab'}</span>
               <span
                 role="button"
                 tabIndex={0}
@@ -475,11 +475,10 @@ export default function BrowserPanel({
               >
                 <Icon name="close" size={10} />
               </span>
-            )}
-          </button>
-        ))}
-        <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
-      </div>
+            </button>
+          ))}
+        </div>
+      )}
 
       <form
         className="browser-toolbar"
@@ -492,6 +491,7 @@ export default function BrowserPanel({
         <ToolbarButton icon="arrowLeft" label="Back" disabled={!canGoBack || !visible} onClick={() => webviewRef.current?.goBack()} />
         <ToolbarButton icon="arrowRight" label="Forward" disabled={!canGoForward || !visible} onClick={() => webviewRef.current?.goForward()} />
         <ToolbarButton icon="refresh" label="Reload" disabled={!currentUrl || !visible} onClick={() => webviewRef.current?.reload()} />
+        <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
         <div
           className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 py-1"
           style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
