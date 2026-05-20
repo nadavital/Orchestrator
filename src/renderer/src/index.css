@@ -2009,11 +2009,10 @@
 
   .browser-target-section-title {
     color: var(--text-tertiary);
-    font-size: 10px;
-    font-weight: 700;
+    font-size: 10.5px;
+    font-weight: 680;
     letter-spacing: 0;
     line-height: 1;
-    text-transform: uppercase;
   }
 
   .browser-target-action-row {
@@ -2041,7 +2040,6 @@
   .browser-target-read-output span:nth-child(odd) {
     color: var(--text-tertiary);
     font-weight: 650;
-    text-transform: uppercase;
   }
 
   .browser-target-read-output span:nth-child(even) {

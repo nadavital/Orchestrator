@@ -3129,6 +3129,13 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 toolbar.getBoundingClientRect().height <= 34 &&
                 toolbar.scrollWidth <= toolbar.clientWidth + 2;
             })();
+            const browserInspectorLabelsCalm = [
+              ...document.querySelectorAll('.browser-target-section-title'),
+              ...document.querySelectorAll('.browser-target-read-output span:nth-child(odd)')
+            ].every((label) => {
+              const text = label.textContent?.trim() ?? '';
+              return text.length === 0 || text !== text.toUpperCase();
+            });
             return {
               profile,
               browserActive: rightPanel instanceof HTMLElement &&
@@ -3167,6 +3174,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserNoHorizontalOverflow,
               browserToolbarCompact,
               browserInspectorChromeCompactWorks,
+              browserInspectorLabelsCalm,
               browserVisibilityControlWorks,
               browserHiddenStateWorks,
               browserStatusRowQuiet

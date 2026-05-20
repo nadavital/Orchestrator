@@ -539,6 +539,7 @@ child.on('exit', (code) => {
           browserSingleTabChrome: result.browserSingleTabStripHidden === true,
           browserToolbarCompact: result.browserToolbarCompact === true,
           browserInspectorChromeCompact: result.browserInspectorChromeCompactWorks === true,
+          browserInspectorLabelsCalm: result.browserInspectorLabelsCalm === true,
           browserVisibilityControl: result.browserVisibilityControlWorks === true,
           browserHiddenState: result.browserHiddenStateWorks === true,
           browserStatusRowQuiet: result.browserStatusRowQuiet === true,
