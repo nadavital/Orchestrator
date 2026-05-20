@@ -133,9 +133,18 @@ export default function Titlebar(): JSX.Element {
                   {session.name}
                 </span>
                 {session.pinned && (
-                  <span className="shrink-0" style={{ color: 'var(--text-tertiary)' }} title="Pinned">
-                    <Icon name="pin" size={12} />
-                  </span>
+                  <Tooltip label="Pinned">
+                    <span
+                      className="shrink-0"
+                      data-testid="session-header-pinned"
+                      data-tooltip-label="Pinned"
+                      data-native-title-free="true"
+                      aria-label="Pinned"
+                      style={{ color: 'var(--text-tertiary)' }}
+                    >
+                      <Icon name="pin" size={12} />
+                    </span>
+                  </Tooltip>
                 )}
               </div>
               <div

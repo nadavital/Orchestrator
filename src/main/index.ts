@@ -334,6 +334,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               repoRoot: project.rootPath
             });
             await window.api.projects.addSession(project.id, session.id);
+            sessions = [session];
+          }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector' && sessions[0]) {
+            await window.api.sessions.updatePinned(sessions[0].id, true);
           }
           await sleep(900);
           const chatEmptyState = document.querySelector('[data-testid="chat-empty-state"]');
@@ -1827,8 +1831,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             headerMetadataText.includes('Automated UI Smoke') &&
             headerMetadataText.includes('Claude') &&
             headerMetadataText.length > 'Automated UI Smoke'.length;
+          const headerTooltipIds = ['session-header-environment', 'profile-badge'];
+          if (document.querySelector('[data-testid="session-header-pinned"]')) headerTooltipIds.push('session-header-pinned');
           const headerNativeTooltipsWork =
-            ['session-header-environment', 'profile-badge'].every((testId) => {
+            headerTooltipIds.every((testId) => {
               const element = document.querySelector('[data-testid="' + testId + '"]');
               return element instanceof HTMLElement &&
                 element.getAttribute('title') === null &&
