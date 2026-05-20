@@ -3073,67 +3073,67 @@ function ModelListManager({
           </SortableContext>
         </DndContext>
       ) : (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            minWidth: 0,
-            minHeight: 28,
-            overflow: 'hidden'
-          }}
-        >
-          {visibleIds.length > 0 ? (
-            visibleIds.slice(0, 4).map((id) => {
-              const meta = providerDef.models.find((m) => m.id === id)
-              return (
-                <span
-                  key={id}
-                  style={{
-                    maxWidth: 160,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    padding: '5px 8px',
-                    borderRadius: 999,
-                    border: '1px solid var(--color-border)',
-                    background: 'var(--color-surface)',
-                    color: 'var(--color-text)',
-                    fontSize: 11,
-                    fontWeight: 650
-                  }}
-                >
-                  {meta?.label ?? id}
-                </span>
-              )
-            })
-          ) : (
-            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Catalog defaults</span>
-          )}
-          {visibleIds.length > 4 && (
-            <span style={{ fontSize: 11, fontWeight: 650, color: 'var(--color-text-muted)' }}>
-              +{visibleIds.length - 4}
-            </span>
-          )}
+        <div className="provider-model-list-collapsed">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              minWidth: 0,
+              minHeight: 28,
+              overflow: 'hidden'
+            }}
+          >
+            {visibleIds.length > 0 ? (
+              visibleIds.slice(0, 4).map((id) => {
+                const meta = providerDef.models.find((m) => m.id === id)
+                return (
+                  <span
+                    key={id}
+                    style={{
+                      maxWidth: 160,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      padding: '5px 8px',
+                      borderRadius: 999,
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-surface)',
+                      color: 'var(--color-text)',
+                      fontSize: 11,
+                      fontWeight: 650
+                    }}
+                  >
+                    {meta?.label ?? id}
+                  </span>
+                )
+              })
+            ) : (
+              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Catalog defaults</span>
+            )}
+            {visibleIds.length > 4 && (
+              <span style={{ fontSize: 11, fontWeight: 650, color: 'var(--color-text-muted)' }}>
+                +{visibleIds.length - 4}
+              </span>
+            )}
+          </div>
+          <button
+            className="provider-model-list-edit"
+            onClick={() => setEditing(true)}
+          >
+            Edit model list
+          </button>
         </div>
       )}
 
-      <button
-        onClick={() => setEditing((open) => !open)}
-        style={{
-          alignSelf: 'flex-start',
-          padding: '4px 8px',
-          borderRadius: 6,
-          border: '1px solid var(--color-border)',
-          background: 'var(--color-surface2)',
-          color: 'var(--color-text-muted)',
-          cursor: 'pointer',
-          fontSize: 11,
-          fontWeight: 600
-        }}
-      >
-        {editing ? 'Done' : 'Edit model list'}
-      </button>
+      {editing && (
+        <button
+          className="provider-model-list-edit"
+          onClick={() => setEditing(false)}
+        >
+          Done
+        </button>
+      )}
 
       {/* Catalog toggle chips */}
       {editing && providerDef.models.length > 0 && (

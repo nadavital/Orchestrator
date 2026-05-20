@@ -2131,6 +2131,38 @@
     flex: 1 1 auto;
   }
 
+  .provider-model-list-collapsed {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .provider-model-list-collapsed > div {
+    flex: 1 1 auto;
+  }
+
+  .provider-model-list-edit {
+    min-height: 26px;
+    flex-shrink: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 7px;
+    background: var(--color-surface2);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 650;
+    padding: 4px 8px;
+  }
+
+  .provider-model-list-edit:hover,
+  .provider-model-list-edit:focus-visible {
+    background: var(--control-bg-hover);
+    color: var(--text-primary);
+    outline: none;
+  }
+
   .provider-details-toggle {
     display: inline-flex;
     min-height: 26px;
