@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useSessionStore } from '../../store/sessions'
@@ -19,12 +19,13 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
     ...derivePlanStates(session, events)
   ].slice(-5), [events, session])
   const current = useMemo(() => combinedPlan(plans), [plans])
-  const goal = useMemo(() => latestGoal(events), [events])
+  const goal = useMemo(() => latestGoal(events) ?? latestGoalFromMessages(session, session.messages), [events, session])
   const hasContent = Boolean(current || goal)
 
   return (
     <section
       className="flex min-w-0 flex-col overflow-hidden"
+      data-testid="plan-panel"
       style={{
         width: embedded ? '100%' : 420,
         maxWidth: '100%',
@@ -62,9 +63,12 @@ function latestGoal(records: SessionRunEventRecord[]): GoalEvent | null {
 }
 
 function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
+  const [expanded, setExpanded] = useState(false)
   const budget = typeof goal.tokenBudget === 'number' && goal.tokenBudget > 0 ? goal.tokenBudget : null
   const used = typeof goal.tokensUsed === 'number' ? goal.tokensUsed : null
   const pct = budget && used !== null ? Math.min(100, Math.round((used / budget) * 100)) : null
+  const compactObjective = compactGoalObjective(goal.objective)
+  const canExpand = compactObjective !== goal.objective.trim()
   const stats = [
     goal.status ? goal.status : undefined,
     used !== null ? `${used.toLocaleString()} tokens` : undefined,
@@ -79,9 +83,40 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
           <div className="text-[10px] font-bold uppercase tracking-normal" style={{ color: 'var(--color-accent)' }}>
             Goal
           </div>
-          <h3 className="mt-1 text-sm font-semibold" style={{ color: 'var(--color-text)', overflowWrap: 'anywhere' }}>
-            {goal.objective}
+          <h3
+            className="mt-1 text-sm font-semibold"
+            data-testid="plan-goal-compact-objective"
+            style={{ color: 'var(--color-text)', overflowWrap: 'anywhere' }}
+          >
+            {compactObjective}
           </h3>
+          {canExpand && (
+            <button
+              type="button"
+              className="mt-2 text-[11px] font-semibold"
+              data-testid="plan-goal-toggle"
+              aria-expanded={expanded}
+              style={{ color: 'var(--text-tertiary)' }}
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {expanded ? 'Hide full objective' : 'Show full objective'}
+            </button>
+          )}
+          {expanded && (
+            <div
+              className="mt-2 rounded-md p-2 text-xs"
+              data-testid="plan-goal-full-objective"
+              style={{
+                background: 'var(--control-bg)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-secondary)',
+                lineHeight: 1.45,
+                overflowWrap: 'anywhere'
+              }}
+            >
+              {goal.objective}
+            </div>
+          )}
           {stats.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {stats.map((stat) => (
@@ -107,6 +142,35 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
       )}
     </InspectorCard>
   )
+}
+
+function compactGoalObjective(objective: string): string {
+  const normalized = objective
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean)
+    ?.replace(/^(destination|objective|goal|scope):\s*/i, '')
+    .trim() ?? objective.trim()
+  const firstSentence = normalized.match(/^(.+?[.!?])(?:\s|$)/)?.[1]?.trim() ?? normalized
+  if (firstSentence.length <= 132) return firstSentence
+  return `${firstSentence.slice(0, 129).trimEnd()}...`
+}
+
+function latestGoalFromMessages(session: Session, messages: Session['messages']): GoalEvent | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]!
+    if (message.type !== 'result') continue
+    if (/^Goal cleared\b/i.test(message.content)) return null
+    const match = /^Goal:\s*([\s\S]+?)(?:\s+\(([^)]+)\))?(?:\s+·\s+.*)?$/i.exec(message.content.trim())
+    if (!match) continue
+    return {
+      providerId: session.provider ?? 'provider',
+      sessionId: session.id,
+      objective: match[1]?.trim() ?? '',
+      status: match[2]?.trim()
+    }
+  }
+  return null
 }
 
 function formatDuration(seconds: number): string {

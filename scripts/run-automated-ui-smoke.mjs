@@ -42,6 +42,8 @@ const captureView = process.argv.includes('--settings-providers')
                         ? 'scroll'
                         : process.argv.includes('--browser')
                           ? 'browser'
+                          : process.argv.includes('--plan')
+                            ? 'plan'
                           : process.argv.includes('--inspector')
                             ? 'inspector'
                             : process.argv.includes('--terminal')
@@ -402,6 +404,7 @@ child.on('exit', (code) => {
         browserVisibilityControl: captureView !== 'inspector' || result.browserVisibilityControlWorks === true,
         rightPanelContextMenuWorks: captureView !== 'inspector' || result.rightPanelContextMenuWorks === true,
         rightPanelTabReorderWorks: captureView !== 'inspector' || result.rightPanelTabReorderWorks === true,
+        planPanel: captureView !== 'plan' || result.planPanelWorks === true,
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,
         sideChatDraftPersistence: captureView !== 'inspector' || result.sideChatDraftPersistenceWorks === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
@@ -419,7 +422,7 @@ child.on('exit', (code) => {
         settingsShortcutsCompact: captureView !== 'settings' || result.settingsShortcutsCompactWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
-        sideQuestionCommand: ['terminal', 'settings', 'settings-providers', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions'].includes(captureView) || result.hasSideQuestionCommandText === true,
+        sideQuestionCommand: ['terminal', 'settings', 'settings-providers', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions', 'plan'].includes(captureView) || result.hasSideQuestionCommandText === true,
         capabilityCreateMenu: captureView !== 'capabilities' || result.capabilityMenuOpened === true,
         capabilityMenuArrowFocus: captureView !== 'capabilities' || result.capabilityMenuArrowFocus === true,
         capabilityMenuEscape: captureView !== 'capabilities' || result.capabilityMenuClosedWithEscape === true,

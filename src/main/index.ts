@@ -495,6 +495,40 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(500);
             }
           }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'plan') {
+            const planSessionRow = [...document.querySelectorAll('[data-testid="session-row"]')]
+              .find((node) => node.textContent?.includes('Plan panel smoke'));
+            if (planSessionRow instanceof HTMLElement) {
+              planSessionRow.click();
+              await sleep(320);
+            }
+            const planTab = document.querySelector('[data-tab-id="plan"]')?.closest('[role="tab"]');
+            if (planTab instanceof HTMLElement) {
+              planTab.click();
+              await sleep(240);
+            }
+            const planPanel = document.querySelector('[data-testid="plan-panel"]');
+            const compactGoal = document.querySelector('[data-testid="plan-goal-compact-objective"]');
+            const goalToggle = document.querySelector('[data-testid="plan-goal-toggle"]');
+            const hiddenSentence = 'This hidden sentence should only appear after expanding the full objective.';
+            const compactPanelText = planPanel instanceof HTMLElement ? planPanel.innerText : '';
+            const compactGoalWorks =
+              planPanel instanceof HTMLElement &&
+              compactGoal instanceof HTMLElement &&
+              compactGoal.textContent?.includes('Keep the right sidebar calm and useful') === true &&
+              !compactPanelText.includes(hiddenSentence) &&
+              compactGoal.textContent.length < 140;
+            if (goalToggle instanceof HTMLButtonElement) {
+              goalToggle.click();
+              await sleep(120);
+            }
+            var planPanelWorks =
+              compactGoalWorks &&
+              document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'plan' &&
+              document.body.innerText.includes('Reduce Plan panel verbosity') &&
+              document.body.innerText.includes(hiddenSentence) &&
+              Boolean(document.querySelector('[data-testid="plan-goal-full-objective"]'));
+          }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets') {
             const petsButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.includes('Pets'));
@@ -1238,6 +1272,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserVisibilityControlWorks: typeof browserVisibilityControlWorks === 'boolean' ? browserVisibilityControlWorks : null,
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
+            planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
@@ -3187,6 +3222,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     await seedAutomatedTranscriptStressSmokeSession(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings') {
     seedAutomatedSettingsSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'plan') {
+    seedAutomatedPlanSmokeSession(session.id)
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced'
@@ -3248,6 +3285,49 @@ function seedAutomatedSettingsSmokeSession(sessionId: string): void {
         }
       }
     }
+  })
+}
+
+function seedAutomatedPlanSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+  const now = Date.now()
+  const longGoal = [
+    'Goal: Keep the right sidebar calm and useful.',
+    'This hidden sentence should only appear after expanding the full objective.',
+    'Continue reducing clutter while preserving provider-neutral behavior and strong verification.'
+  ].join(' ')
+  const messages: ChatMessage[] = [
+    {
+      id: 'plan-smoke-goal',
+      role: 'system',
+      type: 'result',
+      content: `${longGoal} (active) · 12,345 tokens · 3m`,
+      subtype: 'status',
+      timestamp: now
+    },
+    {
+      id: 'plan-smoke-todos',
+      role: 'assistant',
+      type: 'tool_use',
+      toolName: 'TodoWrite',
+      toolInput: {
+        todos: [
+          { id: '1', content: 'Inspect Codex sidebar behavior', status: 'completed' },
+          { id: '2', content: 'Reduce Plan panel verbosity', status: 'in_progress' },
+          { id: '3', content: 'Verify non-foreground smoke coverage', status: 'pending' }
+        ]
+      },
+      timestamp: now + 1
+    }
+  ]
+  sessionManager.save({
+    ...session,
+    name: 'Plan panel smoke',
+    messages: [
+      ...session.messages.filter((message) => !message.id.startsWith('plan-smoke-')),
+      ...messages
+    ]
   })
 }
 
