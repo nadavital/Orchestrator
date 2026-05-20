@@ -43,6 +43,7 @@ export interface BrowserWorkbenchState {
   blockedDownloadOrigins: string[]
   allowedUploadOrigins: string[]
   blockedUploadOrigins: string[]
+  hiddenLocalTargets: string[]
 }
 
 export type BrowserDeviceMode =
@@ -236,7 +237,8 @@ export const defaultUI: SessionUIState = {
     allowedDownloadOrigins: [],
     blockedDownloadOrigins: [],
     allowedUploadOrigins: [],
-    blockedUploadOrigins: []
+    blockedUploadOrigins: [],
+    hiddenLocalTargets: []
   },
   terminalPanel: {
     height: 260,

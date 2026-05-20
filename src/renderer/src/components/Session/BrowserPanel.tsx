@@ -166,6 +166,7 @@ export default function BrowserPanel({
   const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
   const [pageContextMenu, setPageContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [localTargetSort, setLocalTargetSort] = useState<'recent' | 'port'>('recent')
+  const [localTargetView, setLocalTargetView] = useState<'online' | 'hidden'>('online')
   const activeTab = activeBrowserTab(workbench)
   const visible = workbench.visible
   const viewport = browserViewport(workbench)
@@ -174,10 +175,20 @@ export default function BrowserPanel({
   const devicePreviewActive = workbench.deviceMode !== 'desktop'
   const showStatusRow = isLoading || blocked || devicePreviewActive
   const sortedLocalTargets = sortLocalTargets(localTargets, localTargetSort)
+  const hiddenLocalTargetUrls = new Set(workbench.hiddenLocalTargets)
+  const visibleLocalTargets = sortedLocalTargets.filter((target) => !hiddenLocalTargetUrls.has(target.url))
+  const hiddenLocalTargets = sortedLocalTargets.filter((target) => hiddenLocalTargetUrls.has(target.url))
+  const shownLocalTargets = localTargetView === 'hidden' ? hiddenLocalTargets : visibleLocalTargets
   const addressBadge = browserAddressBadge(currentUrl || address)
   useEffect(() => {
     workbenchRef.current = workbench
   }, [workbench])
+
+  useEffect(() => {
+    if (localTargetView === 'hidden' && hiddenLocalTargets.length === 0) {
+      setLocalTargetView('online')
+    }
+  }, [hiddenLocalTargets.length, localTargetView])
 
   const refreshLocalTargets = async (): Promise<void> => {
     setLocalTargetsLoading(true)
@@ -309,7 +320,16 @@ export default function BrowserPanel({
   }, [activeTab.id, onUrlChange, workbench.findQuery, workbench.zoomFactor])
 
   const patchWorkbench = (patch: Partial<BrowserWorkbenchState>): void => {
+    workbenchRef.current = { ...workbenchRef.current, ...patch }
     onBrowserStateChange?.(patch)
+  }
+
+  const hideLocalTarget = (url: string): void => {
+    patchWorkbench({ hiddenLocalTargets: Array.from(new Set([...workbenchRef.current.hiddenLocalTargets, url])) })
+  }
+
+  const unhideLocalTarget = (url: string): void => {
+    patchWorkbench({ hiddenLocalTargets: workbenchRef.current.hiddenLocalTargets.filter((targetUrl) => targetUrl !== url) })
   }
 
   const patchActiveTab = (patch: Partial<BrowserTabState>): void => {
@@ -1113,6 +1133,16 @@ export default function BrowserPanel({
                 <div className="browser-local-targets-header">
                   <span>{localTargetsLoading ? 'Checking local servers' : 'Local servers'}</span>
                   <div className="browser-local-targets-actions">
+                    {hiddenLocalTargets.length > 0 && (
+                      <button
+                        type="button"
+                        data-testid="browser-local-target-view"
+                        data-local-target-view={localTargetView}
+                        onClick={() => setLocalTargetView((view) => view === 'online' ? 'hidden' : 'online')}
+                      >
+                        {localTargetView === 'online' ? `Hidden ${hiddenLocalTargets.length}` : 'Online'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       data-testid="browser-local-target-sort"
@@ -1125,28 +1155,49 @@ export default function BrowserPanel({
                   </div>
                 </div>
                 <div className="browser-local-targets-list" aria-live="polite">
-                  {sortedLocalTargets.length > 0 ? sortedLocalTargets.map((target) => (
-                    <button
+                  {shownLocalTargets.length > 0 ? shownLocalTargets.map((target) => (
+                    <div
                       key={target.url}
-                      type="button"
-                      data-testid="browser-local-target"
+                      className="browser-local-target-row"
+                      data-testid={localTargetView === 'hidden' ? 'browser-local-target-hidden' : 'browser-local-target'}
+                      data-local-target-url={target.url}
                       data-local-target-source={target.source}
-                      data-local-target-status="running"
-                      onClick={() => navigate(target.url)}
+                      data-local-target-status={localTargetView === 'hidden' ? 'hidden' : 'running'}
                     >
-                      <Icon name="browser" size={13} />
-                      <span className="min-w-0 flex-1 truncate">{target.title || shortUrl(target.url)}</span>
-                      <span
-                        className="browser-local-target-meta"
-                        aria-label={`${target.source === 'recent' ? 'Recent' : 'Port'} local server ${shortUrl(target.url)}`}
+                      <button
+                        className="browser-local-target-main"
+                        type="button"
+                        onClick={() => navigate(target.url)}
                       >
-                        <span className="browser-local-target-status-dot" aria-hidden="true" />
-                        <span>{shortUrl(target.url)}</span>
-                      </span>
-                    </button>
+                        <Icon name="browser" size={13} />
+                        <span className="min-w-0 flex-1 truncate">{target.title || shortUrl(target.url)}</span>
+                        <span
+                          className="browser-local-target-meta"
+                          aria-label={`${target.source === 'recent' ? 'Recent' : 'Port'} local server ${shortUrl(target.url)}`}
+                        >
+                          <span className="browser-local-target-status-dot" aria-hidden="true" />
+                          <span>{shortUrl(target.url)}</span>
+                        </span>
+                      </button>
+                      <button
+                        className="browser-local-target-action"
+                        type="button"
+                        data-testid={localTargetView === 'hidden' ? 'browser-local-target-unhide' : 'browser-local-target-hide'}
+                        aria-label={localTargetView === 'hidden' ? `Unhide ${shortUrl(target.url)}` : `Hide ${shortUrl(target.url)}`}
+                        onClick={() => {
+                          if (localTargetView === 'hidden') {
+                            unhideLocalTarget(target.url)
+                          } else {
+                            hideLocalTarget(target.url)
+                          }
+                        }}
+                      >
+                        <Icon name={localTargetView === 'hidden' ? 'plus' : 'close'} size={11} />
+                      </button>
+                    </div>
                   )) : (
                     <div className="browser-local-targets-empty" data-testid="browser-local-targets-empty">
-                      {localTargetsLoading ? 'Looking for servers...' : 'No local servers'}
+                      {localTargetsLoading ? 'Looking for servers...' : localTargetView === 'hidden' ? 'No hidden servers' : 'No local servers'}
                     </div>
                   )}
                 </div>
@@ -1829,7 +1880,8 @@ function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl
     allowedDownloadOrigins: state?.allowedDownloadOrigins ?? [],
     blockedDownloadOrigins: state?.blockedDownloadOrigins ?? [],
     allowedUploadOrigins: state?.allowedUploadOrigins ?? [],
-    blockedUploadOrigins: state?.blockedUploadOrigins ?? []
+    blockedUploadOrigins: state?.blockedUploadOrigins ?? [],
+    hiddenLocalTargets: state?.hiddenLocalTargets ?? []
   }
 }
 

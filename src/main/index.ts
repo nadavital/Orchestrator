@@ -2714,6 +2714,51 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserLocalTargets.every((target) => target instanceof HTMLElement && target.getBoundingClientRect().height <= 30) &&
               browserLocalTargets.every((target) => !target.textContent?.includes('Running')) &&
               browserLocalTargets.every((target) => target instanceof HTMLElement && target.scrollWidth <= target.clientWidth + 2);
+            var browserLocalTargetHideWorks = false;
+            const firstLocalTarget = browserLocalTargets.find((target) =>
+              target instanceof HTMLElement && target.textContent?.includes('127.0.0.1')
+            ) ?? browserLocalTargets[0];
+            if (firstLocalTarget instanceof HTMLElement) {
+              const hiddenUrl = firstLocalTarget.dataset.localTargetUrl;
+              const hideButton = firstLocalTarget.querySelector('[data-testid="browser-local-target-hide"]');
+              if (hiddenUrl && hideButton instanceof HTMLButtonElement) {
+                hideButton.click();
+                for (let index = 0; index < 10; index += 1) {
+                  const hiddenToggle = document.querySelector('[data-testid="browser-local-target-view"]');
+                  const stillVisible = [...document.querySelectorAll('[data-testid="browser-local-target"]')]
+                    .some((target) => target instanceof HTMLElement && target.dataset.localTargetUrl === hiddenUrl);
+                  if (hiddenToggle instanceof HTMLButtonElement && !stillVisible) break;
+                  await sleep(80);
+                }
+                const hiddenToggle = document.querySelector('[data-testid="browser-local-target-view"]');
+                const onlineTargetsAfterHide = [...document.querySelectorAll('[data-testid="browser-local-target"]')];
+                if (hiddenToggle instanceof HTMLButtonElement) {
+                  hiddenToggle.click();
+                  for (let index = 0; index < 10; index += 1) {
+                    if (document.querySelector('[data-testid="browser-local-target-hidden"]') instanceof HTMLElement) break;
+                    await sleep(80);
+                  }
+                  const hiddenTargets = [...document.querySelectorAll('[data-testid="browser-local-target-hidden"]')];
+                  const unhideButton = hiddenTargets
+                    .find((target) => target instanceof HTMLElement && target.dataset.localTargetUrl === hiddenUrl)
+                    ?.querySelector('[data-testid="browser-local-target-unhide"]');
+                  if (unhideButton instanceof HTMLButtonElement) {
+                    unhideButton.click();
+                    for (let index = 0; index < 10; index += 1) {
+                      const restored = [...document.querySelectorAll('[data-testid="browser-local-target"]')]
+                        .some((target) => target instanceof HTMLElement && target.dataset.localTargetUrl === hiddenUrl);
+                      if (restored) break;
+                      await sleep(80);
+                    }
+                  }
+                  const restoredTargets = [...document.querySelectorAll('[data-testid="browser-local-target"]')];
+                  browserLocalTargetHideWorks =
+                    onlineTargetsAfterHide.every((target) => !(target instanceof HTMLElement) || target.dataset.localTargetUrl !== hiddenUrl) &&
+                    hiddenTargets.some((target) => target instanceof HTMLElement && target.dataset.localTargetUrl === hiddenUrl && target.dataset.localTargetStatus === 'hidden') &&
+                    restoredTargets.some((target) => target instanceof HTMLElement && target.dataset.localTargetUrl === hiddenUrl && target.dataset.localTargetStatus === 'running');
+                }
+              }
+            }
             const browserInput = document.querySelector('[data-testid="browser-url-input"]');
             var browserAddressSearchWorks = false;
             if (browserInput instanceof HTMLInputElement) {
@@ -3402,6 +3447,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 rightPanel.dataset.rightPanelActiveTab === 'browser',
               browserEmptyStateWorks,
               browserLocalTargetsWorks,
+              browserLocalTargetHideWorks,
               browserAddressSearchWorks,
               browserAddressBadgeWorks,
               browserToolbarExternalWorks,
