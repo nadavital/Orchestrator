@@ -181,6 +181,7 @@ interface IconButtonProps {
   style?: CSSProperties
   tooltip?: boolean
   dataTestId?: string
+  ariaExpanded?: boolean
 }
 
 export function IconButton({
@@ -195,6 +196,7 @@ export function IconButton({
   style,
   tooltip = true,
   dataTestId,
+  ariaExpanded,
 }: IconButtonProps): JSX.Element {
   const button = (
     <button
@@ -202,6 +204,7 @@ export function IconButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
+      aria-expanded={ariaExpanded}
       data-tooltip-label={label}
       data-icon={icon}
       data-native-title-free="true"

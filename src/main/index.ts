@@ -649,6 +649,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               !taskListText.includes('Completed') &&
               !taskListText.includes('In progress') &&
               !taskListText.includes('Pending');
+            const planGoalToggleCompactWorks =
+              goalToggle instanceof HTMLButtonElement &&
+              goalToggle.dataset.icon === 'chevronRight' &&
+              goalToggle.getAttribute('aria-label') === 'Show full objective' &&
+              !compactPanelText.includes('Details') &&
+              !compactPanelText.includes('Hide');
             if (goalToggle instanceof HTMLButtonElement) {
               goalToggle.click();
               await sleep(120);
@@ -656,6 +662,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var planPanelWorks =
               compactGoalWorks &&
               compactTaskRowsWork &&
+              planGoalToggleCompactWorks &&
               document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'plan' &&
               document.body.innerText.includes('Reduce Plan panel verbosity') &&
               document.body.innerText.includes(hiddenSentence) &&

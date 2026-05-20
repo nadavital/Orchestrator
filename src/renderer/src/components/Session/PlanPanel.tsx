@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { useSessionStore } from '../../store/sessions'
 import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
 import type { PlanItemStatus, PlanState, RunEvent, Session, SessionRunEventRecord } from '../../types'
-import { Badge, MetricPill, PanelHeader } from '../shared/designSystem'
+import { Badge, IconButton, MetricPill, PanelHeader } from '../shared/designSystem'
 
 interface Props {
   session: Session
@@ -85,21 +85,15 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
               Goal
             </div>
             {canExpand && (
-              <button
-                type="button"
-                className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                data-testid="plan-goal-toggle"
-                aria-expanded={expanded}
-                aria-label={expanded ? 'Hide full objective' : 'Show full objective'}
-                style={{
-                  color: 'var(--text-secondary)',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'var(--control-bg)'
-                }}
+              <IconButton
+                icon={expanded ? 'chevronDown' : 'chevronRight'}
+                label={expanded ? 'Hide full objective' : 'Show full objective'}
+                size="sm"
+                active={expanded}
+                dataTestId="plan-goal-toggle"
+                ariaExpanded={expanded}
                 onClick={() => setExpanded((value) => !value)}
-              >
-                {expanded ? 'Hide' : 'Details'}
-              </button>
+              />
             )}
           </div>
           <h3
