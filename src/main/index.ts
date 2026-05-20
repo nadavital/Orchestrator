@@ -1339,6 +1339,47 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarInactiveLabels.every((label) => getComputedStyle(label).display === 'none') &&
             rightSidebarInactiveTabs.every((tab) => (tab.getAttribute('aria-label') ?? '').trim().length > 0) &&
             rightSidebarInactiveTabs.every((tab) => tab.getBoundingClientRect().width <= 30);
+          let rightSidebarInactiveTabTooltipWorks = false;
+          const inactiveBrowserTab = rightSidebarInactiveTabs.find((tab) => tab.getAttribute('aria-label') === 'Browser') ?? rightSidebarInactiveTabs[0];
+          if (inactiveBrowserTab instanceof HTMLElement) {
+            const expectedTooltip = inactiveBrowserTab.getAttribute('aria-label') ?? '';
+            const inactiveTabRect = inactiveBrowserTab.getBoundingClientRect();
+            inactiveBrowserTab.dispatchEvent(new MouseEvent('mouseover', {
+              bubbles: true,
+              clientX: inactiveTabRect.left + inactiveTabRect.width / 2,
+              clientY: inactiveTabRect.top + inactiveTabRect.height / 2
+            }));
+            inactiveBrowserTab.focus({ preventScroll: true });
+            await sleep(180);
+            const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
+            const visibleTooltip = visibleTooltips
+              .find((tooltip) => tooltip.textContent?.trim() === expectedTooltip);
+            const tooltipColorAlpha = (color) => {
+              const match = color.match(/rgba?\\(([^)]+)\\)/);
+              if (!match) return 1;
+              const parts = match[1].split(',').map((part) => part.trim());
+              return parts.length >= 4 ? Number.parseFloat(parts[3]) : 1;
+            };
+            const tooltipRect = visibleTooltip instanceof HTMLElement ? visibleTooltip.getBoundingClientRect() : null;
+            const tooltipStyle = visibleTooltip instanceof HTMLElement ? getComputedStyle(visibleTooltip) : null;
+            const tooltipReadable =
+              tooltipRect !== null &&
+              tooltipStyle !== null &&
+              tooltipRect.width >= 20 &&
+              tooltipRect.height >= 10 &&
+              tooltipColorAlpha(tooltipStyle.backgroundColor) >= 0.98 &&
+              tooltipColorAlpha(tooltipStyle.color) >= 0.98 &&
+              Number.parseFloat(tooltipStyle.opacity || '1') >= 0.95 &&
+              tooltipStyle.visibility !== 'hidden';
+            rightSidebarInactiveTabTooltipWorks =
+              expectedTooltip.length > 0 &&
+              visibleTooltips.length === 1 &&
+              visibleTooltip instanceof HTMLElement &&
+              tooltipReadable;
+            inactiveBrowserTab.blur();
+            inactiveBrowserTab.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+            await sleep(80);
+          }
           const diffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
           const diffToolbarSearch = document.querySelector('[data-testid="diff-file-search"]');
           const diffToolbarActions = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-panel-actions');
@@ -1410,6 +1451,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
             rightSidebarChromeCompactWorks,
             rightSidebarInactiveTabsCompactWorks,
+            rightSidebarInactiveTabTooltipWorks,
             diffToolbarCompactWorks,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,

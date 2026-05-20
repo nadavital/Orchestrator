@@ -393,6 +393,7 @@ child.on('exit', (code) => {
         rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,
         rightSidebarChromeCompact: captureView !== 'inspector' || result.rightSidebarChromeCompactWorks === true,
         rightSidebarInactiveTabsCompact: captureView !== 'inspector' || result.rightSidebarInactiveTabsCompactWorks === true,
+        rightSidebarInactiveTabTooltip: captureView !== 'inspector' || result.rightSidebarInactiveTabTooltipWorks === true,
         diffToolbarCompact: captureView !== 'inspector' || result.diffToolbarCompactWorks === true,
         rightPanelExpand: captureView !== 'inspector' || result.rightPanelExpandWorks === true,
         reviewSearch: captureView !== 'inspector' || result.reviewSearchWorks === true,

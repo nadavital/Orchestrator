@@ -261,6 +261,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
               }}
               closeLabel={`Close ${tab.label}`}
               ariaLabel={tab.label}
+              tooltipLabel={tab.label}
             >
               <span className="inline-flex min-w-0 items-center gap-1.5" data-tab-id={tab.id}>
                 <Icon name={tab.icon} size={13} />

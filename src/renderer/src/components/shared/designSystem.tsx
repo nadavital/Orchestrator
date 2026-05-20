@@ -406,6 +406,7 @@ export function TabButton({
   onContextMenu,
   closeLabel,
   ariaLabel,
+  tooltipLabel,
 }: {
   children: ReactNode
   active: boolean
@@ -414,8 +415,9 @@ export function TabButton({
   onContextMenu?: (event: React.MouseEvent) => void
   closeLabel?: string
   ariaLabel?: string
+  tooltipLabel?: string
 }): JSX.Element {
-  return (
+  const tab = (
     <div
       role="tab"
       tabIndex={0}
@@ -449,6 +451,8 @@ export function TabButton({
       )}
     </div>
   )
+
+  return tooltipLabel ? <Tooltip label={tooltipLabel}>{tab}</Tooltip> : tab
 }
 
 export function SegmentedControl<T extends string>({
