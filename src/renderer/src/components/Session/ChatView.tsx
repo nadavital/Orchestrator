@@ -1446,7 +1446,7 @@ function FileReferenceList({ files, cwd, searchRoots, preferredEditor }: { files
   return (
     <div className="mt-3 min-w-0 max-w-full space-y-1.5" aria-label="Referenced files" data-testid="file-reference-list">
       {files.map((file) => (
-        <FileReferenceCard key={file.path} file={file} cwd={cwd} searchRoots={searchRoots} preferredEditor={preferredEditor} />
+        <FileReferenceCard key={`${file.path}:${file.line ?? ''}:${file.column ?? ''}`} file={file} cwd={cwd} searchRoots={searchRoots} preferredEditor={preferredEditor} />
       ))}
     </div>
   )
@@ -1458,6 +1458,7 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
   const [error, setError] = useState<string | null>(null)
   const displayPath = resolvedPath ?? file.path
   const displayLabel = resolvedPath ? fileName(resolvedPath) : file.label
+  const targetLabel = file.line ? `:${file.line}${file.column ? `:${file.column}` : ''}` : ''
 
   useEffect(() => {
     let cancelled = false
@@ -1502,7 +1503,7 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
 
   const openPath = async (): Promise<void> => {
     setError(null)
-    const result = await window.api.fs.openPath(displayPath)
+    const result = await window.api.fs.openPath(displayPath, { line: file.line, column: file.column })
     if (result) setError(result)
   }
 
@@ -1528,7 +1529,7 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
           <path d="M2 1.75C2 .784 2.784 0 3.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 12.25 16h-8.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V5h-2.75A1.75 1.75 0 0 1 8 3.25V1.5Zm5.75.06v1.69c0 .138.112.25.25.25h1.69Z" />
         </svg>
         <div className="min-w-0 flex-1">
-          <div className="font-medium truncate">{displayLabel}</div>
+          <div className="font-medium truncate">{displayLabel}{targetLabel}</div>
           <div className="truncate" style={{ color: 'var(--color-text-muted)', fontSize: 10 }} title={displayPath}>
             {displayPath}
           </div>

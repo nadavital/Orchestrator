@@ -26,6 +26,10 @@ import { providerManifests } from './providerManifest'
 import { setBrowserSecurityPolicy } from './browserSecurityPolicy'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+interface OpenPathOptions {
+  line?: number
+  column?: number
+}
 type FilePreviewResult =
   | { kind: 'text'; size: number; text: string; truncated: boolean }
   | { kind: 'markdown'; size: number; text: string; truncated: boolean }
@@ -95,10 +99,10 @@ const MIME_EXTENSIONS: Record<string, string> = {
   'text/plain': '.txt'
 }
 
-const EDITOR_APPS: Record<Exclude<PreferredEditor, 'system'>, { label: string; macAppName: string }> = {
-  vscode: { label: 'VS Code', macAppName: 'Visual Studio Code' },
-  'vscode-insiders': { label: 'VS Code Insiders', macAppName: 'Visual Studio Code - Insiders' },
-  cursor: { label: 'Cursor', macAppName: 'Cursor' },
+const EDITOR_APPS: Record<Exclude<PreferredEditor, 'system'>, { label: string; macAppName: string; urlScheme?: string }> = {
+  vscode: { label: 'VS Code', macAppName: 'Visual Studio Code', urlScheme: 'vscode' },
+  'vscode-insiders': { label: 'VS Code Insiders', macAppName: 'Visual Studio Code - Insiders', urlScheme: 'vscode-insiders' },
+  cursor: { label: 'Cursor', macAppName: 'Cursor', urlScheme: 'cursor' },
   zed: { label: 'Zed', macAppName: 'Zed' }
 }
 
@@ -462,12 +466,21 @@ function looksBinary(buffer: Buffer): boolean {
   return suspicious / sampleLength > 0.08
 }
 
-async function openPathWithPreferredEditor(filePath: string): Promise<string> {
+async function openPathWithPreferredEditor(filePath: string, options: OpenPathOptions = {}): Promise<string> {
   const editor = normalizePreferredEditor(settingsStore.get('preferredEditor', 'system'))
   if (editor === 'system') return shell.openPath(filePath)
 
   const appInfo = EDITOR_APPS[editor]
   if (process.platform !== 'darwin') return shell.openPath(filePath)
+  const lineUrl = editorFileUrl(appInfo.urlScheme, filePath, options)
+  if (lineUrl) {
+    try {
+      await shell.openExternal(lineUrl)
+      return ''
+    } catch {
+      // Fall through to opening the file in the selected app.
+    }
+  }
 
   return new Promise((resolve) => {
     execFile('/usr/bin/open', ['-a', appInfo.macAppName, filePath], (error, _stdout, stderr) => {
@@ -479,6 +492,12 @@ async function openPathWithPreferredEditor(filePath: string): Promise<string> {
       resolve(`Unable to open in ${appInfo.label}${details ? `: ${details}` : '.'}`)
     })
   })
+}
+
+function editorFileUrl(scheme: string | undefined, filePath: string, options: OpenPathOptions): string | null {
+  if (!scheme || !options.line || !Number.isSafeInteger(options.line)) return null
+  const column = options.column && Number.isSafeInteger(options.column) ? options.column : 1
+  return `${scheme}://file${encodeURI(filePath)}:${options.line}:${column}`
 }
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
@@ -683,7 +702,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('fs:resolveWorkspaceFileReference', (_, cwd: string, filePath: string): string | null =>
     resolveWorkspaceFileReference(cwd, filePath)
   )
-  ipcMain.handle('fs:openPath', (_, filePath: string): Promise<string> => openPathWithPreferredEditor(filePath))
+  ipcMain.handle('fs:openPath', (_, filePath: string, options?: OpenPathOptions): Promise<string> =>
+    openPathWithPreferredEditor(filePath, options ?? {})
+  )
   ipcMain.handle('fs:showInFolder', (_, filePath: string): void => shell.showItemInFolder(filePath))
 
   // User shell terminal (separate from provider subprocesses)

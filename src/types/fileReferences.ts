@@ -2,11 +2,13 @@ export interface FileReference {
   path: string
   label: string
   source: 'absolute' | 'relative'
+  line?: number
+  column?: number
 }
 
 const ABSOLUTE_PATH_PATTERN = /(^|[\s([{"'`])((?:\/Users|\/Volumes|\/private|\/tmp|\/var|\/opt|\/usr|\/etc|\/home)\/[^`"'\s)\]}<>]+)/g
 const INLINE_CODE_PATTERN = /`([^`\n]+)`/g
-const QUOTED_PATH_PATTERN = /["']([^"'\n]*?(?:\/|~\/)[^"'\n]*?\.[A-Za-z0-9]{1,12})["']/g
+const QUOTED_PATH_PATTERN = /["']([^"'\n]*?(?:\/|~\/)[^"'\n]*?\.[A-Za-z0-9]{1,12}(?::\d+(?::\d+)?)?)["']/g
 const TILDE_PATH_PATTERN = /(^|[\s([{"'`])(~\/[^`"'\s)\]}<>]+)/g
 
 export function extractFileReferences(content: string, cwd?: string): FileReference[] {
@@ -22,12 +24,12 @@ export function extractFileReferences(content: string, cwd?: string): FileRefere
   }
 
   for (const match of searchable.matchAll(TILDE_PATH_PATTERN)) {
-    addReference(refs, cleanPath(match[2]), 'absolute')
+    addReference(refs, match[2], 'absolute')
   }
 
   for (const match of searchable.matchAll(ABSOLUTE_PATH_PATTERN)) {
     if (isProbablyTruncatedBySpace(searchable, match)) continue
-    addReference(refs, cleanPath(match[2]), 'absolute')
+    addReference(refs, match[2], 'absolute')
   }
 
   if (cwd) {
@@ -68,12 +70,16 @@ export function extractWorkspaceRootsFromText(content: string, cwd?: string): st
 }
 
 function addReference(refs: Map<string, FileReference>, rawPath: string, source: FileReference['source']): void {
-  const path = cleanPath(rawPath)
-  if (!path || path.includes('://') || refs.has(path)) return
-  refs.set(path, {
+  const target = parsePathTarget(rawPath)
+  const path = target.path
+  const key = `${path}:${target.line ?? ''}:${target.column ?? ''}`
+  if (!path || path.includes('://') || refs.has(key)) return
+  refs.set(key, {
     path,
     label: path.split('/').filter(Boolean).at(-1) ?? path,
-    source
+    source,
+    line: target.line,
+    column: target.column
   })
 }
 
@@ -83,28 +89,43 @@ function addPathReference(
   cwd: string | undefined,
   allowSpaces: boolean
 ): void {
-  const path = cleanPath(rawPath)
+  const path = parsePathTarget(rawPath).path
   if (!path) return
   if (path.startsWith('/')) {
     if (path.startsWith('//')) return
-    addReference(refs, path, 'absolute')
+    addReference(refs, rawPath, 'absolute')
     return
   }
   if (path.startsWith('~/')) {
-    addReference(refs, path, 'absolute')
+    addReference(refs, rawPath, 'absolute')
     return
   }
   if (!cwd || !looksLikeRelativeFile(path, allowSpaces)) return
-  addReference(refs, resolveRelativePath(cwd, path), 'relative')
+  const target = parsePathTarget(rawPath)
+  addReference(refs, `${resolveRelativePath(cwd, target.path)}${target.line ? `:${target.line}${target.column ? `:${target.column}` : ''}` : ''}`, 'relative')
 }
 
 function cleanPath(value: string): string {
+  return parsePathTarget(value).path
+}
+
+function parsePathTarget(value: string): { path: string; line?: number; column?: number } {
   let path = value.trim()
   path = path.replace(/^["'`({[]+/, '')
   path = path.replace(/["'`)}\]]+$/, '')
+  path = path.replace(/[.,;!?]+$/, '')
+  const target = path.match(/:(\d+)(?::(\d+))?$/)
+  const line = target?.[1] ? Number(target[1]) : undefined
+  const column = target?.[2] ? Number(target[2]) : undefined
+  if (target && line && Number.isSafeInteger(line)) {
+    path = path.slice(0, target.index)
+  }
   path = path.replace(/[.,;:!?]+$/, '')
-  path = path.replace(/:(\d+)(?::\d+)?$/, '')
-  return path
+  return {
+    path,
+    line: line && Number.isSafeInteger(line) ? line : undefined,
+    column: column && Number.isSafeInteger(column) ? column : undefined
+  }
 }
 
 function looksLikeRelativeFile(value: string, allowSpaces = false): boolean {
@@ -125,8 +146,10 @@ function wholeLinePathCandidates(content: string): string[] {
     .split(/\r?\n/)
     .map((line) => {
       const stripped = line.replace(/^\s*(?:[-*]\s+|\d+\.\s+|>\s*)/, '')
+      const path = cleanPath(stripped)
       return {
-        path: cleanPath(stripped),
+        raw: stripped.trim(),
+        path,
         wasQuoted: /^["']/.test(stripped.trim())
       }
     })
@@ -135,7 +158,7 @@ function wholeLinePathCandidates(content: string): string[] {
       if (line.startsWith('/') || line.startsWith('~/')) return /[A-Za-z0-9_-]\.[A-Za-z0-9]{1,12}$/.test(line)
       return looksLikeRelativeFile(line, wasQuoted)
     })
-    .map(({ path }) => path)
+    .map(({ raw }) => raw)
 }
 
 function isProbablyTruncatedBySpace(content: string, match: RegExpMatchArray): boolean {

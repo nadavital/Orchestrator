@@ -158,6 +158,24 @@ test('file references preserve quoted paths, paths with spaces, and home referen
   assert.equal(refs.some((ref) => ref.path === '/private/tmp/orchestrator-agent-ui-smoke/p2'), false)
 })
 
+test('file references preserve line and column targets separately from paths', () => {
+  const content = [
+    '`src/main/index.ts:42:7`',
+    '"/Users/navital/Desktop/Orchestrator/src/main/ipc.ts:108"',
+    '~/Desktop/Orchestrator/src/types/index.ts:12'
+  ].join('\n')
+  const refs = extractFileReferences(content, '/Users/navital/Desktop/Orchestrator')
+
+  assert.deepEqual(
+    refs.map((ref) => ({ path: ref.path, line: ref.line, column: ref.column })),
+    [
+      { path: '/Users/navital/Desktop/Orchestrator/src/main/index.ts', line: 42, column: 7 },
+      { path: '/Users/navital/Desktop/Orchestrator/src/main/ipc.ts', line: 108, column: undefined },
+      { path: '~/Desktop/Orchestrator/src/types/index.ts', line: 12, column: undefined }
+    ]
+  )
+})
+
 test('file references ignore inline comments and decimal literals in review prose', () => {
   const content = [
     'The code is in good shape. A few things to flag:',

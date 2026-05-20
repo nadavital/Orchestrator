@@ -264,7 +264,8 @@ const api = {
       ipcRenderer.invoke('fs:statPath', filePath),
     resolveWorkspaceFileReference: (cwd: string, filePath: string): Promise<string | null> =>
       ipcRenderer.invoke('fs:resolveWorkspaceFileReference', cwd, filePath),
-    openPath: (filePath: string): Promise<string> => ipcRenderer.invoke('fs:openPath', filePath),
+    openPath: (filePath: string, options?: { line?: number; column?: number }): Promise<string> =>
+      ipcRenderer.invoke('fs:openPath', filePath, options),
     showInFolder: (filePath: string): Promise<void> => ipcRenderer.invoke('fs:showInFolder', filePath)
   },
 

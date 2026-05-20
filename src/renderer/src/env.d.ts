@@ -231,7 +231,7 @@ declare global {
         listDir: (dirPath: string) => Promise<string[] | null>
         statPath: (filePath: string) => Promise<{ exists: boolean; isFile?: boolean; isDirectory?: boolean; size?: number }>
         resolveWorkspaceFileReference: (cwd: string, filePath: string) => Promise<string | null>
-        openPath: (filePath: string) => Promise<string>
+        openPath: (filePath: string, options?: { line?: number; column?: number }) => Promise<string>
         showInFolder: (filePath: string) => Promise<void>
       }
       terminal: {
