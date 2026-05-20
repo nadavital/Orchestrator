@@ -6,6 +6,7 @@ import type { FileChange } from '../../types'
 import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
 import Icon from '../shared/Icon'
+import StructuredDataPreview from './StructuredDataPreview'
 
 interface Props {
   sessionId: string
@@ -266,6 +267,8 @@ function ReviewPreview({
     preview?.kind === 'pdf' ||
     preview?.kind === 'html' ||
     preview?.kind === 'markdown' ||
+    preview?.kind === 'json' ||
+    preview?.kind === 'csv' ||
     preview?.kind === 'audio' ||
     preview?.kind === 'video'
   if ((isBinaryDiff(diff) && !hasNativePreview) || preview?.kind === 'binary') {
@@ -325,6 +328,26 @@ function ReviewPreview({
           </div>
         </div>
       </div>
+    )
+  }
+  if (preview?.kind === 'json') {
+    return (
+      <StructuredDataPreview
+        name={change.path}
+        preview={preview}
+        statusLabel={fileStatusLabel(change.status)}
+        testId="review-json-state"
+      />
+    )
+  }
+  if (preview?.kind === 'csv') {
+    return (
+      <StructuredDataPreview
+        name={change.path}
+        preview={preview}
+        statusLabel={fileStatusLabel(change.status)}
+        testId="review-csv-state"
+      />
     )
   }
   if (preview?.kind === 'audio') {

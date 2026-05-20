@@ -27,6 +27,8 @@ type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed
 type FilePreviewResult =
   | { kind: 'text'; size: number; text: string; truncated: boolean }
   | { kind: 'markdown'; size: number; text: string; truncated: boolean }
+  | { kind: 'json'; size: number; text: string; truncated: boolean }
+  | { kind: 'csv'; size: number; text: string; truncated: boolean }
   | { kind: 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
   | { kind: 'missing' | 'unreadable'; size?: number; truncated: false }
 
@@ -56,6 +58,8 @@ interface PastedAttachmentRequest {
 const FILE_PREVIEW_LIMIT = 80_000
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdx'])
+const JSON_EXTENSIONS = new Set(['.json', '.jsonl'])
+const CSV_EXTENSIONS = new Set(['.csv', '.tsv'])
 const HTML_EXTENSIONS = new Set(['.html', '.htm'])
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.aiff', '.m4a', '.aac', '.flac', '.ogg'])
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm'])
@@ -121,6 +125,22 @@ function previewFile(filePath: string): FilePreviewResult {
     }
     if (looksBinary(buffer)) return { kind: 'binary', size, truncated: false }
     const text = buffer.toString('utf8')
+    if (JSON_EXTENSIONS.has(extension)) {
+      return {
+        kind: 'json',
+        size,
+        text,
+        truncated: size > FILE_PREVIEW_LIMIT
+      }
+    }
+    if (CSV_EXTENSIONS.has(extension)) {
+      return {
+        kind: 'csv',
+        size,
+        text,
+        truncated: size > FILE_PREVIEW_LIMIT
+      }
+    }
     if (MARKDOWN_EXTENSIONS.has(extension)) {
       return {
         kind: 'markdown',

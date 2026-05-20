@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
 import Icon from '../shared/Icon'
+import StructuredDataPreview from './StructuredDataPreview'
 
 interface Props {
   workDir: string
@@ -273,6 +274,12 @@ function FilePreview({
   }
   if (preview.kind === 'markdown') {
     return <MarkdownPreview name={entry.name} preview={preview} testId="workspace-markdown-preview" />
+  }
+  if (preview.kind === 'json') {
+    return <StructuredDataPreview name={entry.name} preview={preview} testId="workspace-json-preview" />
+  }
+  if (preview.kind === 'csv') {
+    return <StructuredDataPreview name={entry.name} preview={preview} testId="workspace-csv-preview" />
   }
   if (preview.kind === 'audio') {
     return (

@@ -80,6 +80,8 @@ if (captureView === 'inspector' || captureView === 'browser') {
   writeFileSync(join(workspaceDir, 'review-delete.txt'), 'delete me\n')
   writeFileSync(join(workspaceDir, 'Nested Folder', 'nested note.md'), '# Nested file smoke preview\n\nThis verifies spaces in paths.\n')
   writeFileSync(join(workspaceDir, 'preview-page.html'), '<!doctype html><main><h1>HTML preview smoke</h1><p>Rendered in the file inspector.</p></main>\n')
+  writeFileSync(join(workspaceDir, 'data-preview-smoke.json'), JSON.stringify({ status: 'baseline', items: [{ name: 'alpha', count: 1 }] }, null, 2))
+  writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,1,baseline\n')
   writeFileSync(join(workspaceDir, 'binary-preview-smoke.bin'), Buffer.from([0, 1, 2, 3, 4, 5, 255]))
   spawnSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: workspaceDir, stdio: 'ignore' })
@@ -88,6 +90,8 @@ if (captureView === 'inspector' || captureView === 'browser') {
   spawnSync('git', ['commit', '-m', 'baseline'], { cwd: workspaceDir, stdio: 'ignore' })
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\nafter review\n')
   writeFileSync(join(workspaceDir, 'review-new.txt'), 'new review file\n')
+  writeFileSync(join(workspaceDir, 'data-preview-smoke.json'), JSON.stringify({ status: 'updated', items: [{ name: 'alpha', count: 2 }, { name: 'beta', count: 3 }] }, null, 2))
+  writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,2,updated\nbeta,3,new\n')
   writeFileSync(join(workspaceDir, 'binary-preview-smoke.bin'), Buffer.from([0, 1, 2, 3, 4, 5, 6, 255]))
   rmSync(join(workspaceDir, 'review-delete.txt'), { force: true })
   browserSmokeServer = createServer((request, response) => {
@@ -443,6 +447,8 @@ child.on('exit', (code) => {
         rightPanelExpand: captureView !== 'inspector' || result.rightPanelExpandWorks === true,
         reviewSearch: captureView !== 'inspector' || result.reviewSearchWorks === true,
         reviewSearchClear: captureView !== 'inspector' || result.reviewSearchClearWorks === true,
+        reviewJsonPreview: captureView !== 'inspector' || result.reviewJsonPreviewWorks === true,
+        reviewCsvPreview: captureView !== 'inspector' || result.reviewCsvPreviewWorks === true,
         reviewBinaryState: captureView !== 'inspector' || result.reviewBinaryStateWorks === true,
         reviewBinaryActions: captureView !== 'inspector' || result.reviewBinaryActionsWork === true,
         filesTabSearch: captureView !== 'inspector' || result.filesTabSearchWorks === true,
@@ -451,6 +457,8 @@ child.on('exit', (code) => {
         filesPanelStacked: captureView !== 'inspector' || result.filesPanelStackedWorks === true,
         filesTabAttach: captureView !== 'inspector' || result.filesTabAttachWorks === true,
         filesHtmlPreview: captureView !== 'inspector' || result.filesHtmlPreviewWorks === true,
+        filesJsonPreview: captureView !== 'inspector' || result.filesJsonPreviewWorks === true,
+        filesCsvPreview: captureView !== 'inspector' || result.filesCsvPreviewWorks === true,
         filesBinaryPreview: captureView !== 'inspector' || result.filesBinaryPreviewWorks === true,
         filesNoResults: captureView !== 'inspector' || result.filesNoResultsWorks === true,
         filesSearchClear: captureView !== 'inspector' || result.filesSearchClearWorks === true,

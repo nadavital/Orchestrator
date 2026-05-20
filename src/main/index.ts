@@ -851,6 +851,44 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.body.innerText.includes('No diff available') === false;
             if (diffSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
+              setter?.call(diffSearch, 'data-preview-smoke');
+              diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(160);
+            }
+            const jsonReviewButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('data-preview-smoke.json'));
+            if (jsonReviewButton instanceof HTMLButtonElement) {
+              jsonReviewButton.click();
+              await sleep(220);
+            }
+            const reviewJsonState = document.querySelector('[data-testid="review-json-state"]');
+            var reviewJsonPreviewWorks =
+              reviewJsonState instanceof HTMLElement &&
+              reviewJsonState.innerText.includes('JSON') &&
+              reviewJsonState.innerText.includes('updated') &&
+              reviewJsonState.querySelector('.file-preview-code') instanceof HTMLElement &&
+              !document.querySelector('[data-testid="review-source-preview"]');
+            if (diffSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
+              setter?.call(diffSearch, 'table-preview-smoke');
+              diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(160);
+            }
+            const csvReviewButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('table-preview-smoke.csv'));
+            if (csvReviewButton instanceof HTMLButtonElement) {
+              csvReviewButton.click();
+              await sleep(220);
+            }
+            const reviewCsvState = document.querySelector('[data-testid="review-csv-state"]');
+            var reviewCsvPreviewWorks =
+              reviewCsvState instanceof HTMLElement &&
+              reviewCsvState.innerText.includes('CSV') &&
+              reviewCsvState.innerText.includes('2 rows') &&
+              Boolean(reviewCsvState.querySelector('.file-preview-table')) &&
+              !document.querySelector('[data-testid="review-source-preview"]');
+            if (diffSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
               setter?.call(diffSearch, 'binary-preview-smoke');
               diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
               await sleep(160);
@@ -995,6 +1033,44 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             var filesHtmlPreviewWorks =
               Boolean(document.querySelector('[data-testid="workspace-html-preview"]')) &&
+              !document.querySelector('[data-testid="workspace-text-preview"]');
+            if (fileSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
+              setter?.call(fileSearch, 'data-preview-smoke');
+              fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(160);
+            }
+            const jsonFileButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('data-preview-smoke.json'));
+            if (jsonFileButton instanceof HTMLButtonElement) {
+              jsonFileButton.click();
+              await sleep(180);
+            }
+            const workspaceJsonPreview = document.querySelector('[data-testid="workspace-json-preview"]');
+            var filesJsonPreviewWorks =
+              workspaceJsonPreview instanceof HTMLElement &&
+              workspaceJsonPreview.innerText.includes('JSON') &&
+              workspaceJsonPreview.innerText.includes('updated') &&
+              Boolean(workspaceJsonPreview.querySelector('.file-preview-code')) &&
+              !document.querySelector('[data-testid="workspace-text-preview"]');
+            if (fileSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
+              setter?.call(fileSearch, 'table-preview-smoke');
+              fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(160);
+            }
+            const csvFileButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('table-preview-smoke.csv'));
+            if (csvFileButton instanceof HTMLButtonElement) {
+              csvFileButton.click();
+              await sleep(180);
+            }
+            const workspaceCsvPreview = document.querySelector('[data-testid="workspace-csv-preview"]');
+            var filesCsvPreviewWorks =
+              workspaceCsvPreview instanceof HTMLElement &&
+              workspaceCsvPreview.innerText.includes('CSV') &&
+              workspaceCsvPreview.innerText.includes('2 rows') &&
+              Boolean(workspaceCsvPreview.querySelector('.file-preview-table')) &&
               !document.querySelector('[data-testid="workspace-text-preview"]');
             if (fileSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
@@ -1952,6 +2028,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarAddControlStableWorks,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
             reviewSearchClearWorks: typeof reviewSearchClearWorks === 'boolean' ? reviewSearchClearWorks : null,
+            reviewJsonPreviewWorks: typeof reviewJsonPreviewWorks === 'boolean' ? reviewJsonPreviewWorks : null,
+            reviewCsvPreviewWorks: typeof reviewCsvPreviewWorks === 'boolean' ? reviewCsvPreviewWorks : null,
             reviewBinaryStateWorks: typeof reviewBinaryStateWorks === 'boolean' ? reviewBinaryStateWorks : null,
             reviewBinaryActionsWork: typeof reviewBinaryActionsWork === 'boolean' ? reviewBinaryActionsWork : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
@@ -1960,6 +2038,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             filesPanelStackedWorks: typeof filesPanelStackedWorks === 'boolean' ? filesPanelStackedWorks : null,
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
             filesHtmlPreviewWorks: typeof filesHtmlPreviewWorks === 'boolean' ? filesHtmlPreviewWorks : null,
+            filesJsonPreviewWorks: typeof filesJsonPreviewWorks === 'boolean' ? filesJsonPreviewWorks : null,
+            filesCsvPreviewWorks: typeof filesCsvPreviewWorks === 'boolean' ? filesCsvPreviewWorks : null,
             filesBinaryPreviewWorks: typeof filesBinaryPreviewWorks === 'boolean' ? filesBinaryPreviewWorks : null,
             filesNoResultsWorks: typeof filesNoResultsWorks === 'boolean' ? filesNoResultsWorks : null,
             filesSearchClearWorks: typeof filesSearchClearWorks === 'boolean' ? filesSearchClearWorks : null,

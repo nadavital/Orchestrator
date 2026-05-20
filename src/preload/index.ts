@@ -48,7 +48,7 @@ interface ChromeTheme {
 }
 
 interface FilePreviewResult {
-  kind: 'text' | 'markdown' | 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary' | 'missing' | 'unreadable'
+  kind: 'text' | 'markdown' | 'json' | 'csv' | 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary' | 'missing' | 'unreadable'
   size?: number
   text?: string
   truncated: boolean

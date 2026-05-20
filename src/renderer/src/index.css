@@ -754,6 +754,87 @@
     overflow: auto;
   }
 
+  .file-preview-header {
+    display: flex;
+    min-height: 34px;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 7px 10px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+
+  .file-preview-note,
+  .file-preview-meta-strip {
+    display: flex;
+    min-height: 30px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 6px 10px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .file-preview-meta-strip span + span {
+    border-left: 1px solid var(--border-subtle);
+    padding-left: 8px;
+  }
+
+  .file-preview-code {
+    margin: 0;
+    padding: 10px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-code-size);
+    line-height: 1.45;
+    white-space: pre;
+  }
+
+  .file-preview-code[data-valid='false'] {
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .file-preview-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+  }
+
+  .file-preview-table th,
+  .file-preview-table td {
+    max-width: 260px;
+    border-right: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 6px 8px;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-preview-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface-bg);
+    color: var(--text-secondary);
+    font-weight: 700;
+  }
+
+  .file-preview-table td {
+    color: var(--text-primary);
+  }
+
   .motion-panel-right:not(.right-sidebar-expanded) .files-panel-root[data-embedded='true'] .files-panel-body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(104px, 0.36fr) minmax(0, 1fr);
