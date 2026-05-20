@@ -425,6 +425,7 @@ child.on('exit', (code) => {
         settingsProviderDropdown: captureView !== 'settings-providers' || result.settingsProviderDropdownWorks === true,
         settingsDiagnosticsSection: !['settings', 'settings-providers'].includes(captureView) || result.settingsDiagnosticsSectionWorks === true,
         settingsUsageDiagnostics: !['settings', 'settings-providers'].includes(captureView) || result.settingsUsageDiagnosticsWorks === true,
+        settingsProviderModelsCollapsed: !['settings', 'settings-providers'].includes(captureView) || result.settingsProviderModelsCollapsedWorks === true,
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,
         settingsShortcutsCompact: captureView !== 'settings' || result.settingsShortcutsCompactWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,

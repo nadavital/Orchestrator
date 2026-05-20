@@ -413,6 +413,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Cost') &&
                 diagnosticsSection.innerText.includes('Budget') &&
                 Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]'));
+              var settingsProviderModelsCollapsedWorks =
+                diagnosticsSection instanceof HTMLElement &&
+                diagnosticsSection.innerText.includes('Default') &&
+                diagnosticsSection.innerText.includes('Models') &&
+                diagnosticsSection.innerText.includes('Edit model list') &&
+                !diagnosticsSection.innerText.includes('Catalog') &&
+                diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models');
+              const editModelListButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Edit model list'));
+              editModelListButton?.scrollIntoView({ block: 'center' });
             }
             if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
               const appearanceButton = [...document.querySelectorAll('button')]
@@ -460,6 +470,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Cost') &&
                 diagnosticsSection.innerText.includes('Budget') &&
                 Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]'));
+              var settingsProviderModelsCollapsedWorks =
+                diagnosticsSection instanceof HTMLElement &&
+                diagnosticsSection.innerText.includes('Default') &&
+                diagnosticsSection.innerText.includes('Models') &&
+                diagnosticsSection.innerText.includes('Edit model list') &&
+                !diagnosticsSection.innerText.includes('Catalog') &&
+                diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models');
               const dataButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Data controls'));
               dataButton?.click();
@@ -1349,6 +1366,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsProviderDropdownWorks: typeof settingsProviderDropdownWorks === 'boolean' ? settingsProviderDropdownWorks : null,
             settingsDiagnosticsSectionWorks: typeof settingsDiagnosticsSectionWorks === 'boolean' ? settingsDiagnosticsSectionWorks : null,
             settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
+            settingsProviderModelsCollapsedWorks: typeof settingsProviderModelsCollapsedWorks === 'boolean' ? settingsProviderModelsCollapsedWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
             settingsShortcutsCompactWorks: typeof settingsShortcutsCompactWorks === 'boolean' ? settingsShortcutsCompactWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Instructions'),

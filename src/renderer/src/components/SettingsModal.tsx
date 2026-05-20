@@ -1313,16 +1313,6 @@ function ProvidersSection({
           )}
 
           <SettingsPanel>
-            <CompactSetting title="Models">
-              <ModelListManager
-                providerDef={providerDef}
-                visibleIds={visibleIds}
-                onChange={handleVisibleModelsChange}
-              />
-            </CompactSetting>
-          </SettingsPanel>
-
-          <SettingsPanel>
             <CompactSetting title="Default">
               <DefaultModelPicker
                 providerDef={providerDef}
@@ -1353,6 +1343,16 @@ function ProvidersSection({
                 />
               </CompactSetting>
             )}
+          </SettingsPanel>
+
+          <SettingsPanel>
+            <CompactSetting title="Models">
+              <ModelListManager
+                providerDef={providerDef}
+                visibleIds={visibleIds}
+                onChange={handleVisibleModelsChange}
+              />
+            </CompactSetting>
           </SettingsPanel>
 
           {settingsCommandSurfaces.length > 0 && (
@@ -2785,6 +2785,7 @@ function ModelListManager({
   onChange: (ids: string[]) => void
 }): JSX.Element {
   const [customInput, setCustomInput] = useState('')
+  const [editing, setEditing] = useState(visibleIds.length === 0)
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -2817,7 +2818,7 @@ function ModelListManager({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* Sortable list */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
@@ -2843,8 +2844,25 @@ function ModelListManager({
         </SortableContext>
       </DndContext>
 
+      <button
+        onClick={() => setEditing((open) => !open)}
+        style={{
+          alignSelf: 'flex-start',
+          padding: '4px 8px',
+          borderRadius: 6,
+          border: '1px solid var(--color-border)',
+          background: 'var(--color-surface2)',
+          color: 'var(--color-text-muted)',
+          cursor: 'pointer',
+          fontSize: 11,
+          fontWeight: 600
+        }}
+      >
+        {editing ? 'Done' : 'Edit model list'}
+      </button>
+
       {/* Catalog toggle chips */}
-      {providerDef.models.length > 0 && (
+      {editing && providerDef.models.length > 0 && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 650, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
             Catalog
@@ -2873,32 +2891,34 @@ function ModelListManager({
       )}
 
       {/* Custom model ID input */}
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          value={customInput}
-          onChange={(e) => setCustomInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
-          placeholder="Custom model ID"
-          style={{
-            flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace',
-            background: 'var(--color-surface2)', border: '1px solid var(--color-border)',
-            color: 'var(--color-text)', outline: 'none'
-          }}
-        />
-        <button
-          onClick={addCustom}
-          disabled={!customInput.trim()}
-          style={{
-            padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 500, flexShrink: 0,
-            background: customInput.trim() ? 'var(--color-accent)' : 'var(--color-surface2)',
-            border: `1px solid ${customInput.trim() ? 'var(--color-accent)' : 'var(--color-border)'}`,
-            color: customInput.trim() ? '#fff' : 'var(--color-text-muted)',
-            cursor: customInput.trim() ? 'pointer' : 'default'
-          }}
-        >
-          Add
-        </button>
-      </div>
+      {editing && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') addCustom() }}
+            placeholder="Custom model ID"
+            style={{
+              flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'monospace',
+              background: 'var(--color-surface2)', border: '1px solid var(--color-border)',
+              color: 'var(--color-text)', outline: 'none'
+            }}
+          />
+          <button
+            onClick={addCustom}
+            disabled={!customInput.trim()}
+            style={{
+              padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 500, flexShrink: 0,
+              background: customInput.trim() ? 'var(--color-accent)' : 'var(--color-surface2)',
+              border: `1px solid ${customInput.trim() ? 'var(--color-accent)' : 'var(--color-border)'}`,
+              color: customInput.trim() ? '#fff' : 'var(--color-text-muted)',
+              cursor: customInput.trim() ? 'pointer' : 'default'
+            }}
+          >
+            Add
+          </button>
+        </div>
+      )}
     </div>
   )
 }
