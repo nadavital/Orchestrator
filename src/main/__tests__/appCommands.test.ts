@@ -7,6 +7,7 @@ test('app command registry maps core shortcuts to commands', () => {
   assert.equal(appMenuCommandForKeyboardEvent({ key: 'k', metaKey: true }), 'open-command-menu')
   assert.equal(appMenuCommandForKeyboardEvent({ key: 'P', metaKey: true, shiftKey: true }), 'open-command-menu')
   assert.equal(appMenuCommandForKeyboardEvent({ key: 'f', metaKey: true }), 'search-transcript')
+  assert.equal(appMenuCommandForKeyboardEvent({ key: 'p', metaKey: true }), 'open-file-search')
   assert.equal(appMenuCommandForKeyboardEvent({ key: 'n', ctrlKey: true }), 'new-chat')
 })
 

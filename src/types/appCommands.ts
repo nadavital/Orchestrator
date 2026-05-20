@@ -4,6 +4,7 @@ export type StableAppCommand =
   | 'open-command-menu'
   | 'new-chat'
   | 'search-transcript'
+  | 'open-file-search'
   | 'rename-chat'
   | 'toggle-chat-pin'
   | 'previous-chat'
@@ -112,6 +113,17 @@ export const APP_COMMANDS: Record<StableAppCommand, AppCommandDefinition> = {
     shortcuts: [['mod', 'F']],
     accelerator: 'CmdOrCtrl+F',
     keywords: ['find', 'history'],
+    showInShortcuts: true
+  },
+  'open-file-search': {
+    id: 'open-file-search',
+    label: 'Open File Search',
+    menuLabel: 'Search Files',
+    group: 'Navigation',
+    description: 'Open the workspace file search in the Workbench.',
+    shortcuts: [['mod', 'P']],
+    accelerator: 'CmdOrCtrl+P',
+    keywords: ['file', 'workspace', 'quick open'],
     showInShortcuts: true
   },
   'previous-chat': {

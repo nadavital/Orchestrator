@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
@@ -28,6 +28,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
   const [preview, setPreview] = useState<FilePreviewResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const filteredEntries = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     return normalized
@@ -53,6 +54,12 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
       cancelled = true
     }
   }, [workDir])
+
+  useEffect(() => {
+    const focusSearch = (): void => searchInputRef.current?.focus()
+    window.addEventListener('orchestrator:focus-workspace-file-search', focusSearch)
+    return () => window.removeEventListener('orchestrator:focus-workspace-file-search', focusSearch)
+  }, [])
 
   useEffect(() => {
     if (selectedPath && !filteredEntries.some((entry) => entry.path === selectedPath)) {
@@ -150,6 +157,7 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
         <div className="inspector-search-field files-panel-search min-w-0 flex-1" data-has-query={query.trim() ? 'true' : 'false'}>
           <Icon name="search" size={12} />
           <input
+            ref={searchInputRef}
             data-testid="workspace-file-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}

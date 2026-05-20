@@ -133,6 +133,17 @@ export default function App(): JSX.Element {
     window.dispatchEvent(new CustomEvent('orchestrator:open-transcript-search'))
   }, [])
 
+  const openFileSearch = useCallback((): void => {
+    const { activeSessionId, openRightPanelTab, setShowCapabilities, setShowSettings } = useSessionStore.getState()
+    if (!activeSessionId) return
+    openRightPanelTab(activeSessionId, 'files')
+    setShowCapabilities(false)
+    setShowSettings(false)
+    window.setTimeout(() => {
+      window.dispatchEvent(new Event('orchestrator:focus-workspace-file-search'))
+    }, 0)
+  }, [])
+
   const openSettings = useCallback((section: 'general' | 'appearance' | 'providers' | 'shortcuts' | 'pets' | 'data' = 'general'): void => {
     setSettingsSection(section)
     setShowCapabilities(false)
@@ -224,6 +235,16 @@ export default function App(): JSX.Element {
       run: openTranscriptSearch
     },
     {
+      id: 'open-file-search',
+      label: APP_COMMANDS['open-file-search'].label,
+      group: APP_COMMANDS['open-file-search'].group,
+      description: APP_COMMANDS['open-file-search'].description,
+      shortcuts: shortcutsFor('open-file-search'),
+      disabled: !activeSessionId,
+      keywords: [...(APP_COMMANDS['open-file-search'].keywords ?? [])],
+      run: openFileSearch
+    },
+    {
       id: 'previous-chat',
       label: APP_COMMANDS['previous-chat'].label,
       group: APP_COMMANDS['previous-chat'].group,
@@ -293,6 +314,7 @@ export default function App(): JSX.Element {
     activeSessionId,
     chatSlotActions,
     createNewChat,
+    openFileSearch,
     openSettings,
     openTranscriptSearch,
     sessions.length,
@@ -318,6 +340,9 @@ export default function App(): JSX.Element {
         break
       case 'search-transcript':
         openTranscriptSearch()
+        break
+      case 'open-file-search':
+        openFileSearch()
         break
       case 'rename-chat':
         if (useSessionStore.getState().activeSessionId) setRenamingActiveChat(true)
@@ -348,6 +373,7 @@ export default function App(): JSX.Element {
     }
   }, [
     createNewChat,
+    openFileSearch,
     openSettings,
     openTranscriptSearch,
     switchChat,
