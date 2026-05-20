@@ -1313,7 +1313,7 @@ function ProvidersSection({
             <button
               data-testid="provider-diagnostics-toggle"
               aria-expanded={advancedOpen}
-              aria-label={advancedOpen ? 'Hide advanced provider details' : 'Show advanced provider details'}
+              aria-label={advancedOpen ? 'Hide provider details' : 'Show provider details'}
               onClick={() => setAdvancedOpen((open) => !open)}
               style={{
                 display: 'inline-flex',
@@ -1331,7 +1331,7 @@ function ProvidersSection({
               }}
             >
               <Icon name="wrench" size={13} />
-              Advanced
+              Details
               <Icon name={advancedOpen ? 'chevronDown' : 'chevronRight'} size={12} />
             </button>
           </div>

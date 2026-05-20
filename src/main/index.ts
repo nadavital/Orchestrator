@@ -458,7 +458,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Edit model list') &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
                 diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
-                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Advanced') &&
+                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
                 providerModelList.dataset.expanded === 'false' &&
                 providerModelList.getBoundingClientRect().height <= 76 &&
@@ -470,7 +470,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsToggle instanceof HTMLElement &&
                 diagnosticsToggle.getBoundingClientRect().height <= 32 &&
                 diagnosticsToggle.getAttribute('aria-expanded') === 'true' &&
-                diagnosticsToggle.textContent?.includes('Advanced') &&
+                diagnosticsToggle.textContent?.includes('Details') &&
+                !diagnosticsToggle.textContent?.includes('Advanced') &&
                 !diagnosticsToggle.textContent?.includes('Shown') &&
                 !diagnosticsToggle.textContent?.includes('Hidden');
               const editModelListButton = [...document.querySelectorAll('button')]
@@ -555,7 +556,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Edit model list') &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
                 diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
-                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Advanced') &&
+                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Details') &&
                 providerModelList instanceof HTMLElement &&
                 providerModelList.dataset.expanded === 'false' &&
                 providerModelList.getBoundingClientRect().height <= 76 &&
@@ -567,7 +568,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerDiagnosticsToggle instanceof HTMLElement &&
                 providerDiagnosticsToggle.getBoundingClientRect().height <= 32 &&
                 providerDiagnosticsToggle.getAttribute('aria-expanded') === 'true' &&
-                providerDiagnosticsToggle.textContent?.includes('Advanced') &&
+                providerDiagnosticsToggle.textContent?.includes('Details') &&
+                !providerDiagnosticsToggle.textContent?.includes('Advanced') &&
                 !providerDiagnosticsToggle.textContent?.includes('Shown') &&
                 !providerDiagnosticsToggle.textContent?.includes('Hidden');
               const dataButton = [...document.querySelectorAll('button')]
