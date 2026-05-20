@@ -2481,6 +2481,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(100);
             }
             const browserLocalTargets = [...document.querySelectorAll('[data-testid="browser-local-target"]')];
+            const browserLocalTargetsHeader = document.querySelector('.browser-local-targets-header');
             const browserLocalTargetSort = document.querySelector('[data-testid="browser-local-target-sort"]');
             const browserLocalTargetSortBefore = browserLocalTargetSort instanceof HTMLElement
               ? browserLocalTargetSort.getAttribute('data-local-target-sort')
@@ -2494,6 +2495,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               : null;
             var browserLocalTargetsWorks =
               document.querySelector('[data-testid="browser-local-targets"]') instanceof HTMLElement &&
+              browserLocalTargetsHeader instanceof HTMLElement &&
+              getComputedStyle(browserLocalTargetsHeader).textTransform !== 'uppercase' &&
               browserLocalTargets.length > 0 &&
               browserLocalTargets.some((target) => target.textContent?.includes('127.0.0.1')) &&
               browserLocalTargets.some((target) => target instanceof HTMLElement && target.dataset.localTargetStatus === 'running') &&
