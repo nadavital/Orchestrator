@@ -737,12 +737,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var reviewBinaryActionsWork =
               reviewBinaryStateActions.includes('Open') &&
               reviewBinaryStateActions.includes('Reveal');
-            if (diffSearch instanceof HTMLInputElement) {
-              const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
-              setter?.call(diffSearch, '');
-              diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+            const diffSearchClear = document.querySelector('[data-testid="diff-file-search-clear"]');
+            if (diffSearchClear instanceof HTMLButtonElement) {
+              diffSearchClear.click();
               await sleep(120);
             }
+            var reviewSearchClearWorks =
+              diffSearch instanceof HTMLInputElement &&
+              diffSearch.value === '' &&
+              !document.querySelector('[data-testid="diff-file-search-clear"]') &&
+              Boolean([...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('binary-preview-smoke.bin')));
             const filesTabButton = document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]');
             if (filesTabButton instanceof HTMLElement) {
               filesTabButton.click();
@@ -859,6 +864,18 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.body.innerText.includes('No matches') &&
               !document.querySelector('[data-testid="workspace-text-preview"]') &&
               (addFileButton instanceof HTMLButtonElement ? addFileButton.disabled : true);
+            const fileSearchClear = document.querySelector('[data-testid="workspace-file-search-clear"]');
+            if (fileSearchClear instanceof HTMLButtonElement) {
+              fileSearchClear.click();
+              await sleep(120);
+            }
+            var filesSearchClearWorks =
+              fileSearch instanceof HTMLInputElement &&
+              fileSearch.value === '' &&
+              !document.querySelector('[data-testid="workspace-file-search-clear"]') &&
+              !document.querySelector('[data-testid="workspace-file-empty-list"]') &&
+              Boolean([...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('nested note.md')));
             const browserPanelTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
             if (browserPanelTabButton instanceof HTMLElement) {
               browserPanelTabButton.click();
@@ -1381,9 +1398,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(80);
           }
           const diffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
-          const diffToolbarSearch = document.querySelector('[data-testid="diff-file-search"]');
+          const diffToolbarSearch = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-panel-search');
+          const diffToolbarSearchInput = document.querySelector('[data-testid="diff-file-search"]');
           const diffToolbarActions = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-panel-actions');
           const diffFileCount = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-file-count');
+          const diffSearchClearForCapture = document.querySelector('[data-testid="diff-file-search-clear"]');
           const diffToolbarRect = diffToolbar instanceof HTMLElement ? diffToolbar.getBoundingClientRect() : null;
           const diffSearchRect = diffToolbarSearch instanceof HTMLElement ? diffToolbarSearch.getBoundingClientRect() : null;
           const diffToolbarSearchDominant =
@@ -1392,9 +1411,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             diffSearchRect.width >= Math.min(180, diffToolbarRect.width * 0.52);
           const diffToolbarCompactWorks =
             diffToolbar instanceof HTMLElement &&
-            diffToolbarSearch instanceof HTMLInputElement &&
+            diffToolbarSearch instanceof HTMLElement &&
+            diffToolbarSearchInput instanceof HTMLInputElement &&
             diffToolbarActions instanceof HTMLElement &&
             diffFileCount instanceof HTMLElement &&
+            diffSearchClearForCapture instanceof HTMLButtonElement &&
             diffToolbar.getBoundingClientRect().height <= 38 &&
             diffToolbar.scrollWidth <= diffToolbar.clientWidth + 2 &&
             diffToolbarSearch.getBoundingClientRect().height <= 28 &&
@@ -1456,6 +1477,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
+            reviewSearchClearWorks: typeof reviewSearchClearWorks === 'boolean' ? reviewSearchClearWorks : null,
             reviewBinaryStateWorks: typeof reviewBinaryStateWorks === 'boolean' ? reviewBinaryStateWorks : null,
             reviewBinaryActionsWork: typeof reviewBinaryActionsWork === 'boolean' ? reviewBinaryActionsWork : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
@@ -1465,6 +1487,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             filesHtmlPreviewWorks: typeof filesHtmlPreviewWorks === 'boolean' ? filesHtmlPreviewWorks : null,
             filesBinaryPreviewWorks: typeof filesBinaryPreviewWorks === 'boolean' ? filesBinaryPreviewWorks : null,
             filesNoResultsWorks: typeof filesNoResultsWorks === 'boolean' ? filesNoResultsWorks : null,
+            filesSearchClearWorks: typeof filesSearchClearWorks === 'boolean' ? filesSearchClearWorks : null,
             browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
             browserScreenshotWorks: typeof browserScreenshotWorks === 'boolean' ? browserScreenshotWorks : null,
             browserFindWorks: typeof browserFindWorks === 'boolean' ? browserFindWorks : null,

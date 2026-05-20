@@ -5,6 +5,7 @@ import { fileStatusLabel } from '../../types'
 import type { FileChange } from '../../types'
 import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
+import Icon from '../shared/Icon'
 
 interface Props {
   sessionId: string
@@ -161,18 +162,27 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       )}
 
       <div className="diff-panel-toolbar" data-testid="diff-panel-toolbar">
-        <input
-          data-testid="diff-file-search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search"
-          className="diff-panel-search min-w-0 flex-1 rounded-md px-2 text-xs outline-none"
-          style={{
-            background: 'var(--control-bg)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-primary)'
-          }}
-        />
+        <div className="inspector-search-field diff-panel-search min-w-0 flex-1" data-has-query={query.trim() ? 'true' : 'false'}>
+          <Icon name="search" size={12} />
+          <input
+            data-testid="diff-file-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter changes"
+            className="inspector-search-input min-w-0 flex-1 text-xs outline-none"
+          />
+          {query.trim() && (
+            <button
+              type="button"
+              aria-label="Clear change filter"
+              data-testid="diff-file-search-clear"
+              className="inspector-search-clear"
+              onClick={() => setQuery('')}
+            >
+              <Icon name="close" size={11} />
+            </button>
+          )}
+        </div>
         <Badge tone="neutral" className="diff-file-count shrink-0">
           {embedded ? (
             <>

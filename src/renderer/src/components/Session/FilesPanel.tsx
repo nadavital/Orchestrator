@@ -147,18 +147,27 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
     >
       {!embedded && <PanelHeader title="Files" actions={fileActions} />}
       <div className="files-panel-toolbar" data-testid="files-panel-toolbar">
-        <input
-          data-testid="workspace-file-search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search files"
-          className="files-panel-search min-w-0 flex-1 rounded-md px-2 text-xs outline-none"
-          style={{
-            background: 'var(--control-bg)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-primary)'
-          }}
-        />
+        <div className="inspector-search-field files-panel-search min-w-0 flex-1" data-has-query={query.trim() ? 'true' : 'false'}>
+          <Icon name="search" size={12} />
+          <input
+            data-testid="workspace-file-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter files"
+            className="inspector-search-input min-w-0 flex-1 text-xs outline-none"
+          />
+          {query.trim() && (
+            <button
+              type="button"
+              aria-label="Clear file filter"
+              data-testid="workspace-file-search-clear"
+              className="inspector-search-clear"
+              onClick={() => setQuery('')}
+            >
+              <Icon name="close" size={11} />
+            </button>
+          )}
+        </div>
         <Badge tone="neutral" className="files-entry-count">{filteredEntries.length}</Badge>
         {embedded && fileActions}
       </div>
