@@ -221,6 +221,7 @@ function createWindow(): void {
     transparent: true,
     vibrancy: 'sidebar',
     visualEffectState: 'active',
+    focusable: shouldForegroundWindow,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -2651,6 +2652,12 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               }
             }
             const findInPageButton = findButton('Find in page');
+            const browserAddressBadge = document.querySelector('[data-testid="browser-address-badge"]');
+            var browserAddressBadgeWorks =
+              browserAddressBadge instanceof HTMLElement &&
+              browserAddressBadge.getAttribute('data-browser-address-kind') === 'local' &&
+              browserAddressBadge.textContent?.trim() === 'Local' &&
+              browserAddressBadge.scrollWidth <= browserAddressBadge.clientWidth + 2;
             var browserFindWorks = false;
             var browserFindNavigationWorks = false;
             if (findInPageButton instanceof HTMLButtonElement) {
@@ -3276,6 +3283,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserEmptyStateWorks,
               browserLocalTargetsWorks,
               browserAddressSearchWorks,
+              browserAddressBadgeWorks,
               browserToolbarExternalWorks,
               browserToolbarScreenshotWorks,
               browserLoaded: Boolean(document.querySelector('[data-testid="browser-webview"]')) &&

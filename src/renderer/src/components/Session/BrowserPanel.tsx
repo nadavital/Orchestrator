@@ -157,6 +157,7 @@ export default function BrowserPanel({
   const devicePreviewActive = workbench.deviceMode !== 'desktop'
   const showStatusRow = isLoading || blocked || devicePreviewActive
   const sortedLocalTargets = sortLocalTargets(localTargets, localTargetSort)
+  const addressBadge = browserAddressBadge(currentUrl || address)
   useEffect(() => {
     workbenchRef.current = workbench
   }, [workbench])
@@ -660,11 +661,16 @@ export default function BrowserPanel({
           onClick={stopOrReload}
         />
         <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
-        <div
-          className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 py-0.5"
-          style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
-        >
-          <Icon name="browser" size={13} />
+        <div className="browser-address-field">
+          <span
+            className="browser-address-badge"
+            data-testid="browser-address-badge"
+            data-browser-address-kind={addressBadge.kind}
+            aria-label={addressBadge.ariaLabel}
+          >
+            <Icon name={addressBadge.icon} size={12} />
+            <span>{addressBadge.label}</span>
+          </span>
           <input
             data-testid="browser-url-input"
             value={address}
@@ -1844,6 +1850,25 @@ function normalizeUrl(raw: string): string {
   if (/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed) || /^(about|data|file|mailto):/i.test(trimmed)) return trimmed
   if (looksLikeBrowserAddress(trimmed)) return `http://${trimmed}`
   return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`
+}
+
+function browserAddressBadge(value: string): { kind: string; label: string; ariaLabel: string; icon: Parameters<typeof Icon>[0]['name'] } {
+  const trimmed = value.trim()
+  if (!trimmed) return { kind: 'empty', label: 'URL', ariaLabel: 'No page loaded', icon: 'browser' }
+  if (trimmed.startsWith('https://')) return { kind: 'secure', label: 'Secure', ariaLabel: 'Secure HTTPS page', icon: 'checkCircle' }
+  if (trimmed.startsWith('file:')) return { kind: 'file', label: 'File', ariaLabel: 'Local file page', icon: 'file' }
+  if (trimmed.startsWith('data:')) return { kind: 'data', label: 'Data', ariaLabel: 'Data URL page', icon: 'file' }
+  if (trimmed.startsWith('about:')) return { kind: 'page', label: 'Page', ariaLabel: 'Internal browser page', icon: 'browser' }
+  try {
+    const url = new URL(trimmed)
+    const host = url.hostname
+    const local = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '::1'
+    if (local) return { kind: 'local', label: 'Local', ariaLabel: 'Local development page', icon: 'browser' }
+    const protocol = url.protocol.replace(':', '').toUpperCase()
+    return { kind: 'plain', label: protocol, ariaLabel: `${protocol} page`, icon: 'warning' }
+  } catch {
+    return { kind: 'search', label: 'Search', ariaLabel: 'Search query', icon: 'search' }
+  }
 }
 
 function looksLikeBrowserAddress(value: string): boolean {

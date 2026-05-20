@@ -1333,6 +1333,7 @@
   }
 
   .browser-toolbar {
+    container: browser-toolbar / inline-size;
     display: flex;
     min-height: 34px;
     flex-shrink: 0;
@@ -1340,6 +1341,51 @@
     gap: 4px;
     border-bottom: 1px solid var(--border-subtle);
     padding: 4px 8px;
+  }
+
+  .browser-address-field {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--control-bg);
+    padding: 2px 7px;
+  }
+
+  .browser-address-badge {
+    display: inline-flex;
+    max-width: 76px;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-size: 10.5px;
+    font-weight: 650;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .browser-address-badge[data-browser-address-kind='local'],
+  .browser-address-badge[data-browser-address-kind='secure'] {
+    color: var(--color-green);
+  }
+
+  .browser-address-badge[data-browser-address-kind='plain'] {
+    color: var(--color-yellow);
+  }
+
+  @container browser-toolbar (width <= 440px) {
+    .browser-address-badge span {
+      display: none;
+    }
+
+    .browser-address-badge {
+      max-width: 16px;
+    }
   }
 
   .browser-actions-menu {
