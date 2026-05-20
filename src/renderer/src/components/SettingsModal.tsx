@@ -1558,9 +1558,12 @@ function ProviderCommandSurfaces({
   surfaces: ProviderCommandSurface[]
 }): JSX.Element {
   const runnableSurfaces = surfaces.filter((surface) => surface.quota === 'none' && !surface.mutatesState)
+  const mutatingSurfaces = surfaces.filter((surface) => surface.mutatesState)
+  const quotaSurfaces = surfaces.filter((surface) => surface.quota !== 'none')
   const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [openId, setOpenId] = useState<string | null>(surfaces[0]?.id ?? null)
+  const selectedSurface = surfaces.find((surface) => surface.id === openId)
 
   const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
     if (surface.quota !== 'none' || surface.mutatesState) return
@@ -1578,6 +1581,24 @@ function ProviderCommandSurfaces({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div
+        data-testid="provider-capability-summary"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+          fontSize: 11,
+          color: 'var(--color-text-muted)'
+        }}
+      >
+        <ProviderCapabilityMetric label="Safe checks" value={runnableSurfaces.length} color={color} />
+        {mutatingSurfaces.length > 0 && (
+          <ProviderCapabilityMetric label="Handoff" value={mutatingSurfaces.length} />
+        )}
+        {quotaSurfaces.length > 0 && (
+          <ProviderCapabilityMetric label="Quota" value={quotaSurfaces.length} />
+        )}
+      </div>
       <select
         value={openId ?? ''}
         onChange={(event) => setOpenId(event.target.value)}
@@ -1599,16 +1620,45 @@ function ProviderCommandSurfaces({
         ))}
       </select>
 
-      {openId && (
+      {selectedSurface && (
         <CommandSurfaceOutput
           color={color}
-          surface={surfaces.find((surface) => surface.id === openId)}
-          result={results[openId]}
-          loading={loading[openId] === true}
+          surface={selectedSurface}
+          result={results[selectedSurface.id]}
+          loading={loading[selectedSurface.id] === true}
           onRun={(surface) => runSurface(surface)}
         />
       )}
     </div>
+  )
+}
+
+function ProviderCapabilityMetric({
+  label,
+  value,
+  color = 'var(--color-text-muted)'
+}: {
+  label: string
+  value: number
+  color?: string
+}): JSX.Element {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        minHeight: 24,
+        padding: '3px 8px',
+        borderRadius: 999,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-surface2)',
+        color
+      }}
+    >
+      <strong style={{ color: 'var(--color-text)', fontWeight: 750 }}>{value}</strong>
+      {label}
+    </span>
   )
 }
 
@@ -1628,6 +1678,11 @@ function CommandSurfaceOutput({
   if (!surface) return <></>
   const runnable = surface.quota === 'none' && !surface.mutatesState
   const output = result?.output.trim()
+  const meta = [
+    surface.runtime === 'headless' ? 'Headless' : surface.runtime === 'interactive' ? 'Interactive' : surface.runtime,
+    surface.quota === 'none' ? 'No quota' : 'May use quota',
+    surface.mutatesState ? 'Changes state' : 'Read-only'
+  ]
   const statusColor = result?.status === 'ok'
     ? '#22C55E'
     : result?.status === 'error'
@@ -1655,8 +1710,24 @@ function CommandSurfaceOutput({
       >
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text)' }}>{surface.label}</div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {surface.command.length > 0 ? surface.command.join(' ') : surface.runtime}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 4 }}>
+            {meta.map((item) => (
+              <span
+                key={item}
+                style={{
+                  minHeight: 20,
+                  padding: '2px 6px',
+                  borderRadius: 999,
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text-muted)',
+                  fontSize: 10,
+                  fontWeight: 700
+                }}
+              >
+                {item}
+              </span>
+            ))}
           </div>
         </div>
         <button
@@ -1690,7 +1761,7 @@ function CommandSurfaceOutput({
         <StructuredCommandOutput output={output} color={color} surface={surface} />
       ) : (
         <div style={{ padding: 10, fontSize: 12, color: result ? statusColor : 'var(--color-text-muted)' }}>
-          {loading ? 'Running…' : result ? result.status : 'Run a refresh to load this.'}
+          {loading ? 'Running…' : result ? result.status : 'Refresh to check this capability.'}
         </div>
       )}
     </div>

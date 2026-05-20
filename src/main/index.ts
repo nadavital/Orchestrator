@@ -407,6 +407,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
                 ? usageDiagnosticsCard.innerText.replace(/\\s+/g, ' ')
                 : '';
+              const providerCapabilitySummary = document.querySelector('[data-testid="provider-capability-summary"]');
               const providerButtonLabels = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
                 : [];
@@ -419,7 +420,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Capabilities') &&
                 diagnosticsSection.innerText.includes('Config') &&
-                diagnosticsSection.innerText.includes('Health');
+                diagnosticsSection.innerText.includes('Health') &&
+                providerCapabilitySummary instanceof HTMLElement &&
+                providerCapabilitySummary.innerText.includes('Safe checks') &&
+                !diagnosticsSection.innerText.includes('auth status');
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Usage') &&
@@ -501,11 +505,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
                 ? usageDiagnosticsCard.innerText.replace(/\\s+/g, ' ')
                 : '';
+              const providerCapabilitySummary = document.querySelector('[data-testid="provider-capability-summary"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Capabilities') &&
                 diagnosticsSection.innerText.includes('Config') &&
-                diagnosticsSection.innerText.includes('Health');
+                diagnosticsSection.innerText.includes('Health') &&
+                providerCapabilitySummary instanceof HTMLElement &&
+                providerCapabilitySummary.innerText.includes('Safe checks') &&
+                !diagnosticsSection.innerText.includes('auth status');
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Usage') &&
