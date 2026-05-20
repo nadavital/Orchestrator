@@ -1658,9 +1658,10 @@
     flex-direction: column;
     gap: 0;
     margin-top: 14px;
-    border-top: 1px solid var(--border-subtle);
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
     background: var(--surface-bg);
-    padding: 2px 0;
   }
 
   .compact-setting {
@@ -1668,8 +1669,12 @@
     grid-template-columns: 116px minmax(0, 1fr);
     gap: 16px;
     align-items: start;
-    padding: 12px 0;
+    padding: 12px 14px;
     border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .settings-panel > .compact-setting:last-child {
+    border-bottom: 0;
   }
 
   .compact-setting-title {

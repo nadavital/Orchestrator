@@ -1323,7 +1323,7 @@ function ProvidersSection({
             </CompactSetting>
           </SettingsPanel>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -4, marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 0 8px' }}>
             <button
               data-testid="provider-diagnostics-toggle"
               aria-expanded={advancedOpen}
@@ -1334,9 +1334,9 @@ function ProvidersSection({
                 alignItems: 'center',
                 gap: 6,
                 minHeight: 26,
-                padding: '4px 8px',
+                padding: '4px 6px',
                 borderRadius: 7,
-                border: '1px solid var(--color-border)',
+                border: '1px solid transparent',
                 background: 'transparent',
                 color: 'var(--color-text-muted)',
                 cursor: 'pointer',
