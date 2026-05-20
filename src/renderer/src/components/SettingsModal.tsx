@@ -1537,7 +1537,7 @@ function ProviderCommandSurfaces({
   const quotaSurfaces = surfaces.filter((surface) => surface.quota !== 'none')
   const [results, setResults] = useState<Record<string, ProviderCommandSurfaceResult>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
-  const [openId, setOpenId] = useState<string | null>(surfaces[0]?.id ?? null)
+  const [openId, setOpenId] = useState<string | null>(null)
   const selectedSurface = surfaces.find((surface) => surface.id === openId)
 
   const runSurface = async (surface: ProviderCommandSurface): Promise<void> => {
@@ -1575,8 +1575,9 @@ function ProviderCommandSurfaces({
         )}
       </div>
       <select
+        data-testid="provider-capability-select"
         value={openId ?? ''}
-        onChange={(event) => setOpenId(event.target.value)}
+        onChange={(event) => setOpenId(event.target.value || null)}
         style={{
           width: 'min(340px, 100%)',
           height: 32,
@@ -1590,12 +1591,13 @@ function ProviderCommandSurfaces({
           outline: 'none',
         }}
       >
+        <option value="">Choose a check</option>
         {surfaces.map((surface) => (
           <option key={surface.id} value={surface.id}>{surface.label}</option>
         ))}
       </select>
 
-      {selectedSurface && (
+      {selectedSurface ? (
         <CommandSurfaceOutput
           color={color}
           surface={selectedSurface}
@@ -1603,7 +1605,7 @@ function ProviderCommandSurfaces({
           loading={loading[selectedSurface.id] === true}
           onRun={(surface) => runSurface(surface)}
         />
-      )}
+      ) : null}
     </div>
   )
 }
@@ -1666,6 +1668,7 @@ function CommandSurfaceOutput({
 
   return (
     <div
+      data-testid="provider-capability-output"
       style={{
         border: '1px solid var(--color-border)',
         borderRadius: 8,

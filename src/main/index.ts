@@ -426,6 +426,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 usageDiagnosticsText.includes('Cost') &&
                 usageDiagnosticsText.includes('Time');
               const providerCapabilitySummary = document.querySelector('[data-testid="provider-capability-summary"]');
+              const providerCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
+              const providerCapabilityOutput = document.querySelector('[data-testid="provider-capability-output"]');
               const providerButtonLabels = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
                 : [];
@@ -444,6 +446,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Health') &&
                 providerCapabilitySummary instanceof HTMLElement &&
                 providerCapabilitySummary.innerText.includes('Safe checks') &&
+                providerCapabilitySelect instanceof HTMLSelectElement &&
+                providerCapabilitySelect.value === '' &&
+                providerCapabilityOutput === null &&
                 !diagnosticsSection.innerText.includes('auth status');
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
@@ -535,6 +540,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 usageDiagnosticsText.includes('Cost') &&
                 usageDiagnosticsText.includes('Time');
               const providerCapabilitySummary = document.querySelector('[data-testid="provider-capability-summary"]');
+              const providerCapabilitySelect = document.querySelector('[data-testid="provider-capability-select"]');
+              const providerCapabilityOutput = document.querySelector('[data-testid="provider-capability-output"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Capabilities') &&
@@ -542,6 +549,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Health') &&
                 providerCapabilitySummary instanceof HTMLElement &&
                 providerCapabilitySummary.innerText.includes('Safe checks') &&
+                providerCapabilitySelect instanceof HTMLSelectElement &&
+                providerCapabilitySelect.value === '' &&
+                providerCapabilityOutput === null &&
                 !diagnosticsSection.innerText.includes('auth status');
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
