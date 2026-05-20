@@ -750,8 +750,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const reviewBinaryStateActions = reviewBinaryStateElement instanceof HTMLElement
               ? [...reviewBinaryStateElement.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
               : [];
+            const reviewPreview = document.querySelector('[data-testid="review-preview"]');
+            const reviewBinaryStateRect = reviewBinaryStateElement instanceof HTMLElement ? reviewBinaryStateElement.getBoundingClientRect() : null;
+            const reviewPreviewRect = reviewPreview instanceof HTMLElement ? reviewPreview.getBoundingClientRect() : null;
             var reviewBinaryStateWorks =
               reviewBinaryStateElement instanceof HTMLElement &&
+              reviewBinaryStateRect !== null &&
+              reviewPreviewRect !== null &&
+              reviewBinaryStateRect.top <= reviewPreviewRect.top + 28 &&
+              reviewBinaryStateElement.innerText.includes('Binary') &&
               document.body.innerText.includes('Open or reveal to inspect.');
             var reviewBinaryActionsWork =
               reviewBinaryStateActions.includes('Open') &&

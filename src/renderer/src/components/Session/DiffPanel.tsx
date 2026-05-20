@@ -225,7 +225,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
           </div>
 
           {/* File diff */}
-          <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+          <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden" data-testid="review-preview">
             <ReviewPreview
               change={selectedChange}
               diff={fileDiff}
@@ -273,6 +273,7 @@ function ReviewPreview({
       <ReviewEmptyState
         title={change.path}
         body="Open or reveal to inspect."
+        meta={preview?.size !== undefined ? `Binary - ${formatBytes(preview.size)}` : 'Binary'}
         testId="review-binary-state"
         actions={[
           { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
@@ -374,6 +375,7 @@ function ReviewPreview({
       <ReviewEmptyState
         title={change.path}
         body="Preview unavailable."
+        meta={preview.size !== undefined ? `Unavailable - ${formatBytes(preview.size)}` : 'Unavailable'}
         actions={[
           { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
           { label: 'Reveal', onClick: () => { void window.api.fs.showInFolder(absolutePath) } }
@@ -409,24 +411,27 @@ function ReviewPreviewHeader({ change, label }: { change: FileChange; label: str
 function ReviewEmptyState({
   title,
   body,
+  meta,
   testId,
   actions = []
 }: {
   title: string
   body: string
+  meta?: string
   testId?: string
   actions?: Array<{ label: string; onClick: () => void }>
 }): JSX.Element {
   return (
     <div
       data-testid={testId}
-      className="flex h-full flex-col items-center justify-start gap-2 px-4 pt-12 text-center text-xs"
+      className="flex h-full flex-col items-start justify-start gap-2 px-3 pt-4 text-left text-xs"
       style={{ color: 'var(--color-text-muted)' }}
     >
-      <span className="max-w-[260px] truncate" style={{ color: 'var(--text-secondary)', fontWeight: 650 }}>{title}</span>
-      <span className="max-w-[240px] leading-5">{body}</span>
+      {meta && <Badge tone="neutral">{meta}</Badge>}
+      <span className="max-w-full truncate" style={{ color: 'var(--text-secondary)', fontWeight: 650 }}>{title}</span>
+      <span className="max-w-[300px] leading-5">{body}</span>
       {actions.length > 0 && (
-        <span className="mt-1 flex items-center justify-center gap-2">
+        <span className="flex items-center gap-2 pt-1">
           {actions.map((action) => (
             <button
               key={action.label}
@@ -449,6 +454,12 @@ function ReviewEmptyState({
 
 function isBinaryDiff(diff: string): boolean {
   return diff.split('\n').some((line) => line.startsWith('Binary files ') || line.startsWith('GIT binary patch'))
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function FileRow({ file, selected, onClick }: { file: FileChange; selected: boolean; onClick: () => void }): JSX.Element {
