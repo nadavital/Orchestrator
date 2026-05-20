@@ -448,7 +448,7 @@ child.on('exit', (code) => {
         projectHeadersCompact: result.projectHeadersCompact === true,
         emptyProjectNewChatCompact: result.emptyProjectNewChatCompact === true,
         sidebarSectionChromeCompact: result.sidebarSectionChromeCompact === true,
-        idleRowRecencyHidden: result.idleRowRecencyHidden === true,
+        idleRowRecencyVisible: result.idleRowRecencyVisible === true,
         importantRowStatusIconOnly: result.importantRowStatusIconOnly === true,
         chatEnvironmentIconAbsent: result.chatEnvironmentIconAbsent === true,
         actionRenameWorks: result.actionRenameWorks === true,

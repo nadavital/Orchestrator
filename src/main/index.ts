@@ -4552,10 +4552,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 button.getBoundingClientRect().width <= 26 &&
                 button.getBoundingClientRect().height <= 26
               ));
-            const idleRowRecencyHidden =
-              normalRow instanceof HTMLElement &&
-              !normalRow.innerText.includes('now') &&
-              !normalRow.innerText.includes('m ago');
+            const idleRowRecencyMeta = normalRow instanceof HTMLElement
+              ? normalRow.querySelector('.session-row-right-meta')
+              : null;
+            const idleRowRecencyVisible =
+              idleRowRecencyMeta instanceof HTMLElement &&
+              /now|\\d+[mhdw]|[A-Z][a-z]{2} \\d{1,2}/.test(idleRowRecencyMeta.innerText.trim());
             const runningRowForMeta = rowFor('Sidebar running');
             const errorRowForMeta = rowFor('Sidebar error');
             const errorRowStatusDot = errorRowForMeta instanceof HTMLElement
@@ -4746,7 +4748,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               projectHeadersCompact,
               emptyProjectNewChatCompact,
               sidebarSectionChromeCompact,
-              idleRowRecencyHidden,
+              idleRowRecencyVisible,
               importantRowStatusIconOnly,
               chatEnvironmentIconAbsent,
               actionRenameWorks,

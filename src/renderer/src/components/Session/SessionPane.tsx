@@ -1,11 +1,11 @@
 import { memo, useState, useRef, useCallback } from 'react'
 import { defaultUI, useSessionStore } from '../../store/sessions'
-import type { Session } from '../../types'
 import ChatView from './ChatView'
 import TerminalView from './TerminalView'
 import InputBar from './InputBar'
 import ContextSidebar from './ContextSidebar'
 import RunningAgentsStrip from './RunningAgentsStrip'
+import Icon from '../shared/Icon'
 import { IconButton, MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
 
 const MIN_TERMINAL_HEIGHT = 120

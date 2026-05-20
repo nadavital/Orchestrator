@@ -63,6 +63,7 @@ function SessionItem({ session }: Props): JSX.Element {
     ? { label: 'Worktree' }
     : { label: 'Local' }
   const updatedLabel = formatRelativeTime(session.latestMessageAt ?? session.createdAt)
+  const createdLabel = formatRelativeTime(session.createdAt)
   const cwdLabel = project ? relativePath(project.rootPath, session.workDir) : session.workDir
   const branchLabel = branch ?? inferredWorktreeBranch(session)
   const preview = useMemo(() => {
@@ -198,11 +199,11 @@ function SessionItem({ session }: Props): JSX.Element {
       >
         <SurfaceRow
           dataTestId="session-row"
-          className="group flex h-6 min-w-0 items-center gap-1.5 cursor-pointer select-none"
+          className="group flex h-7 min-w-0 items-center gap-1.5 cursor-pointer select-none"
           active={isActive}
           style={{
             borderRadius: 'var(--radius-md)',
-            padding: '2px 6px'
+            padding: '3px 7px'
           }}
           onClick={handleClick}
           onContextMenu={openMenu}
@@ -224,9 +225,9 @@ function SessionItem({ session }: Props): JSX.Element {
           </div>
           <div className="min-w-0 flex-1">
             <div
-              className="text-[12.5px] font-medium truncate leading-4"
+              className="text-[12.5px] truncate leading-4"
               data-thread-title={session.name}
-              style={{ color: 'var(--text-primary)' }}
+              style={{ color: 'var(--text-primary)', fontWeight: 400 }}
             >
               {session.name}
             </div>
@@ -257,6 +258,11 @@ function SessionItem({ session }: Props): JSX.Element {
                 />
               </Tooltip>
             )
+          )}
+          {!showStatusIndicator && (
+            <span className="session-row-right-meta shrink-0" aria-label={`Created ${createdLabel}`}>
+              {createdLabel}
+            </span>
           )}
           <span className="surface-row-secondary shrink-0">
             <IconButton
@@ -356,6 +362,8 @@ function formatRelativeTime(timestamp: number): string {
   if (elapsedHours < 24) return `${elapsedHours}h`
   const elapsedDays = Math.floor(elapsedHours / 24)
   if (elapsedDays < 7) return `${elapsedDays}d`
+  const elapsedWeeks = Math.floor(elapsedDays / 7)
+  if (elapsedWeeks < 8) return `${elapsedWeeks}w`
   return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 

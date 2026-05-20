@@ -120,7 +120,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
   const hiddenSessionCount = Math.max(0, sessions.length - visibleSessions.length)
 
   return (
-    <div className="min-w-0" style={{ marginBottom: 2 }}>
+    <div className="min-w-0" style={{ marginBottom: 6 }}>
       {/* Project header */}
       <SurfaceRow
         dataTestId="project-section-header"
@@ -143,7 +143,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
         <span className="shrink-0">
           <Icon name="folder" size={13} />
         </span>
-        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+        <span className="min-w-0 flex-1 truncate text-[12px]" style={{ color: 'var(--text-secondary)', fontWeight: 460 }}>
           {project.name}
         </span>
         {project.pinned && (
@@ -176,7 +176,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
 
       {/* Sessions */}
       {!collapsed && (
-        <div>
+        <div className="space-y-1">
           {sessions.length === 0 && (
             <div className="pl-5 pr-1 py-px">
               <SurfaceRow
@@ -188,7 +188,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
                   borderRadius: 'var(--radius-md)',
                   color: 'var(--text-secondary)',
                   fontSize: 12,
-                  fontWeight: 600
+                  fontWeight: 460
                 }}
                 ariaLabel="New chat"
                 onClick={handleNewSession}
@@ -204,8 +204,8 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
           {hiddenSessionCount > 0 && (
             <button
               type="button"
-              className="w-full rounded-md px-2 py-1.5 text-left text-xs font-medium"
-              style={{ color: 'var(--text-tertiary)' }}
+              className="w-full rounded-md px-2 py-1.5 text-left text-xs"
+              style={{ color: 'var(--text-tertiary)', fontWeight: 430 }}
               onClick={() => setExpanded(true)}
             >
               Show {hiddenSessionCount} more
@@ -214,8 +214,8 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
           {expanded && sessions.length > 6 && (
             <button
               type="button"
-              className="w-full rounded-md px-2 py-1.5 text-left text-xs font-medium"
-              style={{ color: 'var(--text-tertiary)' }}
+              className="w-full rounded-md px-2 py-1.5 text-left text-xs"
+              style={{ color: 'var(--text-tertiary)', fontWeight: 430 }}
               onClick={() => setExpanded(false)}
             >
               Show less

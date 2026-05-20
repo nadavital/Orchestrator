@@ -327,7 +327,7 @@ function FilePreview({
       <EmptyFileState
         title={entry.name}
         body="Binary file not shown."
-        meta={`Binary, ${formatBytes(preview.size)}`}
+        meta={`Binary, ${formatBytes(preview.size ?? entry.size ?? 0)}`}
         testId="workspace-binary-state"
         actions={[
           { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },

@@ -102,7 +102,7 @@ export default function Sidebar(): JSX.Element {
       {showSettings ? (
         <>
           <div className="flex items-center justify-between px-3 pb-1">
-            <span className="text-xs" style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+            <span className="text-xs" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
               Settings
             </span>
           </div>
@@ -164,7 +164,7 @@ export default function Sidebar(): JSX.Element {
               <div className="sidebar-section-title px-1.5 pb-0.5" style={{ color: 'var(--text-tertiary)' }}>
                 Pinned
               </div>
-              <div className="min-w-0 space-y-px">
+              <div className="min-w-0 space-y-1">
                 {sortedPinnedSessions.map((session) => (
                   <SessionItem key={session.id} session={session} />
                 ))}
@@ -227,9 +227,9 @@ export default function Sidebar(): JSX.Element {
             </div>
           </div>
 
-          <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-1">
+          <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-1.5">
             {viewMode === 'chronological' ? (
-              <div className="min-w-0 space-y-px">
+              <div className="min-w-0 space-y-1">
                 {unpinnedSessions.length === 0 && (
                   <div style={{ color: 'var(--text-secondary)', padding: '5px 8px', fontSize: 13 }}>
                     No recent chats
@@ -358,7 +358,7 @@ function SidebarNavItem({
         borderRadius: 'var(--radius-md)',
         minHeight: 30,
         padding: '5px 8px',
-        fontWeight: active ? 620 : 500,
+        fontWeight: active ? 500 : 400,
         textAlign: 'left'
       }}
     >
