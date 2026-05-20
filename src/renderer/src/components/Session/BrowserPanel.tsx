@@ -345,6 +345,23 @@ export default function BrowserPanel({
     webviewRef.current?.reload()
   }
 
+  const retryCurrentPage = (): void => {
+    const target = currentUrl || address
+    if (!target) return
+    setError(null)
+    if (webviewRef.current) {
+      setIsLoading(true)
+      webviewRef.current.reload()
+      return
+    }
+    navigate(target)
+  }
+
+  const copyCurrentUrl = (): void => {
+    if (!currentUrl) return
+    void navigator.clipboard.writeText(currentUrl)
+  }
+
   const setViewportMode = (mode: BrowserWorkbenchState['deviceMode']): void => {
     const preset = viewportPreset(mode, workbench.viewportWidth, workbench.viewportHeight)
     patchWorkbench({
@@ -459,6 +476,7 @@ export default function BrowserPanel({
       data-browser-tab-count={workbench.tabs.length}
       data-browser-visible={visible ? 'true' : 'false'}
       data-browser-loading={isLoading ? 'true' : 'false'}
+      data-browser-error={error ?? ''}
       data-browser-current-url={currentUrl}
       data-browser-dom-targets={visibleTargets.length}
       data-browser-asset-count={assetInventory?.summary.totalCount ?? 0}
@@ -760,7 +778,13 @@ export default function BrowserPanel({
               {error ?? title ?? currentUrl}
             </span>
           </div>
-          {devicePreviewActive && (
+          {error && (
+            <div className="browser-status-actions">
+              <button type="button" data-testid="browser-error-retry" onClick={retryCurrentPage}>Retry</button>
+              <button type="button" data-testid="browser-error-copy-url" onClick={copyCurrentUrl}>Copy URL</button>
+            </div>
+          )}
+          {!error && devicePreviewActive && (
             <div className="flex items-center gap-1">
               <select
                 data-testid="browser-viewport-mode"

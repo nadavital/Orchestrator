@@ -1686,6 +1686,42 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 historyItems.length > 0 &&
                 historyItems.some((item) => item.textContent?.includes('127.0.0.1')) &&
                 copyUrlItem instanceof HTMLElement;
+              browserActionsButton.click();
+              await sleep(80);
+            }
+            const badBrowserUrl = 'http://127.0.0.1:1/orchestrator-error-smoke';
+            if (browserInputForStop instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(browserInputForStop.constructor.prototype, 'value')?.set;
+              setter?.call(browserInputForStop, badBrowserUrl);
+              browserInputForStop.dispatchEvent(new Event('input', { bubbles: true }));
+              browserInputForStop.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+              for (let index = 0; index < 30; index += 1) {
+                if ((document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-error') ?? '').length > 0) break;
+                await sleep(100);
+              }
+            }
+            const browserErrorStatusRow = document.querySelector('[data-testid="browser-status-row"]');
+            const browserErrorRetry = document.querySelector('[data-testid="browser-error-retry"]');
+            const browserErrorCopyUrl = document.querySelector('[data-testid="browser-error-copy-url"]');
+            var browserErrorRecoveryWorks =
+              (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-error') ?? '').length > 0 &&
+              browserErrorStatusRow instanceof HTMLElement &&
+              browserErrorStatusRow.textContent?.includes('Failed') &&
+              browserErrorRetry instanceof HTMLButtonElement &&
+              browserErrorCopyUrl instanceof HTMLButtonElement &&
+              browserErrorStatusRow.scrollWidth <= browserErrorStatusRow.clientWidth + 2;
+            if (browserInputForStop instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(browserInputForStop.constructor.prototype, 'value')?.set;
+              setter?.call(browserInputForStop, smokeBaseUrl);
+              browserInputForStop.dispatchEvent(new Event('input', { bubbles: true }));
+              browserInputForStop.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+              for (let index = 0; index < 30; index += 1) {
+                const panel = document.querySelector('[data-testid="browser-panel"]');
+                const url = panel?.getAttribute('data-browser-current-url') ?? '';
+                const error = panel?.getAttribute('data-browser-error') ?? '';
+                if (url.startsWith(smokeBaseUrl) && !error) break;
+                await sleep(100);
+              }
             }
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const expectedUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
@@ -1716,6 +1752,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserFindNavigationWorks,
               browserStopLoadingWorks,
               browserHistoryMenuWorks,
+              browserErrorRecoveryWorks,
               browserSingleTabStripHidden,
               browserNoHorizontalOverflow,
               browserToolbarCompact,
