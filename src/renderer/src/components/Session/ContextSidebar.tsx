@@ -230,7 +230,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       open={Boolean(effectiveTab)}
       side="right"
       size={panelSize}
-      className={`flex ${rightPanel?.fullWidth ? 'right-sidebar-expanded' : shouldOverlayPanel ? 'right-sidebar-overlay' : ''}`}
+      className={`workbench-panel flex ${rightPanel?.fullWidth ? 'right-sidebar-expanded' : shouldOverlayPanel ? 'right-sidebar-overlay' : ''}`}
       style={{
         borderLeft: '1px solid var(--border-subtle)',
         ...(rightPanel?.fullWidth ? { width: '100%', minWidth: '100%', maxWidth: '100%' } : {})
@@ -245,16 +245,17 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
         />
       )}
       <aside
-        className="min-w-0 flex flex-1 flex-col overflow-hidden"
+        className="workbench-panel-surface min-w-0 flex flex-1 flex-col overflow-hidden"
         data-testid="session-right-panel"
         data-app-shell-focus-area="right-panel"
+        aria-label="Workbench panel"
         data-right-panel-active-tab={effectiveTab ?? ''}
         data-right-panel-width={panelSize}
         data-right-panel-full-width={rightPanel?.fullWidth ? 'true' : 'false'}
         data-right-panel-layout={rightPanel?.fullWidth ? 'full' : shouldOverlayPanel ? 'overlay' : 'docked'}
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
       >
-      <div className="right-sidebar-chrome">
+      <div className="right-sidebar-chrome workbench-panel-chrome">
         <div className="right-sidebar-tabbar" data-testid="right-sidebar-tabbar">
           <div className="right-sidebar-tab-row" data-testid="right-sidebar-tab-row" data-app-shell-tab-controller>
           {tabs.map((tab) => (
@@ -287,7 +288,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
             <div className="relative">
               <IconButton
                 icon="plus"
-                label="Add panel tab"
+                label="Add Workbench tab"
                 size="sm"
                 active={toolsMenuOpen}
                 dataTestId="right-panel-add-tab"
@@ -318,7 +319,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
             </div>
             <IconButton
               icon={rightPanel?.fullWidth ? 'minimize' : 'maximize'}
-              label={rightPanel?.fullWidth ? 'Restore panel width' : 'Expand panel'}
+              label={rightPanel?.fullWidth ? 'Restore Workbench width' : 'Expand Workbench'}
               size="sm"
               active={rightPanel?.fullWidth}
               dataTestId="right-panel-expand-toggle"

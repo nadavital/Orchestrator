@@ -969,7 +969,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const widthBefore = Number(rightPanelBefore?.getAttribute('data-right-panel-width') ?? '0');
             const primaryBefore = document.querySelector('[data-testid="session-primary-content"]');
             const primaryWidthBefore = primaryBefore instanceof HTMLElement ? primaryBefore.getBoundingClientRect().width : 0;
-            const expandButton = findButton('Expand panel');
+            const expandButton = findButton('Expand Workbench');
             const expandButtonLabelBefore = expandButton instanceof HTMLButtonElement
               ? expandButton.getAttribute('aria-label')
               : null;
@@ -992,7 +992,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const expandedWidth = rightPanelExpandedContainer instanceof HTMLElement
               ? rightPanelExpandedContainer.getBoundingClientRect().width
               : expandedContentWidth;
-            const restoreButton = findButton('Restore panel width');
+            const restoreButton = findButton('Restore Workbench width');
             const restoreButtonLabelAfterExpand = restoreButton instanceof HTMLButtonElement
               ? restoreButton.getAttribute('aria-label')
               : null;
@@ -1020,10 +1020,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Math.abs(expandedWidth - mainRowWidthAfterExpand) <= 4 &&
               primaryWidthAfterExpand >= primaryWidthBefore - 8 &&
               expandButton instanceof HTMLButtonElement &&
-              expandButtonLabelBefore === 'Expand panel' &&
+              expandButtonLabelBefore === 'Expand Workbench' &&
               expandButtonIconBefore === 'maximize' &&
               restoreButton instanceof HTMLButtonElement &&
-              restoreButtonLabelAfterExpand === 'Restore panel width' &&
+              restoreButtonLabelAfterExpand === 'Restore Workbench width' &&
               restoreButtonIconAfterExpand === 'minimize';
             if (restoreButton instanceof HTMLButtonElement) {
               restoreButton.click();
@@ -1039,10 +1039,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 }
               : null;
             if (mainRowForOverlay instanceof HTMLElement) {
-              mainRowForOverlay.style.flex = '0 0 920px';
-              mainRowForOverlay.style.width = '920px';
-              mainRowForOverlay.style.minWidth = '920px';
-              mainRowForOverlay.style.maxWidth = '920px';
+              const overlayNarrowWidth = '680px';
+              mainRowForOverlay.style.flex = '0 0 ' + overlayNarrowWidth;
+              mainRowForOverlay.style.width = overlayNarrowWidth;
+              mainRowForOverlay.style.minWidth = overlayNarrowWidth;
+              mainRowForOverlay.style.maxWidth = overlayNarrowWidth;
               window.dispatchEvent(new Event('resize'));
               await sleep(220);
             }
@@ -1062,7 +1063,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               rightPanelOverlay.dataset.rightPanelLayout === 'overlay' &&
               rightPanelOverlayContainer instanceof HTMLElement &&
               rightPanelOverlayContainer.classList.contains('right-sidebar-overlay') &&
-              primaryOverlayRect.width >= 880 &&
+              primaryOverlayRect.width >= mainRowOverlayRect.width - 40 &&
               rightPanelOverlayRect.width <= mainRowOverlayRect.width - 12 &&
               rightPanelOverlayRect.right <= mainRowOverlayRect.right + 2 &&
               Math.abs(rightPanelOverlayRect.top - mainRowOverlayRect.top) <= 2;
@@ -1209,7 +1210,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             if (filesTabButton instanceof HTMLElement) {
               filesTabButton.click();
             } else {
-              const inspectorToolsButton = findButton('Add panel tab');
+              const inspectorToolsButton = findButton('Add Workbench tab');
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);
@@ -1456,7 +1457,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             if (browserPanelTabButton instanceof HTMLElement) {
               browserPanelTabButton.click();
             } else {
-              const inspectorToolsButton = findButton('Add panel tab');
+              const inspectorToolsButton = findButton('Add Workbench tab');
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);
@@ -2352,7 +2353,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarTrailingFadeStyle.pointerEvents === 'none';
           const rightSidebarAddControlStableWorks =
             rightSidebarAddTabButton instanceof HTMLButtonElement &&
-            rightSidebarAddTabButton.getAttribute('aria-label') === 'Add panel tab' &&
+            rightSidebarAddTabButton.getAttribute('aria-label') === 'Add Workbench tab' &&
             rightSidebarAddTabButton.getAttribute('data-icon') === 'plus' &&
             rightSidebarTabActions instanceof HTMLElement &&
             rightSidebarTabActions.querySelectorAll('.motion-icon-button').length === 2;
@@ -2803,7 +2804,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(180);
                 return;
               }
-              const addButton = findButton('Add panel tab');
+              const addButton = findButton('Add Workbench tab');
               if (addButton instanceof HTMLElement) {
                 addButton.click();
                 await sleep(120);
@@ -2873,7 +2874,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const tabRow = document.querySelector('[data-testid="right-sidebar-tab-row"]');
               const tabActions = document.querySelector('[data-testid="right-sidebar-tab-actions"]');
               const addButton = document.querySelector('[data-testid="right-panel-add-tab"]');
-              const expandButton = findButton('Expand panel');
+              const expandButton = findButton('Expand Workbench');
               const widthBefore = Number(rightPanel?.getAttribute('data-right-panel-width') ?? '0');
               let rightPanelContextMenuWorks = false;
               let rightPanelTabReorderWorks = false;
@@ -2902,6 +2903,7 @@ function runAutomatedFocusedSurfaceSmoke(
               }
               let rightPanelExpandWorks = false;
               let rightPanelNarrowOverlayWorks = false;
+              let rightPanelNarrowOverlayDebug = {};
               if (expandButton instanceof HTMLButtonElement) {
                 const mainRow = document.querySelector('[data-testid="session-main-row"]');
                 const primaryBefore = document.querySelector('[data-testid="session-primary-content"]');
@@ -2922,7 +2924,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   expandedRect !== null &&
                   Math.abs(expandedRect.width - mainRowRect.width) <= 4 &&
                   primaryWidthAfter >= primaryWidthBefore - 8;
-                const restoreButton = findButton('Restore panel width');
+                const restoreButton = findButton('Restore Workbench width');
                 if (restoreButton instanceof HTMLButtonElement) {
                   restoreButton.click();
                   await sleep(140);
@@ -2934,16 +2936,28 @@ function runAutomatedFocusedSurfaceSmoke(
                     minWidth: mainRow.style.minWidth,
                     maxWidth: mainRow.style.maxWidth
                   };
-                  mainRow.style.flex = '0 0 920px';
-                  mainRow.style.width = '920px';
-                  mainRow.style.minWidth = '920px';
-                  mainRow.style.maxWidth = '920px';
+                  const overlayNarrowWidth = '680px';
+                  mainRow.style.flex = '0 0 ' + overlayNarrowWidth;
+                  mainRow.style.width = overlayNarrowWidth;
+                  mainRow.style.minWidth = overlayNarrowWidth;
+                  mainRow.style.maxWidth = overlayNarrowWidth;
                   window.dispatchEvent(new Event('resize'));
                   await sleep(220);
                   const overlayPanel = document.querySelector('[data-testid="session-right-panel"]');
                   const overlayContainer = overlayPanel instanceof HTMLElement ? overlayPanel.closest('[data-motion-panel="right"]') : null;
                   const overlayRect = overlayPanel instanceof HTMLElement ? overlayPanel.getBoundingClientRect() : null;
                   const rowRect = mainRow.getBoundingClientRect();
+                  rightPanelNarrowOverlayDebug = {
+                    layout: overlayPanel instanceof HTMLElement ? overlayPanel.dataset.rightPanelLayout ?? null : null,
+                    fullWidth: overlayPanel instanceof HTMLElement ? overlayPanel.dataset.rightPanelFullWidth ?? null : null,
+                    panelWidth: overlayPanel instanceof HTMLElement ? overlayPanel.dataset.rightPanelWidth ?? null : null,
+                    containerClassName: overlayContainer instanceof HTMLElement ? overlayContainer.className : null,
+                    overlayWidth: overlayRect?.width ?? null,
+                    overlayRight: overlayRect?.right ?? null,
+                    rowWidth: rowRect.width,
+                    rowRight: rowRect.right,
+                    inlineWidth: mainRow.style.width
+                  };
                   rightPanelNarrowOverlayWorks =
                     overlayPanel instanceof HTMLElement &&
                     overlayPanel.dataset.rightPanelLayout === 'overlay' &&
@@ -2976,9 +2990,10 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightSidebarAddControlStableWorks:
                   addButton instanceof HTMLButtonElement &&
                   addButton.dataset.icon === 'plus' &&
-                  addButton.getAttribute('aria-label') === 'Add panel tab',
+                  addButton.getAttribute('aria-label') === 'Add Workbench tab',
                 rightPanelExpandWorks,
                 rightPanelNarrowOverlayWorks,
+                rightPanelNarrowOverlayDebug,
                 rightPanelContextMenuWorks,
                 rightPanelTabReorderWorks,
                 widthBefore
@@ -3339,7 +3354,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             if (browserPanelTabButton instanceof HTMLElement) {
               browserPanelTabButton.click();
             } else {
-              const inspectorToolsButton = findButton('Add panel tab');
+              const inspectorToolsButton = findButton('Add Workbench tab');
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);

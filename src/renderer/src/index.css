@@ -592,7 +592,7 @@
   .right-sidebar-chrome {
     flex-shrink: 0;
     border-bottom: 1px solid var(--border-subtle);
-    background: var(--surface-bg);
+    background: color-mix(in srgb, var(--surface-bg) 96%, transparent);
   }
 
   .right-sidebar-tabbar {
@@ -601,7 +601,7 @@
     align-items: center;
     gap: 6px;
     min-height: 36px;
-    padding: 5px 7px;
+    padding: 5px 7px 5px 12px;
   }
 
   .right-sidebar-tab-row {
@@ -626,7 +626,7 @@
     gap: 2px;
     margin-left: -2px;
     padding-left: 8px;
-    background: var(--surface-bg);
+    background: color-mix(in srgb, var(--surface-bg) 96%, transparent);
   }
 
   .right-sidebar-tab-actions::before {
@@ -637,36 +637,31 @@
     left: -18px;
     width: 18px;
     pointer-events: none;
-    background: linear-gradient(to right, transparent, var(--surface-bg));
+    background: linear-gradient(to right, transparent, color-mix(in srgb, var(--surface-bg) 96%, transparent));
   }
 
   .right-sidebar-tabbar .motion-tab-button {
     min-height: 24px;
-    min-width: 26px;
+    min-width: 0;
+    max-width: 132px;
     border-radius: var(--radius-sm);
     color: var(--text-tertiary);
-    padding: 0 6px;
+    padding: 0 7px;
     font-size: 11px;
-    font-weight: 650;
+    font-weight: 600;
   }
 
   .right-sidebar-tabbar .motion-tab-button:not([data-active='true']) {
-    flex: 0 0 26px;
-    justify-content: center;
-    padding: 0;
-  }
-
-  .right-sidebar-tabbar .motion-tab-button:not([data-active='true']) .right-sidebar-tab-label {
-    display: none;
+    max-width: 112px;
   }
 
   .right-sidebar-tabbar .motion-tab-button[data-active='true'] {
-    max-width: 142px;
+    max-width: 148px;
     border-color: transparent;
-    background: var(--control-bg);
+    background: color-mix(in srgb, var(--control-bg) 82%, transparent);
     box-shadow: none;
     color: var(--text-primary);
-    font-weight: 700;
+    font-weight: 650;
   }
 
   .right-sidebar-tabbar .motion-tab-close {
@@ -679,6 +674,7 @@
     height: 24px !important;
     border-color: transparent !important;
     background: transparent !important;
+    color: var(--text-tertiary) !important;
   }
 
   .right-sidebar-tab-actions .motion-icon-button:hover,
@@ -686,6 +682,7 @@
   .right-sidebar-tab-actions .motion-icon-button[data-active='true'] {
     border-color: var(--border-subtle) !important;
     background: var(--control-bg) !important;
+    color: var(--text-primary) !important;
   }
 
   .right-sidebar-count,
