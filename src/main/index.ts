@@ -2318,8 +2318,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserEmptyState = document.querySelector('[data-testid="browser-empty-state"]');
             var browserEmptyStateWorks =
               browserEmptyState instanceof HTMLElement &&
-              browserEmptyState.innerText.includes('Start browsing') &&
-              browserEmptyState.innerText.includes('Enter a URL to open a page.') &&
+              browserEmptyState.innerText.includes('Open a local app') &&
+              browserEmptyState.innerText.includes('Choose a running server or enter any URL.') &&
               document.querySelector('[data-testid="browser-local-targets"]') instanceof HTMLElement;
             for (let index = 0; index < 20; index += 1) {
               if (document.querySelectorAll('[data-testid="browser-local-target"]').length > 0) break;

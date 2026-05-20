@@ -1034,10 +1034,10 @@ export default function BrowserPanel({
             >
               <Icon name="browser" size={26} />
               <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                Start browsing
+                Open a local app
               </div>
               <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                Enter a URL to open a page.
+                Choose a running server or enter any URL.
               </div>
               <div className="browser-local-targets" data-testid="browser-local-targets">
                 <div className="browser-local-targets-header">
