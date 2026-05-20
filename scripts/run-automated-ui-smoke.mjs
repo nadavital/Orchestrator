@@ -370,6 +370,7 @@ child.on('exit', (code) => {
           browserActive: result.browserActive === true,
           browserEmptyState: result.browserEmptyStateWorks === true,
           browserLocalTargets: result.browserLocalTargetsWorks === true,
+          browserAddressSearch: result.browserAddressSearchWorks === true,
           browserLoaded: result.browserLoaded === true,
           browserFind: result.browserFindWorks === true,
           browserFindNavigation: result.browserFindNavigationWorks === true,

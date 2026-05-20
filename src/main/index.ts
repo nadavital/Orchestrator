@@ -1754,8 +1754,23 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserLocalTargets.some((target) => target.textContent?.includes('127.0.0.1')) &&
               browserLocalTargets.every((target) => target instanceof HTMLElement && target.scrollWidth <= target.clientWidth + 2);
             const browserInput = document.querySelector('[data-testid="browser-url-input"]');
+            var browserAddressSearchWorks = false;
             if (browserInput instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(browserInput.constructor.prototype, 'value')?.set;
+              const searchQuery = 'orchestrator browser search';
+              const expectedSearchUrl = 'https://duckduckgo.com/?q=' + encodeURIComponent(searchQuery);
+              setter?.call(browserInput, searchQuery);
+              browserInput.dispatchEvent(new Event('input', { bubbles: true }));
+              browserInput.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+              for (let index = 0; index < 10; index += 1) {
+                const panel = document.querySelector('[data-testid="browser-panel"]');
+                const current = panel?.getAttribute('data-browser-current-url') ?? '';
+                if (current.startsWith(expectedSearchUrl) || browserInput.value.startsWith(expectedSearchUrl)) break;
+                await sleep(80);
+              }
+              const searchPanel = document.querySelector('[data-testid="browser-panel"]');
+              const normalizedSearchUrl = searchPanel?.getAttribute('data-browser-current-url') ?? browserInput.value;
+              browserAddressSearchWorks = normalizedSearchUrl.startsWith(expectedSearchUrl);
               setter?.call(browserInput, ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')});
               browserInput.dispatchEvent(new Event('input', { bubbles: true }));
               browserInput.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -1946,6 +1961,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 rightPanel.dataset.rightPanelActiveTab === 'browser',
               browserEmptyStateWorks,
               browserLocalTargetsWorks,
+              browserAddressSearchWorks,
               browserLoaded: Boolean(document.querySelector('[data-testid="browser-webview"]')) &&
                 browserCurrentUrl.startsWith(expectedUrl),
               browserFindWorks,

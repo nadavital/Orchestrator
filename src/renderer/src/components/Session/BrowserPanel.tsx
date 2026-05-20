@@ -648,7 +648,7 @@ export default function BrowserPanel({
             data-testid="browser-url-input"
             value={address}
             onChange={(event) => setAddress(event.target.value)}
-            placeholder="Enter URL"
+            placeholder="Search or enter URL"
             className="min-w-0 flex-1 bg-transparent text-xs outline-none"
             style={{ color: 'var(--text-primary)' }}
           />
@@ -1471,9 +1471,28 @@ function viewportPreset(
 function normalizeUrl(raw: string): string {
   const trimmed = raw.trim()
   if (!trimmed) return ''
-  if (/^[a-z][a-z\d+.-]*:/i.test(trimmed)) return trimmed
-  if (trimmed.includes('localhost') || trimmed.includes('127.0.0.1') || trimmed.includes('.')) return `http://${trimmed}`
-  return `https://${trimmed}`
+  if (/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed) || /^(about|data|file|mailto):/i.test(trimmed)) return trimmed
+  if (looksLikeBrowserAddress(trimmed)) return `http://${trimmed}`
+  return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`
+}
+
+function looksLikeBrowserAddress(value: string): boolean {
+  if (/\s/.test(value)) return false
+  const hostSegment = value.split(/[/?#]/, 1)[0] ?? value
+  const hostWithoutPort = hostSegment
+    .replace(/^\[/, '')
+    .replace(/\](:\d+)?$/, '')
+    .replace(/:\d+$/, '')
+  return (
+    hostSegment === 'localhost' ||
+    hostSegment.startsWith('localhost:') ||
+    hostSegment.startsWith('127.') ||
+    hostSegment.startsWith('0.0.0.0') ||
+    hostSegment.startsWith('[::1]') ||
+    /^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?$/.test(hostSegment) ||
+    /^[a-z0-9-]+:\d+$/i.test(hostSegment) ||
+    hostWithoutPort.includes('.')
+  )
 }
 
 function safeOrigin(url: string): string | null {
