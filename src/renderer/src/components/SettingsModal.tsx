@@ -36,7 +36,8 @@ import {
   SettingsIntro,
   SettingsPanel,
   StatusPill,
-  SwitchControl
+  SwitchControl,
+  Tooltip
 } from './shared/designSystem'
 import { applyAppearance, type Accent, type Appearance, type AppearanceTheme, type ChromeTheme, type Density, type TranscriptStyle } from '../theme'
 
@@ -358,23 +359,27 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
         } as React.CSSProperties}
       >
         <span style={{ fontSize: 15, fontWeight: 650, color: 'var(--text-primary)' }}>{settingsTitle(section)}</span>
-        <button
-          onClick={onClose}
-          title="Back to chat"
-          className="flex items-center gap-1.5 text-xs"
-          style={{
-            WebkitAppRegion: 'no-drag',
-            background: 'var(--control-bg)',
-            color: 'var(--text-secondary)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            padding: '7px 10px',
-            fontWeight: 600
-          } as React.CSSProperties}
-        >
-          <Icon name="chat" size={14} />
-          Chat
-        </button>
+        <Tooltip label="Back to chat">
+          <button
+            onClick={onClose}
+            aria-label="Back to chat"
+            data-tooltip-label="Back to chat"
+            data-native-title-free="true"
+            className="flex items-center gap-1.5 text-xs"
+            style={{
+              WebkitAppRegion: 'no-drag',
+              background: 'var(--control-bg)',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              padding: '7px 10px',
+              fontWeight: 600
+            } as React.CSSProperties}
+          >
+            <Icon name="chat" size={14} />
+            Chat
+          </button>
+        </Tooltip>
       </div>
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', background: 'var(--canvas-bg)' }}>
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>

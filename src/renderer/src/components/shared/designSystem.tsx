@@ -890,17 +890,18 @@ export function SurfaceRow({
   const shared = {
     'data-active': active ? 'true' : 'false',
     'data-testid': dataTestId,
+    'data-tooltip-label': title,
+    'data-native-title-free': title ? 'true' : undefined,
     className: `surface-row motion-row ${className}`,
     style: { ...rowMotionStyle(index), ...style },
     onContextMenu,
     onMouseEnter,
     onDoubleClick: (event: React.MouseEvent) => { void onDoubleClick?.(event) },
-    title,
-    'aria-label': ariaLabel,
+    'aria-label': ariaLabel ?? title,
   }
 
   if (as === 'button') {
-    return (
+    const row = (
       <button
         type="button"
         {...shared}
@@ -910,9 +911,10 @@ export function SurfaceRow({
         {children}
       </button>
     )
+    return title ? <Tooltip label={title}>{row}</Tooltip> : row
   }
 
-  return (
+  const row = (
     <div
       {...shared}
       onClick={() => { void onClick?.() }}
@@ -920,6 +922,7 @@ export function SurfaceRow({
       {children}
     </div>
   )
+  return title ? <Tooltip label={title}>{row}</Tooltip> : row
 }
 
 interface DisclosureSectionProps {
