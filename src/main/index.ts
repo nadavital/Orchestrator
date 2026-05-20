@@ -402,6 +402,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerSelects = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('select')]
                 : [];
+              const providerSelectorCard = document.querySelector('[data-testid="provider-selector-card"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
               const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
@@ -418,6 +419,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsProviderDropdownWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Provider') &&
+                providerSelectorCard instanceof HTMLElement &&
+                providerSelectorCard.getBoundingClientRect().height <= 58 &&
                 providerSelects.some((select) => [...select.options].some((option) => option.textContent?.includes('Codex CLI'))) &&
                 !providerButtonLabels.some((label) => ['Claude Code', 'GitHub Copilot', 'Codex CLI', 'Cursor'].includes(label));
               var settingsDiagnosticsSectionWorks =

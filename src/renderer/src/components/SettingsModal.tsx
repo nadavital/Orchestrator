@@ -1255,21 +1255,17 @@ function ProvidersSection({
         <ProviderDropdown
           providers={providerList}
           selectedId={selectedId}
+          providerId={selectedId}
+          color={providerDef.color}
+          installed={installed}
+          isDefault={defaultProvider === selectedId}
+          installCmd={providerDef.installCmd}
           onSelect={setSelectedId}
+          onSetDefault={() => onSetDefaultProvider(selectedId)}
         />
 
         {/* Per-provider content — key forces clean remount on provider switch, stopping DnD jitter */}
         <div key={selectedId}>
-          <ProviderHeaderCard
-            providerId={selectedId}
-            providerName={providerDef.name}
-            color={providerDef.color}
-            installed={installed}
-            isDefault={defaultProvider === selectedId}
-            installCmd={providerDef.installCmd}
-            onSetDefault={() => onSetDefaultProvider(selectedId)}
-          />
-
           <SettingsPanel>
             <CompactSetting title="Default">
               <DefaultModelPicker
@@ -1412,128 +1408,108 @@ function visibleSettingsCommandSurfaces(providerId: string, surfaces: ProviderCo
 function ProviderDropdown({
   providers,
   selectedId,
-  onSelect,
-}: {
-  providers: Array<typeof PROVIDER_DEFS[string]>
-  selectedId: string
-  onSelect: (id: string) => void
-}): JSX.Element {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-        marginBottom: 12
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <span style={{ color: 'var(--color-text)', fontSize: 13, fontWeight: 700 }}>
-          Provider
-        </span>
-      </div>
-      <select
-        value={selectedId}
-        onChange={(event) => onSelect(event.target.value)}
-        style={{
-          width: 'min(300px, 100%)',
-          height: 32,
-          borderRadius: 7,
-          border: '1px solid var(--color-border)',
-          background: 'var(--color-surface2)',
-          color: 'var(--color-text)',
-          fontSize: 12,
-          fontWeight: 600,
-          padding: '0 8px',
-          outline: 'none',
-        }}
-      >
-        {providers.map((provider) => (
-          <option key={provider.id} value={provider.id}>{provider.name}</option>
-        ))}
-      </select>
-    </div>
-  )
-}
-
-function ProviderHeaderCard({
   providerId,
-  providerName,
   color,
   installed,
   isDefault,
-  showDefaultControls = true,
   installCmd,
+  onSelect,
   onSetDefault,
 }: {
+  providers: Array<typeof PROVIDER_DEFS[string]>
+  selectedId: string
   providerId: string
-  providerName: string
   color: string
   installed: boolean
   isDefault: boolean
-  showDefaultControls?: boolean
   installCmd: string
+  onSelect: (id: string) => void
   onSetDefault: () => void
 }): JSX.Element {
   return (
     <div
+      data-testid="provider-selector-card"
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        padding: 12,
+        display: 'grid',
+        gap: 10,
+        marginBottom: 14,
+        padding: 10,
         borderRadius: 8,
         background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        marginBottom: 14,
+        border: '1px solid var(--color-border)'
       }}
     >
       <div
         style={{
-          width: 30,
-          height: 30,
-          borderRadius: 8,
           display: 'grid',
-          placeItems: 'center',
-          background: `${color}18`,
-          color,
-          flexShrink: 0,
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(220px, 300px) auto',
+          alignItems: 'center',
+          gap: 10
         }}
       >
-        <ProviderIcon providerId={providerId} size={18} color={color} />
-      </div>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--color-text)' }}>{providerName}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+          <span
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 7,
+              display: 'grid',
+              placeItems: 'center',
+              background: `${color}18`,
+              color,
+              flexShrink: 0
+            }}
+          >
+            <ProviderIcon providerId={providerId} size={16} color={color} />
+          </span>
+          <span style={{ color: 'var(--color-text)', fontSize: 13, fontWeight: 700 }}>
+            Provider
+          </span>
           <StatusPill label={installed ? 'Ready' : 'Missing'} color={installed ? 'var(--color-green)' : '#F87171'} />
-          {showDefaultControls && isDefault && <StatusPill label="Default" color={color} />}
+          {isDefault && <StatusPill label="Default" color={color} />}
         </div>
-        {!installed && (
-          <div style={{ marginTop: 8, maxWidth: 420 }}>
-            <InstallCommand cmd={installCmd} />
-          </div>
-        )}
-      </div>
-      {showDefaultControls && !isDefault && (
-        <button
-          onClick={onSetDefault}
-          disabled={!installed}
+        <select
+          value={selectedId}
+          onChange={(event) => onSelect(event.target.value)}
           style={{
-            padding: '7px 12px',
+            width: '100%',
+            height: 32,
             borderRadius: 7,
-            border: `1px solid ${installed ? color : 'var(--color-border)'}`,
-            background: installed ? `${color}12` : 'var(--color-surface2)',
-            color: installed ? color : 'var(--color-text-muted)',
-            cursor: installed ? 'pointer' : 'default',
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface2)',
+            color: 'var(--color-text)',
             fontSize: 12,
             fontWeight: 600,
-            flexShrink: 0,
+            padding: '0 8px',
+            outline: 'none',
           }}
         >
-          Set default
-        </button>
-      )}
+          {providers.map((provider) => (
+            <option key={provider.id} value={provider.id}>{provider.name}</option>
+          ))}
+        </select>
+        {!isDefault && (
+          <button
+            onClick={onSetDefault}
+            disabled={!installed}
+            style={{
+              height: 32,
+              padding: '0 10px',
+              borderRadius: 7,
+              border: `1px solid ${installed ? color : 'var(--color-border)'}`,
+              background: installed ? `${color}12` : 'var(--color-surface2)',
+              color: installed ? color : 'var(--color-text-muted)',
+              cursor: installed ? 'pointer' : 'default',
+              fontSize: 12,
+              fontWeight: 600,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Set default
+          </button>
+        )}
+      </div>
+      {!installed && <InstallCommand cmd={installCmd} />}
     </div>
   )
 }
