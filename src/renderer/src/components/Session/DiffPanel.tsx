@@ -20,6 +20,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [wrapLines, setWrapLines] = useState(true)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const summary = summarizeFileChanges(files)
+  const summaryTone = files.length > 0 && summary.risk === 'high' ? 'danger' : 'neutral'
   const filteredFiles = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return normalizedQuery
@@ -150,17 +151,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         background: 'var(--surface-bg)'
       }}
     >
-      {embedded ? (
-        <div className="right-sidebar-subtoolbar">
-          <span
-            className="truncate"
-            style={{ color: files.length > 0 && summary.risk === 'high' ? 'var(--color-red)' : undefined }}
-          >
-            {files.length > 0 ? summary.label : 'Working tree'}
-          </span>
-          {changeActions}
-        </div>
-      ) : (
+      {!embedded && (
         <PanelHeader
           title={`Changes${files.length > 0 ? ` (${files.length})` : ''}`}
           actions={changeActions}
@@ -173,12 +164,15 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         </div>
       ) : (
         <>
-          <div className="flex shrink-0 items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+          <div className="diff-panel-toolbar">
+            <Badge tone={summaryTone} className="shrink-0" style={{ maxWidth: 82 }}>
+              {files.length} {files.length === 1 ? 'file' : 'files'}
+            </Badge>
             <input
               data-testid="diff-file-search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search changes"
+              placeholder="Search"
               className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
               style={{
                 background: 'var(--control-bg)',
@@ -192,6 +186,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
               active={wrapLines}
               onClick={() => setWrapLines((value) => !value)}
             />
+            {embedded && changeActions}
           </div>
           <div
             className="overflow-y-auto overflow-x-hidden shrink-0"

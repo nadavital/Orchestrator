@@ -536,17 +536,14 @@
     padding: 0 5px;
   }
 
-  .right-sidebar-subtoolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+  .diff-panel-toolbar {
+    display: flex;
+    min-height: 40px;
+    flex-shrink: 0;
     align-items: center;
-    gap: 8px;
-    min-height: 38px;
+    gap: 6px;
     border-bottom: 1px solid var(--border-subtle);
-    padding: 5px 8px 5px 12px;
-    color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 650;
+    padding: 6px 8px;
   }
 
   .motion-panel-right[data-open='false'] {
