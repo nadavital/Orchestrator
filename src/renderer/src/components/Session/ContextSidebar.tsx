@@ -92,7 +92,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
       }
     })
   const availableTabs: ContextTabSpec[] = [
-    ...(ui?.showDiff ? [{ id: 'diff' as const, label: 'Changes', icon: 'diff' as const }] : []),
+    ...(ui?.showDiff ? [{ id: 'diff' as const, label: 'Review', icon: 'diff' as const }] : []),
     ...(hasBrowserTab ? [{ id: 'browser' as const, label: 'Browser', icon: 'browser' as const }] : []),
     ...(hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : []),
     ...sideChatTabs,

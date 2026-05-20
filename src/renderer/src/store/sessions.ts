@@ -900,7 +900,7 @@ export const useSessionStore = create<SessionState>((set) => ({
 
 const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabKind, string> = {
   plan: 'Plan',
-  diff: 'Changes',
+  diff: 'Review',
   agents: 'Agents',
   extensions: 'Extensions',
   side: 'Side',

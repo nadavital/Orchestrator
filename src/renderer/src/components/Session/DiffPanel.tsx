@@ -155,7 +155,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     >
       {!embedded && (
         <PanelHeader
-          title={`Changes${files.length > 0 ? ` (${files.length})` : ''}`}
+          title={`Review${files.length > 0 ? ` (${files.length})` : ''}`}
           actions={changeActions}
         />
       )}

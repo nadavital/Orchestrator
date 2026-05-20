@@ -1283,7 +1283,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             nativeTitleFreeControlLeaks,
             headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
             chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
-            hasInspectorTabs: bodyText.includes('Changes') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
+            hasInspectorTabs: bodyText.includes('Review') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
             hasRightPanelState: rightPanel instanceof HTMLElement &&
               rightPanel.dataset.rightPanelActiveTab === 'diff' &&
               rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
