@@ -2388,12 +2388,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(80);
           }
           const headerMetadataText = document.querySelector('[data-testid="session-header-metadata"]')?.textContent ?? '';
+          const activeSessionTitle = document.querySelector('[data-testid="active-session-title"]');
           const headerIdentityWorks =
-            Boolean(document.querySelector('[data-testid="session-header-environment"]')) &&
+            activeSessionTitle instanceof HTMLElement &&
+            !document.querySelector('[data-testid="session-header-environment"]') &&
             headerMetadataText.includes('Automated UI Smoke') &&
             headerMetadataText.includes('Claude') &&
             headerMetadataText.length > 'Automated UI Smoke'.length;
-          const headerTooltipIds = ['session-header-environment', 'active-session-title', 'session-header-metadata', 'profile-badge'];
+          const headerTooltipIds = ['active-session-title', 'session-header-metadata', 'profile-badge'];
           if (document.querySelector('[data-testid="session-header-pinned"]')) headerTooltipIds.push('session-header-pinned');
           const headerNativeTooltipsWork =
             headerTooltipIds.every((testId) => {
@@ -4004,7 +4006,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               Boolean(runningRowForMeta instanceof HTMLElement && runningRowForMeta.querySelector('[data-testid="session-status-spinner"]')) &&
               Boolean(errorRowStatusDot instanceof HTMLElement && (errorRowStatusDot.getAttribute('aria-label') ?? '').trim()) &&
               ![runningRowForMeta, errorRowForMeta].some((row) => row instanceof HTMLElement && row.querySelector('.session-row-right-meta'));
-            const environmentIconVisible = Boolean(normalRow?.querySelector('[data-testid="session-environment-icon"]'));
+            const chatEnvironmentIconAbsent = !document.querySelector('[data-testid="session-environment-icon"]');
 
             let actionRenameWorks = false;
             if (normalRow instanceof HTMLElement) {
@@ -4187,7 +4189,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarSectionChromeCompact,
               idleRowRecencyHidden,
               importantRowStatusIconOnly,
-              environmentIconVisible,
+              chatEnvironmentIconAbsent,
               actionRenameWorks,
               runningSpinnerVisible: Boolean(runningRow?.querySelector('[data-testid="session-status-spinner"]')),
               normalIdleDotHidden: !normalRow?.querySelector('[data-testid="session-status-dot"]'),

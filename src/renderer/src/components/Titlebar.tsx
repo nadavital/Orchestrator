@@ -76,9 +76,6 @@ export default function Titlebar(): JSX.Element {
 
   const provider = session ? PROVIDER_DEFS[session.provider] : null
   const model = session && provider ? provider.models.find((candidate) => candidate.id === session.model) : null
-  const environment = session?.useWorktree
-    ? { icon: 'branch' as const, label: 'Worktree' }
-    : { icon: 'folder' as const, label: 'Local' }
   const branchLabel = session ? branch ?? inferredWorktreeBranch(session) : null
   const folderLabel = session
     ? project
@@ -110,18 +107,6 @@ export default function Titlebar(): JSX.Element {
       <div className="flex min-w-0 items-center gap-2 px-4" style={{ flex: 1 }}>
         {session ? (
           <>
-            <Tooltip label={environment.label}>
-              <span
-                data-testid="session-header-environment"
-                data-tooltip-label={environment.label}
-                data-native-title-free="true"
-                aria-label={environment.label}
-                className="grid shrink-0 place-items-center"
-                style={{ color: 'var(--text-tertiary)', width: 18, height: 18 }}
-              >
-                <Icon name={environment.icon} size={13} />
-              </span>
-            </Tooltip>
             <div className="flex min-w-0 flex-col">
               <div className="flex min-w-0 items-center gap-1.5">
                 <Tooltip label={session.name}>

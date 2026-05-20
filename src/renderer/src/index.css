@@ -2927,14 +2927,6 @@
     border-color: var(--border-subtle);
   }
 
-  .session-row-env-icon {
-    display: grid;
-    place-items: center;
-    width: 15px;
-    height: 17px;
-    color: var(--text-tertiary);
-  }
-
   .session-row-right-meta {
     max-width: 48px;
     overflow: hidden;

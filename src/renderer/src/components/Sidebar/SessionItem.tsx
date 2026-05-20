@@ -60,8 +60,8 @@ function SessionItem({ session }: Props): JSX.Element {
   const model = provider?.models.find((candidate) => candidate.id === session.model)
   const statusLabel = statusLabelFor(session.status, hasUnread)
   const environment = session.useWorktree
-    ? { icon: 'branch' as const, label: 'Worktree', description: 'This chat is running in a local git worktree.' }
-    : { icon: 'folder' as const, label: 'Local', description: 'This chat is running locally.' }
+    ? { label: 'Worktree' }
+    : { label: 'Local' }
   const updatedLabel = formatRelativeTime(session.latestMessageAt ?? session.createdAt)
   const cwdLabel = project ? relativePath(project.rootPath, session.workDir) : session.workDir
   const branchLabel = branch ?? inferredWorktreeBranch(session)
@@ -222,16 +222,6 @@ function SessionItem({ session }: Props): JSX.Element {
               </button>
             </Tooltip>
           </div>
-          <Tooltip label={environment.description}>
-            <span
-              className="session-row-env-icon shrink-0"
-              aria-label={environment.label}
-              data-native-title-free="true"
-              data-testid="session-environment-icon"
-            >
-              <Icon name={environment.icon} size={13} />
-            </span>
-          </Tooltip>
           <div className="min-w-0 flex-1">
             <div
               className="text-[12.5px] font-medium truncate leading-4"

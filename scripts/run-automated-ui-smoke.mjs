@@ -440,7 +440,7 @@ child.on('exit', (code) => {
         sidebarSectionChromeCompact: result.sidebarSectionChromeCompact === true,
         idleRowRecencyHidden: result.idleRowRecencyHidden === true,
         importantRowStatusIconOnly: result.importantRowStatusIconOnly === true,
-        environmentIconVisible: result.environmentIconVisible === true,
+        chatEnvironmentIconAbsent: result.chatEnvironmentIconAbsent === true,
         actionRenameWorks: result.actionRenameWorks === true,
         runningSpinnerVisible: result.runningSpinnerVisible === true,
         normalIdleDotHidden: result.normalIdleDotHidden === true,
