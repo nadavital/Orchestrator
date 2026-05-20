@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -1351,39 +1351,39 @@ function ProvidersSection({
           </div>
 
           {advancedOpen && (
-            <SettingsPanel>
+            <div className="provider-details-grid" data-testid="provider-details-grid">
               {loadingDiagnostics && !diagnostics && (
-                <CompactSetting title="Health">
+                <ProviderDetailCard title="Health">
                   <InlineMutedText>Checking local CLI...</InlineMutedText>
-                </CompactSetting>
+                </ProviderDetailCard>
               )}
               {diagnostics && (
-                <CompactSetting title="Health">
+                <ProviderDetailCard title="Health">
                   <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
-                </CompactSetting>
+                </ProviderDetailCard>
               )}
-              <CompactSetting title="Usage">
+              <ProviderDetailCard title="Usage">
                 <ProviderUsageDiagnosticsCard
                   providerId={selectedId}
                   diagnostics={diagnostics}
                   usage={usageSnapshot}
                   color={providerDef.color}
                 />
-              </CompactSetting>
+              </ProviderDetailCard>
               {diagnostics && diagnostics.probes.length > 0 && (
-                <CompactSetting title="Checks">
+                <ProviderDetailCard title="Checks" wide>
                   <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
-                </CompactSetting>
+                </ProviderDetailCard>
               )}
               {providerDef.id === 'claude' && (
-                <CompactSetting title="Endpoint">
+                <ProviderDetailCard title="Endpoint">
                   <ClaudeEndpointField color={providerDef.color} />
-                </CompactSetting>
+                </ProviderDetailCard>
               )}
-              <CompactSetting title="Config">
+              <ProviderDetailCard title="Config">
                 <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
-              </CompactSetting>
-            </SettingsPanel>
+              </ProviderDetailCard>
+            </div>
           )}
 
           {settingsCommandSurfaces.length > 0 && (
@@ -1413,6 +1413,23 @@ const CODEX_SETTINGS_COMMAND_SURFACE_IDS = new Set([
   'appserver-rate-limits',
   'appserver-auth-status'
 ])
+
+function ProviderDetailCard({
+  title,
+  children,
+  wide = false
+}: {
+  title: string
+  children: ReactNode
+  wide?: boolean
+}): JSX.Element {
+  return (
+    <section className="provider-detail-card" data-wide={wide ? 'true' : 'false'}>
+      <div className="provider-detail-card-title">{title}</div>
+      <div className="provider-detail-card-body">{children}</div>
+    </section>
+  )
+}
 
 function visibleSettingsCommandSurfaces(providerId: string, surfaces: ProviderCommandSurface[]): ProviderCommandSurface[] {
   if (providerId !== 'codex') return surfaces
@@ -2672,7 +2689,7 @@ function ProviderDiagnosticsCard({
   ]
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(86px, 1fr))', gap: 6 }}>
       {rows.map((row) => (
         <div
           key={row.label}
@@ -2961,7 +2978,7 @@ function ProviderProbeGrid({
   color: string
 }): JSX.Element {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 6 }}>
       {diagnostics.probes.map((probe) => (
         <div
           key={probe.id}
