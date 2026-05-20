@@ -1438,12 +1438,15 @@ function ProviderDropdown({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) minmax(220px, 300px) auto',
+          gridTemplateColumns: 'minmax(180px, 1fr) minmax(220px, 320px) auto',
           alignItems: 'center',
           gap: 10
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+        <div
+          data-testid="provider-selector-summary"
+          style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}
+        >
           <span
             style={{
               width: 26,
@@ -1458,13 +1461,18 @@ function ProviderDropdown({
           >
             <ProviderIcon providerId={providerId} size={16} color={color} />
           </span>
-          <span style={{ color: 'var(--color-text)', fontSize: 13, fontWeight: 700 }}>
-            Provider
+          <span className="min-w-0" style={{ display: 'grid', gap: 1 }}>
+            <span style={{ color: 'var(--color-text)', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Default provider
+            </span>
+            <span style={{ color: 'var(--color-text-muted)', fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {installed ? 'Ready' : installCmd}
+            </span>
           </span>
-          <StatusPill label={installed ? 'Ready' : 'Missing'} color={installed ? 'var(--color-green)' : '#F87171'} />
           {isDefault && <StatusPill label="Default" color={color} />}
         </div>
         <select
+          aria-label="Provider"
           value={selectedId}
           onChange={(event) => onSelect(event.target.value)}
           style={{
