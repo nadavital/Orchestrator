@@ -110,7 +110,7 @@ if (captureView === 'inspector' || captureView === 'browser') {
         <p>Loaded inside the side panel.</p>
         <p>Browser search has a second visible match.</p>
         <button id="target-button" onclick="document.body.dataset.clicked='yes'; console.log('browser smoke clicked')">Target button</button>
-        <input aria-label="Smoke input" placeholder="Type here" onkeydown="document.body.dataset.keyPressed=event.key">
+        <input aria-label="Smoke input" placeholder="Type here" oninput="document.body.dataset.inputValue=this.value" onkeydown="document.body.dataset.keyPressed=event.key">
         <select aria-label="Smoke select" onchange="document.body.dataset.selectedOption=this.value"><option value="alpha">Alpha</option><option value="beta">Beta</option></select>
         <label><input type="checkbox" aria-label="Smoke checkbox" onchange="document.body.dataset.checkedState=this.checked ? 'true' : 'false'"> Check me</label>
         <svg role="img" aria-label="Inline smoke icon" width="18" height="18"><circle cx="9" cy="9" r="8"></circle></svg>
@@ -384,6 +384,8 @@ child.on('exit', (code) => {
           browserActionsMenuCompact: result.browserActionsMenuCompactWorks === true,
           browserClearData: result.browserClearDataWorks === true,
           browserTargetKey: result.browserTargetKeyWorks === true,
+          browserTargetFill: result.browserTargetFillWorks === true,
+          browserTargetType: result.browserTargetTypeWorks === true,
           browserTargetSelect: result.browserTargetSelectWorks === true,
           browserTargetCheck: result.browserTargetCheckWorks === true,
           browserErrorRecovery: result.browserErrorRecoveryWorks === true,
@@ -439,6 +441,8 @@ child.on('exit', (code) => {
         browserInspection: captureView !== 'inspector' || result.browserInspectionWorks === true,
         browserTargetsPane: captureView !== 'inspector' || result.browserTargetsPaneWorks === true,
         browserTargetKey: captureView !== 'inspector' || result.browserTargetKeyWorks === true,
+        browserTargetFill: captureView !== 'inspector' || result.browserTargetFillWorks === true,
+        browserTargetType: captureView !== 'inspector' || result.browserTargetTypeWorks === true,
         browserTargetSelect: captureView !== 'inspector' || result.browserTargetSelectWorks === true,
         browserTargetCheck: captureView !== 'inspector' || result.browserTargetCheckWorks === true,
         browserTargetsPaneNoHorizontalOverflow: captureView !== 'inspector' || result.browserTargetsPaneNoHorizontalOverflowWorks === true,

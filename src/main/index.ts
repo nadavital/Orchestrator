@@ -1149,6 +1149,57 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 }
               }
             }
+            let browserTargetFillWorks = false;
+            let browserTargetTypeWorks = false;
+            const browserTargetSelectForText = document.querySelector('[data-testid="browser-target-select"]');
+            const browserTargetActionInputForText = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
+            if (browserTargetSelectForText instanceof HTMLSelectElement && browserTargetActionInputForText instanceof HTMLInputElement) {
+              const smokeInputOption = [...browserTargetSelectForText.options]
+                .find((option) => option.textContent?.includes('Smoke input'));
+              if (smokeInputOption) {
+                const selectSetter = Object.getOwnPropertyDescriptor(browserTargetSelectForText.constructor.prototype, 'value')?.set;
+                const inputSetter = Object.getOwnPropertyDescriptor(browserTargetActionInputForText.constructor.prototype, 'value')?.set;
+                selectSetter?.call(browserTargetSelectForText, smokeInputOption.value);
+                browserTargetSelectForText.dispatchEvent(new Event('change', { bubbles: true }));
+                inputSetter?.call(browserTargetActionInputForText, 'filled');
+                browserTargetActionInputForText.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+                const fillButton = [...document.querySelectorAll('.browser-targets-pane button')]
+                  .find((button) => button.textContent?.trim() === 'Fill');
+                const typeButton = [...document.querySelectorAll('.browser-targets-pane button')]
+                  .find((button) => button.textContent?.trim() === 'Type');
+                const browserWebview = document.querySelector('[data-testid="browser-webview"]');
+                if (fillButton instanceof HTMLButtonElement) {
+                  fillButton.click();
+                  for (let index = 0; index < 30; index += 1) {
+                    const value = browserWebview && 'executeJavaScript' in browserWebview
+                      ? await browserWebview.executeJavaScript('document.body.dataset.inputValue || ""')
+                      : '';
+                    if (value === 'filled') {
+                      browserTargetFillWorks = true;
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                }
+                inputSetter?.call(browserTargetActionInputForText, ' plus');
+                browserTargetActionInputForText.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+                if (typeButton instanceof HTMLButtonElement) {
+                  typeButton.click();
+                  for (let index = 0; index < 30; index += 1) {
+                    const value = browserWebview && 'executeJavaScript' in browserWebview
+                      ? await browserWebview.executeJavaScript('document.body.dataset.inputValue || ""')
+                      : '';
+                    if (value === 'filled plus') {
+                      browserTargetTypeWorks = true;
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                }
+              }
+            }
             let browserTargetSelectWorks = false;
             const browserTargetSelectForSelect = document.querySelector('[data-testid="browser-target-select"]');
             const browserTargetActionInputForSelect = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
@@ -1715,6 +1766,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserInspectionWorks: typeof browserInspectionWorks === 'boolean' ? browserInspectionWorks : null,
             browserTargetsPaneWorks: typeof browserTargetsPaneWorks === 'boolean' ? browserTargetsPaneWorks : null,
             browserTargetKeyWorks: typeof browserTargetKeyWorks === 'boolean' ? browserTargetKeyWorks : null,
+            browserTargetFillWorks: typeof browserTargetFillWorks === 'boolean' ? browserTargetFillWorks : null,
+            browserTargetTypeWorks: typeof browserTargetTypeWorks === 'boolean' ? browserTargetTypeWorks : null,
             browserTargetSelectWorks: typeof browserTargetSelectWorks === 'boolean' ? browserTargetSelectWorks : null,
             browserTargetCheckWorks: typeof browserTargetCheckWorks === 'boolean' ? browserTargetCheckWorks : null,
             browserTargetsPaneNoHorizontalOverflowWorks: typeof browserTargetsPaneNoHorizontalOverflowWorks === 'boolean' ? browserTargetsPaneNoHorizontalOverflowWorks : null,
@@ -2202,6 +2255,57 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 }
               }
             }
+            let browserTargetFillWorks = false;
+            let browserTargetTypeWorks = false;
+            const browserTargetSelectForText = document.querySelector('[data-testid="browser-target-select"]');
+            const browserTargetActionInputForText = document.querySelector('.browser-targets-pane input[placeholder="Text or key"]');
+            if (browserTargetSelectForText instanceof HTMLSelectElement && browserTargetActionInputForText instanceof HTMLInputElement) {
+              const smokeInputOption = [...browserTargetSelectForText.options]
+                .find((option) => option.textContent?.includes('Smoke input'));
+              if (smokeInputOption) {
+                const selectSetter = Object.getOwnPropertyDescriptor(browserTargetSelectForText.constructor.prototype, 'value')?.set;
+                const inputSetter = Object.getOwnPropertyDescriptor(browserTargetActionInputForText.constructor.prototype, 'value')?.set;
+                selectSetter?.call(browserTargetSelectForText, smokeInputOption.value);
+                browserTargetSelectForText.dispatchEvent(new Event('change', { bubbles: true }));
+                inputSetter?.call(browserTargetActionInputForText, 'filled');
+                browserTargetActionInputForText.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+                const fillButton = [...document.querySelectorAll('.browser-targets-pane button')]
+                  .find((button) => button.textContent?.trim() === 'Fill');
+                const typeButton = [...document.querySelectorAll('.browser-targets-pane button')]
+                  .find((button) => button.textContent?.trim() === 'Type');
+                const browserWebview = document.querySelector('[data-testid="browser-webview"]');
+                if (fillButton instanceof HTMLButtonElement) {
+                  fillButton.click();
+                  for (let index = 0; index < 30; index += 1) {
+                    const value = browserWebview && 'executeJavaScript' in browserWebview
+                      ? await browserWebview.executeJavaScript('document.body.dataset.inputValue || ""')
+                      : '';
+                    if (value === 'filled') {
+                      browserTargetFillWorks = true;
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                }
+                inputSetter?.call(browserTargetActionInputForText, ' plus');
+                browserTargetActionInputForText.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+                if (typeButton instanceof HTMLButtonElement) {
+                  typeButton.click();
+                  for (let index = 0; index < 30; index += 1) {
+                    const value = browserWebview && 'executeJavaScript' in browserWebview
+                      ? await browserWebview.executeJavaScript('document.body.dataset.inputValue || ""')
+                      : '';
+                    if (value === 'filled plus') {
+                      browserTargetTypeWorks = true;
+                      break;
+                    }
+                    await sleep(100);
+                  }
+                }
+              }
+            }
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const expectedUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
             const browserCurrentUrl = browserPanel?.getAttribute('data-browser-current-url') ?? '';
@@ -2239,6 +2343,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
               browserClearDataWorks: typeof browserClearDataWorks === 'boolean' ? browserClearDataWorks : null,
               browserTargetKeyWorks,
+              browserTargetFillWorks,
+              browserTargetTypeWorks,
               browserTargetSelectWorks,
               browserTargetCheckWorks,
               browserErrorRecoveryWorks,

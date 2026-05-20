@@ -74,7 +74,7 @@ interface VisibleTarget {
   selector: { primary: string | null; candidates: string[] }
 }
 
-type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'key' | 'select' | 'check' | 'scroll'
+type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'scroll'
 
 interface LocalBrowserTarget {
   url: string
@@ -1281,6 +1281,7 @@ function TargetsPane({
           <ActionButton label="Click" onClick={() => onRunTargetAction('click')} disabled={!selectedTargetId} />
           <ActionButton label="Double" onClick={() => onRunTargetAction('double_click')} disabled={!selectedTargetId} />
           <ActionButton label="Type" onClick={() => onRunTargetAction('type')} disabled={!selectedTargetId || !actionText} />
+          <ActionButton label="Fill" onClick={() => onRunTargetAction('fill')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Key" onClick={() => onRunTargetAction('key')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Select" onClick={() => onRunTargetAction('select')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Check" onClick={() => onRunTargetAction('check')} disabled={!selectedTargetId} />
@@ -1688,6 +1689,17 @@ const VISIBLE_TARGETS_SCRIPT = `
       return true;
     }
     if (action === 'type') {
+      element.focus();
+      if ('value' in element) {
+        element.value = String(element.value || '') + (text || '');
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+      } else {
+        document.execCommand('insertText', false, text || '');
+      }
+      return true;
+    }
+    if (action === 'fill') {
       element.focus();
       if ('value' in element) {
         element.value = text || '';
