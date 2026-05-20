@@ -1142,7 +1142,7 @@ function ShortcutsSection(): JSX.Element {
         </div>
         {visibleShortcuts.length > 0 && (
           <div
-            className="settings-shortcuts-head grid grid-cols-[minmax(0,1fr)_minmax(82px,auto)] gap-3 border-b px-3 text-[10px] font-bold uppercase"
+            className="settings-shortcuts-head grid grid-cols-[minmax(0,1fr)_minmax(82px,auto)] gap-3 border-b px-3 text-[11px] font-semibold"
             style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-tertiary)' }}
           >
             <span>Command</span>

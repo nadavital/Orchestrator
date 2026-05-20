@@ -666,6 +666,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(120);
               }
               const shortcutText = shortcutsSection instanceof HTMLElement ? shortcutsSection.innerText : '';
+              const shortcutHeader = shortcutsSection instanceof HTMLElement
+                ? shortcutsSection.querySelector('.settings-shortcuts-head')
+                : null;
               const shortcutRows = [...document.querySelectorAll('[data-testid="shortcuts-settings-section"] .settings-shortcut-row')]
                 .filter((row) => row instanceof HTMLElement);
               const shortcutRowRects = shortcutRows.map((row) => row.getBoundingClientRect());
@@ -694,6 +697,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 shortcutSearch instanceof HTMLInputElement &&
                 shortcutSearch.value === '' &&
                 Boolean(shortcutsSection.querySelector('.inspector-search-field')) &&
+                shortcutHeader instanceof HTMLElement &&
+                getComputedStyle(shortcutHeader).textTransform !== 'uppercase' &&
                 !document.querySelector('[data-testid="settings-shortcut-search-clear"]') &&
                 !shortcutText.toLowerCase().includes('keybinding') &&
                 shortcutKeys.length >= 8 &&
