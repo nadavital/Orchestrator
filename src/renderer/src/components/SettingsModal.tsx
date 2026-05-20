@@ -1338,20 +1338,11 @@ function ProvidersSection({
 
           {advancedOpen && (
             <div className="provider-details-grid" data-testid="provider-details-grid">
-              {loadingDiagnostics && !diagnostics && (
-                <ProviderDetailCard title="Health">
-                  <InlineMutedText>Checking local CLI...</InlineMutedText>
-                </ProviderDetailCard>
-              )}
-              {diagnostics && (
-                <ProviderDetailCard title="Health">
-                  <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
-                </ProviderDetailCard>
-              )}
-              <ProviderDetailCard title="Usage">
-                <ProviderUsageDiagnosticsCard
+              <ProviderDetailCard title="Status" wide>
+                <ProviderStatusDetails
                   providerId={selectedId}
                   diagnostics={diagnostics}
+                  loadingDiagnostics={loadingDiagnostics}
                   usage={usageSnapshot}
                   color={providerDef.color}
                 />
@@ -1414,6 +1405,44 @@ function ProviderDetailCard({
       <div className="provider-detail-card-title">{title}</div>
       <div className="provider-detail-card-body">{children}</div>
     </section>
+  )
+}
+
+function ProviderStatusDetails({
+  providerId,
+  diagnostics,
+  loadingDiagnostics,
+  usage,
+  color
+}: {
+  providerId: string
+  diagnostics?: ProviderDiagnosticInfo
+  loadingDiagnostics: boolean
+  usage: ProviderUsageSnapshot
+  color: string
+}): JSX.Element {
+  return (
+    <div className="provider-status-card" data-testid="provider-status-card">
+      <div className="provider-status-section">
+        <div className="provider-status-section-title">Health</div>
+        {loadingDiagnostics && !diagnostics ? (
+          <InlineMutedText>Checking local CLI...</InlineMutedText>
+        ) : diagnostics ? (
+          <ProviderDiagnosticsCard diagnostics={diagnostics} color={color} />
+        ) : (
+          <InlineMutedText>Open details to check local CLI status.</InlineMutedText>
+        )}
+      </div>
+      <div className="provider-status-section">
+        <div className="provider-status-section-title">Usage</div>
+        <ProviderUsageDiagnosticsCard
+          providerId={providerId}
+          diagnostics={diagnostics}
+          usage={usage}
+          color={color}
+        />
+      </div>
+    </div>
   )
 }
 

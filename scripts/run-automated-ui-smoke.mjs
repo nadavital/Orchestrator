@@ -632,6 +632,7 @@ child.on('exit', (code) => {
         settingsTaxonomy: captureView !== 'settings' || result.settingsTaxonomyWorks === true,
         settingsProviderDropdown: captureView !== 'settings-providers' || result.settingsProviderDropdownWorks === true,
         settingsDiagnosticsSection: !['settings', 'settings-providers'].includes(captureView) || result.settingsDiagnosticsSectionWorks === true,
+        settingsProviderStatusUnified: !['settings', 'settings-providers'].includes(captureView) || result.settingsProviderStatusUnifiedWorks === true,
         settingsUsageDiagnostics: !['settings', 'settings-providers'].includes(captureView) || result.settingsUsageDiagnosticsWorks === true,
         settingsProviderModelsCollapsed: !['settings', 'settings-providers'].includes(captureView) || result.settingsProviderModelsCollapsedWorks === true,
         settingsDiagnosticsDisclosureCompact: !['settings', 'settings-providers'].includes(captureView) || result.settingsDiagnosticsDisclosureCompactWorks === true,
