@@ -272,8 +272,8 @@ function ReviewPreview({
     return (
       <ReviewEmptyState
         title={change.path}
-        body="Open or reveal to inspect."
-        meta={preview?.size !== undefined ? `Binary - ${formatBytes(preview.size)}` : 'Binary'}
+        body="Cannot preview this file here."
+        meta={preview?.size !== undefined ? `Binary, ${formatBytes(preview.size)}` : 'Binary'}
         testId="review-binary-state"
         actions={[
           { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
@@ -375,7 +375,7 @@ function ReviewPreview({
       <ReviewEmptyState
         title={change.path}
         body="Preview unavailable."
-        meta={preview.size !== undefined ? `Unavailable - ${formatBytes(preview.size)}` : 'Unavailable'}
+        meta={preview.size !== undefined ? `Unavailable, ${formatBytes(preview.size)}` : 'Unavailable'}
         actions={[
           { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
           { label: 'Reveal', onClick: () => { void window.api.fs.showInFolder(absolutePath) } }
@@ -424,17 +424,28 @@ function ReviewEmptyState({
   return (
     <div
       data-testid={testId}
-      className="flex h-full flex-col items-start justify-start gap-2 px-3 pt-4 text-left text-xs"
+      className="flex h-full flex-col items-start justify-start gap-2.5 px-3 py-4 text-left text-xs"
       style={{ color: 'var(--color-text-muted)' }}
     >
-      {meta && <Badge tone="neutral">{meta}</Badge>}
-      <span className="max-w-full truncate" style={{ color: 'var(--text-secondary)', fontWeight: 650 }}>{title}</span>
+      <span className="flex max-w-full items-center gap-2">
+        <span
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md"
+          style={{ background: 'var(--control-bg)', color: 'var(--text-secondary)' }}
+        >
+          <Icon name="file" size={14} />
+        </span>
+        <span className="min-w-0">
+          <span className="block max-w-full truncate" style={{ color: 'var(--text-secondary)', fontWeight: 650 }}>{title}</span>
+          {meta && <span className="block truncate text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{meta}</span>}
+        </span>
+      </span>
       <span className="max-w-[300px] leading-5">{body}</span>
       {actions.length > 0 && (
         <span className="flex items-center gap-2 pt-1">
           {actions.map((action) => (
             <button
               key={action.label}
+              type="button"
               onClick={action.onClick}
               className="rounded-md px-2 py-1 text-[11px] font-semibold"
               style={{

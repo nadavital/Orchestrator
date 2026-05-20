@@ -294,8 +294,8 @@ function FilePreview({
     return (
       <EmptyFileState
         title={entry.name}
-        body="Open or reveal to inspect."
-        meta={`Binary - ${formatBytes(preview.size)}`}
+        body="Cannot preview this file here."
+        meta={`Binary, ${formatBytes(preview.size)}`}
         testId="workspace-binary-state"
         actions={[
           { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
@@ -312,7 +312,7 @@ function FilePreview({
       <EmptyFileState
         title={entry.name}
         body="Preview unavailable."
-        meta={preview.size !== undefined ? `Unavailable - ${formatBytes(preview.size)}` : 'Unavailable'}
+        meta={preview.size !== undefined ? `Unavailable, ${formatBytes(preview.size)}` : 'Unavailable'}
         actions={[
           { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
           { label: 'Reveal', onClick: () => { void window.api.fs.showInFolder(absolutePath) } }
@@ -384,11 +384,21 @@ function EmptyFileState({
   return (
     <div
       data-testid={testId}
-      className="flex h-full flex-col items-start justify-start gap-2 px-3 pt-4 text-left text-xs"
+      className="flex h-full flex-col items-start justify-start gap-2.5 px-3 py-4 text-left text-xs"
       style={{ color: 'var(--text-tertiary)' }}
     >
-      {meta && <Badge tone="neutral">{meta}</Badge>}
-      <strong className="max-w-full truncate" style={{ color: 'var(--text-secondary)' }}>{title}</strong>
+      <span className="flex max-w-full items-center gap-2">
+        <span
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md"
+          style={{ background: 'var(--control-bg)', color: 'var(--text-secondary)' }}
+        >
+          <Icon name="file" size={14} />
+        </span>
+        <span className="min-w-0">
+          <strong className="block max-w-full truncate" style={{ color: 'var(--text-secondary)' }}>{title}</strong>
+          {meta && <span className="block truncate text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{meta}</span>}
+        </span>
+      </span>
       <span className="max-w-[300px] leading-5">{body}</span>
       {actions.length > 0 && (
         <span className="flex items-center gap-2 pt-1">

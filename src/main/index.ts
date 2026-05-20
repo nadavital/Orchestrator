@@ -788,7 +788,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               reviewPreviewRect !== null &&
               reviewBinaryStateRect.top <= reviewPreviewRect.top + 28 &&
               reviewBinaryStateElement.innerText.includes('Binary') &&
-              document.body.innerText.includes('Open or reveal to inspect.');
+              document.body.innerText.includes('Cannot preview this file here.');
             var reviewBinaryActionsWork =
               reviewBinaryStateActions.includes('Open') &&
               reviewBinaryStateActions.includes('Reveal');
@@ -933,7 +933,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               binaryStateRect !== null &&
               binaryPreviewRect !== null &&
               binaryStateRect.top <= binaryPreviewRect.top + 28 &&
-              document.body.innerText.includes('Open or reveal to inspect.') &&
+              document.body.innerText.includes('Cannot preview this file here.') &&
               binaryState.innerText.includes('Binary') &&
               binaryStateButtons.includes('Open') &&
               binaryStateButtons.includes('Reveal') &&
