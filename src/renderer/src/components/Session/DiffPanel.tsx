@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { fileStatusLabel, summarizeFileChanges } from '../../types'
+import { fileStatusLabel } from '../../types'
 import type { FileChange } from '../../types'
 import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
@@ -21,8 +21,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [query, setQuery] = useState('')
   const [wrapLines, setWrapLines] = useState(true)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
-  const summary = summarizeFileChanges(files)
-  const summaryTone = files.length > 0 && summary.risk === 'high' ? 'danger' : 'neutral'
   const filteredFiles = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return normalizedQuery
@@ -101,15 +99,17 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   }
 
   const changeActions = (
-    <div className="relative flex items-center gap-1">
-      <ToolbarButton
+    <div className="diff-panel-actions relative">
+      <IconButton
         icon="refresh"
         label="Refresh changes"
+        size="sm"
         onClick={refresh}
       />
       <IconButton
         icon="ellipsis"
         label="Change actions"
+        size="sm"
         disabled={!selectedChange}
         active={actionMenuOpen}
         onClick={() => setActionMenuOpen((open) => !open)}
@@ -166,8 +166,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         </div>
       ) : (
         <>
-          <div className="diff-panel-toolbar">
-            <Badge tone={summaryTone} className="shrink-0" style={{ maxWidth: 82 }}>
+          <div className="diff-panel-toolbar" data-testid="diff-panel-toolbar">
+            <Badge tone="neutral" className="diff-file-count shrink-0" style={{ maxWidth: 82 }}>
               {files.length} {files.length === 1 ? 'file' : 'files'}
             </Badge>
             <input
@@ -175,7 +175,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search"
-              className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
+              className="diff-panel-search min-w-0 flex-1 rounded-md px-2 text-xs outline-none"
               style={{
                 background: 'var(--control-bg)',
                 border: '1px solid var(--border-subtle)',
@@ -186,6 +186,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
               icon="wrap"
               label={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
               active={wrapLines}
+              size="sm"
               onClick={() => setWrapLines((value) => !value)}
             />
             {embedded && changeActions}

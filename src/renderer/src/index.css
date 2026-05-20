@@ -574,12 +574,36 @@
 
   .diff-panel-toolbar {
     display: flex;
-    min-height: 40px;
+    min-height: 36px;
     flex-shrink: 0;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     border-bottom: 1px solid var(--border-subtle);
-    padding: 6px 8px;
+    padding: 5px 8px;
+  }
+
+  .diff-panel-search {
+    height: 26px;
+  }
+
+  .diff-file-count {
+    height: 20px;
+    color: var(--text-secondary) !important;
+    background: var(--control-bg) !important;
+    border-color: var(--border-subtle) !important;
+  }
+
+  .diff-panel-actions {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .diff-panel-toolbar .toolbar-button,
+  .diff-panel-actions .motion-icon-button {
+    width: 24px !important;
+    height: 24px !important;
   }
 
   .motion-panel-right[data-open='false'] {

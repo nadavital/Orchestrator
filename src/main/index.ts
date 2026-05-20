@@ -1226,6 +1226,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarTabRow.scrollWidth <= rightSidebarTabRow.clientWidth + 2 &&
             rightSidebarTabActions.getBoundingClientRect().height <= 26 &&
             (rightSidebarActiveTabStyle?.boxShadow === 'none' || rightSidebarActiveTabStyle?.boxShadow === '');
+          const diffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
+          const diffToolbarSearch = document.querySelector('[data-testid="diff-file-search"]');
+          const diffToolbarActions = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-panel-actions');
+          const diffFileCount = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-file-count');
+          const diffToolbarCompactWorks =
+            diffToolbar instanceof HTMLElement &&
+            diffToolbarSearch instanceof HTMLInputElement &&
+            diffToolbarActions instanceof HTMLElement &&
+            diffFileCount instanceof HTMLElement &&
+            diffToolbar.getBoundingClientRect().height <= 38 &&
+            diffToolbar.scrollWidth <= diffToolbar.clientWidth + 2 &&
+            diffToolbarSearch.getBoundingClientRect().height <= 28 &&
+            diffToolbarActions.getBoundingClientRect().height <= 26 &&
+            diffFileCount.textContent?.includes('file') === true;
           const headerMetadataText = document.querySelector('[data-testid="session-header-metadata"]')?.textContent ?? '';
           const headerIdentityWorks =
             Boolean(document.querySelector('[data-testid="session-header-environment"]')) &&
@@ -1275,6 +1289,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
             rightSidebarChromeCompactWorks,
+            diffToolbarCompactWorks,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
