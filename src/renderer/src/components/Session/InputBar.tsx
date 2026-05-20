@@ -18,6 +18,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const providerModels = useSessionStore((state) => state.providerModels)
   const currentUi = useSessionStore((state) => state.uiState[session.id] ?? defaultUI)
   const setComposerDraft = useSessionStore((state) => state.setComposerDraft)
+  const setComposerAttachments = useSessionStore((state) => state.setComposerAttachments)
   const setShowDiff = useSessionStore((state) => state.setShowDiff)
   const setShowEvents = useSessionStore((state) => state.setShowEvents)
   const setShowPlan = useSessionStore((state) => state.setShowPlan)
@@ -29,7 +30,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const appendSideChatMessage = useSessionStore((state) => state.appendSideChatMessage)
   const updateSideChatMessage = useSessionStore((state) => state.updateSideChatMessage)
   const [text, setText] = useState(() => currentUi.composerDraft ?? '')
-  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const attachments = currentUi.composerAttachments ?? []
   const [useWorktree, setUseWorktree] = useState(false)
   const [isGitRepo, setIsGitRepo] = useState(false)
   const [showModeMenu, setShowModeMenu] = useState(false)
@@ -113,7 +114,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       const filePath = detail.path
       const pathParts = filePath.split(/[\\/]/)
       const name = detail.name ?? pathParts.at(-1) ?? filePath
-      setAttachments((current) => dedupeAttachments([
+      setComposerAttachments(session.id, (current) => dedupeAttachments([
         ...current,
         {
           id: crypto.randomUUID(),
@@ -127,7 +128,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     }
     window.addEventListener('orchestrator:add-composer-attachment', onAddComposerAttachment)
     return () => window.removeEventListener('orchestrator:add-composer-attachment', onAddComposerAttachment)
-  }, [])
+  }, [session.id, setComposerAttachments])
 
   useEffect(() => {
     if (!showPermMenu) setShowAdvancedPerms(false)
@@ -229,7 +230,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     if (sideQuestion) {
       const question = (sideQuestion[1] ?? '').trim()
       setComposerText('')
-      setAttachments([])
+      setComposerAttachments(session.id, [])
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
       const sideChatId = crypto.randomUUID()
       openSideChat(session.id, sideChatId, question ? sideChatTitle(question) : 'Side chat')
@@ -265,7 +266,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
     }
     const prompt = expandedCommandPrompt(rawPrompt) ?? rawPrompt
     setComposerText('')
-    setAttachments([])
+    setComposerAttachments(session.id, [])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     await window.api.sessions.sendMessage(session.id, prompt, isNew ? useWorktree : undefined, attachments)
   }
@@ -280,7 +281,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       name: file.name,
       size: file.size
     }))
-    setAttachments((current) => dedupeAttachments([...current, ...next]))
+    setComposerAttachments(session.id, (current) => dedupeAttachments([...current, ...next]))
     textareaRef.current?.focus()
   }
 
@@ -311,7 +312,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
       }))
       const next = saved.filter((attachment): attachment is Attachment => attachment !== null)
       if (next.length > 0) {
-        setAttachments((current) => dedupeAttachments([...current, ...next]))
+        setComposerAttachments(session.id, (current) => dedupeAttachments([...current, ...next]))
         textareaRef.current?.focus()
       }
     } finally {
@@ -512,7 +513,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
               <AttachmentChip
                 key={attachment.id}
                 attachment={attachment}
-                onRemove={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
+                onRemove={() => setComposerAttachments(session.id, (current) => current.filter((item) => item.id !== attachment.id))}
               />
             ))}
           </div>

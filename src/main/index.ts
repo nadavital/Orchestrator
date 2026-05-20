@@ -2192,6 +2192,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const element = document.querySelector('textarea');
               return element instanceof HTMLTextAreaElement ? element.value : null;
             };
+            const attachmentLabels = () =>
+              [...document.querySelectorAll('[aria-label="Attachments"] .attachment-pill')]
+                .map((element) => element.textContent?.trim() ?? '')
+                .filter(Boolean);
+            const addComposerAttachment = (name, path) => {
+              window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
+                detail: { name, path, size: 32 }
+              }));
+            };
             const setTextareaValue = (value) => {
               const element = document.querySelector('textarea');
               if (!(element instanceof HTMLTextAreaElement)) return false;
@@ -2224,6 +2233,31 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               composerDraftClearedOnSwitch &&
               composerFirstDraftRestored &&
               composerSecondDraftRestored;
+            firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
+            addComposerAttachment('draft-one.txt', '/tmp/orchestrator-draft-one.txt');
+            await sleep(120);
+            const firstAttachmentLabels = attachmentLabels();
+            var composerFirstAttachmentRestored =
+              firstAttachmentLabels.some((label) => label.includes('draft-one.txt')) &&
+              !firstAttachmentLabels.some((label) => label.includes('draft-two.txt'));
+            secondDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
+            var composerAttachmentsClearedOnSwitch = !attachmentLabels().some((label) => label.includes('draft-one.txt'));
+            addComposerAttachment('draft-two.txt', '/tmp/orchestrator-draft-two.txt');
+            await sleep(120);
+            const secondAttachmentLabels = attachmentLabels();
+            var composerSecondAttachmentRestored =
+              secondAttachmentLabels.some((label) => label.includes('draft-two.txt')) &&
+              !secondAttachmentLabels.some((label) => label.includes('draft-one.txt'));
+            firstDraftRow?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            await sleep(220);
+            var composerAttachmentsPerChat =
+              composerFirstAttachmentRestored &&
+              composerAttachmentsClearedOnSwitch &&
+              composerSecondAttachmentRestored &&
+              attachmentLabels().some((label) => label.includes('draft-one.txt')) &&
+              !attachmentLabels().some((label) => label.includes('draft-two.txt'));
 
             const permissionButton = document.querySelector('[data-testid="composer-permission-menu"]');
             permissionButton?.click();
@@ -2727,6 +2761,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerDraftClearedOnSwitch: typeof composerDraftClearedOnSwitch === 'boolean' ? composerDraftClearedOnSwitch : null,
             composerFirstDraftRestored: typeof composerFirstDraftRestored === 'boolean' ? composerFirstDraftRestored : null,
             composerSecondDraftRestored: typeof composerSecondDraftRestored === 'boolean' ? composerSecondDraftRestored : null,
+            composerAttachmentsPerChat: typeof composerAttachmentsPerChat === 'boolean' ? composerAttachmentsPerChat : null,
+            composerAttachmentsClearedOnSwitch: typeof composerAttachmentsClearedOnSwitch === 'boolean' ? composerAttachmentsClearedOnSwitch : null,
+            composerFirstAttachmentRestored: typeof composerFirstAttachmentRestored === 'boolean' ? composerFirstAttachmentRestored : null,
+            composerSecondAttachmentRestored: typeof composerSecondAttachmentRestored === 'boolean' ? composerSecondAttachmentRestored : null,
             buttonCount: buttons.length,
             buttons: buttons.slice(0, 30)
           };

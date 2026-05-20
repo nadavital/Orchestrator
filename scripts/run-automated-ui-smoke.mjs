@@ -759,6 +759,8 @@ child.on('exit', (code) => {
         composerAgentOutsideClick: captureView !== 'composer' || result.composerAgentMenuClosedWithOutsideClick === true,
         composerAgentFocusReturned: captureView !== 'composer' || result.composerAgentFocusReturned === true,
         composerDraftsPerChat: captureView !== 'composer' || result.composerDraftsPerChat === true,
+        composerAttachmentsPerChat: captureView !== 'composer' || result.composerAttachmentsPerChat === true,
+        composerAttachmentsClearedOnSwitch: captureView !== 'composer' || result.composerAttachmentsClearedOnSwitch === true,
         composerToolbarResponsive: captureView !== 'composer' || result.composerToolbarResponsiveWorks === true,
         buttons: Number(result.buttonCount ?? 0) > 0
       }

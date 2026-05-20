@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, TranscriptPage, UsageSummary } from '../types'
+import type { Attachment, Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, TranscriptPage, UsageSummary } from '../types'
 import { nextPinOrder } from '../types'
 
 export type SettingsSection = 'general' | 'appearance' | 'providers' | 'shortcuts' | 'pets' | 'data'
@@ -113,6 +113,7 @@ export interface SessionUIState {
   showSideQuestions: boolean
   hasUnread: boolean
   composerDraft?: string
+  composerAttachments?: Attachment[]
   activeAgentId?: string | null
   agentTabIds?: string[]
   sideQuestions?: SideQuestionMessage[]
@@ -190,6 +191,7 @@ interface SessionState {
   closeTerminalTab: (id: string, tabId: number) => void
   setHasUnread: (id: string, v: boolean) => void
   setComposerDraft: (id: string, draft: string) => void
+  setComposerAttachments: (id: string, attachments: Attachment[] | ((current: Attachment[]) => Attachment[])) => void
   setProviderAvailability: (availability: Record<string, boolean>) => void
   setProviderModels: (v: Record<string, string[]>) => void
   setShowSettings: (v: boolean) => void
@@ -212,6 +214,7 @@ export const defaultUI: SessionUIState = {
   showSideQuestions: false,
   hasUnread: false,
   composerDraft: '',
+  composerAttachments: [],
   activeAgentId: null,
   agentTabIds: [],
   sideQuestions: [],
@@ -884,6 +887,23 @@ export const useSessionStore = create<SessionState>((set) => ({
     set((s) => ({
       uiState: { ...s.uiState, [id]: { ...(s.uiState[id] ?? defaultUI), composerDraft: draft } }
     })),
+
+  setComposerAttachments: (id, attachments) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const nextAttachments = typeof attachments === 'function'
+        ? attachments(current.composerAttachments ?? [])
+        : attachments
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            composerAttachments: nextAttachments
+          }
+        }
+      }
+    }),
 
   setProviderAvailability: (availability) => set({ providerAvailability: availability }),
 
