@@ -982,6 +982,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-current-url') ?? '')
                 .startsWith(${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')});
             var browserScreenshotWorks = Boolean(document.querySelector('[data-testid="browser-screenshot-preview"]'));
+            const addBrowserScreenshotButton = findButton('Add screenshot');
+            if (addBrowserScreenshotButton instanceof HTMLButtonElement) {
+              addBrowserScreenshotButton.click();
+              await sleep(160);
+            }
+            var browserScreenshotAttachmentWorks =
+              [...document.querySelectorAll('.attachment-pill')]
+                .some((attachment) => attachment.textContent?.includes('browser-'));
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const findInPageButton = findButton('Find in page');
             var browserFindWorks = false;
@@ -1588,6 +1596,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             filesSearchClearWorks: typeof filesSearchClearWorks === 'boolean' ? filesSearchClearWorks : null,
             browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
             browserScreenshotWorks: typeof browserScreenshotWorks === 'boolean' ? browserScreenshotWorks : null,
+            browserScreenshotAttachmentWorks: typeof browserScreenshotAttachmentWorks === 'boolean' ? browserScreenshotAttachmentWorks : null,
             browserFindWorks: typeof browserFindWorks === 'boolean' ? browserFindWorks : null,
             browserFindNavigationWorks: typeof browserFindNavigationWorks === 'boolean' ? browserFindNavigationWorks : null,
             browserZoomWorks: typeof browserZoomWorks === 'boolean' ? browserZoomWorks : null,

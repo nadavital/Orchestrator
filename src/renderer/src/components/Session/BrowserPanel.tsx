@@ -984,7 +984,13 @@ export default function BrowserPanel({
             </div>
             <div className="browser-inspector-output" data-testid="browser-inspector-output">
               {workbench.inspectorMode === 'console' && (
-                <ConsolePane logs={logs} artifactPath={artifactPath} screenshot={screenshot} onClear={() => setLogs([])} />
+                <ConsolePane
+                  logs={logs}
+                  artifactPath={artifactPath}
+                  screenshot={screenshot}
+                  onAddScreenshot={() => addArtifactToChat(artifactPath)}
+                  onClear={() => setLogs([])}
+                />
               )}
               {workbench.inspectorMode === 'dom' && <DomPane domSnapshot={domSnapshot} onInspect={runInspection} />}
               {workbench.inspectorMode === 'targets' && (
@@ -1074,11 +1080,13 @@ function ConsolePane({
   logs,
   artifactPath,
   screenshot,
+  onAddScreenshot,
   onClear
 }: {
   logs: BrowserLogEntry[]
   artifactPath: string | null
   screenshot: string | null
+  onAddScreenshot: () => void
   onClear: () => void
 }): JSX.Element {
   return (
@@ -1086,6 +1094,16 @@ function ConsolePane({
       <div className="flex items-center gap-2">
         <Badge tone="neutral">console {logs.length}</Badge>
         {artifactPath && <Badge tone="success">screenshot saved</Badge>}
+        {artifactPath && (
+          <button
+            type="button"
+            className="text-xs font-semibold"
+            style={{ color: 'var(--accent)' }}
+            onClick={onAddScreenshot}
+          >
+            Add screenshot
+          </button>
+        )}
         <button type="button" className="ml-auto text-xs" style={{ color: 'var(--text-secondary)' }} onClick={onClear}>Clear</button>
       </div>
       {artifactPath && <div className="truncate" style={{ color: 'var(--text-tertiary)' }}>{artifactPath}</div>}
@@ -1357,6 +1375,20 @@ function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl
     allowedUploadOrigins: state?.allowedUploadOrigins ?? [],
     blockedUploadOrigins: state?.blockedUploadOrigins ?? []
   }
+}
+
+function addArtifactToChat(path: string | null): void {
+  if (!path) return
+  window.dispatchEvent(new CustomEvent('orchestrator:add-composer-attachment', {
+    detail: {
+      path,
+      name: fileNameFromPath(path)
+    }
+  }))
+}
+
+function fileNameFromPath(path: string): string {
+  return path.split(/[\\/]/).at(-1) ?? path
 }
 
 function activeBrowserTab(workbench: BrowserWorkbenchState): BrowserTabState {

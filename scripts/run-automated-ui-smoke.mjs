@@ -417,6 +417,7 @@ child.on('exit', (code) => {
         filesSearchClear: captureView !== 'inspector' || result.filesSearchClearWorks === true,
         browserTab: captureView !== 'inspector' || result.browserTabWorks === true,
         browserScreenshot: captureView !== 'inspector' || result.browserScreenshotWorks === true,
+        browserScreenshotAttachment: captureView !== 'inspector' || result.browserScreenshotAttachmentWorks === true,
         browserFind: captureView !== 'inspector' || result.browserFindWorks === true,
         browserFindNavigation: captureView !== 'inspector' || result.browserFindNavigationWorks === true,
         browserZoom: captureView !== 'inspector' || result.browserZoomWorks === true,
