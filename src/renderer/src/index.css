@@ -1412,8 +1412,8 @@
     position: relative;
     display: grid;
     place-items: center;
-    width: 20px;
-    height: 22px;
+    width: 18px;
+    height: 20px;
   }
 
   .session-row-shell {
@@ -1432,8 +1432,8 @@
   .session-row-env-icon {
     display: grid;
     place-items: center;
-    width: 16px;
-    height: 18px;
+    width: 15px;
+    height: 17px;
     color: var(--text-tertiary);
   }
 
@@ -1457,13 +1457,13 @@
   }
 
   .session-item-status-dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
 
   .session-item-running-spinner {
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
     border: 1.5px solid color-mix(in srgb, var(--color-green) 28%, transparent);
     border-top-color: var(--color-green);
     border-radius: 999px;
@@ -1473,8 +1473,8 @@
   .session-item-pin-button {
     display: grid;
     place-items: center;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     padding: 0;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);

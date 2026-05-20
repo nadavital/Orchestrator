@@ -193,11 +193,11 @@ function SessionItem({ session }: Props): JSX.Element {
       >
         <SurfaceRow
           dataTestId="session-row"
-          className="group flex h-7 min-w-0 items-center gap-1.5 cursor-pointer select-none"
+          className="group flex h-6 min-w-0 items-center gap-1.5 cursor-pointer select-none"
           active={isActive}
           style={{
             borderRadius: 'var(--radius-md)',
-            padding: '3px 6px'
+            padding: '2px 6px'
           }}
           onClick={handleClick}
           onContextMenu={openMenu}
@@ -225,7 +225,7 @@ function SessionItem({ session }: Props): JSX.Element {
           </span>
           <div className="min-w-0 flex-1">
             <div
-              className="text-[13px] font-medium truncate leading-5"
+              className="text-[12.5px] font-medium truncate leading-4"
               data-thread-title={session.name}
               style={{ color: 'var(--text-primary)' }}
             >

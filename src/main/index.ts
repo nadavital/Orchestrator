@@ -1920,10 +1920,10 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               : null;
             const sessionRowsCompact = [...document.querySelectorAll('[data-testid="session-row"]')]
               .filter((row) => row instanceof HTMLElement)
-              .every((row) => row.getBoundingClientRect().height <= 32);
+              .every((row) => row.getBoundingClientRect().height <= 28);
             const projectHeadersCompact = [...document.querySelectorAll('[data-testid="project-section-header"]')]
               .filter((header) => header instanceof HTMLElement)
-              .every((header) => header.getBoundingClientRect().height <= 28);
+              .every((header) => header.getBoundingClientRect().height <= 24);
             const environmentIconVisible = Boolean(normalRow?.querySelector('[data-testid="session-environment-icon"]'));
 
             let actionRenameWorks = false;

@@ -124,9 +124,9 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
       {/* Project header */}
       <SurfaceRow
         dataTestId="project-section-header"
-        className="group flex h-6 min-w-0 items-center gap-1.5 cursor-pointer select-none"
+        className="group flex h-[22px] min-w-0 items-center gap-1.5 cursor-pointer select-none"
         style={{
-          padding: '2px 6px',
+          padding: '1px 6px',
           borderRadius: 'var(--radius-md)',
           color: 'var(--text-secondary)',
         }}
@@ -143,7 +143,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
         <span className="shrink-0">
           <Icon name="folder" size={13} />
         </span>
-        <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
           {project.name}
         </span>
         {project.pinned && (
@@ -174,7 +174,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
           {sessions.length === 0 && (
             <div
               className="cursor-pointer"
-              style={{ color: 'var(--text-secondary)', padding: '3px 8px 3px 28px', fontSize: 12.5 }}
+              style={{ color: 'var(--text-secondary)', padding: '2px 8px 2px 28px', fontSize: 12 }}
               onClick={handleNewSession}
             >
               New chat
