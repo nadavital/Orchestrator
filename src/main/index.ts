@@ -2109,10 +2109,25 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(100);
             }
             const browserLocalTargets = [...document.querySelectorAll('[data-testid="browser-local-target"]')];
+            const browserLocalTargetSort = document.querySelector('[data-testid="browser-local-target-sort"]');
+            const browserLocalTargetSortBefore = browserLocalTargetSort instanceof HTMLElement
+              ? browserLocalTargetSort.getAttribute('data-local-target-sort')
+              : null;
+            if (browserLocalTargetSort instanceof HTMLButtonElement) {
+              browserLocalTargetSort.click();
+              await sleep(80);
+            }
+            const browserLocalTargetSortAfter = browserLocalTargetSort instanceof HTMLElement
+              ? browserLocalTargetSort.getAttribute('data-local-target-sort')
+              : null;
             var browserLocalTargetsWorks =
               document.querySelector('[data-testid="browser-local-targets"]') instanceof HTMLElement &&
               browserLocalTargets.length > 0 &&
               browserLocalTargets.some((target) => target.textContent?.includes('127.0.0.1')) &&
+              browserLocalTargets.some((target) => target instanceof HTMLElement && target.dataset.localTargetStatus === 'running') &&
+              browserLocalTargets.some((target) => target instanceof HTMLElement && Boolean(target.dataset.localTargetSource)) &&
+              browserLocalTargetSortBefore === 'recent' &&
+              browserLocalTargetSortAfter === 'port' &&
               browserLocalTargets.every((target) => target instanceof HTMLElement && target.scrollWidth <= target.clientWidth + 2);
             const browserInput = document.querySelector('[data-testid="browser-url-input"]');
             var browserAddressSearchWorks = false;

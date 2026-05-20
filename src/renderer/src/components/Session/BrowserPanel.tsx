@@ -135,6 +135,7 @@ export default function BrowserPanel({
   const [clipboardText, setClipboardText] = useState('')
   const [coordinateAction, setCoordinateAction] = useState({ x: 20, y: 20, scrollY: 360 })
   const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
+  const [localTargetSort, setLocalTargetSort] = useState<'recent' | 'port'>('recent')
   const activeTab = activeBrowserTab(workbench)
   const visible = workbench.visible
   const viewport = browserViewport(workbench)
@@ -142,6 +143,7 @@ export default function BrowserPanel({
   const blocked = Boolean(urlOrigin && workbench.blockedOrigins.includes(originKey(urlOrigin)))
   const devicePreviewActive = workbench.deviceMode !== 'desktop'
   const showStatusRow = isLoading || blocked || devicePreviewActive
+  const sortedLocalTargets = sortLocalTargets(localTargets, localTargetSort)
   useEffect(() => {
     workbenchRef.current = workbench
   }, [workbench])
@@ -980,19 +982,35 @@ export default function BrowserPanel({
               <div className="browser-local-targets" data-testid="browser-local-targets">
                 <div className="browser-local-targets-header">
                   <span>{localTargetsLoading ? 'Checking local servers' : 'Local servers'}</span>
-                  <button type="button" onClick={() => void refreshLocalTargets()}>Refresh</button>
+                  <div className="browser-local-targets-actions">
+                    <button
+                      type="button"
+                      data-testid="browser-local-target-sort"
+                      data-local-target-sort={localTargetSort}
+                      onClick={() => setLocalTargetSort((sort) => sort === 'recent' ? 'port' : 'recent')}
+                    >
+                      {localTargetSort === 'recent' ? 'Recent' : 'Port'}
+                    </button>
+                    <button type="button" onClick={() => void refreshLocalTargets()}>Refresh</button>
+                  </div>
                 </div>
                 <div className="browser-local-targets-list" aria-live="polite">
-                  {localTargets.length > 0 ? localTargets.map((target) => (
+                  {sortedLocalTargets.length > 0 ? sortedLocalTargets.map((target) => (
                     <button
                       key={target.url}
                       type="button"
                       data-testid="browser-local-target"
+                      data-local-target-source={target.source}
+                      data-local-target-status="running"
                       onClick={() => navigate(target.url)}
                     >
                       <Icon name="browser" size={13} />
                       <span className="min-w-0 flex-1 truncate">{target.title || shortUrl(target.url)}</span>
-                      <span>{shortUrl(target.url)}</span>
+                      <span className="browser-local-target-meta">
+                        <span>Running</span>
+                        <span>{target.source === 'recent' ? 'Recent' : 'Port'}</span>
+                        <span>{shortUrl(target.url)}</span>
+                      </span>
                     </button>
                   )) : (
                     <div className="browser-local-targets-empty" data-testid="browser-local-targets-empty">
@@ -1488,6 +1506,27 @@ function addArtifactToChat(path: string | null): void {
 
 function fileNameFromPath(path: string): string {
   return path.split(/[\\/]/).at(-1) ?? path
+}
+
+function sortLocalTargets(targets: LocalBrowserTarget[], sort: 'recent' | 'port'): LocalBrowserTarget[] {
+  return [...targets].sort((left, right) => {
+    if (sort === 'recent' && left.source !== right.source) {
+      return left.source === 'recent' ? -1 : 1
+    }
+    const leftPort = portFromUrl(left.url)
+    const rightPort = portFromUrl(right.url)
+    if (leftPort !== rightPort) return leftPort - rightPort
+    return left.url.localeCompare(right.url)
+  })
+}
+
+function portFromUrl(url: string): number {
+  try {
+    const parsed = new URL(url)
+    return Number(parsed.port) || (parsed.protocol === 'https:' ? 443 : 80)
+  } catch {
+    return Number.MAX_SAFE_INTEGER
+  }
 }
 
 function activeBrowserTab(workbench: BrowserWorkbenchState): BrowserTabState {

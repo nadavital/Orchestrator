@@ -1179,6 +1179,13 @@
     text-transform: uppercase;
   }
 
+  .browser-local-targets-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: none;
+  }
+
   .browser-local-targets-header button {
     border: 0;
     background: transparent;
@@ -1224,13 +1231,30 @@
     font-size: 12px;
   }
 
-  .browser-local-targets-list button span:last-child {
-    max-width: 120px;
-    overflow: hidden;
+  .browser-local-target-meta {
+    display: inline-flex;
+    max-width: 160px;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
     color: var(--text-tertiary);
     font-size: 10.5px;
-    text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .browser-local-target-meta span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .browser-local-target-meta span:first-child {
+    color: var(--state-success);
+    font-weight: 700;
+  }
+
+  .browser-local-target-meta span:last-child {
+    max-width: 82px;
+    color: var(--text-tertiary);
   }
 
   .browser-local-targets-list button:hover,
