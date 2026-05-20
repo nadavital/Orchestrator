@@ -281,6 +281,24 @@
 
   .app-shell {
     background: transparent;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .app-sidebar {
+    inline-size: 264px;
+    min-inline-size: 264px;
+    max-inline-size: 264px;
+    overflow-x: hidden;
+  }
+
+  .app-sidebar * {
+    min-width: 0;
+  }
+
+  .app-sidebar .surface-row {
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .content-shell {
@@ -453,12 +471,19 @@
 
   .motion-panel-right.right-sidebar-expanded {
     position: absolute;
-    inset: 0 0 0 auto;
-    z-index: 38;
-    width: 100% !important;
-    min-width: 100% !important;
-    max-width: 100% !important;
+    inset: 0;
+    z-index: 45;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 100%;
     box-shadow: -14px 0 32px rgba(15, 23, 42, 0.12);
+  }
+
+  .motion-panel-right.right-sidebar-expanded > aside {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
   }
 
   .right-sidebar-chrome {
@@ -1223,6 +1248,8 @@
   .session-row-shell {
     position: relative;
     min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
     outline: none;
   }
 

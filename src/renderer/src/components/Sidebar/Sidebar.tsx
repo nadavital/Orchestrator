@@ -85,7 +85,8 @@ export default function Sidebar(): JSX.Element {
 
   return (
     <aside
-      className="flex min-w-0 flex-col overflow-hidden shrink-0"
+      className="app-sidebar flex min-w-0 flex-col overflow-hidden shrink-0"
+      data-testid="app-sidebar"
       style={{
         width: 264,
         background: 'var(--panel-bg)',

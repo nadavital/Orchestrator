@@ -585,8 +585,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(180);
             }
             const rightPanelExpanded = document.querySelector('[data-testid="session-right-panel"]');
+            const rightPanelExpandedContainer = rightPanelExpanded instanceof HTMLElement
+              ? rightPanelExpanded.closest('[data-motion-panel="right"]')
+              : null;
+            const mainRowAfterExpand = document.querySelector('[data-testid="session-main-row"]');
             const primaryAfterExpand = document.querySelector('[data-testid="session-primary-content"]');
             const primaryWidthAfterExpand = primaryAfterExpand instanceof HTMLElement ? primaryAfterExpand.getBoundingClientRect().width : 0;
+            const mainRowWidthAfterExpand = mainRowAfterExpand instanceof HTMLElement ? mainRowAfterExpand.getBoundingClientRect().width : 0;
+            const expandedContentWidth = rightPanelExpanded instanceof HTMLElement ? rightPanelExpanded.getBoundingClientRect().width : 0;
+            const expandedWidth = rightPanelExpandedContainer instanceof HTMLElement
+              ? rightPanelExpandedContainer.getBoundingClientRect().width
+              : expandedContentWidth;
             const restoreButton = findButton('Restore panel width');
             const restoreButtonLabelAfterExpand = restoreButton instanceof HTMLButtonElement
               ? restoreButton.getAttribute('aria-label')
@@ -594,8 +603,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var rightPanelExpandDebug = {
               widthBefore,
               dataWidthAfterExpand: Number(rightPanelExpanded?.getAttribute('data-right-panel-width') ?? '0'),
-              actualWidthAfterExpand: rightPanelExpanded instanceof HTMLElement ? rightPanelExpanded.getBoundingClientRect().width : 0,
+              actualWidthAfterExpand: expandedContentWidth,
+              containerWidthAfterExpand: expandedWidth,
               fullWidthAfterExpand: rightPanelExpanded instanceof HTMLElement ? rightPanelExpanded.dataset.rightPanelFullWidth : null,
+              mainRowWidthAfterExpand,
               primaryWidthBefore,
               primaryWidthAfterExpand,
               expandButtonLabelBefore,
@@ -604,7 +615,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var rightPanelExpandWorks =
               rightPanelExpanded instanceof HTMLElement &&
               rightPanelExpanded.dataset.rightPanelFullWidth === 'true' &&
-              rightPanelExpanded.getBoundingClientRect().width > widthBefore + 40 &&
+              expandedWidth > widthBefore + 40 &&
+              Math.abs(expandedWidth - mainRowWidthAfterExpand) <= 4 &&
               primaryWidthAfterExpand >= primaryWidthBefore - 8 &&
               expandButton instanceof HTMLButtonElement &&
               expandButtonLabelBefore === 'Expand panel' &&
@@ -1585,12 +1597,29 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               normalActionsButton.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
               await sleep(80);
             }
-            const sidebar = document.querySelector('aside');
+            const sidebar = document.querySelector('[data-testid="app-sidebar"]');
+            const sidebarScrollContainers = sidebar instanceof HTMLElement
+              ? [...sidebar.querySelectorAll('.overflow-y-auto')]
+              : [];
             const sidebarNoHorizontalOverflow = sidebar instanceof HTMLElement &&
               getComputedStyle(sidebar).overflowX === 'hidden' &&
-              [...sidebar.querySelectorAll('.overflow-y-auto')].every((element) => (
-                element instanceof HTMLElement && getComputedStyle(element).overflowX === 'hidden'
+              sidebar.scrollWidth <= sidebar.clientWidth + 2 &&
+              sidebarScrollContainers.every((element) => (
+                element instanceof HTMLElement &&
+                getComputedStyle(element).overflowX === 'hidden' &&
+                element.scrollWidth <= element.clientWidth + 2
               ));
+            const sidebarOverflowDebug = sidebar instanceof HTMLElement
+              ? {
+                  sidebarClientWidth: sidebar.clientWidth,
+                  sidebarScrollWidth: sidebar.scrollWidth,
+                  scrollContainers: sidebarScrollContainers.map((element) => ({
+                    clientWidth: element instanceof HTMLElement ? element.clientWidth : 0,
+                    scrollWidth: element instanceof HTMLElement ? element.scrollWidth : 0,
+                    overflowX: element instanceof HTMLElement ? getComputedStyle(element).overflowX : null
+                  }))
+                }
+              : null;
             const sessionRowsCompact = [...document.querySelectorAll('[data-testid="session-row"]')]
               .filter((row) => row instanceof HTMLElement)
               .every((row) => row.getBoundingClientRect().height <= 32);
@@ -1770,6 +1799,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               nativeTitleFreeControlsWork: nativeTitleFreeControlLeaks.length === 0,
               nativeTitleFreeControlLeaks,
               sidebarNoHorizontalOverflow,
+              sidebarOverflowDebug,
               sessionRowsCompact,
               projectHeadersCompact,
               environmentIconVisible,
