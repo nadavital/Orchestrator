@@ -1109,13 +1109,13 @@ function ShortcutsSection(): JSX.Element {
   })
 
   return (
-    <div data-testid="shortcuts-settings-section" style={{ padding: '18px 44px 52px', maxWidth: 760, margin: '0 auto' }}>
+    <div data-testid="shortcuts-settings-section" style={{ padding: '18px 44px 52px', maxWidth: 720, margin: '0 auto' }}>
       <div
-        className="overflow-hidden rounded-lg"
+        className="settings-shortcuts-table overflow-hidden"
         style={{ border: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
       >
         <div
-          className="flex items-center gap-3 border-b px-3 py-2"
+          className="settings-shortcuts-search flex items-center gap-3 border-b px-3"
           style={{ borderColor: 'var(--border-subtle)' }}
         >
           <label className="sr-only" htmlFor="settings-shortcut-search">Search keyboard shortcuts</label>
@@ -1143,7 +1143,7 @@ function ShortcutsSection(): JSX.Element {
         </div>
         {visibleShortcuts.length > 0 && (
           <div
-            className="grid grid-cols-[minmax(0,1fr)_minmax(120px,auto)] gap-3 border-b px-3 py-2 text-[10px] font-bold uppercase"
+            className="settings-shortcuts-head grid grid-cols-[minmax(0,1fr)_minmax(104px,auto)] gap-3 border-b px-3 text-[10px] font-bold uppercase"
             style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-tertiary)' }}
           >
             <span>Command</span>
@@ -1153,7 +1153,7 @@ function ShortcutsSection(): JSX.Element {
         {visibleShortcuts.map((shortcut, rowIndex) => (
           <div
             key={shortcut.label}
-            className="grid grid-cols-[minmax(0,1fr)_minmax(120px,auto)] items-center gap-3 border-t px-3 py-2"
+            className="settings-shortcut-row grid grid-cols-[minmax(0,1fr)_minmax(104px,auto)] items-center gap-3 border-t px-3"
             style={{
               borderColor: rowIndex === 0 ? 'transparent' : 'var(--border-subtle)',
               color: 'var(--text-primary)'

@@ -2112,6 +2112,30 @@
     font-weight: 650;
   }
 
+  .settings-shortcuts-table {
+    border-radius: var(--radius-md);
+  }
+
+  .settings-shortcuts-search {
+    min-height: 40px;
+  }
+
+  .settings-shortcuts-head {
+    min-height: 30px;
+    align-items: center;
+  }
+
+  .settings-shortcut-row {
+    min-height: 42px;
+  }
+
+  .settings-shortcut-row kbd {
+    min-width: 34px;
+    border-radius: var(--radius-sm);
+    padding: 2px 7px;
+    font-size: 10.5px;
+  }
+
   .provider-details-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
