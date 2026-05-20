@@ -1108,7 +1108,7 @@ function ShortcutsSection(): JSX.Element {
   })
 
   return (
-    <div data-testid="shortcuts-settings-section" style={{ padding: '14px 44px 52px', maxWidth: 640, margin: '0 auto' }}>
+    <div data-testid="shortcuts-settings-section" style={{ padding: '12px 44px 48px', maxWidth: 560, margin: '0 auto' }}>
       <div
         className="settings-shortcuts-table overflow-hidden"
         style={{ border: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
@@ -1489,14 +1489,14 @@ function ProviderDropdown({
       data-testid="provider-selector-card"
       style={{
         display: 'grid',
-        gap: 10,
-        marginBottom: 14
+        gap: 8,
+        marginBottom: 10
       }}
     >
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(180px, 1fr) minmax(220px, 320px) auto',
+          gridTemplateColumns: 'minmax(170px, 1fr) minmax(180px, 280px) auto',
           alignItems: 'center',
           gap: 10
         }}
@@ -1507,8 +1507,8 @@ function ProviderDropdown({
         >
           <span
             style={{
-              width: 26,
-              height: 26,
+              width: 24,
+              height: 24,
               borderRadius: 7,
               display: 'grid',
               placeItems: 'center',
@@ -1534,7 +1534,7 @@ function ProviderDropdown({
           onChange={(event) => onSelect(event.target.value)}
           style={{
             width: '100%',
-            height: 32,
+            height: 30,
             borderRadius: 7,
             border: '1px solid var(--color-border)',
             background: 'var(--color-surface2)',
@@ -1554,7 +1554,7 @@ function ProviderDropdown({
             onClick={onSetDefault}
             disabled={!installed}
             style={{
-              height: 32,
+              height: 30,
               padding: '0 10px',
               borderRadius: 7,
               border: `1px solid ${installed ? color : 'var(--color-border)'}`,

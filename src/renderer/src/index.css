@@ -2472,7 +2472,7 @@
   }
 
   .settings-shortcuts-search {
-    min-height: 32px;
+    min-height: 30px;
   }
 
   .settings-shortcuts-head {
@@ -2481,25 +2481,25 @@
   }
 
   .settings-shortcut-row {
-    min-height: 30px;
+    min-height: 28px;
   }
 
   .settings-shortcut-row kbd {
     min-width: 24px;
     border-radius: var(--radius-sm);
     padding: 1px 5px;
-    font-size: 9.5px;
+    font-size: 9px;
     line-height: 1.25;
   }
 
   .provider-settings-shell {
-    max-width: 980px;
+    max-width: 840px;
     margin: 0 auto;
-    padding: 24px 44px 56px;
+    padding: 18px 44px 48px;
   }
 
   .provider-settings-stack {
-    max-width: 760px;
+    max-width: 680px;
     margin: 0 auto;
   }
 
@@ -2508,10 +2508,10 @@
   }
 
   .provider-settings-stack .compact-setting {
-    grid-template-columns: 96px minmax(0, 1fr);
-    gap: 12px;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 10px;
     align-items: center;
-    padding: 9px 12px;
+    padding: 8px 10px;
   }
 
   .provider-settings-stack .compact-setting-title {
