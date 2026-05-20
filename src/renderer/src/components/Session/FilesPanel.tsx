@@ -108,13 +108,6 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
   const fileActions = (
     <div className="files-panel-actions relative">
       <IconButton
-        icon="paperclip"
-        label="Add file to chat"
-        size="sm"
-        disabled={selectedEntry?.kind !== 'file'}
-        onClick={addSelectedToChat}
-      />
-      <IconButton
         icon="ellipsis"
         label="File actions"
         size="sm"
@@ -125,8 +118,14 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
       {actionMenuOpen && (
         <MenuSurface
           onClose={() => setActionMenuOpen(false)}
-          style={{ position: 'absolute', right: 0, top: 34, width: 170, zIndex: 90 }}
+          style={{ position: 'absolute', right: 0, top: 34, width: 178, zIndex: 90 }}
         >
+          <MenuItem
+            icon="paperclip"
+            label="Add to chat"
+            disabled={selectedEntry?.kind !== 'file'}
+            onClick={() => { addSelectedToChat(); setActionMenuOpen(false) }}
+          />
           <MenuItem icon="copy" label="Copy path" disabled={!selectedEntry} onClick={() => { copySelected(); setActionMenuOpen(false) }} />
           <MenuItem icon="folder" label="Reveal file" disabled={!selectedEntry} onClick={() => { revealSelected(); setActionMenuOpen(false) }} />
           <MenuItem icon="file" label="Open file" disabled={!selectedEntry} onClick={() => { openSelected(); setActionMenuOpen(false) }} />

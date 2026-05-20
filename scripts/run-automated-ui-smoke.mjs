@@ -405,6 +405,7 @@ child.on('exit', (code) => {
         reviewBinaryActions: captureView !== 'inspector' || result.reviewBinaryActionsWork === true,
         filesTabSearch: captureView !== 'inspector' || result.filesTabSearchWorks === true,
         filesToolbarCompact: captureView !== 'inspector' || result.filesToolbarCompactWorks === true,
+        filesActionMenuCompact: captureView !== 'inspector' || result.filesActionMenuCompactWorks === true,
         filesPanelStacked: captureView !== 'inspector' || result.filesPanelStackedWorks === true,
         filesTabAttach: captureView !== 'inspector' || result.filesTabAttachWorks === true,
         filesHtmlPreview: captureView !== 'inspector' || result.filesHtmlPreviewWorks === true,

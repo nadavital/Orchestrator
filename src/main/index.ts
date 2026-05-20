@@ -767,6 +767,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const fileSearch = document.querySelector('[data-testid="workspace-file-search"]');
             const filesToolbar = document.querySelector('[data-testid="files-panel-toolbar"]');
             const filesToolbarActions = document.querySelector('[data-testid="files-panel-toolbar"] .files-panel-actions');
+            const filesToolbarActionButtons = filesToolbarActions instanceof HTMLElement
+              ? [...filesToolbarActions.querySelectorAll('.motion-icon-button')]
+              : [];
             const filesEntryCount = document.querySelector('[data-testid="files-panel-toolbar"] .files-entry-count');
             var filesToolbarCompactWorks =
               filesToolbar instanceof HTMLElement &&
@@ -777,6 +780,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               filesToolbar.scrollWidth <= filesToolbar.clientWidth + 2 &&
               fileSearch.getBoundingClientRect().height <= 28 &&
               filesToolbarActions.getBoundingClientRect().height <= 26 &&
+              filesToolbarActionButtons.length === 1 &&
+              !findButton('Add file to chat') &&
               filesEntryCount.textContent?.trim().length > 0;
             const filesPanelBody = document.querySelector('[data-testid="files-panel-body"]');
             const filesPanelList = document.querySelector('[data-testid="files-panel-list"]');
@@ -808,10 +813,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               nestedFileButton.click();
               await sleep(220);
             }
-            const addFileButton = findButton('Add file to chat');
-            if (addFileButton instanceof HTMLButtonElement) {
-              addFileButton.click();
-              await sleep(180);
+            var filesActionMenuCompactWorks = false;
+            const fileActionMenuButton = findButton('File actions');
+            if (fileActionMenuButton instanceof HTMLButtonElement) {
+              fileActionMenuButton.click();
+              await sleep(120);
+              const menuItems = [...document.querySelectorAll('[role="menuitem"]')];
+              const menuItemLabels = menuItems.map((item) => item.textContent?.trim() ?? '');
+              const addToChatMenuItem = menuItems.find((item) => item.textContent?.includes('Add to chat'));
+              filesActionMenuCompactWorks =
+                menuItemLabels.includes('Add to chat') &&
+                menuItemLabels.includes('Copy path') &&
+                menuItemLabels.includes('Reveal file') &&
+                menuItemLabels.includes('Open file');
+              if (addToChatMenuItem instanceof HTMLElement) {
+                addToChatMenuItem.click();
+                await sleep(180);
+              }
             }
             var filesTabSearchWorks =
               document.body.innerText.includes('nested note.md') &&
@@ -860,10 +878,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(120);
             }
             var filesNoResultsWorks =
-              Boolean(document.querySelector('[data-testid="workspace-file-empty-list"]')) &&
-              document.body.innerText.includes('No matches') &&
-              !document.querySelector('[data-testid="workspace-text-preview"]') &&
-              (addFileButton instanceof HTMLButtonElement ? addFileButton.disabled : true);
+              (() => {
+                const fileActionButtonAfterNoResults = findButton('File actions');
+                return Boolean(document.querySelector('[data-testid="workspace-file-empty-list"]')) &&
+                  document.body.innerText.includes('No matches') &&
+                  !document.querySelector('[data-testid="workspace-text-preview"]') &&
+                  (fileActionButtonAfterNoResults instanceof HTMLButtonElement ? fileActionButtonAfterNoResults.disabled : true);
+              })();
             const fileSearchClear = document.querySelector('[data-testid="workspace-file-search-clear"]');
             if (fileSearchClear instanceof HTMLButtonElement) {
               fileSearchClear.click();
@@ -1505,6 +1526,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             reviewBinaryActionsWork: typeof reviewBinaryActionsWork === 'boolean' ? reviewBinaryActionsWork : null,
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
             filesToolbarCompactWorks: typeof filesToolbarCompactWorks === 'boolean' ? filesToolbarCompactWorks : null,
+            filesActionMenuCompactWorks: typeof filesActionMenuCompactWorks === 'boolean' ? filesActionMenuCompactWorks : null,
             filesPanelStackedWorks: typeof filesPanelStackedWorks === 'boolean' ? filesPanelStackedWorks : null,
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
             filesHtmlPreviewWorks: typeof filesHtmlPreviewWorks === 'boolean' ? filesHtmlPreviewWorks : null,
