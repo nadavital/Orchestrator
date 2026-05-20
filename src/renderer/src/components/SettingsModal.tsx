@@ -23,7 +23,7 @@ import {
 import { useSessionStore } from '../store/sessions'
 import type { SettingsSection } from '../store/sessions'
 import type { AppProfile } from '../env'
-import { formatShortcutKeys, formatShortcutSequence, visibleShortcutRows } from '../../../types/appCommands'
+import { formatShortcutKeys, visibleShortcutRows } from '../../../types/appCommands'
 import { parsePortableTheme, serializePortableTheme } from '../../../types/themeSharing'
 import ProviderIcon from './shared/ProviderIcon'
 import Icon from './shared/Icon'
@@ -1087,8 +1087,9 @@ function ShortcutsSection(): JSX.Element {
   const shortcuts = visibleShortcutRows().map((shortcut) => ({
     ...shortcut,
     category: shortcut.group,
+    displayLabel: compactShortcutLabel(shortcut.label),
     keys: shortcut.shortcuts.map((sequence) => formatShortcutKeys(sequence, shortcutPlatform)),
-    primaryShortcut: formatShortcutSequence(shortcut.shortcuts[0], shortcutPlatform)
+    primaryKeys: formatShortcutKeys(shortcut.shortcuts[0], shortcutPlatform)
   }))
   const normalizedQuery = query.trim().toLowerCase()
   const visibleShortcuts = shortcuts.filter((shortcut) => {
@@ -1096,6 +1097,7 @@ function ShortcutsSection(): JSX.Element {
     return [
       shortcut.category,
       shortcut.label,
+      shortcut.displayLabel,
       shortcut.description,
       shortcut.keys.flat().join(' ')
     ].join(' ').toLowerCase().includes(normalizedQuery)
@@ -1151,19 +1153,26 @@ function ShortcutsSection(): JSX.Element {
                   color: 'var(--text-primary)'
                 }}
               >
-                <span className="min-w-0 truncate text-[13px] font-medium">{shortcut.label}</span>
-                <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                  <kbd
-                    className="rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
-                    data-testid="settings-shortcut-key"
-                    style={{
-                      background: 'var(--control-bg)',
-                      border: '1px solid var(--border-subtle)',
-                      color: 'var(--text-secondary)'
-                    }}
-                  >
-                    {shortcut.primaryShortcut}
-                  </kbd>
+                <span className="min-w-0 truncate text-[13px] font-medium">{shortcut.displayLabel}</span>
+                <span
+                  className="flex shrink-0 items-center justify-end gap-1"
+                  data-testid="settings-shortcut-sequence"
+                  aria-label={shortcut.primaryKeys.join(' ')}
+                >
+                  {shortcut.primaryKeys.map((key, keyIndex) => (
+                    <kbd
+                      key={`${shortcut.label}-${keyIndex}-${key}`}
+                      className="min-w-5 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
+                      data-testid="settings-shortcut-key"
+                      style={{
+                        background: 'var(--control-bg)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-secondary)'
+                      }}
+                    >
+                      {key}
+                    </kbd>
+                  ))}
                 </span>
               </div>
             ))}
@@ -1177,6 +1186,27 @@ function ShortcutsSection(): JSX.Element {
       </div>
     </div>
   )
+}
+
+function compactShortcutLabel(label: string): string {
+  switch (label) {
+    case 'Open Settings':
+      return 'Settings'
+    case 'Keyboard Shortcuts':
+      return 'Shortcuts'
+    case 'Search Transcript':
+      return 'Search Chat'
+    case 'Pin or Unpin Chat':
+      return 'Pin Chat'
+    case 'Toggle Inspector':
+      return 'Inspector'
+    case 'Toggle Terminal':
+      return 'Terminal'
+    case 'Go to Chat 1-9':
+      return 'Chat 1-9'
+    default:
+      return label
+  }
 }
 
 // ─── Providers section ────────────────────────────────────────────────────────

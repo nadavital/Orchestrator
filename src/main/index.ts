@@ -526,10 +526,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(220);
               const shortcutsSection = document.querySelector('[data-testid="shortcuts-settings-section"]');
               const shortcutKeys = [...document.querySelectorAll('[data-testid="settings-shortcut-key"]')];
+              const shortcutSequences = [...document.querySelectorAll('[data-testid="settings-shortcut-sequence"]')];
+              const shortcutText = shortcutsSection instanceof HTMLElement ? shortcutsSection.innerText : '';
               var settingsShortcutsCompactWorks =
                 shortcutsSection instanceof HTMLElement &&
                 shortcutsSection.innerText.includes('Command Palette') &&
                 shortcutKeys.length >= 8 &&
+                shortcutSequences.length >= 8 &&
+                !shortcutText.includes('Toggle Inspector') &&
+                !shortcutText.includes('Toggle Terminal') &&
+                !shortcutText.includes('Pin or Unpin Chat') &&
+                !shortcutText.includes('Search Transcript') &&
                 shortcutKeys.every((key) => {
                   const text = key.textContent?.trim() ?? '';
                   return text.length > 0 && !text.includes(' ');
