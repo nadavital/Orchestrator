@@ -1270,23 +1270,25 @@ function TargetsPane({
     <div className="browser-targets-pane">
       <div className="browser-target-section">
         <div className="browser-target-section-title">Element</div>
-        <select
-          data-testid="browser-target-select"
-          value={selectedTargetId}
-          onChange={(event) => onSelectTarget(event.target.value)}
-          className="w-full rounded-md px-2 py-1 text-xs outline-none"
-          style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-        >
-          <option value="">Targets ({targets.length})</option>
-          {targets.map((target) => <option key={target.nodeId} value={target.nodeId}>{target.preview}</option>)}
-        </select>
-        <input
-          value={actionText}
-          onChange={(event) => onActionTextChange(event.target.value)}
-          placeholder="Text or key"
-          className="w-full rounded-md px-2 py-1 text-xs outline-none"
-          style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-        />
+        <div className="browser-target-input-row">
+          <select
+            data-testid="browser-target-select"
+            value={selectedTargetId}
+            onChange={(event) => onSelectTarget(event.target.value)}
+            className="w-full rounded-md px-2 py-1 text-xs outline-none"
+            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+          >
+            <option value="">Targets ({targets.length})</option>
+            {targets.map((target) => <option key={target.nodeId} value={target.nodeId}>{target.preview}</option>)}
+          </select>
+          <input
+            value={actionText}
+            onChange={(event) => onActionTextChange(event.target.value)}
+            placeholder="Text or key"
+            className="w-full rounded-md px-2 py-1 text-xs outline-none"
+            style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+          />
+        </div>
         <div className="browser-target-action-row browser-target-primary-actions">
           <ActionButton label="Click" onClick={() => onRunTargetAction('click')} disabled={!selectedTargetId} />
           <ActionButton label="Type" onClick={() => onRunTargetAction('type')} disabled={!selectedTargetId || !actionText} />

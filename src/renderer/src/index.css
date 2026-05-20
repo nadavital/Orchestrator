@@ -1487,6 +1487,13 @@
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   }
 
+  .browser-target-input-row {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1.2fr) minmax(128px, 0.8fr);
+    gap: 6px;
+  }
+
   .browser-targets-pane input,
   .browser-targets-pane select,
   .browser-targets-pane button {
@@ -1547,6 +1554,10 @@
   }
 
   @media (max-width: 900px) {
+    .browser-target-input-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
     .browser-targets-pane {
       grid-template-columns: minmax(0, 1fr);
     }
