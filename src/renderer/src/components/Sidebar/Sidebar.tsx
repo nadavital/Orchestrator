@@ -101,12 +101,12 @@ export default function Sidebar(): JSX.Element {
 
       {showSettings ? (
         <>
-          <div className="flex items-center justify-between px-4 pb-1">
-            <span className="text-sm" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+          <div className="flex items-center justify-between px-3 pb-1">
+            <span className="text-xs" style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
               Settings
             </span>
           </div>
-          <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-1">
+          <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-0.5">
             <SidebarNavItem
               icon="settings"
               label="General"
@@ -286,15 +286,17 @@ export default function Sidebar(): JSX.Element {
             }
             setShowSettings(!showSettings)
           }}
-          className="flex items-center gap-3 w-full text-sm"
+          dataTestId="sidebar-footer-action"
+          className="flex items-center gap-2.5 w-full text-[13px]"
           style={{
             color: 'var(--text-secondary)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '8px 10px',
+            borderRadius: 'var(--radius-md)',
+            minHeight: 32,
+            padding: '6px 8px',
             textAlign: 'left'
           }}
         >
-          <Icon name={showSettings || showCapabilities ? 'chat' : 'settings'} size={17} />
+          <Icon name={showSettings || showCapabilities ? 'chat' : 'settings'} size={15} />
           {showSettings || showCapabilities ? 'Back to chats' : 'Settings'}
         </SurfaceRow>
       </div>
@@ -349,16 +351,18 @@ function SidebarNavItem({
       as="button"
       onClick={onClick}
       active={active}
-      className="flex min-w-0 items-center gap-2.5 w-full text-sm"
+      dataTestId="sidebar-nav-item"
+      className="flex min-w-0 items-center gap-2 w-full text-[13px]"
       style={{
         color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '8px 10px',
-        fontWeight: active ? 650 : 500,
+        borderRadius: 'var(--radius-md)',
+        minHeight: 30,
+        padding: '5px 8px',
+        fontWeight: active ? 620 : 500,
         textAlign: 'left'
       }}
     >
-      <Icon name={icon} size={15} />
+      <Icon name={icon} size={14} />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {detail && (
         <span className="shrink-0 truncate text-xs" style={{ maxWidth: 92, color: 'var(--text-tertiary)' }}>

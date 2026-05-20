@@ -668,6 +668,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const shortcutKeyRects = shortcutKeys
                 .filter((key) => key instanceof HTMLElement)
                 .map((key) => key.getBoundingClientRect());
+              const settingsNavItems = [...document.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                .filter((row) => row instanceof HTMLElement);
+              const settingsNavItemRects = settingsNavItems.map((row) => row.getBoundingClientRect());
+              const settingsFooterAction = document.querySelector('[data-testid="sidebar-footer-action"]');
+              const settingsFooterRect = settingsFooterAction instanceof HTMLElement
+                ? settingsFooterAction.getBoundingClientRect()
+                : null;
+              var settingsSidebarNavCompactWorks =
+                settingsNavItems.length >= 6 &&
+                settingsNavItemRects.every((rect) => rect.height <= 34) &&
+                settingsNavItems.every((row) => row.scrollWidth <= row.clientWidth + 2) &&
+                settingsFooterRect !== null &&
+                settingsFooterRect.height <= 36 &&
+                settingsFooterAction instanceof HTMLElement &&
+                settingsFooterAction.scrollWidth <= settingsFooterAction.clientWidth + 2;
               var settingsShortcutsCompactWorks =
                 shortcutsSection instanceof HTMLElement &&
                 shortcutsSection.innerText.includes('Command Palette') &&
@@ -2324,6 +2339,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
+            settingsSidebarNavCompactWorks: typeof settingsSidebarNavCompactWorks === 'boolean' ? settingsSidebarNavCompactWorks : null,
             settingsProviderDropdownWorks: typeof settingsProviderDropdownWorks === 'boolean' ? settingsProviderDropdownWorks : null,
             settingsDiagnosticsSectionWorks: typeof settingsDiagnosticsSectionWorks === 'boolean' ? settingsDiagnosticsSectionWorks : null,
             settingsProviderStatusUnifiedWorks: typeof settingsProviderStatusUnifiedWorks === 'boolean' ? settingsProviderStatusUnifiedWorks : null,

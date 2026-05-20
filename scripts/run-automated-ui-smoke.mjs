@@ -637,6 +637,7 @@ child.on('exit', (code) => {
         themeImport: captureView !== 'settings' || result.themeImportWorks === true,
         themeSharingControls: captureView !== 'settings' || result.themeSharingControls === true,
         settingsTaxonomy: captureView !== 'settings' || result.settingsTaxonomyWorks === true,
+        settingsSidebarNavCompact: captureView !== 'settings' || result.settingsSidebarNavCompactWorks === true,
         settingsProviderDropdown: captureView !== 'settings-providers' || result.settingsProviderDropdownWorks === true,
         settingsDiagnosticsSection: !['settings', 'settings-providers'].includes(captureView) || result.settingsDiagnosticsSectionWorks === true,
         settingsProviderStatusUnified: !['settings', 'settings-providers'].includes(captureView) || result.settingsProviderStatusUnifiedWorks === true,
