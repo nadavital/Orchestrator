@@ -141,7 +141,7 @@ export default function BrowserPanel({
   const urlOrigin = safeOrigin(currentUrl)
   const blocked = Boolean(urlOrigin && workbench.blockedOrigins.includes(originKey(urlOrigin)))
   const devicePreviewActive = workbench.deviceMode !== 'desktop'
-  const showStatusRow = isLoading || Boolean(error) || blocked || devicePreviewActive
+  const showStatusRow = isLoading || blocked || devicePreviewActive
   useEffect(() => {
     workbenchRef.current = workbench
   }, [workbench])

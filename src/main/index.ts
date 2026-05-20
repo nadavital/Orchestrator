@@ -2330,11 +2330,13 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserLoadErrorOpenExternal = document.querySelector('[data-testid="browser-load-error-open-external"]');
             var browserErrorRecoveryWorks =
               (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-error') ?? '').length > 0 &&
-              browserErrorStatusRow instanceof HTMLElement &&
-              browserErrorStatusRow.textContent?.includes('Failed') &&
-              browserErrorRetry instanceof HTMLButtonElement &&
-              browserErrorCopyUrl instanceof HTMLButtonElement &&
-              browserErrorStatusRow.scrollWidth <= browserErrorStatusRow.clientWidth + 2;
+              !(browserErrorStatusRow instanceof HTMLElement) &&
+              !(browserErrorRetry instanceof HTMLButtonElement) &&
+              !(browserErrorCopyUrl instanceof HTMLButtonElement) &&
+              browserLoadErrorRetry instanceof HTMLButtonElement &&
+              browserLoadErrorHardReload instanceof HTMLButtonElement &&
+              browserLoadErrorCopyUrl instanceof HTMLButtonElement &&
+              browserLoadErrorOpenExternal instanceof HTMLButtonElement;
             var browserLoadErrorPanelWorks =
               browserLoadError instanceof HTMLElement &&
               browserLoadError.textContent?.includes('This page could not be loaded') &&
@@ -2343,6 +2345,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserLoadErrorHardReload instanceof HTMLButtonElement &&
               browserLoadErrorCopyUrl instanceof HTMLButtonElement &&
               browserLoadErrorOpenExternal instanceof HTMLButtonElement &&
+              browserLoadError.querySelectorAll('button').length === 4 &&
               browserLoadError.scrollWidth <= browserLoadError.clientWidth + 2;
             if (browserInputForStop instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(browserInputForStop.constructor.prototype, 'value')?.set;
