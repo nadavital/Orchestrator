@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import Icon, { type IconName } from './Icon'
 import { rowMotionStyle } from '../../design/motion'
 
@@ -335,18 +336,21 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
       onMouseDownCapture={hide}
     >
       {children}
-      <span
-        className="orchestrator-tooltip"
-        role="tooltip"
-        data-visible={visible && position ? 'true' : 'false'}
-        data-placement={position?.placement ?? 'top'}
-        style={{
-          left: position?.left ?? 0,
-          top: position?.top ?? 0
-        }}
-      >
-        {label}
-      </span>
+      {createPortal(
+        <span
+          className="orchestrator-tooltip"
+          role="tooltip"
+          data-visible={visible && position ? 'true' : 'false'}
+          data-placement={position?.placement ?? 'top'}
+          style={{
+            left: position?.left ?? 0,
+            top: position?.top ?? 0
+          }}
+        >
+          {label}
+        </span>,
+        document.body
+      )}
     </span>
   )
 }

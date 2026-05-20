@@ -2127,6 +2127,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               expectedTooltip.length > 0 &&
               visibleTooltips.length === 1 &&
               visibleTooltip instanceof HTMLElement &&
+              visibleTooltip.parentElement === document.body &&
               tooltipReadable;
             inactiveBrowserTab.blur();
             inactiveBrowserTab.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
@@ -3594,9 +3595,13 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               const visibleHoverCards = [...document.querySelectorAll('[data-testid="session-hover-card"]')];
               const visibleTooltip = visibleTooltips[0];
               tooltipSurfaceReadable = visibleTooltip instanceof HTMLElement && hoverSurfaceReadable(visibleTooltip);
+              const tooltipPortalWorks =
+                visibleTooltip instanceof HTMLElement &&
+                visibleTooltip.parentElement === document.body;
               singleHoverSurfaceWorks =
                 visibleTooltips.length === 1 &&
-                visibleHoverCards.length === 0;
+                visibleHoverCards.length === 0 &&
+                tooltipPortalWorks;
               window.dispatchEvent(new Event('resize'));
               await sleep(80);
               tooltipDismissesOnViewportChange =
