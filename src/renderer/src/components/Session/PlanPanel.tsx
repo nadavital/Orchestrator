@@ -44,7 +44,7 @@ export default function PlanPanel({ session, embedded = false }: Props): JSX.Ele
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 flex flex-col gap-3">
           {goal && <GoalBlock goal={goal} />}
-          {current && <PlanBlock plan={current} current />}
+          {current && <PlanBlock plan={current} />}
         </div>
       )}
     </section>
@@ -180,11 +180,11 @@ function formatDuration(seconds: number): string {
   return remaining > 0 ? `${minutes}m ${remaining}s` : `${minutes}m`
 }
 
-function PlanBlock({ plan, current = false }: { plan: PlanState; current?: boolean }): JSX.Element {
+function PlanBlock({ plan }: { plan: PlanState }): JSX.Element {
   const title = plan.title ?? (plan.items.length > 0 ? 'Tasks' : plan.mode === 'plan' ? 'Planning' : 'Plan')
 
   return (
-    <InspectorCard className="p-3" active={current}>
+    <InspectorCard className="p-3">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
