@@ -1435,6 +1435,12 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               !document.querySelector('[data-testid="browser-tab-strip"]');
             const browserNoHorizontalOverflow = browserPanel instanceof HTMLElement &&
               browserPanel.scrollWidth <= browserPanel.clientWidth + 2;
+            const browserToolbar = document.querySelector('.browser-toolbar');
+            const browserFindRow = document.querySelector('[data-testid="browser-find-input"]')?.closest('.flex.shrink-0');
+            const browserToolbarCompact =
+              browserToolbar instanceof HTMLElement &&
+              browserToolbar.getBoundingClientRect().height <= 38 &&
+              (!(browserFindRow instanceof HTMLElement) || browserFindRow.getBoundingClientRect().height <= 34);
             return {
               profile,
               browserActive: rightPanel instanceof HTMLElement &&
@@ -1445,7 +1451,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserFindWorks,
               browserFindNavigationWorks,
               browserSingleTabStripHidden,
-              browserNoHorizontalOverflow
+              browserNoHorizontalOverflow,
+              browserToolbarCompact
             };
           })()
         `)

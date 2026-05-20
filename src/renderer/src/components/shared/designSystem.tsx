@@ -231,6 +231,7 @@ export function ToolbarButton({
   disabled = false,
   tone = 'neutral',
   dataTestId,
+  size = 'md',
 }: {
   icon: IconName
   label: string
@@ -239,6 +240,7 @@ export function ToolbarButton({
   disabled?: boolean
   tone?: Tone
   dataTestId?: string
+  size?: 'sm' | 'md'
 }): JSX.Element {
   return (
     <IconButton
@@ -249,6 +251,7 @@ export function ToolbarButton({
       disabled={disabled}
       tone={tone}
       dataTestId={dataTestId}
+      size={size}
       className="toolbar-button"
       style={{
         background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',

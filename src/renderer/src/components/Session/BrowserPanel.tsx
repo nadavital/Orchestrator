@@ -489,12 +489,12 @@ export default function BrowserPanel({
           navigate(address)
         }}
       >
-        <ToolbarButton icon="arrowLeft" label="Back" disabled={!canGoBack || !visible} onClick={() => webviewRef.current?.goBack()} />
-        <ToolbarButton icon="arrowRight" label="Forward" disabled={!canGoForward || !visible} onClick={() => webviewRef.current?.goForward()} />
-        <ToolbarButton icon="refresh" label="Reload" disabled={!currentUrl || !visible} onClick={() => webviewRef.current?.reload()} />
+        <ToolbarButton icon="arrowLeft" label="Back" size="sm" disabled={!canGoBack || !visible} onClick={() => webviewRef.current?.goBack()} />
+        <ToolbarButton icon="arrowRight" label="Forward" size="sm" disabled={!canGoForward || !visible} onClick={() => webviewRef.current?.goForward()} />
+        <ToolbarButton icon="refresh" label="Reload" size="sm" disabled={!currentUrl || !visible} onClick={() => webviewRef.current?.reload()} />
         <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
         <div
-          className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 py-1"
+          className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-2 py-0.5"
           style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
         >
           <Icon name="browser" size={13} />
@@ -507,10 +507,11 @@ export default function BrowserPanel({
             style={{ color: 'var(--text-primary)' }}
           />
         </div>
-        <ToolbarButton icon="search" label="Find in page" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
+        <ToolbarButton icon="search" label="Find in page" size="sm" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
         <ToolbarButton
           icon="wrench"
           label="Inspect browser"
+          size="sm"
           active={workbench.inspectorOpen}
           disabled={!currentUrl || !visible}
           dataTestId="browser-run-inspection"
@@ -641,7 +642,7 @@ export default function BrowserPanel({
       </form>
 
       {workbench.findVisible && (
-        <div className="flex shrink-0 items-center gap-1.5 px-2 pb-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        <div className="flex shrink-0 items-center gap-1.5 px-2 py-1" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           <Icon name="search" size={13} />
           <input
             data-testid="browser-find-input"
@@ -649,7 +650,7 @@ export default function BrowserPanel({
             onChange={(event) => searchInPage(event.target.value)}
             placeholder="Find in page"
             autoFocus
-            className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
+            className="min-w-0 flex-1 rounded-md px-2 py-0.5 text-xs outline-none"
             style={{ color: 'var(--text-primary)', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
           />
           {workbench.findQuery.trim() && (
@@ -660,16 +661,18 @@ export default function BrowserPanel({
           <ToolbarButton
             icon="arrowLeft"
             label="Previous result"
+            size="sm"
             disabled={!workbench.findQuery.trim() || findMatches <= 1}
             onClick={() => stepFind('previous')}
           />
           <ToolbarButton
             icon="arrowRight"
             label="Next result"
+            size="sm"
             disabled={!workbench.findQuery.trim() || findMatches <= 1}
             onClick={() => stepFind('next')}
           />
-          <ToolbarButton icon="close" label="Close find" onClick={closeFind} />
+          <ToolbarButton icon="close" label="Close find" size="sm" onClick={closeFind} />
         </div>
       )}
 

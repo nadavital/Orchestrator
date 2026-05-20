@@ -725,12 +725,12 @@
 
   .browser-toolbar {
     display: flex;
-    min-height: 42px;
+    min-height: 34px;
     flex-shrink: 0;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     border-bottom: 1px solid var(--border-subtle);
-    padding: 6px 8px;
+    padding: 4px 8px;
   }
 
   .browser-actions-menu {
@@ -827,9 +827,9 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
     border-bottom: 1px solid var(--border-subtle);
-    padding: 6px 10px;
+    padding: 4px 10px;
     color: var(--text-tertiary);
-    font-size: 11.5px;
+    font-size: 11px;
   }
 
   .browser-inspector-drawer {
