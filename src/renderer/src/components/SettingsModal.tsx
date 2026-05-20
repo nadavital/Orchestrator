@@ -1352,13 +1352,8 @@ function ProvidersSection({
                   <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
                 </ProviderDetailCard>
               )}
-              {providerDef.id === 'claude' && (
-                <ProviderDetailCard title="Endpoint">
-                  <ClaudeEndpointField color={providerDef.color} />
-                </ProviderDetailCard>
-              )}
-              <ProviderDetailCard title="Config">
-                <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
+              <ProviderDetailCard title="Setup" wide>
+                <ProviderSetupDetails providerDef={providerDef} />
               </ProviderDetailCard>
             </div>
           )}
@@ -1441,6 +1436,23 @@ function ProviderStatusDetails({
           usage={usage}
           color={color}
         />
+      </div>
+    </div>
+  )
+}
+
+function ProviderSetupDetails({ providerDef }: { providerDef: typeof PROVIDER_DEFS[string] }): JSX.Element {
+  return (
+    <div className="provider-setup-card" data-testid="provider-setup-card">
+      {providerDef.id === 'claude' && (
+        <div className="provider-setup-row" data-testid="provider-setup-endpoint">
+          <div className="provider-setup-label">Endpoint</div>
+          <ClaudeEndpointField color={providerDef.color} />
+        </div>
+      )}
+      <div className="provider-setup-row" data-testid="provider-setup-config">
+        <div className="provider-setup-label">Config</div>
+        <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
       </div>
     </div>
   )

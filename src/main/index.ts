@@ -425,6 +425,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerSelectorCard = document.querySelector('[data-testid="provider-selector-card"]');
               const providerSelectorSummary = document.querySelector('[data-testid="provider-selector-summary"]');
               const providerDetailsGrid = document.querySelector('[data-testid="provider-details-grid"]');
+              const providerSetupCard = document.querySelector('[data-testid="provider-setup-card"]');
               const providerStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
@@ -453,10 +454,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Capabilities') &&
                 diagnosticsSection.innerText.includes('Config') &&
+                diagnosticsSection.innerText.includes('Setup') &&
                 diagnosticsSection.innerText.includes('Health') &&
                 diagnosticsSection.innerText.includes('Status') &&
                 providerDetailsGrid instanceof HTMLElement &&
                 providerDetailsGrid.getBoundingClientRect().height <= 360 &&
+                providerSetupCard instanceof HTMLElement &&
+                providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
                 providerCapabilitySummary instanceof HTMLElement &&
                 providerCapabilitySummary.innerText.includes('Safe checks') &&
                 providerCapabilitySelect instanceof HTMLSelectElement &&
@@ -552,6 +556,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const customModelInput = document.querySelector('[data-testid="provider-custom-model-input"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               const providerDetailsGrid = document.querySelector('[data-testid="provider-details-grid"]');
+              const providerSetupCard = document.querySelector('[data-testid="provider-setup-card"]');
               const providerStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
               const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
@@ -568,10 +573,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Capabilities') &&
                 diagnosticsSection.innerText.includes('Config') &&
+                diagnosticsSection.innerText.includes('Setup') &&
                 diagnosticsSection.innerText.includes('Health') &&
                 diagnosticsSection.innerText.includes('Status') &&
                 providerDetailsGrid instanceof HTMLElement &&
                 providerDetailsGrid.getBoundingClientRect().height <= 360 &&
+                providerSetupCard instanceof HTMLElement &&
+                providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
                 providerCapabilitySummary instanceof HTMLElement &&
                 providerCapabilitySummary.innerText.includes('Safe checks') &&
                 providerCapabilitySelect instanceof HTMLSelectElement &&
