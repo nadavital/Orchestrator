@@ -1602,7 +1602,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       text.includes('visible') &&
                       text.includes('filled plus') &&
                       output.scrollWidth <= output.clientWidth + 2 &&
-                      rect.height <= 64
+                      rect.height <= 48
                     ) {
                       browserTargetStateWorks = true;
                       break;
