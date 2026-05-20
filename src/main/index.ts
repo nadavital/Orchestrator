@@ -1401,6 +1401,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           const diffToolbarSearch = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-panel-search');
           const diffToolbarSearchInput = document.querySelector('[data-testid="diff-file-search"]');
           const diffToolbarActions = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-panel-actions');
+          const diffToolbarActionButtons = diffToolbarActions instanceof HTMLElement
+            ? [...diffToolbarActions.querySelectorAll('.motion-icon-button')]
+            : [];
           const diffFileCount = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-file-count');
           const diffSearchClearForCapture = document.querySelector('[data-testid="diff-file-search-clear"]');
           const diffToolbarRect = diffToolbar instanceof HTMLElement ? diffToolbar.getBoundingClientRect() : null;
@@ -1420,8 +1423,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             diffToolbar.scrollWidth <= diffToolbar.clientWidth + 2 &&
             diffToolbarSearch.getBoundingClientRect().height <= 28 &&
             diffToolbarActions.getBoundingClientRect().height <= 26 &&
+            diffToolbarActionButtons.length === 1 &&
+            !diffToolbar.querySelector('.toolbar-button') &&
             diffToolbarSearchDominant &&
             diffFileCount.textContent?.includes('file') === true;
+          let diffActionMenuCompactWorks = false;
+          const diffActionMenuButton = [...document.querySelectorAll('button')]
+            .find((button) => button.getAttribute('aria-label') === 'Change actions');
+          if (diffActionMenuButton instanceof HTMLButtonElement) {
+            diffActionMenuButton.click();
+            await sleep(100);
+            const menuItems = [...document.querySelectorAll('[role="menuitem"]')]
+              .map((item) => item.textContent?.trim() ?? '');
+            diffActionMenuCompactWorks =
+              menuItems.includes('Refresh changes') &&
+              menuItems.some((label) => label.includes('line wrap')) &&
+              menuItems.includes('Open file') &&
+              menuItems.includes('Reveal file') &&
+              menuItems.includes('Copy path');
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(80);
+          }
           const headerMetadataText = document.querySelector('[data-testid="session-header-metadata"]')?.textContent ?? '';
           const headerIdentityWorks =
             Boolean(document.querySelector('[data-testid="session-header-environment"]')) &&
@@ -1474,6 +1496,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarInactiveTabsCompactWorks,
             rightSidebarInactiveTabTooltipWorks,
             diffToolbarCompactWorks,
+            diffActionMenuCompactWorks,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,

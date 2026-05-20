@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { fileStatusLabel } from '../../types'
 import type { FileChange } from '../../types'
 import type { FilePreviewResult } from '../../env'
-import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow, ToolbarButton } from '../shared/designSystem'
+import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
 interface Props {
@@ -102,24 +102,27 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const changeActions = (
     <div className="diff-panel-actions relative">
       <IconButton
-        icon="refresh"
-        label="Refresh changes"
-        size="sm"
-        onClick={refresh}
-      />
-      <IconButton
         icon="ellipsis"
         label="Change actions"
         size="sm"
-        disabled={!selectedChange}
         active={actionMenuOpen}
         onClick={() => setActionMenuOpen((open) => !open)}
       />
       {actionMenuOpen && (
         <MenuSurface
           onClose={() => setActionMenuOpen(false)}
-          style={{ position: 'absolute', right: 0, top: 34, width: 170, zIndex: 90 }}
+          style={{ position: 'absolute', right: 0, top: 34, width: 178, zIndex: 90 }}
         >
+          <MenuItem
+            icon="refresh"
+            label="Refresh changes"
+            onClick={() => { refresh(); setActionMenuOpen(false) }}
+          />
+          <MenuItem
+            icon="wrap"
+            label={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
+            onClick={() => { setWrapLines((value) => !value); setActionMenuOpen(false) }}
+          />
           <MenuItem
             icon="file"
             label="Open file"
@@ -193,13 +196,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             `${files.length} ${files.length === 1 ? 'file' : 'files'}`
           )}
         </Badge>
-        <ToolbarButton
-          icon="wrap"
-          label={wrapLines ? 'Disable line wrap' : 'Enable line wrap'}
-          active={wrapLines}
-          size="sm"
-          onClick={() => setWrapLines((value) => !value)}
-        />
         {embedded && changeActions}
       </div>
 
