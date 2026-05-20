@@ -2398,11 +2398,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(360);
             const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
             const visibleTooltip = visibleTooltips
-              .find((tooltip) => tooltip.textContent?.trim().startsWith('User data:'));
+              .find((tooltip) => tooltip.textContent?.trim() === 'Profile: ' + profile.displayName);
             const tooltipRect = visibleTooltip instanceof HTMLElement ? visibleTooltip.getBoundingClientRect() : null;
+            const tooltipText = visibleTooltip instanceof HTMLElement ? visibleTooltip.textContent?.trim() ?? '' : '';
             headerLongTooltipBoundedWorks =
               visibleTooltips.length === 1 &&
               visibleTooltip instanceof HTMLElement &&
+              !tooltipText.includes(profile.userDataDir) &&
+              !tooltipText.includes('/') &&
               visibleTooltip.parentElement === document.body &&
               tooltipRect !== null &&
               tooltipRect.left >= 7 &&

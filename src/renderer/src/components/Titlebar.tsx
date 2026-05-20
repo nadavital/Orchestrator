@@ -187,11 +187,11 @@ export default function Titlebar(): JSX.Element {
           className="flex items-center gap-2"
           style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
         >
-          <Tooltip label={`User data: ${profile.userDataDir}`}>
+          <Tooltip label={`Profile: ${profile.displayName}`}>
             <span
               className="text-xs font-medium rounded-md px-2 py-0.5"
               data-testid="profile-badge"
-              data-tooltip-label={`User data: ${profile.userDataDir}`}
+              data-tooltip-label={`Profile: ${profile.displayName}`}
               data-native-title-free="true"
               style={{
                 color: 'var(--text-secondary)',

@@ -3076,7 +3076,7 @@
     position: fixed;
     z-index: 760;
     pointer-events: none;
-    max-width: min(32rem, calc(100vw - 16px));
+    max-width: min(18rem, calc(100vw - 16px));
     overflow-wrap: anywhere;
     white-space: normal;
     border: 1px solid var(--icon-tooltip-border);
