@@ -462,6 +462,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
                 providerCapabilitySummary instanceof HTMLElement &&
                 providerCapabilitySummary.innerText.includes('Checks') &&
+                providerCapabilitySummary.querySelector('strong') === null &&
+                providerCapabilitySummary.getBoundingClientRect().height <= 24 &&
                 providerCapabilitySelect instanceof HTMLSelectElement &&
                 providerCapabilitySelect.value === '' &&
                 providerCapabilityOutput === null &&
@@ -581,6 +583,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 providerSetupCard.scrollWidth <= providerSetupCard.clientWidth + 2 &&
                 providerCapabilitySummary instanceof HTMLElement &&
                 providerCapabilitySummary.innerText.includes('Checks') &&
+                providerCapabilitySummary.querySelector('strong') === null &&
+                providerCapabilitySummary.getBoundingClientRect().height <= 24 &&
                 providerCapabilitySelect instanceof HTMLSelectElement &&
                 providerCapabilitySelect.value === '' &&
                 providerCapabilityOutput === null &&

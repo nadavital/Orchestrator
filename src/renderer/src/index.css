@@ -2522,6 +2522,23 @@
     font-weight: 750;
   }
 
+  .provider-capability-controls {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(120px, max-content) minmax(220px, 340px);
+    align-items: center;
+    gap: 10px;
+  }
+
+  .provider-capability-summary {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   @media (max-width: 980px) {
     .provider-details-grid {
       grid-template-columns: minmax(0, 1fr);
@@ -2530,6 +2547,11 @@
     .provider-status-card,
     .provider-setup-card {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    .provider-capability-controls {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
     }
   }
 

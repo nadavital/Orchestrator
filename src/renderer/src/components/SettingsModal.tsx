@@ -1610,25 +1610,20 @@ function ProviderCommandSurfaces({
 
   if (surfaces.length === 0) return <></>
 
+  const capabilitySummary = [
+    `${runnableSurfaces.length} Checks`,
+    mutatingSurfaces.length > 0 ? `${mutatingSurfaces.length} Actions` : null,
+    quotaSurfaces.length > 0 ? `${quotaSurfaces.length} Quota` : null
+  ].filter(Boolean).join(' · ')
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="provider-capability-controls">
       <div
         data-testid="provider-capability-summary"
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 6,
-          fontSize: 11,
-          color: 'var(--color-text-muted)'
-        }}
+        className="provider-capability-summary"
+        style={{ color }}
       >
-        <ProviderCapabilityMetric label="Checks" value={runnableSurfaces.length} color={color} />
-        {mutatingSurfaces.length > 0 && (
-          <ProviderCapabilityMetric label="Actions" value={mutatingSurfaces.length} />
-        )}
-        {quotaSurfaces.length > 0 && (
-          <ProviderCapabilityMetric label="Quota" value={quotaSurfaces.length} />
-        )}
+        {capabilitySummary}
       </div>
       <select
         data-testid="provider-capability-select"
@@ -1663,35 +1658,6 @@ function ProviderCommandSurfaces({
         />
       ) : null}
     </div>
-  )
-}
-
-function ProviderCapabilityMetric({
-  label,
-  value,
-  color = 'var(--color-text-muted)'
-}: {
-  label: string
-  value: number
-  color?: string
-}): JSX.Element {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        minHeight: 24,
-        padding: '3px 8px',
-        borderRadius: 999,
-        border: '1px solid var(--color-border)',
-        background: 'var(--color-surface2)',
-        color
-      }}
-    >
-      <strong style={{ color: 'var(--color-text)', fontWeight: 750 }}>{value}</strong>
-      {label}
-    </span>
   )
 }
 
