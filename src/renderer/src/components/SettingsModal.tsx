@@ -2509,14 +2509,18 @@ function DefaultModelPicker({
 }): JSX.Element {
   const isPreset = models.some((m) => m.id === currentModel)
   const [customInput, setCustomInput] = useState(isPreset ? '' : currentModel)
+  const [customOpen, setCustomOpen] = useState(!isPreset)
 
   useEffect(() => {
-    setCustomInput(models.some((m) => m.id === currentModel) ? '' : currentModel)
+    const nextIsPreset = models.some((m) => m.id === currentModel)
+    setCustomInput(nextIsPreset ? '' : currentModel)
+    setCustomOpen(!nextIsPreset)
   }, [providerDef.id, currentModel, models])
 
   const applyCustom = (): void => {
     const trimmed = customInput.trim()
     if (trimmed) onSetModel(trimmed)
+    else setCustomOpen(false)
   }
 
   return (
@@ -2527,7 +2531,7 @@ function DefaultModelPicker({
           return (
             <button
               key={m.id}
-              onClick={() => { onSetModel(m.id); setCustomInput('') }}
+              onClick={() => { onSetModel(m.id); setCustomInput(''); setCustomOpen(false) }}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -2546,35 +2550,58 @@ function DefaultModelPicker({
             </button>
           )
         })}
-      </div>
-
-      {/* Custom model ID */}
-      <div
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '8px 12px', borderRadius: 8,
-          background: !isPreset && currentModel ? 'var(--color-surface2)' : 'var(--color-surface)',
-          border: `1px solid ${!isPreset && currentModel ? providerDef.color : 'var(--color-border)'}`
-        }}
-      >
-        <input
-          value={customInput}
-          onChange={(e) => setCustomInput(e.target.value)}
-          onBlur={applyCustom}
-          onKeyDown={(e) => { if (e.key === 'Enter') applyCustom() }}
-          placeholder="Custom model ID…"
-          style={{
-            flex: 1, background: 'transparent', border: 'none', outline: 'none',
-            fontSize: 11, fontFamily: 'monospace',
-            color: customInput ? 'var(--color-text)' : 'var(--color-text-muted)'
-          }}
-        />
-        {!isPreset && currentModel && (
-          <svg width="12" height="12" viewBox="0 0 16 16" fill={providerDef.color}>
-            <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
-          </svg>
+        {isPreset && !customOpen && (
+          <button
+            data-testid="provider-custom-model-toggle"
+            onClick={() => setCustomOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '5px 10px',
+              borderRadius: 8,
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600
+            }}
+          >
+            Custom
+          </button>
         )}
       </div>
+
+      {customOpen && (
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px', borderRadius: 8,
+            background: !isPreset && currentModel ? 'var(--color-surface2)' : 'var(--color-surface)',
+            border: `1px solid ${!isPreset && currentModel ? providerDef.color : 'var(--color-border)'}`
+          }}
+        >
+          <input
+            data-testid="provider-custom-model-input"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            onBlur={applyCustom}
+            onKeyDown={(e) => { if (e.key === 'Enter') applyCustom() }}
+            placeholder="Custom model ID..."
+            style={{
+              flex: 1, background: 'transparent', border: 'none', outline: 'none',
+              fontSize: 11, fontFamily: 'monospace',
+              color: customInput ? 'var(--color-text)' : 'var(--color-text-muted)'
+            }}
+          />
+          {!isPreset && currentModel && (
+            <svg width="12" height="12" viewBox="0 0 16 16" fill={providerDef.color}>
+              <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+            </svg>
+          )}
+        </div>
+      )}
     </div>
   )
 }

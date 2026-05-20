@@ -399,6 +399,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
+              const customModelToggle = document.querySelector('[data-testid="provider-custom-model-toggle"]');
+              const customModelInput = document.querySelector('[data-testid="provider-custom-model-input"]');
               const providerSelects = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('select')]
                 : [];
@@ -450,6 +452,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Default') &&
                 diagnosticsSection.innerText.includes('Models') &&
+                customModelToggle instanceof HTMLElement &&
+                customModelInput === null &&
                 diagnosticsSection.innerText.includes('Edit model list') &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
                 diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
@@ -506,6 +510,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
+              const customModelToggle = document.querySelector('[data-testid="provider-custom-model-toggle"]');
+              const customModelInput = document.querySelector('[data-testid="provider-custom-model-input"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
               const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
@@ -543,6 +549,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Default') &&
                 diagnosticsSection.innerText.includes('Models') &&
+                customModelToggle instanceof HTMLElement &&
+                customModelInput === null &&
                 diagnosticsSection.innerText.includes('Edit model list') &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
                 diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
