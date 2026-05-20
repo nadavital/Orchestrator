@@ -757,7 +757,11 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
                           )}
                           {dangerPermissionModes.length > 0 && (
                             <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
-                              <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--color-red)', fontSize: 10 }}>
+                              <div
+                                className="mb-1.5 text-[11px] font-semibold tracking-normal"
+                                data-testid="composer-permission-danger-label"
+                                style={{ color: 'var(--color-red)' }}
+                              >
                                 Isolated only
                               </div>
                               <div className="flex flex-wrap gap-1.5">
@@ -1152,8 +1156,9 @@ function TieredRow({ label, children }: { label: string; children: React.ReactNo
       style={{ borderBottom: '1px solid var(--color-border)' }}
     >
       <span
-        className="shrink-0 text-xs font-semibold uppercase tracking-wider pt-0.5"
-        style={{ color: 'var(--color-text-muted)', fontSize: 10, width: 52 }}
+        className="shrink-0 pt-0.5 text-[11px] font-semibold tracking-normal"
+        data-testid="composer-agent-row-label"
+        style={{ color: 'var(--color-text-muted)', width: 52 }}
       >
         {label}
       </span>

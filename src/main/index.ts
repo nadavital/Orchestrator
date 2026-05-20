@@ -2027,6 +2027,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               [...permissionMenu.querySelectorAll('button')]
                 .filter((button) => button.getAttribute('data-tooltip-label'))
                 .every((button) => button.getAttribute('title') === null && button.getAttribute('data-native-title-free') === 'true');
+            const advancedPermissionsButton = permissionMenu instanceof HTMLElement
+              ? [...permissionMenu.querySelectorAll('button')]
+                  .find((button) => button.textContent?.includes('Advanced permissions'))
+              : null;
+            if (advancedPermissionsButton instanceof HTMLButtonElement) {
+              advancedPermissionsButton.click();
+              await sleep(100);
+            }
+            const permissionDangerLabel = document.querySelector('[data-testid="composer-permission-danger-label"]');
+            var composerPermissionLabelsCalm =
+              !(permissionDangerLabel instanceof HTMLElement) ||
+              (
+                permissionDangerLabel.textContent?.trim() === 'Isolated only' &&
+                getComputedStyle(permissionDangerLabel).textTransform !== 'uppercase'
+              );
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             await sleep(140);
             var composerPermissionMenuClosedWithEscape = !document.querySelector('.motion-popover-surface');
@@ -2036,6 +2051,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             agentButton?.click();
             await sleep(140);
             var composerAgentMenuOpened = Boolean(document.querySelector('.motion-popover-surface'));
+            const agentRowLabels = [...document.querySelectorAll('[data-testid="composer-agent-row-label"]')]
+              .filter((label) => label instanceof HTMLElement);
+            var composerAgentRowLabelsCalm =
+              agentRowLabels.length >= 2 &&
+              agentRowLabels.every((label) => {
+                const text = label.textContent?.trim() ?? '';
+                return text.length > 0 &&
+                  text !== text.toUpperCase() &&
+                  getComputedStyle(label).textTransform !== 'uppercase';
+              });
             document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1, clientY: 1 }));
             await sleep(140);
             var composerAgentMenuClosedWithOutsideClick = !document.querySelector('.motion-popover-surface');
@@ -2434,9 +2459,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilitySyncSheetOpened: typeof capabilitySyncSheetOpened === 'boolean' ? capabilitySyncSheetOpened : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
+            composerPermissionLabelsCalm: typeof composerPermissionLabelsCalm === 'boolean' ? composerPermissionLabelsCalm : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,
             composerPermissionFocusReturned: typeof composerPermissionFocusReturned === 'boolean' ? composerPermissionFocusReturned : null,
             composerAgentMenuOpened: typeof composerAgentMenuOpened === 'boolean' ? composerAgentMenuOpened : null,
+            composerAgentRowLabelsCalm: typeof composerAgentRowLabelsCalm === 'boolean' ? composerAgentRowLabelsCalm : null,
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
             composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,
             composerToolbarResponsiveWorks: typeof composerToolbarResponsiveWorks === 'boolean' ? composerToolbarResponsiveWorks : null,
