@@ -435,6 +435,7 @@ child.on('exit', (code) => {
         planPanel: captureView !== 'plan' || result.planPanelWorks === true,
         planCompactRows: captureView !== 'plan' || result.compactTaskRowsWork === true,
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,
+        sideChatComposerCompact: captureView !== 'inspector' || result.sideChatComposerCompactWorks === true,
         sideChatDraftPersistence: captureView !== 'inspector' || result.sideChatDraftPersistenceWorks === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
         terminalTabsPersist: captureView !== 'terminal' || result.terminalTabsPersistState === true,

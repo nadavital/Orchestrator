@@ -1184,6 +1184,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               setter?.call(element, value);
             };
             var sideChatDraftPersistenceWorks = false;
+            var sideChatComposerCompactWorks = false;
             if (sideChatTabs.length >= 2) {
               const firstSideTab = sideChatTabs[0];
               const secondSideTab = sideChatTabs[1];
@@ -1211,10 +1212,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(80);
               const firstInput = document.querySelector('[data-testid="side-chat-input"]');
               const firstDraftRestored = firstInput instanceof HTMLInputElement && firstInput.value === 'draft for first side chat';
+              const sideChatComposer = document.querySelector('[data-testid="side-chat-composer"]');
+              const sideChatSend = document.querySelector('[data-testid="side-chat-send"]');
+              const sideChatEmptyState = document.querySelector('[data-testid="side-chat-empty-state"]');
               sideChatDraftPersistenceWorks =
                 secondDraftRestored &&
                 firstDraftRestored &&
                 document.querySelector('[data-testid="side-chat-panel"]')?.getAttribute('data-side-chat-message-count') === '0';
+              sideChatComposerCompactWorks =
+                sideChatComposer instanceof HTMLElement &&
+                sideChatSend instanceof HTMLElement &&
+                firstInput instanceof HTMLInputElement &&
+                sideChatEmptyState instanceof HTMLElement &&
+                sideChatComposer.getBoundingClientRect().height <= 38 &&
+                sideChatComposer.scrollWidth <= sideChatComposer.clientWidth + 2 &&
+                sideChatSend.textContent?.trim() === '' &&
+                !findButton('Ask') &&
+                sideChatEmptyState.textContent?.trim() === 'No side chat yet.';
             }
             const closeSideChatButton = [...document.querySelectorAll('[aria-label^="Close Side chat"]')].at(-1);
             if (closeSideChatButton instanceof HTMLElement) {
@@ -1556,6 +1570,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
             compactTaskRowsWork: typeof compactTaskRowsWork === 'boolean' ? compactTaskRowsWork : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
+            sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
             sideChatDraftPersistenceWorks: typeof sideChatDraftPersistenceWorks === 'boolean' ? sideChatDraftPersistenceWorks : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,

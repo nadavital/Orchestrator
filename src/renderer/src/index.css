@@ -700,6 +700,41 @@
     height: 24px !important;
   }
 
+  .side-chat-empty {
+    padding: 10px 2px;
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+
+  .side-chat-composer {
+    min-height: 34px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    background: var(--control-bg);
+    padding: 4px 5px 4px 10px;
+  }
+
+  .side-chat-composer:focus-within {
+    border-color: var(--border-strong);
+    background: var(--surface-bg);
+  }
+
+  .side-chat-input {
+    height: 24px;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+  }
+
+  .side-chat-input::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  .side-chat-send {
+    border-color: var(--border-subtle) !important;
+    background: var(--surface-bg) !important;
+  }
+
   .files-panel-body {
     display: grid;
     min-height: 0;

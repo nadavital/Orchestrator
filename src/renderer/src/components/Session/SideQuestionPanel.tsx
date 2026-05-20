@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Session } from '../../types'
 import { useSessionStore } from '../../store/sessions'
-import { Button, InspectorCard } from '../shared/designSystem'
+import { IconButton, InspectorCard } from '../shared/designSystem'
 
 interface Props {
   session: Session
@@ -56,7 +56,7 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
 
   return (
     <div
-      className={embedded ? 'h-full min-h-0 flex flex-col p-4' : 'flex flex-col'}
+      className={embedded ? 'h-full min-h-0 flex flex-col p-3' : 'flex flex-col'}
       data-testid={chatId ? 'side-chat-panel' : 'side-question-panel'}
       data-side-chat-id={chatId ?? ''}
       data-side-chat-message-count={messages.length}
@@ -65,24 +65,26 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
       style={{ color: 'var(--color-text)' }}
     >
       {chatId && (
-        <div className="mb-3 flex shrink-0 items-center gap-2">
+        <div className="mb-2 flex shrink-0 items-center gap-2">
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               {sideChat?.title ?? 'Side chat'}
             </div>
-            <div className="mt-0.5 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
-              {messages.length === 0 ? 'Draft a side question' : `${messages.length} message${messages.length === 1 ? '' : 's'}`}
-              {pending ? ' · answering' : ''}
-              {errorCount > 0 ? ` · ${errorCount} error${errorCount === 1 ? '' : 's'}` : ''}
-            </div>
+            {(messages.length > 0 || pending || errorCount > 0) && (
+              <div className="mt-0.5 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+                {messages.length} message{messages.length === 1 ? '' : 's'}
+                {pending ? ' · answering' : ''}
+                {errorCount > 0 ? ` · ${errorCount} error${errorCount === 1 ? '' : 's'}` : ''}
+              </div>
+            )}
           </div>
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
         {messages.length === 0 ? (
-          <InspectorCard className="p-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
-            No side chat messages yet.
-          </InspectorCard>
+          <div className="side-chat-empty" data-testid="side-chat-empty-state">
+            No side chat yet.
+          </div>
         ) : (
           messages.map((message) => (
             <InspectorCard
@@ -107,7 +109,8 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
         )}
       </div>
       <form
-        className="mt-4 flex gap-2"
+        className="side-chat-composer mt-3 flex items-center gap-2"
+        data-testid={chatId ? 'side-chat-composer' : 'side-question-composer'}
         onSubmit={(event) => {
           event.preventDefault()
           void submit()
@@ -117,23 +120,20 @@ export default function SideQuestionPanel({ session, chatId, embedded }: Props):
           data-testid={chatId ? 'side-chat-input' : 'side-question-input'}
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Ask a side question..."
+          placeholder="Ask in side chat"
           disabled={pending}
-          className="min-w-0 flex-1 px-3 py-2 text-sm outline-none"
-          style={{
-            background: 'var(--control-bg)',
-            color: 'var(--color-text)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-lg)'
-          }}
+          className="side-chat-input min-w-0 flex-1 text-sm outline-none"
         />
-        <Button
-          type="submit"
+        <IconButton
+          icon="send"
+          label="Send side question"
+          onClick={() => { void submit() }}
           disabled={!question.trim() || pending}
-          variant="primary"
-        >
-          Ask
-        </Button>
+          size="sm"
+          tone="accent"
+          className="side-chat-send"
+          dataTestId={chatId ? 'side-chat-send' : 'side-question-send'}
+        />
       </form>
     </div>
   )
