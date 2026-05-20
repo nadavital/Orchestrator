@@ -359,6 +359,7 @@ child.on('exit', (code) => {
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
           browserActive: result.browserActive === true,
+          browserEmptyState: result.browserEmptyStateWorks === true,
           browserLoaded: result.browserLoaded === true,
           browserFind: result.browserFindWorks === true,
           browserFindNavigation: result.browserFindNavigationWorks === true,

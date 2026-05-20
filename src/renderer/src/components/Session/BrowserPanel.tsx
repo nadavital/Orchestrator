@@ -427,6 +427,7 @@ export default function BrowserPanel({
       data-browser-find-active-match={findActiveMatch}
       data-browser-tab-count={workbench.tabs.length}
       data-browser-visible={visible ? 'true' : 'false'}
+      data-browser-current-url={currentUrl}
       data-browser-dom-targets={visibleTargets.length}
       data-browser-asset-count={assetInventory?.summary.totalCount ?? 0}
       data-browser-log-count={logs.length}
@@ -535,16 +536,18 @@ export default function BrowserPanel({
                 <button
                   type="button"
                   role="menuitem"
+                  aria-label="Reload without cache"
                   className="browser-action-row"
                   disabled={!currentUrl || !visible}
                   onClick={reloadWithoutCache}
                 >
                   <Icon name="eraser" size={13} />
-                  <span>Reload without cache</span>
+                  <span>Hard reload</span>
                 </button>
                 <button
                   type="button"
                   role="menuitem"
+                  aria-label="Capture screenshot"
                   className="browser-action-row"
                   disabled={!currentUrl || isLoading || !visible}
                   onClick={() => {
@@ -553,11 +556,12 @@ export default function BrowserPanel({
                   }}
                 >
                   <Icon name="camera" size={13} />
-                  <span>Capture screenshot</span>
+                  <span>Screenshot</span>
                 </button>
                 <button
                   type="button"
                   role="menuitem"
+                  aria-label="Open external browser"
                   className="browser-action-row"
                   disabled={!currentUrl}
                   onClick={() => {
@@ -566,7 +570,7 @@ export default function BrowserPanel({
                   }}
                 >
                   <Icon name="external" size={13} />
-                  <span>Open externally</span>
+                  <span>Open external</span>
                 </button>
               </div>
               <div className="browser-action-section">
@@ -628,7 +632,7 @@ export default function BrowserPanel({
                   onClick={() => patchWorkbench({ visible: !visible })}
                 >
                   <Icon name={visible ? 'monitor' : 'close'} size={13} />
-                  <span>{visible ? 'Hide browser surface' : 'Show browser surface'}</span>
+                  <span>{visible ? 'Hide surface' : 'Show surface'}</span>
                 </button>
               </div>
             </MenuSurface>
@@ -737,14 +741,23 @@ export default function BrowserPanel({
             ) : (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
                 <Icon name="browser" size={26} />
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Browser is hidden</div>
+                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Browser hidden</div>
+                <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                  Show it again from browser actions.
+                </div>
               </div>
             )
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+            <div
+              className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+              data-testid="browser-empty-state"
+            >
               <Icon name="browser" size={26} />
               <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                Open a URL
+                Start browsing
+              </div>
+              <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                Enter a URL in the address bar.
               </div>
             </div>
           )}

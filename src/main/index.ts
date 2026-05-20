@@ -1379,6 +1379,11 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               }
             }
             await sleep(260);
+            const browserEmptyState = document.querySelector('[data-testid="browser-empty-state"]');
+            var browserEmptyStateWorks =
+              browserEmptyState instanceof HTMLElement &&
+              browserEmptyState.innerText.includes('Start browsing') &&
+              browserEmptyState.innerText.includes('Enter a URL in the address bar.');
             const browserInput = document.querySelector('[data-testid="browser-url-input"]');
             if (browserInput instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(browserInput.constructor.prototype, 'value')?.set;
@@ -1422,6 +1427,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               }
             }
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
+            const expectedUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
+            const browserCurrentUrl = browserPanel?.getAttribute('data-browser-current-url') ?? '';
             const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
             const browserSingleTabStripHidden =
               Number(browserPanel?.getAttribute('data-browser-tab-count') ?? '0') === 1 &&
@@ -1432,8 +1439,9 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               profile,
               browserActive: rightPanel instanceof HTMLElement &&
                 rightPanel.dataset.rightPanelActiveTab === 'browser',
+              browserEmptyStateWorks,
               browserLoaded: Boolean(document.querySelector('[data-testid="browser-webview"]')) &&
-                document.body.innerText.includes('Orchestrator Browser Smoke'),
+                browserCurrentUrl.startsWith(expectedUrl),
               browserFindWorks,
               browserFindNavigationWorks,
               browserSingleTabStripHidden,
