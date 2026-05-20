@@ -523,6 +523,7 @@ child.on('exit', (code) => {
           browserToolbarHistory: result.browserToolbarHistoryWorks === true,
           browserHistoryMenu: result.browserHistoryMenuWorks === true,
           browserActionsMenuCompact: result.browserActionsMenuCompactWorks === true,
+          browserActionLabelsCalm: result.browserActionLabelsCalm === true,
           browserClearData: result.browserClearDataWorks === true,
           browserContextMenu: result.browserContextMenuWorks === true,
           browserDomPaneCompact: result.browserDomPaneCompactWorks === true,

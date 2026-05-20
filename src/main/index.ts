@@ -2743,6 +2743,15 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const clearCacheItem = document.querySelector('[data-testid="browser-clear-cache"]');
               const clearCookiesItem = document.querySelector('[data-testid="browser-clear-cookies"]');
               const clearSiteDataItem = document.querySelector('[data-testid="browser-clear-site-data"]');
+              const browserActionLabels = [...document.querySelectorAll('.browser-action-label')]
+                .filter((label) => label instanceof HTMLElement);
+              var browserActionLabelsCalm =
+                browserActionLabels.length >= 3 &&
+                browserActionLabels.every((label) => {
+                  const text = label.textContent?.trim() ?? '';
+                  return text.length === 0 ||
+                    (text !== text.toUpperCase() && getComputedStyle(label).textTransform !== 'uppercase');
+                });
               browserHistoryMenuWorks =
                 historyMenu instanceof HTMLElement &&
                 historyItems.length > 0 &&
@@ -3172,6 +3181,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserToolbarHistoryWorks,
               browserHistoryMenuWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
+              browserActionLabelsCalm: typeof browserActionLabelsCalm === 'boolean' ? browserActionLabelsCalm : null,
               browserClearDataWorks: typeof browserClearDataWorks === 'boolean' ? browserClearDataWorks : null,
               browserContextMenuWorks,
               browserDomPaneCompactWorks,

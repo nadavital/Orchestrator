@@ -1362,10 +1362,9 @@
   .browser-action-label {
     padding: 2px 6px 4px;
     color: var(--text-tertiary);
-    font-size: 10px;
-    font-weight: 750;
+    font-size: 11px;
+    font-weight: 650;
     letter-spacing: 0;
-    text-transform: uppercase;
   }
 
   .browser-action-row {
@@ -1705,9 +1704,8 @@
 
   .browser-load-error-suggestions span {
     color: var(--text-tertiary);
-    font-size: 10px;
-    font-weight: 760;
-    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 650;
   }
 
   .browser-inspector-drawer {
@@ -2062,11 +2060,10 @@
     align-items: center;
     justify-content: space-between;
     color: var(--text-tertiary);
-    font-size: 10px;
-    font-weight: 700;
+    font-size: 11px;
+    font-weight: 650;
     letter-spacing: 0;
     line-height: 1;
-    text-transform: uppercase;
   }
 
   .browser-target-secondary-panel > summary::-webkit-details-marker {
