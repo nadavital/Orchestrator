@@ -3163,20 +3163,26 @@ function runAutomatedEmptyStateSmoke(win: BrowserWindow, outputPath: string, scr
               : null;
             const emptyRect = emptyState?.getBoundingClientRect();
             const actionRect = addProjectButton?.getBoundingClientRect();
+            const heading = emptyState instanceof HTMLElement ? emptyState.querySelector('div:nth-child(2)') : null;
+            const headingStyle = heading instanceof HTMLElement ? getComputedStyle(heading) : null;
             return {
               profile,
               projectCount: projects.length,
               sessionCount: sessions.length,
               emptyStateVisible: Boolean(emptyState) &&
-                bodyText.includes('Add a project') &&
-                bodyText.includes('Open a local folder to start a workspace chat.'),
-              emptyStateProminent: Boolean(emptyRect) &&
-                (emptyRect?.width ?? 0) >= 300 &&
-                (emptyRect?.height ?? 0) >= 150,
+                bodyText.includes('Open a project') &&
+                bodyText.includes('Choose a local folder to start chatting in that workspace.'),
+              emptyStateCalm: Boolean(emptyRect) &&
+                (emptyRect?.width ?? 0) >= 280 &&
+                (emptyRect?.width ?? 0) <= 380 &&
+                (emptyRect?.height ?? 0) <= 180 &&
+                headingStyle !== null &&
+                Number.parseFloat(headingStyle.fontSize || '0') <= 20,
               addProjectActionVisible: addProjectButton instanceof HTMLButtonElement,
-              addProjectActionProminent: addProjectButton instanceof HTMLButtonElement &&
-                (actionRect?.width ?? 0) >= 110 &&
-                (actionRect?.height ?? 0) >= 34,
+              addProjectActionCompact: addProjectButton instanceof HTMLButtonElement &&
+                (actionRect?.width ?? 0) >= 96 &&
+                (actionRect?.width ?? 0) <= 150 &&
+                (actionRect?.height ?? 0) <= 34,
               sidebarEmptyStateVisible: sidebarAddProjectButton instanceof HTMLButtonElement,
               sidebarNoHorizontalOverflow: sidebar instanceof HTMLElement &&
                 getComputedStyle(sidebar).overflowX === 'hidden' &&

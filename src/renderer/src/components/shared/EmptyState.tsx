@@ -28,34 +28,33 @@ export default function EmptyState(): JSX.Element {
   if (!hasProjects) {
     return (
       <div
-        className="flex-1 min-w-0 flex items-start justify-center px-8 pb-10 pt-[18vh] text-center"
+        className="flex-1 min-w-0 flex items-start justify-center px-8 pb-10 pt-[20vh] text-center"
         style={{ color: 'var(--color-text-muted)' }}
       >
-        <div data-testid="project-empty-state" className="w-full max-w-[460px]">
+        <div data-testid="project-empty-state" className="w-full max-w-[360px]">
           <div
-            className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-xl"
+            className="mx-auto mb-3 grid h-9 w-9 place-items-center rounded-lg"
             style={{
               background: 'var(--control-bg)',
               border: '1px solid var(--border-subtle)',
               color: 'var(--text-secondary)'
             }}
           >
-            <Icon name="folder" size={20} />
+            <Icon name="folder" size={17} />
           </div>
-          <div className="text-[22px] font-semibold leading-7 tracking-normal" style={{ color: 'var(--color-text)' }}>
-            Add a project
+          <div className="text-[18px] font-semibold leading-6 tracking-normal" style={{ color: 'var(--color-text)' }}>
+            Open a project
           </div>
-          <div className="mx-auto mb-6 mt-2 max-w-[320px] text-sm leading-6">
-            Open a local folder to start a workspace chat.
+          <div className="mx-auto mb-4 mt-1.5 max-w-[360px] text-[13px] leading-5">
+            Choose a local folder to start chatting in that workspace.
           </div>
           <Button
             dataTestId="project-empty-state-add"
-            variant="primary"
             onClick={() => { void handleAddProject() }}
-            className="h-9 px-4 text-sm"
+            className="h-8 px-3 text-xs"
           >
             <Icon name="plus" size={14} />
-            Add project
+            Open folder
           </Button>
         </div>
       </div>

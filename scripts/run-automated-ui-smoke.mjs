@@ -307,9 +307,9 @@ child.on('exit', (code) => {
         noProjects: result.projectCount === 0,
         noSessions: result.sessionCount === 0,
         emptyStateVisible: result.emptyStateVisible === true,
-        emptyStateProminent: result.emptyStateProminent === true,
+        emptyStateCalm: result.emptyStateCalm === true,
         addProjectActionVisible: result.addProjectActionVisible === true,
-        addProjectActionProminent: result.addProjectActionProminent === true,
+        addProjectActionCompact: result.addProjectActionCompact === true,
         sidebarEmptyStateVisible: result.sidebarEmptyStateVisible === true,
         sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
         noStaticSuggestionCards: result.noStaticSuggestionCards === true
