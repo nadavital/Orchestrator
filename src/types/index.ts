@@ -1138,6 +1138,10 @@ export {
   fileStatusLabel,
   summarizeFileChanges
 } from './fileChanges'
+export {
+  isBinaryDiffText,
+  shouldPreferTextDiff
+} from './reviewPreview'
 export type {
   FileReference
 } from './fileReferences'

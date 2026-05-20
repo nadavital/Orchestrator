@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { fileStatusLabel } from '../../types'
+import { fileStatusLabel, isBinaryDiffText, shouldPreferTextDiff } from '../../types'
 import type { FileChange } from '../../types'
 import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
@@ -285,6 +285,9 @@ function ReviewPreview({
       />
     )
   }
+  if (shouldPreferTextDiff(diff)) {
+    return <DiffLines diff={diff} wrap={wrap} />
+  }
   if (preview?.kind === 'image') {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="review-image-state">
@@ -506,7 +509,7 @@ function reviewActionIcon(label: string): 'external' | 'folder' | 'file' {
 }
 
 function isBinaryDiff(diff: string): boolean {
-  return diff.split('\n').some((line) => line.startsWith('Binary files ') || line.startsWith('GIT binary patch'))
+  return isBinaryDiffText(diff)
 }
 
 function formatBytes(value: number): string {
