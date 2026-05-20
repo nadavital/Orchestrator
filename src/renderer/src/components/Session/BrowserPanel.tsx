@@ -73,7 +73,6 @@ interface VisibleTarget {
   selector: { primary: string | null; candidates: string[] }
 }
 
-const QUICK_URLS = ['http://localhost:5173', 'http://127.0.0.1:8787']
 const ZOOM_STEP = 0.1
 const DEFAULT_TAB: BrowserTabState = { id: 'tab-1', title: 'New tab', url: '', lastOpened: 0 }
 
@@ -719,27 +718,8 @@ export default function BrowserPanel({
           ) : (
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
               <Icon name="browser" size={26} />
-              <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                  Open a URL
-                </div>
-              </div>
-              <div className="flex flex-wrap justify-center gap-1.5">
-                {QUICK_URLS.map((url) => (
-                  <button
-                    key={url}
-                    type="button"
-                    className="rounded-md px-2 py-1 text-xs"
-                    style={{
-                      background: 'var(--control-bg)',
-                      border: '1px solid var(--border-subtle)',
-                      color: 'var(--text-secondary)'
-                    }}
-                    onClick={() => navigate(url)}
-                  >
-                    {url.replace(/^https?:\/\//, '')}
-                  </button>
-                ))}
+              <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                Open a URL
               </div>
             </div>
           )}
