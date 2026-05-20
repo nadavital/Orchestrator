@@ -1242,6 +1242,65 @@ function ProvidersSection({
             onSetDefault={() => onSetDefaultProvider(selectedId)}
           />
 
+          <button
+            onClick={() => setAdvancedOpen((open) => !open)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              marginTop: -2,
+              marginBottom: 14,
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text)',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            Diagnostics
+            <span style={{ color: 'var(--color-text-muted)' }}>{advancedOpen ? 'Close' : 'Open'}</span>
+          </button>
+
+          {advancedOpen && (
+            <SettingsPanel>
+              {loadingDiagnostics && !diagnostics && (
+                <CompactSetting title="Health">
+                  <InlineMutedText>Checking local CLI...</InlineMutedText>
+                </CompactSetting>
+              )}
+              {diagnostics && (
+                <CompactSetting title="Health">
+                  <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
+                </CompactSetting>
+              )}
+              <CompactSetting title="Usage">
+                <ProviderUsageDiagnosticsCard
+                  providerId={selectedId}
+                  diagnostics={diagnostics}
+                  usage={usageSnapshot}
+                  color={providerDef.color}
+                />
+              </CompactSetting>
+              {diagnostics && diagnostics.probes.length > 0 && (
+                <CompactSetting title="Checks">
+                  <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
+                </CompactSetting>
+              )}
+              {providerDef.id === 'claude' && (
+                <CompactSetting title="Endpoint">
+                  <ClaudeEndpointField color={providerDef.color} />
+                </CompactSetting>
+              )}
+              <CompactSetting title="Config">
+                <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
+              </CompactSetting>
+            </SettingsPanel>
+          )}
+
           <SettingsPanel>
             <CompactSetting title="Models">
               <ModelListManager
@@ -1287,71 +1346,13 @@ function ProvidersSection({
 
           {settingsCommandSurfaces.length > 0 && (
             <SettingsPanel>
-              <CompactSetting title="Provider details">
+              <CompactSetting title="Capabilities">
                 <ProviderCommandSurfaces
                   providerId={selectedId}
                   color={providerDef.color}
                   surfaces={settingsCommandSurfaces}
                 />
               </CompactSetting>
-            </SettingsPanel>
-          )}
-
-          <button
-            onClick={() => setAdvancedOpen((open) => !open)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              marginTop: 14,
-              padding: '10px 12px',
-              borderRadius: 8,
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-surface)',
-              color: 'var(--color-text)',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            Advanced
-            <span style={{ color: 'var(--color-text-muted)' }}>{advancedOpen ? 'Hide' : 'Show'}</span>
-          </button>
-
-          {advancedOpen && (
-            <SettingsPanel>
-              {providerDef.id === 'claude' && (
-                <CompactSetting title="Endpoint">
-                  <ClaudeEndpointField color={providerDef.color} />
-                </CompactSetting>
-              )}
-              <CompactSetting title="Config file">
-                <ProviderConfigEditor providerId={providerDef.id} color={providerDef.color} />
-              </CompactSetting>
-              {loadingDiagnostics && !diagnostics && (
-                <CompactSetting title="Status">
-                  <InlineMutedText>Checking local CLI...</InlineMutedText>
-                </CompactSetting>
-              )}
-              {diagnostics && (
-                <CompactSetting title="Status">
-                  <ProviderDiagnosticsCard diagnostics={diagnostics} color={providerDef.color} />
-                </CompactSetting>
-              )}
-              <CompactSetting title="Usage">
-                <ProviderUsageDiagnosticsCard
-                  providerId={selectedId}
-                  diagnostics={diagnostics}
-                  usage={usageSnapshot}
-                  color={providerDef.color}
-                />
-              </CompactSetting>
-              {diagnostics && diagnostics.probes.length > 0 && (
-                <CompactSetting title="Probes">
-                  <ProviderProbeGrid diagnostics={diagnostics} color={providerDef.color} />
-                </CompactSetting>
-              )}
             </SettingsPanel>
           )}
         </div>
@@ -1449,8 +1450,8 @@ function ProviderHeaderCard({
         display: 'flex',
         alignItems: 'center',
         gap: 14,
-        padding: 16,
-        borderRadius: 10,
+        padding: 12,
+        borderRadius: 8,
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         marginBottom: 14,
@@ -1458,8 +1459,8 @@ function ProviderHeaderCard({
     >
       <div
         style={{
-          width: 34,
-          height: 34,
+          width: 30,
+          height: 30,
           borderRadius: 8,
           display: 'grid',
           placeItems: 'center',
@@ -1472,7 +1473,7 @@ function ProviderHeaderCard({
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--color-text)' }}>{providerName}</div>
+          <div style={{ fontSize: 13, fontWeight: 650, color: 'var(--color-text)' }}>{providerName}</div>
           <StatusPill label={installed ? 'Ready' : 'Missing'} color={installed ? 'var(--color-green)' : '#F87171'} />
           {showDefaultControls && isDefault && <StatusPill label="Default" color={color} />}
         </div>
@@ -2339,7 +2340,8 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
         placeholder={providerId === 'cursor' ? '{\n  "network": {\n    "useHttp1ForAgent": true\n  }\n}' : ''}
         style={{
           width: '100%',
-          minHeight: 120,
+          minHeight: 84,
+          maxHeight: 180,
           resize: 'vertical',
           padding: 10,
           borderRadius: 8,
@@ -2597,7 +2599,7 @@ function ProviderUsageDiagnosticsCard({
   const hasUsage = usage.sessionCount > 0
   const rows = [
     {
-      label: 'Captured runs',
+      label: 'Runs',
       status: hasUsage ? 'available' : 'unknown',
       message: hasUsage ? `${usage.sessionCount.toLocaleString()} sessions with usage metadata` : 'No usage-emitting runs recorded in this local profile yet.'
     },
@@ -2614,19 +2616,19 @@ function ProviderUsageDiagnosticsCard({
       message: usage.totalCostUsd > 0 ? formatUsd(usage.totalCostUsd) : 'No provider cost metadata captured yet.'
     },
     {
-      label: 'Duration',
+      label: 'Time',
       status: usage.durationMs > 0 || usage.apiDurationMs > 0 ? 'available' : 'unknown',
       message: usage.durationMs > 0 || usage.apiDurationMs > 0
         ? `${formatMilliseconds(usage.durationMs)} total${usage.apiDurationMs > 0 ? ` · ${formatMilliseconds(usage.apiDurationMs)} API` : ''}`
         : 'No duration metadata captured yet.'
     },
     {
-      label: 'Quota probe',
+      label: 'Quota',
       status: diagnostics?.usage.status ?? 'unknown',
       message: diagnostics?.usage.message ?? 'Load provider diagnostics to check whether safe quota probes are available.'
     },
     {
-      label: 'Budget/fallback',
+      label: 'Budget',
       status: budget.status,
       message: budget.message
     }
@@ -2676,9 +2678,9 @@ function ProviderUsageDiagnosticsCard({
           color: 'var(--color-text-muted)'
         }}
       >
-        <span>{usage.models.length > 0 ? `Models: ${usage.models.join(', ')}` : 'Models: none captured'}</span>
-        <span>{usage.cacheTokens > 0 ? `Cache: ${usage.cacheTokens.toLocaleString()} tokens` : 'Cache: none captured'}</span>
-        <span>{usage.turns > 0 ? `Turns: ${usage.turns.toLocaleString()}` : 'Turns: none captured'}</span>
+        <span>{usage.models.length > 0 ? `Models: ${usage.models.join(', ')}` : 'No models'}</span>
+        <span>{usage.cacheTokens > 0 ? `Cache: ${usage.cacheTokens.toLocaleString()} tokens` : 'No cache'}</span>
+        <span>{usage.turns > 0 ? `Turns: ${usage.turns.toLocaleString()}` : 'No turns'}</span>
       </div>
     </div>
   )

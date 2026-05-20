@@ -380,13 +380,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsButton?.click();
             await sleep(450);
             if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings-providers') {
-              const diagnosticsButton = [...document.querySelectorAll('button')]
+              const providersNavButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Providers'));
-              diagnosticsButton?.click();
+              providersNavButton?.click();
               await sleep(450);
-              const advancedButton = [...document.querySelectorAll('button')]
-                .find((button) => button.textContent?.includes('Advanced'));
-              advancedButton?.click();
+              const diagnosticsButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Diagnostics'));
+              diagnosticsButton?.click();
               await sleep(450);
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const providerSelects = diagnosticsSection instanceof HTMLElement
@@ -402,15 +402,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !providerButtonLabels.some((label) => ['Claude Code', 'GitHub Copilot', 'Codex CLI', 'Cursor'].includes(label));
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Provider details') &&
-                diagnosticsSection.innerText.includes('Config file');
+                diagnosticsSection.innerText.includes('Capabilities') &&
+                diagnosticsSection.innerText.includes('Config') &&
+                diagnosticsSection.innerText.includes('Health');
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Usage') &&
-                diagnosticsSection.innerText.includes('Captured runs') &&
+                diagnosticsSection.innerText.includes('Runs') &&
                 diagnosticsSection.innerText.includes('Tokens') &&
                 diagnosticsSection.innerText.includes('Cost') &&
-                diagnosticsSection.innerText.includes('Budget/fallback') &&
+                diagnosticsSection.innerText.includes('Budget') &&
                 Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]'));
             }
             if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
@@ -441,22 +442,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 .find((button) => button.textContent?.includes('Providers'));
               diagnosticsButton?.click();
               await sleep(450);
-              const advancedButton = [...document.querySelectorAll('button')]
-                .find((button) => button.textContent?.includes('Advanced'));
-              advancedButton?.click();
+              const diagnosticsPanelButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Diagnostics'));
+              diagnosticsPanelButton?.click();
               await sleep(450);
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
-                diagnosticsSection.innerText.includes('Provider details') &&
-                diagnosticsSection.innerText.includes('Config file');
+                diagnosticsSection.innerText.includes('Capabilities') &&
+                diagnosticsSection.innerText.includes('Config') &&
+                diagnosticsSection.innerText.includes('Health');
               var settingsUsageDiagnosticsWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Usage') &&
-                diagnosticsSection.innerText.includes('Captured runs') &&
+                diagnosticsSection.innerText.includes('Runs') &&
                 diagnosticsSection.innerText.includes('Tokens') &&
                 diagnosticsSection.innerText.includes('Cost') &&
-                diagnosticsSection.innerText.includes('Budget/fallback') &&
+                diagnosticsSection.innerText.includes('Budget') &&
                 Boolean(document.querySelector('[data-testid="provider-usage-diagnostics-card"]'));
               const dataButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Data controls'));
