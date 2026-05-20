@@ -1253,6 +1253,49 @@ function ProvidersSection({
             onSetDefault={() => onSetDefaultProvider(selectedId)}
           />
 
+          <SettingsPanel>
+            <CompactSetting title="Default">
+              <DefaultModelPicker
+                providerDef={providerDef}
+                models={visibleModels}
+                currentModel={modelForPicker}
+                onSetModel={(id) => onSetDefaultModel(selectedId, id)}
+              />
+            </CompactSetting>
+
+            {providerDef.supportsEffort && providerDef.effortLevels.length > 0 && (
+              <CompactSetting title="Thinking">
+                <SegmentedControl
+                  items={providerDef.effortLevels}
+                  value={currentEffort}
+                  color={providerDef.color}
+                  onChange={(id) => onSetDefaultEffort(selectedId, id)}
+                />
+              </CompactSetting>
+            )}
+
+            {primaryPermissionModes.length > 0 && (
+              <CompactSetting title="Mode">
+                <SegmentedControl
+                  items={primaryPermissionModes}
+                  value={currentPermissionMode}
+                  color={providerDef.color}
+                  onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
+                />
+              </CompactSetting>
+            )}
+          </SettingsPanel>
+
+          <SettingsPanel>
+            <CompactSetting title="Models">
+              <ModelListManager
+                providerDef={providerDef}
+                visibleIds={visibleIds}
+                onChange={handleVisibleModelsChange}
+              />
+            </CompactSetting>
+          </SettingsPanel>
+
           <button
             onClick={() => setAdvancedOpen((open) => !open)}
             style={{
@@ -1311,49 +1354,6 @@ function ProvidersSection({
               </CompactSetting>
             </SettingsPanel>
           )}
-
-          <SettingsPanel>
-            <CompactSetting title="Default">
-              <DefaultModelPicker
-                providerDef={providerDef}
-                models={visibleModels}
-                currentModel={modelForPicker}
-                onSetModel={(id) => onSetDefaultModel(selectedId, id)}
-              />
-            </CompactSetting>
-
-            {providerDef.supportsEffort && providerDef.effortLevels.length > 0 && (
-              <CompactSetting title="Thinking">
-                <SegmentedControl
-                  items={providerDef.effortLevels}
-                  value={currentEffort}
-                  color={providerDef.color}
-                  onChange={(id) => onSetDefaultEffort(selectedId, id)}
-                />
-              </CompactSetting>
-            )}
-
-            {primaryPermissionModes.length > 0 && (
-              <CompactSetting title="Mode">
-                <SegmentedControl
-                  items={primaryPermissionModes}
-                  value={currentPermissionMode}
-                  color={providerDef.color}
-                  onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
-                />
-              </CompactSetting>
-            )}
-          </SettingsPanel>
-
-          <SettingsPanel>
-            <CompactSetting title="Models">
-              <ModelListManager
-                providerDef={providerDef}
-                visibleIds={visibleIds}
-                onChange={handleVisibleModelsChange}
-              />
-            </CompactSetting>
-          </SettingsPanel>
 
           {settingsCommandSurfaces.length > 0 && (
             <SettingsPanel>
@@ -2277,6 +2277,7 @@ function redactConfigSecrets(raw: string): { content: string; redacted: boolean 
 }
 
 function ProviderConfigEditor({ providerId, color }: { providerId: string; color: string }): JSX.Element {
+  const [open, setOpen] = useState(false)
   const [path, setPath] = useState('')
   const [content, setContent] = useState('')
   const [hasRedactions, setHasRedactions] = useState(false)
@@ -2326,67 +2327,108 @@ function ProviderConfigEditor({ providerId, color }: { providerId: string; color
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div data-testid="provider-config-editor" data-expanded={open ? 'true' : 'false'} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div
         style={{
-          fontSize: 10.5,
-          fontFamily: 'monospace',
-          color: 'var(--color-text-muted)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
         }}
       >
-        {path || 'Loading...'}
-      </div>
-      <textarea
-        value={content}
-        onChange={(e) => {
-          setContent(e.target.value)
-          setDirty(true)
-          setSaved(false)
-          setError('')
-        }}
-        spellCheck={false}
-        placeholder={providerId === 'cursor' ? '{\n  "network": {\n    "useHttp1ForAgent": true\n  }\n}' : ''}
-        style={{
-          width: '100%',
-          minHeight: 84,
-          maxHeight: 180,
-          resize: 'vertical',
-          padding: 10,
-          borderRadius: 8,
-          border: `1px solid ${error ? '#F87171' : dirty ? color : 'var(--color-border)'}`,
-          background: 'var(--color-surface2)',
-          color: 'var(--color-text)',
-          outline: 'none',
-          fontSize: 11,
-          lineHeight: '16px',
-          fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-          boxSizing: 'border-box',
-        }}
-      />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div style={{ fontSize: 11, color: error ? '#F87171' : 'var(--color-text-muted)' }}>
-          {error || (hasRedactions ? 'Secrets redacted; edit locally to change this file.' : saved ? 'Saved' : 'Local file override')}
-        </div>
-        <button
-          onClick={save}
-          disabled={!dirty || saving || hasRedactions}
+        <span
           style={{
-            padding: '6px 12px',
+            minWidth: 0,
+            fontSize: 10.5,
+            fontFamily: 'monospace',
+            color: 'var(--color-text-muted)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {path || 'Loading...'}
+        </span>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          style={{
+            flexShrink: 0,
+            padding: '5px 9px',
             borderRadius: 7,
-            border: `1px solid ${dirty && !hasRedactions ? color : 'var(--color-border)'}`,
-            background: dirty && !hasRedactions ? color : 'var(--color-surface2)',
-            color: dirty && !hasRedactions ? '#fff' : 'var(--color-text-muted)',
-            cursor: dirty && !hasRedactions ? 'pointer' : 'default',
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface2)',
+            color: 'var(--color-text)',
+            cursor: 'pointer',
             fontSize: 11,
             fontWeight: 650,
           }}
         >
-          {saving ? 'Saving...' : 'Save'}
+          {open ? 'Hide' : 'Edit config'}
         </button>
       </div>
+      {open && (
+        <>
+          <textarea
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value)
+              setDirty(true)
+              setSaved(false)
+              setError('')
+            }}
+            spellCheck={false}
+            placeholder={providerId === 'cursor' ? '{\n  "network": {\n    "useHttp1ForAgent": true\n  }\n}' : ''}
+            style={{
+              width: '100%',
+              minHeight: 84,
+              maxHeight: 180,
+              resize: 'vertical',
+              padding: 10,
+              borderRadius: 8,
+              border: `1px solid ${error ? '#F87171' : dirty ? color : 'var(--color-border)'}`,
+              background: 'var(--color-surface2)',
+              color: 'var(--color-text)',
+              outline: 'none',
+              fontSize: 11,
+              lineHeight: '16px',
+              fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+              boxSizing: 'border-box',
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 11, color: error ? '#F87171' : 'var(--color-text-muted)' }}>
+              {error || (hasRedactions ? 'Secrets redacted; edit locally to change this file.' : saved ? 'Saved' : 'Local file override')}
+            </div>
+            <button
+              onClick={save}
+              disabled={!dirty || saving || hasRedactions}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 7,
+                border: `1px solid ${dirty && !hasRedactions ? color : 'var(--color-border)'}`,
+                background: dirty && !hasRedactions ? color : 'var(--color-surface2)',
+                color: dirty && !hasRedactions ? '#fff' : 'var(--color-text-muted)',
+                cursor: dirty && !hasRedactions ? 'pointer' : 'default',
+                fontSize: 11,
+                fontWeight: 650,
+              }}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </>
+      )}
+      {!open && (
+        <div
+          style={{
+            fontSize: 11,
+            color: error ? '#F87171' : 'var(--color-text-muted)',
+          }}
+        >
+          {error || (hasRedactions ? 'Secrets redacted.' : saved ? 'Saved' : 'Local file override')}
+        </div>
+      )}
     </div>
   )
 }

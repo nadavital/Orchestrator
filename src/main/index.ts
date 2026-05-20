@@ -389,6 +389,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               diagnosticsButton?.click();
               await sleep(450);
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
+              const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               const providerSelects = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('select')]
                 : [];
@@ -419,7 +420,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Models') &&
                 diagnosticsSection.innerText.includes('Edit model list') &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
-                diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models');
+                diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
+                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Diagnostics') &&
+                configEditor instanceof HTMLElement &&
+                configEditor.dataset.expanded === 'false' &&
+                configEditor.querySelector('textarea') === null;
               const editModelListButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Edit model list'));
               editModelListButton?.scrollIntoView({ block: 'center' });
@@ -457,6 +462,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               diagnosticsPanelButton?.click();
               await sleep(450);
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
+              const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               var settingsDiagnosticsSectionWorks =
                 diagnosticsSection instanceof HTMLElement &&
                 diagnosticsSection.innerText.includes('Capabilities') &&
@@ -476,7 +482,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 diagnosticsSection.innerText.includes('Models') &&
                 diagnosticsSection.innerText.includes('Edit model list') &&
                 !diagnosticsSection.innerText.includes('Catalog') &&
-                diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models');
+                diagnosticsSection.innerText.indexOf('Default') < diagnosticsSection.innerText.indexOf('Models') &&
+                diagnosticsSection.innerText.indexOf('Models') < diagnosticsSection.innerText.indexOf('Diagnostics') &&
+                configEditor instanceof HTMLElement &&
+                configEditor.dataset.expanded === 'false' &&
+                configEditor.querySelector('textarea') === null;
               const dataButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Data controls'));
               dataButton?.click();
