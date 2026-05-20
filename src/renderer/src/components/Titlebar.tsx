@@ -68,7 +68,7 @@ export default function Titlebar(): JSX.Element {
 
   const removeActiveSession = async (): Promise<void> => {
     if (!session) return
-    await window.api.sessions.remove(session.id)
+    await window.api.sessions.archive(session.id)
     await window.api.projects.removeSession(session.projectId, session.id)
     useSessionStore.getState().removeSession(session.id)
     removeSessionFromProject(session.projectId, session.id)

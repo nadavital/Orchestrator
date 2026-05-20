@@ -70,7 +70,7 @@ export default function ProjectSection({ project, sessions }: Props): JSX.Elemen
 
   const handleArchiveChats = async (): Promise<void> => {
     for (const s of projectSessions()) {
-      await window.api.sessions.remove(s.id)
+      await window.api.sessions.archive(s.id)
       removeSession(s.id)
       removeSessionFromProject(project.id, s.id)
     }

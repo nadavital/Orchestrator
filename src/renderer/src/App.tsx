@@ -525,6 +525,10 @@ export default function App(): JSX.Element {
         updateSettings(id, patch)
       } else if (event.type === 'needsInput') {
         setShowTerminal(event.id, true)
+      } else if (event.type === 'archived') {
+        const archived = useSessionStore.getState().sessions.find((s) => s.id === event.id)
+        if (archived) removeSessionFromProject(archived.projectId, archived.id)
+        useSessionStore.getState().removeSession(event.id)
       }
     })
 

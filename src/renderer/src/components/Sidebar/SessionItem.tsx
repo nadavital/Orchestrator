@@ -128,7 +128,7 @@ function SessionItem({ session }: Props): JSX.Element {
   }
 
   const handleRemove = async (): Promise<void> => {
-    await window.api.sessions.remove(session.id)
+    await window.api.sessions.archive(session.id)
     await window.api.projects.removeSession(session.projectId, session.id)
     removeSession(session.id)
     removeSessionFromProject(session.projectId, session.id)

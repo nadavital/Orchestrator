@@ -24,7 +24,7 @@ export default function SessionActionsMenu({
   branch
 }: Props): JSX.Element {
   const [renaming, setRenaming] = useState(false)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [confirmingArchive, setConfirmingArchive] = useState(false)
 
   const rename = async (nextName: string): Promise<void> => {
     const trimmed = nextName.trim()
@@ -54,7 +54,7 @@ export default function SessionActionsMenu({
 
   const menu = (
     <>
-    {!renaming && !confirmingDelete && (
+    {!renaming && !confirmingArchive && (
       <MenuSurface
         className="fixed p-[5px]"
         onClose={onClose}
@@ -90,7 +90,7 @@ export default function SessionActionsMenu({
         {onRemove && (
           <>
             <div style={{ height: 1, background: 'var(--border-subtle)', margin: '5px 3px' }} />
-            <MenuItem icon="close" label="Delete chat" tone="danger" onClick={() => setConfirmingDelete(true)} />
+            <MenuItem icon="archive" label="Archive chat" onClick={() => setConfirmingArchive(true)} />
           </>
         )}
       </MenuSurface>
@@ -102,12 +102,13 @@ export default function SessionActionsMenu({
         onConfirm={(value) => void rename(value)}
       />
     )}
-    {confirmingDelete && (
+    {confirmingArchive && (
       <ConfirmDialog
-        title={`Delete "${session.name}"?`}
-        description="This removes the chat from Orchestrator."
-        confirmLabel="Delete"
-        onCancel={() => setConfirmingDelete(false)}
+        title={`Archive "${session.name}"?`}
+        description="This removes the chat from the active sidebar while keeping its record in Orchestrator."
+        confirmLabel="Archive"
+        tone="accent"
+        onCancel={() => setConfirmingArchive(false)}
         onConfirm={() => void remove()}
       />
     )}

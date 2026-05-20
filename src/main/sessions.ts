@@ -49,6 +49,10 @@ function ensurePinnedOrders(sessions: Session[]): Session[] {
   return ordered
 }
 
+function activeStoredSessions(): Session[] {
+  return ensurePinnedOrders(store.get('sessions', [])).filter((session) => !session.archivedAt)
+}
+
 function defaultRuntimeForProvider(providerId: string): ProviderRuntimeKind {
   if (providerId === 'codex') return 'app-server'
   return 'headless'
@@ -316,12 +320,12 @@ function clearRuntimeState(sessionId: string): void {
 
 export const sessionManager = {
   list(): Session[] {
-    return ensurePinnedOrders(store.get('sessions', [])).map(normalizeSession)
+    return activeStoredSessions().map(normalizeSession)
   },
 
   listSummaries(): SessionListItem[] {
     const startedAt = performance.now()
-    const summaries = ensurePinnedOrders(store.get('sessions', [])).map(sessionListItem)
+    const summaries = activeStoredSessions().map(sessionListItem)
     recordPerformanceMetric({
       name: 'sessions.listSummaries',
       surface: 'main',
@@ -338,6 +342,29 @@ export const sessionManager = {
   get(id: string): Session | undefined {
     const session = ensurePinnedOrders(store.get('sessions', [])).find((s) => s.id === id)
     return session ? normalizeSession(session) : undefined
+  },
+
+  async archive(sessionId: string): Promise<void> {
+    this.stop(sessionId)
+    const sessions = ensurePinnedOrders(store.get('sessions', []))
+    const session = sessions.find((s) => s.id === sessionId)
+    if (!session) return
+    if (session.archivedAt) return
+
+    if (session.useWorktree && session.repoRoot && session.workDir) {
+      try {
+        await gitManager.removeWorktree(session.repoRoot, session.workDir)
+      } catch {
+        /* ignore cleanup errors */
+      }
+    }
+
+    session.archivedAt = Date.now()
+    session.pinned = false
+    session.pinOrder = undefined
+    session.status = 'idle'
+    store.set('sessions', sessions)
+    send('session:archived', { id: sessionId })
   },
 
   getTranscriptPage(id: string, request: TranscriptPageRequest = {}): TranscriptPage | undefined {

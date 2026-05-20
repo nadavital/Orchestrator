@@ -82,6 +82,7 @@ export type SessionEvent =
   | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
   | { type: 'settingsUpdated'; id: string; provider?: string; model?: string; effort?: string; permissionMode?: string; runtime?: Session['runtime']; useThinking?: boolean; useFast?: boolean; allowedTools?: string[]; disallowedTools?: string[]; availableTools?: string[]; additionalDirs?: string[]; usageSummary?: UsageSummary }
   | { type: 'needsInput'; id: string }
+  | { type: 'archived'; id: string }
 
 type SettingsUpdatedPayload = Omit<Extract<SessionEvent, { type: 'settingsUpdated' }>, 'type'>
 
@@ -154,6 +155,7 @@ const api = {
     stop: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:stop', sessionId),
     steerQueuedMessage: (sessionId: string, messageId: string): Promise<void> =>
       ipcRenderer.invoke('sessions:steerQueuedMessage', sessionId, messageId),
+    archive: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:archive', sessionId),
     remove: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:remove', sessionId),
     getDiff: (sessionId: string): Promise<string> =>
       ipcRenderer.invoke('sessions:getDiff', sessionId),
@@ -329,6 +331,8 @@ const api = {
       cb({ type: 'settingsUpdated', ...p })
     const onNeedsInput = (_: Electron.IpcRendererEvent, p: { id: string }): void =>
       cb({ type: 'needsInput', ...p })
+    const onArchived = (_: Electron.IpcRendererEvent, p: { id: string }): void =>
+      cb({ type: 'archived', ...p })
 
     ipcRenderer.on('session:created', onCreated)
     ipcRenderer.on('session:status', onStatus)
@@ -341,6 +345,7 @@ const api = {
     ipcRenderer.on('session:updated', onUpdated)
     ipcRenderer.on('session:settingsUpdated', onSettingsUpdated)
     ipcRenderer.on('session:needsInput', onNeedsInput)
+    ipcRenderer.on('session:archived', onArchived)
 
     return () => {
       ipcRenderer.off('session:created', onCreated)
@@ -354,6 +359,7 @@ const api = {
       ipcRenderer.off('session:updated', onUpdated)
       ipcRenderer.off('session:settingsUpdated', onSettingsUpdated)
       ipcRenderer.off('session:needsInput', onNeedsInput)
+      ipcRenderer.off('session:archived', onArchived)
     }
   }
 }

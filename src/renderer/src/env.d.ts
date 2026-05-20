@@ -99,6 +99,7 @@ export type SessionEvent =
       usageSummary?: UsageSummary
     }
   | { type: 'needsInput'; id: string }
+  | { type: 'archived'; id: string }
 
 declare global {
   interface Window {
@@ -150,6 +151,7 @@ declare global {
         checkProviders: () => Promise<Record<string, boolean>>
         stop: (sessionId: string) => Promise<void>
         steerQueuedMessage: (sessionId: string, messageId: string) => Promise<void>
+        archive: (sessionId: string) => Promise<void>
         remove: (sessionId: string) => Promise<void>
         getDiff: (sessionId: string) => Promise<string>
         getChangedFiles: (sessionId: string) => Promise<FileChange[]>

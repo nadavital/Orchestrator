@@ -545,6 +545,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:steerQueuedMessage', (_, sessionId: string, messageId: string) =>
     sessionManager.steerQueuedMessage(sessionId, messageId)
   )
+  ipcMain.handle('sessions:archive', (_, sessionId: string) => sessionManager.archive(sessionId))
   ipcMain.handle('sessions:remove', (_, sessionId: string) => sessionManager.remove(sessionId))
   ipcMain.handle('sessions:getDiff', (_, sessionId: string) => sessionManager.getDiff(sessionId))
   ipcMain.handle('sessions:getChangedFiles', (_, sessionId: string) => {

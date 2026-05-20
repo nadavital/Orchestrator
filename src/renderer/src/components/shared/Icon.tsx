@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Archive,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
@@ -54,6 +55,7 @@ import {
 
 export type IconName =
   | 'agents'
+  | 'archive'
   | 'arrowLeft'
   | 'arrowRight'
   | 'arrowUp'
@@ -106,6 +108,7 @@ export type IconName =
 
 const icons: Record<IconName, LucideIcon> = {
   agents: Users,
+  archive: Archive,
   arrowLeft: ArrowLeft,
   arrowRight: ArrowRight,
   arrowUp: ArrowUp,

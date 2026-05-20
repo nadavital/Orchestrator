@@ -887,6 +887,7 @@ export interface Session {
   messagesLoaded?: boolean
   previewText?: string
   latestMessageAt?: number
+  archivedAt?: number
   createdAt: number
   provider: string
   model: string
