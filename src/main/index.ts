@@ -2985,6 +2985,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(80);
             }
             var browserContextMenuWorks = false;
+            var browserContextComposerWorks = false;
             const browserContextViewportFrame = document.querySelector('[data-testid="browser-viewport-frame"]');
             if (browserContextViewportFrame instanceof HTMLElement) {
               const frameBounds = browserContextViewportFrame.getBoundingClientRect();
@@ -3000,6 +3001,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const contextForward = document.querySelector('[data-testid="browser-context-forward"]');
               const contextReload = document.querySelector('[data-testid="browser-context-reload"]');
               const contextInspect = document.querySelector('[data-testid="browser-context-inspect"]');
+              const contextAddPage = document.querySelector('[data-testid="browser-context-add-page"]');
               const contextRows = browserContextMenu instanceof HTMLElement
                 ? [...browserContextMenu.querySelectorAll('.browser-action-row')]
                 : [];
@@ -3009,9 +3011,20 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 contextForward instanceof HTMLButtonElement &&
                 contextReload instanceof HTMLButtonElement &&
                 contextInspect instanceof HTMLButtonElement &&
-                contextRows.length === 4 &&
+                contextAddPage instanceof HTMLButtonElement &&
+                contextRows.length === 5 &&
                 browserContextMenu.scrollWidth <= browserContextMenu.clientWidth + 2 &&
                 browserContextMenu.getBoundingClientRect().right <= window.innerWidth;
+              if (contextAddPage instanceof HTMLButtonElement) {
+                contextAddPage.click();
+                await sleep(220);
+                const composerTextarea = document.querySelector('textarea');
+                browserContextComposerWorks =
+                  composerTextarea instanceof HTMLTextAreaElement &&
+                  composerTextarea.value.includes('Review this browser page:') &&
+                  composerTextarea.value.includes(smokeBaseUrl) &&
+                  composerTextarea.value.includes('Visible page structure:');
+              }
               document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
               await sleep(80);
             }
@@ -3347,6 +3360,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserActionLabelsCalm: typeof browserActionLabelsCalm === 'boolean' ? browserActionLabelsCalm : null,
               browserClearDataWorks: typeof browserClearDataWorks === 'boolean' ? browserClearDataWorks : null,
               browserContextMenuWorks,
+              browserContextComposerWorks,
               browserDomPaneCompactWorks,
               browserTargetsPaneWorks,
               browserTargetKeyWorks,

@@ -449,6 +449,30 @@ export default function BrowserPanel({
     void navigator.clipboard.writeText(currentUrl)
   }
 
+  const addPageContextToChat = async (): Promise<void> => {
+    if (!currentUrl) return
+    let snapshot = domSnapshot
+    if (!snapshot && webviewRef.current && visible && !error) {
+      try {
+        snapshot = await webviewRef.current.executeJavaScript<string>(DOM_SNAPSHOT_SCRIPT)
+      } catch {
+        snapshot = ''
+      }
+    }
+    const visibleStructure = snapshot.trim().split('\n').filter(Boolean).slice(0, 10).join('\n')
+    const lines = [
+      'Review this browser page:',
+      `URL: ${currentUrl}`,
+      title ? `Title: ${title}` : '',
+      visibleStructure ? `\nVisible page structure:\n${visibleStructure}` : ''
+    ].filter(Boolean)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setPageContextMenu(null)
+    setBrowserMenuOpen(false)
+  }
+
   const setViewportMode = (mode: BrowserWorkbenchState['deviceMode']): void => {
     const preset = viewportPreset(mode, workbench.viewportWidth, workbench.viewportHeight)
     patchWorkbench({
@@ -1173,6 +1197,16 @@ export default function BrowserPanel({
               >
                 <Icon name="wrench" size={14} />
                 <span>Inspect</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="browser-action-row"
+                data-testid="browser-context-add-page"
+                onClick={() => void addPageContextToChat()}
+              >
+                <Icon name="chat" size={14} />
+                <span>Add page context</span>
               </button>
             </MenuSurface>
           )}

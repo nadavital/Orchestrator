@@ -527,6 +527,7 @@ child.on('exit', (code) => {
           browserActionLabelsCalm: result.browserActionLabelsCalm === true,
           browserClearData: result.browserClearDataWorks === true,
           browserContextMenu: result.browserContextMenuWorks === true,
+          browserContextComposer: result.browserContextComposerWorks === true,
           browserDomPaneCompact: result.browserDomPaneCompactWorks === true,
           browserTargetsPane: result.browserTargetsPaneWorks === true,
           browserTargetKey: result.browserTargetKeyWorks === true,

@@ -367,6 +367,24 @@ export default function InputBar({ session, isNew }: Props): JSX.Element {
     }, 0)
   }
 
+  useEffect(() => {
+    const onAddComposerText = (event: Event): void => {
+      const detail = (event as CustomEvent<{ text?: string }>).detail
+      const nextText = detail?.text?.trim()
+      if (!nextText) return
+      setText((current) => current ? `${current.trimEnd()}\n\n${nextText}` : nextText)
+      setSlashIndex(0)
+      textareaRef.current?.focus()
+      window.setTimeout(() => {
+        if (!textareaRef.current) return
+        resizeTextarea(textareaRef.current)
+        moveTextareaCursorToEnd(textareaRef.current)
+      }, 0)
+    }
+    window.addEventListener('orchestrator:add-composer-text', onAddComposerText)
+    return () => window.removeEventListener('orchestrator:add-composer-text', onAddComposerText)
+  }, [])
+
   const expandedCommandPrompt = (value: string): string | null => {
     const match = value.match(/^(\/\S+)(?:\s+([\s\S]*))?$/)
     if (!match) return null
