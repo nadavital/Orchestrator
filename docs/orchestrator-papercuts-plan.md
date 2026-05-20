@@ -105,6 +105,273 @@ Migration implications:
 - Add overflow fades and sticky action-slot measurement to the shared tab strip, then remove the bespoke Workbench and Terminal tab-row CSS.
 - Use Codex-style controller semantics as the API boundary: panel content should register tabs and actions; shell should render tab chrome.
 
+### 2026-05-20: Broader Parity Investigation Wave
+
+This pass fanned out read-only investigations across the non-shell Codex parity areas. The MCP/apps/plugins/skills subagent stalled, so that area was completed locally from the current capability docs and implementation.
+
+#### Chat And Thread Runtime
+
+Reference chunks:
+
+- `webview/assets/use-active-conversation-id-CBsI3TAh.js`
+- `webview/assets/use-start-new-conversation-DK-qycZW.js`
+- `webview/assets/pending-worktree-conversation-BeU8KFPH.js`
+- `webview/assets/local-conversation-thread-BX7YNcUw.js`
+- `webview/assets/local-conversation-page-Bt6RhPKI.js`
+- `webview/assets/remote-conversation-page-CRbylpi9.js`
+
+Findings:
+
+- Codex conversation identity is route-backed for local, remote, and hotkey-thread windows. Orchestrator still treats `activeSessionId` as renderer store state, so deep links, new windows, and reopen semantics are weaker.
+- Codex has first-class pending worktree conversations with launch mode, fork source, owner metadata, pin placement, title, goal, and browser-transfer metadata. Orchestrator creates a normal session first and mutates worktree state on first send.
+- Codex resumes cold/missing conversations on page open, handles archiving/missing states explicitly, and tracks hot/cold switch readiness. Orchestrator mainly resumes provider threads as part of a run path.
+- Codex side chat is an ephemeral forked conversation. Orchestrator side questions are UI-local detached calls, so they do not preserve native fork semantics.
+- Codex marks read from visible active conversation state. Orchestrator clears unread on active-session selection, which can mark work read before the transcript is actually visible.
+
+Migration implications:
+
+- Add route-backed session identity before expanding new-window/deeplink behavior.
+- Add a pending conversation/worktree launch model instead of relying only on first-send mutation.
+- Add page-open lifecycle states such as `resuming`, `missing`, `archiving`, `closed`, and `ready`.
+- Use Codex fork-latest/fork-turn semantics for side chats and worktree forks where provider support exists.
+- Delay unread clearing until transcript readiness is confirmed.
+
+#### Live Generation And Transcript Rendering
+
+Reference chunks:
+
+- `webview/assets/thread-scroll-layout-Cxloffmz.js`
+- `webview/assets/thread-layout-Chou_aJz.js`
+- `webview/assets/thread-detail-level-B_mdNLmM.js`
+- `webview/assets/conversation-markdown-By6oKuLC.js`
+- `webview/assets/right-panel-composer-overlay-scroll-reserve-BZSZnzFs.js`
+- `webview/assets/virtualized-turns-JewydgrT.js`
+
+Findings:
+
+- Codex scroll math is distance-from-bottom based and exposes a scroll adapter. Orchestrator still uses direct `scrollTop` and height-delta compensation.
+- Codex virtualizes by turn keys with measured offsets, binary search, overscan, first-visible preservation, and `scrollToKey`. Orchestrator virtualizes message/tool rows with custom window math and direct DOM `scrollIntoView`.
+- Codex has explicit footer/composer reserve CSS, response spacer state, and follow modes such as `static`, `user_follow`, `prework_watch`, and `prework_follow`. Orchestrator has a good first pass for manual-scroll protection, but no shared scroll controller or composer reserve primitive.
+- Existing Orchestrator smokes cover lazy load, search jump, transcript stress, and manual scroll during streaming, but not typing latency during live streaming or very large transcript headroom.
+
+Migration implications:
+
+- Introduce a reusable `ThreadScrollController` with distance-from-bottom semantics.
+- Route search and lazy-load jumps through stable transcript item keys instead of raw DOM scroll calls.
+- Add a composer/footer reserve variable even while the composer remains outside the scroll container.
+- Add typing-latency, composer-reserve, search-jump-anchor, and larger 10k-message stress smokes.
+
+#### Composer And Input Ergonomics
+
+Reference chunks:
+
+- `webview/assets/composer-DXaiOlFj.js`
+- `webview/assets/composer-atoms-BeIctnnK.js`
+- `webview/assets/composer-0WIQtlLp.css`
+- `webview/assets/thread-context-inputs-CFTJKUBX.js`
+- `webview/assets/user-message-attachments-C4kFKr_t.js`
+
+Findings:
+
+- Codex composer is ProseMirror-backed, with persisted atoms for enter behavior, prompt history, auto context, and richer input preferences.
+- Codex handles pasted files/images, drag/drop, pending uploads, cancel/error surfaces, and broad context chips for files, selected text, native app context, prior conversation, PR checks, and workspace roots.
+- Orchestrator has per-session text drafts, paste caret fixes, local attachment chips, slash commands, and permission/question split, but attachment chips are still local `InputBar` state rather than per-session draft state.
+- Mixed text+file paste can leave the caret behavior inconsistent with text-only paste, and large file paste reads full buffers in the renderer without pending/cancel feedback.
+
+Migration implications:
+
+- Persist or key composer attachments by session id.
+- Add drag/drop file attachment with pending/error/cancel chip states.
+- Normalize caret behavior for mixed text+file paste.
+- Add prompt history and configurable enter behavior before considering a heavier editor substrate.
+- Add focused smokes for draft/attachment isolation, paste behavior, slash palette keys, and large attachment latency.
+
+#### Search And Navigation
+
+Reference chunks:
+
+- `webview/assets/search-C95l31xn.js`
+- `webview/assets/keyboard-shortcuts-search-input-DxhdKVBY.js`
+- `webview/assets/workspace-file-command-menu-bridge-Du8_GPQH.js`
+- `webview/assets/use-workspace-file-search-CrqRc_Zo.js`
+- `webview/assets/file-tree-search-input-X-DM55OR.js`
+- `webview/assets/command-keybindings-CahU8007.js`
+- `webview/assets/use-command-hotkey-B6nOAHzG.js`
+
+Findings:
+
+- Codex has a centralized command/keybinding model. Orchestrator still splits command metadata, handlers, menu accelerators, and global `keydown` logic.
+- Codex command menu has modes such as file search and routes `Cmd/Ctrl+P` into workspace file search. Orchestrator command palette is clean, but lacks file/search-chat modes and still treats file search as panel-local.
+- Codex workspace search is app/server backed, ignored-dir aware, fuzzy ranked, and root-labeled. Orchestrator file search is renderer-recursive, depth/cap limited, and substring based.
+- Codex find is cross-surface with active match state, highlight, counts, capped results, and scroll-to-match across conversation and diff. Orchestrator transcript search works but has no shared find model, and diff search only filters changed file paths.
+- Codex shortcuts settings are editable with capture, conflicts, remove/reset, and persisted keymap state. Orchestrator shortcuts are static searchable reference rows.
+
+Migration implications:
+
+- Create a unified command registry with metadata, default shortcuts, handlers, enabled state, and palette/menu visibility.
+- Add command-palette file mode and `Cmd/Ctrl+P`.
+- Move workspace file search into main process or a long-lived search session with fuzzy ranking and ignored dirs.
+- Add shared `FindBar` state for transcript and diff, then add diff hunk search and highlighting.
+- Add editable shortcut overrides after the registry is real.
+
+#### MCPs, Apps, Plugins, Skills, And Capabilities
+
+Reference sources:
+
+- `docs/provider-resource-dedupe-spike.md`
+- `docs/capability-sync-spike.md`
+- `docs/codex-appserver-support-matrix.md`
+- `src/main/providerResources.ts`
+- `src/main/capabilitySync.ts`
+- Codex chunks still to inspect more deeply: `mcp-DS0lNDOd.js`, `mcp-settings-BRGoGTc_.js`, `apps-C0n7YO22.js`, `apps-queries-nPdSwUTo.js`, `plugins-page-BZD8O17r.js`, `plugin-install-store-CO2NIqvP.js`, `skills-settings-BbRndg3i.js`, `check-plugin-availability-BLUA-GwE.js`
+
+Findings:
+
+- Orchestrator already has a strong normalized capability model: `ProviderResource`, provider badges, dedupe by resource kind/fingerprint, file-backed create/edit/delete, and sync projection across Claude, Codex, Cursor, and Copilot where safe.
+- Capability sync can write Codex `.agents/skills`, portable `.codex-plugin/plugin.json`, Codex plugin marketplace entries, and Codex MCP TOML. Risky provider-native installs are intentionally represented as gated operations.
+- Codex app-server support is still mostly read-only for apps, skills, plugins, MCP status, account/model/config, and feature flags. Missing first-class parity includes app connector auth/invocation, `plugin/read/install/uninstall`, `skills/config/write`, MCP reload/OAuth/resource/tool management, native mention insertion, and app/server filesystem/search integration.
+- The existing recommendation to keep Capabilities as its own surface still stands. Do not duplicate it into Settings; Settings should host provider/account/config preferences while Capabilities hosts inventory, install, sync, and projection state.
+
+Migration implications:
+
+- Finish the Codex bundle inspection for native app/plugin/skill UI details before changing the Capabilities page heavily.
+- Add gated provider-native install/config flows on top of the existing preview/apply plan model.
+- Promote read-only app-server resource data into real browser/picker flows with app/skill/plugin mention insertion.
+- Add MCP reload/OAuth/resource/tool management only behind explicit confirmation and diagnostics.
+
+#### Automations And Follow-Ups
+
+Reference chunks:
+
+- `webview/assets/automation-schedule-BpeIuMts.js`
+- `webview/assets/automation-dialog-BvGLQK24.js`
+- `webview/assets/automations-page-s8q9NlzD.js`
+- `webview/assets/heartbeat-automation-eligibility--gq6YWh5.js`
+- `webview/assets/heartbeat-automation-permissions-wzgH9Qd2.js`
+- `webview/assets/heartbeat-automation-thread-bridge-DXwhZizF.js`
+
+Findings:
+
+- Codex supports `cron` and `heartbeat` automations, `ACTIVE`/`PAUSED`/`DELETED` states, RRULE schedule parsing/summaries, execution environments, models, reasoning effort, run-now, optimistic update/revert, and run history.
+- Codex heartbeat eligibility is explicit: local host, existing conversation, resumed/not resuming, no active turn, and no pending user input/approval/MCP elicitation.
+- Orchestrator has no persisted automation subsystem yet. Current follow-ups are in-memory active-run queue/steer behavior and should not be stretched into scheduled reminders.
+
+Migration implications:
+
+- Start with runtime types and a tested `AutomationManager`, not a scheduling dialog.
+- Persist `Automation`, `AutomationRun`, `AutomationTarget`, schedule, permission snapshot, next/last run, and status.
+- Add fake-clock tests for RRULE, next-run, pause/resume/delete, restart hydration, and single-flight guards.
+- Add heartbeat eligibility mapped from current session/provider state before exposing thread wakeups.
+
+#### Permissions, Approvals, And Safety
+
+Reference chunks:
+
+- `webview/assets/permission-request-model-DztoNKAv.js`
+- `webview/assets/permissions-mode-defaults-TVsdTyUZ.js`
+- `webview/assets/permissions-mode-helpers-CExUWaUo.js`
+- `webview/assets/permissions-mode-visibility-Cz4wOMkW.js`
+- `webview/assets/computer-use-app-approvals-query-D_eSSbpv.js`
+- `webview/assets/use-permissions-mode-Ch7rOI7L.js`
+
+Findings:
+
+- Orchestrator already separates `permission.requested` from `user_input.requested` across types, lifecycle, transcript cards, pet notifications, system notifications, and app-server runtime handling.
+- Backend mapping already separates Codex `approvalPolicy`, `approvalsReviewer`, and sandbox policy, but renderer UI still exposes a static provider-mode abstraction.
+- Codex derives visible/default permission modes from host/cwd config requirements, latest-turn params, global/draft scope, full-access/custom visibility, guardian availability, and preferred non-full-access defaults.
+- Orchestrator preserves raw `item/permissions/requestApproval` payloads too generically. Codex expands network/filesystem access into explicit request parts.
+- Transcript permission card supports `Allow Once`, `Allow Session`, and `Deny`; pet overlay currently lacks the `Allow Session` parity action.
+
+Migration implications:
+
+- Split Codex UI state into explicit `approvalPolicy`, `sandboxMode`, and `approvalsReviewer`, keeping legacy `permissionMode` as compatibility.
+- Feed app-server `config/read` and `configRequirements/read` into composer/settings mode visibility.
+- Expand permission requests into structured network/filesystem details for transcript and pet cards.
+- Add `Allow Session` to the pet approval path.
+- Add focus-refresh checks for pending approvals/questions on app focus return.
+
+#### Notifications And App-Server Robustness
+
+Reference chunks:
+
+- `webview/assets/app-server-manager-hooks-BpnIGmYe.js`
+- `webview/assets/app-server-manager-signals-BEaGjuc8.js`
+- `webview/assets/app-server-notification-debug-signals-B4ZABWlc.js`
+- `webview/assets/app-server-connection-state-COgfP2Bg.js`
+
+Findings:
+
+- Orchestrator has the core Codex app-server runtime, EPIPE global guards, and synchronous write-race handling, but not Codex's host-scoped app-server manager model.
+- The live app-server session lacks child `error`, stdin `error`, write-callback, pending-request rejection, and typed unexpected-exit handling.
+- An unexpected app-server exit can currently flow through `onExit()` and leave the session looking idle instead of failed if no `run.failed` notification arrived.
+- Generic reconnect lifecycle exists, but Codex app-server disconnects are not normalized into connection state or restart/resume events.
+- Codex keeps an app-server notification debug ring with host/thread/method/severity/noisy classification. Orchestrator has generic raw/event buffers but no equivalent diagnostic view.
+
+Migration implications:
+
+- Harden `CodexAppServerSession` transport before more app-server features are layered on top.
+- Add host-level app-server connection state with version, error code, and transition source.
+- Emit failed lifecycle state for unexpected app-server exits.
+- Add an app-server notification debug ring behind an inspector/debug panel.
+- Guard main-to-renderer and pet-overlay sends against destroyed webContents and render-process crashes.
+
+#### Review, Diff, Files, And Workspace
+
+Reference chunks:
+
+- `webview/assets/diff-summary-BdtgnJ_7.js`
+- `webview/assets/diff-view-mode-Kp3YUUoJ.js`
+- `webview/assets/file-diff-B3JvW2yY.js`
+- `webview/assets/review-file-tree-side-pane-DTvkJOnY.js`
+- `webview/assets/open-workspace-file-DOOUD1lA.js`
+- `webview/assets/workspace-directory-tree-DltP8zc2.js`
+- `webview/assets/file-preview-page-CJlBKAuy.js`
+- `webview/assets/use-workspace-file-search-CrqRc_Zo.js`
+
+Findings:
+
+- Orchestrator Review often prefers rich current-file previews for changed markdown/json/csv/notebook/document/image files before showing diffs. Codex keeps diff rendering as the first-class path with split/unified modes, hunk expansion, line metadata, word diffs, and virtualization.
+- Orchestrator changed files are flat filtered rows. Codex uses a review file tree with active path selection, search, comment counts, and scroll-to-file.
+- Orchestrator Files panel crawls from the renderer with a 360-entry cap and depth-4 cutoff. Codex uses lazy directory queries and fuzzy search sessions across roots.
+- Orchestrator assistant file cards are regex-extracted and can show false positives, especially with missing absolute paths or basename fallback into the workspace. This matches the user's reported bad cards for prose values such as comments and numeric examples.
+- Orchestrator strips line suffixes like `foo.ts:42`; Codex open-file routing preserves path, cwd, line, column, end line, target, preview mode, and outcome telemetry.
+
+Migration implications:
+
+- Make Review diff-first and move rich previews behind an explicit Preview toggle.
+- Replace flat changed-file rows with a directory tree and selected-file/search state.
+- Harden file reference extraction and workspace resolution before adding more card UI.
+- Preserve line/column metadata and expand open-file routing to editor-specific line opens.
+- Add fixtures for prose false positives, same-basename outside-workspace paths, deep files, >360 files, and changed rich-preview file types.
+
+#### Settings And Personalization
+
+Reference chunks:
+
+- `webview/assets/settings-page-BoavEVDX.js`
+- `webview/assets/settings-content-layout-BeqejwUq.js`
+- `webview/assets/settings-row-BUhYC5Lf.js`
+- `webview/assets/appearance-settings-HaBPvNZV.js`
+- `webview/assets/personalization-settings-B0sHaE0K.js`
+- `webview/assets/keyboard-shortcuts-settings-IS-vX_o_.js`
+
+Findings:
+
+- Codex settings are routed full-page surfaces with grouped App/Host sections. Orchestrator settings are now cleaner, but still have a smaller flat section set.
+- Codex row primitives are more reusable: standard row, compact row, nested row, action row, icon, label, description, and control. Orchestrator has shared pieces, but many settings controls still use one-off row/card layouts.
+- Theme parity is closer than expected, but uneven. `opaqueWindows` and `semanticColors.skill` are stored/exposed without complete CSS application, and legacy appearance setters can drop v2 theme fields until reload.
+- Codex shortcuts are editable with capture, conflict detection, multiple bindings, reset/remove, and persisted keymap state. Orchestrator shortcuts are static reference rows.
+- Codex treats pets as part of personalization, with current pet, built-in/custom groups, create/refresh/open/tuck controls. Orchestrator has pet asset/install controls but a simpler top-level Pets section.
+- Codex data controls include archived chat inventory and unarchive. Orchestrator data controls mainly expose profile/user-data paths.
+
+Migration implications:
+
+- Continue migrating settings to Codex-shaped primitives and grouped sections while preserving the liked left nav.
+- Fix theme application consistency before adding more theme controls.
+- Build editable keybindings on top of the unified command registry.
+- Fold pet controls into a broader personalization model or intentionally document why Orchestrator keeps them separate.
+- Expand data controls with archived session inventory and restore/unarchive before destructive cleanup flows.
+
 ## Additional Codex Parity Dives
 
 These are the next areas to inspect beyond shell/workbench chrome. Each area should produce code-backed notes before broad Orchestrator-specific feature work continues.
@@ -157,11 +424,23 @@ These are the next areas to inspect beyond shell/workbench chrome. Each area sho
 | PP-029 | Parity needs speed and robustness gates, not only screenshots. | Current verification is mostly TypeScript plus surface smoke. That catches regressions but does not prove resize, typing, scrolling, and tab switching remain fast under live agent load. | Add focused smoke/perf checks for Workbench tab switching, panel resize, composer typing during streaming, long-thread lazy rendering, and cross-panel keyboard handling. | `Todo` |
 | PP-030 | Workbench and Terminal need a shared app-shell tab controller. | Codex uses the same controller-shaped tab renderer for right and bottom panels; Orchestrator renders Workbench tabs in `ContextSidebar` and Terminal tabs in `SessionPane` separately. | Create a shared tab controller/renderer, migrate Workbench first, then Terminal, with Codex-style tab registration, close-active-tab support, overflow fades, sticky actions, and drag reorder hooks. | `Todo` |
 | PP-031 | Shell focus and global close-tab shortcuts need to be centralized. | Codex dispatches shell shortcut state from active focus area and routes `close-active-app-shell-tab` through right/bottom panel controllers. Orchestrator does not have equivalent focus-area command routing. | Add shell focus-area state for main, Workbench, and Terminal; route close-active-tab and related shortcuts through the focused panel. | `Todo` |
-| PP-032 | Broaden parity research beyond Workbench shell. | Codex has mature chunks for chat/thread runtime, transcript scrolling, composer ergonomics, MCP/apps/plugins, automations, permissions, notifications, search, review/files, and settings. | Work through the Additional Codex Parity Dives table in batches, adding code-backed notes and implementation todos before bespoke Orchestrator changes. | `Todo` |
-| PP-033 | Chat switching and live transcript behavior need Codex-level verification. | Orchestrator has transcript lazy-loading and stress smokes, but the Codex thread/runtime/scroll chunks have not yet been compared deeply. | Deep dive Codex thread and scroll chunks, then add parity checks for switching latency, manual scroll during streaming, lazy loading, search jump behavior, and composer responsiveness. | `Todo` |
-| PP-034 | Capabilities should align with Codex apps/MCP/plugins/skills patterns. | Orchestrator has a `CapabilitiesPage`, while Codex has distinct apps, MCP, plugin install, plugin availability, and skills settings chunks. | Compare capability discovery/install/settings flows and decide which Codex-shaped model Orchestrator should mirror. | `Todo` |
-| PP-035 | Automations and follow-ups need Codex parity before new scheduling UX. | Codex has dedicated automation pages/dialogs/schedules and heartbeat thread bridge/eligibility/permission chunks. Orchestrator has not been compared against those flows yet. | Deep dive Codex automation chunks and document the minimum Orchestrator automation model before implementation. | `Todo` |
-| PP-036 | Review/files/workspace parsing should match Codex robustness. | Orchestrator previously parsed non-file text as file cards. Codex has dedicated review, diff, file tree, preview, open-file, and workspace search chunks. | Compare Codex file/reference parsing and review panel behavior, then harden Orchestrator file-card extraction and file panels. | `Todo` |
+| PP-032 | Broaden parity research beyond Workbench shell. | Completed the first investigation wave across chat/thread runtime, transcript rendering, composer, search/navigation, capabilities, automations, permissions/safety, notifications/app-server robustness, review/files/workspace, and settings/personalization. | Use the Broader Parity Investigation Wave notes above as the implementation backlog before bespoke Orchestrator changes. | `Complete` |
+| PP-033 | Chat switching and live transcript behavior need Codex-level verification. | Codex uses route-backed conversation identity, pending worktree launch state, turn-key virtualization, and distance-from-bottom scroll control. Orchestrator still uses store-backed active id plus message-row virtualization and direct scroll math. | Add route-backed session identity, a pending worktree launch model, page-open lifecycle states, a `ThreadScrollController`, stable transcript item keys, and parity smokes for switch/scroll/search/typing latency. | `Todo` |
+| PP-034 | Capabilities should align with Codex apps/MCP/plugins/skills patterns. | Orchestrator already has a normalized `ProviderResource` and capability-sync model, while Codex app-server exposes read/write surfaces for apps, skills, plugins, MCP, config, and external agent imports. | Keep Capabilities as the primary inventory, finish Codex-native bundle inspection, then add gated native install/config flows, app/skill/plugin pickers, mention insertion, and MCP reload/OAuth/resource controls. | `Todo` |
+| PP-035 | Automations and follow-ups need Codex parity before new scheduling UX. | Codex supports persisted cron/heartbeat automations, RRULE schedules, run-now, pause/delete, run history, execution environments, and heartbeat eligibility/permission snapshots. Orchestrator only has in-memory active-run queued follow-ups. | Build a tested `AutomationManager` runtime with persisted types, fake-clock schedule tests, run history, permission snapshots, and heartbeat eligibility before building create/edit schedule UI. | `Todo` |
+| PP-036 | Review/files/workspace parsing should match Codex robustness. | Orchestrator currently has regex file-reference extraction, basename fallback, preview-first review rendering, flat changed-file rows, and capped renderer-side workspace crawling. Codex has diff-first review, file trees, line-aware open routing, lazy workspace trees, and fuzzy search sessions. | Harden file-reference extraction first, then make Review diff-first, add line-aware open routing, move workspace search to main/search-session, and add false-positive/deep-file/rich-diff fixtures. | `Todo` |
+| PP-037 | Route-backed session identity is needed for Codex-like reliability. | Codex derives active conversation from local/remote/hotkey routes and supports copy links/open-in-new-window semantics. Orchestrator cannot reopen or deep-link a chat from route alone. | Add local route parsing/sync for session id, then wire new-window/deeplink/open-chat actions through the route-backed layer. | `Todo` |
+| PP-038 | Pending worktree/fork lifecycle should be first-class. | Codex pending worktree conversations carry start-vs-fork mode, source turn, owner metadata, pin placement, title, goal, and browser-transfer metadata. Orchestrator mutates worktree state on first send. | Add a pending conversation record and use it for new worktree chats, fork-latest, fork-turn, and side-chat worktree flows. | `Todo` |
+| PP-039 | Composer attachments should be isolated per chat. | Text drafts are now per chat, but composer attachments remain local `InputBar` state and can leak across session switches. Codex treats attachment state as part of composer context. | Persist/key attachments by session id, reset/restore them on session switch, and add smoke coverage for draft plus attachment isolation. | `Todo` |
+| PP-040 | Composer file input needs Codex-like pending states. | Codex supports drag/drop, pasted files/images, pending upload chips, cancel/error states, and richer context chips. Orchestrator reads pasted files fully in the renderer and has no drag/drop overlay or pending/cancel feedback. | Add drag/drop attachment, pending/error/cancel chips, mixed-paste caret normalization, and latency tests for large pasted files. | `Todo` |
+| PP-041 | Command, shortcut, and search handling need one registry. | Codex centralizes command metadata/keybindings and uses modeful command-menu search for files/chats/find. Orchestrator splits `APP_COMMANDS`, menu accelerators, and global keydown handlers. | Create a command registry with handlers/default shortcuts, add `Cmd/Ctrl+P` file search, shared find-next/previous commands, and editable shortcut overrides. | `Todo` |
+| PP-042 | App-server transport must fail loudly and recoverably. | The old EPIPE crash was globally mitigated, but `CodexAppServerSession` still lacks child/stdin error listeners, write callbacks, pending-request rejection, and unexpected-exit failure events. | Harden transport writes/errors/exits, add host-level connection state, reject pending requests on close, and test mid-turn exit/EPIPE paths. | `Todo` |
+| PP-043 | App-server diagnostics should mirror Codex's connection/debug signals. | Codex tracks host-scoped connection states, versions, typed errors, subscriptions, and notification debug rings. Orchestrator has generic event buffers without app-server-specific diagnostics. | Add app-server connection state plus a hidden notification debug ring with host/thread/method/severity/noisy metadata. | `Todo` |
+| PP-044 | Permission modes should be dynamic and explicit. | Backend mapping separates `approvalPolicy`, `approvalsReviewer`, and sandbox policy, but renderer UI still exposes static provider modes. Codex derives mode visibility/defaults from app-server config and cwd requirements. | Feed `config/read` and `configRequirements/read` into mode visibility, expose explicit approval/sandbox/reviewer state, and keep `permissionMode` as compatibility. | `Todo` |
+| PP-045 | Permission request cards need richer structure and pet parity. | Codex expands network/filesystem permission requests into explicit parts. Orchestrator preserves raw permissions generically, and pet overlay lacks `Allow Session`. | Parse structured permission details, render network/read/write paths clearly, add `Allow Session` to pet approvals, and refresh pending safety state on app focus. | `Todo` |
+| PP-046 | Settings need full command/theme/data parity. | Codex settings are routed full-page surfaces with grouped sections, reusable rows, editable shortcuts, personalization, and archived chat data controls. Orchestrator settings are calmer now but still smaller and partly one-off. | Add reusable settings row primitives, fix v2 theme application, build editable keybindings, expand data controls with archived session inventory, and decide Pets vs Personalization taxonomy. | `Todo` |
+| PP-047 | Capabilities native actions should be gated but real. | Existing sync plans deliberately block provider-native installs and app-server writes without confirmation. Codex exposes richer plugin install/read, skills config, app connector, MCP reload/OAuth, and external agent import flows. | Add confirmation-backed native actions using the existing preview/apply plan model, starting with Codex `plugin/read/install/uninstall`, `skills/config/write`, and MCP reload/OAuth diagnostics. | `Todo` |
+| PP-048 | Workspace file search and open-file routing should preserve intent. | Codex preserves cwd, line, column, target, preview mode, and open outcome; Orchestrator strips line suffixes and opens only paths. | Extend file references and `fs.openPath` to carry line/column/target metadata, with editor-specific line open and telemetry/fallback results. | `Todo` |
 
 ## Verification Log
 
@@ -185,3 +464,4 @@ These are the next areas to inspect beyond shell/workbench chrome. Each area sho
 - 2026-05-20: Expanded the Workbench comparison into a broader Codex Parity Matrix covering usefulness, efficiency, speed, robustness, shared shell structure, sizing, tab lifecycle, styling tokens, and verification gates. Added PP-026 through PP-029 so future work prioritizes parity before bespoke Orchestrator-specific behavior.
 - 2026-05-20: Completed two deeper Codex bundle dives: shell/panel/layout mechanics and tab/focus/shortcut lifecycle. Added migration notes for a shared Orchestrator app shell, ratio-based Workbench sizing, shared Workbench/Terminal tab controller, hover-overlay close affordances, overflow fades, sticky actions, focus-area shortcut routing, and shared resize semantics. Added PP-030 and PP-031.
 - 2026-05-20: Added Additional Codex Parity Dives beyond Workbench shell: chat/thread runtime, live transcript rendering, composer/input ergonomics, search/navigation, MCP/apps/plugins/skills, automations/follow-ups, permissions/safety, notifications/app-server robustness, review/diff/files/workspace, and settings/personalization. Added PP-032 through PP-036.
+- 2026-05-20: Completed the first broader parity investigation wave. Read-only subagents inspected chat/thread runtime, live transcript rendering, composer/input, search/navigation, automations, permissions/safety, notifications/app-server robustness, review/files/workspace, and settings/personalization. The MCP/apps/plugins/skills subagent stalled, so that area was completed locally from `providerResources`, `capabilitySync`, `provider-resource-dedupe-spike`, `capability-sync-spike`, and `codex-appserver-support-matrix`. Added detailed notes plus PP-037 through PP-048.
