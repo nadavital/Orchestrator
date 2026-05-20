@@ -721,7 +721,7 @@ function AgentSectionView({
 
   return (
     <div>
-      <div className={embedded ? 'extensions-panel-section-heading px-3 py-2' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
+      <div className={embedded ? 'extensions-panel-section-heading px-3' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}>
         <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
           {embedded ? 'Instructions' : 'Local Instructions'}
         </div>
@@ -766,12 +766,12 @@ function McpServersView({ servers, accentColor, embedded = false }: {
   const entries = Object.entries(servers)
 
   return (
-    <div className={embedded ? 'extensions-panel-embedded-entry px-2 py-0.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+    <div data-testid={embedded ? 'extensions-embedded-entry' : undefined} className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
       <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
-          title={<span className="font-mono">MCP servers</span>}
+          title={<span className={embedded ? 'extensions-panel-entry-title font-mono' : 'font-mono'}>MCP servers</span>}
           defaultOpen={!embedded}
-          meta={<Badge>{entries.length === 0 ? 'none' : entries.length}</Badge>}
+          meta={<Badge className={embedded ? 'extensions-panel-entry-badge' : ''}>{entries.length === 0 ? 'none' : entries.length}</Badge>}
           bodyClassName={embedded ? 'pt-1 pb-1' : 'pt-2'}
         >
           {entries.length === 0 ? (
@@ -821,12 +821,12 @@ function FileEditor({ file, embedded = false, accentColor, onUpdate, onSave }: {
   const isNew = file.content === null
 
   return (
-    <div className={embedded ? 'extensions-panel-embedded-entry px-2 py-0.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+    <div data-testid={embedded ? 'extensions-embedded-entry' : undefined} className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
       <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
-          title={<span className="font-mono" style={{ color: isNew ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{file.label}</span>}
+          title={<span className={embedded ? 'extensions-panel-entry-title font-mono' : 'font-mono'} style={{ color: isNew ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{file.label}</span>}
           defaultOpen={embedded ? false : file.content !== null}
-          meta={isNew ? <Badge>new</Badge> : undefined}
+          meta={isNew ? <Badge className={embedded ? 'extensions-panel-entry-badge' : ''}>new</Badge> : undefined}
           bodyClassName={embedded ? 'pt-1 pb-1' : 'pt-2'}
         >
           {!embedded && (
@@ -881,11 +881,11 @@ function CommandsDirView({ dir, embedded = false, onOpenFile }: {
   const exists = dir.files !== null
 
   return (
-    <div className={embedded ? 'extensions-panel-embedded-entry px-2 py-0.5' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
+    <div data-testid={embedded ? 'extensions-embedded-entry' : undefined} className={embedded ? 'extensions-panel-embedded-entry px-2 py-0' : 'px-4 py-3'} style={{ borderTop: '1px solid var(--color-border)' }}>
       <InspectorCard className={embedded ? 'extension-panel-card p-0' : 'p-2'}>
         <DisclosureSection
-          title={<span className="font-mono" style={{ color: exists ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{dir.label}</span>}
-          meta={<Badge>{!exists ? 'not found' : files.length === 0 ? 'empty' : `${files.length}`}</Badge>}
+          title={<span className={embedded ? 'extensions-panel-entry-title font-mono' : 'font-mono'} style={{ color: exists ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{dir.label}</span>}
+          meta={<Badge className={embedded ? 'extensions-panel-entry-badge' : ''}>{!exists ? 'not found' : files.length === 0 ? 'empty' : `${files.length}`}</Badge>}
           bodyClassName={embedded ? 'pt-1 pb-1' : 'pt-2'}
         >
           {files.length === 0 ? (

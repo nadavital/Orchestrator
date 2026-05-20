@@ -2358,11 +2358,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 if (!(extensionPanel instanceof HTMLElement)) return false;
                 const extensionTextareas = [...extensionPanel.querySelectorAll('textarea')];
                 const summary = extensionPanel.querySelector('[data-testid="extensions-panel-summary"]');
+                const embeddedRows = [...extensionPanel.querySelectorAll('[data-testid="extensions-embedded-entry"]')];
                 const openDisclosures = [...extensionPanel.querySelectorAll('.motion-disclosure-trigger[aria-expanded="true"]')];
                 return bodyText.includes('Instructions') &&
                   !bodyText.includes('Local Instructions') &&
                   !bodyText.includes('~/.claude/settings.json') &&
                   extensionTextareas.length === 0 &&
+                  embeddedRows.length >= 4 &&
+                  embeddedRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 34) &&
                   openDisclosures.length <= 1 &&
                   extensionPanel.scrollWidth <= extensionPanel.clientWidth + 2 &&
                   (!(summary instanceof HTMLElement) || summary.getBoundingClientRect().height <= 24);
