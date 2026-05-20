@@ -70,7 +70,6 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
   const compactObjective = compactGoalObjective(goal.objective)
   const canExpand = compactObjective !== goal.objective.trim()
   const stats = [
-    goal.status ? goal.status : undefined,
     used !== null ? `${used.toLocaleString()} tokens` : undefined,
     budget ? `${budget.toLocaleString()} budget` : undefined,
     typeof goal.timeUsedSeconds === 'number' ? formatDuration(goal.timeUsedSeconds) : undefined
