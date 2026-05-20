@@ -565,6 +565,7 @@ child.on('exit', (code) => {
         rightSidebarInactiveTabTooltip: captureView !== 'inspector' || result.rightSidebarInactiveTabTooltipWorks === true,
         rightSidebarAddControlStable: captureView !== 'inspector' || result.rightSidebarAddControlStableWorks === true,
         diffToolbarCompact: captureView !== 'inspector' || result.diffToolbarCompactWorks === true,
+        diffListCompact: captureView !== 'inspector' || result.diffListCompactWorks === true,
         diffActionMenuCompact: captureView !== 'inspector' || result.diffActionMenuCompactWorks === true,
         rightPanelExpand: captureView !== 'inspector' || result.rightPanelExpandWorks === true,
         reviewSearch: captureView !== 'inspector' || result.reviewSearchWorks === true,

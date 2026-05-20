@@ -149,7 +149,8 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
 
   return (
     <div
-      className="flex flex-col shrink-0 min-w-0 overflow-hidden"
+      className="diff-panel-root flex flex-col shrink-0 min-w-0 overflow-hidden"
+      data-embedded={embedded ? 'true' : 'false'}
       style={{
         width: embedded ? '100%' : 440,
         maxWidth: '100%',
@@ -206,10 +207,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         </div>
       ) : (
         <>
-          <div
-            className="overflow-y-auto overflow-x-hidden shrink-0"
-            style={{ maxHeight: 200, borderBottom: '1px solid var(--border-subtle)' }}
-          >
+          <div className="diff-panel-list overflow-y-auto overflow-x-hidden shrink-0">
             {filteredFiles.length === 0 && (
               <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
                 No matches
@@ -528,7 +526,7 @@ function FileRow({ file, selected, onClick }: { file: FileChange; selected: bool
       as="button"
       onClick={onClick}
       active={selected}
-      className="w-full min-w-0 max-w-full overflow-hidden flex items-center gap-2 px-3 py-1.5 text-left"
+      className="diff-file-row w-full min-w-0 max-w-full overflow-hidden flex items-center gap-2 px-3 py-1.5 text-left"
       style={{
         borderLeft: selected ? '2px solid var(--accent)' : '2px solid transparent'
       }}
@@ -545,13 +543,13 @@ function FileRow({ file, selected, onClick }: { file: FileChange; selected: bool
           {filename}
         </span>
         {dir && (
-          <span className="text-xs truncate block" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
+          <span className="diff-file-dir text-xs truncate block" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
             {dir}/
           </span>
         )}
       </span>
       {(file.additions > 0 || file.deletions > 0) && (
-        <span className="text-xs shrink-0 flex gap-1" style={{ fontSize: 10 }}>
+        <span className="diff-file-stats text-xs shrink-0 flex gap-1" style={{ fontSize: 10 }}>
           {file.additions > 0 && <Badge tone="success">+{file.additions}</Badge>}
           {file.deletions > 0 && <Badge tone="danger">-{file.deletions}</Badge>}
         </span>

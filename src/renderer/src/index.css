@@ -680,6 +680,11 @@
     height: 24px !important;
   }
 
+  .diff-panel-list {
+    max-height: 176px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
   .files-panel-toolbar {
     display: flex;
     min-height: 36px;
@@ -780,6 +785,10 @@
     padding: 20px;
     text-align: center;
     font-size: 12px;
+  }
+
+  .file-fallback-state > span:first-child {
+    box-shadow: inset 0 0 0 1px var(--border-subtle);
   }
 
   .file-fallback-actions {
@@ -967,6 +976,43 @@
 
   .motion-panel-right:not(.right-sidebar-expanded) .files-panel-root[data-embedded='true'] .files-entry-path {
     display: none;
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .diff-panel-root[data-embedded='true'] .diff-panel-list {
+    max-height: 132px;
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .diff-panel-root[data-embedded='true'] .diff-file-row {
+    min-height: 28px;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .diff-panel-root[data-embedded='true'] .diff-file-dir,
+  .motion-panel-right:not(.right-sidebar-expanded) .diff-panel-root[data-embedded='true'] .diff-file-stats {
+    display: none;
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .file-fallback-state {
+    min-height: 120px;
+    gap: 8px;
+    padding: 14px;
+    font-size: 11px;
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .file-fallback-state > span:first-child {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-md);
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .file-fallback-state .file-fallback-actions {
+    gap: 6px;
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .file-fallback-state .file-fallback-actions button {
+    padding: 6px 8px;
+    font-size: 10px;
   }
 
   .extensions-panel-section-heading {

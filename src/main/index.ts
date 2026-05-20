@@ -2060,6 +2060,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             : [];
           const diffFileCount = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-file-count');
           const diffSearchClearForCapture = document.querySelector('[data-testid="diff-file-search-clear"]');
+          const diffPanelList = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list');
+          const diffPanelRows = [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-row')]
+            .filter((row) => row instanceof HTMLElement);
+          const diffPanelDirLabels = [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-dir')]
+            .filter((label) => label instanceof HTMLElement);
+          const diffPanelStats = [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-stats')]
+            .filter((label) => label instanceof HTMLElement);
           const diffToolbarRect = diffToolbar instanceof HTMLElement ? diffToolbar.getBoundingClientRect() : null;
           const diffSearchRect = diffToolbarSearch instanceof HTMLElement ? diffToolbarSearch.getBoundingClientRect() : null;
           const diffToolbarSearchDominant =
@@ -2081,6 +2088,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             !diffToolbar.querySelector('.toolbar-button') &&
             diffToolbarSearchDominant &&
             diffFileCount.textContent?.includes('file') === true;
+          const diffListCompactWorks =
+            diffPanelList instanceof HTMLElement &&
+            diffPanelList.getBoundingClientRect().height <= 136 &&
+            diffPanelList.scrollWidth <= diffPanelList.clientWidth + 2 &&
+            diffPanelRows.length > 0 &&
+            diffPanelRows.every((row) => row.getBoundingClientRect().height <= 30) &&
+            diffPanelDirLabels.every((label) => getComputedStyle(label).display === 'none') &&
+            diffPanelStats.every((label) => getComputedStyle(label).display === 'none');
           let diffActionMenuCompactWorks = false;
           const diffActionMenuButton = [...document.querySelectorAll('button')]
             .find((button) => button.getAttribute('aria-label') === 'Change actions');
@@ -2172,6 +2187,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarInactiveTabsCompactWorks,
             rightSidebarInactiveTabTooltipWorks,
             diffToolbarCompactWorks,
+            diffListCompactWorks,
             diffActionMenuCompactWorks,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
