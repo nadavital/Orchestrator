@@ -1570,7 +1570,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   for (let index = 0; index < 30; index += 1) {
                     const output = document.querySelector('[data-testid="browser-target-read-output"]');
                     const text = output instanceof HTMLElement ? output.innerText : '';
-                    if (text.includes('input') && text.includes('enabled') && text.includes('visible') && text.includes('filled plus')) {
+                    const rect = output instanceof HTMLElement ? output.getBoundingClientRect() : null;
+                    if (
+                      output instanceof HTMLElement &&
+                      rect !== null &&
+                      text.includes('input') &&
+                      text.includes('enabled') &&
+                      text.includes('visible') &&
+                      text.includes('filled plus') &&
+                      output.scrollWidth <= output.clientWidth + 2 &&
+                      rect.height <= 64
+                    ) {
                       browserTargetStateWorks = true;
                       break;
                     }
@@ -3002,7 +3012,17 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   for (let index = 0; index < 30; index += 1) {
                     const output = document.querySelector('[data-testid="browser-target-read-output"]');
                     const text = output instanceof HTMLElement ? output.innerText : '';
-                    if (text.includes('input') && text.includes('enabled') && text.includes('visible') && text.includes('filled plus')) {
+                    const rect = output instanceof HTMLElement ? output.getBoundingClientRect() : null;
+                    if (
+                      output instanceof HTMLElement &&
+                      rect !== null &&
+                      text.includes('input') &&
+                      text.includes('enabled') &&
+                      text.includes('visible') &&
+                      text.includes('filled plus') &&
+                      output.scrollWidth <= output.clientWidth + 2 &&
+                      rect.height <= 64
+                    ) {
                       browserTargetStateWorks = true;
                       break;
                     }

@@ -994,7 +994,7 @@ export default function BrowserPanel({
 
       <div
         className="grid min-h-0 flex-1 overflow-hidden"
-        style={{ gridTemplateRows: workbench.inspectorOpen ? 'minmax(0, 1fr) 210px' : 'minmax(0, 1fr)' }}
+        style={{ gridTemplateRows: workbench.inspectorOpen ? 'minmax(0, 1fr) 184px' : 'minmax(0, 1fr)' }}
       >
         <div
           className="relative flex min-h-0 justify-center overflow-hidden"
@@ -1450,7 +1450,7 @@ function TargetsPane({
         {targetReadResult && (
           <div
             data-testid="browser-target-read-output"
-            className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1 rounded-md p-2 text-[11px]"
+            className="browser-target-read-output"
             style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
           >
             <span style={{ color: 'var(--text-tertiary)' }}>target</span>

@@ -1675,11 +1675,11 @@
   }
 
   .browser-inspector-output {
-    height: 172px;
+    height: 146px;
     overflow-x: hidden;
     overflow-y: auto;
-    padding: 8px 10px;
-    font-size: 12px;
+    padding: 6px 8px;
+    font-size: 11.5px;
   }
 
   .browser-dom-pane {
@@ -1713,7 +1713,7 @@
   .browser-security-pane {
     display: grid;
     min-width: 0;
-    gap: 12px;
+    gap: 8px;
   }
 
   .browser-assets-pane {
@@ -1847,15 +1847,15 @@
     min-width: 0;
     max-width: 100%;
     align-content: start;
-    gap: 8px;
+    gap: 6px;
     overflow-x: hidden;
   }
 
   .browser-target-section,
   .browser-target-secondary-panel {
-    border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--control-bg) 48%, transparent);
-    padding: 8px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--control-bg) 34%, transparent);
+    padding: 6px;
   }
 
   .browser-target-side-stack {
@@ -1866,7 +1866,7 @@
   .browser-target-action-controls {
     display: grid;
     min-width: 0;
-    gap: 6px;
+    gap: 5px;
   }
 
   .browser-target-action-controls {
@@ -1878,6 +1878,10 @@
   .browser-targets-pane select,
   .browser-targets-pane button {
     min-width: 0;
+    min-height: 24px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    font-size: 11px;
   }
 
   .browser-target-section-title {
@@ -1894,6 +1898,32 @@
     min-width: 0;
     flex-wrap: wrap;
     gap: 4px;
+  }
+
+  .browser-target-read-output {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 48px minmax(0, 1fr) 44px minmax(0, 1fr);
+    gap: 3px 8px;
+    border-radius: var(--radius-md);
+    padding: 6px;
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+
+  .browser-target-read-output span {
+    min-width: 0;
+  }
+
+  .browser-target-read-output span:nth-child(odd) {
+    color: var(--text-tertiary);
+    font-weight: 650;
+  }
+
+  .browser-target-read-output span:nth-child(even) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .browser-target-secondary-panel {
@@ -2001,6 +2031,10 @@
 
     .browser-targets-pane {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    .browser-target-read-output {
+      grid-template-columns: 48px minmax(0, 1fr);
     }
   }
 
