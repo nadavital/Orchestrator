@@ -753,7 +753,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const widthBefore = Number(rightPanelBefore?.getAttribute('data-right-panel-width') ?? '0');
             const primaryBefore = document.querySelector('[data-testid="session-primary-content"]');
             const primaryWidthBefore = primaryBefore instanceof HTMLElement ? primaryBefore.getBoundingClientRect().width : 0;
-            const expandButton = findButton('Expand panel');
+            const expandButton = findButton('Focus panel');
             const expandButtonLabelBefore = expandButton instanceof HTMLButtonElement
               ? expandButton.getAttribute('aria-label')
               : null;
@@ -776,7 +776,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const expandedWidth = rightPanelExpandedContainer instanceof HTMLElement
               ? rightPanelExpandedContainer.getBoundingClientRect().width
               : expandedContentWidth;
-            const restoreButton = findButton('Restore panel width');
+            const restoreButton = findButton('Restore panel');
             const restoreButtonLabelAfterExpand = restoreButton instanceof HTMLButtonElement
               ? restoreButton.getAttribute('aria-label')
               : null;
@@ -804,10 +804,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Math.abs(expandedWidth - mainRowWidthAfterExpand) <= 4 &&
               primaryWidthAfterExpand >= primaryWidthBefore - 8 &&
               expandButton instanceof HTMLButtonElement &&
-              expandButtonLabelBefore === 'Expand panel' &&
-              expandButtonIconBefore === 'expand' &&
+              expandButtonLabelBefore === 'Focus panel' &&
+              expandButtonIconBefore === 'monitor' &&
               restoreButton instanceof HTMLButtonElement &&
-              restoreButtonLabelAfterExpand === 'Restore panel width' &&
+              restoreButtonLabelAfterExpand === 'Restore panel' &&
               restoreButtonIconAfterExpand === 'minimize';
             if (restoreButton instanceof HTMLButtonElement) {
               restoreButton.click();
