@@ -303,6 +303,8 @@ child.on('exit', (code) => {
         sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
         sessionRowsCompact: result.sessionRowsCompact === true,
         projectHeadersCompact: result.projectHeadersCompact === true,
+        idleRowRecencyHidden: result.idleRowRecencyHidden === true,
+        importantRowStatusVisible: result.importantRowStatusVisible === true,
         environmentIconVisible: result.environmentIconVisible === true,
         actionRenameWorks: result.actionRenameWorks === true,
         runningSpinnerVisible: result.runningSpinnerVisible === true,

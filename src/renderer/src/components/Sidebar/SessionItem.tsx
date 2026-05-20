@@ -59,6 +59,7 @@ function SessionItem({ session }: Props): JSX.Element {
   const provider = PROVIDER_DEFS[session.provider]
   const model = provider?.models.find((candidate) => candidate.id === session.model)
   const statusLabel = statusLabelFor(session.status, hasUnread)
+  const rowMetaLabel = isRunning ? 'Running' : hasError ? 'Error' : null
   const environment = session.useWorktree
     ? { icon: 'branch' as const, label: 'Worktree', description: 'This chat is running in a local git worktree.' }
     : { icon: 'folder' as const, label: 'Local', description: 'This chat is running locally.' }
@@ -241,9 +242,11 @@ function SessionItem({ session }: Props): JSX.Element {
               {session.name}
             </div>
           </div>
-          <span className="session-row-right-meta shrink-0 text-[10.5px]" style={{ color: 'var(--text-tertiary)' }}>
-            {isRunning ? 'Running' : hasError ? 'Error' : updatedLabel}
-          </span>
+          {rowMetaLabel && (
+            <span className="session-row-right-meta shrink-0 text-[10.5px]" style={{ color: 'var(--text-tertiary)' }}>
+              {rowMetaLabel}
+            </span>
+          )}
           {showStatusIndicator && (
             isRunning ? (
               <Tooltip label="Running">

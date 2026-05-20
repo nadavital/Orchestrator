@@ -2839,6 +2839,15 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const projectHeadersCompact = [...document.querySelectorAll('[data-testid="project-section-header"]')]
               .filter((header) => header instanceof HTMLElement)
               .every((header) => header.getBoundingClientRect().height <= 24);
+            const idleRowRecencyHidden =
+              normalRow instanceof HTMLElement &&
+              !normalRow.innerText.includes('now') &&
+              !normalRow.innerText.includes('m ago');
+            const runningRowForMeta = rowFor('Sidebar running');
+            const errorRowForMeta = rowFor('Sidebar error');
+            const importantRowStatusVisible =
+              (runningRowForMeta instanceof HTMLElement && runningRowForMeta.innerText.includes('Running')) &&
+              (errorRowForMeta instanceof HTMLElement && errorRowForMeta.innerText.includes('Error'));
             const environmentIconVisible = Boolean(normalRow?.querySelector('[data-testid="session-environment-icon"]'));
 
             let actionRenameWorks = false;
@@ -3017,6 +3026,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarOverflowDebug,
               sessionRowsCompact,
               projectHeadersCompact,
+              idleRowRecencyHidden,
+              importantRowStatusVisible,
               environmentIconVisible,
               actionRenameWorks,
               runningSpinnerVisible: Boolean(runningRow?.querySelector('[data-testid="session-status-spinner"]')),
