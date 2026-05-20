@@ -291,13 +291,34 @@ function FilePreview({
     )
   }
   if (preview.kind === 'binary') {
-    return <EmptyFileState title={entry.name} body="Open or reveal to inspect." testId="workspace-binary-state" />
+    return (
+      <EmptyFileState
+        title={entry.name}
+        body="Open or reveal to inspect."
+        meta={`Binary - ${formatBytes(preview.size)}`}
+        testId="workspace-binary-state"
+        actions={[
+          { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
+          { label: 'Reveal', onClick: () => { void window.api.fs.showInFolder(absolutePath) } }
+        ]}
+      />
+    )
   }
   if (preview.kind === 'missing') {
-    return <EmptyFileState title={entry.name} body="Missing from workspace." />
+    return <EmptyFileState title={entry.name} body="Missing from workspace." meta="Missing" />
   }
   if (preview.kind === 'unreadable') {
-    return <EmptyFileState title={entry.name} body="Preview unavailable." />
+    return (
+      <EmptyFileState
+        title={entry.name}
+        body="Preview unavailable."
+        meta={preview.size !== undefined ? `Unavailable - ${formatBytes(preview.size)}` : 'Unavailable'}
+        actions={[
+          { label: 'Open', onClick: () => { void window.api.fs.openPath(absolutePath) } },
+          { label: 'Reveal', onClick: () => { void window.api.fs.showInFolder(absolutePath) } }
+        ]}
+      />
+    )
   }
   return (
     <div className="min-h-full">
@@ -347,15 +368,47 @@ function MarkdownPreview({ name, preview, testId }: { name: string; preview: Fil
   )
 }
 
-function EmptyFileState({ title, body, testId }: { title: string; body: string; testId?: string }): JSX.Element {
+function EmptyFileState({
+  title,
+  body,
+  meta,
+  testId,
+  actions = []
+}: {
+  title: string
+  body: string
+  meta?: string
+  testId?: string
+  actions?: Array<{ label: string; onClick: () => void }>
+}): JSX.Element {
   return (
     <div
       data-testid={testId}
-      className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs"
+      className="flex h-full flex-col items-start justify-start gap-2 px-3 pt-4 text-left text-xs"
       style={{ color: 'var(--text-tertiary)' }}
     >
-      <strong className="max-w-[260px] truncate" style={{ color: 'var(--text-secondary)' }}>{title}</strong>
-      <span className="max-w-[240px] leading-5">{body}</span>
+      {meta && <Badge tone="neutral">{meta}</Badge>}
+      <strong className="max-w-full truncate" style={{ color: 'var(--text-secondary)' }}>{title}</strong>
+      <span className="max-w-[300px] leading-5">{body}</span>
+      {actions.length > 0 && (
+        <span className="flex items-center gap-2 pt-1">
+          {actions.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              onClick={action.onClick}
+              className="rounded-md px-2 py-1 text-[11px] font-semibold"
+              style={{
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--control-bg)',
+                color: 'var(--text-secondary)'
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </span>
+      )}
     </div>
   )
 }

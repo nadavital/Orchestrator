@@ -886,9 +886,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               binaryFileButton.click();
               await sleep(160);
             }
+            const binaryState = document.querySelector('[data-testid="workspace-binary-state"]');
+            const binaryStateButtons = binaryState instanceof HTMLElement
+              ? [...binaryState.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
+              : [];
+            const binaryStateRect = binaryState instanceof HTMLElement ? binaryState.getBoundingClientRect() : null;
+            const binaryPreviewRect = filesPanelPreview instanceof HTMLElement ? filesPanelPreview.getBoundingClientRect() : null;
             var filesBinaryPreviewWorks =
-              Boolean(document.querySelector('[data-testid="workspace-binary-state"]')) &&
+              binaryState instanceof HTMLElement &&
+              binaryStateRect !== null &&
+              binaryPreviewRect !== null &&
+              binaryStateRect.top <= binaryPreviewRect.top + 28 &&
               document.body.innerText.includes('Open or reveal to inspect.') &&
+              binaryState.innerText.includes('Binary') &&
+              binaryStateButtons.includes('Open') &&
+              binaryStateButtons.includes('Reveal') &&
               !document.querySelector('[data-testid="workspace-text-preview"]');
             if (fileSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
