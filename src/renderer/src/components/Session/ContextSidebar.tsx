@@ -309,7 +309,7 @@ export default function ContextSidebar({ session }: Props): JSX.Element | null {
               </div>
             )}
             <IconButton
-              icon={rightPanel?.fullWidth ? 'shrink' : 'maximize'}
+              icon={rightPanel?.fullWidth ? 'panelRightClose' : 'panelRightOpen'}
               label={rightPanel?.fullWidth ? 'Restore panel width' : 'Expand panel'}
               size="sm"
               active={rightPanel?.fullWidth}

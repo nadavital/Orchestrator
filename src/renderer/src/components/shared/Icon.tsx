@@ -24,12 +24,13 @@ import {
   Globe,
   Keyboard,
   ListChecks,
-  Maximize2,
   Menu,
   Minimize2,
   Monitor,
   MessageSquare,
   Paperclip,
+  PanelRightClose,
+  PanelRightOpen,
   Pencil,
   Pin,
   Plug,
@@ -39,7 +40,6 @@ import {
   ExternalLink,
   Send,
   Settings,
-  Shrink,
   Sparkles,
   Smartphone,
   Wrench,
@@ -79,10 +79,11 @@ export type IconName =
   | 'file'
   | 'folder'
   | 'keyboard'
-  | 'maximize'
   | 'menu'
   | 'minimize'
   | 'monitor'
+  | 'panelRightClose'
+  | 'panelRightOpen'
   | 'paperclip'
   | 'pencil'
   | 'pin'
@@ -93,7 +94,6 @@ export type IconName =
   | 'search'
   | 'send'
   | 'settings'
-  | 'shrink'
   | 'smartphone'
   | 'sparkles'
   | 'terminal'
@@ -131,10 +131,11 @@ const icons: Record<IconName, LucideIcon> = {
   file: File,
   folder: Folder,
   keyboard: Keyboard,
-  maximize: Maximize2,
   menu: Menu,
   minimize: Minimize2,
   monitor: Monitor,
+  panelRightClose: PanelRightClose,
+  panelRightOpen: PanelRightOpen,
   paperclip: Paperclip,
   pencil: Pencil,
   pin: Pin,
@@ -145,7 +146,6 @@ const icons: Record<IconName, LucideIcon> = {
   search: Search,
   send: Send,
   settings: Settings,
-  shrink: Shrink,
   smartphone: Smartphone,
   sparkles: Sparkles,
   terminal: Terminal,
