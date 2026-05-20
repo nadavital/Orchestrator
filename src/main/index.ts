@@ -2340,6 +2340,35 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 element.getAttribute('data-native-title-free') === 'true' &&
                 (element.getAttribute('data-tooltip-label') ?? '').trim().length > 0;
             });
+          let headerLongTooltipBoundedWorks = false;
+          const profileBadge = document.querySelector('[data-testid="profile-badge"]');
+          if (profileBadge instanceof HTMLElement) {
+            const badgeRect = profileBadge.getBoundingClientRect();
+            profileBadge.dispatchEvent(new MouseEvent('mouseover', {
+              bubbles: true,
+              clientX: badgeRect.left + badgeRect.width / 2,
+              clientY: badgeRect.top + badgeRect.height / 2
+            }));
+            profileBadge.focus({ preventScroll: true });
+            await sleep(360);
+            const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
+            const visibleTooltip = visibleTooltips
+              .find((tooltip) => tooltip.textContent?.trim().startsWith('User data:'));
+            const tooltipRect = visibleTooltip instanceof HTMLElement ? visibleTooltip.getBoundingClientRect() : null;
+            headerLongTooltipBoundedWorks =
+              visibleTooltips.length === 1 &&
+              visibleTooltip instanceof HTMLElement &&
+              visibleTooltip.parentElement === document.body &&
+              tooltipRect !== null &&
+              tooltipRect.left >= 7 &&
+              tooltipRect.top >= 7 &&
+              tooltipRect.right <= window.innerWidth - 7 &&
+              tooltipRect.bottom <= window.innerHeight - 7 &&
+              visibleTooltip.scrollWidth <= visibleTooltip.clientWidth + 2;
+            profileBadge.blur();
+            profileBadge.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+            await sleep(80);
+          }
           const buttons = [...document.querySelectorAll('button')].map((button) => ({
             text: button.textContent?.trim() ?? '',
             title: button.getAttribute('title') ?? '',
@@ -2380,6 +2409,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             ),
             headerIdentityWorks,
             headerNativeTooltipsWork,
+            headerLongTooltipBoundedWorks,
             titlebarSidebarToggleWorks: typeof titlebarSidebarToggleWorks === 'boolean' ? titlebarSidebarToggleWorks : null,
             customTooltipNativeTitlesAbsent,
             customTooltipNativeTitleLeaks,

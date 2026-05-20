@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import Icon, { type IconName } from './Icon'
 import { rowMotionStyle } from '../../design/motion'
@@ -270,6 +270,7 @@ export function ToolbarButton({
 export function Tooltip({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   const idRef = useRef(`tooltip-${Math.random().toString(36).slice(2)}`)
   const anchorRef = useRef<HTMLSpanElement | null>(null)
+  const tooltipRef = useRef<HTMLSpanElement | null>(null)
   const showTimeoutRef = useRef<number | null>(null)
   const [visible, setVisible] = useState(false)
   const [position, setPosition] = useState<{ left: number; top: number; placement: 'top' | 'bottom' } | null>(null)
@@ -284,8 +285,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
     clearShowTimeout()
     const rect = anchorRef.current?.getBoundingClientRect()
     if (!rect) return
-    const estimatedWidth = Math.min(Math.max(label.length * 6.2 + 18, 52), 240)
-    const left = Math.min(Math.max(rect.left + rect.width / 2, 8 + estimatedWidth / 2), window.innerWidth - 8 - estimatedWidth / 2)
+    const left = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8)
     const placement = rect.top < 38 ? 'bottom' : 'top'
     const top = placement === 'bottom'
       ? Math.min(rect.bottom + 7, window.innerHeight - 28)
@@ -310,6 +310,22 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
   useExclusiveHoverSurface(idRef.current, hide)
 
   useEffect(() => () => clearShowTimeout(), [])
+
+  useLayoutEffect(() => {
+    if (!visible || !position) return
+    const rect = tooltipRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const nextLeft = Math.min(
+      Math.max(position.left, 8 + rect.width / 2),
+      window.innerWidth - 8 - rect.width / 2
+    )
+    const nextTop = position.placement === 'bottom'
+      ? Math.min(Math.max(position.top, 8), window.innerHeight - 8 - rect.height)
+      : Math.min(Math.max(position.top, 8 + rect.height), window.innerHeight - 8)
+    if (Math.abs(nextLeft - position.left) > 0.5 || Math.abs(nextTop - position.top) > 0.5) {
+      setPosition({ ...position, left: nextLeft, top: nextTop })
+    }
+  }, [label, position, visible])
 
   useEffect(() => {
     if (!visible) return
@@ -338,6 +354,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
       {children}
       {createPortal(
         <span
+          ref={tooltipRef}
           className="orchestrator-tooltip"
           role="tooltip"
           data-visible={visible && position ? 'true' : 'false'}
