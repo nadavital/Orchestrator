@@ -1108,7 +1108,7 @@ function ShortcutsSection(): JSX.Element {
   })
 
   return (
-    <div data-testid="shortcuts-settings-section" style={{ padding: '18px 44px 52px', maxWidth: 720, margin: '0 auto' }}>
+    <div data-testid="shortcuts-settings-section" style={{ padding: '14px 44px 52px', maxWidth: 640, margin: '0 auto' }}>
       <div
         className="settings-shortcuts-table overflow-hidden"
         style={{ border: '1px solid var(--border-subtle)', background: 'var(--surface-bg)' }}
@@ -1142,7 +1142,7 @@ function ShortcutsSection(): JSX.Element {
         </div>
         {visibleShortcuts.length > 0 && (
           <div
-            className="settings-shortcuts-head grid grid-cols-[minmax(0,1fr)_minmax(104px,auto)] gap-3 border-b px-3 text-[10px] font-bold uppercase"
+            className="settings-shortcuts-head grid grid-cols-[minmax(0,1fr)_minmax(82px,auto)] gap-3 border-b px-3 text-[10px] font-bold uppercase"
             style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-tertiary)' }}
           >
             <span>Command</span>
@@ -1152,20 +1152,20 @@ function ShortcutsSection(): JSX.Element {
         {visibleShortcuts.map((shortcut, rowIndex) => (
           <div
             key={shortcut.label}
-            className="settings-shortcut-row grid grid-cols-[minmax(0,1fr)_minmax(104px,auto)] items-center gap-3 border-t px-3"
+            className="settings-shortcut-row grid grid-cols-[minmax(0,1fr)_minmax(82px,auto)] items-center gap-3 border-t px-3"
             style={{
               borderColor: rowIndex === 0 ? 'transparent' : 'var(--border-subtle)',
               color: 'var(--text-primary)'
             }}
           >
-            <span className="min-w-0 truncate text-[13px] font-medium">{shortcut.displayLabel}</span>
+            <span className="min-w-0 truncate text-xs font-medium">{shortcut.displayLabel}</span>
             <span
               className="flex shrink-0 items-center justify-end gap-1"
               data-testid="settings-shortcut-sequence"
               aria-label={shortcut.primaryKeys.join(' ')}
             >
               <kbd
-                className="min-w-9 rounded-md px-2 py-0.5 text-center text-[11px] font-semibold"
+                className="rounded-md text-center font-semibold"
                 data-testid="settings-shortcut-key"
                 style={{
                   background: 'var(--control-bg)',
