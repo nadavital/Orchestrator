@@ -1301,17 +1301,22 @@ function TargetsPane({
           className="w-full rounded-md px-2 py-1 text-xs outline-none"
           style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
         />
-        <div className="browser-target-action-row">
+        <div className="browser-target-action-row browser-target-primary-actions">
           <ActionButton label="Click" onClick={() => onRunTargetAction('click')} disabled={!selectedTargetId} />
-          <ActionButton label="Double" onClick={() => onRunTargetAction('double_click')} disabled={!selectedTargetId} />
           <ActionButton label="Type" onClick={() => onRunTargetAction('type')} disabled={!selectedTargetId || !actionText} />
           <ActionButton label="Fill" onClick={() => onRunTargetAction('fill')} disabled={!selectedTargetId || !actionText} />
-          <ActionButton label="Key" onClick={() => onRunTargetAction('key')} disabled={!selectedTargetId || !actionText} />
-          <ActionButton label="Select" onClick={() => onRunTargetAction('select')} disabled={!selectedTargetId || !actionText} />
-          <ActionButton label="Check" onClick={() => onRunTargetAction('check')} disabled={!selectedTargetId} />
           <ActionButton label="State" onClick={() => onRunTargetAction('read')} disabled={!selectedTargetId} />
-          <ActionButton label="Scroll" onClick={() => onRunTargetAction('scroll')} disabled={!selectedTargetId} />
         </div>
+        <details className="browser-target-more-actions" data-testid="browser-target-more-actions">
+          <summary>More actions</summary>
+          <div className="browser-target-action-row">
+            <ActionButton label="Double" onClick={() => onRunTargetAction('double_click')} disabled={!selectedTargetId} />
+            <ActionButton label="Key" onClick={() => onRunTargetAction('key')} disabled={!selectedTargetId || !actionText} />
+            <ActionButton label="Select" onClick={() => onRunTargetAction('select')} disabled={!selectedTargetId || !actionText} />
+            <ActionButton label="Check" onClick={() => onRunTargetAction('check')} disabled={!selectedTargetId} />
+            <ActionButton label="Scroll" onClick={() => onRunTargetAction('scroll')} disabled={!selectedTargetId} />
+          </div>
+        </details>
         {targetReadResult && (
           <div
             data-testid="browser-target-read-output"

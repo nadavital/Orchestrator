@@ -1168,9 +1168,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(120);
             }
             const targetsPane = document.querySelector('.browser-targets-pane');
+            const targetMoreActions = document.querySelector('[data-testid="browser-target-more-actions"]');
             var browserTargetsPaneWorks =
               document.querySelector('[data-testid="browser-target-select"]') instanceof HTMLSelectElement &&
               targetsPane instanceof HTMLElement &&
+              targetMoreActions instanceof HTMLDetailsElement &&
+              targetMoreActions.open === false &&
+              targetsPane.textContent?.includes('More actions') &&
               targetsPane.textContent?.includes('Click x/y') &&
               targetsPane.textContent?.includes('Clipboard');
             const browserTargetSelect = document.querySelector('[data-testid="browser-target-select"]');

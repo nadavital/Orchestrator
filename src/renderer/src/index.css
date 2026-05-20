@@ -1508,6 +1508,39 @@
     gap: 4px;
   }
 
+  .browser-target-primary-actions {
+    padding-top: 1px;
+  }
+
+  .browser-target-more-actions {
+    min-width: 0;
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  .browser-target-more-actions > summary {
+    display: inline-flex;
+    min-height: 24px;
+    cursor: pointer;
+    list-style: none;
+    align-items: center;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--control-bg);
+    padding: 0 8px;
+    font-weight: 700;
+  }
+
+  .browser-target-more-actions > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .browser-target-more-actions[open] > summary {
+    margin-bottom: 6px;
+    background: var(--control-bg-hover);
+    color: var(--text-primary);
+  }
+
   .browser-security-pane {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
