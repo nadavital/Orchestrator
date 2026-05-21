@@ -54,6 +54,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     openRightPanelTab,
     closeRightPanelTab,
     moveRightPanelTab,
+    resetRightPanelTabState,
     setRightPanelBrowserUrl,
     setRightPanelBrowserWorkbench,
     closeSideChat,
@@ -225,6 +226,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     setTabMenu(null)
   }
 
+  const resetTab = (tabId: ContextTab): void => {
+    resetRightPanelTabState(session.id, tabId)
+    setTabMenu(null)
+  }
+
   const tabMenuIndex = tabMenu ? tabs.findIndex((tab) => tab.id === tabMenu.tabId) : -1
   const toolTabs = [
     { id: 'browser' as const, label: 'Browser', icon: 'browser' as const, open: hasBrowserTab },
@@ -375,6 +381,13 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             disabled={tabMenuIndex < 0 || tabMenuIndex >= tabs.length - 1}
             onClick={() => moveTab(tabMenu.tabId, 'right')}
           />
+          {tabMenu.tabId === 'browser' && (
+            <MenuItem
+              icon="refresh"
+              label="Reset tab"
+              onClick={() => resetTab(tabMenu.tabId)}
+            />
+          )}
           <MenuItem
             icon="close"
             label="Close tab"

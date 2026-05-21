@@ -2071,6 +2071,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const browserTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
             var rightPanelContextMenuWorks = false;
             var rightPanelTabReorderWorks = false;
+            var browserTabResetWorks = false;
             if (browserTabButton instanceof HTMLElement) {
               const beforeOrder = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-tabs') ?? '';
               browserTabButton.dispatchEvent(new MouseEvent('contextmenu', {
@@ -2086,7 +2087,35 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               rightPanelContextMenuWorks =
                 document.body.innerText.includes('Move tab left') &&
                 document.body.innerText.includes('Move tab right') &&
+                document.body.innerText.includes('Reset tab') &&
                 document.body.innerText.includes('Close tab');
+              const resetTab = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Reset tab'));
+              if (resetTab instanceof HTMLButtonElement) {
+                resetTab.click();
+                for (let index = 0; index < 15; index += 1) {
+                  const browserPanel = document.querySelector('[data-testid="browser-panel"]');
+                  browserTabResetWorks =
+                    browserPanel instanceof HTMLElement &&
+                    browserPanel.getAttribute('data-browser-device-mode') === 'desktop' &&
+                    browserPanel.getAttribute('data-browser-visible') === 'true' &&
+                    browserPanel.getAttribute('data-browser-current-url') === '' &&
+                    Number(browserPanel.getAttribute('data-browser-tab-count') ?? '0') === 1 &&
+                    Number(browserPanel.getAttribute('data-browser-zoom') ?? '0') === 1;
+                  if (browserTabResetWorks) break;
+                  await sleep(100);
+                }
+                const resetBrowserTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+                if (resetBrowserTabButton instanceof HTMLElement) {
+                  resetBrowserTabButton.dispatchEvent(new MouseEvent('contextmenu', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: resetBrowserTabButton.getBoundingClientRect().left + 12,
+                    clientY: resetBrowserTabButton.getBoundingClientRect().bottom + 4
+                  }));
+                  await sleep(120);
+                }
+              }
               const moveLeft = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Move tab left'));
               if (moveLeft instanceof HTMLButtonElement) {
@@ -2858,6 +2887,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserInspectorChromeCompactWorks: typeof browserInspectorChromeCompactWorks === 'boolean' ? browserInspectorChromeCompactWorks : null,
             browserVisibilityControlWorks: typeof browserVisibilityControlWorks === 'boolean' ? browserVisibilityControlWorks : null,
             browserHiddenStateWorks: typeof browserHiddenStateWorks === 'boolean' ? browserHiddenStateWorks : null,
+            browserTabResetWorks: typeof browserTabResetWorks === 'boolean' ? browserTabResetWorks : null,
             rightPanelContextMenuWorks: typeof rightPanelContextMenuWorks === 'boolean' ? rightPanelContextMenuWorks : null,
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
@@ -4435,6 +4465,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const expectedUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
             const browserCurrentUrl = browserPanel?.getAttribute('data-browser-current-url') ?? '';
+            const browserLoadedWorks = Boolean(document.querySelector('[data-testid="browser-webview"]')) &&
+              browserCurrentUrl.startsWith(expectedUrl);
             const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
             const browserSingleTabStripHidden =
               Number(browserPanel?.getAttribute('data-browser-tab-count') ?? '0') === 1 &&
@@ -4473,6 +4505,37 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const text = label.textContent?.trim() ?? '';
               return text.length === 0 || text !== text.toUpperCase();
             });
+            let browserTabResetWorks = false;
+            const workbenchBrowserTab = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+            if (workbenchBrowserTab instanceof HTMLElement) {
+              workbenchBrowserTab.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: workbenchBrowserTab.getBoundingClientRect().left + 12,
+                clientY: workbenchBrowserTab.getBoundingClientRect().bottom + 4
+              }));
+              for (let index = 0; index < 15; index += 1) {
+                if (document.body.innerText.includes('Reset tab')) break;
+                await sleep(100);
+              }
+              const resetTab = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Reset tab'));
+              if (resetTab instanceof HTMLButtonElement) {
+                resetTab.click();
+                for (let index = 0; index < 15; index += 1) {
+                  const resetPanel = document.querySelector('[data-testid="browser-panel"]');
+                  browserTabResetWorks =
+                    resetPanel instanceof HTMLElement &&
+                    resetPanel.getAttribute('data-browser-device-mode') === 'desktop' &&
+                    resetPanel.getAttribute('data-browser-visible') === 'true' &&
+                    resetPanel.getAttribute('data-browser-current-url') === '' &&
+                    Number(resetPanel.getAttribute('data-browser-tab-count') ?? '0') === 1 &&
+                    Number(resetPanel.getAttribute('data-browser-zoom') ?? '0') === 1;
+                  if (browserTabResetWorks) break;
+                  await sleep(100);
+                }
+              }
+            }
             return {
               profile,
               browserActive: rightPanel instanceof HTMLElement &&
@@ -4484,8 +4547,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserAddressBadgeWorks,
               browserToolbarExternalWorks,
               browserToolbarScreenshotWorks,
-              browserLoaded: Boolean(document.querySelector('[data-testid="browser-webview"]')) &&
-                browserCurrentUrl.startsWith(expectedUrl),
+              browserLoaded: browserLoadedWorks,
               browserFindWorks,
               browserFindNavigationWorks,
               browserZoomWorks,
@@ -4519,6 +4581,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserInspectorLabelsCalm,
               browserVisibilityControlWorks,
               browserHiddenStateWorks,
+              browserTabResetWorks,
               browserStatusRowQuiet
             };
           })()

@@ -182,6 +182,7 @@ interface SessionState {
   openRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   closeRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   moveRightPanelTab: (id: string, tabId: RightPanelTabId, direction: 'left' | 'right') => void
+  resetRightPanelTabState: (id: string, tabId: RightPanelTabId) => void
   setRightPanelBrowserUrl: (id: string, url: string) => void
   setRightPanelBrowserWorkbench: (id: string, patch: Partial<BrowserWorkbenchState>) => void
   closeRightPanel: (id: string) => void
@@ -222,7 +223,25 @@ export const defaultUI: SessionUIState = {
   sideChats: [],
   activeSideChatId: null,
   browserUrl: '',
-  browserWorkbench: {
+  browserWorkbench: defaultBrowserWorkbench(),
+  terminalPanel: {
+    height: 260,
+    tabs: [0],
+    activeTabId: 0,
+    nextTabId: 1
+  },
+  rightPanel: {
+    open: false,
+    width: 468,
+    widthRatio: 0.34,
+    fullWidth: false,
+    activeTabId: null,
+    tabs: []
+  }
+}
+
+function defaultBrowserWorkbench(): BrowserWorkbenchState {
+  return {
     findVisible: false,
     findQuery: '',
     zoomFactor: 1,
@@ -252,20 +271,6 @@ export const defaultUI: SessionUIState = {
     allowedUploadOrigins: [],
     blockedUploadOrigins: [],
     hiddenLocalTargets: []
-  },
-  terminalPanel: {
-    height: 260,
-    tabs: [0],
-    activeTabId: 0,
-    nextTabId: 1
-  },
-  rightPanel: {
-    open: false,
-    width: 468,
-    widthRatio: 0.34,
-    fullWidth: false,
-    activeTabId: null,
-    tabs: []
   }
 }
 
@@ -739,6 +744,22 @@ export const useSessionStore = create<SessionState>((set) => ({
           [id]: {
             ...current,
             rightPanel: moveRightPanelTab(current.rightPanel, tabId, direction)
+          }
+        }
+      }
+    }),
+
+  resetRightPanelTabState: (id, tabId) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      if (tabId !== 'browser') return s
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            browserUrl: '',
+            browserWorkbench: defaultBrowserWorkbench()
           }
         }
       }
