@@ -728,13 +728,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               dataButton?.click();
               await sleep(220);
               const dataSection = document.querySelector('[data-testid="data-controls-settings-section"]');
+              const archivedRows = [...document.querySelectorAll('[data-testid="settings-archived-chat-row"]')];
               var settingsDataControlsWorks =
                 dataSection instanceof HTMLElement &&
                 dataSection.innerText.includes('Local profile') &&
                 dataSection.innerText.includes('User data') &&
                 dataSection.innerText.includes('Open data folder') &&
                 dataSection.innerText.includes('Archived chats') &&
-                dataSection.innerText.includes('No archived chats');
+                dataSection.innerText.includes('Archived settings smoke') &&
+                dataSection.innerText.includes('Restore') &&
+                dataSection.innerText.includes('Delete') &&
+                archivedRows.length >= 1;
               const shortcutsButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Shortcuts'));
               shortcutsButton?.click();
@@ -6297,7 +6301,7 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-stress') {
     await seedAutomatedTranscriptStressSmokeSession(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings') {
-    seedAutomatedSettingsSmokeSession(session.id)
+    await seedAutomatedSettingsSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'plan') {
     seedAutomatedPlanSmokeSession(session.id)
   } else if (
@@ -6331,7 +6335,7 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
   }
 }
 
-function seedAutomatedSettingsSmokeSession(sessionId: string): void {
+async function seedAutomatedSettingsSmokeSession(sessionId: string): Promise<void> {
   const session = sessionManager.get(sessionId)
   if (!session) return
   sessionManager.save({
@@ -6362,6 +6366,27 @@ function seedAutomatedSettingsSmokeSession(sessionId: string): void {
       }
     }
   })
+
+  const hasArchivedFixture = sessionManager.listArchivedSummaries()
+    .some((candidate) => candidate.name === 'Archived settings smoke')
+  if (hasArchivedFixture) return
+
+  const archived = await sessionManager.create({
+    projectId: session.projectId,
+    workDir: session.workDir,
+    useWorktree: false,
+    repoRoot: session.repoRoot
+  })
+  projectStore.addSession(session.projectId, archived.id)
+  sessionManager.updateName(archived.id, 'Archived settings smoke')
+  sessionManager.appendMessage(archived.id, [{
+    id: 'settings-archived-smoke-message',
+    role: 'assistant',
+    type: 'text',
+    content: 'Archived chat inventory smoke fixture.',
+    timestamp: Date.now()
+  }])
+  await sessionManager.archive(archived.id)
 }
 
 function seedAutomatedPlanSmokeSession(sessionId: string): void {
