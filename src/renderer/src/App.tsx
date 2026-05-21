@@ -14,8 +14,8 @@ import { MotionView } from './components/shared/designSystem'
 import EmptyState from './components/shared/EmptyState'
 import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
-import { APP_COMMANDS, appMenuCommandForKeyboardEvent, formatShortcutSequence } from '../../types/appCommands'
-import type { AppMenuCommand, StableAppCommand } from '../../types/appCommands'
+import { APP_COMMANDS, appMenuCommandForKeyboardEvent, commandShortcuts, formatShortcutSequence } from '../../types/appCommands'
+import type { AppMenuCommand, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
 
 export default function App(): JSX.Element {
   const isDesignSystemPreview = window.location.hash === '#design-system'
@@ -49,6 +49,7 @@ export default function App(): JSX.Element {
   } = useSessionStore()
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [renamingActiveChat, setRenamingActiveChat] = useState(false)
+  const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
   const waitingNotificationKeysRef = useRef(new Set<string>())
   const activeSession = sessions.find((session) => session.id === activeSessionId)
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
@@ -180,8 +181,8 @@ export default function App(): JSX.Element {
 
   const shortcutPlatform = useMemo(() => navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other', [])
   const shortcutsFor = useCallback((command: StableAppCommand): string[] => (
-    APP_COMMANDS[command].shortcuts.map((sequence) => formatShortcutSequence(sequence, shortcutPlatform))
-  ), [shortcutPlatform])
+    commandShortcuts(command, shortcutOverrides).map((sequence) => formatShortcutSequence(sequence, shortcutPlatform))
+  ), [shortcutOverrides, shortcutPlatform])
   const chatSlotActions = useMemo<CommandPaletteAction[]>(() => (
     Array.from({ length: Math.min(9, sessions.length) }, (_, index) => ({
       id: `go-chat-${index + 1}`,
@@ -393,6 +394,7 @@ export default function App(): JSX.Element {
     })
     window.api.sessions.checkProviders().then(setProviderAvailability)
     window.api.settings.get().then((s) => {
+      setShortcutOverrides(s.shortcutOverrides ?? {})
       applyAppearance(
         s.appearance ?? 'mist',
         s.accent ?? 'blue',
@@ -408,6 +410,11 @@ export default function App(): JSX.Element {
       const pm = (s as unknown as Record<string, unknown>).providerModels
       if (pm && typeof pm === 'object') setProviderModels(pm as Record<string, string[]>)
     })
+    const onShortcutOverridesChanged = (event: Event): void => {
+      const custom = event as CustomEvent<ShortcutOverrides>
+      setShortcutOverrides(custom.detail ?? {})
+    }
+    window.addEventListener('orchestrator:shortcut-overrides-changed', onShortcutOverridesChanged)
 
     const media = window.matchMedia('(prefers-color-scheme: light)')
     const onSystemThemeChanged = (): void => {
@@ -559,7 +566,12 @@ export default function App(): JSX.Element {
       }
     })
 
-    return () => { unsub(); unsubNav(); media.removeEventListener('change', onSystemThemeChanged) }
+    return () => {
+      unsub()
+      unsubNav()
+      media.removeEventListener('change', onSystemThemeChanged)
+      window.removeEventListener('orchestrator:shortcut-overrides-changed', onShortcutOverridesChanged)
+    }
   }, [])
 
   useEffect(() => {
@@ -567,7 +579,7 @@ export default function App(): JSX.Element {
 
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.isComposing) return
-      const command = appMenuCommandForKeyboardEvent(event)
+      const command = appMenuCommandForKeyboardEvent(event, shortcutOverrides)
       if (command) {
         event.preventDefault()
         runAppCommand(command)
@@ -578,7 +590,8 @@ export default function App(): JSX.Element {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [
     isDesignSystemPreview,
-    runAppCommand
+    runAppCommand,
+    shortcutOverrides
   ])
 
   useEffect(() => {

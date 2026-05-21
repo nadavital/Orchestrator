@@ -20,6 +20,7 @@ export type AppMenuCommand = StableAppCommand | `go-chat-${ChatSlot}`
 
 export type ShortcutToken = 'mod' | 'shift' | 'alt' | 'ctrl' | string
 export type ShortcutSequence = readonly ShortcutToken[]
+export type ShortcutOverrides = Partial<Record<StableAppCommand, ShortcutSequence>>
 
 export interface AppCommandDefinition {
   id: StableAppCommand
@@ -195,12 +196,20 @@ export const GO_CHAT_SHORTCUT_ROW = {
   keywords: ['thread', 'session', 'recent']
 }
 
-export function appCommandDefinitions(): AppCommandDefinition[] {
-  return Object.values(APP_COMMANDS)
+export function commandShortcuts(command: StableAppCommand, overrides: ShortcutOverrides = {}): readonly ShortcutSequence[] {
+  const override = overrides[command]
+  return override && override.length > 0 ? [override] : APP_COMMANDS[command].shortcuts
 }
 
-export function visibleShortcutRows(): Array<AppCommandDefinition | typeof GO_CHAT_SHORTCUT_ROW> {
-  const rows = appCommandDefinitions().filter((command) => command.showInShortcuts)
+export function appCommandDefinitions(overrides: ShortcutOverrides = {}): AppCommandDefinition[] {
+  return Object.values(APP_COMMANDS).map((command) => ({
+    ...command,
+    shortcuts: commandShortcuts(command.id, overrides)
+  }))
+}
+
+export function visibleShortcutRows(overrides: ShortcutOverrides = {}): Array<AppCommandDefinition | typeof GO_CHAT_SHORTCUT_ROW> {
+  const rows = appCommandDefinitions(overrides).filter((command) => command.showInShortcuts)
   const nextChatIndex = rows.findIndex((command) => command.id === 'next-chat')
   if (nextChatIndex === -1) return [...rows, GO_CHAT_SHORTCUT_ROW]
   return [
@@ -224,15 +233,35 @@ export function formatShortcutKeys(sequence: ShortcutSequence, platform: 'mac' |
   })
 }
 
-export function appMenuCommandForKeyboardEvent(event: ShortcutKeyboardEvent): AppMenuCommand | null {
+export function appMenuCommandForKeyboardEvent(event: ShortcutKeyboardEvent, overrides: ShortcutOverrides = {}): AppMenuCommand | null {
   const key = event.key.toLowerCase()
   if (hasModifier(event, 'mod') && !event.altKey && !event.shiftKey && /^[1-9]$/.test(key)) {
     return `go-chat-${Number(key) as ChatSlot}`
   }
-  for (const command of appCommandDefinitions()) {
+  for (const command of appCommandDefinitions(overrides)) {
     if (command.shortcuts.some((shortcut) => shortcutMatchesEvent(shortcut, event))) return command.id
   }
   return null
+}
+
+export function shortcutSequenceFromKeyboardEvent(
+  event: ShortcutKeyboardEvent,
+  platform: 'mac' | 'other' = 'mac'
+): ShortcutSequence | null {
+  const key = shortcutTokenFromEvent(event)
+  if (!key) return null
+  const sequence: ShortcutToken[] = []
+  if (platform === 'mac') {
+    if (event.metaKey) sequence.push('mod')
+    if (event.ctrlKey) sequence.push('ctrl')
+  } else if (event.ctrlKey || event.metaKey) {
+    sequence.push('mod')
+  }
+  if (event.altKey) sequence.push('alt')
+  if (event.shiftKey) sequence.push('shift')
+  if (!sequence.some((token) => token === 'mod' || token === 'ctrl' || token === 'alt')) return null
+  sequence.push(key)
+  return sequence
 }
 
 export function shortcutMatchesEvent(sequence: ShortcutSequence, event: ShortcutKeyboardEvent): boolean {
@@ -263,10 +292,27 @@ function keyTokenMatchesEvent(token: string, event: ShortcutKeyboardEvent): bool
   const expected = token.toLowerCase()
   const key = event.key.toLowerCase()
   const code = event.code?.toLowerCase()
+  if (expected === 'space') return key === ' '
+  if (expected === 'up') return key === 'arrowup'
+  if (expected === 'down') return key === 'arrowdown'
+  if (expected === 'left') return key === 'arrowleft'
+  if (expected === 'right') return key === 'arrowright'
   if (expected === 'tab') return key === 'tab'
   if (expected === '[') return key === '[' || code === 'bracketleft'
   if (expected === ']') return key === ']' || code === 'bracketright'
   if (expected === '/') return key === '/' || key === '?' || code === 'slash'
   if (expected === '`') return key === '`' || code === 'backquote'
   return key === expected
+}
+
+function shortcutTokenFromEvent(event: ShortcutKeyboardEvent): string | null {
+  const key = event.key
+  if (!key || ['Meta', 'Control', 'Alt', 'Shift', 'Escape', 'Backspace', 'Delete'].includes(key)) return null
+  if (key === ' ') return 'Space'
+  if (key === 'ArrowUp') return 'Up'
+  if (key === 'ArrowDown') return 'Down'
+  if (key === 'ArrowLeft') return 'Left'
+  if (key === 'ArrowRight') return 'Right'
+  if (key.length === 1) return /^[a-z]$/i.test(key) ? key.toUpperCase() : key
+  return key
 }

@@ -748,6 +748,7 @@ child.on('exit', (code) => {
         settingsDiagnosticsDisclosureCompact: !['settings', 'settings-providers'].includes(captureView) || result.settingsDiagnosticsDisclosureCompactWorks === true,
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,
         settingsShortcutsCompact: captureView !== 'settings' || result.settingsShortcutsCompactWorks === true,
+        settingsShortcutsEditable: captureView !== 'settings' || result.settingsShortcutsEditableWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
         extensionsEmbeddedCopyCompact: captureView !== 'extensions' || result.extensionsEmbeddedCopyCompact === true,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useCallback, useEffect, useRef, useState, type Dispatch, type KeyboardEvent, type ReactNode, type SetStateAction } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -29,7 +29,8 @@ import {
 import { useSessionStore } from '../store/sessions'
 import type { SettingsSection } from '../store/sessions'
 import type { AppProfile } from '../env'
-import { formatShortcutKeys, visibleShortcutRows } from '../../../types/appCommands'
+import { APP_COMMANDS, formatShortcutKeys, shortcutSequenceFromKeyboardEvent, visibleShortcutRows } from '../../../types/appCommands'
+import type { ShortcutOverrides, ShortcutSequence, StableAppCommand } from '../../../types/appCommands'
 import { parsePortableTheme, serializePortableTheme } from '../../../types/themeSharing'
 import ProviderIcon from './shared/ProviderIcon'
 import Icon from './shared/Icon'
@@ -116,6 +117,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [useFontSmoothing, setUseFontSmoothing] = useState(true)
   const [usePointerCursors, setUsePointerCursors] = useState(true)
   const [reduceMotion, setReduceMotion] = useState(false)
+  const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
 
   useEffect(() => {
     window.api.settings.get().then((s) => {
@@ -145,6 +147,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
       setUseFontSmoothing((rec.useFontSmoothing as boolean | undefined) ?? true)
       setUsePointerCursors((rec.usePointerCursors as boolean | undefined) ?? true)
       setReduceMotion((rec.reduceMotion as boolean | undefined) ?? false)
+      setShortcutOverrides((rec.shortcutOverrides as ShortcutOverrides | undefined) ?? {})
     })
     window.api.providers.getRuntimeInfo().then(setProviderRuntime)
   }, [])
@@ -269,6 +272,12 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     if (key === 'reduceMotion') setReduceMotion(value)
     applyAppearanceModel({ [key]: value })
     window.api.settings.set(key, value)
+  }
+
+  const saveShortcutOverrides = (next: ShortcutOverrides): void => {
+    setShortcutOverrides(next)
+    window.api.settings.set('shortcutOverrides', next)
+    window.dispatchEvent(new CustomEvent('orchestrator:shortcut-overrides-changed', { detail: next }))
   }
 
   const importPortableTheme = (raw: string): { ok: boolean; error?: string } => {
@@ -411,7 +420,12 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
             />
           )}
           {section === 'pets' && <PetsSection />}
-          {section === 'shortcuts' && <ShortcutsSection />}
+          {section === 'shortcuts' && (
+            <ShortcutsSection
+              shortcutOverrides={shortcutOverrides}
+              onSetShortcutOverrides={saveShortcutOverrides}
+            />
+          )}
           {section === 'data' && <DataControlsSection />}
           {section === 'providers' && (
             <ProvidersSection
@@ -1169,13 +1183,23 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: (value: boo
   return <SwitchControl checked={checked} onChange={onChange} label="Toggle setting" />
 }
 
-function ShortcutsSection(): JSX.Element {
+function ShortcutsSection({
+  shortcutOverrides,
+  onSetShortcutOverrides
+}: {
+  shortcutOverrides: ShortcutOverrides
+  onSetShortcutOverrides: (overrides: ShortcutOverrides) => void
+}): JSX.Element {
   const [query, setQuery] = useState('')
+  const [recordingCommand, setRecordingCommand] = useState<StableAppCommand | null>(null)
+  const [recordingError, setRecordingError] = useState<string | null>(null)
   const shortcutPlatform = navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
-  const shortcuts = visibleShortcutRows().map((shortcut) => ({
+  const shortcuts = visibleShortcutRows(shortcutOverrides).map((shortcut) => ({
     ...shortcut,
     category: shortcut.group,
     displayLabel: compactShortcutLabel(shortcut.label),
+    editable: isEditableShortcutRow(shortcut.id),
+    overridden: isEditableShortcutRow(shortcut.id) && Boolean(shortcutOverrides[shortcut.id]),
     keys: shortcut.shortcuts.map((sequence) => formatShortcutKeys(sequence, shortcutPlatform)),
     primaryKeys: formatShortcutKeys(shortcut.shortcuts[0], shortcutPlatform)
   }))
@@ -1190,6 +1214,40 @@ function ShortcutsSection(): JSX.Element {
       shortcut.keys.flat().join(' ')
     ].join(' ').toLowerCase().includes(normalizedQuery)
   })
+
+  const startRecording = (command: StableAppCommand): void => {
+    setRecordingCommand(command)
+    setRecordingError(null)
+  }
+
+  const resetShortcut = (command: StableAppCommand): void => {
+    const { [command]: _removed, ...next } = shortcutOverrides
+    onSetShortcutOverrides(next)
+    if (recordingCommand === command) setRecordingCommand(null)
+    setRecordingError(null)
+  }
+
+  const recordShortcut = (event: KeyboardEvent<HTMLButtonElement>, command: StableAppCommand): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.key === 'Escape') {
+      setRecordingCommand(null)
+      setRecordingError(null)
+      return
+    }
+    if (event.key === 'Backspace' || event.key === 'Delete') {
+      resetShortcut(command)
+      return
+    }
+    const sequence = shortcutSequenceFromKeyboardEvent(event.nativeEvent, shortcutPlatform)
+    if (!sequence) {
+      setRecordingError('Use a modifier key')
+      return
+    }
+    onSetShortcutOverrides({ ...shortcutOverrides, [command]: sequence })
+    setRecordingCommand(null)
+    setRecordingError(null)
+  }
 
   return (
     <div data-testid="shortcuts-settings-section" style={{ padding: '12px 44px 48px', maxWidth: 560, margin: '0 auto' }}>
@@ -1248,17 +1306,72 @@ function ShortcutsSection(): JSX.Element {
               data-testid="settings-shortcut-sequence"
               aria-label={shortcut.primaryKeys.join(' ')}
             >
-              <kbd
-                className="rounded-md text-center font-semibold"
-                data-testid="settings-shortcut-key"
-                style={{
-                  background: 'var(--control-bg)',
-                  border: '1px solid var(--border-subtle)',
-                  color: 'var(--text-secondary)'
-                }}
-              >
-                {shortcut.primaryKeys.join('')}
-              </kbd>
+              {shortcut.editable && recordingCommand === shortcut.id ? (
+                <button
+                  type="button"
+                  autoFocus
+                  data-testid="settings-shortcut-recorder"
+                  onKeyDown={(event) => recordShortcut(event, shortcut.id)}
+                  onBlur={() => setRecordingCommand(null)}
+                  className="rounded-md text-center text-[11px] font-semibold"
+                  style={{
+                    minWidth: 74,
+                    height: 24,
+                    background: 'var(--control-bg-active)',
+                    border: '1px solid var(--border-strong)',
+                    color: 'var(--text-primary)'
+                  }}
+                >
+                  Press keys
+                </button>
+              ) : (
+                <kbd
+                  className="rounded-md text-center font-semibold"
+                  data-testid="settings-shortcut-key"
+                  data-overridden={shortcut.overridden ? 'true' : 'false'}
+                  style={{
+                    background: 'var(--control-bg)',
+                    border: '1px solid var(--border-subtle)',
+                    color: shortcut.overridden ? 'var(--color-accent)' : 'var(--text-secondary)'
+                  }}
+                >
+                  {shortcut.primaryKeys.join('')}
+                </kbd>
+              )}
+              {shortcut.editable && (
+                <button
+                  type="button"
+                  data-testid="settings-shortcut-edit"
+                  aria-label={`Edit ${shortcut.label} shortcut`}
+                  onClick={() => startRecording(shortcut.id)}
+                  className="rounded-md px-1.5 text-[10px] font-semibold"
+                  style={{
+                    height: 22,
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--control-bg)',
+                    color: 'var(--text-secondary)'
+                  }}
+                >
+                  Edit
+                </button>
+              )}
+              {shortcut.editable && shortcut.overridden && (
+                <button
+                  type="button"
+                  data-testid="settings-shortcut-reset"
+                  aria-label={`Reset ${shortcut.label} shortcut`}
+                  onClick={() => resetShortcut(shortcut.id)}
+                  className="rounded-md px-1.5 text-[10px] font-semibold"
+                  style={{
+                    height: 22,
+                    border: '1px solid var(--border-subtle)',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)'
+                  }}
+                >
+                  Reset
+                </button>
+              )}
             </span>
           </div>
         ))}
@@ -1268,8 +1381,17 @@ function ShortcutsSection(): JSX.Element {
           </div>
         )}
       </div>
+      {recordingError && (
+        <div data-testid="settings-shortcut-recording-error" className="mt-2 text-xs" style={{ color: 'var(--color-yellow)' }}>
+          {recordingError}
+        </div>
+      )}
     </div>
   )
+}
+
+function isEditableShortcutRow(id: string): id is StableAppCommand {
+  return id in APP_COMMANDS
 }
 
 function compactShortcutLabel(label: string): string {

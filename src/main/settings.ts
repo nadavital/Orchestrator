@@ -1,5 +1,6 @@
 import Store from 'electron-store'
 import { migrateLegacyUserData } from './userDataMigration'
+import type { ShortcutOverrides } from '../types/appCommands'
 
 interface AppSettings {
   defaultProvider: string
@@ -27,6 +28,7 @@ interface AppSettings {
   useFontSmoothing: boolean
   usePointerCursors: boolean
   reduceMotion: boolean
+  shortcutOverrides: ShortcutOverrides
 }
 
 interface ChromeTheme {
@@ -98,5 +100,6 @@ export const settingsStore = new Store<AppSettings>({
     useFontSmoothing: true,
     usePointerCursors: true,
     reduceMotion: false,
+    shortcutOverrides: {},
   }
 })

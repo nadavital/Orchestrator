@@ -758,6 +758,22 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 shortcutSearchClear.click();
                 await sleep(120);
               }
+              const editFileSearchShortcut = document.querySelector('[aria-label="Edit Open File Search shortcut"]');
+              if (editFileSearchShortcut instanceof HTMLButtonElement) {
+                editFileSearchShortcut.click();
+                await sleep(80);
+                const recorder = document.querySelector('[data-testid="settings-shortcut-recorder"]');
+                if (recorder instanceof HTMLButtonElement) {
+                  recorder.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'O',
+                    metaKey: true,
+                    shiftKey: true,
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(140);
+                }
+              }
               const shortcutText = shortcutsSection instanceof HTMLElement ? shortcutsSection.innerText : '';
               const shortcutHeader = shortcutsSection instanceof HTMLElement
                 ? shortcutsSection.querySelector('.settings-shortcuts-head')
@@ -775,6 +791,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const settingsFooterRect = settingsFooterAction instanceof HTMLElement
                 ? settingsFooterAction.getBoundingClientRect()
                 : null;
+              const overriddenShortcut = [...document.querySelectorAll('[data-testid="settings-shortcut-key"]')]
+                .find((key) => key instanceof HTMLElement && key.dataset.overridden === 'true' && key.textContent?.trim() === '⌘⇧O');
+              var settingsShortcutsEditableWorks =
+                overriddenShortcut instanceof HTMLElement &&
+                Boolean(document.querySelector('[aria-label="Reset Open File Search shortcut"]'));
               var settingsSidebarNavCompactWorks =
                 settingsNavItems.length >= 6 &&
                 settingsNavItemRects.every((rect) => rect.height <= 34) &&
@@ -805,6 +826,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !shortcutText.includes('Toggle Terminal') &&
                 !shortcutText.includes('Pin or Unpin Chat') &&
                 !shortcutText.includes('Search Transcript') &&
+                settingsShortcutsEditableWorks &&
                 shortcutKeys.every((key) => {
                   const text = key.textContent?.trim() ?? '';
                   return text.length > 0 && !text.includes(' ');
@@ -2805,6 +2827,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
             settingsShortcutsCompactWorks: typeof settingsShortcutsCompactWorks === 'boolean' ? settingsShortcutsCompactWorks : null,
+            settingsShortcutsEditableWorks: typeof settingsShortcutsEditableWorks === 'boolean' ? settingsShortcutsEditableWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             extensionsEmbeddedCopyCompact: ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} !== 'extensions' ||

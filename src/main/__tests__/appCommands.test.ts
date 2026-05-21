@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { appMenuCommandForKeyboardEvent } from '../../types/appCommands'
+import { appMenuCommandForKeyboardEvent, shortcutSequenceFromKeyboardEvent, visibleShortcutRows } from '../../types/appCommands'
 
 test('app command registry maps core shortcuts to commands', () => {
   assert.equal(appMenuCommandForKeyboardEvent({ key: 'k', metaKey: true }), 'open-command-menu')
@@ -23,4 +23,19 @@ test('app command registry maps chat slot shortcuts and ignores unrelated keys',
   assert.equal(appMenuCommandForKeyboardEvent({ key: '3', metaKey: true }), 'go-chat-3')
   assert.equal(appMenuCommandForKeyboardEvent({ key: '3' }), null)
   assert.equal(appMenuCommandForKeyboardEvent({ key: 'x', metaKey: true }), null)
+})
+
+test('app command registry applies editable shortcut overrides', () => {
+  const overrides = { 'open-file-search': ['mod', 'shift', 'O'] as const }
+  assert.equal(appMenuCommandForKeyboardEvent({ key: 'O', metaKey: true, shiftKey: true }, overrides), 'open-file-search')
+  assert.equal(appMenuCommandForKeyboardEvent({ key: 'p', metaKey: true }, overrides), null)
+
+  const fileSearchRow = visibleShortcutRows(overrides).find((row) => row.id === 'open-file-search')
+  assert.deepEqual(fileSearchRow?.shortcuts[0], ['mod', 'shift', 'O'])
+})
+
+test('shortcut recorder normalizes keyboard events into editable sequences', () => {
+  assert.deepEqual(shortcutSequenceFromKeyboardEvent({ key: 'O', metaKey: true, shiftKey: true }), ['mod', 'shift', 'O'])
+  assert.deepEqual(shortcutSequenceFromKeyboardEvent({ key: 'ArrowDown', metaKey: true }), ['mod', 'Down'])
+  assert.equal(shortcutSequenceFromKeyboardEvent({ key: 'O' }), null)
 })

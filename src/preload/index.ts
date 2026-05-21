@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../types'
 import type { AppMenuCommand } from '../types/appCommands'
+import type { ShortcutOverrides } from '../types/appCommands'
 
 interface AppSettings {
   defaultProvider: string
@@ -28,6 +29,7 @@ interface AppSettings {
   useFontSmoothing: boolean
   usePointerCursors: boolean
   reduceMotion: boolean
+  shortcutOverrides: ShortcutOverrides
 }
 
 interface ChromeTheme {
