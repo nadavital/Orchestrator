@@ -4763,6 +4763,16 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const pinnedRowsHiddenFromProjects =
               !projectBlock.includes('Sidebar pinned recent') &&
               !projectBlock.includes('Sidebar pinned older');
+            const chatScrollContainer = document.querySelector('[data-testid="sidebar-chat-scroll"]');
+            const pinnedSection = document.querySelector('[data-testid="sidebar-pinned-section"]');
+            const projectsHeader = document.querySelector('[data-testid="sidebar-projects-header"]');
+            const pinnedSharesProjectScroll =
+              chatScrollContainer instanceof HTMLElement &&
+              pinnedSection instanceof HTMLElement &&
+              projectsHeader instanceof HTMLElement &&
+              pinnedSection.parentElement === chatScrollContainer &&
+              projectsHeader.parentElement === chatScrollContainer &&
+              getComputedStyle(chatScrollContainer).overflowY !== 'visible';
 
             const pinnedRecentRow = rowFor('Sidebar pinned recent');
             const pinnedRecentPin = pinnedRecentRow?.querySelector('[data-testid="session-pin-toggle"]');
@@ -5093,6 +5103,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               pinnedAboveProjects,
               pinnedOrderStable,
               pinnedRowsHiddenFromProjects,
+              pinnedSharesProjectScroll,
               pinnedRowUnpinned,
               newPinAppended,
               hoverPinVisible,

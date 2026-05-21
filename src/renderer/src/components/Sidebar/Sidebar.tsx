@@ -186,116 +186,121 @@ export default function Sidebar(): JSX.Element {
             />
           </div>
 
-          {sortedPinnedSessions.length > 0 && (
-            <div className="sidebar-section min-w-0 px-2.5 pb-2" data-testid="sidebar-pinned-section">
-              <div className="sidebar-section-title px-1.5 pb-0.5" style={{ color: 'var(--text-tertiary)' }}>
-                Pinned
+          <div
+            className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+            data-testid="sidebar-chat-scroll"
+          >
+            {sortedPinnedSessions.length > 0 && (
+              <div className="sidebar-section min-w-0 px-2.5 pb-2" data-testid="sidebar-pinned-section">
+                <div className="sidebar-section-title px-1.5 pb-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                  Pinned
+                </div>
+                <div className="min-w-0 space-y-1">
+                  {sortedPinnedSessions.map((session) => (
+                    <SessionItem key={session.id} session={session} />
+                  ))}
+                </div>
               </div>
-              <div className="min-w-0 space-y-1">
-                {sortedPinnedSessions.map((session) => (
-                  <SessionItem key={session.id} session={session} />
-                ))}
-              </div>
-            </div>
-          )}
+            )}
 
-          <div className="sidebar-section-header flex items-center justify-between px-3 pb-0.5" data-testid="sidebar-projects-header">
-            <span className="sidebar-section-title" style={{ color: 'var(--text-secondary)' }}>
-              {viewMode === 'chronological' ? 'Recent chats' : 'Projects'}
-            </span>
-            <div className="sidebar-section-actions relative flex items-center gap-1" data-open={organizeOpen ? 'true' : 'false'}>
-              <IconButton
-                icon="menu"
-                label="Organize sidebar"
-                size="sm"
-                onClick={() => setOrganizeOpen((open) => !open)}
-                active={organizeOpen}
-              />
-              <IconButton
-                icon="plus"
-                label="Add project"
-                size="sm"
-                onClick={() => { void handleAddProject() }}
-              />
-              {organizeOpen && (
-                <MenuSurface
-                  className="sidebar-organize-menu"
-                  onClose={() => setOrganizeOpen(false)}
-                  style={{ position: 'absolute', right: 0, top: 34, width: 230, zIndex: 120 }}
-                >
-                  <MenuItem
-                    icon={viewMode === 'project' ? 'check' : 'folder'}
-                    label="By project"
-                    onClick={() => { setViewMode('project'); setOrganizeOpen(false) }}
-                  />
-                  <MenuItem
-                    icon={viewMode === 'recent-projects' ? 'check' : 'clock'}
-                    label="Recent projects"
-                    onClick={() => { setViewMode('recent-projects'); setOrganizeOpen(false) }}
-                  />
-                  <MenuItem
-                    icon={viewMode === 'chronological' ? 'check' : 'chat'}
-                    label="Chronological list"
-                    onClick={() => { setViewMode('chronological'); setOrganizeOpen(false) }}
-                  />
-                  <div className="mx-1 my-1 h-px" style={{ background: 'var(--border-subtle)' }} />
-                  <MenuItem
-                    icon={sortMode === 'updated' ? 'check' : 'clock'}
-                    label="Sort by updated"
-                    onClick={() => { setSortMode('updated'); setOrganizeOpen(false) }}
-                  />
-                  <MenuItem
-                    icon={sortMode === 'created' ? 'check' : 'clock'}
-                    label="Sort by created"
-                    onClick={() => { setSortMode('created'); setOrganizeOpen(false) }}
-                  />
-                </MenuSurface>
-              )}
-            </div>
-          </div>
-
-          <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-1.5">
-            {viewMode === 'chronological' ? (
-              <div className="min-w-0 space-y-1">
-                {unpinnedSessions.length === 0 && (
-                  <div style={{ color: 'var(--text-secondary)', padding: '5px 8px', fontSize: 13 }}>
-                    No recent chats
-                  </div>
-                )}
-                {unpinnedSessions.map((session) => (
-                  <SessionItem key={session.id} session={session} />
-                ))}
-              </div>
-            ) : (
-              visibleProjects.length === 0 ? (
-                <div className="min-w-0 px-1 pt-0.5" data-testid="sidebar-project-empty-state">
-                  <SurfaceRow
-                    as="button"
-                    onClick={() => { void handleAddProject() }}
-                    className="flex min-w-0 w-full items-center gap-2 text-left"
-                    style={{
-                      padding: '6px 8px',
-                      borderRadius: 'var(--radius-md)',
-                      color: 'var(--text-secondary)',
-                      fontSize: 12,
-                      fontWeight: 600
-                    }}
-                    ariaLabel="Add project"
+            <div className="sidebar-section-header flex items-center justify-between px-3 pb-0.5" data-testid="sidebar-projects-header">
+              <span className="sidebar-section-title" style={{ color: 'var(--text-secondary)' }}>
+                {viewMode === 'chronological' ? 'Recent chats' : 'Projects'}
+              </span>
+              <div className="sidebar-section-actions relative flex items-center gap-1" data-open={organizeOpen ? 'true' : 'false'}>
+                <IconButton
+                  icon="menu"
+                  label="Organize sidebar"
+                  size="sm"
+                  onClick={() => setOrganizeOpen((open) => !open)}
+                  active={organizeOpen}
+                />
+                <IconButton
+                  icon="plus"
+                  label="Add project"
+                  size="sm"
+                  onClick={() => { void handleAddProject() }}
+                />
+                {organizeOpen && (
+                  <MenuSurface
+                    className="sidebar-organize-menu"
+                    onClose={() => setOrganizeOpen(false)}
+                    style={{ position: 'absolute', right: 0, top: 34, width: 230, zIndex: 120 }}
                   >
-                    <Icon name="plus" size={13} />
-                    <span className="min-w-0 flex-1 truncate">Add project</span>
-                  </SurfaceRow>
+                    <MenuItem
+                      icon={viewMode === 'project' ? 'check' : 'folder'}
+                      label="By project"
+                      onClick={() => { setViewMode('project'); setOrganizeOpen(false) }}
+                    />
+                    <MenuItem
+                      icon={viewMode === 'recent-projects' ? 'check' : 'clock'}
+                      label="Recent projects"
+                      onClick={() => { setViewMode('recent-projects'); setOrganizeOpen(false) }}
+                    />
+                    <MenuItem
+                      icon={viewMode === 'chronological' ? 'check' : 'chat'}
+                      label="Chronological list"
+                      onClick={() => { setViewMode('chronological'); setOrganizeOpen(false) }}
+                    />
+                    <div className="mx-1 my-1 h-px" style={{ background: 'var(--border-subtle)' }} />
+                    <MenuItem
+                      icon={sortMode === 'updated' ? 'check' : 'clock'}
+                      label="Sort by updated"
+                      onClick={() => { setSortMode('updated'); setOrganizeOpen(false) }}
+                    />
+                    <MenuItem
+                      icon={sortMode === 'created' ? 'check' : 'clock'}
+                      label="Sort by created"
+                      onClick={() => { setSortMode('created'); setOrganizeOpen(false) }}
+                    />
+                  </MenuSurface>
+                )}
+              </div>
+            </div>
+
+            <div className="min-w-0 px-2 py-1.5">
+              {viewMode === 'chronological' ? (
+                <div className="min-w-0 space-y-1">
+                  {unpinnedSessions.length === 0 && (
+                    <div style={{ color: 'var(--text-secondary)', padding: '5px 8px', fontSize: 13 }}>
+                      No recent chats
+                    </div>
+                  )}
+                  {unpinnedSessions.map((session) => (
+                    <SessionItem key={session.id} session={session} />
+                  ))}
                 </div>
               ) : (
-                visibleProjects.map((project) => (
-                  <ProjectSection
-                    key={project.id}
-                    project={project}
-                    sessions={sessionsByProject.get(project.id) ?? []}
-                  />
-                ))
-              )
-            )}
+                visibleProjects.length === 0 ? (
+                  <div className="min-w-0 px-1 pt-0.5" data-testid="sidebar-project-empty-state">
+                    <SurfaceRow
+                      as="button"
+                      onClick={() => { void handleAddProject() }}
+                      className="flex min-w-0 w-full items-center gap-2 text-left"
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--text-secondary)',
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}
+                      ariaLabel="Add project"
+                    >
+                      <Icon name="plus" size={13} />
+                      <span className="min-w-0 flex-1 truncate">Add project</span>
+                    </SurfaceRow>
+                  </div>
+                ) : (
+                  visibleProjects.map((project) => (
+                    <ProjectSection
+                      key={project.id}
+                      project={project}
+                      sessions={sessionsByProject.get(project.id) ?? []}
+                    />
+                  ))
+                )
+              )}
+            </div>
           </div>
         </>
       )}

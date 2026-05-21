@@ -442,6 +442,7 @@ child.on('exit', (code) => {
         pinnedAboveProjects: result.pinnedAboveProjects === true,
         pinnedOrderStable: result.pinnedOrderStable === true,
         pinnedRowsHiddenFromProjects: result.pinnedRowsHiddenFromProjects === true,
+        pinnedSharesProjectScroll: result.pinnedSharesProjectScroll === true,
         pinnedRowUnpinned: result.pinnedRowUnpinned === true,
         newPinAppended: result.newPinAppended === true,
         hoverPinVisible: result.hoverPinVisible === true,
