@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, GitPathActionResult, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
 import type { AppMenuCommand, ShortcutOverrides } from '../../types/appCommands'
 
 export interface AppSettings {
@@ -168,6 +168,8 @@ declare global {
       git: {
         isGitRepo: (dir: string) => Promise<boolean>
         getCurrentBranch: (dir: string) => Promise<string | null>
+        stagePaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
+        unstagePaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
       }
       browser: {
         openExternal: (url: string) => Promise<void>

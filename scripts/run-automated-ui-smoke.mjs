@@ -647,7 +647,8 @@ child.on('exit', (code) => {
           reviewImageBinaryDiffFirst: result.reviewImageBinaryDiffFirstWorks === true,
           reviewImagePreview: result.reviewImagePreviewWorks === true,
           reviewBinaryState: result.reviewBinaryStateWorks === true,
-          reviewBinaryActions: result.reviewBinaryActionsWork === true
+          reviewBinaryActions: result.reviewBinaryActionsWork === true,
+          reviewGitActions: result.reviewGitActionsWork === true
         }
     : captureView === 'files'
       ? {

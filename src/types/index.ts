@@ -1105,8 +1105,19 @@ export interface SessionRunEventRecord {
 export interface FileChange {
   path: string
   status: 'M' | 'A' | 'D' | 'R' | '?'
+  indexStatus?: 'M' | 'A' | 'D' | 'R' | 'C' | '?' | ' '
+  worktreeStatus?: 'M' | 'A' | 'D' | 'R' | 'C' | '?' | ' '
+  staged?: boolean
+  unstaged?: boolean
   additions: number
   deletions: number
+}
+
+export interface GitPathActionResult {
+  ok: boolean
+  paths: string[]
+  changedFiles: FileChange[]
+  error?: string
 }
 
 export type ChatMessage =

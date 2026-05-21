@@ -6,7 +6,7 @@ import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, 
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
 import { gitManager } from './git'
@@ -722,6 +722,12 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   // Git
   ipcMain.handle('git:isGitRepo', (_, dir: string) => gitManager.isGitRepo(dir))
   ipcMain.handle('git:getCurrentBranch', (_, dir: string) => gitManager.getCurrentBranch(dir))
+  ipcMain.handle('git:stagePaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
+    gitManager.stagePaths(dir, Array.isArray(paths) ? paths : [])
+  )
+  ipcMain.handle('git:unstagePaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
+    gitManager.unstagePaths(dir, Array.isArray(paths) ? paths : [])
+  )
 
   // Browser side panel
   ipcMain.handle('browser:openExternal', (_, url: string): Promise<void> => shell.openExternal(url))

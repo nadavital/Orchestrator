@@ -2,7 +2,7 @@ import { simpleGit } from 'simple-git'
 import { join } from 'path'
 import { mkdirSync } from 'fs'
 import { spawnSync } from 'child_process'
-import type { FileChange } from '../types'
+import type { FileChange, GitPathActionResult } from '../types'
 
 export const gitManager = {
   async isGitRepo(dir: string): Promise<boolean> {
@@ -86,7 +86,15 @@ export const gitManager = {
         const workStatus = xy[1]
         const status = (indexStatus !== ' ' && indexStatus !== '?' ? indexStatus : workStatus) as FileChange['status']
         const counts = numstatMap.get(filePath) ?? { additions: 0, deletions: 0 }
-        files.push({ path: filePath, status, ...counts })
+        files.push({
+          path: filePath,
+          status,
+          indexStatus: normalizeGitStatus(indexStatus),
+          worktreeStatus: normalizeGitStatus(workStatus),
+          staged: indexStatus !== ' ' && indexStatus !== '?',
+          unstaged: workStatus !== ' ' || indexStatus === '?',
+          ...counts
+        })
         if (indexStatus === 'R' || indexStatus === 'C') index += 1
       }
 
@@ -116,6 +124,48 @@ export const gitManager = {
     }
   },
 
+  async stagePaths(cwd: string, paths: string[]): Promise<GitPathActionResult> {
+    const cleanPaths = normalizePathList(paths)
+    if (cleanPaths.length === 0) {
+      return { ok: true, paths: [], changedFiles: await this.getChangedFiles(cwd) }
+    }
+    try {
+      const git = simpleGit(cwd)
+      await git.raw(['add', '--', ...cleanPaths])
+      return { ok: true, paths: cleanPaths, changedFiles: await this.getChangedFiles(cwd) }
+    } catch (error) {
+      return {
+        ok: false,
+        paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
+  async unstagePaths(cwd: string, paths: string[]): Promise<GitPathActionResult> {
+    const cleanPaths = normalizePathList(paths)
+    if (cleanPaths.length === 0) {
+      return { ok: true, paths: [], changedFiles: await this.getChangedFiles(cwd) }
+    }
+    try {
+      const git = simpleGit(cwd)
+      try {
+        await git.raw(['restore', '--staged', '--', ...cleanPaths])
+      } catch {
+        await git.raw(['reset', 'HEAD', '--', ...cleanPaths])
+      }
+      return { ok: true, paths: cleanPaths, changedFiles: await this.getChangedFiles(cwd) }
+    } catch (error) {
+      return {
+        ok: false,
+        paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
   async getDefaultBranch(repoRoot: string): Promise<string> {
     try {
       const git = simpleGit(repoRoot)
@@ -125,4 +175,23 @@ export const gitManager = {
       return 'main'
     }
   }
+}
+
+function normalizePathList(paths: string[]): string[] {
+  const seen = new Set<string>()
+  const clean: string[] = []
+  for (const path of paths) {
+    const value = path.trim()
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    clean.push(value)
+  }
+  return clean
+}
+
+function normalizeGitStatus(status: string): FileChange['indexStatus'] {
+  if (status === 'M' || status === 'A' || status === 'D' || status === 'R' || status === 'C' || status === '?' || status === ' ') {
+    return status
+  }
+  return ' '
 }

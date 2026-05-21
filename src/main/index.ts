@@ -3213,6 +3213,34 @@ function runAutomatedFocusedSurfaceSmoke(
                 document.body.innerText.includes('review-base.txt') &&
                 document.body.innerText.includes('after review') &&
                 !document.body.innerText.includes('No diff available');
+              let reviewGitActionsWork = false;
+              const stageSelectedButton = document.querySelector('[data-testid="review-stage-selected"]');
+              if (stageSelectedButton instanceof HTMLButtonElement && !stageSelectedButton.disabled) {
+                stageSelectedButton.click();
+                await sleep(420);
+                const gitStateAfterStage = document.querySelector('[data-testid="review-git-state"]');
+                const selectedAfterStage = document.querySelector('.diff-file-row[data-active="true"]');
+                const unstageSelectedButton = document.querySelector('[data-testid="review-unstage-selected"]');
+                const stagedVisible =
+                  gitStateAfterStage instanceof HTMLElement &&
+                  gitStateAfterStage.innerText.includes('staged') &&
+                  selectedAfterStage instanceof HTMLElement &&
+                  selectedAfterStage.innerText.includes('staged') &&
+                  unstageSelectedButton instanceof HTMLButtonElement &&
+                  !unstageSelectedButton.disabled;
+                if (unstageSelectedButton instanceof HTMLButtonElement && !unstageSelectedButton.disabled) {
+                  unstageSelectedButton.click();
+                  await sleep(420);
+                  const selectedAfterUnstage = document.querySelector('.diff-file-row[data-active="true"]');
+                  const stageAgainButton = document.querySelector('[data-testid="review-stage-selected"]');
+                  reviewGitActionsWork =
+                    stagedVisible &&
+                    selectedAfterUnstage instanceof HTMLElement &&
+                    selectedAfterUnstage.innerText.includes('unstaged') &&
+                    stageAgainButton instanceof HTMLButtonElement &&
+                    !stageAgainButton.disabled;
+                }
+              }
               const selectReviewFile = async (query, fileName) => {
                 if (!(diffSearch instanceof HTMLInputElement)) return false;
                 setNativeValue(diffSearch, query);
@@ -3353,6 +3381,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewBinaryActionsWork:
                   binaryActions.includes('Open') &&
                   binaryActions.includes('Reveal'),
+                reviewGitActionsWork,
                 reviewSearchClearWorks:
                   diffSearch instanceof HTMLInputElement &&
                   diffSearch.value === '' &&
