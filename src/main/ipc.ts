@@ -515,6 +515,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   // Sessions
   ipcMain.handle('sessions:list', () => sessionManager.list())
   ipcMain.handle('sessions:listSummaries', () => sessionManager.listSummaries())
+  ipcMain.handle('sessions:listArchivedSummaries', () => sessionManager.listArchivedSummaries())
   ipcMain.handle('sessions:get', (_, id: string) => sessionManager.get(id))
   ipcMain.handle('sessions:getTranscriptPage', (_, id: string, request?: TranscriptPageRequest) =>
     sessionManager.getTranscriptPage(id, request ?? {})
@@ -557,6 +558,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     sessionManager.steerQueuedMessage(sessionId, messageId)
   )
   ipcMain.handle('sessions:archive', (_, sessionId: string) => sessionManager.archive(sessionId))
+  ipcMain.handle('sessions:restoreArchived', (_, sessionId: string) => sessionManager.restoreArchived(sessionId))
   ipcMain.handle('sessions:remove', (_, sessionId: string) => sessionManager.remove(sessionId))
   ipcMain.handle('sessions:getDiff', (_, sessionId: string) => sessionManager.getDiff(sessionId))
   ipcMain.handle('sessions:getChangedFiles', (_, sessionId: string) => {

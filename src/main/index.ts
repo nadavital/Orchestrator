@@ -732,7 +732,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 dataSection instanceof HTMLElement &&
                 dataSection.innerText.includes('Local profile') &&
                 dataSection.innerText.includes('User data') &&
-                dataSection.innerText.includes('Open data folder');
+                dataSection.innerText.includes('Open data folder') &&
+                dataSection.innerText.includes('Archived chats') &&
+                dataSection.innerText.includes('No archived chats');
               const shortcutsButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Shortcuts'));
               shortcutsButton?.click();

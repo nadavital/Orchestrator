@@ -121,6 +121,7 @@ declare global {
       sessions: {
         list: () => Promise<Session[]>
         listSummaries: () => Promise<SessionListItem[]>
+        listArchivedSummaries: () => Promise<SessionListItem[]>
         get: (id: string) => Promise<Session | undefined>
         getTranscriptPage: (id: string, request?: TranscriptPageRequest) => Promise<TranscriptPage | undefined>
         searchTranscript: (id: string, query: string, limit?: number) => Promise<TranscriptSearchResult[]>
@@ -152,6 +153,7 @@ declare global {
         stop: (sessionId: string) => Promise<void>
         steerQueuedMessage: (sessionId: string, messageId: string) => Promise<void>
         archive: (sessionId: string) => Promise<void>
+        restoreArchived: (sessionId: string) => Promise<Session | undefined>
         remove: (sessionId: string) => Promise<void>
         getDiff: (sessionId: string) => Promise<string>
         getChangedFiles: (sessionId: string) => Promise<FileChange[]>

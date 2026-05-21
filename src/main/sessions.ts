@@ -340,6 +340,13 @@ export const sessionManager = {
     return summaries
   },
 
+  listArchivedSummaries(): SessionListItem[] {
+    return ensurePinnedOrders(store.get('sessions', []))
+      .filter((session) => session.archivedAt)
+      .sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0))
+      .map(sessionListItem)
+  },
+
   get(id: string): Session | undefined {
     const session = ensurePinnedOrders(store.get('sessions', [])).find((s) => s.id === id)
     return session ? normalizeSession(session) : undefined
@@ -366,6 +373,19 @@ export const sessionManager = {
     session.status = 'idle'
     store.set('sessions', sessions)
     send('session:archived', { id: sessionId })
+  },
+
+  restoreArchived(sessionId: string): Session | undefined {
+    const sessions = ensurePinnedOrders(store.get('sessions', []))
+    const session = sessions.find((s) => s.id === sessionId)
+    if (!session?.archivedAt) return session ? normalizeSession(session) : undefined
+
+    session.archivedAt = undefined
+    session.status = 'idle'
+    store.set('sessions', sessions)
+    const restored = normalizeSession(session)
+    send('session:created', restored)
+    return restored
   },
 
   getTranscriptPage(id: string, request: TranscriptPageRequest = {}): TranscriptPage | undefined {

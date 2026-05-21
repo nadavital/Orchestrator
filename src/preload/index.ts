@@ -116,6 +116,7 @@ const api = {
   sessions: {
     list: (): Promise<Session[]> => ipcRenderer.invoke('sessions:list'),
     listSummaries: (): Promise<SessionListItem[]> => ipcRenderer.invoke('sessions:listSummaries'),
+    listArchivedSummaries: (): Promise<SessionListItem[]> => ipcRenderer.invoke('sessions:listArchivedSummaries'),
     get: (id: string): Promise<Session | undefined> => ipcRenderer.invoke('sessions:get', id),
     getTranscriptPage: (id: string, request?: TranscriptPageRequest): Promise<TranscriptPage | undefined> =>
       ipcRenderer.invoke('sessions:getTranscriptPage', id, request ?? {}),
@@ -156,6 +157,8 @@ const api = {
     steerQueuedMessage: (sessionId: string, messageId: string): Promise<void> =>
       ipcRenderer.invoke('sessions:steerQueuedMessage', sessionId, messageId),
     archive: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:archive', sessionId),
+    restoreArchived: (sessionId: string): Promise<Session | undefined> =>
+      ipcRenderer.invoke('sessions:restoreArchived', sessionId),
     remove: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:remove', sessionId),
     getDiff: (sessionId: string): Promise<string> =>
       ipcRenderer.invoke('sessions:getDiff', sessionId),

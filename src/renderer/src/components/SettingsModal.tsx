@@ -45,6 +45,7 @@ import {
   Tooltip
 } from './shared/designSystem'
 import { applyAppearance, type Accent, type Appearance, type AppearanceTheme, type ChromeTheme, type Density, type TranscriptStyle } from '../theme'
+import { useProjectStore } from '../store/projects'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
 
@@ -455,17 +456,57 @@ function normalizePreferredEditor(value: unknown): PreferredEditor {
     : 'system'
 }
 
+function formatRelativeTime(timestamp: number): string {
+  const elapsedMs = Math.max(0, Date.now() - timestamp)
+  const minute = 60_000
+  const hour = 60 * minute
+  const day = 24 * hour
+  const week = 7 * day
+  if (elapsedMs < minute) return 'now'
+  if (elapsedMs < hour) return `${Math.max(1, Math.floor(elapsedMs / minute))}m ago`
+  if (elapsedMs < day) return `${Math.floor(elapsedMs / hour)}h ago`
+  if (elapsedMs < week) return `${Math.floor(elapsedMs / day)}d ago`
+  return `${Math.floor(elapsedMs / week)}w ago`
+}
+
 function DataControlsSection(): JSX.Element {
   const [profile, setProfile] = useState<AppProfile | null>(null)
+  const [archivedSessions, setArchivedSessions] = useState<SessionListItem[]>([])
+  const [archiveStatus, setArchiveStatus] = useState<string | null>(null)
+  const addSession = useSessionStore((state) => state.addSession)
+  const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
 
   useEffect(() => {
     window.api.app.getProfile().then(setProfile).catch(() => setProfile(null))
+    void refreshArchivedSessions()
   }, [])
+
+  const refreshArchivedSessions = async (): Promise<void> => {
+    const archived = await window.api.sessions.listArchivedSummaries()
+    setArchivedSessions(archived)
+  }
+
+  const restoreArchivedSession = async (sessionId: string): Promise<void> => {
+    const restored = await window.api.sessions.restoreArchived(sessionId)
+    if (!restored) return
+    addSession(restored)
+    addSessionToProject(restored.projectId, restored.id)
+    await refreshArchivedSessions()
+    setArchiveStatus(`Restored ${restored.name}`)
+  }
+
+  const deleteArchivedSession = async (session: SessionListItem): Promise<void> => {
+    const ok = window.confirm(`Permanently delete "${session.name}"? This cannot be undone.`)
+    if (!ok) return
+    await window.api.sessions.remove(session.id)
+    await refreshArchivedSessions()
+    setArchiveStatus(`Deleted ${session.name}`)
+  }
 
   return (
     <div data-testid="data-controls-settings-section" style={{ padding: '30px 44px 56px', maxWidth: 860, margin: '0 auto' }}>
       <SettingsIntro
-        description="Review where Orchestrator stores local app data. Destructive data actions stay out of this surface until they have explicit confirmation flows."
+        description="Review where Orchestrator stores local app data and manage archived chats before permanent deletion."
       />
 
       <SettingGroup title="Local profile" description="Current Electron profile and user-data directory for this app window.">
@@ -508,6 +549,63 @@ function DataControlsSection(): JSX.Element {
                   Copy path
                 </button>
               </div>
+            </div>
+          </CompactSetting>
+        </SettingsPanel>
+      </SettingGroup>
+
+      <SettingGroup title="Archived chats" description="Chats are archived first so they can be restored or intentionally removed later.">
+        <SettingsPanel>
+          <CompactSetting title="Inventory">
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <InlineMutedText>{archivedSessions.length === 0 ? 'No archived chats' : `${archivedSessions.length} archived chat${archivedSessions.length === 1 ? '' : 's'}`}</InlineMutedText>
+                <button type="button" onClick={() => void refreshArchivedSessions()} style={pillButtonStyle}>
+                  Refresh
+                </button>
+              </div>
+              {archivedSessions.length > 0 && (
+                <div data-testid="settings-archived-chat-list" style={{ display: 'grid', gap: 8 }}>
+                  {archivedSessions.map((session) => (
+                    <div
+                      key={session.id}
+                      data-testid="settings-archived-chat-row"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) auto',
+                        gap: 10,
+                        alignItems: 'center',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'var(--surface-bg)',
+                        padding: '10px 12px'
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 620, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {session.name}
+                        </div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>
+                          {session.messageCount} message{session.messageCount === 1 ? '' : 's'} · archived {formatRelativeTime(session.archivedAt ?? session.createdAt)}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button type="button" onClick={() => void restoreArchivedSession(session.id)} style={pillButtonStyle}>
+                          Restore
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteArchivedSession(session)}
+                          style={{ ...pillButtonStyle, color: 'var(--color-red)', borderColor: 'color-mix(in srgb, var(--color-red) 38%, var(--border-subtle))' }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {archiveStatus && <InlineMutedText>{archiveStatus}</InlineMutedText>}
             </div>
           </CompactSetting>
         </SettingsPanel>
