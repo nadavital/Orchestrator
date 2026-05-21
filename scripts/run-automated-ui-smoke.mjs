@@ -42,6 +42,8 @@ const captureView = process.argv.includes('--settings-providers')
               ? 'transcript-layout'
               : process.argv.includes('--transcript-stress')
                 ? 'transcript-stress'
+                : process.argv.includes('--streaming-drag')
+                  ? 'streaming-drag'
                 : process.argv.includes('--session-switch')
                   ? 'session-switch'
                   : process.argv.includes('--extensions')
@@ -365,6 +367,17 @@ child.on('exit', (code) => {
         lazyLoadedOlderChunk: result.lazyLoadedOlderChunk === true,
         searchJumpFound: result.searchJumpFound === true,
         stressReadyWithinBudget: Number(result.readyElapsedMs ?? Number.POSITIVE_INFINITY) <= 1400
+      }
+    : captureView === 'streaming-drag'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        streamingMessageUpdated: result.streamingMessageUpdated === true,
+        streamingSessionActive: result.streamingSessionActive === true,
+        streamingTextVisible: result.streamingTextVisible === true,
+        titlebarCommitCountLow: Number(result.titlebarCommitCount ?? Number.POSITIVE_INFINITY) <= 4,
+        appCommitCountLow: Number(result.appCommitCount ?? Number.POSITIVE_INFINITY) <= 6,
+        maxFrameGapAcceptable: Number(result.maxFrameGapMs ?? Number.POSITIVE_INFINITY) < 80,
+        titlebarDragResponsive: result.titlebarDragResponsive === true
       }
     : captureView === 'motion-reduced'
     ? {

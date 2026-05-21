@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useSessionStore } from '../store/sessions'
 import { useProjectStore } from '../store/projects'
 import type { AppProfile } from '../env'
@@ -7,24 +8,47 @@ import Icon from './shared/Icon'
 import SessionActionsMenu from './shared/SessionActionsMenu'
 import { ToolbarButton, Tooltip } from './shared/designSystem'
 
-export default function Titlebar(): JSX.Element {
-  const {
-    sessions,
-    activeSessionId,
-    uiState,
-    setShowTerminal,
-    setShowDiff,
-    closeRightPanel
-  } = useSessionStore()
-  const { projects, removeSessionFromProject } = useProjectStore()
-  const session = sessions.find((s) => s.id === activeSessionId)
+function Titlebar(): JSX.Element {
+  const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const session = useSessionStore(useShallow((state) => {
+    const id = state.activeSessionId
+    if (!id) return null
+    const current = state.sessions.find((candidate) => candidate.id === id)
+    if (!current) return null
+    return {
+      id: current.id,
+      projectId: current.projectId,
+      name: current.name,
+      pinned: current.pinned,
+      workDir: current.workDir,
+      provider: current.provider,
+      model: current.model,
+      useWorktree: current.useWorktree
+    }
+  }))
+  const showTerminal = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.showTerminal ?? false : false)
+  const showDiff = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.showDiff ?? false : false)
+  const showPlan = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.showPlan ?? false : false)
+  const showEvents = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.showEvents ?? false : false)
+  const showExtensions = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.showExtensions ?? false : false)
+  const showSideQuestions = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.showSideQuestions ?? false : false)
+  const rightPanelOpen = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.rightPanel?.open ?? false : false)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const setShowDiff = useSessionStore((state) => state.setShowDiff)
+  const closeRightPanel = useSessionStore((state) => state.closeRightPanel)
+  const projects = useProjectStore((state) => state.projects)
+  const removeSessionFromProject = useProjectStore((state) => state.removeSessionFromProject)
   const project = session ? projects.find((candidate) => candidate.id === session.projectId) : null
-  const ui = activeSessionId
-    ? (uiState[activeSessionId] ?? { showPlan: false, showDiff: false, showEvents: false, showTerminal: false, showExtensions: false, showSideQuestions: false, hasUnread: false })
-    : null
   const [profile, setProfile] = useState<AppProfile | null>(null)
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
   const [branch, setBranch] = useState<string | null>(null)
+
+  useEffect(() => {
+    const globals = window as typeof window & { __orchestratorTitlebarCommitCount?: number }
+    if (typeof globals.__orchestratorTitlebarCommitCount === 'number') {
+      globals.__orchestratorTitlebarCommitCount += 1
+    }
+  })
 
   useEffect(() => {
     window.api.app.getProfile().then(setProfile).catch(() => setProfile(null))
@@ -50,12 +74,12 @@ export default function Titlebar(): JSX.Element {
   }, [session?.workDir])
 
   const inspectorOpen = Boolean(
-    ui?.rightPanel?.open ||
-    ui?.showDiff ||
-    ui?.showPlan ||
-    ui?.showEvents ||
-    ui?.showExtensions ||
-    ui?.showSideQuestions
+    rightPanelOpen ||
+    showDiff ||
+    showPlan ||
+    showEvents ||
+    showExtensions ||
+    showSideQuestions
   )
   const toggleInspector = (): void => {
     if (!activeSessionId) return
@@ -197,7 +221,7 @@ export default function Titlebar(): JSX.Element {
         className="flex items-center gap-2 px-3"
         style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
       >
-        {session && ui && (
+        {session && (
           <>
             <ToolbarButton
               icon="ellipsis"
@@ -219,8 +243,8 @@ export default function Titlebar(): JSX.Element {
             <ToolbarButton
               icon="terminal"
               label="Toggle terminal"
-              active={ui.showTerminal}
-              onClick={() => setShowTerminal(activeSessionId!, !ui.showTerminal)}
+              active={showTerminal}
+              onClick={() => setShowTerminal(activeSessionId!, !showTerminal)}
             />
           </>
         )}
@@ -239,6 +263,8 @@ export default function Titlebar(): JSX.Element {
     </div>
   )
 }
+
+export default memo(Titlebar)
 
 function relativePath(rootPath: string, workDir: string): string {
   const normalizedRoot = rootPath.replace(/\/+$/, '')

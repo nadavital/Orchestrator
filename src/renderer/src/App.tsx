@@ -19,40 +19,54 @@ import type { AppMenuCommand, ShortcutOverrides, StableAppCommand } from '../../
 
 export default function App(): JSX.Element {
   const isDesignSystemPreview = window.location.hash === '#design-system'
-  const { setProjects, addSessionToProject, removeSessionFromProject } = useProjectStore()
-  const {
-    sessions,
-    setSessions,
-    addSession,
-    mergeTranscriptPage,
-    updateStatus,
-    updateName,
-    updatePinned,
-    updateSession,
-    updateSettings,
-    appendMessages,
-    upsertMessage,
-    appendEvents,
-    appendRaw,
-    setShowTerminal,
-    setActiveSession,
-    setHasUnread,
-    setProviderAvailability,
-    setProviderModels,
-    setShowSettings,
-    setShowCapabilities,
-    setSettingsSection,
-    showSettings,
-    showCapabilities,
-    settingsSection,
-    activeSessionId
-  } = useSessionStore()
+  const setProjects = useProjectStore((state) => state.setProjects)
+  const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
+  const removeSessionFromProject = useProjectStore((state) => state.removeSessionFromProject)
+  const sessionCount = useSessionStore((state) => state.sessions.length)
+  const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const activeSessionName = useSessionStore((state) => {
+    const id = state.activeSessionId
+    return id ? state.sessions.find((session) => session.id === id)?.name ?? null : null
+  })
+  const activeSessionPinned = useSessionStore((state) => {
+    const id = state.activeSessionId
+    return id ? state.sessions.find((session) => session.id === id)?.pinned ?? false : false
+  })
+  const setSessions = useSessionStore((state) => state.setSessions)
+  const addSession = useSessionStore((state) => state.addSession)
+  const mergeTranscriptPage = useSessionStore((state) => state.mergeTranscriptPage)
+  const updateStatus = useSessionStore((state) => state.updateStatus)
+  const updateName = useSessionStore((state) => state.updateName)
+  const updatePinned = useSessionStore((state) => state.updatePinned)
+  const updateSession = useSessionStore((state) => state.updateSession)
+  const updateSettings = useSessionStore((state) => state.updateSettings)
+  const appendMessages = useSessionStore((state) => state.appendMessages)
+  const upsertMessage = useSessionStore((state) => state.upsertMessage)
+  const appendEvents = useSessionStore((state) => state.appendEvents)
+  const appendRaw = useSessionStore((state) => state.appendRaw)
+  const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const setHasUnread = useSessionStore((state) => state.setHasUnread)
+  const setProviderAvailability = useSessionStore((state) => state.setProviderAvailability)
+  const setProviderModels = useSessionStore((state) => state.setProviderModels)
+  const setShowSettings = useSessionStore((state) => state.setShowSettings)
+  const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
+  const setSettingsSection = useSessionStore((state) => state.setSettingsSection)
+  const showSettings = useSessionStore((state) => state.showSettings)
+  const showCapabilities = useSessionStore((state) => state.showCapabilities)
+  const settingsSection = useSessionStore((state) => state.settingsSection)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [renamingActiveChat, setRenamingActiveChat] = useState(false)
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
   const waitingNotificationKeysRef = useRef(new Set<string>())
-  const activeSession = sessions.find((session) => session.id === activeSessionId)
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
+
+  useEffect(() => {
+    const globals = window as typeof window & { __orchestratorAppCommitCount?: number }
+    if (typeof globals.__orchestratorAppCommitCount === 'number') {
+      globals.__orchestratorAppCommitCount += 1
+    }
+  })
 
   const createNewChat = useCallback(async (): Promise<void> => {
     const sessionState = useSessionStore.getState()
@@ -184,7 +198,7 @@ export default function App(): JSX.Element {
     commandShortcuts(command, shortcutOverrides).map((sequence) => formatShortcutSequence(sequence, shortcutPlatform))
   ), [shortcutOverrides, shortcutPlatform])
   const chatSlotActions = useMemo<CommandPaletteAction[]>(() => (
-    Array.from({ length: Math.min(9, sessions.length) }, (_, index) => ({
+    Array.from({ length: Math.min(9, sessionCount) }, (_, index) => ({
       id: `go-chat-${index + 1}`,
       label: `Go to Chat ${index + 1}`,
       group: 'Navigation',
@@ -193,7 +207,7 @@ export default function App(): JSX.Element {
       keywords: ['thread', 'session', 'recent'],
       run: () => switchChatSlot(index + 1)
     }))
-  ), [sessions.length, shortcutPlatform, switchChatSlot])
+  ), [sessionCount, shortcutPlatform, switchChatSlot])
 
   const commandPaletteActions = useMemo<CommandPaletteAction[]>(() => [
     {
@@ -217,9 +231,9 @@ export default function App(): JSX.Element {
     },
     {
       id: 'toggle-chat-pin',
-      label: activeSession?.pinned ? 'Unpin Chat' : 'Pin Chat',
+      label: activeSessionPinned ? 'Unpin Chat' : 'Pin Chat',
       group: APP_COMMANDS['toggle-chat-pin'].group,
-      description: activeSession?.pinned ? 'Remove this chat from the pinned list.' : 'Keep this chat at the top of the sidebar.',
+      description: activeSessionPinned ? 'Remove this chat from the pinned list.' : 'Keep this chat at the top of the sidebar.',
       shortcuts: shortcutsFor('toggle-chat-pin'),
       disabled: !activeSessionId,
       keywords: [...(APP_COMMANDS['toggle-chat-pin'].keywords ?? [])],
@@ -251,7 +265,7 @@ export default function App(): JSX.Element {
       group: APP_COMMANDS['previous-chat'].group,
       description: APP_COMMANDS['previous-chat'].description,
       shortcuts: shortcutsFor('previous-chat'),
-      disabled: sessions.length < 2,
+      disabled: sessionCount < 2,
       run: () => switchChat(-1)
     },
     {
@@ -260,7 +274,7 @@ export default function App(): JSX.Element {
       group: APP_COMMANDS['next-chat'].group,
       description: APP_COMMANDS['next-chat'].description,
       shortcuts: shortcutsFor('next-chat'),
-      disabled: sessions.length < 2,
+      disabled: sessionCount < 2,
       run: () => switchChat(1)
     },
     ...chatSlotActions,
@@ -311,14 +325,14 @@ export default function App(): JSX.Element {
       run: () => openSettings('general')
     }
   ], [
-    activeSession?.pinned,
+    activeSessionPinned,
     activeSessionId,
     chatSlotActions,
     createNewChat,
     openFileSearch,
     openSettings,
     openTranscriptSearch,
-    sessions.length,
+    sessionCount,
     shortcutsFor,
     switchChat,
     toggleActiveChatPin,
@@ -661,9 +675,9 @@ export default function App(): JSX.Element {
           onClose={() => setCommandPaletteOpen(false)}
         />
       )}
-      {renamingActiveChat && activeSession && (
+      {renamingActiveChat && activeSessionName && (
         <RenameChatDialog
-          initialValue={activeSession.name}
+          initialValue={activeSessionName}
           onCancel={() => setRenamingActiveChat(false)}
           onConfirm={(value) => void renameActiveChat(value)}
         />

@@ -328,6 +328,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedTranscriptStressSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-drag') {
+    runAutomatedStreamingDragSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced') {
     runAutomatedReducedMotionSmoke(win, outputPath, screenshotPath)
     return
@@ -6319,6 +6323,169 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
   })
 }
 
+function runAutomatedStreamingDragSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const session = sessionManager.list().find((candidate) =>
+          candidate.messages.some((message) => message.id === 'streaming-drag-message')
+        )
+        const sessionId = session?.id ?? null
+        let streamingSessionActive = false
+        for (let attempt = 0; attempt < 24 && sessionId; attempt += 1) {
+          win.webContents.send('pet:navigate', sessionId)
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          streamingSessionActive = await win.webContents.executeJavaScript(`
+            document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes('Streaming drag smoke') === true
+          `)
+          if (streamingSessionActive) break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200))
+
+        await win.webContents.executeJavaScript(`
+          (() => {
+            window.__orchestratorTitlebarCommitCount = 0;
+            window.__orchestratorAppCommitCount = 0;
+            window.__orchestratorStreamingFrameGaps = [];
+            window.__orchestratorStreamingFrameStop = false;
+            let lastFrame = performance.now();
+            const sample = (now) => {
+              window.__orchestratorStreamingFrameGaps.push(now - lastFrame);
+              lastFrame = now;
+              if (!window.__orchestratorStreamingFrameStop) requestAnimationFrame(sample);
+            };
+            requestAnimationFrame(sample);
+          })()
+        `)
+
+        const updatePromise = (async () => {
+          const active = sessionId ? sessionManager.get(sessionId) : null
+          const existing = active?.messages.find((message) => message.id === 'streaming-drag-message')
+          if (!active || existing?.type !== 'text') return false
+          for (let index = 0; index < 90; index += 1) {
+            sessionManager.upsertMessage(active.id, {
+              ...existing,
+              content: [
+                'Streaming drag responsiveness smoke.',
+                ...Array.from({ length: index + 1 }, (_line, lineIndex) => `stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+              ].join('\n'),
+              isStreaming: true
+            })
+            await new Promise((resolve) => setTimeout(resolve, 10))
+          }
+          sessionManager.upsertMessage(active.id, {
+            ...existing,
+            content: [
+              'Streaming drag responsiveness smoke.',
+              ...Array.from({ length: 90 }, (_line, lineIndex) => `stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+            ].join('\n'),
+            isStreaming: false
+          })
+          return true
+        })()
+
+        await new Promise((resolve) => setTimeout(resolve, 120))
+        const dragResult = await dispatchTitlebarDrag(win)
+        const streamingMessageUpdated = await updatePromise
+
+        const result = await win.webContents.executeJavaScript(`
+          (() => {
+            window.__orchestratorStreamingFrameStop = true;
+            const gaps = Array.isArray(window.__orchestratorStreamingFrameGaps) ? window.__orchestratorStreamingFrameGaps : [];
+            return {
+              profile: window.__orchestratorSmokeProfile ?? null,
+              titlebarCommitCount: window.__orchestratorTitlebarCommitCount ?? null,
+              appCommitCount: window.__orchestratorAppCommitCount ?? null,
+              maxFrameGapMs: gaps.length ? Math.max(...gaps) : null,
+              frameSamples: gaps.length,
+              bodyText: document.body.innerText,
+              streamingTextVisible: document.body.innerText.includes('stream update 090')
+            };
+          })()
+        `)
+
+        const profile = await win.webContents.executeJavaScript('window.api.app.getProfile()')
+        const payload = {
+          ...result,
+          profile,
+          ...dragResult,
+          streamingMessageUpdated,
+          streamingSessionActive,
+          titlebarDragResponsive: dragResult.idleDragSupported === false ? true : dragResult.streamingMovedDistance >= Math.min(80, dragResult.idleMovedDistance * 0.6)
+        }
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: payload, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+async function dispatchTitlebarDrag(win: BrowserWindow): Promise<{
+  idleDragSupported: boolean
+  idleMovedDistance: number
+  streamingMovedDistance: number
+}> {
+  const rect = await win.webContents.executeJavaScript(`
+    (() => {
+      const titlebar = document.querySelector('.content-shell > div');
+      const rect = titlebar instanceof HTMLElement ? titlebar.getBoundingClientRect() : { left: 120, top: 8, width: 360, height: 42 };
+      return { x: Math.max(90, rect.left + Math.min(240, rect.width * 0.35)), y: rect.top + Math.min(28, Math.max(14, rect.height / 2)) };
+    })()
+  `) as { x: number; y: number }
+
+  const moveWindowBack = (position: number[]): void => {
+    win.setPosition(position[0], position[1], false)
+  }
+  const original = win.getPosition()
+  const idleMovedDistance = await performDebuggerDrag(win, rect.x, rect.y, 130, 0)
+  moveWindowBack(original)
+  await new Promise((resolve) => setTimeout(resolve, 120))
+  const streamingMovedDistance = await performDebuggerDrag(win, rect.x, rect.y, 130, 0)
+  moveWindowBack(original)
+  return {
+    idleDragSupported: idleMovedDistance >= 20,
+    idleMovedDistance,
+    streamingMovedDistance
+  }
+}
+
+async function performDebuggerDrag(win: BrowserWindow, x: number, y: number, dx: number, dy: number): Promise<number> {
+  const before = win.getPosition()
+  const debug = win.webContents.debugger
+  let attached = false
+  try {
+    if (!debug.isAttached()) {
+      debug.attach('1.3')
+      attached = true
+    }
+    await debug.sendCommand('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 })
+    for (let step = 1; step <= 8; step += 1) {
+      await debug.sendCommand('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: x + (dx * step / 8),
+        y: y + (dy * step / 8),
+        button: 'left',
+        buttons: 1
+      })
+      await new Promise((resolve) => setTimeout(resolve, 16))
+    }
+    await debug.sendCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x + dx, y: y + dy, button: 'left', clickCount: 1 })
+    await new Promise((resolve) => setTimeout(resolve, 160))
+  } finally {
+    if (attached && debug.isAttached()) debug.detach()
+  }
+  const after = win.getPosition()
+  return Math.hypot(after[0] - before[0], after[1] - before[1])
+}
+
 app.whenReady().then(async () => {
   ;({ registerIpcHandlers } = await import('./ipc'))
   ;({ createPetOverlayWindow, destroyPetOverlayWindow, setCreateMainWindowCallback } = await import('./petOverlay'))
@@ -6376,6 +6543,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     await seedAutomatedSessionSwitchSmokeSessions(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-stress') {
     await seedAutomatedTranscriptStressSmokeSession(project.id, project.rootPath)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-drag') {
+    seedAutomatedStreamingDragSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings') {
     await seedAutomatedSettingsSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'plan') {
@@ -6537,6 +6706,37 @@ function seedAutomatedScrollSmokeSession(sessionId: string): void {
     timestamp: Date.now() + messages.length
   })
   sessionManager.appendMessage(sessionId, messages)
+}
+
+function seedAutomatedStreamingDragSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+  const messages: ChatMessage[] = [
+    {
+      id: 'streaming-drag-user',
+      role: 'user',
+      type: 'text',
+      content: 'Generate a long response while I drag the window.',
+      timestamp: Date.now()
+    },
+    {
+      id: 'streaming-drag-message',
+      role: 'assistant',
+      type: 'text',
+      content: 'Streaming drag responsiveness smoke.',
+      isStreaming: true,
+      timestamp: Date.now() + 1
+    }
+  ]
+  sessionManager.save({
+    ...session,
+    name: 'Streaming drag smoke',
+    status: 'running',
+    messages: [
+      ...session.messages.filter((message) => !message.id.startsWith('streaming-drag-')),
+      ...messages
+    ]
+  })
 }
 
 function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
