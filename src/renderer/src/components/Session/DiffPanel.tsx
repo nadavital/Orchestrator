@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { adjacentFileChangePath, buildFileChangeTreeRows, fileStatusLabel, isBinaryDiffText, shouldPreferTextDiff } from '../../types'
 import type { FileChange, FileChangeTreeRow } from '../../types'
 import type { FilePreviewResult } from '../../env'
-import { Badge, Button, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
+import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import StructuredDataPreview from './StructuredDataPreview'
 
@@ -24,8 +24,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [wrapLines, setWrapLines] = useState(true)
   const [showPreview, setShowPreview] = useState(false)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
-  const [gitActionPending, setGitActionPending] = useState<'stage' | 'unstage' | null>(null)
-  const [gitActionError, setGitActionError] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const filteredFiles = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -35,10 +33,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   }, [files, query])
   const fileTreeRows = useMemo(() => buildFileChangeTreeRows(filteredFiles), [filteredFiles])
   const selectedChange = selectedFile ? filteredFiles.find((file) => file.path === selectedFile) ?? null : null
-  const stagedCount = files.filter((file) => file.staged).length
-  const unstagedCount = files.filter((file) => file.unstaged).length
-  const selectedCanStage = Boolean(selectedChange?.unstaged)
-  const selectedCanUnstage = Boolean(selectedChange?.staged)
 
   useEffect(() => {
     window.api.sessions.getChangedFiles(sessionId).then((f) => {
@@ -130,28 +124,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     })
   }
 
-  const applyGitAction = async (action: 'stage' | 'unstage', paths: string[]): Promise<void> => {
-    const uniquePaths = [...new Set(paths.filter(Boolean))]
-    if (uniquePaths.length === 0 || gitActionPending) return
-    setGitActionPending(action)
-    setGitActionError(null)
-    try {
-      const result = action === 'stage'
-        ? await window.api.git.stagePaths(workDir, uniquePaths)
-        : await window.api.git.unstagePaths(workDir, uniquePaths)
-      setFiles(result.changedFiles)
-      if (result.changedFiles.length > 0 && !result.changedFiles.find((file) => file.path === selectedFile)) {
-        setSelectedFile(result.changedFiles[0].path)
-      }
-      if (!result.ok) setGitActionError(result.error ?? `Unable to ${action} changes.`)
-    } catch (error) {
-      setGitActionError(error instanceof Error ? error.message : `Unable to ${action} changes.`)
-      refresh()
-    } finally {
-      setGitActionPending(null)
-    }
-  }
-
   const openSelectedFile = (): void => {
     if (!selectedFile || !selectedChange || selectedChange.status === 'D') return
     void window.api.fs.openPath(joinPath(workDir, selectedFile))
@@ -167,8 +139,12 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     void navigator.clipboard.writeText(selectedFile)
   }
 
-  const stageablePaths = files.filter((file) => file.unstaged).map((file) => file.path)
-  const unstageablePaths = files.filter((file) => file.staged).map((file) => file.path)
+  const copyGitApplyCommand = (): void => {
+    if (!fileDiff.trim()) return
+    const patch = fileDiff.endsWith('\n') ? fileDiff : `${fileDiff}\n`
+    const command = `git apply <<'PATCH'\n${patch}PATCH`
+    void navigator.clipboard.writeText(command)
+  }
 
   const canTogglePreview = Boolean(selectedChange && filePreview && (shouldPreferTextDiff(fileDiff) || isBinaryDiffText(fileDiff)) && hasReviewPreview(filePreview))
 
@@ -203,28 +179,10 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             onClick={() => { setShowPreview((value) => !value); setActionMenuOpen(false) }}
           />
           <MenuItem
-            icon="check"
-            label="Stage selected"
-            disabled={!selectedChange?.unstaged || gitActionPending !== null}
-            onClick={() => { void applyGitAction('stage', selectedFile ? [selectedFile] : []); setActionMenuOpen(false) }}
-          />
-          <MenuItem
-            icon="eraser"
-            label="Unstage selected"
-            disabled={!selectedChange?.staged || gitActionPending !== null}
-            onClick={() => { void applyGitAction('unstage', selectedFile ? [selectedFile] : []); setActionMenuOpen(false) }}
-          />
-          <MenuItem
-            icon="checkCircle"
-            label="Stage all"
-            disabled={stageablePaths.length === 0 || gitActionPending !== null}
-            onClick={() => { void applyGitAction('stage', stageablePaths); setActionMenuOpen(false) }}
-          />
-          <MenuItem
-            icon="archive"
-            label="Unstage all"
-            disabled={unstageablePaths.length === 0 || gitActionPending !== null}
-            onClick={() => { void applyGitAction('unstage', unstageablePaths); setActionMenuOpen(false) }}
+            icon="copy"
+            label="Copy git apply command"
+            disabled={!fileDiff.trim()}
+            onClick={() => { copyGitApplyCommand(); setActionMenuOpen(false) }}
           />
           <MenuItem
             icon="file"
@@ -301,34 +259,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
             `${files.length} ${files.length === 1 ? 'file' : 'files'}`
           )}
         </Badge>
-        {(stagedCount > 0 || unstagedCount > 0) && (
-          <div className="diff-git-state flex shrink-0 items-center gap-1" data-testid="review-git-state">
-            {unstagedCount > 0 && <Badge tone="warning">{unstagedCount} unstaged</Badge>}
-            {stagedCount > 0 && <Badge tone="success">{stagedCount} staged</Badge>}
-          </div>
-        )}
-        <div className="diff-git-actions flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            className="h-6 px-2 py-0 text-[11px]"
-            disabled={!selectedCanStage || gitActionPending !== null}
-            dataTestId="review-stage-selected"
-            ariaLabel="Stage selected change"
-            onClick={() => { void applyGitAction('stage', selectedFile ? [selectedFile] : []) }}
-          >
-            {gitActionPending === 'stage' ? 'Staging' : 'Stage'}
-          </Button>
-          <Button
-            variant="ghost"
-            className="h-6 px-2 py-0 text-[11px]"
-            disabled={!selectedCanUnstage || gitActionPending !== null}
-            dataTestId="review-unstage-selected"
-            ariaLabel="Unstage selected change"
-            onClick={() => { void applyGitAction('unstage', selectedFile ? [selectedFile] : []) }}
-          >
-            {gitActionPending === 'unstage' ? 'Unstaging' : 'Unstage'}
-          </Button>
-        </div>
         {canTogglePreview && (
           <IconButton
             icon={showPreview ? 'branch' : 'file'}
@@ -340,19 +270,6 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         )}
         {embedded && changeActions}
       </div>
-      {gitActionError && (
-        <div
-          data-testid="review-git-action-error"
-          className="px-3 py-1 text-[11px]"
-          style={{
-            borderBottom: '1px solid var(--border-subtle)',
-            color: 'var(--state-danger)',
-            background: 'color-mix(in srgb, var(--state-danger) 8%, var(--surface-bg))'
-          }}
-        >
-          {gitActionError}
-        </div>
-      )}
 
       {files.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-xs" style={{ color: 'var(--color-text-muted)' }}>
@@ -700,7 +617,7 @@ function DirectoryRow({ row }: { row: Extract<FileChangeTreeRow, { type: 'direct
         paddingLeft: 10 + Math.min(row.depth, 4) * 12,
         color: 'var(--text-secondary)'
       }}
-      title={row.path}
+      aria-label={row.path}
     >
       <Icon name="folder" size={12} />
       <span className="flex-1 min-w-0">
@@ -742,7 +659,7 @@ function FileRow({
         borderLeft: selected ? '2px solid var(--accent)' : '2px solid transparent',
         paddingLeft: 10 + Math.min(row.depth, 4) * 12
       }}
-      title={file.path}
+      ariaLabel={file.path}
       dataReviewPath={file.path}
     >
       <span
@@ -761,12 +678,6 @@ function FileRow({
         <span className="diff-file-stats text-xs shrink-0 flex gap-1" style={{ fontSize: 10 }}>
           {file.additions > 0 && <Badge tone="success">+{file.additions}</Badge>}
           {file.deletions > 0 && <Badge tone="danger">-{file.deletions}</Badge>}
-        </span>
-      )}
-      {(file.staged || file.unstaged) && (
-        <span className="diff-file-git-state text-xs shrink-0 flex gap-1" style={{ fontSize: 10 }}>
-          {file.staged && <Badge tone="success">staged</Badge>}
-          {file.unstaged && <Badge tone="warning">unstaged</Badge>}
         </span>
       )}
     </SurfaceRow>
