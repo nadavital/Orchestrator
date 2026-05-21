@@ -935,7 +935,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets') {
             const petsButton = [...document.querySelectorAll('button')]
-              .find((button) => button.textContent?.includes('Pets'));
+              .find((button) => button.textContent?.includes('Personalization'));
             petsButton?.click();
             await sleep(450);
           }

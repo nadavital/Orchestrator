@@ -160,7 +160,7 @@ export default function Sidebar(): JSX.Element {
             />
             <SidebarNavItem
               icon="book"
-              label="Pets"
+              label="Personalization"
               active={settingsSection === 'pets'}
               onClick={() => setSettingsSection('pets')}
             />

@@ -593,7 +593,7 @@ function settingsTitle(section: SettingsSection): string {
   if (section === 'appearance') return 'Appearance'
   if (section === 'providers') return 'Providers'
   if (section === 'shortcuts') return 'Shortcuts'
-  if (section === 'pets') return 'Pets'
+  if (section === 'pets') return 'Personalization'
   if (section === 'data') return 'Data controls'
   return 'General'
 }
@@ -3982,7 +3982,7 @@ function ClaudeEndpointField({ color }: { color: string }): JSX.Element {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// ─── Pets section ─────────────────────────────────────────────────────────────
+// ─── Personalization section ──────────────────────────────────────────────────
 
 interface PetEntry {
   id: string
@@ -4049,7 +4049,7 @@ function PetsSection(): JSX.Element {
   return (
     <div style={{ padding: '30px 44px 56px', maxWidth: 1080, margin: '0 auto' }}>
       <SettingsIntro
-        description="Choose the overlay companion and import local or Codex-compatible pet bundles."
+        description="Personal touches for the app, starting with the overlay companion."
       />
 
       {/* Toggle */}
