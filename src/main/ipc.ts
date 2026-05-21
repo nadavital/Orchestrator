@@ -26,7 +26,7 @@ import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
 import { performanceSnapshot, recordPerformanceMetric, resetPerformanceMetrics } from './performanceTelemetry'
 import { providerManifests } from './providerManifest'
 import { setBrowserSecurityPolicy } from './browserSecurityPolicy'
-import { editorFileUrl, type OpenPathOptions } from './editorOpen'
+import { editorFileUrl, editorPathTarget, hasValidLineTarget, type OpenPathOptions } from './editorOpen'
 
 type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
 type FilePreviewResult =
@@ -471,6 +471,10 @@ async function openPathWithPreferredEditor(filePath: string, options: OpenPathOp
 
   const appInfo = EDITOR_APPS[editor]
   if (process.platform !== 'darwin') return shell.openPath(filePath)
+  if (editor === 'zed' && hasValidLineTarget(options)) {
+    const zedResult = await openWithZedCli(filePath, options)
+    if (zedResult === '') return ''
+  }
   const lineUrl = editorFileUrl(appInfo.urlScheme, filePath, options)
   if (lineUrl) {
     try {
@@ -491,6 +495,29 @@ async function openPathWithPreferredEditor(filePath: string, options: OpenPathOp
       resolve(`Unable to open in ${appInfo.label}${details ? `: ${details}` : '.'}`)
     })
   })
+}
+
+async function openWithZedCli(filePath: string, options: OpenPathOptions): Promise<string | null> {
+  const zedCli = findZedCli()
+  if (!zedCli) return null
+  return new Promise((resolve) => {
+    execFile(zedCli, [editorPathTarget(filePath, options)], (error, _stdout, stderr) => {
+      if (!error) {
+        resolve('')
+        return
+      }
+      resolve(stderr.trim() || error.message)
+    })
+  })
+}
+
+function findZedCli(): string | null {
+  const candidates = [
+    '/opt/homebrew/bin/zed',
+    '/usr/local/bin/zed',
+    '/Applications/Zed.app/Contents/MacOS/cli'
+  ]
+  return candidates.find((candidate) => existsSync(candidate)) ?? null
 }
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
