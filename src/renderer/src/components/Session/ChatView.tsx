@@ -22,7 +22,7 @@ import {
   extractFileReferences,
   extractWorkspaceRootsFromText,
   pairToolActivities,
-  permissionSummary,
+  permissionRequestDetail,
   summarizeToolActivities
 } from '../../types'
 import type { Session, ChatMessage, FileReference, ResultMessage, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
@@ -1831,6 +1831,7 @@ function QuestionBlock({
 function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage; sessionId: string; sessionStatus: Session['status'] }): JSX.Element {
   const [decision, setDecision] = useState<'pending' | 'allowed_once' | 'allowed_session' | 'denied'>('pending')
   const denials = msg.permissionDenials ?? []
+  const requestDetails = denials.map(permissionRequestDetail)
   const toolNames = [...new Set(denials.map((d) => d.tool_name))]
   const isPlanApproval = denials.some((d) => d.tool_name === 'ExitPlanMode')
   const requestIsActive = sessionStatus === 'waiting_for_permission'
@@ -1875,19 +1876,73 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
           </svg>
           <StatusBadge label={isPlanApproval ? 'Plan ready' : 'Permission required'} tone="accent" pulse={requestIsActive && decision === 'pending'} />
         </div>
-        <div className="mb-3 space-y-1">
-          {denials.map((d, i) => (
+        <div className="mb-3 space-y-2">
+          {requestDetails.map((detail, i) => (
             <div
               key={i}
-              className="text-xs font-mono"
+              className="rounded-lg px-3 py-2"
               style={{
-                color: 'var(--color-text-muted)',
-                lineHeight: 1.45,
-                overflowWrap: 'anywhere',
-                whiteSpace: 'normal'
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text)',
+                minWidth: 0
               }}
             >
-              {permissionSummary(d)}
+              <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
+                <span className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+                  {detail.title}
+                </span>
+                <span
+                  className="text-[10px] font-semibold"
+                  style={{
+                    color: permissionRiskColor(detail.risk),
+                    border: `1px solid ${permissionRiskColor(detail.risk)}`,
+                    borderRadius: 999,
+                    padding: '1px 6px',
+                    lineHeight: '14px'
+                  }}
+                >
+                  {detail.toolName}
+                </span>
+              </div>
+              {detail.fields.length > 0 ? (
+                <div className="mt-2" style={{ display: 'grid', gap: 6 }}>
+                  {detail.fields.slice(0, 4).map((field) => (
+                    <div
+                      key={`${field.label}:${field.value}`}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '72px minmax(0, 1fr)',
+                        gap: 8,
+                        alignItems: 'baseline',
+                        fontSize: 11,
+                        lineHeight: 1.35
+                      }}
+                    >
+                      <span style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>
+                        {field.label}
+                      </span>
+                      <span
+                        style={{
+                          color: 'var(--color-text)',
+                          fontFamily: field.mono ? 'var(--font-mono)' : undefined,
+                          overflowWrap: 'anywhere',
+                          whiteSpace: field.value.includes('\n') ? 'pre-wrap' : 'normal'
+                        }}
+                      >
+                        {field.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div
+                  className="mt-1 text-xs"
+                  style={{ color: 'var(--color-text-muted)', overflowWrap: 'anywhere' }}
+                >
+                  {detail.summary}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1954,6 +2009,12 @@ function permissionDecisionColor(decision: ResultMessage['permissionDecision'] |
   if (decision === 'allowed_once' || decision === 'allowed_session') return 'var(--color-green)'
   if (decision === 'denied') return 'var(--color-red)'
   return 'var(--color-text-muted)'
+}
+
+function permissionRiskColor(risk: 'low' | 'medium' | 'high'): string {
+  if (risk === 'high') return 'var(--color-red)'
+  if (risk === 'medium') return 'var(--color-yellow)'
+  return 'var(--color-green)'
 }
 
 function ThinkingIndicator(): JSX.Element {

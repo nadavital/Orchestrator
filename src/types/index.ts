@@ -1153,6 +1153,9 @@ export interface ContentBlock {
 }
 
 export type {
+  PermissionRequestDetail,
+  PermissionRequestField,
+  PermissionRequestKind,
   ToolActionDescriptor,
   ToolActionKind,
   ToolActionRisk,
@@ -1162,6 +1165,7 @@ export {
   describeToolAction,
   describeToolActivity,
   pairToolActivities,
+  permissionRequestDetail,
   permissionSummary,
   summarizeToolActivities,
   toolTarget

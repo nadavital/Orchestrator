@@ -1,4 +1,5 @@
 import type { ChatMessage, PermissionDenial, RunEvent, Session, SessionRunEventRecord, UserInputQuestion } from './index'
+import { permissionRequestDetail } from './toolActions'
 
 export type PetNotificationStatus = 'waiting' | 'failed' | 'review' | 'running' | 'idle'
 export type PetNotificationLevel = 'warning' | 'danger' | 'success' | 'info'
@@ -17,7 +18,7 @@ export interface PetSessionSnapshot {
 }
 
 export type PetWaitingRequestAction =
-  | { kind: 'permission-response'; response: 'allow' | 'deny'; label: string; toolNames: string[]; primary?: boolean }
+  | { kind: 'permission-response'; response: 'allow_once' | 'allow_session' | 'deny'; label: string; toolNames: string[]; primary?: boolean }
   | { kind: 'question-option'; label: string; value: string; primary?: boolean }
   | { kind: 'reply'; label: string; primary?: boolean }
   | { kind: 'open'; label: string; primary?: boolean }
@@ -238,7 +239,7 @@ function eventBody(event: RunEvent, status: PetNotificationStatus, waitingReques
   if (status === 'waiting') {
     if (event.type === 'permission.requested') {
       const denial = event.denials[0]
-      return event.content || waitingRequest?.prompt || (denial ? `Permission: ${describeDenial(denial)}` : 'Permission required')
+      return event.content || waitingRequest?.prompt || (denial ? `Permission: ${permissionRequestDetail(denial).summary}` : 'Permission required')
     }
     if (event.type === 'user_input.requested') return compact(event.content) || waitingRequest?.prompt || 'Waiting for your response'
   }
@@ -289,7 +290,8 @@ function latestWaitingRequest(session: PetSessionSnapshot): PetWaitingRequest | 
       title: 'Approval Required',
       prompt: 'Permission required',
       actions: [
-        { kind: 'permission-response', response: 'allow', label: 'Allow', toolNames: [], primary: true },
+        { kind: 'permission-response', response: 'allow_once', label: 'Allow Once', toolNames: [], primary: true },
+        { kind: 'permission-response', response: 'allow_session', label: 'Allow Session', toolNames: [] },
         { kind: 'permission-response', response: 'deny', label: 'Deny', toolNames: [] },
       ],
     }
@@ -328,14 +330,15 @@ function permissionWaitingRequest(
   const primaryDenial = event.denials[0]
   const kind = waitingKindForDenials(event.denials)
   const title = waitingTitleForKind(kind)
-  const prompt = event.content || (primaryDenial ? `Permission: ${describeDenial(primaryDenial)}` : 'Permission required')
+  const prompt = event.content || (primaryDenial ? `Permission: ${permissionRequestDetail(primaryDenial).summary}` : 'Permission required')
   return {
     kind,
     requestId: id,
     title,
     prompt,
     actions: [
-      { kind: 'permission-response', response: 'allow', label: 'Allow', toolNames, primary: true },
+      { kind: 'permission-response', response: 'allow_once', label: 'Allow Once', toolNames, primary: true },
+      { kind: 'permission-response', response: 'allow_session', label: 'Allow Session', toolNames },
       { kind: 'permission-response', response: 'deny', label: 'Deny', toolNames },
     ],
     denials: event.denials,
@@ -391,7 +394,7 @@ function latestMessageActivity(
       return {
         id: msg.id,
         timestamp: msg.timestamp,
-        body: `Permission: ${describeDenial(msg.permissionDenials[0])}`,
+        body: `Permission: ${permissionRequestDetail(msg.permissionDenials[0]).summary}`,
       }
     }
   }
@@ -406,18 +409,6 @@ function fallbackBody(sessionStatus: string, status: PetNotificationStatus): str
   if (status === 'review') return 'Ready to review'
   if (status === 'failed') return 'Run blocked'
   return ''
-}
-
-export function describeDenial(denial: PermissionDenial): string {
-  const { tool_name, tool_input } = denial
-  const path = stringFromInput(tool_input, ['file_path', 'path', 'target_file', 'targetFile'])
-  if (path && /^(Write|Edit|Read|MultiEdit)$/i.test(tool_name)) return `${tool_name} ${compactPath(path)}`
-
-  const command = stringFromInput(tool_input, ['command', 'cmd', 'script'])
-  if (command && /^(Bash|Shell|Command)$/i.test(tool_name)) return `${tool_name}: ${truncate(command, 80)}`
-
-  const target = path ?? command ?? stringFromInput(tool_input, ['query', 'pattern', 'url'])
-  return target ? `${tool_name} ${truncate(target, 80)}` : tool_name
 }
 
 export function classifyToolActivity(

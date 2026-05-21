@@ -5725,7 +5725,7 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
             (() => {
               const bodyText = document.body.innerText;
               return {
-                permissionActionsVisible: bodyText.includes('Allow') && bodyText.includes('Deny'),
+                permissionActionsVisible: bodyText.includes('Allow Once') && bodyText.includes('Allow Session') && bodyText.includes('Deny'),
                 permissionTitleMapped: bodyText.includes('Command Approval') || bodyText.includes('Approval Required'),
                 permissionStatusMapped: document.querySelector('[data-avatar-overlay-notification-status="waiting"]') !== null
               };

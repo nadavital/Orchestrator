@@ -32,6 +32,24 @@ export interface ToolActivity {
   result?: ToolResultMessage
 }
 
+export type PermissionRequestKind = 'command' | 'file' | 'network' | 'mcp' | 'plan' | 'tool'
+
+export interface PermissionRequestField {
+  label: string
+  value: string
+  mono?: boolean
+}
+
+export interface PermissionRequestDetail {
+  kind: PermissionRequestKind
+  title: string
+  summary: string
+  toolName: string
+  target?: string
+  risk: ToolActionRisk
+  fields: PermissionRequestField[]
+}
+
 const TOOL_ACTIONS: Array<{
   match: (name: string, input: Record<string, unknown>) => boolean
   descriptor: Omit<ToolActionDescriptor, 'target'>
@@ -157,11 +175,24 @@ export function describeToolActivity(tool: ToolUseMessage): string {
 }
 
 export function permissionSummary(denial: PermissionDenial): string {
+  return permissionRequestDetail(denial).summary
+}
+
+export function permissionRequestDetail(denial: PermissionDenial): PermissionRequestDetail {
   const { tool_name, tool_input } = denial
   if (tool_name === 'ExitPlanMode') {
     const plan = stringField(tool_input, ['plan', 'summary', 'description'])
     const firstLine = plan?.split('\n').map((line) => line.trim()).find(Boolean)
-    return firstLine ? `Plan: ${firstLine.replace(/^#+\s*/, '')}` : 'Plan is ready'
+    const target = firstLine ? firstLine.replace(/^#+\s*/, '') : 'Plan is ready'
+    return {
+      kind: 'plan',
+      title: 'Plan Review',
+      summary: firstLine ? `Plan: ${target}` : 'Plan is ready',
+      toolName: tool_name,
+      target,
+      risk: 'medium',
+      fields: plan ? [{ label: 'Plan', value: plan, mono: false }] : []
+    }
   }
 
   const syntheticTool: ToolUseMessage = {
@@ -173,7 +204,18 @@ export function permissionSummary(denial: PermissionDenial): string {
     timestamp: 0
   }
   const action = describeToolAction(syntheticTool)
-  return action.target ? `${tool_name} ${action.target}` : tool_name
+  const kind = permissionKindForTool(action, tool_name, tool_input)
+  const fields = permissionFieldsForKind(kind, tool_input, tool_name)
+  const target = action.target || fields[0]?.value
+  return {
+    kind,
+    title: permissionTitleForKind(kind),
+    summary: target ? `${tool_name} ${target}` : tool_name,
+    toolName: tool_name,
+    target,
+    risk: action.risk,
+    fields
+  }
 }
 
 export function toolTarget(input: Record<string, unknown>, maxLength = 160): string {
@@ -205,6 +247,60 @@ function stringField(input: Record<string, unknown>, keys: string[]): string | u
     if (typeof value === 'string' && value.trim()) return value
   }
   return undefined
+}
+
+function permissionKindForTool(
+  action: ToolActionDescriptor,
+  toolName: string,
+  input: Record<string, unknown>
+): PermissionRequestKind {
+  const normalized = normalizeToolName(toolName)
+  if (action.kind === 'mcp' || normalized.startsWith('mcp')) return 'mcp'
+  if (action.kind === 'shell') return 'command'
+  if (action.kind === 'web' || stringField(input, ['url', 'uri'])) return 'network'
+  if (action.kind === 'write' || action.kind === 'edit' || action.kind === 'delete' || stringField(input, ['file_path', 'path', 'target_file', 'targetFile'])) return 'file'
+  return 'tool'
+}
+
+function permissionTitleForKind(kind: PermissionRequestKind): string {
+  if (kind === 'command') return 'Command Approval'
+  if (kind === 'file') return 'File Approval'
+  if (kind === 'network') return 'Network Approval'
+  if (kind === 'mcp') return 'MCP Approval'
+  if (kind === 'plan') return 'Plan Review'
+  return 'Tool Approval'
+}
+
+function permissionFieldsForKind(
+  kind: PermissionRequestKind,
+  input: Record<string, unknown>,
+  toolName: string
+): PermissionRequestField[] {
+  const fields: PermissionRequestField[] = []
+  const push = (label: string, value: string | undefined, mono = false): void => {
+    if (value?.trim()) fields.push({ label, value: value.trim(), mono })
+  }
+
+  if (kind === 'command') {
+    push('Command', stringField(input, ['command', 'cmd', 'script', 'description']), true)
+    push('Working dir', stringField(input, ['cwd', 'workdir', 'workingDirectory']), true)
+  } else if (kind === 'file') {
+    push('Path', stringField(input, ['file_path', 'path', 'target_file', 'targetFile', 'absolutePath', 'relativePath']), true)
+    push('Operation', toolName)
+  } else if (kind === 'network') {
+    push('URL', stringField(input, ['url', 'uri']), true)
+    push('Prompt', stringField(input, ['prompt', 'query', 'description']))
+  } else if (kind === 'mcp') {
+    const [, server, nativeTool] = toolName.match(/^mcp__([^_]+)__?(.*)$/) ?? []
+    push('Server', server)
+    push('Tool', nativeTool || toolName)
+    push('Target', stringField(input, ['title', 'name', 'url', 'uri', 'query', 'path', 'description']))
+  } else {
+    push('Tool', toolName)
+    push('Target', stringField(input, ['path', 'file_path', 'url', 'query', 'pattern', 'prompt', 'description', 'command']), kind === 'tool')
+  }
+
+  return fields
 }
 
 function pluralizeToolUnit(unit: string, count: number): string {

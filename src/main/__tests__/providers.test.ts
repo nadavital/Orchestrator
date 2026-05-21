@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
-import { PROVIDER_DEFS, deriveAgentNodes, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, parseClaudeAgentsOutput } from '../../types'
+import { PROVIDER_DEFS, deriveAgentNodes, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, parseClaudeAgentsOutput, permissionRequestDetail } from '../../types'
 import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
@@ -1094,6 +1094,45 @@ test('generic CLI permission events preserve tool identity and requested action'
   assert.equal(codexPermission.denials[0]?.tool_input.command, 'npm install')
   assert.equal(cursorPermission.denials[0]?.tool_name, 'write')
   assert.equal(cursorPermission.denials[0]?.tool_input.path, 'src/index.ts')
+})
+
+test('permission request details classify command file network and MCP approvals', () => {
+  const command = permissionRequestDetail({
+    tool_name: 'Bash',
+    tool_use_id: 'tool-command',
+    tool_input: { command: 'npm install', cwd: '/tmp/project' }
+  })
+  assert.equal(command.kind, 'command')
+  assert.equal(command.title, 'Command Approval')
+  assert.equal(command.fields[0]?.label, 'Command')
+  assert.equal(command.fields[0]?.mono, true)
+
+  const file = permissionRequestDetail({
+    tool_name: 'Edit',
+    tool_use_id: 'tool-file',
+    tool_input: { file_path: '/tmp/project/src/index.ts' }
+  })
+  assert.equal(file.kind, 'file')
+  assert.equal(file.title, 'File Approval')
+  assert.equal(file.fields[0]?.value, '/tmp/project/src/index.ts')
+
+  const network = permissionRequestDetail({
+    tool_name: 'WebFetch',
+    tool_use_id: 'tool-web',
+    tool_input: { url: 'https://example.com', prompt: 'Summarize' }
+  })
+  assert.equal(network.kind, 'network')
+  assert.equal(network.title, 'Network Approval')
+  assert.equal(network.fields.some((field) => field.label === 'URL'), true)
+
+  const mcp = permissionRequestDetail({
+    tool_name: 'mcp__linear__create_issue',
+    tool_use_id: 'tool-mcp',
+    tool_input: { title: 'Smoke issue' }
+  })
+  assert.equal(mcp.kind, 'mcp')
+  assert.equal(mcp.title, 'MCP Approval')
+  assert.equal(mcp.fields.some((field) => field.label === 'Server' && field.value === 'linear'), true)
 })
 
 test('codex app-server protocol messages normalize approval and question semantics', () => {

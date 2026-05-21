@@ -60,11 +60,11 @@ test('permission notifications expose a waiting card with explicit allow/deny ac
   assert.equal(notification.status, 'waiting')
   assert.equal(notification.level, 'warning')
   assert.equal(notification.title, 'File Approval · Implement feature')
-  assert.equal(notification.body, 'Permission: Edit tmp/example.ts')
+  assert.equal(notification.body, 'Permission: Edit /tmp/example.ts')
   assert.equal(notification.replyTarget, null)
   assert.equal(notification.waitingRequest?.kind, 'patch')
   assert.deepEqual(notification.waitingRequest?.toolNames, ['Edit'])
-  assert.deepEqual(notification.waitingRequest?.actions.map((action) => action.label), ['Allow', 'Deny'])
+  assert.deepEqual(notification.waitingRequest?.actions.map((action) => action.label), ['Allow Once', 'Allow Session', 'Deny'])
   assert.equal(notification.canDismiss, true)
 })
 

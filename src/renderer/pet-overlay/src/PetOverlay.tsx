@@ -838,7 +838,9 @@ export default function PetOverlay(): JSX.Element | null {
                   }}
                   onAction={async (action) => {
                     if (action.kind === 'permission-response') {
-                      if (action.response === 'allow') {
+                      if (action.response === 'allow_session') {
+                        await window.petApi.sessions.grantAndResume(notification.localConversationId, action.toolNames)
+                      } else if (action.response === 'allow_once') {
                         await window.petApi.sessions.allowOnceAndResume(notification.localConversationId, action.toolNames)
                       } else {
                         await window.petApi.sessions.denyPermission(notification.localConversationId)
