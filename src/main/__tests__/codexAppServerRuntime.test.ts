@@ -1,8 +1,9 @@
-import test from 'node:test'
+import test, { beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import type { SpawnOptionsWithoutStdio } from 'child_process'
 import type { RunEvent, Session } from '../../types'
 import { CodexAppServerRuntimeManager, type CodexAppServerSpawn } from '../codexAppServerRuntime'
+import { clearProviderRuntimeDebugEvents, listProviderRuntimeDebugEvents } from '../providerRuntimeDiagnostics'
 import { PROVIDERS } from '../providers'
 
 class FakePipe {
@@ -103,6 +104,10 @@ const provider = {
   binaryCandidates: [process.execPath]
 }
 
+beforeEach(() => {
+  clearProviderRuntimeDebugEvents()
+})
+
 function writtenJson(fake: FakeAppServerProcess): Array<Record<string, unknown>> {
   return fake.stdin.writes
     .flatMap((write) => write.trim().split('\n'))
@@ -187,6 +192,8 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
   })
 
   assert.equal(events.some((event) => event.type === 'session.started' && event.providerSessionId === 'thread-1'), true)
+  const runtimeEvents = listProviderRuntimeDebugEvents({ providerId: 'codex', includeNoisy: true })
+  assert.equal(runtimeEvents.some((event) => event.method === 'thread/start' && event.hostId === 'thread-1'), true)
   const permission = events.find((event) => event.type === 'permission.requested')
   assert.equal(permission?.type, 'permission.requested')
   assert.equal(permission?.denials[0]?.tool_input.command, 'touch appserver-ok')
@@ -313,6 +320,9 @@ test('codex app-server runtime fails loudly when the process exits before respon
   const failure = failures[0]
   assert.equal(failure?.type, 'run.failed')
   assert.match(failure.content ?? '', /exited unexpectedly.*code 1/)
+  const runtimeFailure = listProviderRuntimeDebugEvents({ providerId: 'codex' }).findLast((event) => event.severity === 'error')
+  assert.equal(runtimeFailure?.runtime, 'app-server')
+  assert.match(runtimeFailure?.message ?? '', /exited unexpectedly.*code 1/)
 })
 
 test('codex app-server runtime reports stdin and child process transport errors', () => {
@@ -356,6 +366,8 @@ test('codex app-server runtime reports stdin and child process transport errors'
   const failure = events.find((event) => event.type === 'run.failed')
   assert.equal(failure?.type, 'run.failed')
   assert.match(failure.content ?? '', /stdin failed: write EPIPE/)
+  const runtimeFailure = listProviderRuntimeDebugEvents({ providerId: 'codex' }).findLast((event) => event.severity === 'error')
+  assert.match(runtimeFailure?.message ?? '', /stdin failed: write EPIPE/)
 
   proc.emitError(new Error('late child error'))
   assert.equal(exitCount, 1)

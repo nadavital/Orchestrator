@@ -32,6 +32,7 @@ import type {
   UserInputQuestion
 } from '../types'
 import { PROVIDER_DEFS } from '../types'
+import { listProviderRuntimeDebugEvents } from './providerRuntimeDiagnostics'
 
 function isExecutablePath(path: string): boolean {
   try {
@@ -3354,6 +3355,7 @@ export function getProviderDiagnostics(): Record<string, ProviderDiagnosticInfo>
             status: 'not-run',
             message: 'Run opt-in live smoke with cheap models to verify auth, model access, and parser behavior.'
           },
+          runtimeEvents: listProviderRuntimeDebugEvents({ providerId: id, limit: 8 }),
           probes: runProbeDefinitions(binary, registry.probes)
         } satisfies ProviderDiagnosticInfo
       ]
@@ -3406,6 +3408,7 @@ export async function getProviderDiagnosticsAsync(providerId?: string): Promise<
           status: 'not-run',
           message: 'Run opt-in live smoke with cheap models to verify auth, model access, and parser behavior.'
         },
+        runtimeEvents: listProviderRuntimeDebugEvents({ providerId: id, limit: 8 }),
         probes
       } satisfies ProviderDiagnosticInfo
     ] as const

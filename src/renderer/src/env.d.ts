@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../../types'
 import type { AppMenuCommand } from '../../types/appCommands'
 
 export interface AppSettings {
@@ -205,6 +205,7 @@ declare global {
         getRuntimeInfo: () => Promise<Record<string, ProviderRuntimeInfo>>
         getManifest: () => Promise<Record<string, ProviderManifest>>
         getDiagnostics: (providerId?: string) => Promise<Record<string, ProviderDiagnosticInfo>>
+        listRuntimeDebugEvents: (providerId?: string, includeNoisy?: boolean) => Promise<ProviderRuntimeDebugEvent[]>
         runCommandSurface: (providerId: string, surfaceId: string) => Promise<ProviderCommandSurfaceResult>
         listResources: (providerId?: string, cwd?: string) => Promise<Record<string, ProviderResourceSnapshot>>
         createCapability: (request: CapabilityCreateRequest) => Promise<CapabilityCreateResult>

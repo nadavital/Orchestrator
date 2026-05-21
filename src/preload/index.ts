@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../types'
 import type { AppMenuCommand } from '../types/appCommands'
 
 interface AppSettings {
@@ -221,6 +221,8 @@ const api = {
       ipcRenderer.invoke('providers:getManifest'),
     getDiagnostics: (providerId?: string): Promise<Record<string, ProviderDiagnosticInfo>> =>
       ipcRenderer.invoke('providers:getDiagnostics', providerId),
+    listRuntimeDebugEvents: (providerId?: string, includeNoisy?: boolean): Promise<ProviderRuntimeDebugEvent[]> =>
+      ipcRenderer.invoke('providers:listRuntimeDebugEvents', providerId, includeNoisy),
     runCommandSurface: (providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> =>
       ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId),
     listResources: (providerId?: string, cwd?: string): Promise<Record<string, ProviderResourceSnapshot>> =>

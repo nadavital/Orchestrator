@@ -9,6 +9,7 @@ import {
   resolveProviderCommand,
   type ProviderAdapter
 } from './providers'
+import { recordProviderRuntimeDebugEvent } from './providerRuntimeDiagnostics'
 
 export interface ProviderRuntimeProcess {
   write(data: string): void
@@ -65,6 +66,7 @@ function defaultSpawn(
 
 export class ProviderRuntimeManager {
   private readonly activeProcesses = new Map<string, ProviderRuntimeProcess>()
+  private readonly activeProcessInfo = new Map<string, { providerId: string; runtime: NonNullable<RunRequest['runtime']> }>()
   private readonly activeRunCleanups = new Map<string, () => void>()
   private readonly appServerRuntime = new CodexAppServerRuntimeManager()
 
@@ -107,6 +109,12 @@ export class ProviderRuntimeManager {
 
   startRun(options: StartProviderRunOptions): ProviderRunStartResult {
     if (options.provider.id === 'codex' && options.request.runtime === 'app-server') {
+      recordProviderRuntimeDebugEvent({
+        providerId: options.provider.id,
+        runtime: 'app-server',
+        sessionId: options.sessionId,
+        message: `Starting ${options.provider.id} app-server runtime.`
+      })
       const result = this.appServerRuntime.start({
         sessionId: options.sessionId,
         session: options.session,
@@ -118,6 +126,14 @@ export class ProviderRuntimeManager {
         onExit: options.onExit
       })
       if (result.ok) return { ok: true }
+      recordProviderRuntimeDebugEvent({
+        providerId: options.provider.id,
+        runtime: 'app-server',
+        sessionId: options.sessionId,
+        severity: result.message?.includes('not available') ? 'warning' : 'error',
+        code: result.message?.includes('not available') ? 'missing-binary' : 'spawn-failed',
+        message: result.message ?? `Failed to start ${options.provider.id} app-server runtime.`
+      })
       return {
         ok: false,
         error: result.message?.includes('not available') ? 'missing-binary' : 'spawn-failed',
@@ -131,6 +147,14 @@ export class ProviderRuntimeManager {
     )
     if (!command) {
       this.cleanupBridge(options.sessionId)
+      recordProviderRuntimeDebugEvent({
+        providerId: options.provider.id,
+        runtime: options.request.runtime ?? 'headless',
+        sessionId: options.sessionId,
+        severity: 'warning',
+        code: 'missing-binary',
+        message: `${options.provider.id} CLI is not available.`
+      })
       return {
         ok: false,
         error: 'missing-binary',
@@ -149,6 +173,14 @@ export class ProviderRuntimeManager {
       })
     } catch (error) {
       this.cleanupBridge(options.sessionId)
+      recordProviderRuntimeDebugEvent({
+        providerId: options.provider.id,
+        runtime: options.request.runtime ?? 'headless',
+        sessionId: options.sessionId,
+        severity: 'error',
+        code: 'spawn-failed',
+        message: error instanceof Error ? error.message : String(error)
+      })
       return {
         ok: false,
         error: 'spawn-failed',
@@ -157,6 +189,17 @@ export class ProviderRuntimeManager {
     }
 
     this.activeProcesses.set(options.sessionId, process)
+    this.activeProcessInfo.set(options.sessionId, {
+      providerId: options.provider.id,
+      runtime: options.request.runtime ?? 'headless'
+    })
+    recordProviderRuntimeDebugEvent({
+      providerId: options.provider.id,
+      runtime: options.request.runtime ?? 'headless',
+      sessionId: options.sessionId,
+      hostId: command.binary,
+      message: `Started ${options.provider.id} ${options.request.runtime ?? 'headless'} runtime.`
+    })
     let buffer = ''
 
     process.onData((data) => {
@@ -173,7 +216,15 @@ export class ProviderRuntimeManager {
     process.onExit(() => {
       if (this.activeProcesses.get(options.sessionId) !== process) return
       this.activeProcesses.delete(options.sessionId)
+      this.activeProcessInfo.delete(options.sessionId)
       this.cleanupBridge(options.sessionId)
+      recordProviderRuntimeDebugEvent({
+        providerId: options.provider.id,
+        runtime: options.request.runtime ?? 'headless',
+        sessionId: options.sessionId,
+        severity: 'debug',
+        message: `${options.provider.id} runtime exited.`
+      })
       options.onExit()
     })
 
@@ -182,12 +233,30 @@ export class ProviderRuntimeManager {
 
   stop(sessionId: string): boolean {
     if (this.appServerRuntime.stop(sessionId)) {
+      recordProviderRuntimeDebugEvent({
+        providerId: 'codex',
+        runtime: 'app-server',
+        sessionId,
+        severity: 'debug',
+        message: 'Stopped app-server runtime.'
+      })
       this.cleanupSession(sessionId)
       return true
     }
     const process = this.activeProcesses.get(sessionId)
     if (!process) return false
     this.activeProcesses.delete(sessionId)
+    const info = this.activeProcessInfo.get(sessionId)
+    this.activeProcessInfo.delete(sessionId)
+    if (info) {
+      recordProviderRuntimeDebugEvent({
+        providerId: info.providerId,
+        runtime: info.runtime,
+        sessionId,
+        severity: 'debug',
+        message: `Stopped ${info.providerId} runtime.`
+      })
+    }
     this.cleanupSession(sessionId)
     requestProcessStop(process)
     return true

@@ -622,6 +622,20 @@ export interface ProviderRuntimeInfo {
   policies: Record<string, ResolvedExecutionPolicy>
 }
 
+export interface ProviderRuntimeDebugEvent {
+  id: string
+  timestamp: number
+  providerId: string
+  runtime: ProviderRuntimeKind
+  sessionId?: string
+  hostId?: string
+  method?: string
+  severity: 'debug' | 'info' | 'warning' | 'error'
+  noisy: boolean
+  message: string
+  code?: string
+}
+
 export interface ProviderDiagnosticInfo {
   id: string
   binary: {
@@ -650,6 +664,7 @@ export interface ProviderDiagnosticInfo {
     status: 'not-run' | 'passed' | 'failed'
     message: string
   }
+  runtimeEvents?: ProviderRuntimeDebugEvent[]
   probes: ProviderProbeResult[]
 }
 

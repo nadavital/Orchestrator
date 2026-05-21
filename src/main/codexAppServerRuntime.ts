@@ -2,6 +2,7 @@ import { spawn as childSpawn } from 'child_process'
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'child_process'
 import type { Attachment, RunEvent, RunRequest, Session } from '../types'
 import { providerSpawnEnv, resolveProviderCommand, type ProviderAdapter } from './providers'
+import { recordProviderRuntimeDebugEvent } from './providerRuntimeDiagnostics'
 
 type JsonObject = Record<string, unknown>
 type PendingKind = 'permission' | 'user_input' | 'mcp_elicitation'
@@ -81,6 +82,10 @@ class CodexAppServerSession implements CodexAppServerRun {
       args: ['app-server', '--listen', 'stdio://']
     })
     if (!command) {
+      this.record('codex CLI is not available.', {
+        severity: 'warning',
+        code: 'missing-binary'
+      })
       return { ok: false, message: 'codex CLI is not available. Check provider settings or install codex.' }
     }
 
@@ -91,9 +96,16 @@ class CodexAppServerSession implements CodexAppServerRun {
         stdio: ['pipe', 'pipe', 'pipe']
       })
     } catch (error) {
+      this.record(error instanceof Error ? error.message : String(error), {
+        severity: 'error',
+        code: 'spawn-failed'
+      })
       return { ok: false, message: error instanceof Error ? error.message : String(error) }
     }
 
+    this.record('Codex app-server process started.', {
+      hostId: command.binary
+    })
     this.process.stdout.on('data', (chunk: Buffer) => this.handleData(chunk.toString('utf8')))
     this.process.stderr.on('data', (chunk: Buffer) => {
       const data = chunk.toString('utf8')
@@ -238,10 +250,19 @@ class CodexAppServerSession implements CodexAppServerRun {
       const thread = asRecord(result.thread)
       const threadId = stringValue(thread?.id)
       if (!threadId) {
+        this.record('Codex app-server did not return a thread id.', {
+          method,
+          severity: 'error',
+          code: 'missing-thread-id'
+        })
         this.options.onParsedEvents([{ type: 'run.failed', content: 'Codex app-server did not return a thread id.' }])
         return
       }
       this.threadId = threadId
+      this.record(`Codex app-server ${this.options.mode === 'resume' ? 'resumed' : 'started'} thread.`, {
+        method,
+        hostId: threadId
+      })
       this.options.onParsedEvents([{ type: 'session.started', providerSessionId: threadId }])
       this.startTurn(threadId)
     }, (error) => {
@@ -313,14 +334,33 @@ class CodexAppServerSession implements CodexAppServerRun {
       method === 'execCommandApproval'
     ) {
       this.pendingServerRequests.set(id, { id, method, params, kind: 'permission' })
+      this.record('Codex app-server requested permission.', { method, severity: 'info' })
     } else if (method === 'item/tool/requestUserInput') {
       this.pendingServerRequests.set(id, { id, method, params, kind: 'user_input' })
+      this.record('Codex app-server requested user input.', { method, severity: 'info' })
     } else if (method === 'mcpServer/elicitation/request') {
       this.pendingServerRequests.set(id, { id, method, params, kind: 'mcp_elicitation' })
+      this.record('Codex app-server requested MCP elicitation.', { method, severity: 'info' })
     } else if (method === 'item/tool/call') {
+      this.record('Codex app-server requested an unsupported client tool.', {
+        method,
+        severity: 'warning',
+        code: 'unsupported-client-tool'
+      })
       this.sendError(id, -32601, 'Orchestrator does not provide client-side dynamic tools yet.')
     } else if (method === 'account/chatgptAuthTokens/refresh') {
+      this.record('Codex app-server requested unsupported auth token refresh.', {
+        method,
+        severity: 'warning',
+        code: 'unsupported-auth-refresh'
+      })
       this.sendError(id, -32601, 'Orchestrator relies on Codex CLI-managed authentication and cannot refresh ChatGPT tokens.')
+    } else {
+      this.record('Codex app-server notification/request received.', {
+        method,
+        severity: 'debug',
+        noisy: true
+      })
     }
   }
 
@@ -351,6 +391,11 @@ class CodexAppServerSession implements CodexAppServerRun {
   ): string {
     const id = `orchestrator-${this.nextId++}`
     this.pendingClientRequests.set(id, { onResult, onError })
+    this.record('Orchestrator sent Codex app-server request.', {
+      method,
+      severity: 'debug',
+      noisy: true
+    })
     if (!this.send({ method, id, params })) {
       this.pendingClientRequests.delete(id)
       onError?.({ message: 'Codex app-server transport is not available.' })
@@ -359,14 +404,30 @@ class CodexAppServerSession implements CodexAppServerRun {
   }
 
   private sendNotification(method: string, params?: unknown): void {
+    this.record('Orchestrator sent Codex app-server notification.', {
+      method,
+      severity: 'debug',
+      noisy: true
+    })
     this.send(params === undefined ? { method } : { method, params })
   }
 
   private sendResponse(id: string | number, result: unknown): void {
+    const pending = this.pendingServerRequests.get(id)
+    this.record('Orchestrator answered Codex app-server request.', {
+      method: pending?.method,
+      severity: 'debug'
+    })
     this.send({ id, result })
   }
 
   private sendError(id: string | number, code: number, message: string): void {
+    const pending = this.pendingServerRequests.get(id)
+    this.record(message, {
+      method: pending?.method,
+      severity: 'warning',
+      code: String(code)
+    })
     this.send({ id, error: { code, message } })
   }
 
@@ -388,7 +449,14 @@ class CodexAppServerSession implements CodexAppServerRun {
     this.exitHandled = true
 
     if (!this.stopped && !this.terminalRunEventSeen) {
-      this.emitTransportFailure(`Codex app-server exited unexpectedly${exitDetail(code, signal)}.`)
+      this.emitTransportFailure(`Codex app-server exited unexpectedly${exitDetail(code, signal)}.`, {
+        code: code == null ? signal ?? undefined : String(code)
+      })
+    } else {
+      this.record(`Codex app-server exited${exitDetail(code, signal)}.`, {
+        severity: 'debug',
+        code: code == null ? signal ?? undefined : String(code)
+      })
     }
 
     this.stopped = true
@@ -401,7 +469,7 @@ class CodexAppServerSession implements CodexAppServerRun {
     if (this.exitHandled || this.stopped) return
     this.exitHandled = true
     const message = `${prefix}: ${errorMessage(error)}`
-    this.emitTransportFailure(message)
+    this.emitTransportFailure(message, { code: errorCode(error) })
     this.stopped = true
     this.rejectPendingClientRequests(message)
     this.pendingServerRequests.clear()
@@ -409,9 +477,13 @@ class CodexAppServerSession implements CodexAppServerRun {
     this.options.onExit()
   }
 
-  private emitTransportFailure(content: string): void {
+  private emitTransportFailure(content: string, options: { code?: string } = {}): void {
     this.transportFailed = true
     this.terminalRunEventSeen = true
+    this.record(content, {
+      severity: 'error',
+      code: options.code
+    })
     this.options.onParsedEvents([{ type: 'run.failed', content }])
   }
 
@@ -420,6 +492,29 @@ class CodexAppServerSession implements CodexAppServerRun {
       pending.onError?.({ message })
     }
     this.pendingClientRequests.clear()
+  }
+
+  private record(
+    message: string,
+    options: {
+      method?: string
+      hostId?: string
+      severity?: 'debug' | 'info' | 'warning' | 'error'
+      noisy?: boolean
+      code?: string
+    } = {}
+  ): void {
+    recordProviderRuntimeDebugEvent({
+      providerId: this.options.provider.id,
+      runtime: 'app-server',
+      sessionId: this.options.sessionId,
+      hostId: options.hostId ?? this.threadId ?? 'stdio://codex-app-server',
+      method: options.method,
+      severity: options.severity,
+      noisy: options.noisy,
+      code: options.code,
+      message
+    })
   }
 }
 
@@ -483,6 +578,11 @@ function defaultSpawn(
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+function errorCode(error: unknown): string | undefined {
+  if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') return error.code
+  return undefined
 }
 
 function exitDetail(code: number | null, signal: NodeJS.Signals | null): string {

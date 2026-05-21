@@ -16,6 +16,7 @@ import {
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
   type ProviderDiagnosticInfo,
+  type ProviderRuntimeDebugEvent,
   type ProviderRuntimeInfo,
   type SessionListItem,
   type UsageSummary
@@ -1409,6 +1410,70 @@ function ProviderStatusDetails({
           color={color}
         />
       </div>
+      {diagnostics && diagnostics.runtimeEvents && diagnostics.runtimeEvents.length > 0 && (
+        <div className="provider-status-section">
+          <div className="provider-status-section-title">Runtime</div>
+          <ProviderRuntimeEventsCard events={diagnostics.runtimeEvents} color={color} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProviderRuntimeEventsCard({
+  events,
+  color
+}: {
+  events: ProviderRuntimeDebugEvent[]
+  color: string
+}): JSX.Element {
+  const visibleEvents = events.slice(-4).reverse()
+  return (
+    <div data-testid="provider-runtime-events-card" style={{ display: 'grid', gap: 6 }}>
+      {visibleEvents.map((event) => (
+        <div
+          key={event.id}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(54px, auto) minmax(0, 1fr)',
+            alignItems: 'center',
+            gap: 8,
+            minWidth: 0,
+            padding: '6px 8px',
+            borderRadius: 8,
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)'
+          }}
+        >
+          <DiagnosticPill status={event.severity} color={color} />
+          <div style={{ minWidth: 0, display: 'grid', gap: 2 }}>
+            <div
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontSize: 11,
+                color: 'var(--color-text)'
+              }}
+            >
+              {event.message}
+            </div>
+            <div
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontSize: 10,
+                color: 'var(--color-text-muted)'
+              }}
+            >
+              {[event.runtime, event.method, event.hostId].filter(Boolean).join(' · ')}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
