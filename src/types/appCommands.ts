@@ -13,6 +13,7 @@ export type StableAppCommand =
   | 'next-recent-chat'
   | 'toggle-inspector'
   | 'toggle-terminal'
+  | 'close-active-panel-tab'
   | 'settings'
   | 'keyboard-shortcuts'
 
@@ -183,6 +184,15 @@ export const APP_COMMANDS: Record<StableAppCommand, AppCommandDefinition> = {
     shortcuts: [['mod', 'J'], ['mod', '`']],
     accelerator: 'CmdOrCtrl+J',
     keywords: ['shell'],
+    showInShortcuts: true
+  },
+  'close-active-panel-tab': {
+    id: 'close-active-panel-tab',
+    label: 'Close Active Panel Tab',
+    group: 'Panels',
+    description: 'Close the active Workbench or Terminal tab when that panel is focused.',
+    shortcuts: [['mod', 'W']],
+    keywords: ['tab', 'panel', 'workbench', 'terminal'],
     showInShortcuts: true
   }
 }

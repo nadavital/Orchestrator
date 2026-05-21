@@ -977,6 +977,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const terminalTabs = [...document.querySelectorAll('[data-testid="session-bottom-panel"] [role="tab"]')];
             var terminalTabMenuWorks = false;
             var terminalTabReorderWorks = false;
+            var terminalCloseActiveShortcutWorks = false;
             if (terminalTabs.length >= 2) {
               const beforeOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
               const secondTab = terminalTabs[1];
@@ -998,6 +999,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(160);
                 const afterOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
                 terminalTabReorderWorks = beforeOrder.includes(',') && beforeOrder !== afterOrder;
+              }
+              const bottomPanelBeforeClose = document.querySelector('[data-testid="session-bottom-panel"]');
+              const activeTerminalTab = document.querySelector('[data-testid="session-bottom-panel"] .motion-tab-button[data-active="true"]');
+              const tabsBeforeClose = bottomPanelBeforeClose?.getAttribute('data-bottom-panel-tabs') ?? '';
+              if (activeTerminalTab instanceof HTMLElement) {
+                activeTerminalTab.focus({ preventScroll: true });
+                await sleep(80);
+                activeTerminalTab.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'w',
+                  code: 'KeyW',
+                  metaKey: true,
+                  bubbles: true,
+                  cancelable: true
+                }));
+                await sleep(220);
+                const bottomPanelAfterClose = document.querySelector('[data-testid="session-bottom-panel"]');
+                const tabsAfterClose = bottomPanelAfterClose?.getAttribute('data-bottom-panel-tabs') ?? '';
+                terminalCloseActiveShortcutWorks =
+                  tabsBeforeClose.includes(',') &&
+                  !tabsAfterClose.includes(',') &&
+                  bottomPanelAfterClose instanceof HTMLElement;
               }
             }
           }
@@ -2835,6 +2857,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,
             terminalTabMenuWorks: typeof terminalTabMenuWorks === 'boolean' ? terminalTabMenuWorks : null,
             terminalTabReorderWorks: typeof terminalTabReorderWorks === 'boolean' ? terminalTabReorderWorks : null,
+            terminalCloseActiveShortcutWorks: typeof terminalCloseActiveShortcutWorks === 'boolean' ? terminalCloseActiveShortcutWorks : null,
             themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
             themePresetPreviewWorks: typeof themePresetPreviewWorks === 'boolean' ? themePresetPreviewWorks : null,
@@ -3059,6 +3082,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const widthBefore = Number(rightPanel?.getAttribute('data-right-panel-width') ?? '0');
               let rightPanelContextMenuWorks = false;
               let rightPanelTabReorderWorks = false;
+              let rightPanelCloseActiveShortcutWorks = false;
               const browserTab = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
               if (browserTab instanceof HTMLElement) {
                 const beforeOrder = rightPanel?.getAttribute('data-right-panel-tabs') ?? '';
@@ -3081,6 +3105,26 @@ function runAutomatedFocusedSurfaceSmoke(
                   const afterOrder = rightPanel?.getAttribute('data-right-panel-tabs') ?? '';
                   rightPanelTabReorderWorks = beforeOrder !== afterOrder && afterOrder.includes('browser,files');
                 }
+              }
+              const activeWorkbenchTab = document.querySelector('[data-testid="right-sidebar-tabbar"] .motion-tab-button[data-active="true"]');
+              if (activeWorkbenchTab instanceof HTMLElement && rightPanel instanceof HTMLElement) {
+                const beforeCloseTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                activeWorkbenchTab.focus({ preventScroll: true });
+                await sleep(80);
+                activeWorkbenchTab.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'w',
+                  code: 'KeyW',
+                  metaKey: true,
+                  bubbles: true,
+                  cancelable: true
+                }));
+                await sleep(180);
+                const afterCloseTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                rightPanelCloseActiveShortcutWorks =
+                  beforeCloseTabs.includes('browser') &&
+                  !afterCloseTabs.includes('browser') &&
+                  document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]') instanceof HTMLElement;
+                await openPanelTab('browser', 'Browser');
               }
               let rightPanelExpandWorks = false;
               let rightPanelNarrowOverlayWorks = false;
@@ -3177,6 +3221,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelNarrowOverlayDebug,
                 rightPanelContextMenuWorks,
                 rightPanelTabReorderWorks,
+                rightPanelCloseActiveShortcutWorks,
                 widthBefore
               };
             }

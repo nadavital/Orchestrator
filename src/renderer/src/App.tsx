@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
-import { hasComposerDraft, useSessionStore } from './store/sessions'
+import { hasComposerDraft, sideChatIdFromTabId, useSessionStore } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
 import Titlebar from './components/Titlebar'
@@ -16,6 +16,8 @@ import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
 import { APP_COMMANDS, appMenuCommandForKeyboardEvent, commandShortcuts, formatShortcutSequence } from '../../types/appCommands'
 import type { AppMenuCommand, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
+
+type ShellFocusArea = 'main' | 'right-panel' | 'bottom-panel'
 
 export default function App(): JSX.Element {
   const isDesignSystemPreview = window.location.hash === '#design-system'
@@ -57,8 +59,10 @@ export default function App(): JSX.Element {
   const settingsSection = useSessionStore((state) => state.settingsSection)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [renamingActiveChat, setRenamingActiveChat] = useState(false)
+  const [shellFocusArea, setShellFocusArea] = useState<ShellFocusArea>('main')
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
   const waitingNotificationKeysRef = useRef(new Set<string>())
+  const shellFocusAreaRef = useRef<ShellFocusArea>('main')
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
 
   useEffect(() => {
@@ -164,6 +168,50 @@ export default function App(): JSX.Element {
     setShowCapabilities(false)
     setShowSettings(true)
   }, [setSettingsSection, setShowCapabilities, setShowSettings])
+
+  const canCloseActivePanelTab = useCallback((): boolean => {
+    const { activeSessionId, uiState } = useSessionStore.getState()
+    if (!activeSessionId) return false
+    const ui = uiState[activeSessionId]
+    if (shellFocusAreaRef.current === 'right-panel') {
+      return Boolean(ui?.rightPanel?.activeTabId)
+    }
+    if (shellFocusAreaRef.current === 'bottom-panel') {
+      const panel = ui?.terminalPanel
+      return Boolean(ui?.showTerminal && panel?.activeTabId !== undefined && panel.tabs.length > 0)
+    }
+    return false
+  }, [])
+
+  const closeActivePanelTab = useCallback((): void => {
+    const { activeSessionId, uiState, closeRightPanelTab, closeSideChat, closeTerminalTab } = useSessionStore.getState()
+    if (!activeSessionId) return
+    const ui = uiState[activeSessionId]
+    if (shellFocusAreaRef.current === 'right-panel') {
+      const activeTabId = ui?.rightPanel?.activeTabId
+      if (!activeTabId) return
+      const sideChatId = sideChatIdFromTabId(activeTabId)
+      if (sideChatId) {
+        closeSideChat(activeSessionId, sideChatId)
+      } else {
+        closeRightPanelTab(activeSessionId, activeTabId)
+      }
+      return
+    }
+    if (shellFocusAreaRef.current === 'bottom-panel') {
+      const terminalPanel = ui?.terminalPanel
+      if (!ui?.showTerminal || terminalPanel?.activeTabId === undefined) return
+      window.api.terminal.kill(`${activeSessionId}-${terminalPanel.activeTabId}`)
+      closeTerminalTab(activeSessionId, terminalPanel.activeTabId)
+    }
+  }, [])
+
+  const updateShellFocusArea = useCallback((target: EventTarget | null): void => {
+    const next = shellFocusAreaFromTarget(target)
+    if (shellFocusAreaRef.current === next) return
+    shellFocusAreaRef.current = next
+    setShellFocusArea(next)
+  }, [])
 
   const toggleActiveChatPin = useCallback(async (): Promise<void> => {
     const { sessions, activeSessionId } = useSessionStore.getState()
@@ -299,6 +347,16 @@ export default function App(): JSX.Element {
       run: toggleTerminal
     },
     {
+      id: 'close-active-panel-tab',
+      label: APP_COMMANDS['close-active-panel-tab'].label,
+      group: APP_COMMANDS['close-active-panel-tab'].group,
+      description: APP_COMMANDS['close-active-panel-tab'].description,
+      shortcuts: shortcutsFor('close-active-panel-tab'),
+      disabled: !canCloseActivePanelTab(),
+      keywords: [...(APP_COMMANDS['close-active-panel-tab'].keywords ?? [])],
+      run: closeActivePanelTab
+    },
+    {
       id: 'toggle-pet',
       label: 'Toggle Pet Overlay',
       group: 'App',
@@ -334,7 +392,10 @@ export default function App(): JSX.Element {
     openTranscriptSearch,
     sessionCount,
     shortcutsFor,
+    shellFocusArea,
     switchChat,
+    canCloseActivePanelTab,
+    closeActivePanelTab,
     toggleActiveChatPin,
     toggleInspector,
     togglePet,
@@ -379,6 +440,9 @@ export default function App(): JSX.Element {
       case 'toggle-terminal':
         toggleTerminal()
         break
+      case 'close-active-panel-tab':
+        closeActivePanelTab()
+        break
       case 'settings':
         openSettings('general')
         break
@@ -391,6 +455,7 @@ export default function App(): JSX.Element {
     openFileSearch,
     openSettings,
     openTranscriptSearch,
+    closeActivePanelTab,
     switchChat,
     switchChatSlot,
     toggleActiveChatPin,
@@ -595,6 +660,8 @@ export default function App(): JSX.Element {
       if (event.isComposing) return
       const command = appMenuCommandForKeyboardEvent(event, shortcutOverrides)
       if (command) {
+        updateShellFocusArea(event.target)
+        if (command === 'close-active-panel-tab' && !canCloseActivePanelTab()) return
         event.preventDefault()
         runAppCommand(command)
       }
@@ -604,8 +671,10 @@ export default function App(): JSX.Element {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [
     isDesignSystemPreview,
+    canCloseActivePanelTab,
     runAppCommand,
-    shortcutOverrides
+    shortcutOverrides,
+    updateShellFocusArea
   ])
 
   useEffect(() => {
@@ -640,6 +709,9 @@ export default function App(): JSX.Element {
   return (
     <div
       className="app-shell flex flex-1 overflow-hidden"
+      data-app-shell-active-focus-area={shellFocusArea}
+      onFocusCapture={(event) => updateShellFocusArea(event.target)}
+      onPointerOverCapture={(event) => updateShellFocusArea(event.target)}
     >
       <Sidebar />
       <section className="content-shell flex-1 flex flex-col min-w-0 min-h-0">
@@ -684,4 +756,10 @@ export default function App(): JSX.Element {
       )}
     </div>
   )
+}
+
+function shellFocusAreaFromTarget(target: EventTarget | null): ShellFocusArea {
+  if (!(target instanceof HTMLElement)) return 'main'
+  const focusArea = target.closest('[data-app-shell-focus-area]')?.getAttribute('data-app-shell-focus-area')
+  return focusArea === 'right-panel' || focusArea === 'bottom-panel' ? focusArea : 'main'
 }

@@ -244,7 +244,10 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
             </MenuSurface>
           )}
 
-          <div style={{ height: terminalHeight, flexShrink: 0, overflow: 'hidden', background: 'var(--surface-bg)' }}>
+          <div
+            data-app-shell-focus-area="bottom-panel"
+            style={{ height: terminalHeight, flexShrink: 0, overflow: 'hidden', background: 'var(--surface-bg)' }}
+          >
             <TerminalView terminalId={terminalId(activeTab)} workDir={session.workDir} />
           </div>
           </>

@@ -16,6 +16,7 @@ test('app command registry maps navigation and panel shortcuts', () => {
   assert.equal(appMenuCommandForKeyboardEvent({ key: 'Tab', ctrlKey: true, shiftKey: true }), 'previous-chat')
   assert.equal(appMenuCommandForKeyboardEvent({ key: '[', code: 'BracketLeft', metaKey: true, shiftKey: true }), 'previous-chat')
   assert.equal(appMenuCommandForKeyboardEvent({ key: '`', code: 'Backquote', metaKey: true }), 'toggle-terminal')
+  assert.equal(appMenuCommandForKeyboardEvent({ key: 'w', metaKey: true }), 'close-active-panel-tab')
   assert.equal(appMenuCommandForKeyboardEvent({ key: '/', code: 'Slash', metaKey: true, shiftKey: true }), 'keyboard-shortcuts')
 })
 
