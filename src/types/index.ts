@@ -38,6 +38,40 @@ export interface WorkspaceSearchResult {
   durationMs: number
 }
 
+export type PreferredOpenTarget = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+export type OpenTargetId = Exclude<PreferredOpenTarget, 'system'>
+export type OpenPathMethod = 'system' | 'url-scheme' | 'cli' | 'app'
+
+export interface OpenPathOptions {
+  line?: number
+  column?: number
+  cwd?: string
+  target?: PreferredOpenTarget
+  preview?: boolean
+}
+
+export interface OpenPathResult {
+  ok: boolean
+  filePath: string
+  target: PreferredOpenTarget
+  method: OpenPathMethod
+  line?: number
+  column?: number
+  message?: string
+  openedWith?: string
+  fallbackFrom?: OpenPathMethod
+}
+
+export interface OpenTargetAvailability {
+  id: PreferredOpenTarget
+  label: string
+  available: boolean
+  methods: OpenPathMethod[]
+  supportsLineTarget: boolean
+  appName?: string
+  unavailableReason?: string
+}
+
 // Provider display info — shared between main and renderer
 export interface CursorEffortLevel {
   id: string

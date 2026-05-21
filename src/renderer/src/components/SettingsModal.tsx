@@ -22,6 +22,8 @@ import {
   type ProviderRuntimeConnectionState,
   type ProviderRuntimeDebugEvent,
   type ProviderRuntimeInfo,
+  type OpenTargetAvailability,
+  type PreferredOpenTarget,
   type ResolvedExecutionPolicy,
   type SessionListItem,
   type UsageSummary
@@ -49,7 +51,7 @@ import {
 import { applyAppearance, type Accent, type Appearance, type AppearanceTheme, type ChromeTheme, type Density, type TranscriptStyle } from '../theme'
 import { useProjectStore } from '../store/projects'
 
-type PreferredEditor = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
+type PreferredEditor = PreferredOpenTarget
 
 const defaultLightChromeTheme: ChromeTheme = {
   accent: '#0a7cff',
@@ -787,6 +789,19 @@ function GeneralSection({
   preferredEditor: PreferredEditor
   onSetPreferredEditor: (value: PreferredEditor) => void
 }): JSX.Element {
+  const [openTargets, setOpenTargets] = useState<OpenTargetAvailability[]>([])
+  useEffect(() => {
+    let cancelled = false
+    window.api.fs.listOpenTargets()
+      .then((targets) => {
+        if (!cancelled) setOpenTargets(targets)
+      })
+      .catch(() => {
+        if (!cancelled) setOpenTargets([])
+      })
+    return () => { cancelled = true }
+  }, [])
+
   const editorOptions: Array<{ id: PreferredEditor; label: string; desc: string }> = [
     { id: 'system', label: 'System default', desc: 'Use macOS file associations' },
     { id: 'cursor', label: 'Cursor', desc: 'Open file cards in Cursor' },
@@ -805,13 +820,19 @@ function GeneralSection({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
           {editorOptions.map((option) => {
             const active = preferredEditor === option.id
+            const target = openTargets.find((candidate) => candidate.id === option.id)
+            const unavailable = Boolean(target && !target.available && option.id !== 'system')
+            const description = target
+              ? openTargetDescription(option.desc, target)
+              : option.desc
             return (
               <SettingChoiceCard
                 key={option.id}
                 label={option.label}
-                description={option.desc}
+                description={description}
                 active={active}
                 onClick={() => onSetPreferredEditor(option.id)}
+                disabled={unavailable}
               />
             )
           })}
@@ -819,6 +840,18 @@ function GeneralSection({
       </SettingGroup>
     </div>
   )
+}
+
+function openTargetDescription(fallback: string, target: OpenTargetAvailability): string {
+  if (!target.available) return target.unavailableReason ?? 'Not found on this Mac.'
+  if (target.id === 'system') return fallback
+  const methodLabels = target.methods.map((method) => {
+    if (method === 'url-scheme') return 'URL'
+    if (method === 'cli') return 'CLI'
+    return method
+  })
+  const lineTarget = target.supportsLineTarget ? 'line targets' : 'files only'
+  return `Available via ${methodLabels.join(', ')}; ${lineTarget}.`
 }
 
 // ─── Appearance section ──────────────────────────────────────────────────────

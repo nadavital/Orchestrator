@@ -6,7 +6,7 @@ import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, 
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, PerformanceMetric, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
 import { gitManager } from './git'
@@ -26,7 +26,7 @@ import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
 import { performanceSnapshot, recordPerformanceMetric, resetPerformanceMetrics } from './performanceTelemetry'
 import { providerManifests } from './providerManifest'
 import { setBrowserSecurityPolicy } from './browserSecurityPolicy'
-import { editorCliTargets, editorFileUrl, editorOpenTarget, type EditorOpenTarget, type OpenPathOptions } from './editorOpen'
+import { EDITOR_OPEN_TARGETS, editorCliTargets, editorFileUrl, editorOpenTarget, findExecutableCommand, normalizePreferredOpenTarget, type EditorOpenTarget } from './editorOpen'
 type FilePreviewResult =
   | { kind: 'text'; size: number; text: string; truncated: boolean }
   | { kind: 'markdown'; size: number; text: string; truncated: boolean }
@@ -450,19 +450,20 @@ function looksBinary(buffer: Buffer): boolean {
   return suspicious / sampleLength > 0.08
 }
 
-async function openPathWithPreferredEditor(filePath: string, options: OpenPathOptions = {}): Promise<string> {
-  const target = editorOpenTarget(settingsStore.get('preferredEditor', 'system'))
-  if (!target) return shell.openPath(filePath)
-  if (process.platform !== 'darwin') return shell.openPath(filePath)
+async function openPathWithPreferredEditor(filePath: string, options: OpenPathOptions = {}): Promise<OpenPathResult> {
+  const preferredTarget = normalizePreferredOpenTarget(options.target ?? settingsStore.get('preferredEditor', 'system'))
+  const target = editorOpenTarget(preferredTarget)
+  if (!target) return openWithSystem(filePath, options, 'system')
+  if (process.platform !== 'darwin') return openWithSystem(filePath, options, preferredTarget)
 
   const cliResult = await openWithCliTarget(target, filePath, options)
-  if (cliResult === '') return ''
+  if (cliResult.ok) return cliResult
 
   const lineUrl = editorFileUrl(target.urlScheme, filePath, options)
   if (lineUrl) {
     try {
       await shell.openExternal(lineUrl)
-      return ''
+      return openResult(filePath, preferredTarget, 'url-scheme', options, true, { openedWith: lineUrl, fallbackFrom: cliResult.attempted ? 'cli' : undefined })
     } catch {
       // Fall through to opening the file in the selected app.
     }
@@ -471,33 +472,111 @@ async function openPathWithPreferredEditor(filePath: string, options: OpenPathOp
   return new Promise((resolve) => {
     execFile('/usr/bin/open', ['-a', target.macAppName, filePath], (error, _stdout, stderr) => {
       if (!error) {
-        resolve('')
+        resolve(openResult(filePath, preferredTarget, 'app', options, true, {
+          openedWith: target.macAppName,
+          fallbackFrom: lineUrl ? 'url-scheme' : cliResult.attempted ? 'cli' : undefined
+        }))
         return
       }
       const details = stderr.trim() || error.message
-      resolve(`Unable to open in ${target.label}${details ? `: ${details}` : '.'}`)
+      resolve(openResult(filePath, preferredTarget, 'app', options, false, {
+        openedWith: target.macAppName,
+        fallbackFrom: lineUrl ? 'url-scheme' : cliResult.attempted ? 'cli' : undefined,
+        message: `Unable to open in ${target.label}${details ? `: ${details}` : '.'}`
+      }))
     })
   })
 }
 
-async function openWithCliTarget(target: EditorOpenTarget, filePath: string, options: OpenPathOptions): Promise<string | null> {
+async function openWithSystem(filePath: string, options: OpenPathOptions, target: PreferredOpenTarget): Promise<OpenPathResult> {
+  const message = await shell.openPath(filePath)
+  return openResult(filePath, target, 'system', options, message === '', {
+    openedWith: 'system',
+    message: message || undefined
+  })
+}
+
+function openResult(
+  filePath: string,
+  target: PreferredOpenTarget,
+  method: OpenPathMethod,
+  options: OpenPathOptions,
+  ok: boolean,
+  extras: Pick<OpenPathResult, 'message' | 'openedWith' | 'fallbackFrom'> = {}
+): OpenPathResult {
+  return {
+    ok,
+    filePath,
+    target,
+    method,
+    line: options.line,
+    column: options.column,
+    ...extras
+  }
+}
+
+async function openWithCliTarget(target: EditorOpenTarget, filePath: string, options: OpenPathOptions): Promise<OpenPathResult & { attempted: boolean }> {
   const args = editorCliTargets(target, filePath, options)
-  if (args.length === 0) return null
+  if (args.length === 0) return { ...openResult(filePath, target.id, 'cli', options, false), attempted: false }
   const command = findCliCommand(target.cli?.commands ?? [])
-  if (!command) return null
+  if (!command) return { ...openResult(filePath, target.id, 'cli', options, false, { message: `${target.label} CLI was not found.` }), attempted: false }
   return new Promise((resolve) => {
     execFile(command, args, (error, _stdout, stderr) => {
       if (!error) {
-        resolve('')
+        resolve({ ...openResult(filePath, target.id, 'cli', options, true, { openedWith: command }), attempted: true })
         return
       }
-      resolve(stderr.trim() || error.message)
+      resolve({ ...openResult(filePath, target.id, 'cli', options, false, { openedWith: command, message: stderr.trim() || error.message }), attempted: true })
     })
   })
 }
 
 function findCliCommand(candidates: string[]): string | null {
-  return candidates.find((candidate) => !candidate.startsWith('/') || existsSync(candidate)) ?? null
+  return findExecutableCommand(candidates, process.env.PATH, existsSync)
+}
+
+async function listOpenTargets(): Promise<OpenTargetAvailability[]> {
+  const targets: OpenTargetAvailability[] = [{
+    id: 'system',
+    label: 'System default',
+    available: true,
+    methods: ['system'],
+    supportsLineTarget: false
+  }]
+
+  for (const target of Object.values(EDITOR_OPEN_TARGETS)) {
+    targets.push(await openTargetAvailability(target))
+  }
+
+  return targets
+}
+
+async function openTargetAvailability(target: EditorOpenTarget): Promise<OpenTargetAvailability> {
+  const methods: OpenPathMethod[] = []
+  const cli = findCliCommand(target.cli?.commands ?? [])
+  if (cli) methods.push('cli')
+  const appAvailable = process.platform === 'darwin' && await macAppIsRegistered(target.macAppName)
+  if (target.urlScheme && appAvailable) methods.push('url-scheme')
+  if (appAvailable) methods.push('app')
+
+  return {
+    id: target.id,
+    label: target.label,
+    available: methods.length > 0,
+    methods,
+    supportsLineTarget: Boolean(target.urlScheme || target.cli),
+    appName: target.macAppName,
+    unavailableReason: methods.length > 0 ? undefined : `${target.label} was not found on this Mac.`
+  }
+}
+
+async function macAppIsRegistered(appName: string): Promise<boolean> {
+  if (process.platform !== 'darwin') return false
+  return new Promise((resolve) => {
+    execFile('/usr/bin/open', ['-Ra', appName], (error) => {
+      resolve(!error)
+    })
+  })
 }
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
@@ -714,7 +793,8 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     resolveWorkspaceFileReference(cwd, filePath)
   )
   ipcMain.handle('fs:searchWorkspace', (_, request: WorkspaceSearchRequest) => searchWorkspace(request))
-  ipcMain.handle('fs:openPath', (_, filePath: string, options?: OpenPathOptions): Promise<string> =>
+  ipcMain.handle('fs:listOpenTargets', (): Promise<OpenTargetAvailability[]> => listOpenTargets())
+  ipcMain.handle('fs:openPath', (_, filePath: string, options?: OpenPathOptions): Promise<OpenPathResult> =>
     openPathWithPreferredEditor(filePath, options ?? {})
   )
   ipcMain.handle('fs:showInFolder', (_, filePath: string): void => shell.showItemInFolder(filePath))

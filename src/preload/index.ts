@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
 import type { AppMenuCommand } from '../types/appCommands'
 import type { ShortcutOverrides } from '../types/appCommands'
 
@@ -277,7 +277,8 @@ const api = {
       ipcRenderer.invoke('fs:resolveWorkspaceFileReference', cwd, filePath),
     searchWorkspace: (request: WorkspaceSearchRequest): Promise<WorkspaceSearchResult> =>
       ipcRenderer.invoke('fs:searchWorkspace', request),
-    openPath: (filePath: string, options?: { line?: number; column?: number }): Promise<string> =>
+    listOpenTargets: (): Promise<OpenTargetAvailability[]> => ipcRenderer.invoke('fs:listOpenTargets'),
+    openPath: (filePath: string, options?: OpenPathOptions): Promise<OpenPathResult> =>
       ipcRenderer.invoke('fs:openPath', filePath, options),
     showInFolder: (filePath: string): Promise<void> => ipcRenderer.invoke('fs:showInFolder', filePath)
   },

@@ -7,6 +7,7 @@ import {
   editorFileUrl,
   editorOpenTarget,
   editorPathTarget,
+  findExecutableCommand,
   hasValidLineTarget,
   normalizePreferredOpenTarget
 } from '../editorOpen'
@@ -60,5 +61,21 @@ test('CLI target args are capability-driven instead of hardcoded in open handler
   assert.deepEqual(
     editorCliTargets(EDITOR_OPEN_TARGETS.zed, '/Users/navital/Desktop/Orchestrator/src/main/index.ts', {}),
     []
+  )
+})
+
+test('CLI command discovery checks PATH before absolute fallbacks', () => {
+  const exists = (candidate: string): boolean => candidate === '/opt/homebrew/bin/zed'
+  assert.equal(
+    findExecutableCommand(['zed', '/opt/homebrew/bin/zed'], '/usr/bin:/bin', exists),
+    '/opt/homebrew/bin/zed'
+  )
+  assert.equal(
+    findExecutableCommand(['zed', '/opt/homebrew/bin/zed'], '/usr/bin:/opt/homebrew/bin', exists),
+    '/opt/homebrew/bin/zed'
+  )
+  assert.equal(
+    findExecutableCommand(['missing'], '/usr/bin:/bin', exists),
+    null
   )
 })

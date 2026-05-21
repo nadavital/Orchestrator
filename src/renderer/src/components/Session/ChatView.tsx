@@ -1504,7 +1504,7 @@ function FileReferenceCard({ file, cwd, searchRoots, preferredEditor }: { file: 
   const openPath = async (): Promise<void> => {
     setError(null)
     const result = await window.api.fs.openPath(displayPath, { line: file.line, column: file.column })
-    if (result) setError(result)
+    if (!result.ok) setError(result.message ?? 'Unable to open file.')
   }
 
   const revealPath = async (): Promise<void> => {

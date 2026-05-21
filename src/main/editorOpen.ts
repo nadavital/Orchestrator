@@ -1,10 +1,4 @@
-export interface OpenPathOptions {
-  line?: number
-  column?: number
-}
-
-export type PreferredOpenTarget = 'system' | 'vscode' | 'vscode-insiders' | 'cursor' | 'zed'
-export type OpenTargetId = Exclude<PreferredOpenTarget, 'system'>
+import type { OpenPathOptions, OpenTargetId, PreferredOpenTarget } from '../types'
 
 export interface EditorOpenTarget {
   id: OpenTargetId
@@ -62,6 +56,21 @@ export function editorCliTargets(target: EditorOpenTarget, filePath: string, opt
   if (!target.cli || !hasValidLineTarget(options)) return []
   if (target.cli.target === 'file-line-column') return [editorPathTarget(filePath, options)]
   return []
+}
+
+export function findExecutableCommand(candidates: string[], pathValue: string | undefined, exists: (candidate: string) => boolean): string | null {
+  const pathEntries = (pathValue ?? '').split(':').filter(Boolean)
+  for (const candidate of candidates) {
+    if (candidate.startsWith('/')) {
+      if (exists(candidate)) return candidate
+      continue
+    }
+    for (const dir of pathEntries) {
+      const fullPath = `${dir.replace(/\/+$/, '')}/${candidate}`
+      if (exists(fullPath)) return fullPath
+    }
+  }
+  return null
 }
 
 function editorTargetColumn(options: OpenPathOptions): number {
