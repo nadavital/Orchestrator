@@ -426,6 +426,36 @@ export const sessionManager = {
     }
   },
 
+  refreshRecoverableStatuses(): number {
+    const sessions = store.get('sessions', [])
+    const updates: Array<{ id: string; status: SessionStatus; messages: ChatMessage[] }> = []
+
+    for (const session of sessions) {
+      if (session.archivedAt) continue
+      if (!hasRecoverableActiveStatus(session.status)) continue
+      if (providerRuntime.hasActiveRun(session.id)) continue
+
+      const messages = finalizeInterruptedMessages(session.messages)
+      const changedMessages = messages.filter((message, index) => message !== session.messages[index])
+      if (session.status === 'idle' && changedMessages.length === 0) continue
+
+      session.status = 'idle'
+      session.messages = messages
+      updates.push({ id: session.id, status: session.status, messages: changedMessages })
+    }
+
+    if (updates.length === 0) return 0
+
+    store.set('sessions', sessions)
+    for (const update of updates) {
+      send('session:status', { id: update.id, status: update.status })
+      for (const message of update.messages) {
+        send('session:messageUpdated', { id: update.id, message })
+      }
+    }
+    return updates.length
+  },
+
   appendMessage(id: string, messages: ChatMessage[]): void {
     const sessions = store.get('sessions', [])
     const s = sessions.find((s) => s.id === id)

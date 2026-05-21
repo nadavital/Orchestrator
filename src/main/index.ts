@@ -258,6 +258,7 @@ function createWindow(): BrowserWindow {
 
   win.on('focus', () => {
     mainWindow = win
+    sessionManager.refreshRecoverableStatuses()
   })
 
   win.on('closed', () => {

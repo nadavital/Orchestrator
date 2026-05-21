@@ -1135,6 +1135,26 @@ test('permission request details classify command file network and MCP approvals
   assert.equal(mcp.fields.some((field) => field.label === 'Server' && field.value === 'linear'), true)
 })
 
+test('permission request details stay stable across provider fixtures', () => {
+  const copilot = permissionRequestDetail(firstEvent(parseFixture('copilot', 'permission-request.jsonl'), 'permission.requested').denials[0]!)
+  const codex = permissionRequestDetail(firstEvent(parseFixture('codex', 'permission-request.jsonl'), 'permission.requested').denials[0]!)
+  const cursor = permissionRequestDetail(firstEvent(parseFixture('cursor', 'permission-request.jsonl'), 'permission.requested').denials[0]!)
+  const claudeDenials = firstEvent(parseFixture('claude', 'mcp-web-approval.jsonl'), 'permission.requested').denials
+  const claudeMcp = permissionRequestDetail(claudeDenials[0]!)
+  const claudeWeb = permissionRequestDetail(claudeDenials[1]!)
+
+  assert.equal(copilot.kind, 'command')
+  assert.equal(copilot.fields.find((field) => field.label === 'Command')?.value, 'git push')
+  assert.equal(codex.kind, 'command')
+  assert.equal(codex.fields.find((field) => field.label === 'Command')?.value, 'npm install')
+  assert.equal(cursor.kind, 'file')
+  assert.equal(cursor.fields.find((field) => field.label === 'Path')?.value, 'src/index.ts')
+  assert.equal(claudeMcp.kind, 'mcp')
+  assert.equal(claudeMcp.fields.find((field) => field.label === 'Server')?.value, 'linear')
+  assert.equal(claudeWeb.kind, 'network')
+  assert.equal(claudeWeb.fields.find((field) => field.label === 'URL')?.value, 'https://example.com')
+})
+
 test('codex app-server protocol messages normalize approval and question semantics', () => {
   const events = parseFixture('codex', 'app-server-approval-question.jsonl')
   const permission = firstEvent(events, 'permission.requested')
