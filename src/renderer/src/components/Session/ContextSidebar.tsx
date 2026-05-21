@@ -10,9 +10,9 @@ import ExtensionsPanel from './ExtensionsPanel'
 import FilesPanel from './FilesPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
-import { IconButton, MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, TabButton } from '../shared/designSystem'
+import { IconButton, MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, PanelTabStrip } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
-import Icon, { type IconName } from '../shared/Icon'
+import type { IconName } from '../shared/Icon'
 
 export type ContextTab = RightPanelTabId
 
@@ -262,35 +262,21 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
       >
       <div className="right-sidebar-chrome workbench-panel-chrome">
-        <div className="right-sidebar-tabbar" data-testid="right-sidebar-tabbar">
-          <div className="right-sidebar-tab-row" data-testid="right-sidebar-tab-row" data-app-shell-tab-controller>
-          {tabs.map((tab) => (
-            <TabButton
-              key={tab.id}
-              active={effectiveTab === tab.id}
-              onClick={() => activate(tab.id)}
-              onClose={() => close(tab.id)}
-              onContextMenu={(event) => {
-                event.preventDefault()
-                setTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY })
-              }}
-              closeLabel={`Close ${tab.label}`}
-              ariaLabel={tab.label}
-              tooltipLabel={tab.label}
-            >
-              <span className="inline-flex min-w-0 items-center gap-1.5" data-tab-id={tab.id}>
-                <Icon name={tab.icon} size={13} />
-                <span className="right-sidebar-tab-label truncate">{tab.label}</span>
-                {tab.count !== undefined && tab.count > 0 && (
-                  <span className="right-sidebar-tab-count">
-                    {tab.count}
-                  </span>
-                )}
-              </span>
-            </TabButton>
-          ))}
-          </div>
-          <div className="right-sidebar-tab-actions" data-testid="right-sidebar-tab-actions">
+        <PanelTabStrip
+          tabs={tabs}
+          activeTabId={effectiveTab}
+          onActivate={activate}
+          onClose={close}
+          onContextMenu={(event, tabId) => {
+            event.preventDefault()
+            setTabMenu({ tabId, x: event.clientX, y: event.clientY })
+          }}
+          className="right-sidebar-tabbar"
+          stripTestId="right-sidebar-tabbar"
+          tabRowTestId="right-sidebar-tab-row"
+          actionsTestId="right-sidebar-tab-actions"
+          actions={(
+            <>
             <div className="relative">
               <IconButton
                 icon="plus"
@@ -331,8 +317,9 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
               dataTestId="right-panel-expand-toggle"
               onClick={() => setRightPanelFullWidth(session.id, !rightPanel?.fullWidth)}
             />
-          </div>
-        </div>
+            </>
+          )}
+        />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden" data-app-shell-tab-panel-controller>
         {effectiveTab === 'plan' && <PlanPanel session={session} embedded />}

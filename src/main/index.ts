@@ -2546,9 +2546,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             getComputedStyle(rightSidebarActiveLabel).display !== 'none' &&
             rightSidebarInactiveTabs.length >= 2 &&
             rightSidebarInactiveLabels.length === rightSidebarInactiveTabs.length &&
-            rightSidebarInactiveLabels.every((label) => getComputedStyle(label).display === 'none') &&
+            rightSidebarInactiveLabels.every((label) => getComputedStyle(label).display !== 'none') &&
             rightSidebarInactiveTabs.every((tab) => (tab.getAttribute('aria-label') ?? '').trim().length > 0) &&
-            rightSidebarInactiveTabs.every((tab) => tab.getBoundingClientRect().width <= 30);
+            rightSidebarInactiveTabs.every((tab) => tab.getBoundingClientRect().width >= 44);
           let rightSidebarInactiveTabTooltipWorks = false;
           const inactiveBrowserTab = rightSidebarInactiveTabs.find((tab) => tab.getAttribute('aria-label') === 'Browser') ?? rightSidebarInactiveTabs[0];
           if (inactiveBrowserTab instanceof HTMLElement) {

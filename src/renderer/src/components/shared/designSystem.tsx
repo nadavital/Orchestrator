@@ -490,6 +490,12 @@ export function TabButton({
       className="motion-tab-button"
       onClick={onClick}
       onContextMenu={onContextMenu}
+      onAuxClick={(event) => {
+        if (event.button !== 1 || !onClose) return
+        event.preventDefault()
+        event.stopPropagation()
+        onClose()
+      }}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return
         event.preventDefault()
@@ -497,7 +503,7 @@ export function TabButton({
       }}
     >
       <span className="min-w-0 truncate">{children}</span>
-      {active && onClose && (
+      {onClose && (
         <button
           type="button"
           aria-label={closeLabel}
@@ -515,6 +521,121 @@ export function TabButton({
   )
 
   return tooltipLabel ? <Tooltip label={tooltipLabel}>{tab}</Tooltip> : tab
+}
+
+export interface PanelTabItem<T extends string | number> {
+  id: T
+  label: string
+  icon?: IconName
+  count?: number
+  closeLabel?: string
+  ariaLabel?: string
+  tooltipLabel?: string
+}
+
+export function PanelTabStrip<T extends string | number>({
+  tabs,
+  activeTabId,
+  onActivate,
+  onClose,
+  onContextMenu,
+  actions,
+  className = '',
+  stripTestId,
+  tabRowTestId,
+  actionsTestId,
+}: {
+  tabs: PanelTabItem<T>[]
+  activeTabId: T | null
+  onActivate: (tabId: T) => void
+  onClose?: (tabId: T) => void
+  onContextMenu?: (event: React.MouseEvent, tabId: T) => void
+  actions?: ReactNode
+  className?: string
+  stripTestId?: string
+  tabRowTestId?: string
+  actionsTestId?: string
+}): JSX.Element {
+  const rowRef = useRef<HTMLDivElement | null>(null)
+  const [edges, setEdges] = useState({ start: false, end: false })
+
+  const updateEdges = (): void => {
+    const row = rowRef.current
+    if (!row) return
+    const maxScroll = row.scrollWidth - row.clientWidth
+    setEdges({
+      start: row.scrollLeft > 1,
+      end: maxScroll - row.scrollLeft > 1,
+    })
+  }
+
+  useLayoutEffect(() => {
+    updateEdges()
+    const row = rowRef.current
+    if (!row) return
+    const activeTab = row.querySelector<HTMLElement>('[data-active="true"]')
+    activeTab?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    window.requestAnimationFrame(updateEdges)
+  }, [activeTabId, tabs.length])
+
+  useEffect(() => {
+    const row = rowRef.current
+    if (!row) return
+    const resizeObserver = new ResizeObserver(updateEdges)
+    resizeObserver.observe(row)
+    row.addEventListener('scroll', updateEdges, { passive: true })
+    window.addEventListener('resize', updateEdges)
+    return () => {
+      resizeObserver.disconnect()
+      row.removeEventListener('scroll', updateEdges)
+      window.removeEventListener('resize', updateEdges)
+    }
+  }, [])
+
+  return (
+    <div
+      className={`panel-tab-strip ${className}`}
+      data-testid={stripTestId}
+      data-overflow-start={edges.start ? 'true' : 'false'}
+      data-overflow-end={edges.end ? 'true' : 'false'}
+    >
+      <div className="panel-tab-scroll-frame">
+        <div
+          ref={rowRef}
+          className="panel-tab-row"
+          role="tablist"
+          data-testid={tabRowTestId}
+          data-app-shell-tab-controller
+        >
+          {tabs.map((tab) => (
+            <TabButton
+              key={tab.id}
+              active={activeTabId === tab.id}
+              onClick={() => onActivate(tab.id)}
+              onClose={onClose ? () => onClose(tab.id) : undefined}
+              onContextMenu={(event) => onContextMenu?.(event, tab.id)}
+              closeLabel={tab.closeLabel ?? `Close ${tab.label}`}
+              ariaLabel={tab.ariaLabel ?? tab.label}
+              tooltipLabel={tab.tooltipLabel ?? tab.label}
+            >
+              <span className="panel-tab-content" data-tab-id={tab.id}>
+                {tab.icon && <Icon name={tab.icon} size={13} />}
+                <span className="panel-tab-label right-sidebar-tab-label">{tab.label}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span className="panel-tab-count right-sidebar-tab-count">{tab.count}</span>
+                )}
+              </span>
+            </TabButton>
+          ))}
+        </div>
+      </div>
+      {actions && (
+        <div className="panel-tab-actions" data-testid={actionsTestId}>
+          {actions}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function SegmentedControl<T extends string>({

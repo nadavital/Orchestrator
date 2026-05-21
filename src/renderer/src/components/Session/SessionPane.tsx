@@ -5,8 +5,7 @@ import TerminalView from './TerminalView'
 import InputBar from './InputBar'
 import ContextSidebar from './ContextSidebar'
 import RunningAgentsStrip from './RunningAgentsStrip'
-import Icon from '../shared/Icon'
-import { IconButton, MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
+import { IconButton, MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, PanelTabStrip, ToolbarButton } from '../shared/designSystem'
 import { useShallow } from 'zustand/react/shallow'
 import type { Session } from '../../types'
 
@@ -115,6 +114,12 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
   const activeTab = terminalPanel.activeTabId
 
   const terminalId = (tab: number): string => `${session.id}-${tab}`
+  const terminalTabs = tabs.map((tabId, idx) => ({
+    id: tabId,
+    label: tabs.length === 1 ? 'Terminal' : `Terminal ${idx + 1}`,
+    icon: 'terminal' as const,
+    closeLabel: 'Close terminal'
+  }))
 
   const addTab = (): void => {
     addTerminalTab(session.id)
@@ -172,33 +177,19 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
             data-bottom-panel-tabs={tabs.join(',')}
             data-bottom-panel-active-tab={activeTab}
           >
-            <div className="terminal-panel-tab-row" data-app-shell-tab-controller>
-              {tabs.map((tabId, idx) => {
-                const active = tabId === activeTab
-                return (
-                  <div
-                    key={tabId}
-                    className="flex items-center shrink-0"
-                  >
-                    <TabButton
-                      active={active}
-                      onClick={() => setActiveTerminalTab(session.id, tabId)}
-                      onClose={tabs.length > 1 ? () => closeTab(tabId) : undefined}
-                      onContextMenu={(event) => {
-                        event.preventDefault()
-                        setTerminalMenu({ tabId, x: event.clientX, y: event.clientY })
-                      }}
-                      closeLabel="Close terminal"
-                    >
-                      <Icon name="terminal" size={15} />
-                      {tabs.length === 1 ? 'Terminal' : `Terminal ${idx + 1}`}
-                    </TabButton>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="terminal-panel-actions">
+            <PanelTabStrip
+              tabs={terminalTabs}
+              activeTabId={activeTab}
+              onActivate={(tabId) => setActiveTerminalTab(session.id, tabId)}
+              onClose={tabs.length > 1 ? closeTab : undefined}
+              onContextMenu={(event, tabId) => {
+                event.preventDefault()
+                setTerminalMenu({ tabId, x: event.clientX, y: event.clientY })
+              }}
+              className="terminal-panel-tabstrip"
+              tabRowTestId="terminal-panel-tab-row"
+              actions={(
+                <>
               <IconButton icon="plus" label="New terminal" size="sm" onClick={addTab} />
               <ToolbarButton
                 icon="eraser"
@@ -215,7 +206,9 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
                   setShowTerminal(session.id, false)
                 }}
               />
-            </div>
+                </>
+              )}
+            />
           </div>
 
           {terminalMenu && (
