@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { editorFileUrl, editorPathTarget, hasValidLineTarget } from '../editorOpen'
+import {
+  EDITOR_OPEN_TARGETS,
+  editorCliTargets,
+  editorFileUrl,
+  editorOpenTarget,
+  editorPathTarget,
+  hasValidLineTarget,
+  normalizePreferredOpenTarget
+} from '../editorOpen'
 
 test('editor file URL preserves line and column for URL-scheme editors', () => {
   assert.equal(
@@ -31,4 +39,26 @@ test('editor path targets preserve line and column for CLI editors', () => {
   assert.equal(editorPathTarget('/tmp/file.ts', {}), '/tmp/file.ts')
   assert.equal(hasValidLineTarget({ line: 12 }), true)
   assert.equal(hasValidLineTarget({ line: Number.NaN }), false)
+})
+
+test('preferred open targets normalize into a generic target registry', () => {
+  assert.equal(normalizePreferredOpenTarget('zed'), 'zed')
+  assert.equal(normalizePreferredOpenTarget('unknown'), 'system')
+  assert.equal(editorOpenTarget('system'), null)
+  assert.equal(editorOpenTarget('cursor')?.label, 'Cursor')
+})
+
+test('CLI target args are capability-driven instead of hardcoded in open handlers', () => {
+  assert.deepEqual(
+    editorCliTargets(EDITOR_OPEN_TARGETS.zed, '/Users/navital/Desktop/Orchestrator/src/main/index.ts', { line: 42, column: 9 }),
+    ['/Users/navital/Desktop/Orchestrator/src/main/index.ts:42:9']
+  )
+  assert.deepEqual(
+    editorCliTargets(EDITOR_OPEN_TARGETS.vscode, '/Users/navital/Desktop/Orchestrator/src/main/index.ts', { line: 42 }),
+    []
+  )
+  assert.deepEqual(
+    editorCliTargets(EDITOR_OPEN_TARGETS.zed, '/Users/navital/Desktop/Orchestrator/src/main/index.ts', {}),
+    []
+  )
 })
