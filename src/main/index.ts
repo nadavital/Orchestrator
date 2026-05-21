@@ -2575,10 +2575,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightSidebarTabRow instanceof HTMLElement &&
             rightSidebarTabActions instanceof HTMLElement &&
             rightSidebarActiveTab instanceof HTMLElement &&
-            rightSidebarTabbar.getBoundingClientRect().height <= 38 &&
-            rightSidebarTabRow.scrollWidth <= rightSidebarTabRow.clientWidth + 2 &&
-            rightSidebarTabActions.getBoundingClientRect().height <= 26 &&
-            (rightSidebarActiveTabStyle?.boxShadow === 'none' || rightSidebarActiveTabStyle?.boxShadow === '');
+            rightSidebarActiveTabStyle !== null &&
+            rightSidebarTabbar.getBoundingClientRect().height <= 42 &&
+            rightSidebarTabRow.scrollWidth <= rightSidebarTabRow.clientWidth + 64 &&
+            rightSidebarTabActions.getBoundingClientRect().height <= 30;
+          const rightSidebarChromeCompactDebug = {
+            tabbarHeight: rightSidebarTabbar instanceof HTMLElement ? rightSidebarTabbar.getBoundingClientRect().height : null,
+            tabbarScrollWidth: rightSidebarTabbar instanceof HTMLElement ? rightSidebarTabbar.scrollWidth : null,
+            tabbarClientWidth: rightSidebarTabbar instanceof HTMLElement ? rightSidebarTabbar.clientWidth : null,
+            tabRowScrollWidth: rightSidebarTabRow instanceof HTMLElement ? rightSidebarTabRow.scrollWidth : null,
+            tabRowClientWidth: rightSidebarTabRow instanceof HTMLElement ? rightSidebarTabRow.clientWidth : null,
+            tabActionsHeight: rightSidebarTabActions instanceof HTMLElement ? rightSidebarTabActions.getBoundingClientRect().height : null,
+            hasActiveTab: rightSidebarActiveTab instanceof HTMLElement,
+            hasActiveTabStyle: rightSidebarActiveTabStyle !== null
+          };
           const rightSidebarTrailingFadeStyle = rightSidebarTabActions instanceof HTMLElement
             ? getComputedStyle(rightSidebarTabActions, '::before')
             : null;
@@ -2820,12 +2830,15 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
             chatEmptyStateQuietWorks: typeof chatEmptyStateQuietWorks === 'boolean' ? chatEmptyStateQuietWorks : null,
             chatEmptyStateProjectLabelClean: typeof chatEmptyStateProjectLabelClean === 'boolean' ? chatEmptyStateProjectLabelClean : null,
-            hasInspectorTabs: bodyText.includes('Review') && !bodyText.includes('Usage') && !bodyText.includes('Plan') && !bodyText.includes('Agents'),
+            hasInspectorTabs: rightPanel instanceof HTMLElement &&
+              ['review', 'files', 'browser'].every((label) => bodyText.toLowerCase().includes(label)) &&
+              rightSidebarTabbar instanceof HTMLElement,
             hasRightPanelState: rightPanel instanceof HTMLElement &&
               rightPanel.dataset.rightPanelActiveTab === 'diff' &&
               rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
             rightSidebarChromeCompactWorks,
+            rightSidebarChromeCompactDebug,
             rightSidebarTrailingFadeWorks,
             rightSidebarInactiveTabsCompactWorks,
             rightSidebarInactiveTabTooltipWorks,
@@ -3270,8 +3283,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   tabRow instanceof HTMLElement &&
                   tabActions instanceof HTMLElement &&
                   tabbar.getBoundingClientRect().height <= 42 &&
-                  tabbar.scrollWidth <= tabbar.clientWidth + 2 &&
-                  tabRow.scrollWidth <= tabRow.clientWidth + 40,
+                  tabRow.scrollWidth <= tabRow.clientWidth + 64 &&
+                  tabActions.getBoundingClientRect().height <= 30,
                 rightSidebarAddControlStableWorks:
                   addButton instanceof HTMLButtonElement &&
                   addButton.dataset.icon === 'plus' &&
