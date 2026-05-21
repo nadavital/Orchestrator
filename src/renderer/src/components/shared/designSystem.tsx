@@ -437,12 +437,14 @@ export function MotionPanel({
 export function PanelResizeHandle({
   orientation,
   onPointerDown,
+  onDoubleClick,
   label,
   active = false,
   className = '',
 }: {
   orientation: 'vertical' | 'horizontal'
   onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void
+  onDoubleClick?: (event: React.MouseEvent<HTMLButtonElement>) => void
   label: string
   active?: boolean
   className?: string
@@ -456,6 +458,7 @@ export function PanelResizeHandle({
       data-orientation={orientation}
       className={`panel-resize-handle ${className}`}
       onPointerDown={onPointerDown}
+      onDoubleClick={onDoubleClick}
     />
   )
 }

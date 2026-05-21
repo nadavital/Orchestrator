@@ -3159,7 +3159,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 hasRightPanelState: rightPanel instanceof HTMLElement &&
                   rightPanel.dataset.rightPanelTabs?.includes('files') === true &&
                   rightPanel.dataset.rightPanelTabs?.includes('browser') === true &&
-                  Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
+                  Number(rightPanel.dataset.rightPanelWidth ?? '0') >= (rightPanel.dataset.rightPanelLayout === 'overlay' ? 280 : 360),
                 rightSidebarChromeCompactWorks:
                   rightPanel instanceof HTMLElement &&
                   tabbar instanceof HTMLElement &&

@@ -16,6 +16,7 @@ export interface RightPanelTabState {
 export interface RightPanelState {
   open: boolean
   width: number
+  widthRatio?: number
   fullWidth: boolean
   activeTabId: RightPanelTabId | null
   tabs: RightPanelTabState[]
@@ -176,7 +177,7 @@ interface SessionState {
   appendSideChatMessage: (id: string, chatId: string, message: SideQuestionMessage) => void
   updateSideChatMessage: (id: string, chatId: string, messageId: string, patch: Partial<SideQuestionMessage>) => void
   setShowSideQuestions: (id: string, v: boolean) => void
-  setRightPanelWidth: (id: string, width: number) => void
+  setRightPanelWidth: (id: string, width: number, widthRatio?: number) => void
   setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
   openRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   closeRightPanelTab: (id: string, tabId: RightPanelTabId) => void
@@ -261,6 +262,7 @@ export const defaultUI: SessionUIState = {
   rightPanel: {
     open: false,
     width: 468,
+    widthRatio: 0.34,
     fullWidth: false,
     activeTabId: null,
     tabs: []
@@ -662,15 +664,20 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
     }),
 
-  setRightPanelWidth: (id, width) =>
+  setRightPanelWidth: (id, width, widthRatio) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
+      const rightPanel = ensureRightPanel(current.rightPanel)
       return {
         uiState: {
           ...s.uiState,
           [id]: {
             ...current,
-            rightPanel: { ...ensureRightPanel(current.rightPanel), width }
+            rightPanel: {
+              ...rightPanel,
+              width,
+              widthRatio: widthRatio ?? rightPanel.widthRatio
+            }
           }
         }
       }
@@ -977,6 +984,7 @@ function ensureRightPanel(panel?: RightPanelState): RightPanelState {
   return {
     open: panel?.open ?? false,
     width: panel?.width ?? 468,
+    widthRatio: panel?.widthRatio,
     fullWidth: panel?.fullWidth ?? false,
     activeTabId: panel?.activeTabId ?? null,
     tabs: panel?.tabs ?? []

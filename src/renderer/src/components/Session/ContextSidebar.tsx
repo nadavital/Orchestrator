@@ -21,6 +21,7 @@ interface Props {
 }
 
 const DEFAULT_PANEL_WIDTH = 468
+const DEFAULT_PANEL_WIDTH_RATIO = 0.34
 const MIN_PANEL_WIDTH = 360
 const MAX_PANEL_WIDTH = 960
 const MIN_PRIMARY_CONTENT_WIDTH = 360
@@ -66,7 +67,8 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const resizeStartRef = useRef<{ x: number; width: number } | null>(null)
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
-  const panelWidth = rightPanel?.width ?? DEFAULT_PANEL_WIDTH
+  const panelWidthRatio = rightPanel?.widthRatio ?? DEFAULT_PANEL_WIDTH_RATIO
+  const panelWidth = Math.round(mainRowWidth * panelWidthRatio) || rightPanel?.width || DEFAULT_PANEL_WIDTH
   const shouldOverlayPanel = !rightPanel?.fullWidth && mainRowWidth < MIN_PRIMARY_CONTENT_WIDTH + MIN_PANEL_WIDTH
   const maxPanelWidth = Math.max(
     MIN_PANEL_WIDTH,
@@ -203,7 +205,9 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         MIN_PANEL_WIDTH,
         Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, rowWidth - MIN_PRIMARY_CONTENT_WIDTH))
       )
-      setRightPanelWidth(session.id, Math.max(MIN_PANEL_WIDTH, Math.min(dragMaxPanelWidth, start.width + delta)))
+      const nextWidth = Math.max(MIN_PANEL_WIDTH, Math.min(dragMaxPanelWidth, start.width + delta))
+      const nextRatio = rowWidth > 0 ? nextWidth / rowWidth : panelWidthRatio
+      setRightPanelWidth(session.id, nextWidth, nextRatio)
       if (rightPanel?.fullWidth) setRightPanelFullWidth(session.id, false)
     }
     const onUp = (): void => {
@@ -214,7 +218,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp, { once: true })
-  }, [mainRowWidth, panelWidth, rightPanel?.fullWidth, session.id, setRightPanelFullWidth, setRightPanelWidth])
+  }, [mainRowWidth, panelWidth, panelWidthRatio, rightPanel?.fullWidth, session.id, setRightPanelFullWidth, setRightPanelWidth])
 
   const moveTab = (tabId: ContextTab, direction: 'left' | 'right'): void => {
     moveRightPanelTab(session.id, tabId, direction)
@@ -248,6 +252,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
           label="Resize panel"
           active={isResizing}
           onPointerDown={handleResizeStart}
+          onDoubleClick={() => setRightPanelWidth(session.id, DEFAULT_PANEL_WIDTH, DEFAULT_PANEL_WIDTH_RATIO)}
         />
       )}
       <aside
@@ -258,6 +263,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         data-right-panel-active-tab={effectiveTab ?? ''}
         data-right-panel-width={panelSize}
         data-right-panel-full-width={rightPanel?.fullWidth ? 'true' : 'false'}
+        data-right-panel-width-ratio={panelWidthRatio.toFixed(4)}
         data-right-panel-layout={rightPanel?.fullWidth ? 'full' : shouldOverlayPanel ? 'overlay' : 'docked'}
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
       >

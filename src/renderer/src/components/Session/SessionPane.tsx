@@ -166,6 +166,7 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
           label="Resize terminal"
           active={isTerminalResizing}
           onPointerDown={handleResizeStart}
+          onDoubleClick={() => setTerminalHeight(session.id, DEFAULT_TERMINAL_HEIGHT)}
         />
         {ui.showTerminal && (
           <>
