@@ -51,6 +51,8 @@ Parity rule: do not add broad bespoke Orchestrator workbench behavior until the 
 
 This matrix is the higher-level parity ledger. The goal is not to clone Codex blindly, but to reach the same level of usefulness, efficiency, speed, and robustness before layering on Orchestrator-specific product ideas.
 
+Detailed side-panel/sidebar parity audit: `docs/codex-side-panel-ui-parity-audit.md`.
+
 | Dimension | Codex baseline | Orchestrator current state | Required parity work | Status |
 | --- | --- | --- | --- | --- |
 | Shared shell model | `AppShell.Root`, `LeftPanel`, `RightPanel`, `BottomPanel`, header slots, focus areas, layout ticks, and panel animation are shared primitives. | Shell behavior is split across `SessionPane`, `ContextSidebar`, `TerminalPanel`, `Sidebar`, and `SettingsModal`. | Extract a shared Orchestrator shell layer for panel sizing, focus areas, resize handles, tab headers, and action slots. | `Todo` |
