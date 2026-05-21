@@ -17,7 +17,7 @@ import Icon, { type IconName } from '../shared/Icon'
 export type ContextTab = RightPanelTabId
 
 interface Props {
-  session: Session
+  sessionId: string
 }
 
 const DEFAULT_PANEL_WIDTH = 468
@@ -33,7 +33,13 @@ interface ContextTabSpec {
   count?: number
 }
 
-export default function ContextSidebar({ session }: Props): JSX.Element | null {
+export default function ContextSidebar({ sessionId }: Props): JSX.Element | null {
+  const session = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId))
+  if (!session) return null
+  return <ContextSidebarContent session={session} />
+}
+
+function ContextSidebarContent({ session }: { session: Session }): JSX.Element | null {
   const {
     eventBuffers,
     uiState,

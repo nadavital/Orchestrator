@@ -332,6 +332,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedStreamingDragSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-typing') {
+    runAutomatedStreamingTypingSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced') {
     runAutomatedReducedMotionSmoke(win, outputPath, screenshotPath)
     return
@@ -6428,6 +6432,154 @@ function runAutomatedStreamingDragSmoke(win: BrowserWindow, outputPath: string, 
   })
 }
 
+function runAutomatedStreamingTypingSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const session = sessionManager.list().find((candidate) =>
+          candidate.messages.some((message) => message.id === 'streaming-typing-message')
+        )
+        const sessionId = session?.id ?? null
+        let streamingSessionActive = false
+        for (let attempt = 0; attempt < 24 && sessionId; attempt += 1) {
+          win.webContents.send('pet:navigate', sessionId)
+          await new Promise((resolve) => setTimeout(resolve, 100))
+          streamingSessionActive = await win.webContents.executeJavaScript(`
+            document.querySelector('[data-testid="active-session-title"]')?.textContent?.includes('Streaming typing smoke') === true
+          `)
+          if (streamingSessionActive) break
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200))
+
+        await win.webContents.executeJavaScript(`
+          (() => {
+            window.__orchestratorInputBarCommitCount = 0;
+            window.__orchestratorSessionPaneCommitCount = 0;
+            window.__orchestratorChatViewCommitCount = 0;
+            window.__orchestratorStreamingFrameGaps = [];
+            window.__orchestratorStreamingFrameStop = false;
+            let lastFrame = performance.now();
+            const sample = (now) => {
+              window.__orchestratorStreamingFrameGaps.push(now - lastFrame);
+              lastFrame = now;
+              if (!window.__orchestratorStreamingFrameStop) requestAnimationFrame(sample);
+            };
+            requestAnimationFrame(sample);
+          })()
+        `)
+
+        const updatePromise = (async () => {
+          const active = sessionId ? sessionManager.get(sessionId) : null
+          const existing = active?.messages.find((message) => message.id === 'streaming-typing-message')
+          if (!active || existing?.type !== 'text') return false
+          for (let index = 0; index < 110; index += 1) {
+            sessionManager.upsertMessage(active.id, {
+              ...existing,
+              content: [
+                'Streaming typing responsiveness smoke.',
+                ...Array.from({ length: index + 1 }, (_line, lineIndex) => `typing stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+              ].join('\n'),
+              isStreaming: true
+            })
+            await new Promise((resolve) => setTimeout(resolve, 8))
+          }
+          sessionManager.upsertMessage(active.id, {
+            ...existing,
+            content: [
+              'Streaming typing responsiveness smoke.',
+              ...Array.from({ length: 110 }, (_line, lineIndex) => `typing stream update ${String(lineIndex + 1).padStart(3, '0')}`)
+            ].join('\n'),
+            isStreaming: false
+          })
+          return true
+        })()
+
+        await new Promise((resolve) => setTimeout(resolve, 80))
+        const typingResultPromise = win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const textarea = document.querySelector('textarea');
+            if (!(textarea instanceof HTMLTextAreaElement)) {
+              return { composerFound: false };
+            }
+            textarea.focus();
+            textarea.value = '';
+            textarea.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null }));
+            const chars = 'typing while streaming should stay responsive and boring';
+            const timerDrifts = [];
+            const inputDispatchMs = [];
+            let expectedAt = performance.now() + 24;
+            for (const char of chars) {
+              await sleep(Math.max(0, expectedAt - performance.now()));
+              const before = performance.now();
+              timerDrifts.push(before - expectedAt);
+              textarea.value += char;
+              textarea.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: char }));
+              inputDispatchMs.push(performance.now() - before);
+              expectedAt += 24;
+            }
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            return {
+              composerFound: true,
+              typedLength: chars.length,
+              composerValue: textarea.value,
+              maxTypingTimerDriftMs: timerDrifts.length ? Math.max(...timerDrifts) : null,
+              p95TypingTimerDriftMs: percentile(timerDrifts, 0.95),
+              maxInputDispatchMs: inputDispatchMs.length ? Math.max(...inputDispatchMs) : null,
+              p95InputDispatchMs: percentile(inputDispatchMs, 0.95)
+            };
+
+            function percentile(values, ratio) {
+              if (!values.length) return null;
+              const sorted = [...values].sort((a, b) => a - b);
+              return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))];
+            }
+          })()
+        `)
+
+        const [streamingMessageUpdated, typingResult] = await Promise.all([updatePromise, typingResultPromise])
+
+        const result = await win.webContents.executeJavaScript(`
+          (() => {
+            window.__orchestratorStreamingFrameStop = true;
+            const gaps = Array.isArray(window.__orchestratorStreamingFrameGaps) ? window.__orchestratorStreamingFrameGaps : [];
+            return {
+              profile: window.__orchestratorSmokeProfile ?? null,
+              inputBarCommitCount: window.__orchestratorInputBarCommitCount ?? null,
+              sessionPaneCommitCount: window.__orchestratorSessionPaneCommitCount ?? null,
+              chatViewCommitCount: window.__orchestratorChatViewCommitCount ?? null,
+              maxFrameGapMs: gaps.length ? Math.max(...gaps) : null,
+              frameSamples: gaps.length,
+              streamingTextVisible: document.body.innerText.includes('typing stream update 110')
+            };
+          })()
+        `)
+
+        const profile = await win.webContents.executeJavaScript('window.api.app.getProfile()')
+        const typedValue = typeof typingResult?.composerValue === 'string' ? typingResult.composerValue : ''
+        const payload = {
+          ...result,
+          ...typingResult,
+          profile,
+          streamingMessageUpdated,
+          streamingSessionActive,
+          composerTyped: typedValue.includes('typing while streaming should stay responsive')
+        }
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: payload, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 async function dispatchTitlebarDrag(win: BrowserWindow): Promise<{
   idleDragSupported: boolean
   idleMovedDistance: number
@@ -6545,6 +6697,8 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     await seedAutomatedTranscriptStressSmokeSession(project.id, project.rootPath)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-drag') {
     seedAutomatedStreamingDragSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-typing') {
+    seedAutomatedStreamingTypingSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings') {
     await seedAutomatedSettingsSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'plan') {
@@ -6734,6 +6888,37 @@ function seedAutomatedStreamingDragSmokeSession(sessionId: string): void {
     status: 'running',
     messages: [
       ...session.messages.filter((message) => !message.id.startsWith('streaming-drag-')),
+      ...messages
+    ]
+  })
+}
+
+function seedAutomatedStreamingTypingSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+  const messages: ChatMessage[] = [
+    {
+      id: 'streaming-typing-user',
+      role: 'user',
+      type: 'text',
+      content: 'Generate a long response while I keep typing in the composer.',
+      timestamp: Date.now()
+    },
+    {
+      id: 'streaming-typing-message',
+      role: 'assistant',
+      type: 'text',
+      content: 'Streaming typing responsiveness smoke.',
+      isStreaming: true,
+      timestamp: Date.now() + 1
+    }
+  ]
+  sessionManager.save({
+    ...session,
+    name: 'Streaming typing smoke',
+    status: 'running',
+    messages: [
+      ...session.messages.filter((message) => !message.id.startsWith('streaming-typing-')),
       ...messages
     ]
   })

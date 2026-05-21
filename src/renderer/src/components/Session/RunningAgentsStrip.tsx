@@ -5,12 +5,18 @@ import { Badge, SurfaceRow } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
 
 interface Props {
-  session: Session
+  sessionId: string
 }
 
 const LIVE_STATUSES = new Set(['queued', 'running', 'waiting', 'blocked'])
 
-export default function RunningAgentsStrip({ session }: Props): JSX.Element | null {
+export default function RunningAgentsStrip({ sessionId }: Props): JSX.Element | null {
+  const session = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId))
+  if (!session) return null
+  return <RunningAgentsStripContent session={session} />
+}
+
+function RunningAgentsStripContent({ session }: { session: Session }): JSX.Element | null {
   const { eventBuffers, uiState, setActiveAgent } = useSessionStore()
   const events = eventBuffers[session.id] ?? []
   const activeAgentId = uiState[session.id]?.activeAgentId ?? null

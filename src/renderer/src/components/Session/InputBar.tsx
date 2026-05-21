@@ -58,6 +58,13 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const cancelledPendingAttachments = useRef<Set<string>>(new Set())
   const activeAttachmentSaves = useRef<Set<string>>(new Set())
 
+  useEffect(() => {
+    const globals = window as typeof window & { __orchestratorInputBarCommitCount?: number }
+    if (typeof globals.__orchestratorInputBarCommitCount === 'number') {
+      globals.__orchestratorInputBarCommitCount += 1
+    }
+  })
+
   const setComposerText = (next: string, sessionId = session.id): void => {
     setText(next)
     setComposerDraft(sessionId, next)

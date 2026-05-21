@@ -42,7 +42,7 @@ interface TranscriptPrependAnchor {
 }
 
 interface Props {
-  session: Session
+  sessionId: string
 }
 
 const TOOL_SUMMARY_SCROLL_THRESHOLD = 8
@@ -55,7 +55,13 @@ const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
 const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
 const TRANSCRIPT_VIRTUAL_ROW_GAP = 14
 
-export default function ChatView({ session }: Props): JSX.Element {
+export default function ChatView({ sessionId }: Props): JSX.Element {
+  const session = useSessionStore((state) => state.sessions.find((candidate) => candidate.id === sessionId))
+  if (!session) return <></>
+  return <ChatViewContent session={session} />
+}
+
+function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const projectName = useProjectStore((state) => state.projects.find((project) => project.id === session.projectId)?.name)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -76,6 +82,14 @@ export default function ChatView({ session }: Props): JSX.Element {
   const [renderLimit, setRenderLimit] = useState(() => Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
   const [scrollMetrics, setScrollMetrics] = useState({ top: 0, height: 0, listOffsetTop: 0 })
   const [rowMeasurementVersion, setRowMeasurementVersion] = useState(0)
+
+  useEffect(() => {
+    const globals = window as typeof window & { __orchestratorChatViewCommitCount?: number }
+    if (typeof globals.__orchestratorChatViewCommitCount === 'number') {
+      globals.__orchestratorChatViewCommitCount += 1
+    }
+  })
+
   const visibleMessages = useMemo(() => {
     if (session.messages.length <= renderLimit) return session.messages
     return session.messages.slice(-renderLimit)

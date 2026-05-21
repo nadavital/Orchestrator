@@ -44,6 +44,8 @@ const captureView = process.argv.includes('--settings-providers')
                 ? 'transcript-stress'
                 : process.argv.includes('--streaming-drag')
                   ? 'streaming-drag'
+                : process.argv.includes('--streaming-typing')
+                  ? 'streaming-typing'
                 : process.argv.includes('--session-switch')
                   ? 'session-switch'
                   : process.argv.includes('--extensions')
@@ -378,6 +380,19 @@ child.on('exit', (code) => {
         appCommitCountLow: Number(result.appCommitCount ?? Number.POSITIVE_INFINITY) <= 6,
         maxFrameGapAcceptable: Number(result.maxFrameGapMs ?? Number.POSITIVE_INFINITY) < 80,
         titlebarDragResponsive: result.titlebarDragResponsive === true
+      }
+    : captureView === 'streaming-typing'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        streamingMessageUpdated: result.streamingMessageUpdated === true,
+        streamingSessionActive: result.streamingSessionActive === true,
+        streamingTextVisible: result.streamingTextVisible === true,
+        composerTyped: result.composerTyped === true,
+        typingTimerDriftAcceptable: Number(result.maxTypingTimerDriftMs ?? Number.POSITIVE_INFINITY) < 55,
+        inputDispatchAcceptable: Number(result.maxInputDispatchMs ?? Number.POSITIVE_INFINITY) < 24,
+        maxFrameGapAcceptable: Number(result.maxFrameGapMs ?? Number.POSITIVE_INFINITY) < 80,
+        inputBarCommitCountBounded: Number(result.inputBarCommitCount ?? Number.POSITIVE_INFINITY) <= 96,
+        sessionPaneCommitCountBounded: Number(result.sessionPaneCommitCount ?? Number.POSITIVE_INFINITY) <= 12
       }
     : captureView === 'motion-reduced'
     ? {

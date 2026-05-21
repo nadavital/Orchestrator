@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback } from 'react'
+import { memo, useState, useRef, useCallback, useEffect } from 'react'
 import { defaultUI, useSessionStore } from '../../store/sessions'
 import ChatView from './ChatView'
 import TerminalView from './TerminalView'
@@ -7,28 +7,79 @@ import ContextSidebar from './ContextSidebar'
 import RunningAgentsStrip from './RunningAgentsStrip'
 import Icon from '../shared/Icon'
 import { IconButton, MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, TabButton, ToolbarButton } from '../shared/designSystem'
+import { useShallow } from 'zustand/react/shallow'
+import type { Session } from '../../types'
 
 const MIN_TERMINAL_HEIGHT = 120
 const MAX_TERMINAL_HEIGHT = 600
 const DEFAULT_TERMINAL_HEIGHT = 260
+const SESSION_PANE_EMPTY_MESSAGES: Session['messages'] = []
 
 interface SessionPaneProps {
   sessionId: string
 }
 
 function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
-  const sessions = useSessionStore((state) => state.sessions)
-  const ui = useSessionStore((state) => state.uiState[sessionId] ?? defaultUI)
+  const session = useSessionStore(useShallow((state): Session | null => {
+    const current = state.sessions.find((candidate) => candidate.id === sessionId)
+    if (!current) return null
+    return {
+      id: current.id,
+      name: current.name,
+      pinned: current.pinned,
+      pinOrder: current.pinOrder,
+      projectId: current.projectId,
+      workDir: current.workDir,
+      useWorktree: current.useWorktree,
+      repoRoot: current.repoRoot,
+      providerSessionId: current.providerSessionId,
+      claudeSessionId: current.claudeSessionId,
+      status: current.status,
+      messages: SESSION_PANE_EMPTY_MESSAGES,
+      messageCount: current.messageCount ?? current.messages.length,
+      messagesLoaded: current.messagesLoaded,
+      previewText: current.previewText,
+      latestMessageAt: current.latestMessageAt,
+      archivedAt: current.archivedAt,
+      createdAt: current.createdAt,
+      provider: current.provider,
+      model: current.model,
+      effort: current.effort,
+      agentName: current.agentName,
+      permissionMode: current.permissionMode,
+      allowedTools: current.allowedTools,
+      disallowedTools: current.disallowedTools,
+      availableTools: current.availableTools,
+      additionalDirs: current.additionalDirs,
+      runtime: current.runtime,
+      useThinking: current.useThinking,
+      useFast: current.useFast,
+      usageSummary: current.usageSummary
+    }
+  }))
+  const ui = useSessionStore(useShallow((state) => {
+    const current = state.uiState[sessionId] ?? defaultUI
+    return {
+      showTerminal: current.showTerminal,
+      terminalPanel: current.terminalPanel
+    }
+  }))
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
   const setTerminalHeight = useSessionStore((state) => state.setTerminalHeight)
   const addTerminalTab = useSessionStore((state) => state.addTerminalTab)
   const setActiveTerminalTab = useSessionStore((state) => state.setActiveTerminalTab)
   const moveTerminalTab = useSessionStore((state) => state.moveTerminalTab)
   const closeTerminalTab = useSessionStore((state) => state.closeTerminalTab)
-  const session = sessions.find((s) => s.id === sessionId)
   const [isTerminalResizing, setIsTerminalResizing] = useState(false)
   const [terminalMenu, setTerminalMenu] = useState<{ tabId: number; x: number; y: number } | null>(null)
   const dragStartRef = useRef<{ y: number; h: number } | null>(null)
+
+  useEffect(() => {
+    const globals = window as typeof window & { __orchestratorSessionPaneCommitCount?: number }
+    if (typeof globals.__orchestratorSessionPaneCommitCount === 'number') {
+      globals.__orchestratorSessionPaneCommitCount += 1
+    }
+  })
 
   const handleResizeStart = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     if (!session) return
@@ -88,13 +139,13 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
       <div className="relative flex-1 flex min-w-0 overflow-hidden" data-testid="session-main-row">
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden" data-testid="session-primary-content">
           <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-            <ChatView session={session} />
+            <ChatView sessionId={session.id} />
           </div>
-          <RunningAgentsStrip session={session} />
+          <RunningAgentsStrip sessionId={session.id} />
           <InputBar session={session} isNew={isNew} />
         </div>
 
-        <ContextSidebar session={session} />
+        <ContextSidebar sessionId={session.id} />
       </div>
 
       {/* Terminal bottom panel */}
