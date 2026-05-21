@@ -32,7 +32,7 @@ import { useSessionStore } from '../store/sessions'
 import type { SettingsSection } from '../store/sessions'
 import type { AppProfile } from '../env'
 import { APP_COMMANDS, formatShortcutKeys, shortcutSequenceFromKeyboardEvent, visibleShortcutRows } from '../../../types/appCommands'
-import type { ShortcutOverrides, ShortcutSequence, StableAppCommand } from '../../../types/appCommands'
+import type { ShortcutOverrides, StableAppCommand } from '../../../types/appCommands'
 import { parsePortableTheme, serializePortableTheme } from '../../../types/themeSharing'
 import ProviderIcon from './shared/ProviderIcon'
 import Icon from './shared/Icon'
@@ -1442,15 +1442,19 @@ function ShortcutsSection({
   const [recordingCommand, setRecordingCommand] = useState<StableAppCommand | null>(null)
   const [recordingError, setRecordingError] = useState<string | null>(null)
   const shortcutPlatform = navigator.platform.toLowerCase().includes('mac') ? 'mac' : 'other'
-  const shortcuts = visibleShortcutRows(shortcutOverrides).map((shortcut) => ({
-    ...shortcut,
-    category: shortcut.group,
-    displayLabel: compactShortcutLabel(shortcut.label),
-    editable: isEditableShortcutRow(shortcut.id),
-    overridden: isEditableShortcutRow(shortcut.id) && Boolean(shortcutOverrides[shortcut.id]),
-    keys: shortcut.shortcuts.map((sequence) => formatShortcutKeys(sequence, shortcutPlatform)),
-    primaryKeys: formatShortcutKeys(shortcut.shortcuts[0], shortcutPlatform)
-  }))
+  const shortcuts = visibleShortcutRows(shortcutOverrides).map((shortcut) => {
+    const commandId = isEditableShortcutRow(shortcut.id) ? shortcut.id : null
+    return {
+      ...shortcut,
+      category: shortcut.group,
+      commandId,
+      displayLabel: compactShortcutLabel(shortcut.label),
+      editable: commandId !== null,
+      overridden: commandId !== null && Boolean(shortcutOverrides[commandId]),
+      keys: shortcut.shortcuts.map((sequence) => formatShortcutKeys(sequence, shortcutPlatform)),
+      primaryKeys: formatShortcutKeys(shortcut.shortcuts[0], shortcutPlatform)
+    }
+  })
   const normalizedQuery = query.trim().toLowerCase()
   const visibleShortcuts = shortcuts.filter((shortcut) => {
     if (!normalizedQuery) return true
@@ -1554,12 +1558,12 @@ function ShortcutsSection({
               data-testid="settings-shortcut-sequence"
               aria-label={shortcut.primaryKeys.join(' ')}
             >
-              {shortcut.editable && recordingCommand === shortcut.id ? (
+              {shortcut.commandId && recordingCommand === shortcut.commandId ? (
                 <button
                   type="button"
                   autoFocus
                   data-testid="settings-shortcut-recorder"
-                  onKeyDown={(event) => recordShortcut(event, shortcut.id)}
+                  onKeyDown={(event) => recordShortcut(event, shortcut.commandId!)}
                   onBlur={() => setRecordingCommand(null)}
                   className="rounded-md text-center text-[11px] font-semibold"
                   style={{
@@ -1586,12 +1590,12 @@ function ShortcutsSection({
                   {shortcut.primaryKeys.join('')}
                 </kbd>
               )}
-              {shortcut.editable && (
+              {shortcut.commandId && (
                 <button
                   type="button"
                   data-testid="settings-shortcut-edit"
                   aria-label={`Edit ${shortcut.label} shortcut`}
-                  onClick={() => startRecording(shortcut.id)}
+                  onClick={() => startRecording(shortcut.commandId!)}
                   className="rounded-md px-1.5 text-[10px] font-semibold"
                   style={{
                     height: 22,
@@ -1603,12 +1607,12 @@ function ShortcutsSection({
                   Edit
                 </button>
               )}
-              {shortcut.editable && shortcut.overridden && (
+              {shortcut.commandId && shortcut.overridden && (
                 <button
                   type="button"
                   data-testid="settings-shortcut-reset"
                   aria-label={`Reset ${shortcut.label} shortcut`}
-                  onClick={() => resetShortcut(shortcut.id)}
+                  onClick={() => resetShortcut(shortcut.commandId!)}
                   className="rounded-md px-1.5 text-[10px] font-semibold"
                   style={{
                     height: 22,

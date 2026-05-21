@@ -21,6 +21,8 @@ function Titlebar(): JSX.Element {
       name: current.name,
       pinned: current.pinned,
       workDir: current.workDir,
+      repoRoot: current.repoRoot,
+      providerSessionId: current.providerSessionId,
       provider: current.provider,
       model: current.model,
       useWorktree: current.useWorktree

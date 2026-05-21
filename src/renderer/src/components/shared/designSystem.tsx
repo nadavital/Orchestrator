@@ -1007,6 +1007,7 @@ interface BadgeProps {
   interactive?: boolean
   className?: string
   style?: CSSProperties
+  title?: string
 }
 
 export function Badge({
@@ -1015,9 +1016,11 @@ export function Badge({
   interactive = false,
   className = '',
   style,
+  title,
 }: BadgeProps): JSX.Element {
   return (
     <span
+      title={title}
       className={`inline-flex min-w-0 items-center justify-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-none ${interactive ? 'motion-badge-button' : ''} ${className}`}
       style={{
         color: toneColor[tone],
@@ -1139,6 +1142,7 @@ interface SurfaceRowProps {
   title?: string
   ariaLabel?: string
   dataTestId?: string
+  dataReviewPath?: string
 }
 
 export function SurfaceRow({

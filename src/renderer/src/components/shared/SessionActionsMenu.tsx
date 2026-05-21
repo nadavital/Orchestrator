@@ -1,15 +1,24 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { Session } from '../../types'
 import RenameChatDialog from './RenameChatDialog'
 import { ConfirmDialog, MenuItem, MenuSurface } from './designSystem'
 
+interface SessionActionsMenuSession {
+  id: string
+  projectId: string
+  name: string
+  pinned?: boolean
+  workDir: string
+  repoRoot?: string
+  providerSessionId?: string | null
+}
+
 interface Props {
-  session: Session
+  session: SessionActionsMenuSession
   x: number
   y: number
   onClose: () => void
-  onRemove?: (session: Session) => void | Promise<void>
+  onRemove?: (session: SessionActionsMenuSession) => void | Promise<void>
   projectRoot?: string
   branch?: string | null
 }
