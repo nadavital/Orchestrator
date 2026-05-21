@@ -414,6 +414,7 @@ child.on('exit', (code) => {
         replyInputFocused: result.replyInputFocused === true,
         replyFormClosedWithEscape: result.replyFormClosedWithEscape === true,
         permissionActionsVisible: result.permissionActionsVisible === true,
+        permissionAllowSessionDecision: result.permissionAllowSessionDecision === true,
         permissionTitleMapped: result.permissionTitleMapped === true,
         permissionStatusMapped: result.permissionStatusMapped === true,
         runningStatusMapped: result.runningStatusMapped === true,

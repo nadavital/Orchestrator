@@ -5705,6 +5705,7 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
 
         let statusResult: Record<string, unknown> = {
           permissionActionsVisible: false,
+          permissionAllowSessionDecision: false,
           runningStatusMapped: false,
           reviewStatusMapped: false,
           failedStatusMapped: false,
@@ -5725,6 +5726,9 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
           const permissionResult = await overlayWindow.webContents.executeJavaScript(`
             (() => {
               const bodyText = document.body.innerText;
+              const allowSessionButton = Array.from(document.querySelectorAll('button'))
+                .find((button) => button.textContent?.trim() === 'Allow Session');
+              if (allowSessionButton instanceof HTMLButtonElement) allowSessionButton.click();
               return {
                 permissionActionsVisible: bodyText.includes('Allow Once') && bodyText.includes('Allow Session') && bodyText.includes('Deny'),
                 permissionTitleMapped: bodyText.includes('Command Approval') || bodyText.includes('Approval Required'),
@@ -5732,6 +5736,12 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
               };
             })()
           `)
+          await new Promise((resolve) => setTimeout(resolve, 220))
+          const permissionAllowSessionDecision = sessionManager.get(session.id)?.messages.some((message) =>
+            message.type === 'result' &&
+            message.permissionDenials?.some((denial) => denial.tool_use_id === 'pet-overlay-smoke-permission') &&
+            message.permissionDecision === 'allowed_session'
+          ) ?? false
 
           sessionManager.updateStatus(session.id, 'running')
           sessionManager.applyRunEvents(session.id, [{
@@ -5791,6 +5801,7 @@ function runAutomatedPetOverlaySmoke(win: BrowserWindow, outputPath: string, scr
 
           statusResult = {
             ...permissionResult,
+            permissionAllowSessionDecision,
             ...runningResult,
             ...reviewResult,
             ...failedResult,
