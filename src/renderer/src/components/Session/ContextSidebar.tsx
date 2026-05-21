@@ -277,6 +277,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             event.preventDefault()
             setTabMenu({ tabId, x: event.clientX, y: event.clientY })
           }}
+          onMove={(tabId, direction) => moveTab(tabId, direction)}
           className="right-sidebar-tabbar"
           stripTestId="right-sidebar-tabbar"
           tabRowTestId="right-sidebar-tab-row"

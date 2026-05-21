@@ -469,18 +469,32 @@ export function TabButton({
   onClick,
   onClose,
   onContextMenu,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
   closeLabel,
   ariaLabel,
   tooltipLabel,
+  draggable = false,
+  dragging = false,
+  dragOver = false,
 }: {
   children: ReactNode
   active: boolean
   onClick: () => void
   onClose?: () => void
   onContextMenu?: (event: React.MouseEvent) => void
+  onDragStart?: (event: React.DragEvent<HTMLDivElement>) => void
+  onDragOver?: (event: React.DragEvent<HTMLDivElement>) => void
+  onDrop?: (event: React.DragEvent<HTMLDivElement>) => void
+  onDragEnd?: (event: React.DragEvent<HTMLDivElement>) => void
   closeLabel?: string
   ariaLabel?: string
   tooltipLabel?: string
+  draggable?: boolean
+  dragging?: boolean
+  dragOver?: boolean
 }): JSX.Element {
   const tab = (
     <div
@@ -490,9 +504,17 @@ export function TabButton({
       aria-selected={active}
       data-native-title-free="true"
       data-active={active ? 'true' : 'false'}
+      data-draggable={draggable ? 'true' : 'false'}
+      data-dragging={dragging ? 'true' : 'false'}
+      data-drag-over={dragOver ? 'true' : 'false'}
       className="motion-tab-button"
+      draggable={draggable}
       onClick={onClick}
       onContextMenu={onContextMenu}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
       onAuxClick={(event) => {
         if (event.button !== 1 || !onClose) return
         event.preventDefault()
@@ -542,6 +564,7 @@ export function PanelTabStrip<T extends string | number>({
   onActivate,
   onClose,
   onContextMenu,
+  onMove,
   actions,
   className = '',
   stripTestId,
@@ -553,6 +576,7 @@ export function PanelTabStrip<T extends string | number>({
   onActivate: (tabId: T) => void
   onClose?: (tabId: T) => void
   onContextMenu?: (event: React.MouseEvent, tabId: T) => void
+  onMove?: (tabId: T, direction: 'left' | 'right') => void
   actions?: ReactNode
   className?: string
   stripTestId?: string
@@ -560,7 +584,10 @@ export function PanelTabStrip<T extends string | number>({
   actionsTestId?: string
 }): JSX.Element {
   const rowRef = useRef<HTMLDivElement | null>(null)
+  const draggingTabIdRef = useRef<T | null>(null)
   const [edges, setEdges] = useState({ start: false, end: false })
+  const [draggingTabId, setDraggingTabId] = useState<T | null>(null)
+  const [dragOverTabId, setDragOverTabId] = useState<T | null>(null)
 
   const updateEdges = (): void => {
     const row = rowRef.current
@@ -595,6 +622,18 @@ export function PanelTabStrip<T extends string | number>({
     }
   }, [])
 
+  const reorderDraggedTab = (targetTabId: T): void => {
+    const sourceTabId = draggingTabIdRef.current
+    if (!onMove || sourceTabId === null || sourceTabId === targetTabId) return
+    const sourceIndex = tabs.findIndex((tab) => tab.id === sourceTabId)
+    const targetIndex = tabs.findIndex((tab) => tab.id === targetTabId)
+    if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return
+    const direction = sourceIndex < targetIndex ? 'right' : 'left'
+    for (let step = 0; step < Math.abs(targetIndex - sourceIndex); step += 1) {
+      onMove(sourceTabId, direction)
+    }
+  }
+
   return (
     <div
       className={`panel-tab-strip ${className}`}
@@ -617,6 +656,38 @@ export function PanelTabStrip<T extends string | number>({
               onClick={() => onActivate(tab.id)}
               onClose={onClose ? () => onClose(tab.id) : undefined}
               onContextMenu={(event) => onContextMenu?.(event, tab.id)}
+              draggable={Boolean(onMove && tabs.length > 1)}
+              dragging={draggingTabId === tab.id}
+              dragOver={dragOverTabId === tab.id && draggingTabId !== tab.id}
+              onDragStart={(event) => {
+                if (!onMove || tabs.length < 2) {
+                  event.preventDefault()
+                  return
+                }
+                event.dataTransfer.effectAllowed = 'move'
+                event.dataTransfer.setData('application/x-orchestrator-panel-tab', String(tab.id))
+                draggingTabIdRef.current = tab.id
+                setDraggingTabId(tab.id)
+              }}
+              onDragOver={(event) => {
+                if (!onMove || draggingTabIdRef.current === null) return
+                event.preventDefault()
+                event.dataTransfer.dropEffect = 'move'
+                setDragOverTabId(tab.id)
+              }}
+              onDrop={(event) => {
+                if (!onMove) return
+                event.preventDefault()
+                reorderDraggedTab(tab.id)
+                draggingTabIdRef.current = null
+                setDraggingTabId(null)
+                setDragOverTabId(null)
+              }}
+              onDragEnd={() => {
+                draggingTabIdRef.current = null
+                setDraggingTabId(null)
+                setDragOverTabId(null)
+              }}
               closeLabel={tab.closeLabel ?? `Close ${tab.label}`}
               ariaLabel={tab.ariaLabel ?? tab.label}
               tooltipLabel={tab.tooltipLabel ?? tab.label}

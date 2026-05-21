@@ -977,6 +977,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const terminalTabs = [...document.querySelectorAll('[data-testid="session-bottom-panel"] [role="tab"]')];
             var terminalTabMenuWorks = false;
             var terminalTabReorderWorks = false;
+            var terminalTabDragReorderWorks = false;
             var terminalCloseActiveShortcutWorks = false;
             if (terminalTabs.length >= 2) {
               const beforeOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
@@ -999,6 +1000,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(160);
                 const afterOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
                 terminalTabReorderWorks = beforeOrder.includes(',') && beforeOrder !== afterOrder;
+              }
+              const terminalTabsForDrag = [...document.querySelectorAll('[data-testid="session-bottom-panel"] [role="tab"]')];
+              const terminalDragSource = terminalTabsForDrag[0];
+              const terminalDragTarget = terminalTabsForDrag[1];
+              if (terminalDragSource instanceof HTMLElement && terminalDragTarget instanceof HTMLElement) {
+                const beforeDragOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
+                const dataTransfer = new DataTransfer();
+                terminalDragSource.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+                terminalDragTarget.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+                terminalDragTarget.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+                terminalDragSource.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+                await sleep(180);
+                const afterDragOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
+                terminalTabDragReorderWorks = beforeDragOrder.includes(',') && beforeDragOrder !== afterDragOrder;
               }
               const bottomPanelBeforeClose = document.querySelector('[data-testid="session-bottom-panel"]');
               const activeTerminalTab = document.querySelector('[data-testid="session-bottom-panel"] .motion-tab-button[data-active="true"]');
@@ -2857,6 +2872,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,
             terminalTabMenuWorks: typeof terminalTabMenuWorks === 'boolean' ? terminalTabMenuWorks : null,
             terminalTabReorderWorks: typeof terminalTabReorderWorks === 'boolean' ? terminalTabReorderWorks : null,
+            terminalTabDragReorderWorks: typeof terminalTabDragReorderWorks === 'boolean' ? terminalTabDragReorderWorks : null,
             terminalCloseActiveShortcutWorks: typeof terminalCloseActiveShortcutWorks === 'boolean' ? terminalCloseActiveShortcutWorks : null,
             themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
@@ -3082,6 +3098,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const widthBefore = Number(rightPanel?.getAttribute('data-right-panel-width') ?? '0');
               let rightPanelContextMenuWorks = false;
               let rightPanelTabReorderWorks = false;
+              let rightPanelTabDragReorderWorks = false;
               let rightPanelCloseActiveShortcutWorks = false;
               const browserTab = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
               if (browserTab instanceof HTMLElement) {
@@ -3105,6 +3122,19 @@ function runAutomatedFocusedSurfaceSmoke(
                   const afterOrder = rightPanel?.getAttribute('data-right-panel-tabs') ?? '';
                   rightPanelTabReorderWorks = beforeOrder !== afterOrder && afterOrder.includes('browser,files');
                 }
+              }
+              const browserDragTab = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+              const filesDragTab = document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]');
+              if (browserDragTab instanceof HTMLElement && filesDragTab instanceof HTMLElement && rightPanel instanceof HTMLElement) {
+                const beforeDragOrder = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                const dataTransfer = new DataTransfer();
+                browserDragTab.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+                filesDragTab.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+                filesDragTab.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+                browserDragTab.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+                await sleep(180);
+                const afterDragOrder = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                rightPanelTabDragReorderWorks = beforeDragOrder.includes('browser,files') && afterDragOrder.includes('files,browser');
               }
               const activeWorkbenchTab = document.querySelector('[data-testid="right-sidebar-tabbar"] .motion-tab-button[data-active="true"]');
               if (activeWorkbenchTab instanceof HTMLElement && rightPanel instanceof HTMLElement) {
@@ -3221,6 +3251,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelNarrowOverlayDebug,
                 rightPanelContextMenuWorks,
                 rightPanelTabReorderWorks,
+                rightPanelTabDragReorderWorks,
                 rightPanelCloseActiveShortcutWorks,
                 widthBefore
               };

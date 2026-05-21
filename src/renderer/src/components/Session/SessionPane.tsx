@@ -187,6 +187,7 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
                 event.preventDefault()
                 setTerminalMenu({ tabId, x: event.clientX, y: event.clientY })
               }}
+              onMove={(tabId, direction) => moveTab(tabId, direction)}
               className="terminal-panel-tabstrip"
               tabRowTestId="terminal-panel-tab-row"
               actions={(

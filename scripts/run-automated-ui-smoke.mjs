@@ -628,6 +628,7 @@ child.on('exit', (code) => {
           rightPanelNarrowOverlay: result.rightPanelNarrowOverlayWorks === true,
           rightPanelContextMenuWorks: result.rightPanelContextMenuWorks === true,
           rightPanelTabReorderWorks: result.rightPanelTabReorderWorks === true,
+          rightPanelTabDragReorderWorks: result.rightPanelTabDragReorderWorks === true,
           rightPanelCloseActiveShortcut: result.rightPanelCloseActiveShortcutWorks === true
         }
     : captureView === 'diff'
@@ -768,6 +769,7 @@ child.on('exit', (code) => {
         terminalRestore: captureView !== 'terminal' || result.terminalRestoreWorks === true,
         terminalTabMenu: captureView !== 'terminal' || result.terminalTabMenuWorks === true,
         terminalTabReorder: captureView !== 'terminal' || result.terminalTabReorderWorks === true,
+        terminalTabDragReorder: captureView !== 'terminal' || result.terminalTabDragReorderWorks === true,
         terminalCloseActiveShortcut: captureView !== 'terminal' || result.terminalCloseActiveShortcutWorks === true,
         themeImport: captureView !== 'settings' || result.themeImportWorks === true,
         themeSharingControls: captureView !== 'settings' || result.themeSharingControls === true,

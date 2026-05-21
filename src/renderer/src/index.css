@@ -1472,6 +1472,20 @@
     color: var(--text-primary);
   }
 
+  .motion-tab-button[data-draggable='true'] {
+    cursor: grab;
+  }
+
+  .motion-tab-button[data-dragging='true'] {
+    cursor: grabbing;
+    opacity: 0.62;
+  }
+
+  .motion-tab-button[data-drag-over='true'] {
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--border-subtle));
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-bg));
+  }
+
   .motion-tab-button[data-active='true'] {
     border-color: var(--border-subtle);
     background: var(--surface-bg);
