@@ -623,10 +623,24 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               }
               var themeImportWorks = document.querySelector('[data-testid="theme-import-status"]')?.textContent?.includes('Theme imported') === true;
               var themeSharingControls = Boolean(document.querySelector('[data-testid="copy-light-theme"]')) && Boolean(document.querySelector('[data-testid="appearance-light-chrome-editor"]'));
+              const oceanPreset = document.querySelector('[data-testid="appearance-preset-ocean"]');
+              if (oceanPreset instanceof HTMLButtonElement) {
+                oceanPreset.click();
+                await sleep(180);
+              }
+              const themePreview = document.querySelector('[data-testid="appearance-theme-preview"]');
+              var themePresetPreviewWorks =
+                oceanPreset instanceof HTMLElement &&
+                oceanPreset.dataset.active === 'true' &&
+                document.documentElement.dataset.appearanceTheme === 'dark' &&
+                getComputedStyle(document.documentElement).getPropertyValue('--surface-bg').trim().toLowerCase() === '#132338' &&
+                themePreview instanceof HTMLElement &&
+                themePreview.textContent?.includes('Agent summary');
               const appearanceText = document.querySelector('[data-testid="appearance-settings-section"]')?.textContent ?? '';
               var settingsTaxonomyWorks =
                 appearanceText.includes('Mode') &&
                 appearanceText.includes('Presets') &&
+                appearanceText.includes('Preview') &&
                 appearanceText.includes('Theme editor') &&
                 appearanceText.includes('Sharing') &&
                 appearanceText.includes('Layout and reading');
@@ -2815,6 +2829,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalTabReorderWorks: typeof terminalTabReorderWorks === 'boolean' ? terminalTabReorderWorks : null,
             themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
+            themePresetPreviewWorks: typeof themePresetPreviewWorks === 'boolean' ? themePresetPreviewWorks : null,
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
             settingsSidebarNavCompactWorks: typeof settingsSidebarNavCompactWorks === 'boolean' ? settingsSidebarNavCompactWorks : null,
             settingsProviderDropdownWorks: typeof settingsProviderDropdownWorks === 'boolean' ? settingsProviderDropdownWorks : null,

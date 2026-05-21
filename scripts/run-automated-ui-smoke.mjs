@@ -736,6 +736,7 @@ child.on('exit', (code) => {
         terminalTabReorder: captureView !== 'terminal' || result.terminalTabReorderWorks === true,
         themeImport: captureView !== 'settings' || result.themeImportWorks === true,
         themeSharingControls: captureView !== 'settings' || result.themeSharingControls === true,
+        themePresetPreview: captureView !== 'settings' || result.themePresetPreviewWorks === true,
         settingsTaxonomy: captureView !== 'settings' || result.settingsTaxonomyWorks === true,
         settingsSidebarNavCompact: captureView !== 'settings' || result.settingsSidebarNavCompactWorks === true,
         settingsProviderDropdown: captureView !== 'settings-providers' || result.settingsProviderDropdownWorks === true,

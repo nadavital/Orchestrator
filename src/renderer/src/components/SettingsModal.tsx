@@ -66,6 +66,110 @@ const defaultDarkChromeTheme: ChromeTheme = {
   opaqueWindows: true
 }
 
+interface AppearancePreset {
+  id: Appearance
+  label: string
+  desc: string
+  mode: AppearanceTheme
+  lightChromeTheme?: ChromeTheme
+  darkChromeTheme?: ChromeTheme
+  lightCodeThemeId?: string
+  darkCodeThemeId?: string
+  swatches: string[]
+}
+
+const appearancePresets: AppearancePreset[] = [
+  {
+    id: 'system',
+    label: 'System',
+    desc: 'Follow macOS with balanced light and dark chrome',
+    mode: 'system',
+    lightChromeTheme: defaultLightChromeTheme,
+    darkChromeTheme: defaultDarkChromeTheme,
+    lightCodeThemeId: 'github-light',
+    darkCodeThemeId: 'github-dark',
+    swatches: ['#ffffff', '#20222a', '#0a7cff']
+  },
+  {
+    id: 'mist',
+    label: 'Mist Light',
+    desc: 'Soft light canvas with blue focus',
+    mode: 'light',
+    lightChromeTheme: defaultLightChromeTheme,
+    lightCodeThemeId: 'github-light',
+    swatches: ['#ffffff', '#f4f5f2', '#0a7cff']
+  },
+  {
+    id: 'graphite',
+    label: 'Graphite Dark',
+    desc: 'Low-glare dark workspace',
+    mode: 'dark',
+    darkChromeTheme: defaultDarkChromeTheme,
+    darkCodeThemeId: 'github-dark',
+    swatches: ['#15161b', '#20222a', '#8ab4f8']
+  },
+  {
+    id: 'ocean',
+    label: 'Ocean',
+    desc: 'Deep blue material with brighter contrast',
+    mode: 'dark',
+    darkChromeTheme: {
+      accent: '#80cbc4',
+      surface: '#132338',
+      ink: '#edf7ff',
+      contrast: 58,
+      opaqueWindows: true,
+      semanticColors: {
+        diffAdded: '#42c985',
+        diffRemoved: '#ff6464',
+        skill: '#82aaff'
+      }
+    },
+    darkCodeThemeId: 'material-theme-ocean',
+    swatches: ['#0b1624', '#132338', '#80cbc4']
+  },
+  {
+    id: 'palenight',
+    label: 'Palenight',
+    desc: 'Softer violet material for evening work',
+    mode: 'dark',
+    darkChromeTheme: {
+      accent: '#c792ea',
+      surface: '#25283a',
+      ink: '#f5f3ff',
+      contrast: 58,
+      opaqueWindows: true,
+      semanticColors: {
+        diffAdded: '#58c994',
+        diffRemoved: '#ff6b77',
+        skill: '#c792ea'
+      }
+    },
+    darkCodeThemeId: 'material-theme-palenight',
+    swatches: ['#1b1d2b', '#25283a', '#c792ea']
+  },
+  {
+    id: 'high-contrast',
+    label: 'High Contrast',
+    desc: 'Maximum separation and solid chrome',
+    mode: 'dark',
+    darkChromeTheme: {
+      accent: '#4db6ff',
+      surface: '#101010',
+      ink: '#ffffff',
+      contrast: 92,
+      opaqueWindows: true,
+      semanticColors: {
+        diffAdded: '#52d273',
+        diffRemoved: '#ff6961',
+        skill: '#c9a0ff'
+      }
+    },
+    darkCodeThemeId: 'github-dark',
+    swatches: ['#000000', '#101010', '#4db6ff']
+  }
+]
+
 const pillButtonStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -303,57 +407,87 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
     return { ok: true }
   }
 
-  const saveAppearance = (value: Appearance): void => {
+  const saveAppearance = (value: Appearance, preset?: AppearancePreset): void => {
+    const nextAppearanceTheme = preset?.mode ?? appearanceTheme
+    const nextLightChromeTheme = preset?.lightChromeTheme ?? lightChromeTheme
+    const nextDarkChromeTheme = preset?.darkChromeTheme ?? darkChromeTheme
+    const nextLightCodeThemeId = preset?.lightCodeThemeId ?? lightCodeThemeId
+    const nextDarkCodeThemeId = preset?.darkCodeThemeId ?? darkCodeThemeId
     setAppearance(value)
-    applyAppearance(value, accent, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont)
+    if (preset) {
+      setAppearanceTheme(nextAppearanceTheme)
+      setLightChromeTheme(nextLightChromeTheme)
+      setDarkChromeTheme(nextDarkChromeTheme)
+      setLightCodeThemeId(nextLightCodeThemeId)
+      setDarkCodeThemeId(nextDarkCodeThemeId)
+    }
+    applyAppearance(value, accent, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont, {
+      appearanceTheme: nextAppearanceTheme,
+      appearanceLightChromeTheme: nextLightChromeTheme,
+      appearanceDarkChromeTheme: nextDarkChromeTheme,
+      appearanceLightCodeThemeId: nextLightCodeThemeId,
+      appearanceDarkCodeThemeId: nextDarkCodeThemeId,
+      sansFontSize,
+      codeFontSize,
+      useFontSmoothing,
+      usePointerCursors,
+      reduceMotion
+    })
     window.api.settings.set('appearance', value)
+    if (preset) {
+      window.api.settings.set('appearanceTheme', nextAppearanceTheme)
+      window.api.settings.set('appearanceLightChromeTheme', nextLightChromeTheme)
+      window.api.settings.set('appearanceDarkChromeTheme', nextDarkChromeTheme)
+      window.api.settings.set('appearanceLightCodeThemeId', nextLightCodeThemeId)
+      window.api.settings.set('appearanceDarkCodeThemeId', nextDarkCodeThemeId)
+    }
   }
 
   const saveAccent = (value: Accent): void => {
     setAccent(value)
-    applyAppearance(appearance, value, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont)
+    applyAppearance(appearance, value, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont, buildAppearanceModel())
     window.api.settings.set('accent', value)
   }
 
   const saveDensity = (value: Density): void => {
     setDensity(value)
-    applyAppearance(appearance, accent, value, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont)
+    applyAppearance(appearance, accent, value, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont, buildAppearanceModel())
     window.api.settings.set('density', value)
   }
 
   const saveSidebarTint = (value: boolean): void => {
     setSidebarTint(value)
-    applyAppearance(appearance, accent, density, value, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont)
+    applyAppearance(appearance, accent, density, value, transcriptStyle, customAccent, interfaceScale, uiFont, monoFont, buildAppearanceModel())
     window.api.settings.set('sidebarTint', value)
   }
 
   const saveTranscriptStyle = (value: TranscriptStyle): void => {
     setTranscriptStyle(value)
-    applyAppearance(appearance, accent, density, sidebarTint, value, customAccent, interfaceScale, uiFont, monoFont)
+    applyAppearance(appearance, accent, density, sidebarTint, value, customAccent, interfaceScale, uiFont, monoFont, buildAppearanceModel())
     window.api.settings.set('transcriptStyle', value)
   }
 
   const saveCustomAccent = (value: string): void => {
     setCustomAccent(value)
-    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, value, interfaceScale, uiFont, monoFont)
+    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, value, interfaceScale, uiFont, monoFont, buildAppearanceModel())
     window.api.settings.set('customAccent', value)
   }
 
   const saveInterfaceScale = (value: number): void => {
     setInterfaceScale(value)
-    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, customAccent, value, uiFont, monoFont)
+    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, customAccent, value, uiFont, monoFont, buildAppearanceModel())
     window.api.settings.set('interfaceScale', value)
   }
 
   const saveUiFont = (value: string): void => {
     setUiFont(value)
-    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, value, monoFont)
+    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, value, monoFont, buildAppearanceModel())
     window.api.settings.set('uiFont', value)
   }
 
   const saveMonoFont = (value: string): void => {
     setMonoFont(value)
-    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, value)
+    applyAppearance(appearance, accent, density, sidebarTint, transcriptStyle, customAccent, interfaceScale, uiFont, value, buildAppearanceModel())
     window.api.settings.set('monoFont', value)
   }
 
@@ -742,7 +876,7 @@ function AppearanceSection({
   useFontSmoothing: boolean
   usePointerCursors: boolean
   reduceMotion: boolean
-  onSetAppearance: (value: Appearance) => void
+  onSetAppearance: (value: Appearance, preset?: AppearancePreset) => void
   onSetAccent: (value: Accent) => void
   onSetDensity: (value: Density) => void
   onSetSidebarTint: (value: boolean) => void
@@ -759,14 +893,6 @@ function AppearanceSection({
 }): JSX.Element {
   const [themeImportText, setThemeImportText] = useState('')
   const [themeImportStatus, setThemeImportStatus] = useState<string | null>(null)
-  const appearanceOptions: Array<{ id: Appearance; label: string; desc: string }> = [
-    { id: 'system', label: 'System', desc: 'Follow macOS' },
-    { id: 'mist', label: 'Mist Light', desc: 'Soft light canvas' },
-    { id: 'graphite', label: 'Graphite Dark', desc: 'Low-glare dark workspace' },
-    { id: 'ocean', label: 'Ocean', desc: 'Blue-toned dark material' },
-    { id: 'palenight', label: 'Palenight', desc: 'Softer purple dark material' },
-    { id: 'high-contrast', label: 'High Contrast', desc: 'Maximum contrast' },
-  ]
   const accentOptions: Array<{ id: Accent; label: string; color: string }> = [
     { id: 'blue', label: 'Blue', color: '#0a7cff' },
     { id: 'teal', label: 'Teal', color: '#14a6a1' },
@@ -824,21 +950,28 @@ function AppearanceSection({
         <SegmentedChoice items={themeOptions} value={appearanceTheme} onChange={onSetAppearanceTheme} />
       </SettingGroup>
 
-      <SettingGroup title="Presets" description="Start from an Orchestrator material preset before tuning colors below.">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-          {appearanceOptions.map((option) => {
+      <SettingGroup title="Presets" description="Start from a complete chrome preset, then tune either variant below.">
+        <div data-testid="appearance-preset-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(164px, 1fr))', gap: 10 }}>
+          {appearancePresets.map((option) => {
             const active = appearance === option.id
             return (
-              <SettingChoiceCard
+              <ThemePresetCard
                 key={option.id}
-                label={option.label}
-                description={option.desc}
+                preset={option}
                 active={active}
-                onClick={() => onSetAppearance(option.id)}
+                onClick={() => onSetAppearance(option.id, option)}
               />
             )
           })}
         </div>
+      </SettingGroup>
+
+      <SettingGroup title="Preview" description="Check the active colors against a compact chat and code surface.">
+        <ThemePreview
+          variant={appearanceTheme === 'light' ? 'light' : appearanceTheme === 'dark' ? 'dark' : 'system'}
+          lightTheme={lightChromeTheme}
+          darkTheme={darkChromeTheme}
+        />
       </SettingGroup>
 
       <SettingGroup title="Theme editor" description="Tune chrome and semantic colors independently for light and dark variants.">
@@ -1034,6 +1167,101 @@ function AppearanceSection({
       </SettingGroup>
     </div>
   )
+}
+
+function ThemePresetCard({
+  preset,
+  active,
+  onClick
+}: {
+  preset: AppearancePreset
+  active: boolean
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      className="theme-preset-card"
+      data-active={active}
+      data-testid={`appearance-preset-${preset.id}`}
+      onClick={onClick}
+    >
+      <span className="theme-preset-preview" aria-hidden="true">
+        <span className="theme-preset-window" style={{ background: preset.swatches[0], color: preset.swatches[2] }}>
+          <span className="theme-preset-rail" style={{ background: preset.swatches[1] }} />
+          <span className="theme-preset-lines">
+            <span style={{ background: preset.swatches[2] }} />
+            <span style={{ background: preset.swatches[2] }} />
+          </span>
+        </span>
+        <span className="theme-preset-swatches">
+          {preset.swatches.map((swatch) => (
+            <span key={swatch} style={{ background: swatch }} />
+          ))}
+        </span>
+      </span>
+      <span className="theme-preset-copy">
+        <span className="theme-preset-title">{preset.label}</span>
+        <span className="theme-preset-description">{preset.desc}</span>
+      </span>
+    </button>
+  )
+}
+
+function ThemePreview({
+  variant,
+  lightTheme,
+  darkTheme
+}: {
+  variant: AppearanceTheme
+  lightTheme: ChromeTheme
+  darkTheme: ChromeTheme
+}): JSX.Element {
+  const systemPrefersLight = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: light)').matches
+  const resolvedTheme = variant === 'light' || (variant === 'system' && systemPrefersLight) ? lightTheme : darkTheme
+  const modeLabel = variant === 'system' ? 'System preview' : `${variant[0].toUpperCase()}${variant.slice(1)} preview`
+  const borderColor = colorMixForStyle(resolvedTheme.ink, 0.14)
+  return (
+    <div
+      data-testid="appearance-theme-preview"
+      className="theme-preview-panel"
+      style={{
+        background: resolvedTheme.surface,
+        color: resolvedTheme.ink,
+        borderColor
+      }}
+    >
+      <div className="theme-preview-sidebar" style={{ background: colorMixForStyle(resolvedTheme.ink, 0.055), borderColor }}>
+        <span style={{ background: resolvedTheme.accent }} />
+        <span />
+        <span />
+      </div>
+      <div className="theme-preview-content">
+        <div className="theme-preview-header">
+          <span>{modeLabel}</span>
+          <span style={{ background: colorMixForStyle(resolvedTheme.accent, 0.16), color: resolvedTheme.accent }}>Ready</span>
+        </div>
+        <div className="theme-preview-message" style={{ borderColor }}>
+          <span style={{ background: resolvedTheme.accent }} />
+          <div>
+            <strong>Agent summary</strong>
+            <p>Updated settings, verified the UI, and left the app ready for another pass.</p>
+          </div>
+        </div>
+        <pre className="theme-preview-code" style={{ borderColor, background: colorMixForStyle(resolvedTheme.ink, 0.04) }}>
+          <code>{'const surface = "calm";'}</code>
+        </pre>
+      </div>
+    </div>
+  )
+}
+
+function colorMixForStyle(hex: string, alpha: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return `rgba(0, 0, 0, ${alpha})`
+  const r = Number.parseInt(hex.slice(1, 3), 16)
+  const g = Number.parseInt(hex.slice(3, 5), 16)
+  const b = Number.parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 function ChromeThemeEditor({
