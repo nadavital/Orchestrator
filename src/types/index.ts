@@ -588,6 +588,16 @@ export interface ResolvedExecutionPolicy {
   intent?: PermissionIntent
   interaction?: PermissionInteraction
   controls?: PermissionRuntimeControl[]
+  execution?: PermissionExecutionContract
+}
+
+export interface PermissionExecutionContract {
+  nativeMode?: string
+  approvalPolicy?: string
+  approvalsReviewer?: string
+  sandboxMode?: string
+  toolPolicy?: string
+  configSource?: 'cli' | 'config' | 'app-server' | 'mixed'
 }
 
 export type PermissionIntent =

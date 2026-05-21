@@ -481,6 +481,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerControlPanels = diagnosticsSection instanceof HTMLElement
                 ? [...diagnosticsSection.querySelectorAll('.provider-settings-stack .settings-panel')]
                 : [];
+              const permissionExecutionContract = document.querySelector('[data-testid="settings-permission-execution-contract"]');
               const providerControlPanelText = providerControlPanels[0] instanceof HTMLElement
                 ? providerControlPanels[0].innerText
                 : '';
@@ -565,8 +566,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               var settingsProviderControlSurfaceUnifiedWorks =
                 providerControlPanels.length === 1 &&
                 providerControlPanelText.includes('Default') &&
+                providerControlPanelText.includes('Mode') &&
                 providerControlPanelText.includes('Models') &&
                 providerControlPanelText.includes('Capabilities') &&
+                permissionExecutionContract instanceof HTMLElement &&
+                permissionExecutionContract.getBoundingClientRect().height <= 28 &&
+                permissionExecutionContract.textContent?.includes('Source') &&
                 providerControlPanelText.indexOf('Default') < providerControlPanelText.indexOf('Models') &&
                 providerControlPanelText.indexOf('Models') < providerControlPanelText.indexOf('Capabilities');
               const diagnosticsToggle = document.querySelector('[data-testid="provider-diagnostics-toggle"]');

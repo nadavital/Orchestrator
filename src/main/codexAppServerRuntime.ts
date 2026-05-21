@@ -1,7 +1,7 @@
 import { spawn as childSpawn } from 'child_process'
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'child_process'
 import type { Attachment, RunEvent, RunRequest, Session } from '../types'
-import { providerSpawnEnv, resolveProviderCommand, type ProviderAdapter } from './providers'
+import { codexRuntimePolicyConfig, providerSpawnEnv, resolveProviderCommand, type ProviderAdapter } from './providers'
 import { recordProviderRuntimeDebugEvent, updateProviderRuntimeConnection } from './providerRuntimeDiagnostics'
 
 type JsonObject = Record<string, unknown>
@@ -647,12 +647,13 @@ function exitDetail(code: number | null, signal: NodeJS.Signals | null): string 
 }
 
 function threadConfigFromRequest(request: RunRequest): JsonObject {
+  const policy = codexRuntimePolicyConfig(request.executionPolicy)
   return {
     model: request.model || 'gpt-5.4',
     cwd: request.cwd,
-    approvalPolicy: codexApprovalPolicy(request.executionPolicy),
-    approvalsReviewer: request.executionPolicy === 'autoReview' ? 'auto_review' : 'user',
-    sandbox: codexSandboxMode(request.executionPolicy),
+    approvalPolicy: policy.approvalPolicy,
+    approvalsReviewer: policy.approvalsReviewer,
+    sandbox: policy.sandboxMode,
     config: configFromRequest(request),
     serviceName: 'orchestrator',
     personality: 'friendly'
@@ -660,11 +661,12 @@ function threadConfigFromRequest(request: RunRequest): JsonObject {
 }
 
 function turnConfigFromRequest(request: RunRequest): JsonObject {
+  const policy = codexRuntimePolicyConfig(request.executionPolicy)
   return {
     model: request.model || 'gpt-5.4',
     effort: codexEffort(request.effort),
-    approvalPolicy: codexApprovalPolicy(request.executionPolicy),
-    approvalsReviewer: request.executionPolicy === 'autoReview' ? 'auto_review' : 'user'
+    approvalPolicy: policy.approvalPolicy,
+    approvalsReviewer: policy.approvalsReviewer
   }
 }
 
@@ -672,17 +674,6 @@ function configFromRequest(request: RunRequest): JsonObject {
   const config: JsonObject = {}
   if (request.effort) config.model_reasoning_effort = codexEffort(request.effort)
   return config
-}
-
-function codexApprovalPolicy(policyId: string | undefined): unknown {
-  if (policyId === 'never' || policyId === 'yolo') return 'never'
-  if (policyId === 'untrusted') return 'untrusted'
-  return 'on-request'
-}
-
-function codexSandboxMode(policyId: string | undefined): unknown {
-  if (policyId === 'fullAccess' || policyId === 'yolo') return 'danger-full-access'
-  return 'workspace-write'
 }
 
 function codexEffort(effort: string | undefined): string | null {

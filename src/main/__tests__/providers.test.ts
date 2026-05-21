@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { PROVIDER_DEFS, deriveAgentNodes, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, parseClaudeAgentsOutput } from '../../types'
-import { buildProviderCommandForRuntime, claudeMcpServerNames, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
+import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -336,9 +336,16 @@ test('resolved permission policies expose GUI metadata for adaptive controls', (
   assert.equal(runtimeInfo.codex.policies.default.intent, 'ask')
   assert.ok(runtimeInfo.codex.policies.default.controls?.some((control) => control.kind === 'sandbox'))
   assert.ok(runtimeInfo.codex.policies.default.controls?.some((control) => control.kind === 'mode' && control.support === 'available'))
+  assert.deepEqual(runtimeInfo.codex.policies.default.execution, {
+    approvalPolicy: 'on-request',
+    approvalsReviewer: 'user',
+    sandboxMode: 'workspace-write',
+    configSource: 'mixed'
+  })
 
   assert.equal(runtimeInfo.cursor.policies.sandbox.intent, 'workspaceSandbox')
   assert.ok(runtimeInfo.cursor.policies.sandbox.controls?.some((control) => control.kind === 'config'))
+  assert.equal(runtimeInfo.cursor.policies.sandbox.execution?.sandboxMode, 'enabled')
 })
 
 test('runtime info distinguishes interactive permission support from forced unattended modes', () => {
@@ -1378,6 +1385,18 @@ test('codex approval modes map to native approval policy config', () => {
     request({ model: 'gpt-5.4', executionPolicy: 'yolo' })
   )
   assert.equal(yoloCommand.args.includes('--dangerously-bypass-approvals-and-sandbox'), true)
+  assert.deepEqual(codexRuntimePolicyConfig('autoReview'), {
+    approvalPolicy: 'on-request',
+    approvalsReviewer: 'auto_review',
+    sandboxMode: 'workspace-write',
+    configSource: 'app-server'
+  })
+  assert.deepEqual(codexRuntimePolicyConfig('fullAccess'), {
+    approvalPolicy: 'on-request',
+    approvalsReviewer: 'user',
+    sandboxMode: 'danger-full-access',
+    configSource: 'cli'
+  })
 })
 
 test('codex policy supports app-server approvals while exec stays config-driven', () => {

@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useEffect } from 'react'
-import type { Attachment, ProviderAgentDef, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
+import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
 import { defaultUI, useSessionStore } from '../../store/sessions'
@@ -912,6 +912,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                       {selectedPermissionMode.desc}
                     </div>
                   )}
+                  {resolvedPermission?.execution && (
+                    <PermissionExecutionChips execution={resolvedPermission.execution} />
+                  )}
                 </div>
                 {provider.id === 'claude' && showAdvancedPerms && (
                   <ClaudePermissionRules
@@ -1347,6 +1350,55 @@ function InlineHint({ children }: { children: React.ReactNode }): JSX.Element {
       {children}
     </span>
   )
+}
+
+function PermissionExecutionChips({ execution }: { execution: PermissionExecutionContract }): JSX.Element {
+  const chips = permissionExecutionLabels(execution)
+  if (chips.length === 0) return <></>
+  return (
+    <div
+      data-testid="composer-permission-execution-contract"
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 5,
+        marginTop: 8
+      }}
+    >
+      {chips.map((chip) => (
+        <span
+          key={`${chip.label}:${chip.value}`}
+          style={{
+            minWidth: 0,
+            maxWidth: 170,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            border: '1px solid var(--color-border)',
+            borderRadius: 7,
+            padding: '3px 6px',
+            fontSize: 10,
+            color: 'var(--color-text-muted)',
+            background: 'var(--color-surface)'
+          }}
+          title={`${chip.label}: ${chip.value}`}
+        >
+          {chip.label} {chip.value}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function permissionExecutionLabels(execution: PermissionExecutionContract): Array<{ label: string; value: string }> {
+  return [
+    execution.nativeMode ? { label: 'Mode', value: execution.nativeMode } : null,
+    execution.approvalPolicy ? { label: 'Approval', value: execution.approvalPolicy } : null,
+    execution.approvalsReviewer && execution.approvalsReviewer !== 'user' ? { label: 'Reviewer', value: execution.approvalsReviewer } : null,
+    execution.sandboxMode ? { label: 'Sandbox', value: execution.sandboxMode } : null,
+    execution.toolPolicy ? { label: 'Tools', value: execution.toolPolicy } : null,
+    execution.configSource ? { label: 'Source', value: execution.configSource } : null
+  ].filter((chip): chip is { label: string; value: string } => Boolean(chip))
 }
 
 function providerShortName(providerId: string): string {

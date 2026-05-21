@@ -13,12 +13,14 @@ import {
   getDefaultPermissionMode,
   getPrimaryPermissionModes,
   getVisibleModels,
+  type PermissionExecutionContract,
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
   type ProviderDiagnosticInfo,
   type ProviderRuntimeConnectionState,
   type ProviderRuntimeDebugEvent,
   type ProviderRuntimeInfo,
+  type ResolvedExecutionPolicy,
   type SessionListItem,
   type UsageSummary
 } from '../types'
@@ -1287,6 +1289,10 @@ function ProvidersSection({
                   color={providerDef.color}
                   onChange={(id) => onSetDefaultPermissionMode(selectedId, id)}
                 />
+                <ProviderPermissionContract
+                  policy={runtime?.policies[currentPermissionMode]}
+                  color={providerDef.color}
+                />
               </CompactSetting>
             )}
 
@@ -1423,6 +1429,62 @@ function ProviderStatusDetails({
       )}
     </div>
   )
+}
+
+function ProviderPermissionContract({
+  policy,
+  color
+}: {
+  policy?: ResolvedExecutionPolicy
+  color: string
+}): JSX.Element | null {
+  if (!policy?.execution) return null
+  const chips = permissionExecutionLabels(policy.execution)
+  if (chips.length === 0) return null
+  return (
+    <div
+      data-testid="settings-permission-execution-contract"
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 5,
+        marginTop: 6
+      }}
+    >
+      {chips.map((chip) => (
+        <span
+          key={`${chip.label}:${chip.value}`}
+          title={`${chip.label}: ${chip.value}`}
+          style={{
+            maxWidth: 180,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            padding: '3px 6px',
+            borderRadius: 7,
+            border: `1px solid ${chip.strong ? color : 'var(--color-border)'}`,
+            color: chip.strong ? color : 'var(--color-text-muted)',
+            background: 'var(--color-surface)',
+            fontSize: 10,
+            fontWeight: chip.strong ? 650 : 500
+          }}
+        >
+          {chip.label} {chip.value}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function permissionExecutionLabels(execution: PermissionExecutionContract): Array<{ label: string; value: string; strong?: boolean }> {
+  return [
+    execution.nativeMode ? { label: 'Mode', value: execution.nativeMode, strong: true } : null,
+    execution.approvalPolicy ? { label: 'Approval', value: execution.approvalPolicy, strong: true } : null,
+    execution.approvalsReviewer && execution.approvalsReviewer !== 'user' ? { label: 'Reviewer', value: execution.approvalsReviewer } : null,
+    execution.sandboxMode ? { label: 'Sandbox', value: execution.sandboxMode } : null,
+    execution.toolPolicy ? { label: 'Tools', value: execution.toolPolicy } : null,
+    execution.configSource ? { label: 'Source', value: execution.configSource } : null
+  ].filter((chip): chip is { label: string; value: string; strong?: boolean } => Boolean(chip))
 }
 
 function ProviderRuntimeEventsCard({

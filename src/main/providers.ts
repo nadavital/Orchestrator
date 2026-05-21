@@ -7,6 +7,7 @@ import { promisify } from 'util'
 import type {
   AgentStatus,
   PermissionDenial,
+  PermissionExecutionContract,
   ProviderCapability,
   ProviderCapabilities,
   ProviderCommand,
@@ -1254,9 +1255,30 @@ function policy(
     intent?: PermissionIntent
     interaction?: PermissionInteraction
     controls?: PermissionRuntimeControl[]
+    execution?: PermissionExecutionContract
   } = {}
 ): ResolvedExecutionPolicy {
   return { policy: policyId, support, args, label, description, warning, ...details }
+}
+
+export function codexRuntimePolicyConfig(policyId: string | undefined): PermissionExecutionContract {
+  const policy = policyId ?? 'default'
+  if (policy === 'never') {
+    return { approvalPolicy: 'never', approvalsReviewer: 'user', sandboxMode: 'workspace-write', configSource: 'mixed' }
+  }
+  if (policy === 'untrusted') {
+    return { approvalPolicy: 'untrusted', approvalsReviewer: 'user', sandboxMode: 'workspace-write', configSource: 'mixed' }
+  }
+  if (policy === 'autoReview') {
+    return { approvalPolicy: 'on-request', approvalsReviewer: 'auto_review', sandboxMode: 'workspace-write', configSource: 'app-server' }
+  }
+  if (policy === 'fullAccess') {
+    return { approvalPolicy: 'on-request', approvalsReviewer: 'user', sandboxMode: 'danger-full-access', configSource: 'cli' }
+  }
+  if (policy === 'yolo') {
+    return { approvalPolicy: 'never', approvalsReviewer: 'user', sandboxMode: 'danger-full-access', configSource: 'cli' }
+  }
+  return { approvalPolicy: 'on-request', approvalsReviewer: 'user', sandboxMode: 'workspace-write', configSource: 'mixed' }
 }
 
 const claudePermissionControls: PermissionRuntimeControl[] = [
@@ -1396,7 +1418,11 @@ function claudePolicy(policyId: string): ResolvedExecutionPolicy {
       {
         intent: intentByPolicy[policyId] ?? 'custom',
         interaction: 'structured',
-        controls: claudePermissionControls
+        controls: claudePermissionControls,
+        execution: {
+          nativeMode: policyId,
+          configSource: 'cli'
+        }
       }
     )
   }
@@ -1411,14 +1437,23 @@ function claudePolicy(policyId: string): ResolvedExecutionPolicy {
       {
         intent: 'bypass',
         interaction: 'structured',
-        controls: claudePermissionControls
+        controls: claudePermissionControls,
+        execution: {
+          nativeMode: 'dangerously-skip-permissions',
+          sandboxMode: 'none',
+          configSource: 'cli'
+        }
       }
     )
   }
   return policy(policyId, 'unsupported', [], policyId, 'Claude Code does not support this policy.', undefined, {
     intent: 'custom',
     interaction: 'none',
-    controls: claudePermissionControls
+    controls: claudePermissionControls,
+    execution: {
+      nativeMode: 'unsupported',
+      configSource: 'cli'
+    }
   })
 }
 
@@ -1718,7 +1753,12 @@ function copilotPolicy(policyId: string): ResolvedExecutionPolicy {
       {
         intent: 'bypass',
         interaction: 'headless',
-        controls: copilotPermissionControls
+        controls: copilotPermissionControls,
+        execution: {
+          nativeMode: 'yolo',
+          toolPolicy: 'all tools, paths, and URLs',
+          configSource: 'cli'
+        }
       }
     )
   }
@@ -1733,7 +1773,12 @@ function copilotPolicy(policyId: string): ResolvedExecutionPolicy {
     {
       intent,
       interaction: 'headless',
-      controls: copilotPermissionControls
+      controls: copilotPermissionControls,
+      execution: {
+        nativeMode: 'programmatic',
+        toolPolicy: 'forced all tools',
+        configSource: 'cli'
+      }
     }
   )
 }
@@ -1907,7 +1952,8 @@ function codexPolicy(policyId: string): ResolvedExecutionPolicy {
       {
         intent: approvalPolicy.intent,
         interaction: 'structured',
-        controls: codexPermissionControls
+        controls: codexPermissionControls,
+        execution: codexRuntimePolicyConfig(policyId)
       }
     )
   }
@@ -1922,7 +1968,8 @@ function codexPolicy(policyId: string): ResolvedExecutionPolicy {
       {
         intent: 'ask',
         interaction: 'structured',
-        controls: codexPermissionControls
+        controls: codexPermissionControls,
+        execution: codexRuntimePolicyConfig(policyId)
       }
     )
   }
@@ -1937,7 +1984,8 @@ function codexPolicy(policyId: string): ResolvedExecutionPolicy {
       {
         intent: 'bypass',
         interaction: 'headless',
-        controls: codexPermissionControls
+        controls: codexPermissionControls,
+        execution: codexRuntimePolicyConfig(policyId)
       }
     )
   }
@@ -1952,14 +2000,19 @@ function codexPolicy(policyId: string): ResolvedExecutionPolicy {
       {
         intent: 'fullAccess',
         interaction: 'headless',
-        controls: codexPermissionControls
+        controls: codexPermissionControls,
+        execution: codexRuntimePolicyConfig(policyId)
       }
     )
   }
   return policy(policyId, 'unsupported', [], policyId, 'Codex does not support this policy in exec mode.', undefined, {
     intent: 'custom',
     interaction: 'none',
-    controls: codexPermissionControls
+    controls: codexPermissionControls,
+    execution: {
+      nativeMode: 'unsupported',
+      configSource: 'mixed'
+    }
   })
 }
 
@@ -2723,14 +2776,24 @@ function cursorPolicy(policyId: string): ResolvedExecutionPolicy {
     return policy(policyId, 'exact', ['--force', '--trust'], 'Auto', 'Enables Cursor all-permissions mode.', undefined, {
       intent: 'bypass',
       interaction: 'headless',
-      controls: cursorPermissionControls
+      controls: cursorPermissionControls,
+      execution: {
+        nativeMode: 'force',
+        toolPolicy: 'trusted all tools',
+        configSource: 'cli'
+      }
     })
   }
   if (policyId === 'sandbox') {
     return policy(policyId, 'exact', ['--sandbox', 'enabled', '--trust'], 'Sandbox', 'Requests Cursor sandbox mode.', undefined, {
       intent: 'workspaceSandbox',
       interaction: 'headless',
-      controls: cursorPermissionControls
+      controls: cursorPermissionControls,
+      execution: {
+        nativeMode: 'sandbox',
+        sandboxMode: 'enabled',
+        configSource: 'cli'
+      }
     })
   }
   return policy(
@@ -2743,7 +2806,12 @@ function cursorPolicy(policyId: string): ResolvedExecutionPolicy {
     {
       intent: 'ask',
       interaction: 'headless',
-      controls: cursorPermissionControls
+      controls: cursorPermissionControls,
+      execution: {
+        nativeMode: 'ask',
+        sandboxMode: 'read-only',
+        configSource: 'cli'
+      }
     }
   )
 }
