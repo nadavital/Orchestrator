@@ -878,6 +878,11 @@
   .diff-panel-list {
     max-height: 176px;
     border-bottom: 1px solid var(--border-subtle);
+    outline: none;
+  }
+
+  .diff-panel-list:focus-visible {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
   }
 
   .diff-directory-row {

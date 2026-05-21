@@ -607,6 +607,7 @@ child.on('exit', (code) => {
           diffToolbarCompact: result.diffToolbarCompactWorks === true,
           diffListCompact: result.diffListCompactWorks === true,
           diffTreeGrouping: result.diffTreeGroupingWorks === true,
+          diffKeyboardNavigation: result.diffKeyboardNavigationWorks === true,
           diffActionMenuCompact: result.diffActionMenuCompactWorks === true,
           reviewSearch: result.reviewSearchWorks === true,
           reviewSearchClear: result.reviewSearchClearWorks === true,

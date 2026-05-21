@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { buildFileChangeTreeRows, fileStatusLabel, isBinaryDiffText, shouldPreferTextDiff } from '../../types'
+import { adjacentFileChangePath, buildFileChangeTreeRows, fileStatusLabel, isBinaryDiffText, shouldPreferTextDiff } from '../../types'
 import type { FileChange, FileChangeTreeRow } from '../../types'
 import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
@@ -24,6 +24,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const [wrapLines, setWrapLines] = useState(true)
   const [showPreview, setShowPreview] = useState(false)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const filteredFiles = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     return normalizedQuery
@@ -83,6 +84,38 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     if (!selectedFile || filteredFiles.some((file) => file.path === selectedFile)) return
     setSelectedFile(filteredFiles[0]?.path ?? null)
   }, [filteredFiles, selectedFile])
+
+  useEffect(() => {
+    if (!selectedFile) return
+    const row = rootRef.current?.querySelector<HTMLElement>(`[data-review-path="${escapeCssAttribute(selectedFile)}"]`)
+    row?.scrollIntoView({ block: 'nearest' })
+  }, [selectedFile])
+
+  const selectAdjacentFile = (direction: 'next' | 'previous'): void => {
+    const nextPath = adjacentFileChangePath(filteredFiles, selectedFile, direction)
+    if (nextPath) setSelectedFile(nextPath)
+  }
+
+  const selectBoundaryFile = (boundary: 'first' | 'last'): void => {
+    if (filteredFiles.length === 0) return
+    setSelectedFile(boundary === 'first' ? filteredFiles[0].path : filteredFiles[filteredFiles.length - 1].path)
+  }
+
+  const handleFileListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      selectAdjacentFile('next')
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      selectAdjacentFile('previous')
+    } else if (event.key === 'Home') {
+      event.preventDefault()
+      selectBoundaryFile('first')
+    } else if (event.key === 'End') {
+      event.preventDefault()
+      selectBoundaryFile('last')
+    }
+  }
 
   const refresh = (): void => {
     window.api.sessions.getChangedFiles(sessionId).then((f) => {
@@ -164,6 +197,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   return (
     <div
       className="diff-panel-root flex flex-col shrink-0 min-w-0 overflow-hidden"
+      ref={rootRef}
       data-embedded={embedded ? 'true' : 'false'}
       style={{
         width: embedded ? '100%' : 440,
@@ -230,7 +264,11 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
         </div>
       ) : (
         <>
-          <div className="diff-panel-list overflow-y-auto overflow-x-hidden shrink-0">
+          <div
+            className="diff-panel-list overflow-y-auto overflow-x-hidden shrink-0"
+            tabIndex={0}
+            onKeyDown={handleFileListKeyDown}
+          >
             {filteredFiles.length === 0 && (
               <div className="px-3 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
                 No matches
@@ -609,6 +647,7 @@ function FileRow({
         paddingLeft: 10 + Math.min(row.depth, 4) * 12
       }}
       title={file.path}
+      dataReviewPath={file.path}
     >
       <span
         className="text-xs font-bold shrink-0"
@@ -673,6 +712,11 @@ function DiffLines({ diff, wrap }: { diff: string; wrap: boolean }): JSX.Element
 
 function joinPath(root: string, filePath: string): string {
   return `${root.replace(/\/+$/, '')}/${filePath.replace(/^\/+/, '')}`
+}
+
+function escapeCssAttribute(value: string): string {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(value)
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 
 function fileUrl(path: string): string {

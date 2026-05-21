@@ -1220,6 +1220,7 @@ export type {
   FileChangeTreeRow
 } from './fileChanges'
 export {
+  adjacentFileChangePath,
   buildFileChangeTreeRows,
   fileStatusLabel,
   summarizeFileChanges

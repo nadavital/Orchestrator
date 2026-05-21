@@ -110,6 +110,7 @@ interface ButtonProps {
   title?: string
   ariaLabel?: string
   dataTestId?: string
+  dataReviewPath?: string
 }
 
 export function Button({
@@ -960,10 +961,12 @@ export function SurfaceRow({
   title,
   ariaLabel,
   dataTestId,
+  dataReviewPath,
 }: SurfaceRowProps): JSX.Element {
   const shared = {
     'data-active': active ? 'true' : 'false',
     'data-testid': dataTestId,
+    'data-review-path': dataReviewPath,
     'data-tooltip-label': title,
     'data-native-title-free': title ? 'true' : undefined,
     className: `surface-row motion-row ${className}`,

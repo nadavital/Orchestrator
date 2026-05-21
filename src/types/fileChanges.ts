@@ -116,6 +116,19 @@ export function buildFileChangeTreeRows(files: FileChange[]): FileChangeTreeRow[
   return rows
 }
 
+export function adjacentFileChangePath(
+  files: FileChange[],
+  currentPath: string | null,
+  direction: 'next' | 'previous'
+): string | null {
+  if (files.length === 0) return null
+  const offset = direction === 'next' ? 1 : -1
+  const currentIndex = currentPath ? files.findIndex((file) => file.path === currentPath) : -1
+  if (currentIndex === -1) return direction === 'next' ? files[0]?.path ?? null : files[files.length - 1]?.path ?? null
+  const nextIndex = (currentIndex + offset + files.length) % files.length
+  return files[nextIndex]?.path ?? null
+}
+
 function fileChangeLabel(summary: FileChangeSummary): string {
   if (summary.total === 0) return 'No changes'
   const parts: string[] = []

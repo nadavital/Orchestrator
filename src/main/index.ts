@@ -3287,6 +3287,10 @@ function runAutomatedFocusedSurfaceSmoke(
               const binaryActions = binaryState instanceof HTMLElement
                 ? [...binaryState.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
                 : [];
+              const reviewBinaryStateWorks =
+                binaryState instanceof HTMLElement &&
+                binaryState.innerText.includes('Binary') &&
+                binaryState.innerText.includes('Binary file not shown.');
               const clearButton = document.querySelector('[data-testid="diff-file-search-clear"]');
               if (clearButton instanceof HTMLButtonElement) {
                 clearButton.click();
@@ -3298,6 +3302,22 @@ function runAutomatedFocusedSurfaceSmoke(
                 diffDirectoryRows.some((row) => row.textContent?.includes('Nested Folder')) &&
                 [...document.querySelectorAll('.diff-file-row')]
                   .some((row) => row instanceof HTMLElement && row.textContent?.includes('nested note.md'));
+              const activeReviewPath = () => {
+                const activeRow = document.querySelector('.diff-file-row[data-active="true"]');
+                return activeRow instanceof HTMLElement ? activeRow.getAttribute('data-review-path') : null;
+              };
+              const keyboardPathBefore = activeReviewPath();
+              if (diffPanelList instanceof HTMLElement) {
+                diffPanelList.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+                await sleep(100);
+              }
+              const keyboardPathAfter = activeReviewPath();
+              const diffKeyboardNavigationWorks =
+                typeof keyboardPathBefore === 'string' &&
+                typeof keyboardPathAfter === 'string' &&
+                keyboardPathBefore.length > 0 &&
+                keyboardPathAfter.length > 0 &&
+                keyboardPathBefore !== keyboardPathAfter;
               return {
                 profile,
                 diffToolbarCompactWorks:
@@ -3311,6 +3331,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffRows.length > 0 &&
                   diffRows.every((row) => row.getBoundingClientRect().height <= 42),
                 diffTreeGroupingWorks,
+                diffKeyboardNavigationWorks,
                 diffActionMenuCompactWorks,
                 reviewSearchWorks,
                 reviewDiffFirstWorks,
@@ -3320,10 +3341,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewNotebookPreviewWorks,
                 reviewImageBinaryDiffFirstWorks,
                 reviewImagePreviewWorks,
-                reviewBinaryStateWorks:
-                  binaryState instanceof HTMLElement &&
-                  binaryState.innerText.includes('Binary') &&
-                  document.body.innerText.includes('Binary file not shown.'),
+                reviewBinaryStateWorks,
                 reviewBinaryActionsWork:
                   binaryActions.includes('Open') &&
                   binaryActions.includes('Reveal'),

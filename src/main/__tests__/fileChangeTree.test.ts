@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildFileChangeTreeRows } from '../../types'
+import { adjacentFileChangePath, buildFileChangeTreeRows } from '../../types'
 import type { FileChange } from '../../types'
 
 test('file change tree rows add directory ancestors once in file order', () => {
@@ -63,4 +63,18 @@ test('file change tree keeps root files flat', () => {
   assert.deepEqual(buildFileChangeTreeRows(files).map((row) => [row.type, row.path, row.depth]), [
     ['file', 'README.md', 0]
   ])
+})
+
+test('adjacent file change selection wraps through filtered files', () => {
+  const files: FileChange[] = [
+    { path: 'a.ts', status: 'M', additions: 1, deletions: 0 },
+    { path: 'b.ts', status: 'A', additions: 2, deletions: 0 },
+    { path: 'c.ts', status: 'D', additions: 0, deletions: 3 }
+  ]
+
+  assert.equal(adjacentFileChangePath(files, 'a.ts', 'next'), 'b.ts')
+  assert.equal(adjacentFileChangePath(files, 'a.ts', 'previous'), 'c.ts')
+  assert.equal(adjacentFileChangePath(files, 'missing.ts', 'next'), 'a.ts')
+  assert.equal(adjacentFileChangePath(files, null, 'previous'), 'c.ts')
+  assert.equal(adjacentFileChangePath([], null, 'next'), null)
 })
