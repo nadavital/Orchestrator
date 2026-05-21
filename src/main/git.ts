@@ -68,14 +68,17 @@ export const gitManager = {
         }
       }
 
-      // Also get untracked / staged changes via status
-      const statusRaw = await git.raw(['status', '--porcelain'])
+      // Also get untracked / staged changes via status. The NUL-delimited form
+      // avoids Git quoting paths that contain spaces.
+      const statusRaw = await git.raw(['status', '--porcelain', '-z'])
       const files: FileChange[] = []
       const seen = new Set<string>()
 
-      for (const line of statusRaw.split('\n').filter(Boolean)) {
-        const xy = line.slice(0, 2)
-        const filePath = line.slice(3).trim().split(' -> ').pop()!
+      const records = statusRaw.split('\0').filter(Boolean)
+      for (let index = 0; index < records.length; index += 1) {
+        const record = records[index]
+        const xy = record.slice(0, 2)
+        const filePath = record.slice(3)
         if (seen.has(filePath)) continue
         seen.add(filePath)
 
@@ -84,6 +87,7 @@ export const gitManager = {
         const status = (indexStatus !== ' ' && indexStatus !== '?' ? indexStatus : workStatus) as FileChange['status']
         const counts = numstatMap.get(filePath) ?? { additions: 0, deletions: 0 }
         files.push({ path: filePath, status, ...counts })
+        if (indexStatus === 'R' || indexStatus === 'C') index += 1
       }
 
       return files

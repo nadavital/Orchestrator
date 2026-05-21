@@ -3292,6 +3292,12 @@ function runAutomatedFocusedSurfaceSmoke(
                 clearButton.click();
                 await sleep(100);
               }
+              const diffDirectoryRows = [...document.querySelectorAll('.diff-directory-row')]
+                .filter((row) => row instanceof HTMLElement);
+              const diffTreeGroupingWorks =
+                diffDirectoryRows.some((row) => row.textContent?.includes('Nested Folder')) &&
+                [...document.querySelectorAll('.diff-file-row')]
+                  .some((row) => row instanceof HTMLElement && row.textContent?.includes('nested note.md'));
               return {
                 profile,
                 diffToolbarCompactWorks:
@@ -3304,6 +3310,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   diffPanelList.scrollWidth <= diffPanelList.clientWidth + 2 &&
                   diffRows.length > 0 &&
                   diffRows.every((row) => row.getBoundingClientRect().height <= 42),
+                diffTreeGroupingWorks,
                 diffActionMenuCompactWorks,
                 reviewSearchWorks,
                 reviewDiffFirstWorks,

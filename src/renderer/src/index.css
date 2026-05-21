@@ -880,6 +880,18 @@
     border-bottom: 1px solid var(--border-subtle);
   }
 
+  .diff-directory-row {
+    min-height: 26px;
+    border-left: 2px solid transparent;
+    background: color-mix(in srgb, var(--control-bg) 45%, transparent);
+    font-weight: 560;
+  }
+
+  .diff-directory-row + .diff-file-row,
+  .diff-file-row + .diff-file-row {
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 65%, transparent);
+  }
+
   .files-panel-toolbar {
     display: flex;
     min-height: 36px;
@@ -1213,6 +1225,12 @@
 
   .motion-panel-right:not(.right-sidebar-expanded) .diff-panel-root[data-embedded='true'] .diff-file-row {
     min-height: 28px;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .motion-panel-right:not(.right-sidebar-expanded) .diff-panel-root[data-embedded='true'] .diff-directory-row {
+    min-height: 24px;
     padding-top: 4px !important;
     padding-bottom: 4px !important;
   }

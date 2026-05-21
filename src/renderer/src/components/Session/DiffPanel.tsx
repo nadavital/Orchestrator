@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { fileStatusLabel, isBinaryDiffText, shouldPreferTextDiff } from '../../types'
-import type { FileChange } from '../../types'
+import { buildFileChangeTreeRows, fileStatusLabel, isBinaryDiffText, shouldPreferTextDiff } from '../../types'
+import type { FileChange, FileChangeTreeRow } from '../../types'
 import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
 import Icon from '../shared/Icon'
@@ -30,6 +30,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       ? files.filter((file) => file.path.toLowerCase().includes(normalizedQuery))
       : files
   }, [files, query])
+  const fileTreeRows = useMemo(() => buildFileChangeTreeRows(filteredFiles), [filteredFiles])
   const selectedChange = selectedFile ? filteredFiles.find((file) => file.path === selectedFile) ?? null : null
 
   useEffect(() => {
@@ -235,12 +236,14 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
                 No matches
               </div>
             )}
-            {filteredFiles.map((f) => (
+            {fileTreeRows.map((row) => row.type === 'directory' ? (
+              <DirectoryRow key={row.id} row={row} />
+            ) : (
               <FileRow
-                key={f.path}
-                file={f}
-                selected={selectedFile === f.path}
-                onClick={() => setSelectedFile(f.path)}
+                key={row.id}
+                row={row}
+                selected={selectedFile === row.file.path}
+                onClick={() => setSelectedFile(row.file.path)}
               />
             ))}
           </div>
@@ -547,18 +550,53 @@ function formatBytes(value: number): string {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function FileRow({ file, selected, onClick }: { file: FileChange; selected: boolean; onClick: () => void }): JSX.Element {
-  const statusColor: Record<string, string> = {
-    M: 'var(--color-accent)',
-    A: '#22c55e',
-    D: '#ef4444',
-    R: '#f59e0b',
-    '?': 'var(--color-text-muted)'
-  }
+const statusColor: Record<FileChange['status'], string> = {
+  M: 'var(--color-accent)',
+  A: '#22c55e',
+  D: '#ef4444',
+  R: '#f59e0b',
+  '?': 'var(--color-text-muted)'
+}
 
-  const parts = file.path.split('/')
-  const filename = parts.pop()!
-  const dir = parts.join('/')
+function DirectoryRow({ row }: { row: Extract<FileChangeTreeRow, { type: 'directory' }> }): JSX.Element {
+  return (
+    <div
+      className="diff-directory-row w-full min-w-0 max-w-full overflow-hidden flex items-center gap-2 px-3 py-1.5 text-left"
+      style={{
+        paddingLeft: 10 + Math.min(row.depth, 4) * 12,
+        color: 'var(--text-secondary)'
+      }}
+      title={row.path}
+    >
+      <Icon name="folder" size={12} />
+      <span className="flex-1 min-w-0">
+        <span className="text-xs truncate block" style={{ fontSize: 11 }}>
+          {row.name}
+        </span>
+        <span className="diff-file-dir text-xs truncate block" style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>
+          {row.fileCount} {row.fileCount === 1 ? 'file' : 'files'}
+        </span>
+      </span>
+      {(row.additions > 0 || row.deletions > 0) && (
+        <span className="diff-file-stats text-xs shrink-0 flex gap-1" style={{ fontSize: 10 }}>
+          {row.additions > 0 && <Badge tone="success">+{row.additions}</Badge>}
+          {row.deletions > 0 && <Badge tone="danger">-{row.deletions}</Badge>}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function FileRow({
+  row,
+  selected,
+  onClick
+}: {
+  row: Extract<FileChangeTreeRow, { type: 'file' }>
+  selected: boolean
+  onClick: () => void
+}): JSX.Element {
+  const file = row.file
 
   return (
     <SurfaceRow
@@ -567,25 +605,22 @@ function FileRow({ file, selected, onClick }: { file: FileChange; selected: bool
       active={selected}
       className="diff-file-row w-full min-w-0 max-w-full overflow-hidden flex items-center gap-2 px-3 py-1.5 text-left"
       style={{
-        borderLeft: selected ? '2px solid var(--accent)' : '2px solid transparent'
+        borderLeft: selected ? '2px solid var(--accent)' : '2px solid transparent',
+        paddingLeft: 10 + Math.min(row.depth, 4) * 12
       }}
+      title={file.path}
     >
       <span
         className="text-xs font-bold shrink-0"
-        style={{ color: statusColor[file.status] ?? 'var(--color-text-muted)', width: 10 }}
+        style={{ color: statusColor[file.status], width: 10 }}
         title={fileStatusLabel(file.status)}
       >
         {file.status}
       </span>
       <span className="flex-1 min-w-0">
         <span className="text-xs truncate block" style={{ color: 'var(--color-text)', fontSize: 11 }}>
-          {filename}
+          {row.name}
         </span>
-        {dir && (
-          <span className="diff-file-dir text-xs truncate block" style={{ color: 'var(--color-text-muted)', fontSize: 10 }}>
-            {dir}/
-          </span>
-        )}
       </span>
       {(file.additions > 0 || file.deletions > 0) && (
         <span className="diff-file-stats text-xs shrink-0 flex gap-1" style={{ fontSize: 10 }}>

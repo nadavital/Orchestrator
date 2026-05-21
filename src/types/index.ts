@@ -1216,9 +1216,11 @@ export {
   isAgentTool
 } from './activityView'
 export type {
-  FileChangeSummary
+  FileChangeSummary,
+  FileChangeTreeRow
 } from './fileChanges'
 export {
+  buildFileChangeTreeRows,
   fileStatusLabel,
   summarizeFileChanges
 } from './fileChanges'

@@ -211,6 +211,7 @@ if (['inspector', 'right-panel', 'diff', 'files', 'side-chat', 'browser'].includ
   spawnSync('git', ['commit', '-m', 'baseline'], { cwd: workspaceDir, stdio: 'ignore' })
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\nafter review\n')
   writeFileSync(join(workspaceDir, 'review-new.txt'), 'new review file\n')
+  writeFileSync(join(workspaceDir, 'Nested Folder', 'nested note.md'), '# Nested file smoke preview\n\nThis verifies spaces in paths and review tree grouping.\n')
   writeFileSync(join(workspaceDir, 'data-preview-smoke.json'), JSON.stringify({ status: 'updated', items: [{ name: 'alpha', count: 2 }, { name: 'beta', count: 3 }] }, null, 2))
   writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,2,updated\nbeta,3,new\n')
   writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
@@ -605,6 +606,7 @@ child.on('exit', (code) => {
           isolatedProfile: result.profile?.isIsolated === true,
           diffToolbarCompact: result.diffToolbarCompactWorks === true,
           diffListCompact: result.diffListCompactWorks === true,
+          diffTreeGrouping: result.diffTreeGroupingWorks === true,
           diffActionMenuCompact: result.diffActionMenuCompactWorks === true,
           reviewSearch: result.reviewSearchWorks === true,
           reviewSearchClear: result.reviewSearchClearWorks === true,

@@ -13,6 +13,26 @@ export interface FileChangeSummary {
   label: string
 }
 
+export type FileChangeTreeRow =
+  | {
+      type: 'directory'
+      id: string
+      path: string
+      name: string
+      depth: number
+      fileCount: number
+      additions: number
+      deletions: number
+    }
+  | {
+      type: 'file'
+      id: string
+      path: string
+      name: string
+      depth: number
+      file: FileChange
+    }
+
 export function summarizeFileChanges(files: FileChange[]): FileChangeSummary {
   const summary: FileChangeSummary = {
     total: files.length,
@@ -50,6 +70,52 @@ export function fileStatusLabel(status: FileChange['status']): string {
   return 'Untracked'
 }
 
+export function buildFileChangeTreeRows(files: FileChange[]): FileChangeTreeRow[] {
+  const directoryStats = new Map<string, { fileCount: number; additions: number; deletions: number }>()
+  for (const file of files) {
+    for (const directoryPath of directoryAncestors(file.path)) {
+      const current = directoryStats.get(directoryPath) ?? { fileCount: 0, additions: 0, deletions: 0 }
+      current.fileCount += 1
+      current.additions += file.additions
+      current.deletions += file.deletions
+      directoryStats.set(directoryPath, current)
+    }
+  }
+
+  const rows: FileChangeTreeRow[] = []
+  const emittedDirectories = new Set<string>()
+  for (const file of files) {
+    for (const directoryPath of directoryAncestors(file.path)) {
+      if (emittedDirectories.has(directoryPath)) continue
+      emittedDirectories.add(directoryPath)
+      const parts = directoryPath.split('/')
+      const stats = directoryStats.get(directoryPath) ?? { fileCount: 0, additions: 0, deletions: 0 }
+      rows.push({
+        type: 'directory',
+        id: `directory:${directoryPath}`,
+        path: directoryPath,
+        name: parts[parts.length - 1] ?? directoryPath,
+        depth: parts.length - 1,
+        fileCount: stats.fileCount,
+        additions: stats.additions,
+        deletions: stats.deletions
+      })
+    }
+
+    const parts = file.path.split('/').filter(Boolean)
+    rows.push({
+      type: 'file',
+      id: `file:${file.path}`,
+      path: file.path,
+      name: parts[parts.length - 1] ?? file.path,
+      depth: Math.max(0, parts.length - 1),
+      file
+    })
+  }
+
+  return rows
+}
+
 function fileChangeLabel(summary: FileChangeSummary): string {
   if (summary.total === 0) return 'No changes'
   const parts: string[] = []
@@ -59,4 +125,13 @@ function fileChangeLabel(summary: FileChangeSummary): string {
   if (summary.renamed > 0) parts.push(`${summary.renamed} renamed`)
   if (summary.untracked > 0) parts.push(`${summary.untracked} untracked`)
   return parts.join(' · ')
+}
+
+function directoryAncestors(filePath: string): string[] {
+  const parts = filePath.split('/').filter(Boolean)
+  const ancestors: string[] = []
+  for (let index = 1; index < parts.length; index += 1) {
+    ancestors.push(parts.slice(0, index).join('/'))
+  }
+  return ancestors
 }
