@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
+import type { WorkspaceSearchEntry, WorkspaceSearchResult } from '../../types'
 import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import StructuredDataPreview from './StructuredDataPreview'
@@ -11,49 +12,61 @@ interface Props {
   embedded?: boolean
 }
 
-interface WorkspaceFileEntry {
-  path: string
-  name: string
-  kind: 'file' | 'directory'
-  depth: number
-  size?: number
-}
-
-const MAX_WORKSPACE_ENTRIES = 360
-
 export default function FilesPanel({ workDir, embedded = false }: Props): JSX.Element {
-  const [entries, setEntries] = useState<WorkspaceFileEntry[]>([])
+  const [searchResult, setSearchResult] = useState<WorkspaceSearchResult | null>(null)
   const [query, setQuery] = useState('')
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [preview, setPreview] = useState<FilePreviewResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionMenuOpen, setActionMenuOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const filteredEntries = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    return normalized
-      ? entries.filter((entry) => entry.path.toLowerCase().includes(normalized))
-      : entries
-  }, [entries, query])
-  const selectedEntry = selectedPath ? filteredEntries.find((entry) => entry.path === selectedPath) ?? null : null
+  const requestIdRef = useRef(0)
+  const entries = searchResult?.entries ?? []
+  const selectedEntry = selectedPath ? entries.find((entry) => entry.path === selectedPath) ?? null : null
+  const trimmedQuery = query.trim()
 
   useEffect(() => {
+    const requestId = requestIdRef.current + 1
+    requestIdRef.current = requestId
     let cancelled = false
     setLoading(true)
     setPreview(null)
-    collectWorkspaceEntries(workDir)
-      .then((nextEntries) => {
-        if (cancelled) return
-        setEntries(nextEntries)
-        setSelectedPath(nextEntries.find((entry) => entry.kind === 'file')?.path ?? null)
+    const timeout = window.setTimeout(() => {
+      window.api.fs.searchWorkspace({
+        root: workDir,
+        query,
+        limit: 1200,
+        includeDirectories: query.trim().length === 0
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+        .then((result) => {
+          if (cancelled || requestIdRef.current !== requestId) return
+          setSearchResult(result)
+          setSelectedPath((current) => {
+            if (current && result.entries.some((entry) => entry.path === current)) return current
+            return result.entries.find((entry) => entry.kind === 'file')?.path ?? result.entries[0]?.path ?? null
+          })
+        })
+        .catch(() => {
+          if (cancelled || requestIdRef.current !== requestId) return
+          setSearchResult({
+            root: workDir,
+            query,
+            entries: [],
+            visited: 0,
+            truncated: false,
+            durationMs: 0
+          })
+          setSelectedPath(null)
+        })
+        .finally(() => {
+          if (!cancelled && requestIdRef.current === requestId) setLoading(false)
+        })
+    }, query.trim().length === 0 ? 0 : 120)
     return () => {
       cancelled = true
+      window.clearTimeout(timeout)
     }
-  }, [workDir])
+  }, [query, workDir])
 
   useEffect(() => {
     const focusSearch = (): void => searchInputRef.current?.focus()
@@ -62,10 +75,10 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
   }, [])
 
   useEffect(() => {
-    if (selectedPath && !filteredEntries.some((entry) => entry.path === selectedPath)) {
-      setSelectedPath(null)
+    if (selectedPath && !entries.some((entry) => entry.path === selectedPath)) {
+      setSelectedPath(entries.find((entry) => entry.kind === 'file')?.path ?? entries[0]?.path ?? null)
     }
-  }, [filteredEntries, selectedPath])
+  }, [entries, selectedPath])
 
   useEffect(() => {
     if (!selectedPath || selectedEntry?.kind !== 'file') {
@@ -154,17 +167,17 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
     >
       {!embedded && <PanelHeader title="Files" actions={fileActions} />}
       <div className="files-panel-toolbar" data-testid="files-panel-toolbar">
-        <div className="inspector-search-field files-panel-search min-w-0 flex-1" data-has-query={query.trim() ? 'true' : 'false'}>
+        <div className="inspector-search-field files-panel-search min-w-0 flex-1" data-has-query={trimmedQuery ? 'true' : 'false'}>
           <Icon name="search" size={12} />
           <input
             ref={searchInputRef}
             data-testid="workspace-file-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter files"
+            placeholder="Filter files..."
             className="inspector-search-input min-w-0 flex-1 text-xs outline-none"
           />
-          {query.trim() && (
+          {trimmedQuery && (
             <button
               type="button"
               aria-label="Clear file filter"
@@ -176,21 +189,31 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
             </button>
           )}
         </div>
-        <Badge tone="neutral" className="files-entry-count">{filteredEntries.length}</Badge>
+        <Badge
+          tone="neutral"
+          className="files-entry-count"
+          title={searchResult?.truncated ? `Showing first ${entries.length} files from ${searchResult.visited} scanned entries` : undefined}
+        >
+          {entries.length}{searchResult?.truncated ? '+' : ''}
+        </Badge>
         {embedded && fileActions}
       </div>
       <div className="files-panel-body" data-testid="files-panel-body">
         <div className="files-panel-list" data-testid="files-panel-list">
-          {loading ? (
-            <FilesListState icon="folder" title="Loading files" />
-          ) : filteredEntries.length === 0 ? (
+          {loading && entries.length === 0 ? (
             <FilesListState
-              icon={query.trim() ? 'search' : 'folder'}
-              title={query.trim() ? 'No matching files' : 'No files in this folder'}
+              icon={trimmedQuery ? 'search' : 'folder'}
+              title={trimmedQuery ? 'Searching files' : 'Loading directory entries'}
+              testId="workspace-file-searching-list"
+            />
+          ) : entries.length === 0 ? (
+            <FilesListState
+              icon={trimmedQuery ? 'search' : 'folder'}
+              title={trimmedQuery ? 'No matching files' : 'No files in this folder'}
               testId="workspace-file-empty-list"
             />
           ) : (
-            filteredEntries.map((entry) => (
+            entries.map((entry) => (
               <SurfaceRow
                 key={entry.path}
                 as="button"
@@ -259,7 +282,7 @@ function FilePreview({
   absolutePath,
   preview,
 }: {
-  entry: WorkspaceFileEntry
+  entry: WorkspaceSearchEntry
   absolutePath: string
   preview: FilePreviewResult | null
 }): JSX.Element {
@@ -460,29 +483,6 @@ function fallbackActionIcon(label: string): 'external' | 'folder' | 'file' {
   if (label === 'Open') return 'external'
   if (label === 'Reveal') return 'folder'
   return 'file'
-}
-
-async function collectWorkspaceEntries(root: string): Promise<WorkspaceFileEntry[]> {
-  const entries: WorkspaceFileEntry[] = []
-  const ignored = new Set(['.git', 'node_modules', 'dist', 'out', 'out-test'])
-  async function visit(relativeDir: string, depth: number): Promise<void> {
-    if (entries.length >= MAX_WORKSPACE_ENTRIES || depth > 4) return
-    const absoluteDir = relativeDir ? joinPath(root, relativeDir) : root
-    const names = await window.api.fs.listDir(absoluteDir)
-    if (!names) return
-    for (const name of names.sort((a, b) => a.localeCompare(b))) {
-      if (ignored.has(name) || entries.length >= MAX_WORKSPACE_ENTRIES) continue
-      const relativePath = relativeDir ? `${relativeDir}/${name}` : name
-      const absolutePath = joinPath(root, relativePath)
-      const stat = await window.api.fs.statPath(absolutePath)
-      if (!stat.exists) continue
-      const kind = stat.isDirectory ? 'directory' : 'file'
-      entries.push({ path: relativePath, name, kind, depth, size: stat.size })
-      if (kind === 'directory') await visit(relativePath, depth + 1)
-    }
-  }
-  await visit('', 0)
-  return entries
 }
 
 function joinPath(root: string, filePath: string): string {

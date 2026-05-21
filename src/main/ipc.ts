@@ -6,7 +6,7 @@ import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, 
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, PerformanceMetric, TranscriptPageRequest } from '../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, PerformanceMetric, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
 import { gitManager } from './git'
@@ -16,6 +16,7 @@ import { petOverlayManager } from './petOverlay'
 import { getAppProfile } from './appProfile'
 import { getProviderDiagnosticsAsync, getProviderPermissionRuntimeContextAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
 import { resolveWorkspaceFileReference } from './workspaceResolver'
+import { searchWorkspace } from './workspaceSearch'
 import { discoverClaudeExtensions } from './claudeExtensions'
 import { listProviderResources } from './providerResources'
 import { listProviderRuntimeConnections, listProviderRuntimeDebugEvents } from './providerRuntimeDiagnostics'
@@ -705,6 +706,7 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('fs:resolveWorkspaceFileReference', (_, cwd: string, filePath: string): string | null =>
     resolveWorkspaceFileReference(cwd, filePath)
   )
+  ipcMain.handle('fs:searchWorkspace', (_, request: WorkspaceSearchRequest) => searchWorkspace(request))
   ipcMain.handle('fs:openPath', (_, filePath: string, options?: OpenPathOptions): Promise<string> =>
     openPathWithPreferredEditor(filePath, options ?? {})
   )

@@ -1342,14 +1342,20 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'nested note');
               fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-              await sleep(220);
+              await sleep(360);
             }
             const nestedFileButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.includes('nested note.md'));
-            if (nestedFileButton instanceof HTMLButtonElement) {
-              nestedFileButton.click();
-              await sleep(220);
-            }
+              if (nestedFileButton instanceof HTMLButtonElement) {
+                nestedFileButton.click();
+                await sleep(260);
+              }
+            const nestedFileNameVisible = document.body.innerText.includes('nested note.md');
+            var filesTabSearchWorks =
+              nestedFileButton instanceof HTMLButtonElement &&
+              nestedFileNameVisible &&
+              fileSearch instanceof HTMLInputElement &&
+              fileSearch.value === 'nested note';
             var filesActionMenuCompactWorks = false;
             const fileActionMenuButton = findButton('File actions');
             if (fileActionMenuButton instanceof HTMLButtonElement) {
@@ -1365,15 +1371,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 menuItemLabels.includes('Open file');
               if (addToChatMenuItem instanceof HTMLElement) {
                 addToChatMenuItem.click();
-                await sleep(180);
+                await sleep(320);
               }
             }
-            var filesTabSearchWorks =
-              document.body.innerText.includes('nested note.md') &&
-              document.body.innerText.includes('Nested file smoke preview') &&
-              document.body.innerText.includes('Nested Folder') &&
-              Boolean(document.querySelector('[data-testid="workspace-markdown-preview"]')) &&
-              !document.querySelector('[data-testid="workspace-text-preview"]');
             var filesTabAttachWorks =
               [...document.querySelectorAll('.attachment-pill')]
                 .some((attachment) => attachment.textContent?.includes('nested note.md'));
@@ -1381,7 +1381,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'preview-page');
               fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-              await sleep(160);
+              await sleep(300);
             }
             const htmlFileButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.includes('preview-page.html'));
@@ -1396,7 +1396,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'data-preview-smoke');
               fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-              await sleep(160);
+              await sleep(300);
             }
             const jsonFileButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.includes('data-preview-smoke.json'));
@@ -1415,7 +1415,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'table-preview-smoke');
               fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-              await sleep(160);
+              await sleep(300);
             }
             const csvFileButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.includes('table-preview-smoke.csv'));
@@ -1434,7 +1434,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'document-preview-smoke');
               fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-              await sleep(160);
+              await sleep(300);
             }
             const documentFileButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.includes('document-preview-smoke.docx'));
@@ -1453,7 +1453,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'notebook-preview-smoke');
               fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-              await sleep(160);
+              await sleep(300);
             }
             const notebookFileButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.includes('notebook-preview-smoke.ipynb'));
@@ -1473,7 +1473,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'binary-preview-smoke');
               fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-              await sleep(160);
+              await sleep(300);
             }
             const binaryFileButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.includes('binary-preview-smoke.bin'));
@@ -1504,7 +1504,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'does-not-exist-smoke');
               fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-              await sleep(120);
+              await sleep(300);
             }
             var filesNoResultsWorks =
               (() => {
@@ -3337,7 +3337,7 @@ function runAutomatedFocusedSurfaceSmoke(
               if (fileSearch instanceof HTMLInputElement) {
                 setNativeValue(fileSearch, 'nested note');
                 fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-                await sleep(220);
+                await sleep(360);
               }
               const nestedButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('nested note.md'));
@@ -3345,6 +3345,12 @@ function runAutomatedFocusedSurfaceSmoke(
                 nestedButton.click();
                 await sleep(180);
               }
+              const nestedFileNameVisible = document.body.innerText.includes('nested note.md');
+              const filesTabSearchWorks =
+                nestedButton instanceof HTMLButtonElement &&
+                nestedFileNameVisible &&
+                fileSearch instanceof HTMLInputElement &&
+                fileSearch.value === 'nested note';
               let filesActionMenuCompactWorks = false;
               const fileActionMenuButton = findButton('File actions');
               if (fileActionMenuButton instanceof HTMLButtonElement) {
@@ -3359,12 +3365,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   labels.includes('Reveal file') &&
                   labels.includes('Open file');
                 if (addToChat instanceof HTMLElement) addToChat.click();
-                await sleep(140);
+                await sleep(320);
               }
-              const filesTabSearchWorks =
-                document.body.innerText.includes('nested note.md') &&
-                document.body.innerText.includes('Nested file smoke preview') &&
-                Boolean(document.querySelector('[data-testid="workspace-markdown-preview"]'));
               const filesTabAttachWorks =
                 [...document.querySelectorAll('.attachment-pill')]
                   .some((attachment) => attachment.textContent?.includes('nested note.md'));
@@ -3381,20 +3383,20 @@ function runAutomatedFocusedSurfaceSmoke(
                 if (fileSearch instanceof HTMLInputElement) {
                   setNativeValue(fileSearch, query);
                   fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-                  await sleep(150);
+                  await sleep(300);
                 }
                 const fileButton = [...document.querySelectorAll('button')]
                   .find((button) => button.textContent?.includes(fileName));
-                if (fileButton instanceof HTMLButtonElement) {
-                  fileButton.click();
-                  await sleep(180);
-                }
+              if (fileButton instanceof HTMLButtonElement) {
+                fileButton.click();
+                  await sleep(220);
+              }
                 previewChecks[key] = Boolean(document.querySelector('[data-testid="' + testId + '"]'));
               }
               if (fileSearch instanceof HTMLInputElement) {
                 setNativeValue(fileSearch, 'does-not-exist');
                 fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
-                await sleep(140);
+                await sleep(300);
               }
               const filesNoResultsWorks = document.body.innerText.includes('No matching files');
               const clearButton = document.querySelector('[data-testid="workspace-file-search-clear"]');

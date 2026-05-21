@@ -12,6 +12,32 @@ export interface CodexProjectImportResult {
   scanned: number
 }
 
+export interface WorkspaceSearchRequest {
+  root: string
+  query?: string
+  limit?: number
+  includeDirectories?: boolean
+  includeHidden?: boolean
+}
+
+export interface WorkspaceSearchEntry {
+  path: string
+  name: string
+  kind: 'file' | 'directory'
+  depth: number
+  size?: number
+  score?: number
+}
+
+export interface WorkspaceSearchResult {
+  root: string
+  query: string
+  entries: WorkspaceSearchEntry[]
+  visited: number
+  truncated: boolean
+  durationMs: number
+}
+
 // Provider display info — shared between main and renderer
 export interface CursorEffortLevel {
   id: string
