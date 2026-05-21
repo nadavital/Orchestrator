@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { RunEvent, RunRequest } from '../../types'
 import { PROVIDER_DEFS, deriveAgentNodes, derivePlanStatesFromMessages, getDefaultPermissionMode, getPrimaryPermissionModes, parseClaudeAgentsOutput } from '../../types'
-import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
+import { buildProviderCommandForRuntime, claudeMcpServerNames, codexRuntimePolicyConfig, getProviderDiagnostics, getProviderDiagnosticsAsync, getProviderRuntimeInfo, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderPermissionRuntimeContext, runProviderCommandSurface, runProviderCommandSurfaceAsync } from '../providers'
 import { eventsToMessages } from '../runEvents'
 
 const ABSTRACT_CAPABILITY_KEYS = [
@@ -1397,6 +1397,47 @@ test('codex approval modes map to native approval policy config', () => {
     sandboxMode: 'danger-full-access',
     configSource: 'cli'
   })
+})
+
+test('codex permission runtime context maps app-server config requirements to visible policies', () => {
+  const context = resolveProviderPermissionRuntimeContext('codex', {
+    cwd: '/tmp/project',
+    configResult: {
+      providerId: 'codex',
+      surfaceId: 'appserver-config',
+      status: 'ok',
+      output: JSON.stringify({
+        config: {
+          approval_policy: 'on-request',
+          approvals_reviewer: 'auto_review',
+          sandbox_mode: 'workspace-write'
+        }
+      })
+    },
+    requirementsResult: {
+      providerId: 'codex',
+      surfaceId: 'appserver-config-requirements',
+      status: 'ok',
+      output: JSON.stringify({
+        requirements: {
+          allowedApprovalPolicies: ['on-request', 'untrusted'],
+          allowedSandboxModes: ['workspace-write']
+        }
+      })
+    }
+  })
+
+  assert.equal(context.status, 'ok')
+  assert.equal(context.source, 'app-server')
+  assert.equal(context.defaultPolicy, 'autoReview')
+  assert.deepEqual(context.effective, {
+    approvalPolicy: 'on-request',
+    approvalsReviewer: 'auto_review',
+    sandboxMode: 'workspace-write',
+    configSource: 'app-server'
+  })
+  assert.equal(context.visiblePolicies?.includes('fullAccess'), false)
+  assert.equal(context.disabledPolicies?.fullAccess, 'Requires sandbox danger-full-access')
 })
 
 test('codex policy supports app-server approvals while exec stays config-driven', () => {

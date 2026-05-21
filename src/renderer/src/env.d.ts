@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../../types'
+import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../../types'
 import type { AppMenuCommand } from '../../types/appCommands'
 
 export interface AppSettings {
@@ -208,6 +208,7 @@ declare global {
         listRuntimeDebugEvents: (providerId?: string, includeNoisy?: boolean) => Promise<ProviderRuntimeDebugEvent[]>
         listRuntimeConnections: (providerId?: string) => Promise<ProviderRuntimeConnectionState[]>
         runCommandSurface: (providerId: string, surfaceId: string) => Promise<ProviderCommandSurfaceResult>
+        getPermissionContext: (providerId: string, cwd?: string) => Promise<ProviderPermissionRuntimeContext>
         listResources: (providerId?: string, cwd?: string) => Promise<Record<string, ProviderResourceSnapshot>>
         createCapability: (request: CapabilityCreateRequest) => Promise<CapabilityCreateResult>
         updateCapability: (request: CapabilityUpdateRequest) => Promise<CapabilityMutationResult>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import {
   DndContext, closestCenter, type DragEndEvent,
   KeyboardSensor, PointerSensor, useSensor, useSensors
@@ -14,6 +14,8 @@ import {
   getPrimaryPermissionModes,
   getVisibleModels,
   type PermissionExecutionContract,
+  type ProviderPermissionMode,
+  type ProviderPermissionRuntimeContext,
   type ProviderCommandSurface,
   type ProviderCommandSurfaceResult,
   type ProviderDiagnosticInfo,
@@ -90,6 +92,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
   const [defaultPermissionModes, setDefaultPermissionModes] = useState<Record<string, string>>({})
   const [providerModels, setProviderModels] = useState<Record<string, string[]>>({})
   const [providerRuntime, setProviderRuntime] = useState<Record<string, ProviderRuntimeInfo>>({})
+  const [providerPermissionContexts, setProviderPermissionContexts] = useState<Record<string, ProviderPermissionRuntimeContext>>({})
   const [providerDiagnostics, setProviderDiagnostics] = useState<Record<string, ProviderDiagnosticInfo>>({})
   const [diagnosticsLoading, setDiagnosticsLoading] = useState<Record<string, boolean>>({})
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>('system')
@@ -418,6 +421,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               defaultPermissionModes={defaultPermissionModes}
               providerModels={providerModels}
               providerRuntime={providerRuntime}
+              providerPermissionContexts={providerPermissionContexts}
               providerDiagnostics={providerDiagnostics}
               diagnosticsLoading={diagnosticsLoading}
               providerAvailability={providerAvailability}
@@ -426,6 +430,7 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
               onSetDefaultEffort={saveDefaultEffort}
               onSetDefaultPermissionMode={saveDefaultPermissionMode}
               onSetProviderModels={saveProviderModels}
+              onSetProviderPermissionContexts={setProviderPermissionContexts}
               onLoadProviderDiagnostics={loadProviderDiagnostics}
             />
           )}
@@ -1194,7 +1199,7 @@ function compactShortcutLabel(label: string): string {
 
 function ProvidersSection({
   defaultProvider, sessions, defaultModels, defaultEfforts, defaultPermissionModes, providerModels,
-  providerRuntime, providerDiagnostics, diagnosticsLoading, providerAvailability, defaultAdvancedOpen = false, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onLoadProviderDiagnostics
+  providerRuntime, providerPermissionContexts, providerDiagnostics, diagnosticsLoading, providerAvailability, defaultAdvancedOpen = false, onSetDefaultProvider, onSetDefaultModel, onSetDefaultEffort, onSetDefaultPermissionMode, onSetProviderModels, onSetProviderPermissionContexts, onLoadProviderDiagnostics
 }: {
   defaultProvider: string
   sessions: SessionListItem[]
@@ -1203,6 +1208,7 @@ function ProvidersSection({
   defaultPermissionModes: Record<string, string>
   providerModels: Record<string, string[]>
   providerRuntime: Record<string, ProviderRuntimeInfo>
+  providerPermissionContexts: Record<string, ProviderPermissionRuntimeContext>
   providerDiagnostics: Record<string, ProviderDiagnosticInfo>
   diagnosticsLoading: Record<string, boolean>
   providerAvailability: Record<string, boolean>
@@ -1212,6 +1218,7 @@ function ProvidersSection({
   onSetDefaultEffort: (providerId: string, effortId: string) => void
   onSetDefaultPermissionMode: (providerId: string, modeId: string) => void
   onSetProviderModels: (providerId: string, models: string[]) => void
+  onSetProviderPermissionContexts: Dispatch<SetStateAction<Record<string, ProviderPermissionRuntimeContext>>>
   onLoadProviderDiagnostics: (providerId: string) => void
 }): JSX.Element {
   const providerList = Object.values(PROVIDER_DEFS)
@@ -1220,9 +1227,11 @@ function ProvidersSection({
   const installed = providerAvailability[selectedId] !== false
   const currentModel = defaultModels[selectedId] ?? providerDef.models[0]?.id ?? ''
   const currentEffort = defaultEfforts[selectedId] ?? providerDef.effortLevels[0]?.id ?? ''
-  const currentPermissionMode = getDefaultPermissionMode(providerDef, defaultPermissionModes[selectedId])
+  const permissionContext = providerPermissionContexts[selectedId]
+  const contextDefaultPermissionMode = permissionContext?.providerId === selectedId ? permissionContext.defaultPolicy : undefined
+  const currentPermissionMode = getDefaultPermissionMode(providerDef, defaultPermissionModes[selectedId] ?? contextDefaultPermissionMode)
   const visibleModels = getVisibleModels(providerDef, providerModels)
-  const primaryPermissionModes = getPrimaryPermissionModes(providerDef)
+  const primaryPermissionModes = filterPermissionModes(getPrimaryPermissionModes(providerDef), permissionContext, currentPermissionMode)
   const visibleIds = visibleModels.map((m) => m.id)
   const runtime = providerRuntime[selectedId]
   const diagnostics = providerDiagnostics[selectedId]
@@ -1237,6 +1246,17 @@ function ProvidersSection({
   useEffect(() => {
     if (advancedOpen) onLoadProviderDiagnostics(selectedId)
   }, [advancedOpen, onLoadProviderDiagnostics, selectedId])
+
+  useEffect(() => {
+    let alive = true
+    const cwd = sessions.find((session) => session.provider === selectedId)?.workDir ?? sessions[0]?.workDir
+    window.api.providers.getPermissionContext(selectedId, cwd)
+      .then((context) => {
+        if (alive) onSetProviderPermissionContexts((current) => ({ ...current, [selectedId]: context }))
+      })
+      .catch(() => undefined)
+    return () => { alive = false }
+  }, [onSetProviderPermissionContexts, selectedId, sessions])
 
   const handleVisibleModelsChange = (ids: string[]): void => {
     onSetProviderModels(selectedId, ids)
@@ -1291,6 +1311,7 @@ function ProvidersSection({
                 />
                 <ProviderPermissionContract
                   policy={runtime?.policies[currentPermissionMode]}
+                  context={permissionContext}
                   color={providerDef.color}
                 />
               </CompactSetting>
@@ -1433,45 +1454,64 @@ function ProviderStatusDetails({
 
 function ProviderPermissionContract({
   policy,
+  context,
   color
 }: {
   policy?: ResolvedExecutionPolicy
+  context?: ProviderPermissionRuntimeContext
   color: string
 }): JSX.Element | null {
-  if (!policy?.execution) return null
-  const chips = permissionExecutionLabels(policy.execution)
-  if (chips.length === 0) return null
+  if (!policy?.execution && (!context || context.source === 'static')) return null
+  const chips = policy?.execution ? permissionExecutionLabels(policy.execution) : []
   return (
-    <div
-      data-testid="settings-permission-execution-contract"
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 5,
-        marginTop: 6
-      }}
-    >
-      {chips.map((chip) => (
-        <span
-          key={`${chip.label}:${chip.value}`}
-          title={`${chip.label}: ${chip.value}`}
+    <div>
+      {chips.length > 0 && (
+        <div
+          data-testid="settings-permission-execution-contract"
           style={{
-            maxWidth: 180,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            padding: '3px 6px',
-            borderRadius: 7,
-            border: `1px solid ${chip.strong ? color : 'var(--color-border)'}`,
-            color: chip.strong ? color : 'var(--color-text-muted)',
-            background: 'var(--color-surface)',
-            fontSize: 10,
-            fontWeight: chip.strong ? 650 : 500
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 5,
+            marginTop: 6
           }}
         >
-          {chip.label} {chip.value}
-        </span>
-      ))}
+          {chips.map((chip) => (
+            <span
+              key={`${chip.label}:${chip.value}`}
+              title={`${chip.label}: ${chip.value}`}
+              style={{
+                maxWidth: 180,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                padding: '3px 6px',
+                borderRadius: 7,
+                border: `1px solid ${chip.strong ? color : 'var(--color-border)'}`,
+                color: chip.strong ? color : 'var(--color-text-muted)',
+                background: 'var(--color-surface)',
+                fontSize: 10,
+                fontWeight: chip.strong ? 650 : 500
+              }}
+            >
+              {chip.label} {chip.value}
+            </span>
+          ))}
+        </div>
+      )}
+      {context && context.source !== 'static' && (
+        <div
+          data-testid="settings-permission-runtime-context"
+          style={{
+            marginTop: 6,
+            color: context.status === 'ok' ? 'var(--color-green)' : 'var(--color-text-muted)',
+            fontSize: 10.5,
+            lineHeight: 1.35
+          }}
+          title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
+        >
+          {context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}
+        </div>
+      )}
     </div>
   )
 }
@@ -1485,6 +1525,16 @@ function permissionExecutionLabels(execution: PermissionExecutionContract): Arra
     execution.toolPolicy ? { label: 'Tools', value: execution.toolPolicy } : null,
     execution.configSource ? { label: 'Source', value: execution.configSource } : null
   ].filter((chip): chip is { label: string; value: string; strong?: boolean } => Boolean(chip))
+}
+
+function filterPermissionModes(
+  modes: ProviderPermissionMode[],
+  context: ProviderPermissionRuntimeContext | undefined,
+  selectedPolicy: string
+): ProviderPermissionMode[] {
+  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return modes
+  const visible = new Set(context.visiblePolicies)
+  return modes.filter((mode) => visible.has(mode.id) || mode.id === selectedPolicy)
 }
 
 function ProviderRuntimeEventsCard({

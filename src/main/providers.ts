@@ -20,6 +20,7 @@ import type {
   ProviderCommandSurfaceResult,
   ProviderDiagnosticInfo,
   ProviderFeature,
+  ProviderPermissionRuntimeContext,
   ProviderProbeDefinition,
   ProviderProbeResult,
   ProviderRuntimeInfo,
@@ -256,6 +257,15 @@ function stringValue(...values: unknown[]): string | undefined {
     if (typeof value === 'string' && value.trim()) return value
   }
   return undefined
+}
+
+function stringArrayValue(...values: unknown[]): string[] {
+  for (const value of values) {
+    if (!Array.isArray(value)) continue
+    const strings = value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+    if (strings.length > 0) return strings
+  }
+  return []
 }
 
 function numberValue(...values: unknown[]): number | undefined {
@@ -666,6 +676,11 @@ const anthropicTaskAgents = new Map<string, {
 
 const PROVIDER_PROBE_TIMEOUT_MS = 2_000
 const PROVIDER_COMMAND_SURFACE_TIMEOUT_MS = 5_000
+const PROVIDER_PERMISSION_CONTEXT_TTL_MS = 30_000
+const providerPermissionContextCache = new Map<string, {
+  expiresAt: number
+  promise: Promise<ProviderPermissionRuntimeContext>
+}>()
 const execFileAsync = promisify(execFile)
 
 function feature(
@@ -1279,6 +1294,158 @@ export function codexRuntimePolicyConfig(policyId: string | undefined): Permissi
     return { approvalPolicy: 'never', approvalsReviewer: 'user', sandboxMode: 'danger-full-access', configSource: 'cli' }
   }
   return { approvalPolicy: 'on-request', approvalsReviewer: 'user', sandboxMode: 'workspace-write', configSource: 'mixed' }
+}
+
+type ProviderPermissionContextInput = {
+  cwd?: string
+  configResult?: ProviderCommandSurfaceResult
+  requirementsResult?: ProviderCommandSurfaceResult
+}
+
+export function resolveProviderPermissionRuntimeContext(
+  providerId: string,
+  input: ProviderPermissionContextInput = {}
+): ProviderPermissionRuntimeContext {
+  const providerDef = PROVIDER_DEFS[providerId]
+  const staticContext: ProviderPermissionRuntimeContext = {
+    providerId,
+    cwd: input.cwd,
+    status: 'static',
+    source: 'static',
+    defaultPolicy: providerDef ? getProviderStaticDefaultPolicy(providerDef) : undefined,
+    visiblePolicies: providerDef?.permissionModes.map((mode) => mode.id),
+    summary: 'Using static provider permission modes.',
+    updatedAt: Date.now()
+  }
+  if (!providerDef || providerId !== 'codex') return staticContext
+
+  const configPayload = parseSurfaceJson(input.configResult)
+  const requirementsPayload = parseSurfaceJson(input.requirementsResult)
+  if (input.configResult?.status === 'error' || input.requirementsResult?.status === 'error') {
+    return {
+      ...staticContext,
+      status: 'error',
+      source: 'app-server',
+      summary: input.requirementsResult?.output || input.configResult?.output || 'Codex app-server permission config is unavailable.'
+    }
+  }
+  if (!configPayload && !requirementsPayload) {
+    return {
+      ...staticContext,
+      status: input.configResult || input.requirementsResult ? 'unavailable' : 'static',
+      source: input.configResult || input.requirementsResult ? 'app-server' : 'static',
+      summary: input.configResult || input.requirementsResult
+        ? 'Codex app-server did not return readable permission config.'
+        : staticContext.summary
+    }
+  }
+
+  const config = asRecord(asRecord(configPayload)?.config) ?? asRecord(configPayload) ?? {}
+  const requirements = asRecord(asRecord(requirementsPayload)?.requirements) ?? asRecord(requirementsPayload) ?? {}
+  const allowedApprovalPolicies = stringArrayValue(
+    requirements.allowedApprovalPolicies,
+    requirements.allowedApprovalPolicy,
+    requirements.approvalPolicies,
+    requirements.approval_policy,
+    asRecord(requirements.approvalPolicy)?.allowed,
+    asRecord(requirements.approval_policy)?.allowed
+  )
+  const allowedSandboxModes = stringArrayValue(
+    requirements.allowedSandboxModes,
+    requirements.allowedSandboxMode,
+    requirements.sandboxModes,
+    requirements.sandbox_mode,
+    asRecord(requirements.sandboxMode)?.allowed,
+    asRecord(requirements.sandbox_mode)?.allowed
+  )
+  const effective: PermissionExecutionContract = {
+    approvalPolicy: stringValue(
+      config.approvalPolicy,
+      config.approval_policy,
+      asRecord(config.approvalPolicy)?.value,
+      asRecord(config.approval_policy)?.value
+    ),
+    approvalsReviewer: stringValue(
+      config.approvalsReviewer,
+      config.approvals_reviewer,
+      asRecord(config.approvalsReviewer)?.value,
+      asRecord(config.approvals_reviewer)?.value
+    ),
+    sandboxMode: stringValue(
+      config.sandboxMode,
+      config.sandbox_mode,
+      config.sandbox,
+      asRecord(config.sandboxMode)?.value,
+      asRecord(config.sandbox_mode)?.value
+    ),
+    configSource: 'app-server'
+  }
+  const disabledPolicies = Object.fromEntries(
+    providerDef.permissionModes
+      .map((mode) => {
+        const contract = codexRuntimePolicyConfig(mode.id)
+        const approvalBlocked = allowedApprovalPolicies.length > 0 &&
+          contract.approvalPolicy &&
+          !allowedApprovalPolicies.includes(contract.approvalPolicy)
+        if (approvalBlocked) return [mode.id, `Requires approval policy ${contract.approvalPolicy}`]
+        const sandboxBlocked = allowedSandboxModes.length > 0 &&
+          contract.sandboxMode &&
+          !allowedSandboxModes.includes(contract.sandboxMode)
+        if (sandboxBlocked) return [mode.id, `Requires sandbox ${contract.sandboxMode}`]
+        return null
+      })
+      .filter((entry): entry is [string, string] => Boolean(entry))
+  )
+  const visiblePolicies = providerDef.permissionModes
+    .map((mode) => mode.id)
+    .filter((policyId) => !disabledPolicies[policyId])
+  const defaultPolicy = findCodexPolicyForExecution(providerDef.permissionModes.map((mode) => mode.id), effective) ??
+    (visiblePolicies.includes(providerDef.defaultPermissionMode ?? '') ? providerDef.defaultPermissionMode : undefined) ??
+    visiblePolicies[0] ??
+    getProviderStaticDefaultPolicy(providerDef)
+  const requirementSummary = [
+    allowedApprovalPolicies.length > 0 ? `${allowedApprovalPolicies.length} approval modes` : 'any approval mode',
+    allowedSandboxModes.length > 0 ? `${allowedSandboxModes.length} sandbox modes` : 'any sandbox'
+  ].join(', ')
+
+  return {
+    providerId,
+    cwd: input.cwd,
+    status: 'ok',
+    source: 'app-server',
+    defaultPolicy,
+    visiblePolicies,
+    disabledPolicies,
+    effective,
+    summary: `Codex app-server config loaded: ${requirementSummary}.`,
+    updatedAt: Date.now()
+  }
+}
+
+function getProviderStaticDefaultPolicy(providerDef: typeof PROVIDER_DEFS[string]): string {
+  return providerDef.defaultPermissionMode && providerDef.permissionModes.some((mode) => mode.id === providerDef.defaultPermissionMode)
+    ? providerDef.defaultPermissionMode
+    : providerDef.permissionModes[0]?.id ?? 'default'
+}
+
+function parseSurfaceJson(result?: ProviderCommandSurfaceResult): Record<string, unknown> | undefined {
+  if (!result || result.status !== 'ok') return undefined
+  try {
+    return JSON.parse(result.output) as Record<string, unknown>
+  } catch {
+    return undefined
+  }
+}
+
+function findCodexPolicyForExecution(policyIds: string[], effective: PermissionExecutionContract): string | undefined {
+  if (!effective.approvalPolicy && !effective.sandboxMode && !effective.approvalsReviewer) return undefined
+  return policyIds.find((policyId) => {
+    const contract = codexRuntimePolicyConfig(policyId)
+    if (effective.approvalPolicy && contract.approvalPolicy !== effective.approvalPolicy) return false
+    if (effective.sandboxMode && contract.sandboxMode !== effective.sandboxMode) return false
+    if (effective.approvalsReviewer && contract.approvalsReviewer !== effective.approvalsReviewer) return false
+    return true
+  })
 }
 
 const claudePermissionControls: PermissionRuntimeControl[] = [
@@ -3360,6 +3527,41 @@ export async function runProviderCommandSurfaceAsync(providerId: string, surface
       output: redactProviderCommandOutput(stringifyCommandError(err))
     }
   }
+}
+
+export async function getProviderPermissionRuntimeContextAsync(
+  providerId: string,
+  cwd = process.cwd()
+): Promise<ProviderPermissionRuntimeContext> {
+  const cacheKey = `${providerId}:${cwd}`
+  const cached = providerPermissionContextCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) return cached.promise
+
+  const promise = loadProviderPermissionRuntimeContext(providerId, cwd).catch((error) => {
+    providerPermissionContextCache.delete(cacheKey)
+    throw error
+  })
+  providerPermissionContextCache.set(cacheKey, {
+    expiresAt: Date.now() + PROVIDER_PERMISSION_CONTEXT_TTL_MS,
+    promise
+  })
+  return promise
+}
+
+async function loadProviderPermissionRuntimeContext(
+  providerId: string,
+  cwd = process.cwd()
+): Promise<ProviderPermissionRuntimeContext> {
+  if (providerId !== 'codex') return resolveProviderPermissionRuntimeContext(providerId, { cwd })
+  const [configResult, requirementsResult] = await Promise.all([
+    runProviderCommandSurfaceAsync(providerId, 'appserver-config', cwd),
+    runProviderCommandSurfaceAsync(providerId, 'appserver-config-requirements', cwd)
+  ])
+  return resolveProviderPermissionRuntimeContext(providerId, {
+    cwd,
+    configResult,
+    requirementsResult
+  })
 }
 
 export function getProviderRuntimeInfo(): Record<string, ProviderRuntimeInfo> {

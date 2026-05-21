@@ -14,7 +14,7 @@ import { settingsStore } from './settings'
 import { terminalManager } from './terminal'
 import { petOverlayManager } from './petOverlay'
 import { getAppProfile } from './appProfile'
-import { getProviderDiagnosticsAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
+import { getProviderDiagnosticsAsync, getProviderPermissionRuntimeContextAsync, getProviderRuntimeInfo, runProviderCommandSurfaceAsync } from './providers'
 import { resolveWorkspaceFileReference } from './workspaceResolver'
 import { discoverClaudeExtensions } from './claudeExtensions'
 import { listProviderResources } from './providerResources'
@@ -597,6 +597,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('providers:runCommandSurface', (_, providerId: string, surfaceId: string) =>
     runProviderCommandSurfaceAsync(providerId, surfaceId)
+  )
+  ipcMain.handle('providers:getPermissionContext', (_, providerId: string, cwd?: string) =>
+    getProviderPermissionRuntimeContextAsync(providerId, cwd)
   )
   ipcMain.handle('providers:listResources', (_, providerId?: string, cwd?: string) =>
     listProviderResources(providerId, cwd)

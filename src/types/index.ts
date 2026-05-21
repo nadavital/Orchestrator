@@ -600,6 +600,19 @@ export interface PermissionExecutionContract {
   configSource?: 'cli' | 'config' | 'app-server' | 'mixed'
 }
 
+export interface ProviderPermissionRuntimeContext {
+  providerId: string
+  cwd?: string
+  status: 'static' | 'ok' | 'unavailable' | 'error'
+  source: 'static' | 'app-server'
+  defaultPolicy?: string
+  visiblePolicies?: string[]
+  disabledPolicies?: Record<string, string>
+  effective?: PermissionExecutionContract
+  summary?: string
+  updatedAt: number
+}
+
 export type PermissionIntent =
   | 'ask'
   | 'plan'

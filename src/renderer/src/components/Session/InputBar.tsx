@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useEffect } from 'react'
-import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
+import type { Attachment, PermissionExecutionContract, ProviderAgentDef, ProviderPermissionMode, ProviderPermissionRuntimeContext, ProviderRuntimeInfo, ProviderSlashCommand, ResolvedExecutionPolicy, Session } from '../../types'
 import type { SlashPaletteCommand } from '../../types'
 import { PROVIDER_DEFS, canStopSession, expandSlashCommandPrompt, getAdvancedPermissionModes, getComposerSendState, getDangerPermissionModes, getDefaultPermissionMode, getPrimaryPermissionModes, getVisibleModels, parseClaudeAgentsOutput } from '../../types'
 import { defaultUI, useSessionStore } from '../../store/sessions'
@@ -48,6 +48,7 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const [showAdvancedPerms, setShowAdvancedPerms] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
   const [runtimeInfo, setRuntimeInfo] = useState<Record<string, ProviderRuntimeInfo>>({})
+  const [permissionContext, setPermissionContext] = useState<ProviderPermissionRuntimeContext | null>(null)
   const [extensionCommands, setExtensionCommands] = useState<ProviderSlashCommand[]>([])
   const [claudeAgents, setClaudeAgents] = useState<ProviderAgentDef[]>([])
   const [claudeAgentsStatus, setClaudeAgentsStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
@@ -80,6 +81,19 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   useEffect(() => {
     window.api.providers.getRuntimeInfo().then(setRuntimeInfo)
   }, [])
+
+  useEffect(() => {
+    let alive = true
+    setPermissionContext(null)
+    window.api.providers.getPermissionContext(session.provider ?? 'claude', session.workDir)
+      .then((context) => {
+        if (alive) setPermissionContext(context)
+      })
+      .catch(() => {
+        if (alive) setPermissionContext(null)
+      })
+    return () => { alive = false }
+  }, [session.provider, session.workDir])
 
   useEffect(() => {
     if ((session.provider ?? 'claude') !== 'claude') {
@@ -152,7 +166,8 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const provider = PROVIDER_DEFS[session.provider ?? 'claude'] ?? PROVIDER_DEFS.claude
   const model = session.model || provider.models[0]?.id || ''
   const effort = session.effort ?? provider.effortLevels[0]?.id ?? ''
-  const defaultPermissionMode = getDefaultPermissionMode(provider)
+  const contextDefaultPermissionMode = permissionContext?.providerId === provider.id ? permissionContext.defaultPolicy : undefined
+  const defaultPermissionMode = contextDefaultPermissionMode ?? getDefaultPermissionMode(provider)
   const permissionMode = session.permissionMode ?? defaultPermissionMode
   const effectiveMode = isNew ? useWorktree : session.useWorktree
   const providerRuntime = runtimeInfo[provider.id]
@@ -171,9 +186,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
   const selectedAgentName = provider.id === 'claude' ? session.agentName ?? null : null
   const selectedPermissionMode = provider.permissionModes.find((p) => p.id === permissionMode)
   const permLabel = selectedPermissionMode?.label ?? 'Mode'
-  const primaryPermissionModes = getPrimaryPermissionModes(provider)
-  const advancedPermissionModes = getAdvancedPermissionModes(provider)
-  const dangerPermissionModes = getDangerPermissionModes(provider)
+  const primaryPermissionModes = filterPermissionModes(getPrimaryPermissionModes(provider), permissionContext, permissionMode)
+  const advancedPermissionModes = filterPermissionModes(getAdvancedPermissionModes(provider), permissionContext, permissionMode)
+  const dangerPermissionModes = filterPermissionModes(getDangerPermissionModes(provider), permissionContext, permissionMode)
   const canUsePermission = resolvedPermission?.support !== 'unsupported'
 
   // Cursor per-model effort/thinking/fast config
@@ -915,6 +930,9 @@ function InputBar({ session, isNew }: Props): JSX.Element {
                   {resolvedPermission?.execution && (
                     <PermissionExecutionChips execution={resolvedPermission.execution} />
                   )}
+                  {permissionContext && permissionContext.source !== 'static' && (
+                    <PermissionContextNote context={permissionContext} />
+                  )}
                 </div>
                 {provider.id === 'claude' && showAdvancedPerms && (
                   <ClaudePermissionRules
@@ -1390,6 +1408,29 @@ function PermissionExecutionChips({ execution }: { execution: PermissionExecutio
   )
 }
 
+function PermissionContextNote({ context }: { context: ProviderPermissionRuntimeContext }): JSX.Element {
+  const tone = context.status === 'ok'
+    ? 'var(--color-green)'
+    : context.status === 'error'
+      ? 'var(--color-red)'
+      : 'var(--color-text-muted)'
+  return (
+    <div
+      data-testid="composer-permission-runtime-context"
+      style={{
+        marginTop: 7,
+        fontSize: 10.5,
+        lineHeight: 1.35,
+        color: tone,
+        maxWidth: 280
+      }}
+      title={context.cwd ? `${context.summary ?? ''} ${context.cwd}` : context.summary}
+    >
+      {context.status === 'ok' ? 'Live config' : 'Config fallback'} · {context.summary ?? 'Permission config checked.'}
+    </div>
+  )
+}
+
 function permissionExecutionLabels(execution: PermissionExecutionContract): Array<{ label: string; value: string }> {
   return [
     execution.nativeMode ? { label: 'Mode', value: execution.nativeMode } : null,
@@ -1399,6 +1440,16 @@ function permissionExecutionLabels(execution: PermissionExecutionContract): Arra
     execution.toolPolicy ? { label: 'Tools', value: execution.toolPolicy } : null,
     execution.configSource ? { label: 'Source', value: execution.configSource } : null
   ].filter((chip): chip is { label: string; value: string } => Boolean(chip))
+}
+
+function filterPermissionModes(
+  modes: ProviderPermissionMode[],
+  context: ProviderPermissionRuntimeContext | null,
+  selectedPolicy: string
+): ProviderPermissionMode[] {
+  if (!context || context.status !== 'ok' || !context.visiblePolicies || context.visiblePolicies.length === 0) return modes
+  const visible = new Set(context.visiblePolicies)
+  return modes.filter((mode) => visible.has(mode.id) || mode.id === selectedPolicy)
 }
 
 function providerShortName(providerId: string): string {
