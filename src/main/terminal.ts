@@ -2,6 +2,7 @@ import { spawn as spawnProcess } from 'node:child_process'
 import { spawn as spawnPty } from 'node-pty'
 import type { IPty } from 'node-pty'
 import { BrowserWindow } from 'electron'
+import { safeWindowSend } from './safeWebContents'
 
 const shells = new Map<string, IPty>()
 const buffers = new Map<string, string>()
@@ -24,7 +25,7 @@ function appendOutput(terminalId: string, data: string): void {
   const prev = buffers.get(terminalId) ?? ''
   const next = prev + data
   buffers.set(terminalId, next.length > MAX_BUFFER ? next.slice(-MAX_BUFFER) : next)
-  getWindow()?.webContents.send('terminal:data', terminalId, data)
+  safeWindowSend(getWindow(), 'terminal:data', terminalId, data)
 }
 
 export const terminalManager = {

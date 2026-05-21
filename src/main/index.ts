@@ -8,6 +8,7 @@ import { browserSecurityPolicyAllows } from './browserSecurityPolicy'
 import type { ChatMessage } from '../types'
 import { APP_COMMANDS } from '../types/appCommands'
 import type { AppMenuCommand } from '../types/appCommands'
+import { safeWindowSend } from './safeWebContents'
 
 const appProfile = configureAppProfile()
 
@@ -24,7 +25,7 @@ const guardedBrowserSessions = new WeakSet<Session>()
 
 function sendAppMenuCommand(command: AppMenuCommand): void {
   const target = BrowserWindow.getFocusedWindow() ?? mainWindow
-  target?.webContents.send('app:menu-command', command)
+  safeWindowSend(target, 'app:menu-command', command)
 }
 
 function installApplicationMenu(): void {

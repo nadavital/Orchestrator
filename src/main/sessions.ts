@@ -16,6 +16,7 @@ import { decideRunLifecycle, eventsForLifecycleDecision, isPausedOrFailed } from
 import { settingsStore } from './settings'
 import { migrateLegacyUserData } from './userDataMigration'
 import { approvalBroker } from './approvalBroker'
+import { safeWindowSend } from './safeWebContents'
 import { searchTranscriptMessages, transcriptPageForMessages } from './transcriptIndex'
 import { recordPerformanceMetric } from './performanceTelemetry'
 import { ensurePinnedSessionOrders, nextPinOrder } from '../types'
@@ -110,7 +111,7 @@ function sessionListItem(session: Session): SessionListItem {
 
 function send(channel: string, ...args: unknown[]): void {
   for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send(channel, ...args)
+    safeWindowSend(win, channel, ...args)
   }
 }
 

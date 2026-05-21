@@ -7,6 +7,7 @@ import { is } from '@electron-toolkit/utils'
 import { settingsStore } from './settings'
 import { sessionManager } from './sessions'
 import { getAppProfile } from './appProfile'
+import { safeWindowSend } from './safeWebContents'
 
 export interface PetManifest {
   id: string
@@ -449,7 +450,7 @@ function applyLayout(): void {
     lastLayout.placement !== layout.placement
   ) {
     lastLayout = layout
-    petWin.webContents.send('pet:layout', {
+    safeWindowSend(petWin, 'pet:layout', {
       mascotLeft: layout.mascotLeft,
       mascotTop: layout.mascotTop,
       trayLeft: layout.trayLeft,
@@ -601,7 +602,7 @@ export const petOverlayManager = {
 
   selectPet(id: string): void {
     settingsStore.set('selectedPetId', id)
-    petWin?.webContents.send('pet:configUpdated', { selectedPetId: id })
+    safeWindowSend(petWin, 'pet:configUpdated', { selectedPetId: id })
   },
 
   setOpen(v: boolean): void {
@@ -690,7 +691,7 @@ export const petOverlayManager = {
     if (mainWin) {
       if (mainWin.isMinimized()) mainWin.restore()
       mainWin.focus()
-      if (sessionId) mainWin.webContents.send('pet:navigate', sessionId)
+      if (sessionId) safeWindowSend(mainWin, 'pet:navigate', sessionId)
     } else if (createMainWindowFn) {
       createMainWindowFn()
     }
@@ -844,7 +845,7 @@ export const petOverlayManager = {
     mascotSize = mascotSizeForWidth(clamped)
     anchor = clampAnchor(anchor)
     settingsStore.set('petMascotWidthPx', clamped)
-    petWin?.webContents.send('pet:configUpdated', { mascotWidthPx: clamped })
+    safeWindowSend(petWin, 'pet:configUpdated', { mascotWidthPx: clamped })
     applyLayout()
   }
 }
