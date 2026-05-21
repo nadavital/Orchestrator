@@ -628,6 +628,30 @@ export function CompactSetting({
   )
 }
 
+export function SettingsRow({
+  label,
+  description,
+  control,
+  className = '',
+  variant = 'surface',
+}: {
+  label: ReactNode
+  description?: ReactNode
+  control: ReactNode
+  className?: string
+  variant?: 'surface' | 'nested'
+}): JSX.Element {
+  return (
+    <div className={`settings-row ${className}`.trim()} data-variant={variant}>
+      <div className="settings-row-copy">
+        <div className="settings-row-label">{label}</div>
+        {description && <div className="settings-row-description">{description}</div>}
+      </div>
+      <div className="settings-row-control">{control}</div>
+    </div>
+  )
+}
+
 export function SettingChoiceCard({
   label,
   description,

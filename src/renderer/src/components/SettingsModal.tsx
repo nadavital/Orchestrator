@@ -42,6 +42,7 @@ import {
   SegmentedControl as SystemSegmentedControl,
   SettingsIntro,
   SettingsPanel,
+  SettingsRow,
   SwitchControl,
   Tooltip
 } from './shared/designSystem'
@@ -1127,24 +1128,11 @@ function AppearanceSection({
         <div style={{ display: 'grid', gap: 12 }}>
           <SegmentedChoice items={densityOptions} value={density} onChange={onSetDensity} />
           <SegmentedChoice items={transcriptOptions} value={transcriptStyle} onChange={onSetTranscriptStyle} />
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-lg)',
-              border: '1px solid var(--border-subtle)',
-              background: 'var(--surface-bg)'
-            }}
-          >
-            <span>
-              <span style={{ display: 'block', fontSize: 13, fontWeight: 650, color: 'var(--text-primary)' }}>Tint sidebar</span>
-              <span style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Use the soft tinted rail material.</span>
-            </span>
-            <Switch checked={sidebarTint} onChange={onSetSidebarTint} />
-          </label>
+          <SettingsRow
+            label="Tint sidebar"
+            description="Use the soft tinted rail material."
+            control={<Switch checked={sidebarTint} onChange={onSetSidebarTint} />}
+          />
           <PreferenceToggle
             title="Font smoothing"
             description="Use antialiased interface and code text."
@@ -1306,22 +1294,27 @@ function ChromeThemeEditor({
         value={theme.semanticColors?.skill ?? '#7c3aed'}
         onChange={(value) => onChange(variant, { semanticColors: { ...theme.semanticColors, skill: value } })}
       />
-      <label style={{ display: 'grid', gap: 6, color: 'var(--text-secondary)', fontSize: 12 }}>
-        Contrast
-        <input
-          type="range"
-          min="0"
-          max="100"
-          step="1"
-          value={theme.contrast}
-          onChange={(event) => onChange(variant, { contrast: Number(event.currentTarget.value) })}
-        />
-      </label>
+      <SettingsRow
+        label="Contrast"
+        variant="nested"
+        control={(
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={theme.contrast}
+            onChange={(event) => onChange(variant, { contrast: Number(event.currentTarget.value) })}
+            style={{ width: 132 }}
+          />
+        )}
+      />
       <PreferenceToggle
         title="Opaque windows"
         description="Use solid chrome instead of translucent sidebar material."
         checked={theme.opaqueWindows}
         onChange={(value) => onChange(variant, { opaqueWindows: value })}
+        variant="nested"
       />
     </div>
   )
@@ -1329,21 +1322,25 @@ function ChromeThemeEditor({
 
 function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }): JSX.Element {
   return (
-    <label className="flex items-center justify-between gap-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
-      <span>{label}</span>
-      <input
-        type="color"
-        value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
-        style={{
-          width: 34,
-          height: 28,
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-md)',
-          background: 'transparent'
-        }}
-      />
-    </label>
+    <SettingsRow
+      label={label}
+      variant="nested"
+      control={(
+        <input
+          type="color"
+          aria-label={label}
+          value={value}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          style={{
+            width: 34,
+            height: 28,
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            background: 'transparent'
+          }}
+        />
+      )}
+    />
   )
 }
 
@@ -1351,32 +1348,22 @@ function PreferenceToggle({
   title,
   description,
   checked,
-  onChange
+  onChange,
+  variant = 'surface'
 }: {
   title: string
   description: string
   checked: boolean
   onChange: (value: boolean) => void
+  variant?: 'surface' | 'nested'
 }): JSX.Element {
   return (
-    <label
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-        padding: '12px 14px',
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-subtle)',
-        background: 'var(--surface-bg)'
-      }}
-    >
-      <span>
-        <span style={{ display: 'block', fontSize: 13, fontWeight: 650, color: 'var(--text-primary)' }}>{title}</span>
-        <span style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{description}</span>
-      </span>
-      <Switch checked={checked} onChange={onChange} />
-    </label>
+    <SettingsRow
+      label={title}
+      description={description}
+      variant={variant}
+      control={<Switch checked={checked} onChange={onChange} />}
+    />
   )
 }
 
