@@ -636,6 +636,21 @@ export interface ProviderRuntimeDebugEvent {
   code?: string
 }
 
+export interface ProviderRuntimeConnectionState {
+  id: string
+  providerId: string
+  runtime: ProviderRuntimeKind
+  sessionId?: string
+  hostId?: string
+  status: 'starting' | 'connected' | 'disconnected' | 'failed' | 'stopped'
+  startedAt: number
+  updatedAt: number
+  version?: string
+  method?: string
+  errorCode?: string
+  message?: string
+}
+
 export interface ProviderDiagnosticInfo {
   id: string
   binary: {
@@ -664,6 +679,7 @@ export interface ProviderDiagnosticInfo {
     status: 'not-run' | 'passed' | 'failed'
     message: string
   }
+  runtimeConnections?: ProviderRuntimeConnectionState[]
   runtimeEvents?: ProviderRuntimeDebugEvent[]
   probes: ProviderProbeResult[]
 }

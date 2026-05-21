@@ -9,7 +9,7 @@ import {
   resolveProviderCommand,
   type ProviderAdapter
 } from './providers'
-import { recordProviderRuntimeDebugEvent } from './providerRuntimeDiagnostics'
+import { recordProviderRuntimeDebugEvent, updateProviderRuntimeConnection } from './providerRuntimeDiagnostics'
 
 export interface ProviderRuntimeProcess {
   write(data: string): void
@@ -115,6 +115,13 @@ export class ProviderRuntimeManager {
         sessionId: options.sessionId,
         message: `Starting ${options.provider.id} app-server runtime.`
       })
+      updateProviderRuntimeConnection({
+        providerId: options.provider.id,
+        runtime: 'app-server',
+        sessionId: options.sessionId,
+        status: 'starting',
+        message: `Starting ${options.provider.id} app-server runtime.`
+      })
       const result = this.appServerRuntime.start({
         sessionId: options.sessionId,
         session: options.session,
@@ -133,6 +140,14 @@ export class ProviderRuntimeManager {
         severity: result.message?.includes('not available') ? 'warning' : 'error',
         code: result.message?.includes('not available') ? 'missing-binary' : 'spawn-failed',
         message: result.message ?? `Failed to start ${options.provider.id} app-server runtime.`
+      })
+      updateProviderRuntimeConnection({
+        providerId: options.provider.id,
+        runtime: 'app-server',
+        sessionId: options.sessionId,
+        status: 'failed',
+        errorCode: result.message?.includes('not available') ? 'missing-binary' : 'spawn-failed',
+        message: result.message
       })
       return {
         ok: false,
@@ -153,6 +168,14 @@ export class ProviderRuntimeManager {
         sessionId: options.sessionId,
         severity: 'warning',
         code: 'missing-binary',
+        message: `${options.provider.id} CLI is not available.`
+      })
+      updateProviderRuntimeConnection({
+        providerId: options.provider.id,
+        runtime: options.request.runtime ?? 'headless',
+        sessionId: options.sessionId,
+        status: 'failed',
+        errorCode: 'missing-binary',
         message: `${options.provider.id} CLI is not available.`
       })
       return {
@@ -181,6 +204,14 @@ export class ProviderRuntimeManager {
         code: 'spawn-failed',
         message: error instanceof Error ? error.message : String(error)
       })
+      updateProviderRuntimeConnection({
+        providerId: options.provider.id,
+        runtime: options.request.runtime ?? 'headless',
+        sessionId: options.sessionId,
+        status: 'failed',
+        errorCode: 'spawn-failed',
+        message: error instanceof Error ? error.message : String(error)
+      })
       return {
         ok: false,
         error: 'spawn-failed',
@@ -198,6 +229,14 @@ export class ProviderRuntimeManager {
       runtime: options.request.runtime ?? 'headless',
       sessionId: options.sessionId,
       hostId: command.binary,
+      message: `Started ${options.provider.id} ${options.request.runtime ?? 'headless'} runtime.`
+    })
+    updateProviderRuntimeConnection({
+      providerId: options.provider.id,
+      runtime: options.request.runtime ?? 'headless',
+      sessionId: options.sessionId,
+      hostId: command.binary,
+      status: 'connected',
       message: `Started ${options.provider.id} ${options.request.runtime ?? 'headless'} runtime.`
     })
     let buffer = ''
@@ -225,6 +264,13 @@ export class ProviderRuntimeManager {
         severity: 'debug',
         message: `${options.provider.id} runtime exited.`
       })
+      updateProviderRuntimeConnection({
+        providerId: options.provider.id,
+        runtime: options.request.runtime ?? 'headless',
+        sessionId: options.sessionId,
+        status: 'disconnected',
+        message: `${options.provider.id} runtime exited.`
+      })
       options.onExit()
     })
 
@@ -238,6 +284,13 @@ export class ProviderRuntimeManager {
         runtime: 'app-server',
         sessionId,
         severity: 'debug',
+        message: 'Stopped app-server runtime.'
+      })
+      updateProviderRuntimeConnection({
+        providerId: 'codex',
+        runtime: 'app-server',
+        sessionId,
+        status: 'stopped',
         message: 'Stopped app-server runtime.'
       })
       this.cleanupSession(sessionId)
@@ -254,6 +307,13 @@ export class ProviderRuntimeManager {
         runtime: info.runtime,
         sessionId,
         severity: 'debug',
+        message: `Stopped ${info.providerId} runtime.`
+      })
+      updateProviderRuntimeConnection({
+        providerId: info.providerId,
+        runtime: info.runtime,
+        sessionId,
+        status: 'stopped',
         message: `Stopped ${info.providerId} runtime.`
       })
     }

@@ -18,7 +18,7 @@ import { getProviderDiagnosticsAsync, getProviderRuntimeInfo, runProviderCommand
 import { resolveWorkspaceFileReference } from './workspaceResolver'
 import { discoverClaudeExtensions } from './claudeExtensions'
 import { listProviderResources } from './providerResources'
-import { listProviderRuntimeDebugEvents } from './providerRuntimeDiagnostics'
+import { listProviderRuntimeConnections, listProviderRuntimeDebugEvents } from './providerRuntimeDiagnostics'
 import { createCapability } from './capabilityCreator'
 import { deleteCapability, updateCapability } from './capabilityManager'
 import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
@@ -591,6 +591,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('providers:getDiagnostics', (_, providerId?: string) => getProviderDiagnosticsAsync(providerId))
   ipcMain.handle('providers:listRuntimeDebugEvents', (_, providerId?: string, includeNoisy?: boolean) =>
     listProviderRuntimeDebugEvents({ providerId, includeNoisy, limit: 200 })
+  )
+  ipcMain.handle('providers:listRuntimeConnections', (_, providerId?: string) =>
+    listProviderRuntimeConnections({ providerId, limit: 200 })
   )
   ipcMain.handle('providers:runCommandSurface', (_, providerId: string, surfaceId: string) =>
     runProviderCommandSurfaceAsync(providerId, surfaceId)

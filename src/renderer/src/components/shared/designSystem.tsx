@@ -682,16 +682,22 @@ export function DiagnosticPill({
   color: string
 }): JSX.Element {
   const normalized = status.toLowerCase()
-  const isGood = ['found', 'ok', 'available', 'configured', 'passed'].includes(normalized)
+  const isGood = ['found', 'ok', 'available', 'configured', 'passed', 'connected'].includes(normalized)
   const isBad = ['missing', 'error', 'empty', 'failed'].includes(normalized)
-  const pillColor = isGood ? color : isBad ? 'var(--state-danger)' : 'var(--text-tertiary)'
+  const isWarning = ['warning', 'disconnected'].includes(normalized)
+  const pillColor = isGood ? color : isBad ? 'var(--state-danger)' : isWarning ? 'var(--state-warning)' : 'var(--text-tertiary)'
   const labels: Record<string, string> = {
     found: 'OK',
     ok: 'OK',
     available: 'OK',
     configured: 'OK',
     passed: 'OK',
+    connected: 'Live',
+    starting: 'Starting',
+    disconnected: 'Offline',
+    stopped: 'Stopped',
     missing: 'Missing',
+    warning: 'Warn',
     error: 'Error',
     empty: 'Empty',
     failed: 'Failed',

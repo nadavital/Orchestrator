@@ -2,7 +2,12 @@ import test, { beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import type { ProviderCommand, RunEvent, RunRequest, Session } from '../../types'
 import { ProviderRuntimeManager, type ProviderRuntimeProcess } from '../providerRuntime'
-import { clearProviderRuntimeDebugEvents, listProviderRuntimeDebugEvents } from '../providerRuntimeDiagnostics'
+import {
+  clearProviderRuntimeConnections,
+  clearProviderRuntimeDebugEvents,
+  listProviderRuntimeConnections,
+  listProviderRuntimeDebugEvents
+} from '../providerRuntimeDiagnostics'
 import type { ProviderAdapter } from '../providers'
 
 class FakeProcess implements ProviderRuntimeProcess {
@@ -102,6 +107,7 @@ const request: RunRequest = {
 
 beforeEach(() => {
   clearProviderRuntimeDebugEvents()
+  clearProviderRuntimeConnections()
 })
 
 test('provider runtime owns process stdout parsing and cleanup', () => {
@@ -152,6 +158,7 @@ test('provider runtime owns process stdout parsing and cleanup', () => {
     listProviderRuntimeDebugEvents({ providerId: 'fake' }).some((event) => event.message === 'Started fake headless runtime.'),
     true
   )
+  assert.equal(listProviderRuntimeConnections({ providerId: 'fake' }).at(-1)?.status, 'disconnected')
 })
 
 test('provider runtime interrupt keeps exit callback wired for queued steering', () => {

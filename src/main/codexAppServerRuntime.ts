@@ -2,7 +2,7 @@ import { spawn as childSpawn } from 'child_process'
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'child_process'
 import type { Attachment, RunEvent, RunRequest, Session } from '../types'
 import { providerSpawnEnv, resolveProviderCommand, type ProviderAdapter } from './providers'
-import { recordProviderRuntimeDebugEvent } from './providerRuntimeDiagnostics'
+import { recordProviderRuntimeDebugEvent, updateProviderRuntimeConnection } from './providerRuntimeDiagnostics'
 
 type JsonObject = Record<string, unknown>
 type PendingKind = 'permission' | 'user_input' | 'mcp_elicitation'
@@ -86,6 +86,10 @@ class CodexAppServerSession implements CodexAppServerRun {
         severity: 'warning',
         code: 'missing-binary'
       })
+      this.updateConnection('failed', {
+        errorCode: 'missing-binary',
+        message: 'codex CLI is not available.'
+      })
       return { ok: false, message: 'codex CLI is not available. Check provider settings or install codex.' }
     }
 
@@ -100,11 +104,19 @@ class CodexAppServerSession implements CodexAppServerRun {
         severity: 'error',
         code: 'spawn-failed'
       })
+      this.updateConnection('failed', {
+        errorCode: 'spawn-failed',
+        message: error instanceof Error ? error.message : String(error)
+      })
       return { ok: false, message: error instanceof Error ? error.message : String(error) }
     }
 
     this.record('Codex app-server process started.', {
       hostId: command.binary
+    })
+    this.updateConnection('starting', {
+      hostId: command.binary,
+      message: 'Codex app-server process started.'
     })
     this.process.stdout.on('data', (chunk: Buffer) => this.handleData(chunk.toString('utf8')))
     this.process.stderr.on('data', (chunk: Buffer) => {
@@ -223,7 +235,12 @@ class CodexAppServerSession implements CodexAppServerRun {
       capabilities: {
         experimentalApi: true
       }
-    }, () => {
+    }, (result) => {
+      this.updateConnection('connected', {
+        method: 'initialize',
+        version: stringValue(result.protocolVersion, result.serverInfo),
+        message: 'Codex app-server initialized.'
+      })
       this.sendNotification('initialized')
       this.startOrResumeThread()
     }, (error) => {
@@ -259,6 +276,11 @@ class CodexAppServerSession implements CodexAppServerRun {
         return
       }
       this.threadId = threadId
+      this.updateConnection('connected', {
+        method,
+        hostId: threadId,
+        message: `Codex app-server ${this.options.mode === 'resume' ? 'resumed' : 'started'} thread.`
+      })
       this.record(`Codex app-server ${this.options.mode === 'resume' ? 'resumed' : 'started'} thread.`, {
         method,
         hostId: threadId
@@ -457,6 +479,10 @@ class CodexAppServerSession implements CodexAppServerRun {
         severity: 'debug',
         code: code == null ? signal ?? undefined : String(code)
       })
+      this.updateConnection(this.stopped ? 'stopped' : 'disconnected', {
+        errorCode: code == null ? signal ?? undefined : String(code),
+        message: `Codex app-server exited${exitDetail(code, signal)}.`
+      })
     }
 
     this.stopped = true
@@ -480,6 +506,10 @@ class CodexAppServerSession implements CodexAppServerRun {
   private emitTransportFailure(content: string, options: { code?: string } = {}): void {
     this.transportFailed = true
     this.terminalRunEventSeen = true
+    this.updateConnection('failed', {
+      errorCode: options.code,
+      message: content
+    })
     this.record(content, {
       severity: 'error',
       code: options.code
@@ -514,6 +544,29 @@ class CodexAppServerSession implements CodexAppServerRun {
       noisy: options.noisy,
       code: options.code,
       message
+    })
+  }
+
+  private updateConnection(
+    status: 'starting' | 'connected' | 'disconnected' | 'failed' | 'stopped',
+    options: {
+      hostId?: string
+      version?: string
+      method?: string
+      errorCode?: string
+      message?: string
+    } = {}
+  ): void {
+    updateProviderRuntimeConnection({
+      providerId: this.options.provider.id,
+      runtime: 'app-server',
+      sessionId: this.options.sessionId,
+      hostId: options.hostId ?? this.threadId ?? 'stdio://codex-app-server',
+      status,
+      version: options.version,
+      method: options.method,
+      errorCode: options.errorCode,
+      message: options.message
     })
   }
 }

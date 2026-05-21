@@ -3,7 +3,12 @@ import assert from 'node:assert/strict'
 import type { SpawnOptionsWithoutStdio } from 'child_process'
 import type { RunEvent, Session } from '../../types'
 import { CodexAppServerRuntimeManager, type CodexAppServerSpawn } from '../codexAppServerRuntime'
-import { clearProviderRuntimeDebugEvents, listProviderRuntimeDebugEvents } from '../providerRuntimeDiagnostics'
+import {
+  clearProviderRuntimeConnections,
+  clearProviderRuntimeDebugEvents,
+  listProviderRuntimeConnections,
+  listProviderRuntimeDebugEvents
+} from '../providerRuntimeDiagnostics'
 import { PROVIDERS } from '../providers'
 
 class FakePipe {
@@ -106,6 +111,7 @@ const provider = {
 
 beforeEach(() => {
   clearProviderRuntimeDebugEvents()
+  clearProviderRuntimeConnections()
 })
 
 function writtenJson(fake: FakeAppServerProcess): Array<Record<string, unknown>> {
@@ -194,6 +200,10 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
   assert.equal(events.some((event) => event.type === 'session.started' && event.providerSessionId === 'thread-1'), true)
   const runtimeEvents = listProviderRuntimeDebugEvents({ providerId: 'codex', includeNoisy: true })
   assert.equal(runtimeEvents.some((event) => event.method === 'thread/start' && event.hostId === 'thread-1'), true)
+  const runtimeConnection = listProviderRuntimeConnections({ providerId: 'codex' }).at(-1)
+  assert.equal(runtimeConnection?.status, 'connected')
+  assert.equal(runtimeConnection?.version, 'v2')
+  assert.equal(runtimeConnection?.hostId, 'thread-1')
   const permission = events.find((event) => event.type === 'permission.requested')
   assert.equal(permission?.type, 'permission.requested')
   assert.equal(permission?.denials[0]?.tool_input.command, 'touch appserver-ok')
@@ -323,6 +333,7 @@ test('codex app-server runtime fails loudly when the process exits before respon
   const runtimeFailure = listProviderRuntimeDebugEvents({ providerId: 'codex' }).findLast((event) => event.severity === 'error')
   assert.equal(runtimeFailure?.runtime, 'app-server')
   assert.match(runtimeFailure?.message ?? '', /exited unexpectedly.*code 1/)
+  assert.equal(listProviderRuntimeConnections({ providerId: 'codex' }).at(-1)?.status, 'failed')
 })
 
 test('codex app-server runtime reports stdin and child process transport errors', () => {
