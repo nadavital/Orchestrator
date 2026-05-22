@@ -71,12 +71,16 @@ const foregroundSmoke = process.argv.includes('--foreground') ||
 const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
+const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-perf', 'diff', 'files', 'side-chat', 'browser'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
 let browserSmokeServer = null
 let browserSmokeUrl = ''
 
 rmSync(userDataDir, { recursive: true, force: true })
+if (fixtureWorkspaceViews.has(captureView)) {
+  rmSync(workspaceDir, { recursive: true, force: true })
+}
 mkdirSync(userDataDir, { recursive: true })
 mkdirSync(workspaceDir, { recursive: true })
 
@@ -184,7 +188,7 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;')
 }
 
-if (['inspector', 'right-panel', 'workbench-perf', 'diff', 'files', 'side-chat', 'browser'].includes(captureView)) {
+if (fixtureWorkspaceViews.has(captureView)) {
   mkdirSync(join(workspaceDir, 'Nested Folder'), { recursive: true })
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\n')
   writeFileSync(join(workspaceDir, 'review-delete.txt'), 'delete me\n')

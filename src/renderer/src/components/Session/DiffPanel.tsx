@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { adjacentFileChangePath, buildFileChangeTreeRows, fileStatusLabel, isBinaryDiffText, shouldPreferTextDiff } from '../../types'
 import type { FileChange, FileChangeTreeRow } from '../../types'
 import type { FilePreviewResult } from '../../env'
-import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
+import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import StructuredDataPreview from './StructuredDataPreview'
 
@@ -228,27 +228,15 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       )}
 
       <div className="diff-panel-toolbar" data-testid="diff-panel-toolbar">
-        <div className="inspector-search-field diff-panel-search min-w-0 flex-1" data-has-query={query.trim() ? 'true' : 'false'}>
-          <Icon name="search" size={12} />
-          <input
-            data-testid="diff-file-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter changes"
-            className="inspector-search-input min-w-0 flex-1 text-xs outline-none"
-          />
-          {query.trim() && (
-            <button
-              type="button"
-              aria-label="Clear change filter"
-              data-testid="diff-file-search-clear"
-              className="inspector-search-clear"
-              onClick={() => setQuery('')}
-            >
-              <Icon name="close" size={11} />
-            </button>
-          )}
-        </div>
+        <WorkbenchSearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Filter changes"
+          clearLabel="Clear change filter"
+          dataTestId="diff-file-search"
+          clearDataTestId="diff-file-search-clear"
+          className="diff-panel-search flex-1"
+        />
         <Badge tone="neutral" className="diff-file-count shrink-0">
           {embedded ? (
             <>
@@ -621,10 +609,10 @@ function DirectoryRow({ row }: { row: Extract<FileChangeTreeRow, { type: 'direct
     >
       <Icon name="folder" size={12} />
       <span className="flex-1 min-w-0">
-        <span className="text-xs truncate block" style={{ fontSize: 11 }}>
+        <span className="truncate block">
           {row.name}
         </span>
-        <span className="diff-file-dir text-xs truncate block" style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>
+        <span className="diff-file-dir truncate block">
           {row.fileCount} {row.fileCount === 1 ? 'file' : 'files'}
         </span>
       </span>
@@ -663,14 +651,14 @@ function FileRow({
       dataReviewPath={file.path}
     >
       <span
-        className="text-xs font-bold shrink-0"
+        className="diff-file-status shrink-0"
         style={{ color: statusColor[file.status], width: 10 }}
         title={fileStatusLabel(file.status)}
       >
         {file.status}
       </span>
       <span className="flex-1 min-w-0">
-        <span className="text-xs truncate block" style={{ color: 'var(--color-text)', fontSize: 11 }}>
+        <span className="truncate block" style={{ color: 'var(--color-text)' }}>
           {row.name}
         </span>
       </span>

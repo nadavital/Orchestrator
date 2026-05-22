@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import Icon, { type IconName } from './Icon'
 import { rowMotionStyle } from '../../design/motion'
@@ -265,6 +265,58 @@ export function ToolbarButton({
         borderColor: active ? 'var(--border-strong)' : 'var(--border-subtle)',
       }}
     />
+  )
+}
+
+interface WorkbenchSearchFieldProps {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  clearLabel: string
+  inputRef?: Ref<HTMLInputElement>
+  dataTestId?: string
+  clearDataTestId?: string
+  className?: string
+}
+
+export function WorkbenchSearchField({
+  value,
+  onChange,
+  placeholder,
+  clearLabel,
+  inputRef,
+  dataTestId,
+  clearDataTestId,
+  className = '',
+}: WorkbenchSearchFieldProps): JSX.Element {
+  const hasQuery = value.trim().length > 0
+
+  return (
+    <div
+      className={`workbench-search-field ${className}`.trim()}
+      data-has-query={hasQuery ? 'true' : 'false'}
+    >
+      <Icon name="search" size={13} />
+      <input
+        ref={inputRef}
+        data-testid={dataTestId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="workbench-search-input"
+      />
+      {hasQuery && (
+        <button
+          type="button"
+          aria-label={clearLabel}
+          data-testid={clearDataTestId}
+          className="workbench-search-clear"
+          onClick={() => onChange('')}
+        >
+          <Icon name="close" size={11} />
+        </button>
+      )}
+    </div>
   )
 }
 

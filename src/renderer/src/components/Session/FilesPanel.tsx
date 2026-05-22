@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
 import type { WorkspaceSearchEntry, WorkspaceSearchResult } from '../../types'
-import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow } from '../shared/designSystem'
+import { Badge, IconButton, MenuItem, MenuSurface, PanelHeader, SurfaceRow, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import StructuredDataPreview from './StructuredDataPreview'
 
@@ -167,28 +167,16 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
     >
       {!embedded && <PanelHeader title="Files" actions={fileActions} />}
       <div className="files-panel-toolbar" data-testid="files-panel-toolbar">
-        <div className="inspector-search-field files-panel-search min-w-0 flex-1" data-has-query={trimmedQuery ? 'true' : 'false'}>
-          <Icon name="search" size={12} />
-          <input
-            ref={searchInputRef}
-            data-testid="workspace-file-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter files..."
-            className="inspector-search-input min-w-0 flex-1 text-xs outline-none"
-          />
-          {trimmedQuery && (
-            <button
-              type="button"
-              aria-label="Clear file filter"
-              data-testid="workspace-file-search-clear"
-              className="inspector-search-clear"
-              onClick={() => setQuery('')}
-            >
-              <Icon name="close" size={11} />
-            </button>
-          )}
-        </div>
+        <WorkbenchSearchField
+          inputRef={searchInputRef}
+          value={query}
+          onChange={setQuery}
+          placeholder="Filter files..."
+          clearLabel="Clear file filter"
+          dataTestId="workspace-file-search"
+          clearDataTestId="workspace-file-search-clear"
+          className="files-panel-search flex-1"
+        />
         <Badge
           tone="neutral"
           className="files-entry-count"
@@ -219,20 +207,20 @@ export default function FilesPanel({ workDir, embedded = false }: Props): JSX.El
                 as="button"
                 active={selectedPath === entry.path}
                 onClick={() => setSelectedPath(entry.path)}
-                className="files-entry-row w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left text-xs"
+                className="files-entry-row w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left"
                 style={{ display: 'flex', paddingLeft: 8 + Math.min(entry.depth, 4) * 10 }}
               >
                 <Icon name={entry.kind === 'directory' ? 'folder' : 'file'} size={12} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{entry.name}</span>
                   {entry.path !== entry.name && (
-                    <span className="files-entry-path block truncate text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+                    <span className="files-entry-path block truncate">
                       {entry.path}
                     </span>
                   )}
                 </span>
                 {entry.kind === 'file' && entry.size !== undefined && (
-                  <span className="shrink-0 text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+                  <span className="files-entry-size shrink-0">
                     {formatBytes(entry.size)}
                   </span>
                 )}
