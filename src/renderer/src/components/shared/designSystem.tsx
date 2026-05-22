@@ -1560,8 +1560,18 @@ export function MenuSurface({
   }, [onClose])
 
   return (
-    <PopoverSurface ref={ref} className={className} style={style}>
-      <div role="menu" className="flex min-w-0 flex-col gap-1 p-1">
+    <PopoverSurface
+      ref={ref}
+      className={`orchestrator-menu-surface ${className}`.trim()}
+      style={{
+        borderRadius: 8,
+        minWidth: 178,
+        maxWidth: 'min(420px, calc(100vw - 16px))',
+        maxHeight: 'min(320px, calc(100vh - 16px))',
+        ...style,
+      }}
+    >
+      <div role="menu" className="orchestrator-menu-content">
         {children}
       </div>
     </PopoverSurface>
@@ -1587,7 +1597,7 @@ export function MenuItem({
       role="menuitem"
       disabled={disabled}
       onClick={() => { void onClick() }}
-      className="motion-menu-item flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs disabled:cursor-default disabled:opacity-45"
+      className="motion-menu-item orchestrator-menu-item flex w-full items-center gap-2 text-left disabled:cursor-default disabled:opacity-45"
       style={{
         color: toneColor[tone],
         background: 'transparent',

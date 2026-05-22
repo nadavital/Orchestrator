@@ -502,6 +502,7 @@ child.on('exit', (code) => {
         idleRowRecencyVisible: result.idleRowRecencyVisible === true,
         importantRowStatusIconOnly: result.importantRowStatusIconOnly === true,
         chatEnvironmentIconAbsent: result.chatEnvironmentIconAbsent === true,
+        sidebarActionMenuChromeCalm: result.sidebarActionMenuChromeCalm === true,
         actionRenameWorks: result.actionRenameWorks === true,
         runningSpinnerVisible: result.runningSpinnerVisible === true,
         normalIdleDotHidden: result.normalIdleDotHidden === true,

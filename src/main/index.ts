@@ -1420,10 +1420,23 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             if (fileActionMenuButton instanceof HTMLButtonElement) {
               fileActionMenuButton.click();
               await sleep(120);
+              const menuSurface = document.querySelector('.orchestrator-menu-surface');
+              const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
+                .filter((item) => item instanceof HTMLElement);
               const menuItems = [...document.querySelectorAll('[role="menuitem"]')];
               const menuItemLabels = menuItems.map((item) => item.textContent?.trim() ?? '');
               const addToChatMenuItem = menuItems.find((item) => item.textContent?.includes('Add to chat'));
               filesActionMenuCompactWorks =
+                menuSurface instanceof HTMLElement &&
+                menuSurface.getBoundingClientRect().width <= 230 &&
+                menuSurface.getBoundingClientRect().height <= 320 &&
+                menuRows.length >= 4 &&
+                menuRows.every((row) =>
+                  row instanceof HTMLElement &&
+                  row.getBoundingClientRect().height <= 30 &&
+                  getComputedStyle(row).fontWeight === '400' &&
+                  getComputedStyle(row).transform === 'none'
+                ) &&
                 menuItemLabels.includes('Add to chat') &&
                 menuItemLabels.includes('Copy path') &&
                 menuItemLabels.includes('Reveal file') &&
@@ -2732,9 +2745,22 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           if (diffActionMenuButton instanceof HTMLButtonElement) {
             diffActionMenuButton.click();
             await sleep(100);
+            const menuSurface = document.querySelector('.orchestrator-menu-surface');
+            const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
+              .filter((item) => item instanceof HTMLElement);
             const menuItems = [...document.querySelectorAll('[role="menuitem"]')]
               .map((item) => item.textContent?.trim() ?? '');
             diffActionMenuCompactWorks =
+              menuSurface instanceof HTMLElement &&
+              menuSurface.getBoundingClientRect().width <= 230 &&
+              menuSurface.getBoundingClientRect().height <= 320 &&
+              menuRows.length >= 5 &&
+              menuRows.every((row) =>
+                row instanceof HTMLElement &&
+                row.getBoundingClientRect().height <= 30 &&
+                getComputedStyle(row).fontWeight === '400' &&
+                getComputedStyle(row).transform === 'none'
+              ) &&
               menuItems.includes('Refresh changes') &&
               menuItems.some((label) => label.includes('line wrap')) &&
               menuItems.includes('Open file') &&
@@ -3327,9 +3353,22 @@ function runAutomatedFocusedSurfaceSmoke(
               if (actionMenuButton instanceof HTMLButtonElement) {
                 actionMenuButton.click();
                 await sleep(100);
+                const menuSurface = document.querySelector('.orchestrator-menu-surface');
+                const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
+                  .filter((item) => item instanceof HTMLElement);
                 const menuLabels = [...document.querySelectorAll('[role="menuitem"]')]
                   .map((item) => item.textContent?.trim() ?? '');
                 diffActionMenuCompactWorks =
+                  menuSurface instanceof HTMLElement &&
+                  menuSurface.getBoundingClientRect().width <= 230 &&
+                  menuSurface.getBoundingClientRect().height <= 320 &&
+                  menuRows.length >= 6 &&
+                  menuRows.every((row) =>
+                    row instanceof HTMLElement &&
+                    row.getBoundingClientRect().height <= 30 &&
+                    getComputedStyle(row).fontWeight === '400' &&
+                    getComputedStyle(row).transform === 'none'
+                  ) &&
                   menuLabels.includes('Refresh changes') &&
                   menuLabels.some((label) => label.includes('line wrap')) &&
                   menuLabels.includes('Copy git apply command') &&
@@ -3528,10 +3567,23 @@ function runAutomatedFocusedSurfaceSmoke(
               if (fileActionMenuButton instanceof HTMLButtonElement) {
                 fileActionMenuButton.click();
                 await sleep(100);
+                const menuSurface = document.querySelector('.orchestrator-menu-surface');
+                const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
+                  .filter((item) => item instanceof HTMLElement);
                 const menuItems = [...document.querySelectorAll('[role="menuitem"]')];
                 const labels = menuItems.map((item) => item.textContent?.trim() ?? '');
                 const addToChat = menuItems.find((item) => item.textContent?.includes('Add to chat'));
                 filesActionMenuCompactWorks =
+                  menuSurface instanceof HTMLElement &&
+                  menuSurface.getBoundingClientRect().width <= 230 &&
+                  menuSurface.getBoundingClientRect().height <= 320 &&
+                  menuRows.length >= 4 &&
+                  menuRows.every((row) =>
+                    row instanceof HTMLElement &&
+                    row.getBoundingClientRect().height <= 30 &&
+                    getComputedStyle(row).fontWeight === '400' &&
+                    getComputedStyle(row).transform === 'none'
+                  ) &&
                   labels.includes('Add to chat') &&
                   labels.includes('Copy path') &&
                   labels.includes('Reveal file') &&
@@ -5178,10 +5230,25 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const chatEnvironmentIconAbsent = !document.querySelector('[data-testid="session-environment-icon"]');
 
             let actionRenameWorks = false;
+            let sidebarActionMenuChromeCalm = false;
             if (normalRow instanceof HTMLElement) {
               const actionsButton = normalActionsButton ?? normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
               if (actionsButton instanceof HTMLElement) actionsButton.click();
               await sleep(120);
+              const menuSurface = document.querySelector('.orchestrator-menu-surface');
+              const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
+                .filter((item) => item instanceof HTMLElement);
+              sidebarActionMenuChromeCalm =
+                menuSurface instanceof HTMLElement &&
+                menuSurface.getBoundingClientRect().width <= 230 &&
+                menuSurface.getBoundingClientRect().height <= 320 &&
+                menuRows.length >= 3 &&
+                menuRows.every((row) =>
+                  row instanceof HTMLElement &&
+                  row.getBoundingClientRect().height <= 30 &&
+                  getComputedStyle(row).fontWeight === '400' &&
+                  getComputedStyle(row).transform === 'none'
+                );
               const renameMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Rename'));
               if (renameMenuItem instanceof HTMLElement) renameMenuItem.click();
@@ -5366,6 +5433,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               idleRowRecencyVisible,
               importantRowStatusIconOnly,
               chatEnvironmentIconAbsent,
+              sidebarActionMenuChromeCalm,
               actionRenameWorks,
               runningSpinnerVisible: Boolean(runningRow?.querySelector('[data-testid="session-status-spinner"]')),
               normalIdleDotHidden: !normalRow?.querySelector('[data-testid="session-status-dot"]'),
