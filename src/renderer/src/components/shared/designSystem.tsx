@@ -277,6 +277,7 @@ interface WorkbenchSearchFieldProps {
   dataTestId?: string
   clearDataTestId?: string
   className?: string
+  autoFocus?: boolean
 }
 
 export function WorkbenchSearchField({
@@ -288,6 +289,7 @@ export function WorkbenchSearchField({
   dataTestId,
   clearDataTestId,
   className = '',
+  autoFocus = false,
 }: WorkbenchSearchFieldProps): JSX.Element {
   const hasQuery = value.trim().length > 0
 
@@ -304,6 +306,7 @@ export function WorkbenchSearchField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         className="workbench-search-input"
+        autoFocus={autoFocus}
       />
       {hasQuery && (
         <button

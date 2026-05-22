@@ -569,6 +569,7 @@ child.on('exit', (code) => {
           browserActive: result.browserActive === true,
           browserEmptyState: result.browserEmptyStateWorks === true,
           browserLocalTargets: result.browserLocalTargetsWorks === true,
+          browserLocalTargetsCalm: result.browserLocalTargetsCalm === true,
           browserLocalTargetHide: result.browserLocalTargetHideWorks === true,
           browserAddressSearch: result.browserAddressSearchWorks === true,
           browserAddressBadge: result.browserAddressBadgeWorks === true,

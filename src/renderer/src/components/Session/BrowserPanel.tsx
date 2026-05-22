@@ -1,7 +1,7 @@
 import { createElement, useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
-import { Badge, Button, IconButton, MenuSurface, ToolbarButton } from '../shared/designSystem'
+import { Badge, Button, IconButton, MenuSurface, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
 interface Props {
@@ -724,7 +724,6 @@ export default function BrowserPanel({
 
       <form
         className="browser-toolbar"
-        style={{ borderBottom: '1px solid var(--border-subtle)' }}
         onSubmit={(event) => {
           event.preventDefault()
           navigate(address)
@@ -755,8 +754,7 @@ export default function BrowserPanel({
             value={address}
             onChange={(event) => setAddress(event.target.value)}
             placeholder="Search or enter URL"
-            className="min-w-0 flex-1 bg-transparent text-xs outline-none"
-            style={{ color: 'var(--text-primary)' }}
+            className="browser-address-input"
           />
         </div>
         <ToolbarButton icon="search" label="Find in page" size="sm" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
@@ -983,16 +981,15 @@ export default function BrowserPanel({
       </form>
 
       {workbench.findVisible && (
-        <div className="flex shrink-0 items-center gap-1.5 px-2 py-1" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <Icon name="search" size={13} />
-          <input
-            data-testid="browser-find-input"
+        <div className="browser-find-toolbar">
+          <WorkbenchSearchField
             value={workbench.findQuery}
-            onChange={(event) => searchInPage(event.target.value)}
+            onChange={searchInPage}
             placeholder="Find in page"
+            clearLabel="Clear page search"
+            dataTestId="browser-find-input"
+            className="browser-find-search flex-1"
             autoFocus
-            className="min-w-0 flex-1 rounded-md px-2 py-0.5 text-xs outline-none"
-            style={{ color: 'var(--text-primary)', background: 'var(--control-bg)', border: '1px solid var(--border-subtle)' }}
           />
           {workbench.findQuery.trim() && (
             <span className="min-w-8 text-right text-[11px]" style={{ color: 'var(--text-tertiary)' }}>

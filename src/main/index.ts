@@ -3793,6 +3793,9 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserLocalTargets.every((target) => target instanceof HTMLElement && target.getBoundingClientRect().height <= 30) &&
               browserLocalTargets.every((target) => !target.textContent?.includes('Running')) &&
               browserLocalTargets.every((target) => target instanceof HTMLElement && target.scrollWidth <= target.clientWidth + 2);
+            var browserLocalTargetsCalm =
+              browserLocalTargets.length > 0 &&
+              browserLocalTargets.every((target) => target instanceof HTMLElement && getComputedStyle(target).fontWeight === '400');
             var browserLocalTargetHideWorks = false;
             const firstLocalTarget = browserLocalTargets.find((target) =>
               target instanceof HTMLElement && target.textContent?.includes('127.0.0.1')
@@ -4491,14 +4494,20 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserNoHorizontalOverflow = browserPanel instanceof HTMLElement &&
               browserPanel.scrollWidth <= browserPanel.clientWidth + 2;
             const browserToolbar = document.querySelector('.browser-toolbar');
-            const browserFindRow = document.querySelector('[data-testid="browser-find-input"]')?.closest('.flex.shrink-0');
+            const browserFindRow = document.querySelector('[data-testid="browser-find-input"]')?.closest('.browser-find-toolbar');
+            const browserAddressInput = document.querySelector('[data-testid="browser-url-input"]');
             const browserToolbarCompact =
               browserToolbar instanceof HTMLElement &&
+              browserAddressInput instanceof HTMLInputElement &&
               !(document.querySelector('.browser-toolbar [data-testid="browser-capture-screenshot"]') instanceof HTMLButtonElement) &&
               !(document.querySelector('.browser-toolbar [data-testid="browser-open-external"]') instanceof HTMLButtonElement) &&
               !(findButton('Browser history') instanceof HTMLButtonElement) &&
               browserToolbar.getBoundingClientRect().height <= 38 &&
-              (!(browserFindRow instanceof HTMLElement) || browserFindRow.getBoundingClientRect().height <= 34);
+              getComputedStyle(browserAddressInput).fontSize === '13px' &&
+              (!(browserFindRow instanceof HTMLElement) || (
+                browserFindRow.getBoundingClientRect().height <= 38 &&
+                browserFindRow.querySelector('.workbench-search-field') instanceof HTMLElement
+              ));
             const browserStatusRowQuiet =
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'desktop' &&
               !document.querySelector('[data-testid="browser-status-row"]');
@@ -4594,6 +4603,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserSingleTabStripHidden,
               browserNoHorizontalOverflow,
               browserToolbarCompact,
+              browserLocalTargetsCalm,
               browserInspectorChromeCompactWorks,
               browserInspectorLabelsCalm,
               browserVisibilityControlWorks,
