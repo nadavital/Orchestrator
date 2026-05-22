@@ -4241,35 +4241,7 @@
     top: calc(100% + 7px);
     right: 0;
     z-index: 30;
-    display: flex;
     width: 184px;
-    flex-direction: column;
-    gap: 3px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--surface-bg);
-    padding: 6px;
-    box-shadow: var(--shadow-dialog);
-  }
-
-  .cap-create-menu button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 32px;
-    border: 0;
-    border-radius: var(--radius-md);
-    background: transparent;
-    color: var(--text-secondary);
-    padding: 0 8px;
-    font-size: 12px;
-    font-weight: 680;
-    text-align: left;
-  }
-
-  .cap-create-menu button:hover {
-    background: var(--control-bg-hover);
-    color: var(--text-primary);
   }
 
   .capability-message {
@@ -4428,7 +4400,7 @@
     gap: 4px;
   }
 
-  .capability-row-actions button {
+  .capability-row-actions > button {
     display: grid;
     place-items: center;
     width: 26px;
@@ -4439,12 +4411,12 @@
     color: var(--text-tertiary);
   }
 
-  .capability-row-actions button:hover:not(:disabled) {
+  .capability-row-actions > button:hover:not(:disabled) {
     background: var(--control-bg-active);
     color: var(--text-primary);
   }
 
-  .capability-row-actions button:disabled {
+  .capability-row-actions > button:disabled {
     cursor: default;
     opacity: 0.28;
   }
@@ -4454,37 +4426,7 @@
     top: calc(100% + 4px);
     right: 0;
     z-index: 10;
-    display: flex;
-    width: 132px;
-    flex-direction: column;
-    gap: 3px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--surface-bg);
-    padding: 5px;
-    box-shadow: var(--shadow-dialog);
-  }
-
-  .capability-row-menu button {
-    display: flex;
-    width: 100%;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    border-radius: var(--radius-md);
-    padding: 0 8px;
-    color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 680;
-  }
-
-  .capability-row-menu button:hover:not(:disabled) {
-    background: var(--control-bg-hover);
-    color: var(--text-primary);
-  }
-
-  .capability-row-menu button.danger:hover:not(:disabled) {
-    color: var(--state-danger);
+    width: 178px;
   }
 
   .capability-issues {

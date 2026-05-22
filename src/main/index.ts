@@ -2262,11 +2262,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
+            const sharedMenuChromeCalm = (selector, minRows) => {
+              const menuSurface = document.querySelector(selector);
+              const menuRows = [...document.querySelectorAll(selector + ' [role="menuitem"]')]
+                .filter((item) => item instanceof HTMLElement);
+              return menuSurface instanceof HTMLElement &&
+                menuSurface.getBoundingClientRect().width <= 230 &&
+                menuSurface.getBoundingClientRect().height <= 320 &&
+                menuRows.length >= minRows &&
+                menuRows.every((row) =>
+                  row instanceof HTMLElement &&
+                  row.getBoundingClientRect().height <= 30 &&
+                  getComputedStyle(row).fontWeight === '400' &&
+                  getComputedStyle(row).transform === 'none'
+                );
+            };
             const createButton = [...document.querySelectorAll('button')]
               .find((button) => button.textContent?.trim() === 'Create');
             createButton?.click();
             await sleep(120);
             var capabilityMenuOpened = Boolean(document.querySelector('.cap-create-menu [role="menu"]'));
+            var capabilityCreateMenuChromeCalm = sharedMenuChromeCalm('.cap-create-menu', 3);
             var capabilityMenuArrowFocus = false;
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
             await sleep(40);
@@ -2320,6 +2336,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               for (const actionButton of actionButtons) {
                 actionButton.click();
                 await sleep(80);
+                capabilityRowMenuChromeCalm = sharedMenuChromeCalm('.capability-row-menu', 3);
                 const item = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((button) => button.textContent?.includes(label) && !button.disabled);
                 if (item) {
@@ -2333,6 +2350,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               return false;
             };
 
+            var capabilityRowMenuChromeCalm = false;
             var capabilityEditActionClicked = await openCapabilityAction('Edit');
             var capabilityEditSheetOpened = Boolean(document.querySelector('.motion-sheet'));
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -3001,6 +3019,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilityMenuArrowFocus: typeof capabilityMenuArrowFocus === 'boolean' ? capabilityMenuArrowFocus : null,
             capabilityMenuClosedWithEscape: typeof capabilityMenuClosedWithEscape === 'boolean' ? capabilityMenuClosedWithEscape : null,
             capabilityMenuFocusReturned: typeof capabilityMenuFocusReturned === 'boolean' ? capabilityMenuFocusReturned : null,
+            capabilityCreateMenuChromeCalm: typeof capabilityCreateMenuChromeCalm === 'boolean' ? capabilityCreateMenuChromeCalm : null,
+            capabilityRowMenuChromeCalm: typeof capabilityRowMenuChromeCalm === 'boolean' ? capabilityRowMenuChromeCalm : null,
             capabilityPageLabelsCalm: typeof capabilityPageLabelsCalm === 'boolean' ? capabilityPageLabelsCalm : null,
             capabilitySheetOpened: typeof capabilitySheetOpened === 'boolean' ? capabilitySheetOpened : null,
             capabilitySheetFocused: typeof capabilitySheetFocused === 'boolean' ? capabilitySheetFocused : null,

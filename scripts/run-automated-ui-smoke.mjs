@@ -819,6 +819,8 @@ child.on('exit', (code) => {
         capabilityMenuArrowFocus: captureView !== 'capabilities' || result.capabilityMenuArrowFocus === true,
         capabilityMenuEscape: captureView !== 'capabilities' || result.capabilityMenuClosedWithEscape === true,
         capabilityMenuFocusReturned: captureView !== 'capabilities' || result.capabilityMenuFocusReturned === true,
+        capabilityCreateMenuChromeCalm: captureView !== 'capabilities' || result.capabilityCreateMenuChromeCalm === true,
+        capabilityRowMenuChromeCalm: captureView !== 'capabilities' || result.capabilityRowMenuChromeCalm === true,
         capabilityPageLabelsCalm: captureView !== 'capabilities' || result.capabilityPageLabelsCalm === true,
         capabilityCreateSheet: captureView !== 'capabilities' || result.capabilitySheetOpened === true,
         capabilitySheetFocus: captureView !== 'capabilities' || result.capabilitySheetFocused === true,
