@@ -495,6 +495,7 @@ child.on('exit', (code) => {
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
         sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
         sessionRowsCompact: result.sessionRowsCompact === true,
+        sessionRowsCalm: result.sessionRowsCalm === true,
         projectHeadersCompact: result.projectHeadersCompact === true,
         emptyProjectNewChatCompact: result.emptyProjectNewChatCompact === true,
         sidebarSectionChromeCompact: result.sidebarSectionChromeCompact === true,

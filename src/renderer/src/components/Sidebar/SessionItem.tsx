@@ -217,7 +217,10 @@ function SessionItem({ session }: Props): JSX.Element {
         data-details-visible={detailsVisible ? 'true' : 'false'}
         onMouseEnter={() => showDetails(true)}
         onMouseLeave={hideDetails}
-        onFocus={() => showDetails(false)}
+        onFocus={(event) => {
+          if ((event.target as HTMLElement).closest('button')) return
+          showDetails(false)
+        }}
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hideDetails()
         }}
@@ -230,10 +233,10 @@ function SessionItem({ session }: Props): JSX.Element {
       >
         <SurfaceRow
           dataTestId="session-row"
-          className="group flex h-7 min-w-0 items-center gap-1.5 cursor-pointer select-none"
+          className="group session-row flex h-7 min-w-0 items-center gap-1.5 cursor-pointer select-none"
           active={isActive}
           style={{
-            borderRadius: 'var(--radius-md)',
+            borderRadius: 7,
             padding: '3px 7px'
           }}
           onClick={handleClick}
@@ -257,9 +260,8 @@ function SessionItem({ session }: Props): JSX.Element {
           </div>
           <div className="min-w-0 flex-1">
             <div
-              className="text-[12.5px] truncate leading-4"
+              className="session-row-title truncate leading-4"
               data-thread-title={session.name}
-              style={{ color: 'var(--text-primary)', fontWeight: 400 }}
             >
               {session.name}
             </div>

@@ -5065,13 +5065,14 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const normalActionsButton = normalRow?.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
             if (normalActionsButton instanceof HTMLElement) {
               const actionRect = normalActionsButton.getBoundingClientRect();
-              normalActionsButton.dispatchEvent(new MouseEvent('mouseover', {
+              normalActionsButton.dispatchEvent(new PointerEvent('pointermove', {
                 bubbles: true,
+                pointerType: 'mouse',
                 clientX: actionRect.left + 8,
                 clientY: actionRect.top + 8
               }));
               normalActionsButton.focus({ preventScroll: true });
-              await sleep(360);
+              await sleep(920);
               const visibleTooltips = [...document.querySelectorAll('.orchestrator-tooltip[data-visible="true"]')];
               const visibleHoverCards = [...document.querySelectorAll('[data-testid="session-hover-card"]')];
               const visibleTooltip = visibleTooltips[0];
@@ -5117,6 +5118,23 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const sessionRowsCompact = [...document.querySelectorAll('[data-testid="session-row"]')]
               .filter((row) => row instanceof HTMLElement)
               .every((row) => row.getBoundingClientRect().height <= 28);
+            const sessionRows = [...document.querySelectorAll('[data-testid="session-row"]')]
+              .filter((row) => row instanceof HTMLElement);
+            const sessionTitles = [...document.querySelectorAll('[data-thread-title]')]
+              .filter((title) => title instanceof HTMLElement);
+            const sessionActions = [...document.querySelectorAll('[data-testid="session-row"] .session-row-actions')]
+              .filter((action) => action instanceof HTMLElement);
+            const activeSessionRows = sessionRows.filter((row) => row.getAttribute('data-active') === 'true');
+            const sessionRowsCalm =
+              sessionRows.length >= 4 &&
+              sessionTitles.length >= 4 &&
+              sessionActions.length >= 4 &&
+              sessionTitles.every((title) => (
+                getComputedStyle(title).fontSize === '13px' &&
+                getComputedStyle(title).fontWeight === '400'
+              )) &&
+              sessionActions.every((action) => getComputedStyle(action).transform === 'none') &&
+              activeSessionRows.every((row) => getComputedStyle(row).boxShadow === 'none');
             const projectHeadersCompact = [...document.querySelectorAll('[data-testid="project-section-header"]')]
               .filter((header) => header instanceof HTMLElement)
               .every((header) => header.getBoundingClientRect().height <= 24);
@@ -5341,6 +5359,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarNoHorizontalOverflow,
               sidebarOverflowDebug,
               sessionRowsCompact,
+              sessionRowsCalm,
               projectHeadersCompact,
               emptyProjectNewChatCompact,
               sidebarSectionChromeCompact,
