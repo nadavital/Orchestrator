@@ -41,6 +41,10 @@ export default function ContextSidebar({ sessionId }: Props): JSX.Element | null
 }
 
 function ContextSidebarContent({ session }: { session: Session }): JSX.Element | null {
+  const globals = window as typeof window & { __orchestratorWorkbenchCommitCount?: number }
+  if (typeof globals.__orchestratorWorkbenchCommitCount === 'number') {
+    globals.__orchestratorWorkbenchCommitCount += 1
+  }
   const {
     eventBuffers,
     uiState,
@@ -192,7 +196,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
 
   const handleResizeStart = useCallback((event: React.PointerEvent<HTMLButtonElement>): void => {
     event.preventDefault()
-    event.currentTarget.setPointerCapture?.(event.pointerId)
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    } catch {
+      // Synthetic smoke-test pointer events do not always create a capturable pointer.
+    }
     resizeStartRef.current = { x: event.clientX, width: panelWidth }
     setIsResizing(true)
 

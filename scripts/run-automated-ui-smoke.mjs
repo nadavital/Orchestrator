@@ -24,6 +24,8 @@ const captureView = process.argv.includes('--settings-providers')
         ? 'header'
       : process.argv.includes('--right-panel')
         ? 'right-panel'
+      : process.argv.includes('--workbench-perf')
+        ? 'workbench-perf'
       : process.argv.includes('--diff')
         ? 'diff'
       : process.argv.includes('--files')
@@ -182,7 +184,7 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;')
 }
 
-if (['inspector', 'right-panel', 'diff', 'files', 'side-chat', 'browser'].includes(captureView)) {
+if (['inspector', 'right-panel', 'workbench-perf', 'diff', 'files', 'side-chat', 'browser'].includes(captureView)) {
   mkdirSync(join(workspaceDir, 'Nested Folder'), { recursive: true })
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\n')
   writeFileSync(join(workspaceDir, 'review-delete.txt'), 'delete me\n')
@@ -631,6 +633,17 @@ child.on('exit', (code) => {
           rightPanelTabReorderWorks: result.rightPanelTabReorderWorks === true,
           rightPanelTabDragReorderWorks: result.rightPanelTabDragReorderWorks === true,
           rightPanelCloseActiveShortcut: result.rightPanelCloseActiveShortcutWorks === true
+        }
+    : captureView === 'workbench-perf'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          workbenchPerfSessionActive: result.workbenchPerfSessionActive === true,
+          workbenchTabsReady: result.workbenchTabsReady === true,
+          workbenchTabSwitchResponsive: result.maxTabSwitchMs !== null && result.maxTabSwitchMs <= 160,
+          workbenchResizeResponsive: result.workbenchResizeWorks === true && result.resizeElapsedMs !== null && result.resizeElapsedMs <= 260,
+          workbenchFrameGapAcceptable: result.maxFrameGapMs !== null && result.maxFrameGapMs <= 80,
+          workbenchNoHorizontalOverflow: result.workbenchNoHorizontalOverflow === true,
+          workbenchCommitCountsBounded: result.workbenchCommitCount !== null && result.workbenchCommitCount <= 50
         }
     : captureView === 'diff'
       ? {

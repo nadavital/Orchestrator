@@ -336,6 +336,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedStreamingTypingSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'workbench-perf') {
+    runAutomatedWorkbenchPerfSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced') {
     runAutomatedReducedMotionSmoke(win, outputPath, screenshotPath)
     return
@@ -6475,6 +6479,210 @@ function runAutomatedTranscriptStressSmoke(win: BrowserWindow, outputPath: strin
           writeFileSync(screenshotPath, image.toPNG())
         }
         writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
+function runAutomatedWorkbenchPerfSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        const setup = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.getAttribute('title') ??
+              button.textContent?.trim() ??
+              '';
+            const findButton = (label) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => buttonLabel(button) === label);
+            const openRightPanel = async () => {
+              const visiblePanel = document.querySelector('[data-testid="session-right-panel"]');
+              if (visiblePanel instanceof HTMLElement && visiblePanel.getBoundingClientRect().width > 120) return;
+              const sidebarButton = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle sidebar');
+              if (sidebarButton instanceof HTMLElement) {
+                sidebarButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              }
+              for (let index = 0; index < 12; index += 1) {
+                if (document.querySelector('[data-testid="session-right-panel"]')) break;
+                await sleep(120);
+              }
+            };
+            const openPanelTab = async (tabId, label) => {
+              await openRightPanel();
+              const existing = document.querySelector('[data-tab-id="' + tabId + '"]')?.closest('[role="tab"]');
+              if (existing instanceof HTMLElement) {
+                existing.click();
+                await sleep(80);
+                return;
+              }
+              const addButton = findButton('Add Workbench tab');
+              if (addButton instanceof HTMLElement) {
+                addButton.click();
+                await sleep(80);
+                const menuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes(label));
+                if (menuItem instanceof HTMLElement) menuItem.click();
+                await sleep(180);
+              }
+            };
+
+            await sleep(850);
+            await openPanelTab('files', 'Files');
+            await openPanelTab('browser', 'Browser');
+            const restoreButton = findButton('Restore Workbench width');
+            if (restoreButton instanceof HTMLElement) {
+              restoreButton.click();
+              await sleep(120);
+            }
+            const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const resizeHandle = findButton('Resize panel');
+            window.__orchestratorWorkbenchCommitCount = 0;
+            window.__orchestratorWorkbenchFrameGaps = [];
+            window.__orchestratorWorkbenchFrameStop = false;
+            let lastFrame = performance.now();
+            const sample = (now) => {
+              window.__orchestratorWorkbenchFrameGaps.push(now - lastFrame);
+              lastFrame = now;
+              if (!window.__orchestratorWorkbenchFrameStop) requestAnimationFrame(sample);
+            };
+            requestAnimationFrame(sample);
+            return {
+              profile: await window.api.app.getProfile(),
+              workbenchPerfSessionActive: document.querySelector('[data-testid="active-session-title"]') instanceof HTMLElement,
+              workbenchTabsReady:
+                document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]') instanceof HTMLElement &&
+                document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]') instanceof HTMLElement,
+              widthBeforeResize: rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect().width : null,
+              hasResizeHandle: resizeHandle instanceof HTMLElement
+            };
+          })()
+        `)
+
+        const tabSwitchResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const afterFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const switchDurations = [];
+            const sequence = ['browser', 'files', 'browser', 'files', 'browser', 'files', 'browser', 'files', 'browser', 'files', 'browser', 'files'];
+            for (const tabId of sequence) {
+              const tab = document.querySelector('[data-tab-id="' + tabId + '"]')?.closest('[role="tab"]');
+              if (!(tab instanceof HTMLElement)) continue;
+              const before = performance.now();
+              tab.click();
+              await afterFrame();
+              switchDurations.push(performance.now() - before);
+            }
+            const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const tabRow = document.querySelector('[data-testid="right-sidebar-tab-row"]');
+            return {
+              tabSwitchCount: switchDurations.length,
+              maxTabSwitchMs: switchDurations.length ? Math.max(...switchDurations) : null,
+              p95TabSwitchMs: percentile(switchDurations, 0.95),
+              workbenchNoHorizontalOverflow:
+                rightPanel instanceof HTMLElement &&
+                tabRow instanceof HTMLElement &&
+                rightPanel.scrollWidth <= rightPanel.clientWidth + 2 &&
+                tabRow.scrollWidth <= tabRow.clientWidth + 72
+            };
+
+            function percentile(values, ratio) {
+              if (!values.length) return null;
+              const sorted = [...values].sort((a, b) => a - b);
+              return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * ratio))];
+            }
+          })()
+        `)
+
+        const resizeResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const afterFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.getAttribute('title') ??
+              button.textContent?.trim() ??
+              '';
+            const resizeHandle = [...document.querySelectorAll('button')]
+              .find((button) => buttonLabel(button) === 'Resize panel');
+            const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const widthBeforeResize = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect().width : null;
+            if (!(resizeHandle instanceof HTMLElement) || !(rightPanel instanceof HTMLElement)) {
+              return { resizeElapsedMs: null, widthAfterResize: null, resizeWidthDelta: null };
+            }
+            const rect = resizeHandle.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+            const startedAt = performance.now();
+            resizeHandle.dispatchEvent(new PointerEvent('pointerdown', {
+              bubbles: true,
+              cancelable: true,
+              pointerId: 19,
+              pointerType: 'mouse',
+              clientX: x,
+              clientY: y
+            }));
+            window.dispatchEvent(new PointerEvent('pointermove', {
+              bubbles: true,
+              cancelable: true,
+              pointerId: 19,
+              pointerType: 'mouse',
+              clientX: x - 90,
+              clientY: y
+            }));
+            await afterFrame();
+            window.dispatchEvent(new PointerEvent('pointerup', {
+              bubbles: true,
+              cancelable: true,
+              pointerId: 19,
+              pointerType: 'mouse',
+              clientX: x - 90,
+              clientY: y
+            }));
+            await afterFrame();
+            await sleep(160);
+            const widthAfterResize = rightPanel.getBoundingClientRect().width;
+            return {
+              resizeElapsedMs: performance.now() - startedAt,
+              widthAfterResize,
+              resizeWidthDelta: typeof widthBeforeResize === 'number' ? Math.abs(widthAfterResize - widthBeforeResize) : null
+            };
+          })()
+        `)
+
+        const finalResult = await win.webContents.executeJavaScript(`
+          (() => {
+            window.__orchestratorWorkbenchFrameStop = true;
+            const gaps = Array.isArray(window.__orchestratorWorkbenchFrameGaps) ? window.__orchestratorWorkbenchFrameGaps : [];
+            return {
+              maxFrameGapMs: gaps.length ? Math.max(...gaps) : null,
+              frameSamples: gaps.length,
+              workbenchCommitCount: window.__orchestratorWorkbenchCommitCount ?? null
+            };
+          })()
+        `)
+
+        const payload = {
+          ...setup,
+          ...tabSwitchResult,
+          ...resizeResult,
+          ...finalResult,
+          workbenchResizeWorks: typeof resizeResult?.resizeWidthDelta === 'number' && resizeResult.resizeWidthDelta >= 40
+        }
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        writeFileSync(outputPath, JSON.stringify({ ok: true, result: payload, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
         writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
