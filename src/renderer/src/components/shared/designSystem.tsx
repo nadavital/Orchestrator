@@ -23,7 +23,7 @@ const focusableSelector = [
 ].join(',')
 
 const hoverSurfaceOpenEvent = 'orchestrator:hover-surface-open'
-const tooltipHoverDelayMs = 140
+const tooltipHoverDelayMs = 700
 
 export function announceHoverSurfaceOpen(id: string): void {
   window.dispatchEvent(new CustomEvent(hoverSurfaceOpenEvent, { detail: { id } }))
@@ -307,6 +307,7 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
   const hide = (): void => {
     clearShowTimeout()
     setVisible(false)
+    setPosition(null)
   }
   useExclusiveHoverSurface(idRef.current, hide)
 
@@ -330,11 +331,23 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
 
   useEffect(() => {
     if (!visible) return
-    const hideForViewportChange = (): void => setVisible(false)
+    const hideForViewportChange = (): void => hide()
+    const hideForGlobalDismiss = (event: Event): void => {
+      const target = event.target
+      if (target instanceof Node && anchorRef.current?.contains(target)) return
+      hide()
+    }
+    const hideForEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') hide()
+    }
+    document.addEventListener('pointerdown', hideForGlobalDismiss, true)
+    document.addEventListener('keydown', hideForEscape, true)
     window.addEventListener('scroll', hideForViewportChange, true)
     window.addEventListener('resize', hideForViewportChange)
     window.addEventListener('blur', hideForViewportChange)
     return () => {
+      document.removeEventListener('pointerdown', hideForGlobalDismiss, true)
+      document.removeEventListener('keydown', hideForEscape, true)
       window.removeEventListener('scroll', hideForViewportChange, true)
       window.removeEventListener('resize', hideForViewportChange)
       window.removeEventListener('blur', hideForViewportChange)
@@ -345,12 +358,18 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
     <span
       ref={anchorRef}
       className="orchestrator-tooltip-anchor"
-      onMouseEnter={scheduleShow}
-      onMouseOver={scheduleShow}
+      onPointerEnter={(event) => {
+        if (event.pointerType !== 'touch') scheduleShow()
+      }}
+      onPointerMove={(event) => {
+        if (event.pointerType !== 'touch') scheduleShow()
+      }}
+      onPointerLeave={hide}
       onMouseLeave={hide}
       onFocus={showNow}
       onBlur={hide}
       onMouseDownCapture={hide}
+      onContextMenu={hide}
     >
       {children}
       {createPortal(

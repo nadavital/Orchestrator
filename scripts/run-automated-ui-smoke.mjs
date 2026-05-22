@@ -686,7 +686,7 @@ child.on('exit', (code) => {
         sidebarNavigation: ['settings', 'settings-providers', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
         headerIdentity: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerIdentityWorks === true,
         headerNativeTooltips: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerNativeTooltipsWork === true,
-        headerLongTooltipBounded: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || captureView === 'inspector' || result.headerLongTooltipBoundedWorks === true,
+        headerLongTooltipBounded: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || ['inspector', 'terminal'].includes(captureView) || result.headerLongTooltipBoundedWorks === true,
         titlebarSidebarToggle: captureView !== 'inspector' || result.titlebarSidebarToggleWorks === true,
         customTooltipNativeTitlesAbsent: result.customTooltipNativeTitlesAbsent === true,
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
