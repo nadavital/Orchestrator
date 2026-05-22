@@ -50,6 +50,34 @@ That split causes the visible problems:
 - The Chat Sidebar has some Codex-like bits, but it lacks Codex's richer grouping model, connection/projectless/cloud/pending-worktree organization, custom sections, server-backed pinned state, and action set.
 - Settings and modal windows are still a large Orchestrator-specific modal rather than Codex-style settings pages built from shared `SettingsPage`, `SettingsSurface`, `SettingsGroup`, and `SettingsRow` primitives.
 
+## Agent Handoff Notes
+
+This audit is sufficient to start a long-running implementation agent, but it is not a final parity certificate. A future agent should treat it as the source of truth for what to build, then re-open the current local Codex bundle and capture fresh Orchestrator screenshots before marking any slice complete.
+
+Covered deeply:
+
+- Left Chat Sidebar visual primitives, grouping model, pinned ordering, row metadata, hover identity, actions, menus, and settings-nav mode.
+- Right Workbench Panel shell, tab controller, toolbar chrome, tree/list rows, Review, Files, Browser, agent/plan/side-chat panels, and Terminal relationship.
+- Shared styling concerns: tokens, typography, radii, borders, shadows, motion, flyouts, dialogs, empty states, search fields, icon buttons, and verification targets.
+- Provider-agnostic framing: Codex behavior is the quality reference, but shared shell/sidebar/workbench abstractions must support all providers through adapters.
+
+Not yet covered deeply enough:
+
+- Exact Codex screenshot-by-screenshot visual measurements for every sidebar state. The bundle was inspected, but final parity still requires live Codex screenshots or pixel-level comparison where possible.
+- Accessibility details beyond focus routing: ARIA roles, tab order, screen-reader labels, reduced-motion behavior, and keyboard-only operation need a dedicated pass.
+- Full command palette/search/transcript behavior outside the sidebars. The doc mentions focus and shortcuts, but global search, message editing/forking, transcript compaction, and long-thread rendering need their own parity audit.
+- Notification/pet/window lifecycle details. Sidebar permission and running-state indicators are included, but pet notifications, app reopen/multi-window behavior, and OS notification flows should remain tracked in the broader source of truth.
+- Provider adapter contracts for non-Codex providers. The desired abstractions are named, but each provider still needs a capability matrix for pinned state, thread actions, review sources, worktrees, automations, browser support, and file/workspace metadata.
+- Installed-app verification. Do not claim parity from static bundle inspection or local tests alone; use smoke/UI screenshots and packaged/install verification before calling a slice done.
+
+Minimum completion bar for each implementation slice:
+
+1. Re-check the relevant Codex bundle files or live Codex UI for that slice.
+2. Implement the Orchestrator primitive/provider abstraction, not only a local visual patch.
+3. Add focused tests for the primitive and at least one surface using it.
+4. Capture Orchestrator screenshots for the affected surface in normal, hover/focus, active, empty/loading, and narrow-width states where applicable.
+5. Update this audit or the canonical source of truth with what changed, what was verified, and what remains.
+
 ## Highest Priority Gaps
 
 | Priority | Area | Difference | Why It Matters |
