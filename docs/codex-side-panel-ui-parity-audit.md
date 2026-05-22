@@ -32,6 +32,12 @@ Orchestrator files compared:
 - Shared UI/CSS: `src/renderer/src/components/shared/designSystem.tsx`, `src/renderer/src/index.css`
 - Settings: `src/renderer/src/components/SettingsModal.tsx`
 
+Current Orchestrator screenshots captured during the 2026-05-22 styling pass:
+
+- Review: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-diff-1779434620728.png`
+- Files: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-files-1779434641021.png`
+- Browser: `/var/folders/5n/nwtbs9wj6jl7whlscmg47_pc0000gn/T/orchestrator-automated-ui-smoke-browser-1779434675335.png`
+
 ## Executive Summary
 
 The biggest gap is architectural, not ornamental. Codex has one app-shell system that owns left panel, right panel, bottom panel, focus areas, tab controllers, animated sizes, resize handles, shortcut routing, and panel content lifecycles. Orchestrator has separate local implementations for Chat Sidebar, Workbench Panel, Terminal Panel, Browser, Review, Files, Settings, and hover/menu surfaces.
@@ -56,6 +62,150 @@ That split causes the visible problems:
 | P1 | Left sidebar information architecture | Codex supports project/connection/recent/all modes, custom sections, collapsed sections, server-backed pinned threads, projectless/cloud/pending-worktree grouping. Orchestrator is mostly local projects plus pinned/recent. | The left sidebar remains visually and structurally less capable. |
 | P1 | Settings/windows | Codex settings use page/surface/group/row primitives; Orchestrator settings remain a large modal with dense custom sections. | Settings will continue to feel messy unless rebuilt on shared settings primitives. |
 | P1 | Terminal panel | Codex terminal is integrated into app-shell tab controller and can live in bottom or right panel. Orchestrator terminal is a separate bottom-only implementation. | Terminal chrome and robustness will diverge from Codex until shared. |
+
+## Fine-Grained Styling And UI Audit
+
+This section records the exact bundle-backed styling differences found on 2026-05-22. It is intentionally detailed because the remaining gap is now less about whether Orchestrator has a feature at all and more about the small typography, spacing, border, control, and lifecycle decisions that make Codex feel calmer.
+
+### Global Tokens And Visual Language
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| Token source | Codex relies heavily on semantic token classes such as `text-token-text-primary`, `text-token-text-secondary`, `text-token-description-foreground`, `border-token-border`, `bg-token-bg-fog`, `bg-token-input-background`, `h-token-button-composer`, `w-token-sidebar`, `h-toolbar`, and `px-row-x` / `py-row-y`. | Orchestrator has local CSS variables and maps some `--color-token-*` aliases, but most surfaces still use bespoke classes such as `right-sidebar-*`, `diff-panel-*`, `files-panel-*`, `browser-*`, `settings-*`, and `surface-row`. | Build one Orchestrator app token layer that all panes consume; reduce surface-specific colors/radii/weights to a minimum. |
+| Default UI font | Codex rows and controls generally sit at `text-sm` or `text-base leading-[18px]` depending on the component primitive, with secondary descriptions usually `text-xs` or `text-sm`. File tree explicitly overrides to `13px`. | Orchestrator sets `--font-ui-size: 13px`, `--font-code-size: 13px`, but many local elements use 11px, 11.5px, 12px, 12.5px, 13.5px, 14px, and heavier local weights. | Normalize panel interiors around 13px body text, 12px secondary text, and avoid ad hoc half-pixel sizes unless a component primitive requires it. |
+| Font weight | Codex mostly uses normal text for rows, `font-medium` for pills/headings, and hides action emphasis until hover. | Orchestrator still uses 560/600/620/640/650/700 in many sidebar, settings, browser, file, and menu surfaces. | Lower row/control weights: active state should come from color/background, not boldness. Reserve 600+ for real section titles. |
+| Radii | Codex commonly uses `rounded-lg` for inputs/nav rows, `rounded-[7px]` for compact pills, toolbar-sized icon buttons, and fewer nested framed cards. | Orchestrator has `--radius-sm: 6px`, `--radius-md: 9px`, `--radius-lg: 13px`, and uses `radius-lg` frequently on settings rows, hover cards, side chat composer, local target cards, browser/error/cards. | Reduce large radii in dense work surfaces; use smaller radii for rows and compact controls, reserving large radii for dialogs/composer-level surfaces. |
+| Borders | Codex uses token borders sparingly and lets list primitives define hover/selection; many controls are borderless ghost buttons until active/hover. | Orchestrator often stacks borders: panel border, toolbar border, list border, selected row border, row separators, preview border, card border. | Remove nested hard frames where a parent already supplies separation. Use token border only at pane edges, major splits, and focused controls. |
+| Shadows | Codex right panel has shell-level shadow/elevation, not many inner shadows. | Orchestrator right panel has shell shadow in overlay/full states, and most inner surfaces now avoid shadows, but hover/menu/dialog shadows are still custom per surface. | Centralize popover/dialog shadows and avoid content-level shadows in Workbench/Sidebar rows. |
+| Motion | Codex app shell exposes animation progress/animated size and uses tab shimmer/loading states. | Orchestrator has CSS transitions and performance smoke budgets, but no shell-wide animated size or Codex-like tab shimmer/pending states. | Move motion into app-shell primitives so resizing, tab changes, loading, and pending states all share timing/easing. |
+
+### App Header And Main Chrome
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| Header ownership | Codex title/header tint and edge states are owned by app shell. | Orchestrator `Titlebar` and CSS own header rendering separately from panel shell. | Header should become another shell slot with shared height, tint, drag region, toolbar buttons, and scroll-edge behavior. |
+| Toolbar height | Codex uses shared toolbar classes such as `h-toolbar` and toolbar-sized buttons. | Orchestrator uses `--app-shell-toolbar-height: 34px`; settings topbar is 42px; Browser tab strip is 38px plus a 34px toolbar. | Keep top-level shell height shared; avoid nested browser/file toolbars that visually grow taller than Codex equivalents. |
+| Pills/chips | Codex compact pills use `inline-flex h-5 rounded-[7px] px-1.5 text-sm font-medium leading-[22px] tracking-[-0.12px]`. | Orchestrator has count badges at 16-20px with `font-weight: 700` and many pill-like provider/header controls with custom constraints. | Adopt one compact pill primitive with predictable height and typography; lower count badge weight. |
+| Tooltip behavior | Codex uses delayed tooltips on icon/action controls and keeps flyouts sized to content. | Orchestrator shared tooltips now delay, but some hover cards/flyouts remain custom and one-off. | Route Workbench, sidebar, settings, and terminal action hints through the same tooltip/flyout primitives. |
+
+### Workbench Panel Shell
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| Panel surface | Codex right panel is a shell-owned `aside` with thin border, `shadow-xl`, inner absolute pane, and `data-app-shell-focus-area="right-panel"`. | Orchestrator has `.motion-panel-right`, an `aside`, border-left, and focus attribute, but overlay/full-width behavior is CSS-local. | Keep the simple pane look but move sizing, focus, overlay/full mode, and animation into shared shell state. |
+| Width model | Codex stores a right-panel width ratio against main content and clamps at breakpoints. | Orchestrator now persists a ratio compatibility layer but still owns much of it in `ContextSidebar`. | Shell should own ratio width, pixel migration, min main width, narrow overlay, full width, and double-click reset. |
+| Panel naming | Codex calls the surface `right-panel`; user-facing language is panel/work surface. | Orchestrator still has `right-sidebar-*` classes and old `ContextSidebar` naming. | Continue using user-facing "Workbench Panel"; gradually retire `right-sidebar` naming from new code. |
+| Nested chrome | Codex content tabs live under one panel tab controller. | Orchestrator Browser has its own separate tab strip inside the Workbench tab, and Files/Review have their own toolbars. | Browser tabs, file tabs, review tabs, artifact tabs, and terminal tabs should use the same panel-tab controller rather than nested local tab chrome where possible. |
+
+### Workbench Tab Strip
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| Controller API | Codex exposes `openTab`, `updateTab`, `activateTab`, `closeTab`, `closeActiveTab`, `reorderTab`, `moveTabTo`, `receiveMovedTab`, `resetTabState`, `pinTab`, `activeTabReactKey`, and `tabById`. | Orchestrator has a reusable `PanelTabStrip`, but tab state is still built by store arrays and local handlers. | Introduce a real panel-tab controller before adding more Workbench-specific tab behavior. |
+| Tab metrics | Codex tabs are toolbar-sized, overflow-aware, label-fading, and close controls appear on hover/focus for closable tabs. | Orchestrator uses 24px tab height, 11px labels, 500/560 weights, 6px radius, 7px x-padding. This is close, but active tabs still read more segmented than Codex. | Keep dimensions but lower active visual weight further; rely on controller state and subtle background. |
+| Action slots | Codex supports before-list, after-list, and sticky-after-list slots with measured reserve space. | Orchestrator approximates this with fixed action blocks and gradient fades. | Replace gradient guesswork with measured sticky slot reserve. |
+| Drag/reorder | Codex uses drag sensors, sortable context, separator visibility, and layout animation. | Orchestrator supports context-menu reordering and some drag metadata, but not full Codex behavior. | Complete drag reorder with measured hit targets and screenshot/perf coverage. |
+| Loading tabs | Codex supports shimmering tabs/labels for pending loads. | Orchestrator has no tab shimmer/pending tab visual. | Add loading/shimmer state to shared tabs for file/browser/artifact/pending provider tabs. |
+
+### Review / Changes Interior
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| Toolbar row | Codex review toolbar rows use `flex items-center gap-2 px-[var(--padding-row-x)] py-[var(--padding-row-y)]`, `text-sm` truncated labels, toolbar buttons, and compact flyout pills. | Orchestrator `.diff-panel-toolbar` is 36px tall, gap 5px, padding 5px 8px, with search, count badge, preview toggle, and actions squeezed into one row. | Make Review toolbar a Codex-like action bar with consistent toolbar buttons and grouped flyouts instead of several local compact chips. |
+| Search field | Codex file search wrapper is `h-token-button-composer`, `rounded-lg`, `border-token-border`, `bg-token-bg-fog`, `text-base leading-[18px]`, search icon `icon-xs ms-2`, input borderless. | Orchestrator `.inspector-search-field` is 26px tall, 9px radius, local control background, 5px gap, 6px padding. | Use one file/search input primitive across Review, Files, Browser find, and settings shortcut search. |
+| File rows | Codex review/workspace file tree uses a custom `file-tree-container` with `itemHeight = 28`, `--trees-font-size-override: 13px`, `--trees-item-padding-x-override: 6px`, `--trees-level-gap-override: 0px`, and `--trees-item-row-gap-override: 10px`. | Orchestrator Review rows are 28px, but use `SurfaceRow`/local row CSS, status letters, visible separators, stronger selected outlines, and less capable tree behavior. | Replace Review/Files file lists with one virtualized tree/list primitive that matches Codex row metrics and hides non-match search results. |
+| Directory rows | Codex sticky folders come from the file tree model and inherit tree row styling. | Orchestrator `.diff-directory-row` uses local 26px height, 2px left border, control-bg, and 560 weight. | Remove the special heavy directory row styling; use the shared tree's folder row affordance. |
+| Diff viewer | Codex `file-diff` supports virtualized hunks, split/unified modes, line numbers, selected lines, annotations/comments, hunk separators, collapsed context, gutter utilities, rich preview, wrapping, whitespace, word diffs, and merge-conflict actions. | Orchestrator has a simpler `DiffLines` renderer with line wrap and preview toggle. | Treat diff parity as a component rewrite, not a toolbar tweak. Need virtualized diff model, hunk controls, split/unified, whitespace, word diff, comments, blame, and load-full-file controls. |
+| Review metadata | Codex review toolbar includes PR status, checks, comments, reviewers, flyouts sized around `max-w-[420px]`, `max-h-[280px]`, compact `max-w-[220px]` reviewer flyouts. | Orchestrator Review does not expose PR/check/reviewer metadata. | Add provider-agnostic review metadata slots, with Codex mapping to PR/check/comment data where available. |
+| Screenshot finding | Current Orchestrator Review screenshot passes smoke but shows a crowded top toolbar, prominent row selection, plus/minus/status pills, and a hard list-to-diff divider. | Codex reference relies on a calmer tree and richer toolbar/flyout model. | Review should visually calm down while becoming functionally richer. |
+
+### Files / File Viewer Interior
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| File tree | Codex workspace browser uses the same virtualized file tree with sticky folders, context menus, open targets, add-to-chat, copy path, and hidden non-match search mode. | Orchestrator Files has a local list and grouped rows. | Replace local list rendering with the shared file tree/list primitive. |
+| File identity | Codex opens files as first-class right-panel tabs with `file:<host>:<path>` identity, preview/pin behavior, and file-source tab state. | Orchestrator previews the selected file inside one Files panel. | Add file preview tabs and pin/preview promotion. Files panel should be a browser, not the only viewing surface. |
+| Layout | Codex avoids a heavy permanent split when a file is opened as a tab. | Orchestrator `.files-panel-body` is a hard grid split `minmax(140px, 0.42fr) minmax(0, 1fr)`, or a stacked split at narrow widths, with list border and preview border/header. | Move preview into tabs and reduce hard nested borders in the Files panel. |
+| Preview header | Codex file-source tabs use toolbar primitives and richer source controls. | Orchestrator file preview header is 34px, 11px text, 600 meta strip, and local action buttons. | Use the same toolbar/action primitives as Review and file-source tabs. |
+| Empty/fallback states | Codex empty/loading file tree states are compact list states and tab-level fallbacks. | Orchestrator fallback states are centered mini-cards or grid states with icon boxes and action buttons. | Make Workbench empty states quieter and row-like; reserve centered empty states for full blank panels. |
+| Screenshot finding | Current Files screenshot passes smoke but file names appear heavier/larger, the list and preview are visually separated by hard borders, and toolbar controls crowd the top. | Codex file browsing feels like a compact tree plus first-class file tabs. | Files needs both styling and lifecycle changes. |
+
+### Browser Interior
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| Webview lifecycle | Codex `browser-sidebar-manager` keeps hidden webviews alive with `position: fixed`, offscreen/opacity state, `pointerEvents: none`, `contain: layout paint size style`, z-index `2147483647`, transfer between conversation ids, and resync on focus/visibility. | Orchestrator embeds the browser directly in `BrowserPanel`. | Browser smoothness parity requires a persistent hidden-webview manager, not just UI styling. |
+| Device presets | Codex has presets: responsive 390x844, 4k 2560x1440, laptop-l 1440x900, laptop 1024x768, Surface Pro 7 912x1368, iPad Air 820x1180, iPad Mini 768x1024, Surface Duo 540x720, iPhone 15 Pro Max 430x932, Pixel 8 412x915, iPhone 15 Pro 393x852, Galaxy S24 Ultra 384x824, iPhone SE 375x667. Bounds clamp to min 240x160 and max 4096x4096 with a 20px stage margin. | Orchestrator has viewport/device controls and local targets but not this exact preset/bounds system. | Adopt Codex-like preset list and clamp logic; make device stage math a tested utility. |
+| Browser tabs | Codex browser tabs are side-panel tabs managed by the app shell/browser tab state. | Orchestrator has a nested `.browser-tab-strip` with 38px height, 27px tabs, 12px/640 text, 9px radius, and separate close animation. | Browser nested tabs are visually heavier than Codex. Either promote pages to panel tabs or restyle nested tabs as a lighter toolbar segment. |
+| URL toolbar | Codex browser UI follows toolbar/action primitives and browser-use state. | Orchestrator toolbar is 34px with local address field, 9px radius, badge max 76px, 10.5px/650 text. | Normalize URL/search/action controls to the same toolbar input/button primitive used elsewhere. |
+| Local server list | Codex tracks local server routes and hidden server routes per conversation. | Orchestrator has local targets table/cards with a visible bordered container. | Make local target rows lighter and integrate lifecycle with browser tab state, hidden routes, and conversation identity. |
+| Browser modes | Codex supports browse/comment mode and coachmark state. | Orchestrator has side questions and inspector drawers but no browser comment mode. | Add provider-agnostic browser annotation/comment concept where supported. |
+| Screenshot finding | Current Browser screenshot shows a usable panel, but the nested tab strip, URL toolbar, and local servers card make the panel feel heavier than Codex. | Codex browser polish comes mostly from hidden-webview lifecycle and shell integration. | Prioritize lifecycle and shared controls before micro-adjusting local target cards. |
+
+### Chat Sidebar
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| Data model | Codex sidebar state persists organize mode, keep-projects-in-recent, projectless chats-first, thread-sort-key, section order, collapsed groups, collapsed standard sections, and collapsed custom sections. | Orchestrator has projects, pinned sessions, recent/created sorting, and project collapse. | Add provider-agnostic sidebar organization primitives: organize mode, standard/custom sections, section order, projectless chats, and collapsed state. |
+| Thread identity | Codex models local, remote, and pending-worktree thread keys; hover labels derive chat/project/branch/workspace hints; label color metadata exists. | Orchestrator `SessionItem` models local sessions with project/branch hover info after delayed hover. | Extend identity model beyond local project sessions and add label color/remote/pending worktree metadata. |
+| Pinned ordering | Codex merges server/provider pinned ids with local/pending thread keys, preserves pinned order, and excludes pinned ids from unpinned keys. | Orchestrator now preserves local `pinOrder`. | Keep local behavior but prepare adapter-backed pinned state for providers that support it. |
+| Row styling | Codex uses shared selectable/list row primitives and quieter tokenized row/header states. | Orchestrator `.surface-row` has transparent border, hover bg, active bg, active border, custom pin slot, right slot, state control, hover card, and several transitions. | Simplify row internals: fewer moving slots, quieter active border, and one shared selectable row primitive. |
+| Row metadata | Codex can show automation-run state, unread/loading/in-progress across local/remote/pending tasks, project labels, and branch/workspace hints. | Orchestrator shows running/waiting/error/unread dots/spinners and relative time. | Keep the useful local states but map them to a broader task status primitive. |
+| Hover card | Codex hover/action affordances are tied to thread action/menu primitives and tokenized tooltips. | Orchestrator hover card is a fixed 260-320px tooltip-style card showing only chat/project/branch after delay. | Good direction, but it should be a shared tooltip/popover primitive with provider-aware identity. |
+| Actions | Codex exposes Rename, Archive, Mark unread, Add/Edit automation, Copy working directory, Copy session ID, Copy deeplink, Copy as Markdown, Open in new window, Fork into local/same worktree/new worktree, and interrupt. | Orchestrator has rename/archive/copy ids/open/reveal-like actions but lacks many workflow actions. | Add missing actions through provider-agnostic command primitives. |
+
+### Terminal / Bottom Panel
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| Shell integration | Codex bottom panel uses the same app-shell tab controller and focus routing as right panel. | Orchestrator Terminal uses `SessionPane` local terminal tabs and `terminal-panel-*` CSS. | Migrate Terminal onto the shared panel-tab controller. |
+| Placement | Codex can route terminal panels based on right/bottom panel state. | Orchestrator terminal is bottom-only. | Add terminal-as-panel-tab support where it improves workflow. |
+| Header styling | Codex toolbar/header styling is shared. | Orchestrator terminal header is close to Workbench tab tokens but still separate selectors. | Remove Terminal-specific tab/header CSS after shared controller migration. |
+| Runtime robustness | Codex terminal has service snapshots, error boundaries/reload UI, keyboard behavior, theme/font integration, and link handling. | Orchestrator has basic xterm lifecycle, clear/hide/new tab, and guarded fit/open paths. | Add terminal error state, service snapshots, copy/paste/new-tab keyboard parity, theme integration, and link routing. |
+
+### Settings
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| Page shell | Codex settings are route/page-like and use AppShell left panel where available; standalone window uses `window-fx-sidebar-surface`, `w-token-sidebar`, and a draggable `h-toolbar`. | Orchestrator settings are app-internal with a liked left settings nav, custom `settings-shell`, and 42px topbar. | Keep the left nav, but make settings content page-like and shell-owned. |
+| Nav grouping | Codex groups settings into App and Host sections and uses icon rows with `px-row-x`, `py-row-y`, `text-base`, `rounded-lg`, `font-normal`, plus collapse support. | Orchestrator has left nav sections but fewer host-aware groups. | Add host/provider grouping, collapsed nav behavior, and consistent nav row primitive. |
+| Settings row | Codex `SettingsRow` default is `flex items-center justify-between gap-4 p-3`; label is `text-sm text-token-text-primary`; description is `text-sm` or `text-xs` for nested; nested rows use `min-h-10 px-4 py-0.5`. | Orchestrator `.settings-row` is a bordered card with `radius-lg`, `padding: 11px 13px`, label 13px/650, description 12px; groups use 156px label column and custom panels. | Codex rows are simpler and less card-like. Lower label weight, remove per-row card borders where inside a surface, and use p-3 row rhythm. |
+| Settings surface | Codex `SettingsSurface` wraps related content and allows overflow-hidden tables/lists. | Orchestrator `.settings-panel` is close but combines custom compact settings and card rows. | Build explicit `SettingsPage`, `SettingsSurface`, `SettingsGroup`, `SettingsRow`, `SettingsFieldRow` components and migrate content section by section. |
+| Shortcuts | Codex shortcuts are editable: table with `text-sm`, columns, hover-only action icons, capture input `h-token-button-composer w-36 rounded-lg border-token-border bg-token-input-background px-3 text-sm`, conflict detection, reset/clear. | Orchestrator shortcuts are mostly a reference section. | Implement editable shortcuts with capture/conflict/reset UI. |
+| Appearance/theme | Codex has richer appearance, font, appshot/browser-use/computer-use/plugin/MCP/worktree pages using shared settings primitives. | Orchestrator has expanded custom theming, but it is not as broad or structured as Codex. | Expand theme/font/chrome controls after settings primitives are in place. |
+
+### Menus, Dialogs, Flyouts, And Empty States
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| Menus/flyouts | Codex flyouts have predictable widths: review check flyouts around `max-w-[420px]`, reviewer compact flyouts `max-w-[220px]`, comment flyouts `w-[420px] max-h-[280px]`, section lists `max-h-[104px]`. | Orchestrator menus are mostly shared but many surfaces have local menu rows and widths. | Centralize menu row, flyout width, section label, separator, scroll max-height, and action button styles. |
+| Icon buttons | Codex uses toolbar-sized ghost buttons and hides row action buttons with `opacity-0 group-hover:opacity-100`. | Orchestrator uses shared icon buttons, but local browser/actions/settings/sidebar code often overrides sizes and weights. | Stop overriding icon button metrics per surface except for documented sizes. |
+| Dialogs | Codex dialogs use dialog-layout primitives and compact content. | Orchestrator delete/rename/settings dialogs have been improved but remain local. | Move all modal/dialog content to shared dialog primitives. |
+| Empty states | Codex empty/loading states are compact and surface-specific: file tree empty is list-level, settings loading is row/table-level, browser has native browser-sidebar states. | Orchestrator often uses card-like centered empty states inside panels. | Use compact in-panel empty states unless the whole page is empty. |
+
+### Efficiency / Rendering Implications
+
+| Dimension | Codex reference | Orchestrator current state | Gap / target |
+| --- | --- | --- | --- |
+| File tree performance | Codex file tree is virtualized, sticky-folder aware, search-aware, and preserves scroll/selection with requestAnimationFrame retries. | Orchestrator lists are simpler and may re-render more panel content. | Shared virtualized file tree is both a visual and performance priority. |
+| Diff performance | Codex diff viewer virtualizes hunks/lines and tracks measurements/overscan. | Orchestrator diff rendering is simpler and less scalable. | Large diff parity requires virtualized diff rendering and focused perf smoke coverage. |
+| Browser performance | Codex hidden-webview manager preserves webview continuity and isolates offscreen webviews with CSS containment. | Orchestrator direct embed can lose continuity and contributes to switching/resize risk. | Persistent webview manager is required before claiming browser parity. |
+| Sidebar rendering | Codex selectors memoize thread key arrays and preserve object identity where possible. | Orchestrator has made local ordering fixes but still has local row/action complexity. | Keep tightening sidebar selectors and add componentized visual/perf tests for sorting, pinning, running state, and hover. |
+
+### Immediate Styling Parity Targets
+
+These are the concrete UI targets before declaring sidebar/workbench parity:
+
+1. Move all Workbench, Terminal, and nested browser/file tab chrome onto one tab/controller primitive.
+2. Replace Review and Files local list styling with a shared 28px-row, 13px-text virtualized tree/list primitive.
+3. Replace `inspector-search-field`, `files-panel-search`, Browser find/search, and shortcut search with one Codex-like search input primitive.
+4. Reduce Workbench interior font weights: row labels normal/500, active tabs 500-560 max, badges/pills medium rather than 700.
+5. Remove heavy nested borders from Files/Review/Browser interiors; keep only panel boundaries, toolbar boundaries, and focused inputs.
+6. Promote file previews to first-class preview/pinned panel tabs and remove the permanent hard Files split as the primary file-viewing path.
+7. Restyle Browser nested tabs or promote pages to panel tabs; current 38px strip and 12px/640 tab labels are visibly heavier than Codex.
+8. Rebuild settings rows/pages on `SettingsPage` / `SettingsSurface` / `SettingsGroup` / `SettingsRow` equivalents; keep the left nav, which is already directionally right.
+9. Add Codex-sized flyout/menu constraints and hover-only row action behavior across shortcuts, Review metadata, sidebar, and file tree menus.
+10. Add screenshot checkpoints for the exact surfaces above before marking any parity item complete.
 
 ## Right Workbench Panel Differences
 
