@@ -1,7 +1,7 @@
 import { createElement, useEffect, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
-import { Badge, Button, IconButton, MenuSurface, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
+import { Badge, Button, IconButton, MenuItem, MenuSurface, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 
 interface Props {
@@ -784,112 +784,80 @@ export default function BrowserPanel({
             >
               <div className="browser-action-section" data-testid="browser-page-actions">
                 <div className="browser-action-label">Page</div>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Reload without cache"
-                  className="browser-action-row"
+                <MenuItem
+                  icon="eraser"
+                  label="Hard reload"
+                  ariaLabel="Reload without cache"
                   disabled={!currentUrl || !visible}
                   onClick={reloadWithoutCache}
-                >
-                  <Icon name="eraser" size={14} />
-                  <span>Hard reload</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Capture screenshot"
-                  data-testid="browser-menu-capture-screenshot"
-                  className="browser-action-row"
+                />
+                <MenuItem
+                  icon="camera"
+                  label="Screenshot"
+                  ariaLabel="Capture screenshot"
+                  dataTestId="browser-menu-capture-screenshot"
                   disabled={!currentUrl || isLoading || !visible}
                   onClick={() => {
                     setBrowserMenuOpen(false)
                     void captureScreenshot()
                   }}
-                >
-                  <Icon name="camera" size={14} />
-                  <span>Screenshot</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Copy browser URL"
-                  className="browser-action-row"
+                />
+                <MenuItem
+                  icon="copy"
+                  label="Copy URL"
+                  ariaLabel="Copy browser URL"
                   disabled={!currentUrl}
                   onClick={() => {
                     void navigator.clipboard.writeText(currentUrl)
                     setBrowserMenuOpen(false)
                   }}
-                >
-                  <Icon name="copy" size={14} />
-                  <span>Copy URL</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Open external browser"
-                  data-testid="browser-menu-open-external"
-                  className="browser-action-row"
+                />
+                <MenuItem
+                  icon="external"
+                  label="Open in browser"
+                  ariaLabel="Open external browser"
+                  dataTestId="browser-menu-open-external"
                   disabled={!currentUrl}
                   onClick={() => {
                     setBrowserMenuOpen(false)
                     openExternal()
                   }}
-                >
-                  <Icon name="external" size={14} />
-                  <span>Open in browser</span>
-                </button>
+                />
               </div>
               <div className="browser-action-section" data-testid="browser-data-actions">
                 <div className="browser-action-label">Data</div>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Clear browser cache"
-                  className="browser-action-row"
+                <MenuItem
+                  icon="eraser"
+                  label="Clear cache"
+                  ariaLabel="Clear browser cache"
                   disabled={!visible}
-                  data-testid="browser-clear-cache"
+                  dataTestId="browser-clear-cache"
                   onClick={() => void clearBrowserData('cache')}
-                >
-                  <Icon name="eraser" size={14} />
-                  <span>Clear cache</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Clear browser cookies"
-                  className="browser-action-row"
+                />
+                <MenuItem
+                  icon="eraser"
+                  label="Clear cookies"
+                  ariaLabel="Clear browser cookies"
                   disabled={!visible}
-                  data-testid="browser-clear-cookies"
+                  dataTestId="browser-clear-cookies"
                   onClick={() => void clearBrowserData('cookies')}
-                >
-                  <Icon name="eraser" size={14} />
-                  <span>Clear cookies</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Clear browser site data"
-                  className="browser-action-row"
+                />
+                <MenuItem
+                  icon="eraser"
+                  label="Clear site data"
+                  ariaLabel="Clear browser site data"
                   disabled={!visible}
-                  data-testid="browser-clear-site-data"
+                  dataTestId="browser-clear-site-data"
                   onClick={() => void clearBrowserData('siteData')}
-                >
-                  <Icon name="eraser" size={14} />
-                  <span>Clear site data</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label="Clear all browser data"
-                  className="browser-action-row"
+                />
+                <MenuItem
+                  icon="eraser"
+                  label="Clear all data"
+                  ariaLabel="Clear all browser data"
                   disabled={!visible}
-                  data-testid="browser-clear-data"
+                  dataTestId="browser-clear-data"
                   onClick={() => void clearBrowserData('all')}
-                >
-                  <Icon name="eraser" size={14} />
-                  <span>Clear all data</span>
-                </button>
+                />
               </div>
               {workbench.history.length > 0 && (
                 <div className="browser-action-section" data-testid="browser-history-menu">
@@ -953,27 +921,19 @@ export default function BrowserPanel({
                     +
                   </button>
                 </div>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label={devicePreviewActive ? 'Reset viewport' : 'Mobile preview'}
-                  className="browser-action-row"
+                <MenuItem
+                  icon={devicePreviewActive ? 'monitor' : 'smartphone'}
+                  label={devicePreviewActive ? 'Reset viewport' : 'Mobile preview'}
+                  ariaLabel={devicePreviewActive ? 'Reset viewport' : 'Mobile preview'}
                   disabled={!currentUrl}
                   onClick={() => setViewportMode(devicePreviewActive ? 'desktop' : 'mobile')}
-                >
-                  <Icon name={devicePreviewActive ? 'monitor' : 'smartphone'} size={13} />
-                  <span>{devicePreviewActive ? 'Reset viewport' : 'Mobile preview'}</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  aria-label={visible ? 'Hide browser surface' : 'Show browser surface'}
-                  className="browser-action-row"
+                />
+                <MenuItem
+                  icon={visible ? 'monitor' : 'close'}
+                  label={visible ? 'Hide surface' : 'Show surface'}
+                  ariaLabel={visible ? 'Hide browser surface' : 'Show browser surface'}
                   onClick={() => patchWorkbench({ visible: !visible })}
-                >
-                  <Icon name={visible ? 'monitor' : 'close'} size={13} />
-                  <span>{visible ? 'Hide surface' : 'Show surface'}</span>
-                </button>
+                />
               </div>
             </MenuSurface>
           )}
@@ -1231,70 +1191,50 @@ export default function BrowserPanel({
                 zIndex: 120
               }}
             >
-              <button
-                type="button"
-                role="menuitem"
-                className="browser-action-row"
+              <MenuItem
+                icon="arrowLeft"
+                label="Back"
                 disabled={!canGoBack}
-                data-testid="browser-context-back"
+                dataTestId="browser-context-back"
                 onClick={() => {
                   webviewRef.current?.goBack()
                   setPageContextMenu(null)
                 }}
-              >
-                <Icon name="arrowLeft" size={14} />
-                <span>Back</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="browser-action-row"
+              />
+              <MenuItem
+                icon="arrowRight"
+                label="Forward"
                 disabled={!canGoForward}
-                data-testid="browser-context-forward"
+                dataTestId="browser-context-forward"
                 onClick={() => {
                   webviewRef.current?.goForward()
                   setPageContextMenu(null)
                 }}
-              >
-                <Icon name="arrowRight" size={14} />
-                <span>Forward</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="browser-action-row"
-                data-testid="browser-context-reload"
+              />
+              <MenuItem
+                icon="refresh"
+                label="Reload"
+                dataTestId="browser-context-reload"
                 onClick={() => {
                   webviewRef.current?.reload()
                   setPageContextMenu(null)
                 }}
-              >
-                <Icon name="refresh" size={14} />
-                <span>Reload</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="browser-action-row"
-                data-testid="browser-context-inspect"
+              />
+              <MenuItem
+                icon="wrench"
+                label="Inspect"
+                dataTestId="browser-context-inspect"
                 onClick={() => {
                   setPageContextMenu(null)
                   void runInspection()
                 }}
-              >
-                <Icon name="wrench" size={14} />
-                <span>Inspect</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="browser-action-row"
-                data-testid="browser-context-add-page"
+              />
+              <MenuItem
+                icon="chat"
+                label="Add page context"
+                dataTestId="browser-context-add-page"
                 onClick={() => void addPageContextToChat()}
-              >
-                <Icon name="chat" size={14} />
-                <span>Add page context</span>
-              </button>
+              />
             </MenuSurface>
           )}
         </div>

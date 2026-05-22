@@ -1584,18 +1584,24 @@ export function MenuItem({
   onClick,
   tone = 'neutral',
   disabled = false,
+  ariaLabel,
+  dataTestId,
 }: {
   icon?: IconName
   label: ReactNode
   onClick: () => void | Promise<void>
   tone?: Tone
   disabled?: boolean
+  ariaLabel?: string
+  dataTestId?: string
 }): JSX.Element {
   return (
     <button
       type="button"
       role="menuitem"
       disabled={disabled}
+      aria-label={ariaLabel}
+      data-testid={dataTestId}
       onClick={() => { void onClick() }}
       className="motion-menu-item orchestrator-menu-item flex w-full items-center gap-2 text-left disabled:cursor-default disabled:opacity-45"
       style={{

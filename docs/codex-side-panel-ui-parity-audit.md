@@ -178,7 +178,7 @@ This section records the exact bundle-backed styling differences found on 2026-0
 
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
-| Menus/flyouts | Codex flyouts have predictable widths: review check flyouts around `max-w-[420px]`, reviewer compact flyouts `max-w-[220px]`, comment flyouts `w-[420px] max-h-[280px]`, section lists `max-h-[104px]`. | Orchestrator shared menu surfaces now have bounded 8px-radius flyouts, 28px/13px/400 menu rows, scroll max-height, and no hover translation; sidebar, Review, Files, and Capabilities smokes assert these basics. Some local Browser/action-section flyouts and metadata-specific menus still need migration. | Continue centralizing section labels, separators, metadata flyouts, and dialog action styles on the same primitives. |
+| Menus/flyouts | Codex flyouts have predictable widths: review check flyouts around `max-w-[420px]`, reviewer compact flyouts `max-w-[220px]`, comment flyouts `w-[420px] max-h-[280px]`, section lists `max-h-[104px]`. | Orchestrator shared menu surfaces now have bounded 8px-radius flyouts, 28px/13px/400 menu rows, scroll max-height, and no hover translation; sidebar, Review, Files, Capabilities, and simple Browser action/context rows assert these basics. Some richer local rows, metadata flyouts, and dialog actions still need migration. | Continue centralizing section labels, separators, metadata flyouts, and dialog action styles on the same primitives. |
 | Icon buttons | Codex uses toolbar-sized ghost buttons and hides row action buttons with `opacity-0 group-hover:opacity-100`. | Orchestrator uses shared icon buttons, but local browser/actions/settings/sidebar code often overrides sizes and weights. | Stop overriding icon button metrics per surface except for documented sizes. |
 | Dialogs | Codex dialogs use dialog-layout primitives and compact content. | Orchestrator delete/rename/settings dialogs have been improved but remain local. | Move all modal/dialog content to shared dialog primitives. |
 | Empty states | Codex empty/loading states are compact and surface-specific: file tree empty is list-level, settings loading is row/table-level, browser has native browser-sidebar states. | Orchestrator often uses card-like centered empty states inside panels. | Use compact in-panel empty states unless the whole page is empty. |
@@ -204,7 +204,7 @@ These are the concrete UI targets before declaring sidebar/workbench parity:
 6. Promote file previews to first-class preview/pinned panel tabs and remove the permanent hard Files split as the primary file-viewing path.
 7. Restyle Browser nested tabs or promote pages to panel tabs; current 38px strip and 12px/640 tab labels are visibly heavier than Codex.
 8. Rebuild settings rows/pages on `SettingsPage` / `SettingsSurface` / `SettingsGroup` / `SettingsRow` equivalents; keep the left nav, which is already directionally right.
-9. Extend the shared Codex-sized flyout/menu primitive from sidebar, Review, Files, and Capabilities to shortcuts, Browser action sections, Review metadata, file tree sections, dialogs, and any remaining local action menus.
+9. Extend the shared Codex-sized flyout/menu primitive from sidebar, Review, Files, Capabilities, and simple Browser action rows to shortcuts, richer Browser/history/zoom rows, Review metadata, file tree sections, dialogs, and any remaining local action menus.
 10. Add screenshot checkpoints for the exact surfaces above before marking any parity item complete.
 
 ## Right Workbench Panel Differences

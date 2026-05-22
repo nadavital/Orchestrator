@@ -4165,10 +4165,10 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const browserPageActions = document.querySelector('[data-testid="browser-page-actions"]');
               const browserDataActions = document.querySelector('[data-testid="browser-data-actions"]');
               const browserPageActionRows = browserPageActions instanceof HTMLElement
-                ? [...browserPageActions.querySelectorAll('.browser-action-row')]
+                ? [...browserPageActions.querySelectorAll('[role="menuitem"]')]
                 : [];
               const browserDataActionRows = browserDataActions instanceof HTMLElement
-                ? [...browserDataActions.querySelectorAll('.browser-action-row')]
+                ? [...browserDataActions.querySelectorAll('[role="menuitem"]')]
                 : [];
               const copyUrlItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Copy URL'));
@@ -4205,6 +4205,12 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 browserActionsMenu.scrollWidth <= browserActionsMenu.clientWidth + 2 &&
                 browserPageActionRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 30) &&
                 browserDataActionRows.every((row) => row instanceof HTMLElement && row.getBoundingClientRect().height <= 30) &&
+                [...browserPageActionRows, ...browserDataActionRows].every((row) =>
+                  row instanceof HTMLElement &&
+                  row.classList.contains('orchestrator-menu-item') &&
+                  getComputedStyle(row).fontWeight === '400' &&
+                  getComputedStyle(row).transform === 'none'
+                ) &&
                 browserPageActionRows.every((row, index) => {
                   if (!(row instanceof HTMLElement) || index === 0) return row instanceof HTMLElement;
                   const previous = browserPageActionRows[index - 1];
@@ -4274,7 +4280,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const contextInspect = document.querySelector('[data-testid="browser-context-inspect"]');
               const contextAddPage = document.querySelector('[data-testid="browser-context-add-page"]');
               const contextRows = browserContextMenu instanceof HTMLElement
-                ? [...browserContextMenu.querySelectorAll('.browser-action-row')]
+                ? [...browserContextMenu.querySelectorAll('[role="menuitem"]')]
                 : [];
               browserContextMenuWorks =
                 browserContextMenu instanceof HTMLElement &&
@@ -4284,6 +4290,13 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 contextInspect instanceof HTMLButtonElement &&
                 contextAddPage instanceof HTMLButtonElement &&
                 contextRows.length === 5 &&
+                contextRows.every((row) =>
+                  row instanceof HTMLElement &&
+                  row.classList.contains('orchestrator-menu-item') &&
+                  row.getBoundingClientRect().height <= 30 &&
+                  getComputedStyle(row).fontWeight === '400' &&
+                  getComputedStyle(row).transform === 'none'
+                ) &&
                 browserContextMenu.scrollWidth <= browserContextMenu.clientWidth + 2 &&
                 browserContextMenu.getBoundingClientRect().right <= window.innerWidth;
               if (contextAddPage instanceof HTMLButtonElement) {
