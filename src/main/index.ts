@@ -5137,7 +5137,10 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               renameDialogInputFocused = document.activeElement === renameInput;
               renameDialogChromeQuiet =
                 renameDialog instanceof HTMLElement &&
-                !renameDialog.querySelector('.border-b, .border-t');
+                renameDialog.classList.contains('orchestrator-dialog-surface') &&
+                renameDialog.getBoundingClientRect().width <= 452 &&
+                !renameDialog.querySelector('.border-b, .border-t') &&
+                getComputedStyle(renameDialog.querySelector('.orchestrator-dialog-title') ?? renameDialog).fontWeight !== '700';
               if (cancelButton instanceof HTMLButtonElement) {
                 cancelButton.click();
                 await sleep(140);

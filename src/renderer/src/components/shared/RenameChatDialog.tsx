@@ -43,12 +43,7 @@ export default function RenameChatDialog({ initialValue, onCancel, onConfirm }: 
     <MotionOverlay
       onClose={onCancel}
       className="items-start pt-[12vh]"
-      surfaceClassName="w-[min(440px,calc(100vw-28px))] overflow-hidden rounded-xl"
-      surfaceStyle={{
-        background: 'var(--surface-bg)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: 'var(--shadow-popover)'
-      }}
+      surfaceClassName="orchestrator-dialog-surface orchestrator-dialog-surface-wide"
       backdropStyle={{
         background: 'rgba(12, 18, 28, 0.08)',
         backdropFilter: 'none',
@@ -56,14 +51,14 @@ export default function RenameChatDialog({ initialValue, onCancel, onConfirm }: 
       }}
     >
       <form
-        className="flex min-w-0 flex-col gap-3 p-4"
+        className="orchestrator-dialog-content"
         onSubmit={(event) => {
           event.preventDefault()
           void submit()
         }}
       >
-        <div className="min-w-0">
-          <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Rename chat</div>
+        <div className="orchestrator-dialog-copy">
+          <div className="orchestrator-dialog-title">Rename chat</div>
         </div>
         <div className="min-w-0">
           <label className="sr-only" htmlFor="rename-chat-input">Chat name</label>
@@ -78,15 +73,10 @@ export default function RenameChatDialog({ initialValue, onCancel, onConfirm }: 
             onChange={(event) => setValue(event.currentTarget.value)}
             placeholder="Chat name"
             data-testid="rename-chat-input"
-            className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-            style={{
-              background: 'var(--control-bg)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-primary)'
-            }}
+            className="orchestrator-dialog-input"
           />
         </div>
-        <div className="flex items-center justify-end gap-2">
+        <div className="orchestrator-dialog-actions">
           <Button variant="ghost" type="button" onClick={onCancel}>Cancel</Button>
           <Button variant="primary" type="submit" disabled={!canSubmit}>
             {saving ? 'Renaming...' : 'Rename'}

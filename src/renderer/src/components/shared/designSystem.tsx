@@ -1634,13 +1634,13 @@ export function ConfirmDialog({
   onConfirm: () => void | Promise<void>
 }): JSX.Element {
   return (
-    <MotionOverlay onClose={onCancel} surfaceClassName="w-[min(420px,calc(100vw-32px))] rounded-xl p-4">
-      <div className="flex min-w-0 flex-col gap-3">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</div>
-          {description && <div className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{description}</div>}
+    <MotionOverlay onClose={onCancel} surfaceClassName="orchestrator-dialog-surface">
+      <div className="orchestrator-dialog-content">
+        <div className="orchestrator-dialog-copy">
+          <div className="orchestrator-dialog-title">{title}</div>
+          {description && <div className="orchestrator-dialog-description">{description}</div>}
         </div>
-        <div className="flex justify-end gap-2">
+        <div className="orchestrator-dialog-actions">
           <Button variant="ghost" onClick={onCancel}>{cancelLabel}</Button>
           <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm}>{confirmLabel}</Button>
         </div>
@@ -1685,31 +1685,26 @@ export function TextInputDialog({
   }
 
   return (
-    <MotionOverlay onClose={onCancel} surfaceClassName="w-[min(420px,calc(100vw-32px))] rounded-xl p-4">
+    <MotionOverlay onClose={onCancel} surfaceClassName="orchestrator-dialog-surface">
       <form
-        className="flex min-w-0 flex-col gap-3"
+        className="orchestrator-dialog-content"
         onSubmit={(event) => {
           event.preventDefault()
           submit()
         }}
       >
-        <div className="min-w-0">
-          <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</div>
-          {description && <div className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{description}</div>}
+        <div className="orchestrator-dialog-copy">
+          <div className="orchestrator-dialog-title">{title}</div>
+          {description && <div className="orchestrator-dialog-description">{description}</div>}
         </div>
         <input
           ref={inputRef}
           value={value}
           placeholder={placeholder}
           onChange={(event) => setValue(event.target.value)}
-          className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-          style={{
-            borderColor: 'var(--border-subtle)',
-            background: 'var(--control-bg)',
-            color: 'var(--text-primary)',
-          }}
+          className="orchestrator-dialog-input"
         />
-        <div className="flex justify-end gap-2">
+        <div className="orchestrator-dialog-actions">
           <Button variant="ghost" onClick={onCancel}>{cancelLabel}</Button>
           <Button variant="primary" type="submit" disabled={!value.trim()}>{confirmLabel}</Button>
         </div>
