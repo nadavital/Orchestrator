@@ -46,7 +46,8 @@ import {
   SettingsPanel,
   SettingsRow,
   SwitchControl,
-  Tooltip
+  Tooltip,
+  WorkbenchSearchField
 } from './shared/designSystem'
 import { applyAppearance, type Accent, type Appearance, type AppearanceTheme, type ChromeTheme, type Density, type TranscriptStyle } from '../theme'
 import { useProjectStore } from '../store/projects'
@@ -1512,27 +1513,15 @@ function ShortcutsSection({
           style={{ borderColor: 'var(--border-subtle)' }}
         >
           <label className="sr-only" htmlFor="settings-shortcut-search">Search keyboard shortcuts</label>
-          <div className="inspector-search-field min-w-0 flex-1" style={{ height: 30 }}>
-            <Icon name="search" size={13} />
-            <input
-              id="settings-shortcut-search"
-              value={query}
-              onChange={(event) => setQuery(event.currentTarget.value)}
-              placeholder="Search shortcuts"
-              className="inspector-search-input min-w-0 flex-1 text-sm outline-none"
-            />
-            {query.trim() && (
-              <button
-                type="button"
-                aria-label="Clear shortcut search"
-                data-testid="settings-shortcut-search-clear"
-                className="inspector-search-clear"
-                onClick={() => setQuery('')}
-              >
-                <Icon name="close" size={11} />
-              </button>
-            )}
-          </div>
+          <WorkbenchSearchField
+            id="settings-shortcut-search"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search shortcuts"
+            clearLabel="Clear shortcut search"
+            clearDataTestId="settings-shortcut-search-clear"
+            className="settings-shortcuts-search-field flex-1"
+          />
         </div>
         {visibleShortcuts.length > 0 && (
           <div

@@ -274,6 +274,7 @@ interface WorkbenchSearchFieldProps {
   placeholder: string
   clearLabel: string
   inputRef?: Ref<HTMLInputElement>
+  id?: string
   dataTestId?: string
   clearDataTestId?: string
   className?: string
@@ -286,6 +287,7 @@ export function WorkbenchSearchField({
   placeholder,
   clearLabel,
   inputRef,
+  id,
   dataTestId,
   clearDataTestId,
   className = '',
@@ -301,6 +303,7 @@ export function WorkbenchSearchField({
       <Icon name="search" size={13} />
       <input
         ref={inputRef}
+        id={id}
         data-testid={dataTestId}
         value={value}
         onChange={(event) => onChange(event.target.value)}

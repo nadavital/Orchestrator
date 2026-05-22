@@ -656,6 +656,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 appearanceText.includes('Theme editor') &&
                 appearanceText.includes('Sharing') &&
                 appearanceText.includes('Layout and reading');
+              const settingsRows = [...document.querySelectorAll('[data-testid="appearance-settings-section"] .settings-row')]
+                .filter((row) => row instanceof HTMLElement);
+              const settingsRowLabels = [...document.querySelectorAll('[data-testid="appearance-settings-section"] .settings-row-label')]
+                .filter((label) => label instanceof HTMLElement);
+              var settingsRowsCalmWorks =
+                settingsRows.length >= 4 &&
+                settingsRowLabels.length >= 4 &&
+                settingsRows.every((row) => getComputedStyle(row).borderTopStyle !== 'solid' || getComputedStyle(row).borderTopWidth === '1px') &&
+                settingsRows.every((row) => Number.parseFloat(getComputedStyle(row).borderRadius) <= 1) &&
+                settingsRowLabels.every((label) => getComputedStyle(label).fontWeight === '500');
               const diagnosticsButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Providers'));
               diagnosticsButton?.click();
@@ -836,7 +846,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 shortcutsSection.innerText.includes('Shortcut') &&
                 shortcutSearch instanceof HTMLInputElement &&
                 shortcutSearch.value === '' &&
-                Boolean(shortcutsSection.querySelector('.inspector-search-field')) &&
+                Boolean(shortcutsSection.querySelector('.workbench-search-field')) &&
                 shortcutHeader instanceof HTMLElement &&
                 getComputedStyle(shortcutHeader).textTransform !== 'uppercase' &&
                 !document.querySelector('[data-testid="settings-shortcut-search-clear"]') &&
@@ -2925,6 +2935,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
             themePresetPreviewWorks: typeof themePresetPreviewWorks === 'boolean' ? themePresetPreviewWorks : null,
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
+            settingsRowsCalmWorks: typeof settingsRowsCalmWorks === 'boolean' ? settingsRowsCalmWorks : null,
             settingsSidebarNavCompactWorks: typeof settingsSidebarNavCompactWorks === 'boolean' ? settingsSidebarNavCompactWorks : null,
             settingsProviderDropdownWorks: typeof settingsProviderDropdownWorks === 'boolean' ? settingsProviderDropdownWorks : null,
             settingsDiagnosticsSectionWorks: typeof settingsDiagnosticsSectionWorks === 'boolean' ? settingsDiagnosticsSectionWorks : null,

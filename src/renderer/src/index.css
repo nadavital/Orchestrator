@@ -2874,13 +2874,13 @@
 
   .settings-topbar {
     display: flex;
-    height: 42px;
+    height: 38px;
     flex-shrink: 0;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     border-bottom: 1px solid var(--border-subtle);
-    background: color-mix(in srgb, var(--surface-bg) 92%, transparent);
+    background: color-mix(in srgb, var(--surface-bg) 96%, transparent);
     padding: 0 12px 0 20px;
     user-select: none;
     -webkit-app-region: drag;
@@ -2890,8 +2890,8 @@
     min-width: 0;
     overflow: hidden;
     color: var(--text-primary);
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
     line-height: 1;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2950,18 +2950,18 @@
   .settings-group {
     display: grid;
     grid-template-columns: 156px minmax(0, 1fr);
-    gap: 24px;
+    gap: 22px;
     align-items: start;
-    padding: 16px 0 18px;
-    border-top: 1px solid var(--border-subtle);
+    padding: 14px 0 16px;
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
     background: transparent;
   }
 
   .settings-group-title {
     margin-bottom: 4px;
     color: var(--text-primary);
-    font-size: 13.5px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
   }
 
   .settings-group-description {
@@ -2979,11 +2979,11 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    margin-top: 10px;
+    margin-top: 8px;
     overflow: hidden;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-bg) 96%, var(--canvas-bg));
+    background: color-mix(in srgb, var(--surface-bg) 98%, var(--canvas-bg));
   }
 
   .compact-setting {
@@ -2991,8 +2991,8 @@
     grid-template-columns: 116px minmax(0, 1fr);
     gap: 16px;
     align-items: start;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border-subtle);
+    padding: 9px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
   }
 
   .settings-panel > .compact-setting:last-child {
@@ -3004,18 +3004,26 @@
     min-width: 0;
     align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    background: var(--surface-bg);
-    padding: 11px 13px;
+    gap: 16px;
+    min-height: 44px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 10px 12px;
+  }
+
+  .settings-row + .settings-row,
+  .settings-row + .compact-setting,
+  .compact-setting + .settings-row {
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
   }
 
   .settings-row[data-variant='nested'] {
     border: 0;
     border-radius: 0;
     background: transparent;
-    padding: 0;
+    min-height: 40px;
+    padding: 4px 0;
   }
 
   .settings-row-copy {
@@ -3025,7 +3033,7 @@
   .settings-row-label {
     color: var(--text-primary);
     font-size: 13px;
-    font-weight: 650;
+    font-weight: 500;
     line-height: 1.25;
   }
 
@@ -3047,8 +3055,8 @@
   .compact-setting-title {
     padding-top: 5px;
     color: var(--text-primary);
-    font-size: 12.5px;
-    font-weight: 550;
+    font-size: 12px;
+    font-weight: 500;
   }
 
   .settings-shortcuts-table {
@@ -3056,16 +3064,25 @@
   }
 
   .settings-shortcuts-search {
-    min-height: 30px;
+    min-height: 36px;
+    border-color: color-mix(in srgb, var(--border-subtle) 72%, transparent) !important;
+  }
+
+  .settings-shortcuts-search-field {
+    height: 28px;
   }
 
   .settings-shortcuts-head {
     min-height: 24px;
     align-items: center;
+    border-color: color-mix(in srgb, var(--border-subtle) 72%, transparent) !important;
+    font-weight: 500 !important;
   }
 
   .settings-shortcut-row {
-    min-height: 28px;
+    min-height: 30px;
+    border-color: color-mix(in srgb, var(--border-subtle) 60%, transparent) !important;
+    font-size: 13px;
   }
 
   .settings-shortcut-row kbd {
