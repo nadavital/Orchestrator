@@ -17,11 +17,11 @@ Primary Codex reference chunks:
 
 - Shell and panels: `app-shell-JLpboL12.js`, `app-shell-BJK30dyj.css`, `app-shell-state-HP0T5lEX.js`, `app-shell-panel-animation-C6SMnz6V.js`
 - Tab lifecycle: `app-shell-tab-controller-B2eCi4Le.js`, `thread-side-panel-tabs-D3IwKAR4.js`, `thread-side-panel-tabs-DydIzOtr.js`, `tabs-BgnCzZaP.js`, `thread-panel-state-_aKlkyVE.js`, `right-panel-composer-overlay-scroll-reserve-BKJayTK4.js`
-- Review/files: `review-navigation-model-BQVAIXWq.js`, `review-header-toolbar-B_kdqvHA.js`, `review-file-tree-side-pane-qCgJ0jE8.js`, `review-file-source-tab-_AZBZ4OY.js`, `file-tree-search-input-Cg1SVtq4.js`, `workspace-directory-tree-CHHgPVoD.js`, `file-diff-D_Wkd-VE.js`, `patch-item-content-DT3HGNNi.js`, `diff-view-mode-C3ZAZUHZ.js`, `diff-stats-C-S_JU1b.js`
+- Review/files: `review-navigation-model-BQVAIXWq.js`, `review-header-toolbar-B_kdqvHA.js`, `review-file-tree-side-pane-qCgJ0jE8.js`, `review-file-source-tab-_AZBZ4OY.js`, `git-branch-picker-dropdown-content-qjFA5f4r.js`, `use-git-recent-branches-bV7_l-_8.js`, `git-commit-D8X8YhWj.js`, `file-tree-search-input-Cg1SVtq4.js`, `workspace-directory-tree-CHHgPVoD.js`, `file-diff-D_Wkd-VE.js`, `patch-item-content-DT3HGNNi.js`, `diff-view-mode-C3ZAZUHZ.js`, `diff-stats-C-S_JU1b.js`
 - Browser: `browser-sidebar-manager-ivre5jEI.js`, `browser-sidebar-state-BFSGuaA8.js`, `browser-sidebar-open-source-BsfzziCZ.js`, `thread-side-panel-browser-tab-state-PqkmuSww.js`, `browser-sidebar-comment-mode-coachmark-state-DonNJgsl.js`
 - Terminal/bottom panel: `thread-page-bottom-panel-state-D1Lz0U4Y.js`, `thread-page-bottom-panel-state-Dxfgdicg.js`, `thread-page-bottom-panel-state-kHJ-D0s7.css`, `terminal-CNbIwMET.js`
-- Left sidebar: `app-main-zQ4S20Da.css`, `app-shell-BJK30dyj.css`, `sidebar-signals-DI3M13c-.js`, `sidebar-thread-list-signals-FpAb9VJn.js`, `sidebar-project-groups-DUHIVRJe.js`, `sidebar-project-group-signals-B2IlZT8R.js`, `thread-actions-C8deI8Bf.js`, `pinned-threads-query-C44A652V.js`, `set-pinned-thread-BF6dMuHF.js`, `dropdown-PBHuhi3M.js`, `dropdown-9F1MU8ql.css`, `context-menu-TJfRSX1h.js`, `popover-DPlyXlNf.js`, `button-bq66r8jD.js`
-- Settings: `settings-content-layout-Bnulb0lM.js`, `settings-page-Cs2EUu3v.js`, `settings-row-DYYQqFuu.js`, `settings-group-DNhpghsa.js`, `settings-surface-YwAy0P94.js`, `appearance-settings-C6oiotxg.js`, `keyboard-shortcuts-settings-RVscBDKb.js`
+- Left sidebar/dialogs: `app-main-zQ4S20Da.css`, `app-shell-BJK30dyj.css`, `sidebar-signals-DI3M13c-.js`, `sidebar-thread-list-signals-FpAb9VJn.js`, `sidebar-project-groups-DUHIVRJe.js`, `sidebar-project-group-signals-B2IlZT8R.js`, `thread-actions-C8deI8Bf.js`, `heartbeat-automation-thread-bridge-CrVxqBXS.js`, `automation-dialog-BYgYAePq.js`, `automation-shared-9U9-pQH8.js`, `dialog-layout-D-x8fMKh.js`, `pinned-threads-query-C44A652V.js`, `set-pinned-thread-BF6dMuHF.js`, `dropdown-PBHuhi3M.js`, `dropdown-9F1MU8ql.css`, `context-menu-TJfRSX1h.js`, `popover-DPlyXlNf.js`, `button-bq66r8jD.js`
+- Settings: `settings-content-layout-Bnulb0lM.js`, `settings-page-Cs2EUu3v.js`, `settings-row-DYYQqFuu.js`, `settings-group-DNhpghsa.js`, `settings-surface-YwAy0P94.js`, `appearance-settings-C6oiotxg.js`, `keyboard-shortcuts-settings-RVscBDKb.js`, `settings-host-context-B5kZhSF6.js`, `settings-host-selection-9fosNT9W.js`, `settings-host-dropdown-CHaNrfwS.js`
 
 Orchestrator files compared:
 
@@ -78,6 +78,5061 @@ Minimum completion bar for each implementation slice:
 4. Capture Orchestrator screenshots for the affected surface in normal, hover/focus, active, empty/loading, and narrow-width states where applicable.
 5. Update this audit or the canonical source of truth with what changed, what was verified, and what remains.
 
+## Current Parity Steering Matrix
+
+This section is the current decision surface. The detailed audit and implementation log below remain authoritative evidence, but this matrix should drive the next slice so work does not get trapped inside one panel.
+
+| Surface | Current parity state | Important remaining mismatches | Verification state | Recommended next move |
+| --- | --- | --- | --- | --- |
+| App shell / panel ownership | `AppShellPanel`, shared panel markers, focus-area attributes, shared animated size/progress/mounted metadata for right/bottom panels, right/bottom tabpanel ownership, resize handles, tab lifecycle telemetry, shared right/bottom tab context-menu sections, a shared Workbench side-panel layout controller, a shared Terminal bottom-panel layout controller, a shared transfer capability resolver, session-level `transferSessionPanelTab`, right/bottom terminal move/receive semantics, explicit unsupported-transfer metadata for non-terminal right-to-bottom moves, focused `Cmd+F` routing for Review/Files/file tabs/Browser, Browser-focused address/reload/back/forward commands, focused Browser/right-Terminal/bottom-Terminal `Cmd+T` routing, a native menu enabled-state bridge for focused panel commands, app-owned active-window command targeting, per-window native-menu availability isolation, and shared open Browser / toggle Browser / open Review commands exist. | Route/window lifecycle and exact live Codex shell spacing/timing remain incomplete; non-terminal bottom-panel rendering is now an explicit product/runtime decision because the current Codex bottom-panel bundle is terminal-specific; raw macOS `BrowserWindow.getFocusedWindow()` still does not switch back in the automated smoke even though Orchestrator's app-owned active-window handoff restores command state and routes menu commands correctly. | `npm run build` passes. `git diff --check` passes. `npm run test:providers` passes. Focused right-panel smoke passes with `rightPanelTransferUnsupportedBoundary=true` across Review/Files/Browser, `rightPanelSharedAnimationController=true`, `rightPanelSharedLayoutController=true`, `rightPanelContextMenuSharedSections=true`, `rightPanelFindShortcutRouting=true`, `rightPanelBrowserCommandRouting=true`, `rightPanelMenuCommandState=true`, plus shell ownership, tab focus, telemetry, close-active, resize reset, fullscreen cleanup, expand, and overlay checks. Latest right-panel evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779676886741.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779676886741.png`. Packaged focused right-panel smoke also passes against `dist/mac-arm64/Orchestrator.app`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779618973456.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779618973456.png`. Focused terminal smoke passes with `terminalSharedAnimationController=true`, `terminalSharedLayoutController=true`, `terminalTabMenuSharedSections=true`, `terminalMoveToRightPanel=true`, `terminalRightPanelNewTabShortcut=true`, and `terminalMoveBackToBottom=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779664201401.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779664201401.png`. Multi-window smoke now gates second-window creation/navigation, background-window no-clobber isolation, app-owned active-window restoration, first-window menu restoration, and menu-command routing back to the refocused first window; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-multi-window-focus-1779624345721.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-multi-window-focus-1779624345721.png`. | High priority remains root shell consolidation: route/window lifecycle, exact live Codex width/height/timing comparison, any product-backed non-terminal bottom-panel renderer decision, and installed-app replacement proof. |
+| Workbench tab/controller chrome | Shared `PanelTabStrip` covers toolbar metrics, measured trailing action reserve, hover/focus close, middle-click close, active scroll, tabpanel focus, shimmer, basic reorder, before/after drag insertion markers, shared tab context-menu sections, provider-neutral `workbench-panel-*` wrapper/test selectors, shared right-panel animation/progress metadata, a Codex-style `New tab` surface with action cards for Files, Side chat, Browser, Review, and Terminal, keyboard/ARIA resizing through the shared left-edge separator, and a right-panel visual reset that returns Browser to normal single-tab chrome after command-routing checks. | No true Codex-style cross-panel move/receive semantics; exact live layout timing is still missing; active background and shell material are close but not fully Codex-owned. `ContextSidebar` remains an internal component name until a larger route/window ownership cleanup. | Focused right-panel smoke passes with `workbenchPanelChromeCompact=true`, `workbenchPanelNewTabPage=true`, `rightPanelSharedAnimationController=true`, `rightPanelContextMenuSharedSections=true`, `rightPanelTabDragMarker=true`, `rightPanelResizeKeyboard=true`, `rightPanelBrowserVisualReset=true`, plus resize, overlay, close, drag, focus routing, and Browser command routing checks. Latest evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779663345466.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779663345466.png`. Dedicated New Tab evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1779621364872.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1779621364872.png`. Latest full visual inventory passed with `workbench-right-panel.png` and `workbench-new-tab.png`: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`. | High priority after shell ownership. Consolidate remaining Workbench chrome toward shell-owned move/receive semantics, exact active/overflow/chrome visual comparison, and route/window lifecycle cleanup. |
+| Review / Changes entry | Inline `Edited N files` transcript card now uses a Codex-like file-first patch shape with per-file status/path/stats rows, expandable inline diff preview, a truthful local-current-change `Undo`, source-aware provider last-turn patch rendering from normalized `diff.updated` events, and a direct `Review` action that opens detailed Review while preserving a sibling Environment Workbench tab. Environment is a first-class Workbench tab with Codex-like `Environment`, `Changes`, `Local`, branch, `Commit`, `Create pull request`, and `Sources / Web search` rows; `Changes` opens detailed Review, `Commit` routes into Review when local changes exist, and PR metadata turns the PR row into a real `View pull request` external-open action. Review can render provider-agnostic PR/check/reviewer metadata affordances in the compact toolbar, the metadata flyout now uses shared menu section/row primitives, and sessions can hydrate that metadata from a real GitHub PR through the optional `gh pr view` adapter. | True provider checkpoint Undo is still missing and is now explicitly marked unavailable on provider last-turn transcript cards instead of falling back to local discard; non-GitHub/provider-native hosted adapters still do not populate PR/check/reviewer metadata; Environment create-PR generation remains unavailable without provider/gh metadata; exact spacing and right-rail content need live side-by-side comparison. | `npm run build` passes. `git diff --check` passes. `npm run test:providers` passes with Git discard, diff parser, and GitHub PR metadata normalization coverage. Latest `npm run smoke:ui:auto -- --diff-source` passes and covers `reviewTranscriptCardLastTurn=true`, provider Last turn source rendering, Last turn Copy git apply, Worktree provider source, source search, comments/blame, full-source selected-line and gutter blame, and hidden context gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779650083994.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779650083994.png`. Latest `--diff-entry` evidence covers local-current `reviewTranscriptCardUndo`, direct Review entry, shared metadata flyout, metadata toolbar, and Environment panel with `reviewMetadataFlyoutShared=true`: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779653681761.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779653681761.png`. Dedicated Environment visual smoke also passes with `environmentPanelVisual=true`, `environmentActionRows=true`, and `environmentSources=true`; inventory screenshot: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/environment.png`. | Keep Review backlog, but stop expanding it as the universal proving ground. Next Review work should target true provider checkpoint Undo, non-GitHub/provider-native PR metadata adapters, or one verified visual mismatch at a time. |
+| Review diff workspace | Split/unified diffs, selected-file main rendering, file headers, line gutters, hunk collapse, hidden-context expansion, word diff, hide whitespace, local comments, selected-line blame, source-tab handoff, right-side changed-files rail, diff-content search filtering with match-count badges, `Cmd+F` focus to the changed-files search when Review is focused, All/Worktree/Staged/Branch/Commit sources, provider-agnostic Last turn source from normalized `diff.updated` events, transcript-card Last turn patch rendering, session-backed Local provider source rows, worktree-backed provider source rows when the session is in a worktree, full-source row/gutter mode through the shared `FilePreview` source renderer with selected-line, bounded gutter blame, and source-virtualization metadata, rich preview, shared `PanelNotice` binary fallback/action states, centered no-change empty state, deterministic loading state, narrow overlay Review containment, an in-panel Review header with visible source/count summary, Review-level `Copy git apply command` over the currently loaded local or Last turn patch set, a Codex-style panel-root floating local Revert all / Stage all / Unstage all action pill with confirmation, Codex-threshold large-diff bounded rendering, and merge-conflict file metadata/badges plus basic current/incoming/both marker-block action helpers are implemented. | Cloud provider-native review source remains unavailable until there is a real cloud diff adapter; provider-backed hosted review-source flows are missing; true provider checkpoint/last-turn Undo is still missing; full Codex-style DOM virtualization/buffers remain incomplete; PR/reviewer-backed comments/blame are missing; deeper merge-conflict mark-resolved/stage workflows and hosted conflict adapters are not implemented; live Codex side-by-side spacing proof remains open. | `npm run build` passes. `git diff --check` passes. `npm run test:providers` passes, including `review diff parser derives file changes and per-file diff bodies`. `pnpm test src/main/__tests__/gitChanges.test.ts` passes with real merge-conflict `UU` normalization and conflict-marker diff coverage. Focused `npm run smoke:ui:auto -- --diff-conflict` passes with `reviewMergeConflictHelpers=true`, proving a Codex-style `merge-conflict-action-*` slot plus Current/Incoming/Both actions and marker-block rewrite; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-conflict-1779675864451.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-conflict-1779675864451.png`. `--diff-core`, `--diff-source`, `--diff-preview`, `--diff-empty`, `--diff-loading`, and `--diff-narrow` now run against isolated Review states and pass. Latest core evidence after the conflict-helper slice: JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779675933405.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779675933405.png`. Latest focused source evidence covers Local provider source availability for a local session, disabled cloud/worktree rows when unsupported, Last turn becoming selectable after a synthetic normalized `diff.updated` event, rendering the Last turn patch in both detailed Review and transcript Review card, `reviewLastTurnGitApplyCommand=true` for Copy git apply over that loaded provider diff, `reviewSearchContent=true` for a query that appears only in diff content, `reviewFullSourceRows=true` and `reviewFullSourceBlame=true` through the shared source renderer, `reviewWorktreeProviderSource=true` for an app-managed worktree session with Worktree enabled and Local disabled, and `reviewLargeDiffWindow=true` for limiting a 15,202 changed-line diff at Codex-scale thresholds while ordinary 3k-row diffs no longer trigger the large-diff notice: JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779680223342.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779680223342.png`. Focused Review preview evidence covers `reviewFallbackNoticeShared=true`, binary action states, and rich preview modes: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-preview-1779645748850.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-preview-1779645748850.png`. Focused right-panel smoke also proves Review-focused `Cmd+F` routes to `diff-file-search`. Latest loading evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-loading-1779674876904.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-loading-1779674876904.png`. Latest narrow evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-narrow-1779632866664.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-narrow-1779632866664.png`. Empty-state evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-empty-1779674872016.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-empty-1779674872016.png`. | Medium priority. Review mechanics are now split-gated; next Review work should continue one visible or provider-backed mismatch at a time: true provider checkpoint Undo, cloud provider diff adapters, hosted provider source flows, real PR metadata adapters beyond the local GitHub path, provider-backed comments/blame, full DOM diff virtualization, hosted/deeper conflict workflows, and live Codex side-by-side spacing comparison. |
+| Files / file viewer | Files is now a Workbench browser plus first-class preview/pinned file tabs. Host-aware ids, sticky folders, lazy directories, filtered ancestor projection, selected-row reveal, structured previews, PDF artifact header chrome, rich/source mode, Codex-shaped artifact import-kind/type metadata and source-option boundaries, `Cmd+F` focus routing to Files/source search when focused, source search, bounded content-hit search with line metadata, local annotations, selected-line reveal, selected-line actions, bounded gutter blame, shared action/context menu sections, shared Workbench file-tab action-menu sections, shared `PanelNotice` binary/unreadable fallback action states, and a shared Codex-like Workbench tree message primitive for Files empty/loading/no-match rows exist. | External PR/reviewer-backed comments/blame metadata is missing; global/provider-indexed workspace search is still basic; standalone/no-session split preview remains as fallback; full Codex artifact renderer controls for spreadsheet/document/slides/PDF remain incomplete. | Focused Files smoke passes with `filesPdfPreview=true`, `filesArtifactTabModel=true`, `filesPreviewHeaderShared=true`, `filesArtifactPreviewControls=true`, `filesContentSearch=true`, `filesActionMenuSharedSections=true`, `filesRowContextMenuSharedSections=true`, `workbenchFileTabActionMenuSharedSections=true`, `filesFallbackNoticeShared=true`, `filesNoResults=true`, and existing tree/search/source/preview gates; latest evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779677788403.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779677788403.png`. Focused right-panel smoke also proves `Cmd+F` routes to workspace file search and Browser find from focused Workbench tabs. | Medium priority. Future work should focus on full artifact rendering, provider-backed comments/blame, and provider/global indexed search rather than local UI polish. |
+| Browser | Codex preset dimensions and viewport clamps exist. Browser webviews stay mounted across tab switches/hide-show through a manager boundary. Multi-tab Browser chrome now uses the shared app-shell `PanelTabStrip` controller hooks instead of a custom local tab strip, while normal single-tab Browser evidence hides the nested strip. Focused Browser commands route through the shell for address focus, reload, hard reload, back, forward, and `Cmd+T` new Browser tab behavior; `Cmd+T` outside Browser opens the Browser Workbench tab. Comment mode now has coachmark state, floating point and drag-region comment editors with Cancel/Send before composer insertion, visible region selection/marker feedback, a smoke-proven transparent `Preview original` state that disables point/region placement without composer mutation, a design-tweak intent that sends region-scoped requested design changes after Send, and a shared unavailable-message state for failed/uncommentable pages; local target/inspection panes, provider-agnostic `browser.manager_state`, Codex app-server browser-use notification parsing, browser-use capture bounds/scale evidence, Codex-like measured visible stage/visual/webview geometry for device previews, host-scoped webview partitions, body-attached active/hidden webview hosts, browser-use no-mutation proof for the visible tab/webview/URL/composer boundary, conversation-scoped local server route rows/removal, Codex app-server local-server route notification normalization, provider local-server bind-address normalization from `0.0.0.0` to `127.0.0.1`, fork-time Browser workbench transfer, true cross-host DOM webview transfer with inherited source webview partition, shared Browser action-menu section labels/separators, shared Browser history/zoom menu rows, shared Browser fallback messages for local-target/inspector empty states, shared Browser load-error/recovery notice state, shared Browser inspector action controls, and shared Browser inspector section/row/disclosure containers exist. | Browser tabs are still a child surface inside the Browser Workbench tab rather than fully shell-owned; live provider-emitted Codex/browser-use session proof, broader non-Codex browser/local-server adapters if exposed, richer provider-produced annotation/design-change workflows, and actual provider application of design tweaks are missing. | Focused Browser smoke passes with `browserSingleTabChrome=true`, `browserTabShellController=true`, `browserManagerStateBridge=true`, `browserCaptureGeometry=true`, `browserUseNoMutation=true`, `browserVisibleGeometry=true`, `browserLocalServerRoutes=true`, `browserLocalServerRouteNormalization=true`, `browserMenuSectionsShared=true`, `browserMenuRowsShared=true`, `browserFallbackMessagesShared=true`, `browserLoadErrorSharedState=true`, `browserInspectorActionsShared=true`, `browserInspectorContainersShared=true`, `browserCommentEditor=true`, `browserCommentRegion=true`, `browserCommentPreviewOriginal=true`, `browserCommentDesignTweak=true`, `browserCommentUnavailable=true`, `browserWebviewManagerBoundary=true`, `browserHiddenWebviewContainment=true`, `browserForkTransfer=true`, and `browserForkDomTransfer=true`, plus persistence, device modes, local targets, inspection, security panes, hidden state, and lifecycle checks. Provider tests pass with Codex app-server browser-use and local-server route notification normalization coverage. Latest Browser smoke evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779678965678.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779678965678.png`. | Keep Browser high priority, but next Browser slice should be live provider-emitted Codex/browser-use proof, broader non-Codex browser/local-server adapters if exposed, or richer provider-produced annotation/design-change workflows, not another tab styling pass. |
+| Terminal / bottom panel | Terminal has dedicated `TerminalPanel`, shared `PanelTabStrip`, tabpanel focus, telemetry, shared tab context-menu sections, drag/context reorder with the same before/after insertion marker as Workbench, close-active cleanup, link routing into Browser, shell ownership markers, shared bottom-panel layout metadata/clamping, shared animated size/progress metadata, shared edge-marked Codex-style overlay resize separators backed by a shared zoom-normalized resize controller with keyboard/ARIA support, smoke-proven top-edge drag/reset without layout displacement, terminal moves routed through the shared session transfer action, right/bottom move/receive actions, focused right/bottom `Cmd+T` new-tab routing, live theme/font option sync from Appearance tokens into xterm, a Codex-matched VS Code terminal token matrix, service snapshots, shared app-shell header chrome, Codex-matched xterm content spacing/token surface, and a pipe-backed shell fallback when `node-pty` cannot start. | Exact live Codex bottom-panel height and open/close/animated-size timing remain incomplete. Native PTY startup still depends on the local environment; the fallback keeps the panel functional instead of rendering a failure overlay. | `npm run smoke:ui:auto -- --terminal` passes with `terminalSharedAnimationController=true`, `terminalSharedLayoutController=true`, `terminalTabMenuSharedSections=true`, `terminalTabDragMarker=true`, `terminalHeaderSharedChrome=true`, `terminalContentSpacing=true`, `terminalResizeReset=true`, `terminalResizeHandleOverlay=true`, `terminalResizeKeyboard=true`, tab persistence, shell ownership, restore, menu/reorder/drag, shortcuts, a11y, fullscreen cleanup, telemetry, lifecycle telemetry, right/bottom move/back, right-panel new-tab shortcut, link routing, `terminalThemeFontSync=true`, `terminalThemeTokenMatrix=true`, and `terminalServiceSnapshot=true`. Latest evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779664201401.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779664201401.png`. `--terminal-visual` passes with `terminalVisualHealthyContent=true`; latest visual evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779661843980.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779661843980.png`. Shared Workbench handle regression coverage also passed with `rightPanelTransferUnsupportedBoundary=true` across Review/Files/Browser, `rightPanelSharedAnimationController=true`, `rightPanelResizeReset=true`, `rightPanelResizeKeyboard=true`, and `rightPanelCloseBelowMin=true`: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779676886741.json`. | Medium priority. Next terminal slice should be live Codex bottom-panel height/timing comparison or broader root shell transfer/rendering decisions for non-terminal tab kinds. |
+| Chat Sidebar | Local/remote/cloud/remote-host/worktree identity, Codex-style provider-pinned thread-key normalization/application, local pinned-row drag reorder with persisted session pin orders, Codex app-server `thread/list` metadata projection for array/`data`/`threads`/`items` plus nested `conversation`/`task`/`pendingWorktree` shapes, non-blocking startup sync wiring, debounced post-run app-server sync wiring, manual Provider Settings refresh wiring, throttled idle/focus recurring refresh wiring, provider-pinned merge metadata, provider projectless thread-id metadata, provider worktree source/root/host metadata, pending-worktree lifecycle, projectless Chats grouping, user-facing projectless Chats-first preference, provider connection grouping, label colors, automation row metadata, custom/built-in section order, collapsed sections, local custom section membership, drag/drop into custom sections, in-section drag reorder, section-level custom-section reorder with insertion markers, consolidated session-row identity/action slots, shared session/project/organize/custom-section action-menu sections, and central selected-sidebar key persistence exist. | Provider adapters still need live provider pin list/set RPCs where available, richer projectless/worktree/hosted source reconciliation from real provider sources beyond the current thread-list metadata adapter, and the richer Codex action set. Current Codex app-server live probing shows pinned bridge calls are not exposed through app-server and still return unknown-variant errors, so provider pin RPC parity is externally blocked unless a different bridge/state boundary is used; the new drag reorder is a local Orchestrator pin-order boundary. A fresh live Codex vs Orchestrator screenshot pass is still missing because Computer Use could not inspect the current Codex app window. | Sidebar pieces are covered by broad smoke and unit tests. Latest focused Sidebar smoke passes with `sidebarPinnedDragReorder=true`, `sidebarSelectedKeySignal=true`, `sidebarSelectedKeyPersistence=true`, `sidebarSelectedNavKeys=true`, `providerWorktreeMetadata=true`, `providerProjectlessMetadata=true`, `providerPinnedMetadata=true`, `sidebarActionMenuSharedSections=true`, `projectActionMenuSharedSections=true`, `organizeMenuSharedSections=true`, `sidebarConnectionGrouping=true`, `sidebarPinnedRowsKeepIdentityMarker=true`, and `sidebarPinActionsConsolidated=true` over local, remote, cloud, remote-host, worktree, provider-hosted worktree, and pending-worktree fixtures; latest evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779672991967.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779672991967.png`. Focused unit coverage also passes for Codex `items` and nested local conversation, remote task, pending worktree, and hosted-conversation metadata projection through the built `node --test` path. Settings-provider smoke passes with `settingsProviderSidebarRefresh=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779640324525.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779640324525.png`. Latest full visual inventory passed with 23 captures and refreshed `chat-sidebar.png`; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`. | High priority for visible product feel. Next Sidebar work should choose a safe alternative state boundary for provider pin set/list, deeper real provider worktree/projectless adapters beyond thread-list metadata, or live Codex side-by-side visual comparison if a safe screenshot path is available. |
+| Settings | Shared settings page/surface/group/row primitives exist across General, Appearance, Providers, Automations, Worktrees, Shortcuts, Pet overlay, Host Personalization, and Data controls. All local Settings pages now use a shared Codex-style `SettingsContentLayout` content header for title/subtitle above the scroll body. Shortcut editing/conflict behavior, custom multi-binding, per-binding clear/remove, disabled-default binding state, shifted punctuation/code normalization, shared shortcut row icon-button actions, a compact Codex-like read-only shortcut capture input, and reset behavior exist. Settings now owns shared route parsing/building for Codex-style `/settings/<section>?host=...` paths in HTTP/dev renderers and packaged `orchestrator-app://renderer/` main windows, keeps the old `#/settings/<section>` parser as a direct `file://` fallback, opens sections from the route, syncs Settings nav changes back to that route, exposes route-owned settings-shell metadata, and keeps Back-to-chat behavior route-aware. The left settings nav mirrors Codex's visible App / Host grouping while keeping shared sidebar row primitives: Pet overlay is app-scoped, and Personalization is host-scoped. A Host-section nav action renders the provider-host selector when remote-host metadata exists, persists the selected host id, normalizes stale selections back to Local, filters remote-host navigation away from local-only pages, redirects local-only active sections back to General for remote hosts, and remounts Settings content under the selected host key. Settings content now uses shared typed app/host scope and host-adapter-state helpers, so app-scoped pages on a remote host are marked `app-global` while host-scoped pages without a provider adapter render an explicit unavailable state instead of local controls. Personalization is explicitly smoke-gated as host-scoped and unavailable until Orchestrator has a Codex-style memory/personality/custom-instructions adapter; Pet overlay keeps the app-specific pet controls without masquerading as Codex Personalization. Provider Settings now exposes a compact Codex-only manual `Refresh chats` action that refreshes Codex sidebar thread metadata through the app-server without starting a run. Worktrees, Automations, and Data controls destructive confirmations now use the shared `ConfirmDialog`/dialog-layout path instead of native `window.confirm`. | Remote-host-specific page behavior now has explicit unavailable boundaries for host-scoped pages without adapters, but is not backed by real remote settings adapters; Codex Personalization specifically is host-scoped memory, personality, and custom instructions; deeper native theme/font/chrome controls, platform-specific shortcut capture live edge cases, and larger sheet-style editors still need live comparison. | Settings focused smoke passes with `settingsContentLayout=true`, `settingsRouteOwned=true`, `settingsSidebarGroupedNav=true`, `settingsSidebarNavPrimitive=true`, `settingsTopbarShared=true`, `settingsHostContext=true`, `settingsHostSectionFiltering=true`, `settingsHostAdapterBoundary=true`, `settingsPersonalizationHostBoundary=true`, `settingsShortcutsPerBindingClear=true`, `settingsShortcutsPunctuationCapture=true`, `settingsShortcutActionsShared=true`, `settingsShortcutCaptureFieldShared=true`, and all existing Settings page gates. Latest packaged Settings deep-link smoke passes with `settingsDeepLinkRoute=true` and `orchestrator-app:` path-route debug: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-deeplink-1779681835187.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-deeplink-1779681835187.png`. Latest Settings evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779678561891.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779678561891.png`. Dedicated Pet overlay smoke passes with `petsSettingsContentLayout=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-pets-1779678586608.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-pets-1779678586608.png`. Settings-provider smoke passes with `settingsRouteOwned=true` and `settingsProviderSidebarRefresh=true`; latest evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779669653727.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779669653727.png`. | Medium/high priority. Next Settings slice should add a real host-scoped Personalization adapter, add real remote-host settings adapters for other visible host sections, deepen native theme/font/chrome controls, do platform-specific shortcut capture/live Codex comparison, or inspect larger sheet-style editors. |
+| Menus, dialogs, flyouts, empty/loading states | Shared translucent `MenuSurface`, shared `MenuSection`, shared `MenuSectionLabel`, shared `MenuRow`, shared `MenuMessage`, shared `PanelMessage`, shared `PanelNotice`, shared `DialogContent`, shared `DialogHeader`, shared `DialogFooter`, shared `DialogField`, shared inspector section/row/disclosure containers, compact rows, bounded flyouts, shared toolbar buttons, composer dropdown material, shared Workbench tree messages for Files empty/loading/no-match rows, Files action/context menu groups, Workbench file-tab action menu groups, right/bottom shell tab context-menu groups, Files fallback notices, Review file-jump/source-ref menu messages, Review metadata flyout sections/rows, Review fallback notices, Browser action-menu sections/rows, Browser fallback messages, Browser load-error/recovery notice state, Browser inspector action controls/containers, Sidebar session/project/organize/custom-section menu groups, Settings shortcut row action controls, Settings shortcut capture field, rename/confirm/text-input/automation dialog layout, Settings Worktrees/Automations/Data controls destructive confirmation dialogs, Review metadata rows, a centered Review no-change state, deterministic Review loading state, and several quieter empty/loading states exist. | Remaining platform-specific shortcut capture live edge cases, larger specialized sheet-style editors, and remaining non-tree Workbench fallback/action groups still use mixed local patterns. | Menu/flyout basics are covered in broad smoke; Browser shared menu sections/rows/fallback messages/load-error notice/inspector actions/inspector containers are covered by focused `--browser` through `browserMenuSectionsShared=true`, `browserMenuRowsShared=true`, `browserFallbackMessagesShared=true`, `browserLoadErrorSharedState=true`, `browserInspectorActionsShared=true`, and `browserInspectorContainersShared=true`; Settings shortcut row actions and capture field are covered by focused `--settings` through `settingsShortcutActionsShared=true` and `settingsShortcutCaptureFieldShared=true`; Settings Worktrees destructive confirmation is covered by focused `--settings` through the shared dialog assertions in `settingsWorktreesDelete=true`; Sidebar session/project/organize menu sections and dialog layout are covered by focused `--sidebar` through `sidebarActionMenuSharedSections=true`, `projectActionMenuSharedSections=true`, `organizeMenuSharedSections=true`, `renameDialogSharedLayout=true`, and `actionAutomationDialogSharedLayout=true`; Files menu sections and fallback notices are covered by focused `--files` through `filesActionMenuSharedSections=true`, `filesRowContextMenuSharedSections=true`, `workbenchFileTabActionMenuSharedSections=true`, and `filesFallbackNoticeShared=true`; shell tab context menus are covered by focused `--right-panel` and `--terminal` through `rightPanelContextMenuSharedSections=true` and `terminalTabMenuSharedSections=true`; composer dropdown material is covered by focused `--composer` smoke; Files tree message state is covered by focused `--files` smoke; Review menu messages are covered by focused `--diff-source` through `reviewMenuMessage=true`; Review metadata flyout is covered by focused `--diff-entry` through `reviewMetadataFlyoutShared=true`; Review fallback notices are covered by focused `--diff-preview` through `reviewFallbackNoticeShared=true`; Review no-change empty state is covered by focused `--diff-empty` smoke; Review loading state is covered by focused `--diff-loading` smoke; Review narrow overlay is covered by focused `--diff-narrow` smoke. Latest Settings evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779670138096.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779670138096.png`. Latest Browser evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779648123953.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779648123953.png`. Latest shell-tab evidence JSONs: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779647426240.json` and `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779647459095.json`. Latest Files action-menu evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779647149472.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779647149472.png`. Latest dialog-layout evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779670138096.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779670138096.png`. | Cross-cutting priority. Fix when touched by surface work; avoid standalone cosmetic-only passes unless visual evidence shows a broad mismatch. |
+| Verification infrastructure | Broad and focused smokes cover many surfaces. `reviewFullSourceRows`, `reviewEnvironmentPanel`, `environmentPanelVisual`, `environmentActionRows`, `reviewEmptyState`, `reviewLoadingState`, `reviewNarrowOverlay`, Files source checks, Browser shell-tab checks, Browser command routing, native menu command-state checks, Terminal behavior checks, `terminalThemeFontSync`, `settingsHostContext`, `settingsHostSectionFiltering`, `settingsShortcutsPerBindingClear`, `--terminal-visual`, `--workbench-new-tab`, `--environment`, `--multi-window-focus`, Sidebar row-slot and selected-key checks, Settings grouped-nav checks, shell tab checks, right-panel shared-layout checks, Review split smoke aliases, packaged right-panel smoke, and a full local side-panel screenshot inventory exist. The Settings visual endpoint now leaves an actual Settings page visible for capture, Settings smoke now mutates and clears a specific shortcut binding, Settings smoke now seeds remote-host metadata, verifies that the host selector is owned by the Host navigation section, verifies remote-host filtering for local-only Settings pages, and then switches back to Local to keep Automations/Worktrees/Data coverage. Terminal visual inventory uses a real visual-only checkpoint with healthy terminal content instead of the destructive behavior smoke or failure overlay, Terminal behavior smoke now mutates appearance tokens and proves xterm theme/font sync, the New Tab visual endpoint captures the action-card page directly, the Environment visual endpoint captures the git/PR action rows directly, `--multi-window-focus` now gates app-owned active-window restoration and command routing back to the first window, and broad smoke restores the previously active Workbench tab after proving New Tab. | Live Codex side-by-side/pixel review is still needed before claiming final visual parity. Installed `/Applications/Orchestrator.app` replacement verification is still separate from the temp packaged smoke. Raw macOS `BrowserWindow.getFocusedWindow()` still does not report the first window after automated refocus, so true OS-level manual/live focus proof remains separate even though app-shell command targeting is now verified. Computer Use could not inspect `com.openai.codex`, so the latest Sidebar slice used bundle-backed audit notes plus Orchestrator screenshot evidence. The legacy monolithic `--diff` path may still carry stale sequencing assumptions and should not be used as the only Review verdict. Native PTY startup can still be environment-dependent, but the visual gate now proves a functional fallback content state instead of accepting the terminal error panel. | `npm run build` currently passes. `npm run test:providers` passes. `git diff --check` passes. Latest Settings smoke passes with `settingsSidebarGroupedNav=true`, `settingsHostContext=true`, `settingsHostSectionFiltering=true`, and `settingsShortcutsPerBindingClear=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779634966396.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779634966396.png`. Latest Terminal smoke passes with `terminalThemeFontSync=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779626683125.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779626683125.png`. Latest Terminal visual smoke passes with `terminalVisualHealthyContent=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779626704557.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779626704557.png`. Latest packaged focused right-panel smoke passes with `rightPanelMenuCommandState=true`, `rightPanelBrowserCommandRouting=true`, `rightPanelFindShortcutRouting=true`, and `rightPanelBrowserVisualReset=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779618973456.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779618973456.png`. Latest focused Sidebar smoke passes with `sidebarSelectedKeySignal=true`, `sidebarSelectedKeyPersistence=true`, `sidebarSelectedNavKeys=true`, `providerPinnedMetadata=true`, and `sidebarPinActionsConsolidated=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779637973503.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779637973503.png`. Latest full side-panel visual inventory passed for 23 surfaces with no failures; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`. Latest Sidebar visual inventory evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779624952153.json`; screenshot: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/chat-sidebar.png`. Latest multi-window smoke passed with `activeWindowAfterRefocus=true`, `focusSwitchRestoresFirstWindowMenu=true`, and `menuCommandRoutedToFocusedWindow=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-multi-window-focus-1779624345721.json`. | Compare live/bundle Codex screenshots against the local screenshot matrix before claiming final visual parity. Keep Terminal behavior and visual evidence as separate checks. Keep Review work targeted to provider-native sources, real PR metadata adapters, or one verified visual mismatch at a time. |
+
+### Review Backlog Preservation
+
+Review work is not abandoned. The remaining Review backlog is:
+
+- Provider checkpoint/last-turn `Undo` support for the transcript review card. Local current-change Undo is implemented for explicit changed paths.
+- Provider-native destructive rollback remains separate from local git discard. Local detailed Review now has Codex-style `Revert all` gated behind a real confirmation dialog, while provider checkpoint/last-turn Undo still needs a provider-backed adapter.
+- Provider-native review sources: Last turn is implemented from normalized `diff.updated` events in both detailed Review and the transcript Review card; Local and Worktree source rows are state-aware for local/app-managed worktree sessions. Cloud/hosted provider-backed source routing still needs real adapters.
+- Real provider population for PR/check/reviewer metadata; compact metadata flyouts now exist for sessions that provide metadata, and local GitHub PR metadata can now hydrate through the optional `gh pr view` adapter. Non-GitHub/provider-native hosted metadata adapters remain open.
+- Provider-backed comments/blame metadata instead of only local draft comments and local git blame.
+- Diff virtualization, richer hidden-context thresholds, deeper hosted/mark-resolved conflict workflows, and max-line behavior.
+- Provider-native hosted patch sources for Copy git apply. Local and Last turn loaded Review sources are now smoke-proven to copy the currently loaded patch set instead of only the selected file or stale local changes.
+- Exact live side-by-side spacing and state screenshots for Environment, detailed diff, source mode, rich preview, and empty/loading/narrow states. Local automated empty, loading, and narrow Review screenshots now exist, but still need live Codex side-by-side comparison before claiming visual parity.
+
+Fresh Codex bundle recheck from `/Applications/Codex.app/Contents/Resources/app.asar` on 2026-05-24:
+
+- Current Review assets are `review-mode-content-DupHpvO4.js`, `review-header-toolbar-6CN1dM2m.js`, `review-file-tree-side-pane-CGo_VDrf.js`, `review-file-source-tab-CjS7Xe_W.js`, `file-diff-DVuLEIDo.js`, `patch-item-content-DnozGxTn.js`, `diff-view-mode-C3ZAZUHZ.js`, and `diff-stats-C-S_JU1b.js`.
+- Codex Review toolbar includes jump-to-file, refresh, word-wrap, expand/collapse, split/unified mode, rich preview, load full files, word diffs, whitespace, and copy-git-apply controls, plus PR/check/comment/reviewer affordances when PR metadata exists.
+- Codex changed-files side pane is a right-side `border-l` panel with min 200 px, max 60%, and a compact `px-2 pt-2 pb-px` search row.
+- Codex transcript patch rendering is file-first and compact, with per-file rows/cards and diff stats rather than only a generic high-level summary.
+- Codex `electron-menu-shortcuts-DQYPVyfu.js` exposes one command registry for `findInThread`, `searchFiles`, `focusBrowserAddressBar`, Browser/Review panel commands, and panel toggles; `app-shell-state-HP0T5lEX.js` keeps an active app-shell focus area, and `focus-composer-C5T4PQQ-.js` avoids stealing text input from terminals and active inputs.
+
+Freshly observed Review UI mismatches to keep in scope:
+
+- Orchestrator now has PR/check/reviewer metadata controls and compact flyouts in the Review toolbar when session metadata exists; local GitHub PR metadata can hydrate through the optional `gh pr view` adapter, and non-GitHub/provider-native adapters still need to populate those fields from real PR/check/reviewer sources.
+- Orchestrator now shows the active Review source/count in the in-panel header and keeps full source selection in Review options; remaining source gaps are real cloud/hosted provider adapters and exact live Codex spacing around branch/commit rows.
+- Orchestrator now has the Codex-style floating local git action pill for Revert all / Stage all / Unstage all in detailed Review, with local destructive Revert all gated behind the Codex-like confirmation flow.
+- Orchestrator transcript review card is now file-first and compact with inline diff expansion, local current-change Undo, and provider last-turn patch rendering from normalized `diff.updated` events; remaining transcript gaps are true provider checkpoint Undo semantics and exact live Codex spacing comparison.
+- Orchestrator still needs live side-by-side screenshots for detailed diff, rich preview, source mode, empty/loading, and narrow Review states before claiming visual parity.
+
+Current Review verification debt:
+
+- `--diff-entry` passes, proving the new Codex-style Environment entry exists, opens detailed Review from `Changes`, renders Review PR/check/reviewer metadata affordances when metadata exists, and keeps the shared metadata flyout path covered after the GitHub metadata adapter.
+- `--diff-core` passes after moving the core assertions into a clean-state executor before source/preview/search mutations.
+- `--diff-core` also passes with `reviewGitApplyCommandCoversAll=true`, proving the Review options Copy git apply command emits one `git apply` heredoc covering all loaded Review diffs instead of only the selected file.
+- `--diff-core` now also passes with `reviewFloatingGitActions=true`, proving detailed Review renders the sticky floating local Stage all / Unstage all action pill with mixed staged and unstaged local changes.
+- `--diff-source` passes after moving the source assertions into a source-state executor and verifying search clear directly after source cleanup.
+- `--diff-preview` passes after moving rich-preview/binary assertions into a clean selected-file executor and constraining smoke navigation to Review-owned rows/sections.
+- `--diff-loading` passes after adding a deterministic smoke-only delay to the existing `sessions:getDiffForFile` path, proving the real Review loading fallback, changed-files side pane, and overflow bounds.
+- `--right-panel` passes with `rightPanelFindShortcutRouting=true`, proving the shared shell now routes focused `Cmd+F` to Review changed-file search, Files workspace search, and Browser find instead of always opening transcript search.
+- `--right-panel` also passes with `rightPanelBrowserCommandRouting=true`, proving focused Browser address/reload/back/forward/`Cmd+T` tab commands route through the shell while Review remains directly openable from shared commands.
+
+## Implementation Progress
+
+### 2026-05-24 - Files PDF Artifact Header Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `artifact-tab-content.electron-DayvYBGS.js` routes PDF artifacts through `PdfPreviewPanel` with artifact-owned header/right-content handling, and falls back to a header plus error state if the PDF data is unavailable. This confirms PDF artifacts are not meant to be a bare side-panel iframe.
+
+Implemented: Orchestrator PDF file previews now render inside the shared file preview chrome with a compact PDF header, file size, Copy path/Open/Reveal controls, and a contained iframe body. The existing artifact import-kind/source metadata remains intact, and PDF correctly stays source-unsupported while still participating in the artifact tab model.
+
+Verification: `pnpm exec tsc --noEmit` passed. `pnpm test src/main/__tests__/artifactTabs.test.ts` passed. Focused `npm run smoke:ui:auto -- --files` passed with `filesPdfPreview=true`, `filesPreviewHeaderShared=true`, `filesArtifactPreviewControls=true`, `filesArtifactTabModel=true`, and all existing Files tree/search/file-tab/source/preview/fallback gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779677788403.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779677788403.png`.
+
+Remaining: this closes the visible bare-PDF-iframe mismatch. It does not implement Codex's full PDF renderer controls, full spreadsheet/document/slides artifact renderer stack, provider-backed comments/blame metadata, provider/global indexed workspace search, or live Codex side-by-side Files spacing proof.
+
+### 2026-05-24 - Files Artifact-Tab Model Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `artifact-tab-file-kind-fsu6JKhI.js` maps `csv`, `docx`, `ipynb`, `pdf`, `pptx`, `tex`, `tsv`, and `xlsm`/`xlsx` extensions into artifact import kinds and document/notebook/pdf/slides/spreadsheet artifact types. It also only exposes artifact source viewing for `csv`, `ipynb`, `tex`, and `tsv`; `docx`, `pdf`, `pptx`, and `xlsx` artifacts do not get that source option.
+
+Implemented: Orchestrator now has a shared provider-agnostic artifact-tab classifier in `src/types/artifactTabs.ts`. Workbench file tabs expose `data-file-tab-artifact-type`, `data-file-tab-artifact-import-kind`, and `data-file-tab-artifact-source-supported` metadata, and source-capable artifact previews render a Codex-style `View source` header action while DOCX-style document artifacts keep the action absent. Existing rich previews, source mode, file actions, preview pinning, and Files tree behavior remain intact.
+
+Verification: `pnpm test src/main/__tests__/artifactTabs.test.ts` passed with import-kind/type/source-boundary coverage. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --files` passed with `filesArtifactTabModel=true` plus all existing Files tree/search/file-tab/source/preview/fallback gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779677434399.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779677434399.png`.
+
+Remaining: this closes the file-tab artifact identity/source-option boundary, not full Codex artifact rendering. Orchestrator still does not have Codex's full spreadsheet/document/slides/PDF artifact renderer stack, provider-backed comments/blame metadata, provider/global indexed workspace search, or live Codex side-by-side Files spacing proof.
+
+### 2026-05-24 - Shell Non-Terminal Bottom Transfer Boundary Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `app-shell-tab-controller-B2eCi4Le.js` exposes generic shared-shell tab movement through `moveTabTo` / `receiveMovedTab`, while `thread-page-bottom-panel-state-D1Lz0U4Y.js` remains terminal-specific in the current thread surface. That means shared transfer semantics are real, but Browser/Files/Review bottom renderers are not proven by the current Codex bottom-panel bundle.
+
+Implemented: Orchestrator keeps terminal tabs as the supported right-to-bottom and bottom-to-right transfer path, and now verifies the non-terminal boundary across Review, Files, and Browser instead of only Browser. The right-panel context menu continues to expose shared transfer metadata with `data-panel-tab-transfer-supported="false"` and `data-panel-tab-transfer-reason="unsupported-tab-kind"` for those non-terminal tabs, making the boundary explicit rather than silently hiding an unimplemented bottom renderer.
+
+Verification: `pnpm test src/main/__tests__/panelTabs.test.ts` passed with terminal support plus Review/Files/Browser unsupported-boundary coverage. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelTransferUnsupportedBoundary=true`, now proving the rendered context-menu metadata for Review, Files, and Browser; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779676886741.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779676886741.png`.
+
+Remaining: this does not implement Browser/Files/Review bottom-panel rendering. It narrows that item to a product/runtime decision: add non-terminal bottom renderers only if live Codex evidence or a product decision proves those tab kinds should be usable in the bottom panel. Root shell route/window lifecycle and exact live Codex shell width/height/timing comparison remain open.
+
+### 2026-05-24 - Review Merge-Conflict Action Helper Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `file-diff-DVuLEIDo.js` wires merge-conflict utilities through `renderMergeConflictUtility` and slot ids shaped as `merge-conflict-action-${hunkIndex}-${lineIndex}-${conflictIndex}`, so conflict actions belong inside the diff renderer rather than as a separate file-header-only badge.
+
+Implemented: Orchestrator Review now detects conflict marker blocks in the current file, renders a compact helper beside the `<<<<<<<` marker line with a Codex-like `data-review-merge-conflict-action-slot="merge-conflict-action-..."`, and exposes provider-neutral Current / Incoming / Both actions. The actions rewrite only the selected marker block in the working file and refresh Review content; staging/mark-resolved remains a separate Git workflow so the UI does not overclaim resolution. The smoke fixture now creates a real unresolved `UU` merge conflict for this path.
+
+Verification: `pnpm test src/main/__tests__/gitChanges.test.ts` passed with conflict-marker diff coverage. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --diff-conflict` passed with `reviewMergeConflictHelpers=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-conflict-1779675864451.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-conflict-1779675864451.png`. Focused `npm run smoke:ui:auto -- --diff-core` also passed after the shared diff-line renderer changes; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779675933405.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779675933405.png`. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes the basic local conflict action-helper gap. Review still needs deeper hosted/provider conflict adapters, explicit mark-resolved/stage workflows for conflicts, true provider checkpoint Undo, cloud/hosted diff adapters, provider-backed PR/comments/blame metadata, full DOM diff virtualization, and live Codex side-by-side spacing comparison.
+
+### 2026-05-24 - Full Side-Panel Visual Inventory Refresh
+
+Codex evidence: this is a local verification refresh after the Browser body-attached webview host slice and Review smoke-gate cleanup. The current Codex-side evidence for Review side-pane sizing remains `review-file-tree-side-pane-CGo_VDrf.js`, which allows a 200 px minimum and 60% maximum for the changed-files rail; live Codex side-by-side/pixel proof is still open.
+
+Implemented: corrected stale Review smoke selectors to use the shared `PanelNotice` classes for empty/loading states, and aligned the Review loading side-pane gate with the Codex 200 px minimum using the same 198 px rounding tolerance already used by the Review resize smoke. This keeps the Review changes tracked instead of dropping them: the gate now proves the changed-files rail remains visible during loading without requiring the default 220 px width.
+
+Verification: focused `npm run smoke:ui:auto -- --diff-empty` passed with `reviewEmptyState=true` and `reviewEmptyStateCalm=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-empty-1779674872016.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-empty-1779674872016.png`. Focused `npm run smoke:ui:auto -- --diff-loading` passed with `reviewLoadingState=true`, `reviewLoadingStateCalm=true`, and `reviewLoadingKeepsSidePane=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-loading-1779674876904.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-loading-1779674876904.png`. Full `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current --full` passed with 23 captures and no failures; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`.
+
+Remaining: this refresh gives a current local screenshot matrix across the audited side-panel surfaces. It does not replace live Codex side-by-side comparison. Review backlog remains explicit: true provider checkpoint Undo, cloud/hosted diff adapters, hosted/provider review-source flows, provider-backed PR/comments/blame metadata, full DOM diff virtualization, hosted/deeper conflict workflows, and live spacing/pixel comparison.
+
+### 2026-05-24 - Review Selected-File Main Pane Structure Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `review-navigation-model-T6VawcmA.js` tracks an active Review path and scrolls `data-review-path` into view, `review-file-tree-side-pane-CGo_VDrf.js` renders the changed-files rail as the active-path selector, and `review-file-source-tab-CjS7Xe_W.js` pairs the main file renderer with a side pane instead of rendering every workspace file as a vertical stack.
+
+Implemented: Orchestrator's detailed Review main pane now renders only the selected file section while the right-side changed-files rail remains the multi-file navigator. The `review-files-stack` surface exposes `data-review-main-render-mode="selected-file"`, `data-review-visible-file-section-count="1"`, and the full changed-file count separately so smoke can distinguish visible structure from available files.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --diff-core` passed with `reviewFileSections=true`, `reviewFileHeaderMetrics=true`, `reviewDiffRowMetrics=true`, and all core Review interaction gates after selecting a text diff through the changed-files rail; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779671713133.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779671713133.png`. Focused `npm run smoke:ui:auto -- --diff-source` passed after updating source/filter assertions to verify file availability through the rail and then select the relevant file before checking content; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779672261620.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779672261620.png`. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this fixes the most visible stacked-file structure mismatch, but it is not a full pixel-level Codex Review match. Exact live spacing, full DOM virtualization, hosted/deeper conflict workflows, provider-backed comments/blame, hosted/cloud diff sources, and provider checkpoint Undo remain open.
+
+### 2026-05-24 - Review Merge-Conflict Metadata Foundation Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `file-diff-DVuLEIDo.js` includes merge-conflict action slot ids (`merge-conflict-action-${hunkIndex}-${lineIndex}-${conflictIndex}`) and explicit `renderMergeConflictUtility` plumbing inside the virtualized file diff renderer.
+
+Implemented: Orchestrator's local Git review model now preserves unmerged conflict state as provider-agnostic file metadata: `FileChange.status = "U"`, normalized `indexStatus`/`worktreeStatus` values include `U`, and conflicting files carry `conflicted` plus raw `conflictStatus` such as `UU`. Detailed Review renders a warning glyph and Conflict badge for those files, and file-change summaries treat conflicts as high-risk instead of silently folding them into generic modified changes.
+
+Verification: `pnpm test src/main/__tests__/gitChanges.test.ts` passed with a real temporary repository merge conflict proving `UU` normalization. `pnpm exec tsc --noEmit` passed.
+
+Remaining: this is the metadata foundation for Codex-style conflict handling, not the full conflict resolver. The later 2026-05-24 action-helper slice covers basic local conflict-marker helpers and focused smoke; Review still needs explicit mark-resolved/stage workflows and provider/hosted conflict metadata adapters where providers expose them.
+
+### 2026-05-24 - Review Codex-Scale Large-Diff Threshold Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `parse-diff-BXe0fwiB.js` marks an individual file as large when additions plus deletions exceed 15,000 lines, changed bytes exceed 3 MB, or a single changed line exceeds 1 MB; it also keeps broader total review thresholds separate from the per-file decision. `file-diff-DVuLEIDo.js` remains the real virtualized rendering path.
+
+Implemented: Orchestrator's shared `resolveReviewDiffRenderWindow` now computes changed-line, changed-byte, and max-changed-line metrics and uses Codex-scale defaults instead of the old 1,200-total-row threshold. This means ordinary 3k-row diffs no longer get an early non-Codex `Large diff limited` notice, while truly large files still render a bounded 600-row preview with a `Show full diff` affordance. The focused smoke fixture now crosses the Codex-scale changed-line threshold only for the Review source smoke.
+
+Verification: `pnpm test src/main/__tests__/reviewDiff.test.ts` passed. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --diff-source` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated run initially timed out when the smoke clicked into a full 15k-row DOM expansion, so the assertion was corrected to prove the bounded Codex-scale state and visible `Show full diff` affordance without forcing expansion. The escalated rerun passed with `reviewLargeDiffWindow=true`; debug evidence showed 15,202 changed lines, 15,206 total diff rows, 600 rendered rows, and the large-diff notice/action present. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779670756786.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779670756787.png`.
+
+Remaining: this closes the over-eager large-diff threshold mismatch and adds stronger metric coverage, but it is not full Codex DOM virtualization. Review still needs live side-by-side spacing proof, provider-backed comments/blame, cloud/hosted diff adapters, provider-native PR/check/reviewer metadata beyond local GitHub, deeper hosted/mark-resolved conflict workflows, and true provider checkpoint Undo once a real provider rollback API exists.
+
+### 2026-05-24 - Settings Destructive Dialog Primitive Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `dialog-layout-D-x8fMKh.js` remains the compact dialog content/header/body/footer primitive, and the settings/automation chunks (`settings-page-mdGEmNCB.js`, `automation-dialog-BYgYAePq.js`, `automation-shared-9U9-pQH8.js`) continue to compose destructive or lifecycle-sensitive settings actions through shared dialog surfaces instead of native browser confirms.
+
+Implemented: Orchestrator Settings Worktrees, Automations, and Data controls no longer call `window.confirm` for destructive deletes. They now open shared `ConfirmDialog` surfaces with shared dialog content/header/footer markers and focused `data-testid` hooks. The shared `ConfirmDialog` accepts an optional `dataTestId`, and the Worktrees delete smoke now verifies the shared dialog structure, content copy, and overflow bounds before confirming deletion.
+
+Verification: `pnpm exec tsc --noEmit` passed. `pnpm test src/main/__tests__/settingsRoutes.test.ts` passed. Focused `npm run smoke:ui:auto -- --settings` first failed inside the sandbox with `listen EPERM 127.0.0.1:5173`; the escalated run passed with the Worktrees destructive delete flow asserting the shared dialog layout before deletion. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779670138096.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779670138096.png`.
+
+Remaining: this closes the native-confirm mismatch for the current destructive Settings dialogs and smoke-gates the shared primitive in the Worktrees path. Automations and Data controls share the same primitive but do not yet have separate click-through smoke paths. Larger sheet-style editors, platform-specific shortcut capture live edge cases, remote-host settings adapters, and live Codex Settings screenshot comparison remain open. Review work is unaffected and remains tracked in the Review backlog above.
+
+### 2026-05-24 - Settings App-Router Route Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `settings-page-mdGEmNCB.js` imports `route-scope-BpEoGCxV.js` and reads the active section from `/settings/:section/*`; it navigates between settings sections with `/settings/${section}`. `settings-host-context-B5kZhSF6.js`, `settings-host-selection-9fosNT9W.js`, and `settings-host-dropdown-CHaNrfwS.js` keep the host selection as first-class Settings route context.
+
+Implemented at that checkpoint: Orchestrator centralized Settings route construction/parsing in shared types, supported `/settings/<section>?host=...` app-router paths when the renderer is served over HTTP/dev, kept `#/settings/<section>?host=...` as the packaged `file://` fallback, and preserved route-aware Back-to-chat behavior. The later 2026-05-25 packaged renderer protocol slice removes the packaged main-window hash dependency while preserving the direct `file://` fallback parser.
+
+Verification: `pnpm test src/main/__tests__/settingsRoutes.test.ts` passed. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --settings` first failed inside the sandbox with `listen EPERM 127.0.0.1:5173`; the escalated run passed with `settingsRouteOwned=true`, `settingsHostContext=true`, `settingsHostSectionFiltering=true`, `settingsHostAdapterBoundary=true`, and all existing Settings gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779669631857.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779669631857.png`. Focused `npm run smoke:ui:auto -- --settings-providers` also passed with the provider route assertion; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779669653727.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779669653727.png`.
+
+Remaining at that checkpoint: this closed the HTTP/dev app-router path mismatch for Settings without making packaged file routing brittle. The later 2026-05-25 packaged renderer protocol slice closes the full packaged app-router path. Real remote-host settings adapters, deeper native theme/font/chrome parity, platform-specific shortcut capture edge cases, specialized dialogs, and live Codex Settings screenshot comparison remain open.
+
+### 2026-05-24 - Browser Local-Server Route Normalization Slice
+
+Codex evidence: re-used the current extracted Codex Browser/app-server bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`, where Browser sidebar state accepts provider local-server route notifications through the Browser manager path. This slice closes an adapter boundary mismatch rather than a visual-only mismatch: development servers often report a `0.0.0.0` bind address, while the user-navigable Browser target is loopback.
+
+Implemented: local-server route normalization now accepts provider/renderer `0.0.0.0` URLs, canonicalizes them to `127.0.0.1`, preserves `localhost`, `127.0.0.1`, and IPv6 loopback hosts, rejects remote/LAN hosts, and continues stripping URL hashes. The same normalization is used by the shared run-event reducer and Browser renderer route state so provider events and direct renderer state behave consistently. Browser smoke now gates the normalized bind-address route with `browserLocalServerRouteNormalization=true`.
+
+Verification: `pnpm test src/main/__tests__/browserManagerEvents.test.ts` passed. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --browser` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated Browser smoke passed with `browserLocalServerRouteNormalization=true`, `browserLocalServerRoutes=true`, and all existing Browser lifecycle/local-target/comment/inspector/menu/shell-tab gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779669295817.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779669295817.png`.
+
+Remaining: this closes the common bind-address normalization gap for provider local-server routes. Later Browser slices covered host-scoped partitions and body-attached webview hosts. Later Browser slices cover true cross-host DOM webview transfer. Browser still needs live/browser-use no-mutation proof, broader provider browser/local-server adapters if exposed, richer provider-produced annotation/design-change workflows, and actual provider application of design tweaks.
+
+### 2026-05-24 - Files Content Search Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/workspace-directory-tree-CHHgPVoD.js` wires the workspace browser search row into `use-workspace-file-search-C73UkUkc.js`, and that hook creates a first-class fuzzy file-search session while preserving file-tree projection/filtering semantics. `webview/assets/file-tree-search-input-Cg1SVtq4.js` confirms the shared file-tree search input/clear affordance and virtualized tree path remain the reference UI.
+
+Implemented: extended the shared `searchWorkspace` main-process primitive with opt-in bounded text-content hits for non-empty queries. Path/name search remains primary; only small text-like files are read, binary/null-byte files are ignored, and content-only matches return line/snippet metadata. Files now enables content hits, exposes match kind/line metadata on Workbench tree rows, and renders content hits with compact `L<line>` row metadata.
+
+Verification: `pnpm test src/main/__tests__/workspaceSearch.test.ts` passed with new content-hit coverage. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --files` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated rerun passed with `filesContentSearch=true` plus existing file tree, file-tab, source-search, preview, action-menu, fallback, lazy-directory, and sticky-folder gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779668812086.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779668812086.png`. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes a local Files workspace-search depth gap, not the full global/provider search backlog. Provider-backed comments/blame, provider/global indexed search, standalone/no-session fallback decisions, broader artifact tab lifecycle, and live Codex side-by-side Files comparison remain open.
+
+### 2026-05-24 - Sidebar Pinned Drag-Reorder Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/set-pinned-thread-BF6dMuHF.js` exposes ordered pinned-thread mutations through `set-thread-pinned` with `beforeThreadId` and `set-pinned-threads-order`; `webview/assets/sidebar-thread-list-signals-FpAb9VJn.js` derives ordered pinned and unpinned thread keys for the Sidebar.
+
+Implemented: added a provider-agnostic `reorderPinnedSessions` ordering helper, persisted local pinned order through `sessionManager.reorderPinned`, exposed it through main/preload IPC, and enabled drag/drop reorder inside Orchestrator's pinned Chat Sidebar section. The Sidebar marks this as a local order boundary with `data-sidebar-pinned-reorder="local"` so it does not pretend to sync through unavailable provider pin RPCs.
+
+Verification: `pnpm exec tsc --noEmit` passed. `pnpm test src/main/__tests__/sessionOrdering.test.ts` passed with new pinned reorder coverage. Focused `npm run smoke:ui:auto -- --sidebar` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated rerun passed with `sidebarPinnedDragReorder=true` plus provider pinned, projectless, worktree, custom-section, action-menu, automation, and row-state gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779668262567.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779668262567.png`. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes the local visible pinned-order interaction gap. Provider pin list/set RPC parity remains externally blocked through the current Codex app-server bridge, and live Codex side-by-side Sidebar screenshot comparison is still needed before final visual parity can be claimed.
+
+### 2026-05-24 - Review In-Panel Header Source Summary Slice
+
+Codex evidence:
+
+- Reused the fresh Codex bundle extraction at `/private/tmp/orch-codex-review-visual-20260524`.
+- `thread-side-panel-tabs-CVr2AbYP.js` renders Review content as a grid with a first header row and body row; the Review header combines a left review-source/filter control (`reviewSource`, `diffFilter`, staged/unstaged counts, branch/commit refs) and a right action cluster.
+- The same bundle shows Review actions are inside the Review content header, not portaled into the Workbench tab action host.
+
+Implemented in Orchestrator:
+
+- Moved the embedded Review toolbar back into the Review panel body instead of portaling it into `right-panel-active-tab-actions`.
+- Added a visible left-side `review-source-summary` control showing the active source and file count (`All changes 15` in the smoke fixture) while preserving the existing Review options menu for full source/filter/ref selection.
+- Kept the compact Review action cluster on the right and updated the smoke assertions so the active tab action host must not contain the Review toolbar.
+- Tightened Review source smoke timing around commit-source selection so the async commit diff content is awaited before asserting source-mode parity.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff-entry` passed with `reviewSourceSummaryHeader=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779632524697.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779632524697.png`.
+- `npm run smoke:ui:auto -- --diff-core` passed with `reviewToolbarHeaderRow=true`, `reviewToolbarPrimaryOrder=true`, and `reviewSourceSummaryHeader=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779632676872.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779632676872.png`.
+- `npm run smoke:ui:auto -- --diff-source` passed after the header move, including provider Local/Worktree/Last turn source checks and branch/commit source checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779632816667.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779632816667.png`.
+- `npm run smoke:ui:auto -- --diff-narrow` passed with Review toolbar containment still true; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-narrow-1779632866664.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-narrow-1779632866664.png`.
+- `npm run smoke:ui:auto -- --right-panel` passed, proving shared Workbench tab/action behavior still works without the Review toolbar in the active-tab action host; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779632710748.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779632710748.png`.
+- `npm run test:providers` passed with 257 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- This fixes the visible Review header ownership/source-summary mismatch only. Remaining Review backlog still includes live Codex side-by-side/pixel comparison, provider checkpoint/last-turn Undo, hosted/cloud diff adapters, PR/reviewer-backed comments/blame, diff virtualization, richer context thresholds, and deeper source/rich-preview spacing comparisons.
+
+### 2026-05-24 - Review Centered Empty-State Structure Slice
+
+Codex evidence:
+
+- Re-extracted current Codex Review visual chunks from `/Applications/Codex.app/Contents/Resources/app.asar` to `/private/tmp/orch-codex-review-visual-20260524`.
+- `review-file-source-tab-CjS7Xe_W.js` continues to use full-height centered empty/file-source fallbacks (`flex h-full min-h-0 items-center justify-center p-6 text-center`) rather than compact file-row fallback geometry.
+- `review-file-tree-side-pane-CGo_VDrf.js` confirms the changed-files pane remains a right-side `border-l` rail with min width 200 px, max width 60%, and a compact `px-2 pt-2 pb-px` search row, so this slice intentionally left side-pane and per-file fallback behavior unchanged.
+- Live Codex UI inspection through Computer Use was blocked for `com.openai.codex`, so this is bundle-backed parity evidence plus local screenshot proof rather than a live side-by-side pixel claim.
+
+Implemented in Orchestrator:
+
+- Fixed the top-level Review `No changes` state so the existing centered Review empty-state primitive is no longer flattened by compact non-expanded right-panel file-fallback CSS.
+- Scoped the compact right-panel fallback selectors to exclude `.review-fallback-state-centered`, preserving compact per-file loading/missing/binary fallbacks while restoring Codex-like centered geometry for the top-level empty state.
+- Strengthened the focused `--diff-empty` smoke so `reviewEmptyStateCalm` now requires flex-column layout, centered text, and centered geometry inside `.diff-panel-empty-shell`, not only bounded dimensions.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff-empty` passed with `reviewEmptyState=true` and `reviewEmptyStateCalm=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-empty-1779631860819.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-empty-1779631860819.png`.
+- `npm run smoke:ui:auto -- --diff-loading` passed with `reviewLoadingState=true`, `reviewLoadingStateCalm=true`, and `reviewLoadingKeepsSidePane=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-loading-1779631891969.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-loading-1779631891969.png`.
+- `npm run test:providers` passed with 257 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- This fixes one visible Review structure mismatch. It does not close live Codex side-by-side/pixel comparison, detailed diff/source/rich-preview spacing, provider checkpoint/last-turn Undo, hosted/cloud diff adapters, PR/reviewer-backed comments/blame, diff virtualization, or richer context thresholds.
+
+### 2026-05-24 - Review Provider Source State Slice
+
+Codex evidence:
+
+- Re-opened `/Applications/Codex.app/Contents/Resources/app.asar` and extracted current Review chunks to `/private/tmp/orch-codex-review-source-20260524`.
+- Current Review source/model assets include `review-navigation-model-T6VawcmA.js`, `review-mode-content-DupHpvO4.js`, and `review-header-toolbar-6CN1dM2m.js`.
+- `review-navigation-model-T6VawcmA.js` still owns `diff-filter` storage and review-diff request source routing, and `review-mode-content-DupHpvO4.js` still routes quick Review requests through unstaged/base-branch contexts.
+
+Implemented in Orchestrator:
+
+- Made provider-native Review source rows state-aware instead of static placeholders.
+- `Last turn` remains backed by normalized provider `diff.updated` events.
+- `Local` now becomes selectable for local sessions and reuses the provider-neutral local git Review data path.
+- `Worktree source` becomes selectable for worktree sessions and also uses the provider-neutral local git data path for the session worktree.
+- `Cloud` remains visible but unavailable until there is a real cloud/hosted diff adapter, avoiding a fake local fallback for remote state.
+- Updated the focused source smoke to assert Local provider-source availability, cloud/worktree unavailability for a local session, and the existing Last turn event-driven behavior.
+- Added an app-state smoke hook for deterministic session switching and a dedicated worktree-session source check that creates an app-managed worktree session, writes a worktree-only file, enables `Worktree source`, confirms `Local` is disabled there, and verifies the worktree patch renders.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed with 257 tests.
+- `npm run smoke:ui:auto -- --diff-source` passed with `reviewSourceModes=true` and `reviewWorktreeProviderSource=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779632816667.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779632816667.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- Cloud/hosted provider source rows still need real provider adapters.
+- Worktree source support is now covered for app-managed local worktree sessions; hosted/provider-backed worktree source flows still need real provider adapters before claiming hosted-worktree parity.
+- Provider checkpoint/last-turn Undo, provider-backed comments/blame, richer context thresholds, and live Codex side-by-side spacing remain open.
+
+### 2026-05-24 - Review Loading State Visual Gate Slice
+
+Codex evidence:
+
+- Rechecked `/private/tmp/codex-app-asar-review/review-file-source-tab-CjS7Xe_W.js`; Codex file-source loading states use explicit icon/title/body loading fallbacks instead of a bare spinner or raw text.
+- Reused `/private/tmp/codex-app-asar-review/review-file-tree-side-pane-CGo_VDrf.js`; Codex keeps changed-files side-pane chrome visible while Review content changes state.
+
+Implemented in Orchestrator:
+
+- Added `review-diff-loading-state` to the existing detailed Review per-file loading fallback so deterministic smoke can select the real component state.
+- Added a focused `--diff-loading` automated smoke mode that opens Review with the normal changed-file fixture and delays only `sessions.getDiffForFile`, causing the existing Review code path to remain in per-file loading state for screenshot capture.
+- The smoke asserts the loading state exists, stays calm/bounded, keeps the changed-files side pane visible, and does not create horizontal overflow.
+- Added `review-loading` to the full side-panel visual inventory list so future full refreshes capture Review entry, empty, loading, narrow, core, source, and preview states.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff-loading` passed with `reviewLoadingState=true`, `reviewLoadingStateCalm=true`, and `reviewLoadingKeepsSidePane=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-loading-1779631891969.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-loading-1779631891969.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- This closes the local automated Review loading screenshot/evidence gap. It does not prove live Codex side-by-side spacing parity and does not close provider-native sources, provider checkpoint/last-turn Undo, PR/reviewer-backed comments/blame, diff virtualization, or richer context thresholds.
+
+### 2026-05-24 - Review Narrow Overlay Visual Gate Slice
+
+Codex evidence:
+
+- Rechecked `/private/tmp/codex-app-asar-review/app-shell-state-HP0T5lEX.js`; Codex right-panel width is app-shell owned and clamps the right panel against main content width.
+- Rechecked `/private/tmp/codex-app-asar-review/review-file-tree-side-pane-CGo_VDrf.js`; Codex changed-files pane is a right-side `border-l` panel with minimum 200 px and maximum 60% width, with compact search/list chrome.
+
+Implemented in Orchestrator:
+
+- Added a focused `--diff-narrow` automated smoke mode that opens Review, constrains the shell main row to a narrow 640 px state, and leaves the right panel in overlay mode for screenshot capture.
+- The smoke asserts Review-specific narrow behavior: right-panel overlay mode, no horizontal document/root overflow, contained toolbar actions, contained changed-files pane/search/list, and readable diff content.
+- Added `review-narrow` to the full side-panel visual inventory list so future full refreshes capture Review entry, empty, narrow, core, source, and preview states.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --diff-narrow` passed with `reviewNarrowOverlay=true`, `reviewNarrowNoHorizontalOverflow=true`, `reviewNarrowToolbarContained=true`, `reviewNarrowSidePaneContained=true`, and `reviewNarrowDiffReadable=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-narrow-1779632866664.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-narrow-1779632866664.png`.
+- `npm run build` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- This closes the local automated Review narrow screenshot/evidence gap. It does not prove live Codex side-by-side spacing parity and does not close provider-native sources, provider checkpoint/last-turn Undo, PR/reviewer-backed comments/blame, diff virtualization, or richer context thresholds.
+
+### 2026-05-24 - Review Empty State Visual Gate Slice
+
+Codex evidence:
+
+- Rechecked `/private/tmp/codex-app-asar-review/review-file-source-tab-CjS7Xe_W.js`; Codex empty/loading file-source states use centered icon/title/body surfaces such as `Open file`, `Select a file from the workspace tree`, `Loading file...`, and `Unable to load file`, not a bare text line.
+- Rechecked `/private/tmp/codex-app-asar-review/review-file-tree-side-pane-CGo_VDrf.js`; Codex keeps changed-files pane state under the Review shell and uses compact empty/list primitives inside that surface.
+
+Implemented in Orchestrator:
+
+- Replaced the detailed Review no-change state from a bare centered text line with the existing Review empty-state primitive: icon, title, body, bounded width, and centered shell placement.
+- Added a focused `--diff-empty` automated smoke mode that creates a clean git fixture, opens the Review Workbench tab, and asserts the no-change empty state.
+- Added `review-empty` to the full side-panel visual inventory list so the next full refresh captures this state alongside entry/core/source/preview Review screenshots.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --diff-empty` passed with `reviewEmptyState=true` and `reviewEmptyStateCalm=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-empty-1779631860819.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-empty-1779631860819.png`.
+- `npm run build` passed.
+- `git diff --check` passed.
+- Superseded by the later centered-structure gate, which tightened the same `--diff-empty` smoke to assert actual centered flex-column geometry and refreshed the evidence at `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-empty-1779631860819.json`.
+
+Remaining:
+
+- This closes one Review empty-state mismatch only. It does not close provider-native Review sources, provider checkpoint/last-turn Undo, PR/reviewer-backed comments/blame, diff virtualization, loading-state screenshots, narrow Review screenshots, or live Codex side-by-side spacing comparison.
+
+### 2026-05-24 - Workbench Panel Selector Naming Slice
+
+Codex evidence:
+
+- Rechecked `/Applications/Codex.app/Contents/Resources/app.asar`; current shell state lives in `app-shell-state-HP0T5lEX.js` with right-panel width/full/visibility signals and app-shell panel state, not a `right-sidebar` surface contract.
+
+Implemented in Orchestrator:
+
+- Renamed active Workbench panel wrapper CSS and smoke selectors from `right-sidebar-*` to provider-neutral `workbench-panel-*`.
+- Updated right-panel smoke assertions from `rightSidebar...` to `workbenchPanel...` result names while preserving the existing right-panel state attributes and user-facing Workbench labels.
+- Updated overlay/full-width layout classes from `right-sidebar-overlay` / `right-sidebar-expanded` to `workbench-panel-overlay` / `workbench-panel-expanded`.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --right-panel` passed with `workbenchPanelChromeCompact=true` and the existing resize, overlay, tab, close, drag, a11y, telemetry, find-routing, and Browser command-routing checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779612283300.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779612283300.png`.
+- Core `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current` passed for 7 surfaces; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`; Workbench screenshot: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/workbench-right-panel.png`.
+- `npm run build` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- This closes the active Workbench DOM/CSS/test-id naming mismatch. It does not rename the internal `ContextSidebar` component or implement Codex-style cross-panel move/receive semantics, richer drag sensors/separators, route/window lifecycle, or exact live Codex visual comparison.
+
+### 2026-05-24 - Workbench Browser Visual Reset Slice
+
+Evidence:
+
+- Refreshed the core side-panel visual inventory and inspected `workbench-right-panel.png`. The Workbench/Browser checkpoint was preserving the temporary Browser multi-tab state created while proving focused `Cmd+T` routing, leaving a nested Browser tab strip in the normal Workbench screenshot.
+- Rechecked the current Orchestrator Browser implementation and smoke contract: `BrowserPanel` already hides the nested browser tab strip in single-tab state and only renders it when `workbench.tabs.length > 1`; Browser smoke already verifies that behavior with `browserSingleTabChrome`.
+- The Codex-backed audit target remains shell-native Browser tab state; this slice fixes the misleading visual evidence and normal single-tab chrome, not the larger shell-level Browser ownership gap.
+
+Implemented in Orchestrator:
+
+- Updated the focused right-panel smoke to reset the Browser Workbench tab after proving Browser address/reload/back/forward/`Cmd+T` command routing.
+- Added `rightPanelBrowserVisualReset` to the smoke summary. It verifies that the final right-panel screenshot has one Browser tab, an empty URL, and no nested `browser-tab-strip`.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelBrowserCommandRouting=true` and `rightPanelBrowserVisualReset=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779616928331.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779616928331.png`.
+- `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current` passed for the seven core surfaces; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`; corrected Workbench screenshot: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/workbench-right-panel.png`.
+- `npm run build` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- Browser tabs still live as child Browser state inside the Browser Workbench tab. Full Codex-style parity still requires shell/browser tab state ownership, conversation/fork webview transfer, provider-produced browser-use events, route lifecycle, and live Codex side-by-side spacing comparison.
+
+### 2026-05-24 - Workbench New Tab Surface Slice
+
+Codex evidence:
+
+- Re-read the current Codex side-panel shell chunk at `/private/tmp/codex-app-asar-review/thread-app-shell-chrome-BVkAxLhy.js`; the side-panel new-tab surface is a real tab page with `thread.sidePanel.newTab.*` actions, including Files (`Browse project files`), Side chat (`Start a side conversation`), Browser (`Open a website`), Review (`View code changes`), and Terminal (`Start an interactive shell`).
+- Computer Use is blocked from attaching to `com.openai.codex`, and direct screen capture returned a black frame, so this slice uses current app-bundle evidence plus Orchestrator rendered smoke evidence rather than a live Codex screenshot.
+
+Orchestrator changes:
+
+- Added a `new-tab` Workbench tab kind and changed the right-panel plus control from a small dropdown-only affordance into a real `New tab` tab/page.
+- Rendered a centered action-card grid in the Workbench panel for Files, Side chat, Browser, Review, and Terminal; existing single-instance surfaces are disabled after opening without changing their concise Codex action descriptions, while Side chat and Terminal can create additional tabs.
+- Updated the automated smoke helper so fallback opening goes through the new action-card page before the legacy menu fallback.
+- Added a dedicated `--workbench-new-tab` smoke and full visual-inventory capture so the New Tab action-card page itself is screenshot evidence.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 250 tests.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --right-panel` passed with `workbenchPanelNewTabPage=true`, plus existing right-panel command routing, tab lifecycle, resize, close, reorder, menu-state, and Browser reset checks. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779619959129.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779619959129.png`.
+- `npm run smoke:ui:auto -- --workbench-new-tab` passed with `workbenchPanelNewTabPage=true`, `workbenchNewTabVisual=true`, `workbenchNewTabCards=true`, and `workbenchNewTabNoHorizontalOverflow=true`. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1779621364872.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1779621364872.png`.
+- `npm run smoke:visual:side-panels -- --full --out tmp/side-panel-visual-inventory-current` passed with 22 captures and no failures; New Tab inventory screenshot: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/workbench-new-tab.png`.
+
+Remaining:
+
+- Deeper Workbench parity still needs cross-panel move/receive semantics, richer drag/separator animation, exact live Codex visual comparison, and route/window lifecycle cleanup.
+
+### 2026-05-24 - Review Environment Preservation Slice
+
+Issue:
+
+- Replacing the old Workbench plus dropdown with the Codex-style New Tab page exposed stale Review-entry assumptions: some paths opened Review without preserving the sibling Environment tab, and the broad visual harness could leave a previously active panel on New Tab after proving the action page.
+
+Changes:
+
+- Store-level `setShowDiff` now seeds the `environment` Workbench tab before activating `diff`, so Review and Environment remain reachable no matter whether Review opens from the transcript card, New Tab action card, or store-level transition.
+- Transcript-card Review and New Tab Review actions also explicitly seed Environment before activating Review.
+- Broad smoke restores the previously active Workbench tab after checking the New Tab page, so single-surface captures such as Extensions do not end on the wrong tab.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run test:providers` passed: 250 tests.
+- `npm run smoke:ui:auto -- --diff-entry` passed with `reviewEnvironmentPanel=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779621196095.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779621196096.png`.
+- `npm run smoke:ui:auto -- --extensions` passed with `extensionsPanelCalm=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-extensions-1779621604173.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-extensions-1779621604173.png`.
+- Full visual inventory passed with 22 captures and no failures; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`.
+
+### 2026-05-24 - Review Environment Action-State Slice
+
+Issue:
+
+- Re-checking Codex's review/environment bundle evidence showed that the Environment rows should carry git and PR state, not just render inert labels. Orchestrator still had a static `Commit` row and a permanently disabled `Create pull request` row even when session PR metadata existed.
+
+Codex/reference alignment:
+
+- Codex keeps Commit/Create PR tied to local git and pull-request state with disabled reasons when prerequisites are missing. Orchestrator should expose the same concept through provider-neutral session metadata and local git state before adding provider-specific adapters.
+
+Changes:
+
+- Environment now exposes staged/unstaged counts on the panel and shows a stateful Commit row. When local changes exist, Commit routes into Review instead of acting as a placeholder.
+- Pull-request metadata now turns the PR row into an enabled `View pull request` action that opens the metadata URL externally. Without PR metadata, the row remains disabled with an explicit reason.
+- The focused diff-entry smoke now asserts the actionable Environment row states instead of accepting a permanently disabled PR row.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --diff-entry` passed with `reviewEnvironmentPanel=true` and actionable Environment Commit/PR row assertions. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779623243361.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779623243361.png`.
+- `npm run smoke:ui:auto -- --environment` passed with `environmentPanelVisual=true`, `environmentActionRows=true`, and `environmentSources=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779623586809.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-environment-1779623586809.png`.
+- `npm run smoke:visual:side-panels -- --full --out tmp/side-panel-visual-inventory-current` passed with 23 captures and no failures, including `environment.png`; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`.
+
+Remaining:
+
+- Actual create-PR generation remains unavailable until provider/gh metadata and the desired confirmation path are wired. Provider-native PR metadata adapters are still part of the Review backlog.
+
+### 2026-05-24 - Multi-Window Native Menu Isolation Slice
+
+Issue:
+
+- The root-shell matrix still needed multi-window proof. While adding that proof, the smoke exposed a real native-menu risk: `app:setMenuCommandAvailability` updated the global application menu whenever any renderer reported availability, even if that renderer belonged to a background window.
+
+Codex/reference alignment:
+
+- Codex-style shell command availability should follow the active window/focus area. A Browser-focused right panel in one window must not keep Browser commands enabled when another foreground window is focused on main chat.
+
+Changes:
+
+- Native menu availability is still stored per `BrowserWindow`, but global menu state is now applied through an app-owned active-window target rather than treating the most recently created window as the command target.
+- Added `npm run smoke:ui:auto -- --multi-window-focus` to create a real second Orchestrator window, navigate it to the requested session through pending navigation, compare first-window Browser-focused command availability with second-window main-focus command disablement, verify a background-window availability update does not clobber the focused window's menu state, then activate the first window again and prove menu commands route back there.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run test:providers` passed: 250 tests.
+- `npm run smoke:ui:auto -- --multi-window-focus` passed with `secondWindowCreated=true`, `secondWindowNavigated=true`, `pendingNavigationConsumedOnce=true`, `firstWindowBrowserMenuEnabled=true`, `secondWindowBrowserMenuDisabled=true`, `backgroundWindowMenuDoesNotClobberFocusedWindow=true`, `activeWindowAfterRefocus=true`, `focusSwitchRestoresFirstWindowMenu=true`, and `menuCommandRoutedToFocusedWindow=true`. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-multi-window-focus-1779624345721.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-multi-window-focus-1779624345721.png`.
+
+Remaining:
+
+- The local automated macOS smoke still records `focusedWindowAfterRefocus=false` from Electron's raw `BrowserWindow.getFocusedWindow()` after programmatic refocus, so OS-level live/manual focus proof remains separate. The app-owned active-window command state and command routing are now covered.
+
+### 2026-05-24 - Sidebar Row Slot Consolidation Slice
+
+Issue:
+
+- The Sidebar visual-chrome audit still called out Orchestrator's persistent left pin slot plus separate right status/action slot as busier than Codex's shared row/action choreography. In the latest `chat-sidebar.png`, pinned rows showed leading pin glyphs while non-pinned rows showed label-color dots, making pinned rows visually depart from the same row identity primitive.
+
+Codex/reference alignment:
+
+- The current Codex bundle sidebar chunks still back the same model: thread identity, pinned state, label colors, collapsed sections, custom sections, and actions are separate signals. The visible row target is one shared row identity/meta/action choreography rather than pin state replacing row identity. A live Codex app screenshot was attempted through Computer Use, but `com.openai.codex` inspection was blocked, so this slice uses bundle-backed audit notes plus fresh Orchestrator visual evidence.
+
+Changes:
+
+- Session rows now keep the label-color identity marker in the leading slot for pinned and unpinned sessions.
+- Pin/unpin moved into the consolidated row action slot next to the chat actions menu, so hover/focus action reveal is shared and pinned rows no longer reserve a persistent left pin glyph.
+- Focused Sidebar smoke now gates `sidebarPinnedRowsKeepIdentityMarker=true` and `sidebarPinActionsConsolidated=true`.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed with `sidebarPinnedRowsKeepIdentityMarker=true`, `sidebarPinActionsConsolidated=true`, `sidebarLabelColorMetadata=true`, and existing provider/worktree/projectless/custom-section checks. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779624894818.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779624894818.png`.
+- `npm run smoke:visual:side-panels -- --full --out tmp/side-panel-visual-inventory-current` passed with 23 captures and no failures. Manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`; refreshed Sidebar screenshot: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/chat-sidebar.png`.
+
+Remaining:
+
+- Real provider adapters still need to populate hosted/cloud/remote-host records, provider pin list/set state, provider projectless ids, and provider worktree metadata from real sources.
+- Live Codex screenshot comparison remains open until a safe inspection path is available.
+
+### 2026-05-24 - Sidebar Selected Key Signal Slice
+
+Evidence:
+
+- Re-read `/private/tmp/codex-app-asar-review/sidebar-signals-DI3M13c-.js` from the current local Codex bundle. Codex persists the sidebar organize mode, projectless chats-first preference, thread sort key, section order, collapsed group/section signals, and a central selected sidebar key signal with a selector/setter pair.
+- Re-checked Orchestrator's shared sidebar store and Sidebar/SessionItem wiring. Orchestrator already had most persisted sidebar organization signals, but selection was still only implicit in `activeSessionId`, `showSettings`, `showCapabilities`, and local row state.
+
+Implemented:
+
+- Added persisted `orchestrator.sidebar.selectedKey` state to the shared sidebar store with provider-neutral string keys for sessions, settings pages, capabilities, sections, projects, and connection groups.
+- Exposed shared `data-sidebar-key` row metadata through `SurfaceRow` / `SidebarListRow` and `data-sidebar-selected-key` on the sidebar root and session row shells.
+- Wired session, Settings nav, Capabilities nav, and Back-to-chats transitions into the central selected-key signal while deriving mode changes from the current session-store snapshot so stale effects cannot persist the wrong key.
+- Extended focused Sidebar smoke with `sidebarSelectedKeySignal`, `sidebarSelectedKeyPersistence`, and `sidebarSelectedNavKeys`.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run test:providers` passed: 257 tests.
+- `node scripts/run-automated-ui-smoke.mjs --sidebar` passed with `sidebarSelectedKeySignal=true`, `sidebarSelectedKeyPersistence=true`, and `sidebarSelectedNavKeys=true` while preserving the existing Sidebar provider/worktree/projectless/action checks. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779633960177.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779633960177.png`.
+
+Remaining:
+
+- This closes the central selected-key signal mismatch. Real provider adapters still need to populate hosted/cloud/remote-host records, provider pin list/set state, provider projectless ids, provider worktree metadata, and provider-backed remote action semantics from live sources.
+- Live Codex side-by-side visual comparison is still needed when a safe current Codex screenshot path is available.
+
+### 2026-05-24 - Sidebar Provider Adapter Source Recheck
+
+Evidence:
+
+- Re-read Codex sidebar provider chunks from `/private/tmp/codex-app-asar-review`: `sidebar-thread-list-signals-FpAb9VJn.js`, `sidebar-project-group-signals-B2IlZT8R.js`, and `thread-actions-C8deI8Bf.js`.
+- Codex merges provider/server state from `pinned-threads-query-C44A652V.js`, `set-pinned-thread-BF6dMuHF.js`, global-state keys such as `PROJECTLESS_THREAD_IDS`, `THREAD_PROJECT_ASSIGNMENTS`, `SIDEBAR_THREAD_METADATA`, and `THREAD_WORKSPACE_ROOT_HINTS`, plus `/wham/tasks/list`, `/wham/environments`, `remote_connections`, `remote_control_connections`, and `pending_worktrees`.
+- Re-checked Orchestrator provider/session paths. `Session` has provider-neutral projection fields for `providerPinned`, `providerProjectless`, `providerThreadSource`, `providerHostId`, and provider worktree metadata, and focused smoke fixtures prove the Sidebar consumes them. The real runtime/event path currently normalizes app-server thread starts, turns, diffs, browser manager state, approvals/questions, and command surfaces, but it does not yet ingest Codex global-state/sidebar metadata or `/wham/*` task/environment lists into the local session store.
+
+Decision:
+
+- Do not claim real provider-backed Sidebar adapter parity from fixture projection. The next real adapter slice needs a safe live or mocked app-server/global-state boundary that can read pinned thread ids, projectless ids, thread workspace hints, label colors, remote connections, pending worktrees, and cloud task rows, then reconcile them into Orchestrator `Session` records without clobbering local user data.
+
+Remaining:
+
+- Implement a provider sidebar-sync adapter boundary for Codex app-server/global-state metadata, then generalize the same contract for Claude/Cursor/Copilot only when those runtimes expose equivalent remote/thread metadata.
+- Add mutation adapters for provider-native pin/unpin and projectless/custom-section membership only after read-side reconciliation is in place.
+
+### 2026-05-24 - Terminal Healthy Visual Content Fallback Slice
+
+Observed evidence gap:
+
+- Fresh core visual inventory showed `terminal-bottom-panel.png` was no longer black, but it still captured `The terminal encountered an error`. Direct local `node-pty` probing failed with `posix_spawnp failed`, so the terminal visual checkpoint was proving panel chrome only, not usable terminal content.
+
+Implemented in Orchestrator:
+
+- Added a pipe-backed shell fallback in `terminalManager.spawn` when `node-pty` cannot create a pseudo-terminal, preserving terminal output/write/kill behavior without rendering the failure overlay.
+- Guarded concurrent terminal starts and changed terminal buffer replay so fresh spawn output is not duplicated when the renderer subscribes and then replays existing history.
+- Keyed `TerminalView` by active terminal id so switching terminal tabs resets renderer-local terminal state.
+- Extended `--terminal-visual` smoke coverage with `terminalVisualHealthyContent`, requiring terminal output and no `terminal-failure-state`.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --terminal-visual` passed with `terminalVisualHealthyContent=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779611480576.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779611480576.png`.
+- `npm run smoke:ui:auto -- --terminal` passed after the fallback change; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779611552620.json`.
+- Core `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current` passed for 7 surfaces; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`; corrected Terminal screenshot: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/terminal-bottom-panel.png`.
+- `npm run build` passed.
+- `npm run test:providers` passed 248 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- This does not prove exact live Codex terminal height/animation spacing or native PTY availability on every machine. It closes the previous visual-evidence gap where Terminal screenshots only showed a failure state.
+
+### 2026-05-24 - Review Copy Git Apply Command Scope Slice
+
+Codex evidence:
+
+- Rechecked `/private/tmp/codex-app-asar-review/review-header-toolbar-6CN1dM2m.js`; Codex exposes `Copy git apply command` from Review options as a Review-level command.
+
+Implemented in Orchestrator:
+
+- `DiffPanel` now builds the copied git-apply heredoc from loaded Review diffs in source-file order instead of only the currently selected file diff.
+- The menu item stays disabled until at least one loaded Review diff exists, and the focused smoke records the loaded patch file count before asserting the copied command.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --diff-core` passed with `reviewGitApplyCommandCoversAll=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779632676872.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779632676872.png`.
+- `npm run build` passed.
+- `npm run test:providers` passed 248 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- This does not add provider-native or last-turn patch sources. The command still operates on the currently loaded local Review source data.
+
+### 2026-05-24 - Visual Inventory Settings Capture Reliability Slice
+
+Observed evidence gap:
+
+- The core side-panel visual inventory previously reported `settings.png`, but the captured image was the chat surface after the Settings smoke opened a worktree conversation. That made the Settings visual checkpoint too weak even though the behavior assertions passed.
+- A refreshed core inventory also showed the Terminal visual screenshot is still a black frame. The Terminal behavior smoke passes, but that screenshot is not acceptable visual evidence.
+
+Implemented in Orchestrator:
+
+- Updated the Settings smoke capture endpoint to reopen Settings at the end of the behavior checks, reset the appearance preset to Graphite Dark after the theme-import/Ocean assertion, navigate back to General, and scroll to the top before `capturePage()`.
+- Added focused right-panel `Cmd+F` debug fields to the smoke result so any future visual-inventory flake can identify whether Review, Files, or Browser focus routing failed.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --settings` passed and produced an actual Settings General screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779608791278.png`.
+- Core `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current` passed for 7 surfaces; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`.
+- Corrected stable Settings screenshot: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/settings.png`.
+- Focused `npm run smoke:ui:auto -- --right-panel` passed after the earlier core-inventory flake, with `rightPanelFindShortcutRouting=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779608596617.json`.
+
+Remaining:
+
+- Terminal visual inventory now has a non-black chrome screenshot, but still needs healthy-shell content proof beyond the smoke unavailable-shell error state before it should be treated as full terminal visual parity.
+- Core and full side-panel screenshots still need live Codex side-by-side comparison before any visual parity claim.
+
+### 2026-05-24 - Settings App/Host Navigation Grouping Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/settings-page-mdGEmNCB.js` confirmed Codex groups Settings navigation under `App` and `Host` headings, with host-aware section filtering for local/remote settings contexts.
+- `webview/assets/settings-content-layout-Bnulb0lM.js`, `settings-row-DYYQqFuu.js`, `settings-group-DNhpghsa.js`, and `settings-surface-YwAy0P94.js` remain the primitive/layout baseline for the current Orchestrator settings pages.
+
+Implemented in Orchestrator:
+
+- Replaced the flat Settings sidebar list with grouped `App` and `Host` navigation sections while preserving `SidebarListRow` for each row.
+- Mapped existing Orchestrator settings into the closest Codex taxonomy: App contains General, Appearance, and Providers; Host contains Automations, Worktrees, Shortcuts, Personalization, and Data controls.
+- Added `settings-nav-group-*` selectors and compact heading styling so the grouping is visible, smoke-addressable, and still uses the same sidebar row material.
+- Extended the focused Settings smoke with `settingsSidebarGroupedNav`, proving the two headings, row grouping, row order, and shared row primitive.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --settings` passed with `settingsSidebarGroupedNav=true`, `settingsSidebarNavPrimitive=true`, and existing Settings gates true; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779625973378.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779625973378.png`.
+- Full `npm run smoke:visual:side-panels -- --full --out tmp/side-panel-visual-inventory-current` passed with 23 captures and no failures; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`; refreshed Settings screenshot: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/settings.png`.
+
+Remaining:
+
+- This closes the visible flat-nav mismatch. It does not add true host context selection, remote/local host filtering, route/page ownership, or deeper native settings pages.
+- The Review backlog is unchanged and remains tracked separately under `Review Backlog Preservation`.
+
+### 2026-05-24 - Settings Shortcut Per-Binding Clear Slice
+
+Codex evidence:
+
+- Rechecked `/private/tmp/codex-app-asar-review/keyboard-shortcuts-settings-C5AEKt2i.js` from the current installed Codex bundle.
+- Codex renders keyboard shortcuts as individual binding rows, not only command-level rows.
+- The Codex shortcut table exposes a trash action per binding through `settings.keyboardShortcuts.clearAriaLabel`, a reset action through `settings.keyboardShortcuts.resetAriaLabel`, and update payloads for `{ type: "remove", accelerator }`, `{ type: "reset" }`, `{ type: "append" }`, `{ type: "replace" }`, and `{ type: "set" }`.
+- Codex also renders `Unassigned` when an action has no shortcut, so clearing a default binding is a valid state rather than only deleting custom overrides.
+
+Implemented in Orchestrator:
+
+- Extended the shared shortcut override schema to support both custom shortcut sequences and disabled default sequences while preserving the legacy array-shaped override format.
+- Updated `commandShortcuts`, conflict detection, visible shortcut rows, and native menu resolution so disabled default bindings no longer fire.
+- Added a per-binding clear affordance beside each rendered shortcut key in `ShortcutsSettingsPage`.
+- Clearing a custom binding removes only that custom sequence; clearing a default binding records it as disabled and keeps the command reset action available.
+- Recording a previously disabled default shortcut restores that default instead of duplicating it as a custom binding.
+- Added focused provider test coverage for disabled default shortcut bindings.
+- Extended the Settings smoke with `settingsShortcutsPerBindingClear`, which adds a custom `Open File Search` shortcut, clears the default `Cmd+P` binding, verifies the custom binding remains, verifies `Cmd+P` is no longer rendered for that row, and verifies reset remains available.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed, 251/251.
+- `npm run smoke:ui:auto -- --settings` passed with `settingsShortcutsPerBindingClear=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779627206079.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779627206079.png`.
+
+Remaining:
+
+- This closes the previously tracked "possible per-binding clear UI" shortcut gap for the current Orchestrator shortcut model.
+- Remaining shortcut/settings parity is platform-specific capture edge cases, exact route/page-host ownership, and any deeper host-specific Codex settings behavior found in live side-by-side comparison.
+- The Review backlog is unchanged and remains tracked separately under `Review Backlog Preservation`.
+
+### 2026-05-24 - Settings Host Context Selector Slice
+
+Codex evidence:
+
+- Rechecked `/private/tmp/codex-app-asar-review/settings-host-context-B5kZhSF6.js`, `/private/tmp/codex-app-asar-review/settings-host-selection-9fosNT9W.js`, `/private/tmp/codex-app-asar-review/settings-page-mdGEmNCB.js`, and `/private/tmp/codex-app-asar-review/settings-host-dropdown-CHaNrfwS.js`.
+- Codex settings read remote connection state, render a host dropdown when connected remote hosts exist, normalize missing or stale host selections back to `local`, and filter settings by local or matching remote host context.
+
+Implemented in Orchestrator:
+
+- Added shared Settings host option derivation from session provider host and provider worktree host metadata.
+- Added Settings host id normalization so missing or stale selections fall back to Local.
+- Persisted `settingsHostId` in the existing Settings state and normalized it when available host options change.
+- Rendered the host selector as the Host navigation section action when provider remote-host metadata exists, with Local and remote host options. This matches Codex's `hostSectionAction` placement instead of treating host selection as a generic Settings topbar control.
+- Exposed `data-settings-host-id` and `data-settings-host-kind` on the Settings shell for behavior proof and future host-scoped page work.
+- Seeded the focused Settings smoke with a remote-host fixture and added `settingsHostContext`.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed, 252/252.
+- `npm run smoke:ui:auto -- --settings` passed with `settingsHostContext=true`, `settingsSidebarGroupedNav=true`, and `settingsShortcutsPerBindingClear=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779628185325.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779628185325.png`.
+
+Remaining:
+
+- This adds provider-host context selection but does not yet filter or re-scope every Settings page by remote host the way Codex does.
+- Route/page ownership, deeper host-specific settings behavior, native theme/font/chrome controls, and platform-specific shortcut capture edge cases remain open.
+- The Review backlog is unchanged and remains tracked separately under `Review Backlog Preservation`.
+
+### 2026-05-24 - Settings Host Section Filtering Slice
+
+Codex evidence:
+
+- Rechecked `/private/tmp/codex-app-asar-review/settings-host-context-B5kZhSF6.js`, `/private/tmp/codex-app-asar-review/settings-host-selection-9fosNT9W.js`, and `/private/tmp/codex-app-asar-review/settings-page-mdGEmNCB.js`.
+- Codex derives connected remote host ids, normalizes the selected host id, filters settings sections against local/remote host context, redirects hidden requested sections to a visible fallback, and keys the settings content subtree by selected host id.
+
+Implemented in Orchestrator:
+
+- Added shared Settings navigation definitions and host-kind visibility helpers in `src/types/index.ts`.
+- Switched the renderer `SettingsSection` type to the shared section id so Sidebar, Settings, and tests use one section vocabulary.
+- Updated Settings left navigation to derive visible App/Host groups from the selected host kind.
+- Remote host selection now hides local-only Automations, Worktrees, and Data controls until real provider-backed adapters exist, while keeping global/host-safe General, Appearance, Providers, Shortcuts, and Personalization visible.
+- If a local-only section is active when a remote host is selected, Settings redirects back to General and updates the selected sidebar key.
+- Settings content now exposes `data-settings-active-section`, `data-settings-requested-section`, `data-settings-host-section-filtered`, `data-settings-content-host-id`, and `data-settings-content-host-kind`, and remounts the page subtree when the host changes.
+- Extended the Settings smoke with `settingsHostSectionFiltering`; it selects local Worktrees, switches to a remote Codex host, verifies redirect/filtering, then switches back to Local before exercising local-only Automations/Worktrees/Data pages.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed, 258/258.
+- `npm run smoke:ui:auto -- --settings` passed with `settingsHostContext=true`, `settingsHostSectionFiltering=true`, `settingsSidebarGroupedNav=true`, `settingsWorktreesOpen=true`, and `settingsShortcutsPerBindingClear=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779634966396.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779634966396.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- This is a guard/filtering slice, not true remote-host Settings adapter parity.
+- Remote-host Automations, Worktrees, and Data controls need provider-backed settings adapters before becoming visible for remote hosts.
+- Settings still need route/page ownership, deeper host-specific behavior, native theme/font/chrome controls, and platform-specific shortcut capture edge-case comparison.
+- The Review backlog is unchanged and remains tracked separately under `Review Backlog Preservation`.
+
+### 2026-05-24 - Terminal Theme/Font Sync Slice
+
+Codex evidence:
+
+- Re-extracted the current installed Codex bundle from `/Applications/Codex.app/Contents/Resources/app.asar`.
+- `/private/tmp/codex-app-asar-review/font-settings-D-vhQ1CB.js` exports Codex's default monospace stack: `ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace`.
+- `/private/tmp/codex-app-asar-review/thread-page-bottom-panel-state-D1Lz0U4Y.js` initializes xterm with settings-derived `fontFamily`, `fontSize`, `lineHeight: 1.2`, and a token-derived terminal theme, then updates `term.options.theme`, `term.options.fontFamily`, and `term.options.fontSize` when appearance/font settings change.
+- The same Codex chunk maps VS Code terminal tokens such as `--vscode-terminal-background`, `--vscode-terminal-foreground`, `--vscode-terminal-selectionBackground`, and `--vscode-terminal-ansi*` into the xterm theme.
+
+Implemented in Orchestrator:
+
+- Updated `TerminalView` to resolve terminal appearance from the active root theme tokens instead of only reading font size once at mount.
+- Synced `--font-mono-custom`, `--font-code-size`, `--surface-bg`, `--text-primary`, `--accent`, `--accent-bg`, and `--vscode-terminal-*` tokens into xterm `fontFamily`, `fontSize`, and `ITheme`.
+- Added a root `MutationObserver` over appearance/theme/font attributes and inline token changes; changes update xterm theme/font options, attempt font loading through `document.fonts`, refit the terminal, resize the backend, and refresh visible rows.
+- Added smoke-visible data attributes for the active terminal appearance so behavior evidence can assert the xterm-facing values without relying on screenshot color sampling.
+- Extended the focused Terminal smoke to mutate appearance tokens and verify `terminalThemeFontSync=true`.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed, 250/250.
+- `npm run smoke:ui:auto -- --terminal` passed with `terminalThemeFontSync=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779626683125.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779626683125.png`.
+- `npm run smoke:ui:auto -- --terminal-visual` passed with `terminalVisualHealthyContent=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779626704557.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779626704557.png`.
+
+Remaining:
+
+- This closes the broad "deeper theme/font integration" item for the current Orchestrator Appearance token model. The later Terminal token matrix slice adds exact VS Code terminal token coverage. This does not prove exact live Codex terminal height/animation/content spacing, terminal service snapshots across conversations, or pixel-level terminal rendering parity.
+- The Review backlog is unchanged and remains tracked separately under `Review Backlog Preservation`.
+
+### 2026-05-24 - Terminal Visual Inventory Capture Slice
+
+Implemented in Orchestrator:
+
+- Kept `--terminal` as the destructive behavior smoke for persistence, move-to-right/back, shortcuts, telemetry, and terminal link routing.
+- Added `--terminal-visual` as a separate visual-only checkpoint that opens the real bottom terminal panel, adds a second tab, verifies the bottom-panel chrome/tabs/toolbar, and leaves the DOM stable for screenshot capture.
+- Updated `scripts/run-side-panel-visual-inventory.mjs` so `terminal-bottom-panel.png` is captured through `--terminal-visual` instead of the destructive behavior smoke that left a black frame.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --terminal-visual` passed and produced a real terminal bottom-panel screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779609880157.png`.
+- Core `npm run smoke:visual:side-panels -- --out tmp/side-panel-visual-inventory-current` passed for 7 surfaces; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`.
+- Corrected stable Terminal screenshot: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/terminal-bottom-panel.png`.
+
+Remaining:
+
+- The terminal content area still shows the unavailable-shell error state in the smoke environment. This proves bottom-panel visual chrome and capture reliability, not a healthy interactive shell. Keep `npm run smoke:ui:auto -- --terminal` as the behavior gate.
+
+### 2026-05-24 - Sidebar Projectless Chats-First Preference Slice
+
+Codex evidence:
+
+- Rechecked the current Codex sidebar bundle assets extracted from `/Applications/Codex.app/Contents/Resources/app.asar`.
+- `/private/tmp/codex-app-asar-review/sidebar-signals-DI3M13c-.js` exposes a persisted `projectless-sidebar-chats-first-v1` signal and setter, separate from organize mode and thread sort key.
+- `sidebar-thread-list-signals-FpAb9VJn.js` keeps projectless thread filtering separate from project grouping, so the ordering preference belongs in the sidebar model instead of as ad hoc DOM order.
+
+Implemented in Orchestrator:
+
+- Added a provider-agnostic `orderProjectlessSidebarGroups` helper and unit coverage for both before/after project placement.
+- Added persisted `orchestrator.sidebar.projectlessChatsFirst` state with setter/toggle to the shared sidebar store.
+- Added a `Chats before projects` organize-menu toggle and `data-sidebar-projectless-chats-first` evidence on the project group list.
+- Updated Sidebar rendering so projectless Chats can sit before or after project groups while preserving the existing projectless collapse state and row scoping.
+
+Verification:
+
+- `npm run test:providers` passed: 246 tests, including the new projectless placement helper.
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed with `sidebarProjectlessChatsFirstPreference=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779607235195.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779607235195.png`.
+
+Remaining:
+
+- Sidebar still needs real provider adapter population for hosted/cloud/remote-host sources, provider projectless ids, provider pin list/set state, provider worktree source/root/host metadata, and live Codex side-by-side visual comparison.
+
+### 2026-05-24 - Sidebar Custom Section Drag Membership Slice
+
+Codex evidence:
+
+- Rechecked the current Codex sidebar bundle assets extracted from `/Applications/Codex.app/Contents/Resources/app.asar`.
+- `thread-actions-C8deI8Bf.js` exposes custom section membership helpers that remove a thread from other custom sections when adding it to the target section and support before-thread placement for drag/drop ordering.
+
+Implemented in Orchestrator:
+
+- Added shared `moveSessionToSidebarCustomSection` helper so custom-section membership is exclusive and preserves drop order.
+- Reused that helper from the Sidebar store for menu-based membership and new drag/drop membership.
+- Added draggable session wrappers across Sidebar session rows, custom-section drop targets, and custom-section row drop targets without making pinned rows draggable.
+- Extended focused Sidebar smoke to drag an unpinned project row into a custom section and verify persistence, DOM scoping, and removal from the project list.
+
+Verification:
+
+- `npm run test:providers` passed: 247 tests, including custom-section membership helper coverage.
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed with `customSectionDragMembershipWorks=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779607605328.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779607605328.png`.
+
+Remaining:
+
+- Custom-section row ordering is covered by focused smoke; section-level custom-section reorder is covered in the next slice. Live Codex side-by-side proof for drag animation remains missing.
+
+### 2026-05-24 - Sidebar Custom Section Row Reorder Slice
+
+Codex evidence:
+
+- Reused the current Codex sidebar bundle evidence from `thread-actions-C8deI8Bf.js`.
+- Codex custom-section helper `j` accepts `beforeThreadId`, removes the thread from any other section, then inserts it before the target thread id when provided. This makes in-section drag reorder a model-level behavior rather than a local visual-only operation.
+
+Implemented in Orchestrator:
+
+- Added an active custom-section drop-target state and a compact insertion marker for row-before drops.
+- Preserved the shared `moveSessionToSidebarCustomSection` helper as the single model path for membership and ordering.
+- Extended focused Sidebar smoke to drag a row into a custom section, then drag it before an existing custom-section row and verify the marker plus final order.
+
+Verification:
+
+- `npm run test:providers` passed: 247 tests.
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed with `customSectionDragOrderWorks=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779607605328.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779607605328.png`.
+
+Remaining:
+
+- Section-level custom-section drag reorder is still missing. Real provider adapter population for hosted/cloud/remote-host sources, provider projectless ids, provider pin list/set state, and provider worktree source/root/host metadata remain the larger Sidebar model gaps.
+
+### 2026-05-24 - Sidebar Custom Section Reorder Slice
+
+Codex evidence:
+
+- Reused the current Codex sidebar bundle evidence for persisted section order and custom sections from the extracted `/Applications/Codex.app/Contents/Resources/app.asar` assets.
+- Codex's sidebar model treats custom section ordering as persisted sidebar state, so the parity target is a model-level reorder path with visible insertion feedback, not only a local DOM shuffle.
+
+Implemented in Orchestrator:
+
+- Added shared `moveSidebarSectionKey` model helper for persisted custom-section section reordering.
+- Added Sidebar store `moveSection` support and wired draggable custom-section containers with section-level insertion feedback.
+- Kept session-level drag/drop isolated so row drag and section drag do not interfere with each other.
+- Extended focused Sidebar smoke to create two custom sections, drag the second before the first, and verify insertion marker state, persisted `orchestrator.sidebar.sectionOrder`, and final DOM order.
+
+Verification:
+
+- `npm run test:providers` passed: 248 tests, including custom-section section-order helper coverage.
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed with `customSectionSectionReorderWorks=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779608096418.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779608096418.png`.
+
+Remaining:
+
+- Real provider adapter population for hosted/cloud/remote-host sources, provider projectless ids, provider pin list/set state, provider worktree source/root/host metadata, and live Codex side-by-side visual comparison remain the larger Sidebar gaps.
+
+### 2026-05-24 - Browser/Review Tab Command Slice
+
+Codex evidence:
+
+- Reused the current Codex bundle extraction from `/Applications/Codex.app/Contents/Resources/app.asar`.
+- `electron-menu-shortcuts-DQYPVyfu.js` confirms Codex exposes `openBrowserTab` with `CmdOrCtrl+T`, `toggleBrowserPanel` with `CmdOrCtrl+Shift+B`, and `openReviewTab` as a command-menu action.
+- `TerminalView.tsx` already preserves terminal-local `Cmd+T` by handling it during terminal key capture, so app-level `Cmd+T` can open Browser elsewhere without stealing focused terminal new-tab behavior.
+
+Implemented in Orchestrator:
+
+- Added shared command definitions and native-menu/command-palette entries for `open-browser-tab`, `toggle-browser-panel`, and `open-review-tab`.
+- Routed `open-review-tab` to the Review Workbench tab and `toggle-browser-panel` to open/close the Browser Workbench tab.
+- Routed `open-browser-tab` to open the Browser Workbench tab outside Browser focus, and to create an internal Browser tab when Browser is focused.
+- Extended BrowserPanel command handling with `open-browser-tab` and smoke-facing tab-count/last-command evidence.
+
+Verification:
+
+- `npm run test:providers` passed: 245 tests, including the new app command shortcut mappings.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelBrowserCommandRouting=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779606298508.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779606298508.png`.
+
+Remaining:
+
+- This does not close the Review backlog. Remaining Review work is still provider checkpoint/last-turn Undo, provider-native review sources, real PR/check/reviewer metadata adapters, provider-backed comments/blame, diff virtualization, and live Codex side-by-side visual checks.
+- Remaining shell command work is packaged/native accelerator proof and dedicated multi-window focus-switch proof.
+
+### 2026-05-24 - Browser Panel Command Routing Slice
+
+Codex evidence:
+
+- Reused the current Codex bundle extraction from `/Applications/Codex.app/Contents/Resources/app.asar`.
+- `electron-menu-shortcuts-DQYPVyfu.js` confirms Codex has command-registry entries for `focusBrowserAddressBar`, `reloadBrowserPage`, `hardReloadBrowserPage`, `navigateBack`, and `navigateForward` with browser/navigation accelerators.
+- The prior focus slice confirmed Codex keeps app-shell focus area in `app-shell-state-HP0T5lEX.js`, so these commands should be routed by active panel focus rather than implemented as local Browser-only button behavior.
+
+Implemented in Orchestrator:
+
+- Added Browser command definitions for address focus (`Cmd+L`), reload (`Cmd+R`), hard reload (`Cmd+Shift+R`), back (`Cmd+[`), and forward (`Cmd+]`) to the shared app command registry, shortcuts settings, command palette, and native menu command bridge.
+- Added a shared `resolvePanelBrowserCommandTarget` resolver so Browser commands only run when the right panel is focused and the active Workbench tab is Browser.
+- Routed Browser commands from global key/menu handling into `BrowserPanel` through the shared shell command path.
+- Added BrowserPanel handlers for address focusing/selecting, reload, hard reload, back, and forward, plus smoke-facing command count/last-command metadata.
+- Extended focused right-panel smoke coverage with `rightPanelBrowserCommandRouting`.
+
+Verification:
+
+- `npm run test:providers` passed: 245 tests, including the new Browser command target resolver coverage and app command shortcut mappings.
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelBrowserCommandRouting=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779605902093.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779605902093.png`.
+
+Remaining:
+
+- Remaining shared shell routing candidates include packaged app proof for native accelerators and dedicated multi-window focus-switch proof.
+
+### 2026-05-24 - Focus-Aware Find Shortcut Slice
+
+Codex evidence:
+
+- Reused the current Codex bundle extraction from `/Applications/Codex.app/Contents/Resources/app.asar`.
+- `electron-menu-shortcuts-DQYPVyfu.js` confirmed Codex exposes find/search commands through the central command/keybinding registry, including `findInThread`, `searchFiles`, Browser address focus, Browser tab commands, Review tab commands, and panel toggles.
+- `app-shell-state-HP0T5lEX.js` confirmed Codex tracks app-shell focus area as central shell state.
+- `focus-composer-C5T4PQQ-.js` confirmed Codex protects focused inputs and terminals from composer/global text capture, reinforcing that shortcut routing must respect the active surface.
+
+Implemented in Orchestrator:
+
+- Added a shared `resolvePanelFindTarget` resolver beside `resolvePanelCloseTarget`, so focused find/search behavior is governed by the same panel focus model as close-active-tab.
+- Routed global `Cmd+F` through the focused shell area: main opens transcript search, focused Review opens changed-file search, focused Files opens workspace search, focused file tabs open source search, focused Browser opens page find, and focused Terminal/unsupported right-panel tabs do not steal the shortcut for transcript search.
+- Added focus events and refs for Review changed-file search, file-tab source search, and Browser find, while reusing the existing Files search focus path.
+- Extended right-panel smoke coverage with `rightPanelFindShortcutRouting`, proving Review, Files, and Browser focused find routing in the running Electron app.
+
+Verification:
+
+- `npm run test:providers` passed: 244 tests, including the new `panel find target routes through the focused shell area` resolver coverage.
+- `npm run build` passed after the shortcut routing changes.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelFindShortcutRouting=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779632710748.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779632710748.png`.
+
+Remaining:
+
+- Browser address/reload/back/forward routing is covered by the later Browser Panel Command Routing slice.
+- Remaining shared shell routing candidates include packaged app proof for native accelerators and dedicated multi-window focus-switch proof.
+
+### 2026-05-24 - Native Menu Command State Bridge Slice
+
+Codex evidence:
+
+- Rechecked `/private/tmp/codex-focus-assets/electron-menu-shortcuts-DQYPVyfu.js`; Codex keeps Browser, Review, navigation, thread, settings, and panel commands in one Electron-aware command registry, including `focusBrowserAddressBar`, Browser reload/back/forward, `openBrowserTab`, `toggleBrowserPanel`, `openReviewTab`, and `findInThread`.
+- Reused the shell-focus evidence from `/private/tmp/codex-app-asar-review/app-shell-state-HP0T5lEX.js` and the prior focus-routing slices: Codex routes command behavior through active app-shell focus rather than leaving panel-specific commands globally live everywhere.
+
+Implemented in Orchestrator:
+
+- Added shared `AppCommandAvailability` and `AppMenuCommandState` types for native menu state.
+- Added a renderer-to-main command availability bridge: each window publishes shell-derived availability for focused panel commands, and the main process applies it to native menu items by shared command id.
+- Kept the bridge provider-agnostic: availability is derived from active session, active shell focus area, right-panel active tab, terminal panel state, and shared panel resolvers.
+- Added a diagnostic menu-state readback used by smoke verification.
+- Extended focused right-panel smoke with `rightPanelMenuCommandState`, proving Review focus disables Browser address menu commands while keeping Find enabled, Browser focus enables Browser address commands, and main/composer focus disables Browser-only commands while keeping the context-sensitive new panel tab command enabled.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelMenuCommandState=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779618431441.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779618431441.png`.
+- `npm run test:providers` passed with 250 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Packaged native accelerator proof remains separate.
+- Dedicated multi-window focus-switch proof remains separate; the bridge stores state per window and updates on focus, but this slice only smoked one focused app window.
+
+### 2026-05-24 - Terminal Right-Panel New-Tab Shortcut Slice
+
+Codex evidence:
+
+- Reused the terminal keyboard evidence from the current Codex bundle extraction: Codex handles terminal new-tab keyboard behavior before terminal input fallback, and its app-shell tab controllers can retarget terminal tabs between bottom and right destinations.
+
+Implemented in Orchestrator:
+
+- Added shared `resolvePanelNewTabTarget` shell routing for focused Browser, right-panel Terminal, and bottom-panel Terminal targets.
+- Updated app-level `Cmd+T` handling so main chat still opens Browser, focused Browser creates a Browser tab, focused right-panel Terminal creates and activates another right-panel terminal tab, and focused bottom Terminal creates a bottom terminal tab.
+- Renamed the user-visible command label to `New Panel Tab` so the shortcut no longer claims to be Browser-only.
+- Added unit coverage for the new shell routing resolver.
+- Extended the focused terminal UI smoke to move a terminal into the right Workbench panel, focus that right-panel terminal tab, dispatch `Cmd+T` through the app shell, verify a new right-panel terminal tab became active, then clean up by moving terminal tabs back to the bottom panel.
+
+Verification:
+
+- `npm run test:providers` passed with 250 tests.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --terminal` passed with `terminalRightPanelNewTabShortcut=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779617877984.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779617877984.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- Packaged native accelerator proof and dedicated multi-window focus-switch proof remain separate shell follow-up work.
+- Live Codex terminal height, animation, header spacing, service snapshots, and theme/font integration remain terminal follow-up work.
+
+### 2026-05-24 - Terminal Right/Bottom Move Slice
+
+Codex evidence:
+
+- Reused the current Codex bundle extraction from `/Applications/Codex.app/Contents/Resources/app.asar`.
+- `app-shell-tab-controller-B2eCi4Le.js` exposes separate right and bottom tab controllers and move/receive behavior.
+- `thread-page-bottom-panel-state-D1Lz0U4Y.js` wires terminal tabs through `bottom` and `right` panel ids, including move callbacks that retarget terminal tab props and new-terminal behavior by destination panel.
+
+Implemented in Orchestrator:
+
+- Extended the Workbench right-panel tab model with provider-agnostic `terminal:${number}` tab ids and a `terminal` tab kind.
+- Added stable helpers for terminal tab ids so the terminal session id survives moves between bottom and right panels.
+- Added bottom-panel context action `Move tab to right panel`.
+- Added right-panel terminal rendering through the same `TerminalView`, with `Cmd+T`/new terminal from the right-panel terminal creating another right-panel terminal tab.
+- Added right-panel context action `Move terminal to bottom`.
+- Closing a terminal tab now removes the matching right-panel terminal tab as well as the bottom-panel tab state.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --terminal` passed with `terminalMoveToRightPanel=true` and `terminalMoveBackToBottom=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779604022490.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779604022490.png`.
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:visual:side-panels -- --full` passed after the terminal move and Review core smoke assertion fixes; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory/manifest.json`.
+
+Remaining:
+
+- Live Codex comparison is still needed for terminal height, animation, and header spacing.
+- Terminal service snapshots and deeper theme/font integration remain separate follow-up work.
+
+### 2026-05-24 - Terminal Shared Bottom Layout Controller Slice
+
+Codex evidence:
+
+- Re-opened `/Applications/Codex.app/Contents/Resources/app.asar` and extracted current panel assets into `/private/tmp/codex-panel-assets`.
+- Relevant Codex assets: `app-shell-tab-controller-B2eCi4Le.js`, `app-shell-panel-animation-C6SMnz6V.js`, `thread-page-bottom-panel-state-D1Lz0U4Y.js`, `thread-page-bottom-panel-state-Dxfgdicg.js`, and `terminal-CNbIwMET.js`.
+- Codex exposes distinct right and bottom app-shell tab controllers and terminal helpers that can open, activate, and move terminal sessions between bottom and right panels.
+
+Implemented in Orchestrator:
+
+- Added `useAppShellBottomPanelLayout` as the bottom-panel counterpart to the shared Workbench side-panel layout controller.
+- Added a `session-shell` measurement boundary so bottom panel height can clamp against the current shell height.
+- Updated `TerminalPanel` to expose shared app-shell layout metadata: controller, layout mode, container size, stored size, resolved size, and max size.
+- Extended terminal smoke coverage with `terminalSharedLayoutController`, requiring the bottom shell and terminal header to agree on the shared layout contract.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --terminal` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779603215053.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779603215053.png`.
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:visual:side-panels -- --full` passed after this slice; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory/manifest.json`.
+
+Remaining:
+
+- Exact live Codex terminal height, animation, and header spacing comparison remains required before terminal visual parity is complete.
+- Terminal service snapshots and deeper theme/font integration remain separate follow-up work.
+
+### 2026-05-24 - Side Panel Visual Inventory Slice
+
+Implemented in Orchestrator:
+
+- Added `scripts/run-side-panel-visual-inventory.mjs` plus `npm run smoke:visual:side-panels` to run focused side-panel smokes and copy stable screenshots plus a manifest into `tmp/side-panel-visual-inventory`.
+- Core inventory captures Chat Sidebar, Workbench Panel, Review entry, Files/file viewer, Browser, Terminal bottom panel, and Settings.
+- Full inventory mode (`--full`) is available for Review core/source/preview, provider Settings, side chat, plan, extensions, composer, capabilities, pets, and transcript narrow states.
+- Fixed the focused Files smoke harness so preview opening targets file-tree rows inside `files-panel-list` instead of any matching tab or transcript button.
+- Fixed focused side-chat smoke selectors so tab checks count only actual `[role="tab"]` elements, not nested tab labels, and preserve/close side-chat tabs with user-like input and close behavior.
+- Fixed split Review core smoke sequencing so `diffToolbarCompact` checks the current side-pane filter input after Review has finished rendering instead of using the pre-render query result.
+- Improved screenshot inventory failure handling so failed smoke output can still preserve screenshots when the smoke runner writes failure JSON to stderr.
+
+Verification:
+
+- `npm run smoke:ui:auto -- --files` passed after the Files harness fix; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779601833716.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779601833716.png`.
+- `npm run smoke:ui:auto -- --side-chat` passed after the side-chat selector fix; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1779602580120.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-side-chat-1779602580120.png`.
+- `npm run smoke:ui:auto -- --diff-core` passed after the Review core smoke sequencing fix; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779604589894.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779604589894.png`.
+- `npm run smoke:visual:side-panels -- --full` passed; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory/manifest.json`.
+- Stable full screenshots: `chat-sidebar.png`, `workbench-right-panel.png`, `review-entry.png`, `files.png`, `browser.png`, `terminal-bottom-panel.png`, `settings.png`, `review-core.png`, `review-source.png`, `review-preview.png`, `settings-providers.png`, `side-chat.png`, `plan.png`, `extensions.png`, `composer.png`, `capabilities.png`, `pets.png`, and `transcript-narrow.png` under `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory`.
+
+Remaining:
+
+- Capture/live-compare Codex screenshots for the same surfaces and record exact UI mismatches before starting more visual-only changes.
+- Packaged/install verification remains required before claiming shell-level parity.
+
+### 2026-05-24 - Review Metadata Toolbar Slot Slice
+
+Implemented in Orchestrator:
+
+- Added optional typed `reviewMetadata` on sessions, with provider-agnostic PR, check, and reviewer summary fields.
+- Added a compact Review toolbar metadata affordance that appears when session metadata exists and opens bounded PR/check/reviewer rows using the shared menu surface.
+- Added smoke fixture metadata for diff-focused automated sessions, including sessions created during the automated diff smoke boot path.
+- Extended focused Review entry smoke coverage so `reviewMetadataToolbar` requires PR 42, failing checks, and reviewer summary rows to render from session metadata.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --diff-entry` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779601170006.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779601170006.png`.
+
+Remaining:
+
+- This creates the UI/data contract only. Real provider adapters still need to populate PR/check/reviewer metadata, URLs, and any hosted review state.
+- External PR/reviewer-backed comments and blame metadata remain separate.
+
+### 2026-05-24 - Review Transcript Local Undo Slice
+
+Implemented in Orchestrator:
+
+- Added a session-level `undoChangedFiles` IPC path that discards only explicit changed paths from the session worktree.
+- Added backend Git discard handling for tracked changes, staged additions, and untracked files, with path-safety checks that reject absolute/out-of-workspace paths.
+- Enabled the transcript `Edited N files` card's `Undo` action when local changes exist, refreshes the card from the resulting changed-file list, and clears stale inline diff previews after undo.
+- Extended focused Review entry smoke coverage so `reviewTranscriptCardUndo` requires the card's Undo affordance to be enabled and wired to the local current-change state.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run test:providers` passed; 243 tests, including `discard paths reverts tracked, staged, and untracked review files` and `discard paths refuses unsafe paths`.
+- `npm run smoke:ui:auto -- --diff-entry` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779600272789.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779600272789.png`.
+
+Remaining:
+
+- This closes local current-change Undo for explicit changed paths; it does not yet implement provider checkpoint/last-turn Undo semantics.
+- Exact live Codex transcript spacing and animation comparison is still needed before calling transcript Review visually complete.
+
+### 2026-05-24 - Workbench Shared Shell Layout Controller Slice
+
+Implemented in Orchestrator:
+
+- Moved Workbench right-panel size, overlay, full-width, legacy default-width, and max-width derivation into `useAppShellSidePanelLayout`.
+- Updated `ContextSidebar` so `AppShellPanel` receives the shared layout class/style and exposes `data-app-shell-panel-size-controller="shared"` plus resolved layout/size attributes.
+- Kept resize behavior and persisted width-ratio semantics intact while making the layout contract smoke-verifiable at the app-shell boundary.
+- Extended the focused right-panel smoke so it fails unless the panel shell and `session-right-panel` agree on the shared layout mode and resolved size metadata.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --right-panel` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779599805061.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779599805061.png`.
+
+Remaining:
+
+- Terminal placement and focused find routing are now covered by later slices.
+- Remaining shell gaps are packaged/native accelerator proof, dedicated multi-window focus-switch proof, route/window lifecycle ownership, and exact live Codex shell spacing side-by-side verification.
+
+### 2026-05-24 - Review Transcript Patch Shape Parity Slice
+
+Implemented in Orchestrator:
+
+- Reworked the transcript `Edited N files` review card from a large summary card into a Codex-like file-first patch surface.
+- Added per-file status/path/stats rows, chevron expansion, and an inline diff preview for expanded transcript rows.
+- Kept the direct `Review` action as the entry point into detailed Review, while file rows now behave like Codex patch rows by expanding inline.
+- Extended focused Review entry smoke coverage so `reviewTranscriptCard` requires the file-first layout and a loaded inline transcript diff.
+- Updated the final smoke wait so Review entry screenshots capture loaded detailed diff content rather than a transient loading state.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --diff-entry` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779599338367.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779599338367.png`.
+
+Remaining:
+
+- Local current-change `Undo` is covered by the newer Review Transcript Local Undo slice above; provider checkpoint/last-turn Undo remains separate.
+- Exact live Codex transcript spacing and animation comparison is still needed before calling transcript Review visually complete.
+
+### 2026-05-24 - Review Entry Navigation Parity Slice
+
+Implemented in Orchestrator:
+
+- Changed the transcript `Review` action to open detailed Review directly instead of opening Environment.
+- Added Environment as a first-class Workbench tab in the add-tab menu, so the Environment surface remains accessible without overloading the Review action.
+- Updated focused Review entry smoke coverage so Environment is verified through the Environment tab and its `Changes` row, while the transcript `Review` action is verified as a direct detailed-Review entry point.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --diff-entry` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779598567039.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779598567039.png`.
+
+Remaining:
+
+- Local current-change `Undo` is covered by the newer Review Transcript Local Undo slice above.
+- Environment `Commit` and `Create pull request` rows remain metadata/placeholder affordances rather than full provider-backed flows.
+- Real provider population for PR/check/reviewer Review toolbar metadata is still missing.
+
+### 2026-05-24 - Review Preview Smoke Isolation Slice
+
+Implemented in Orchestrator:
+
+- Moved `--diff-preview` onto a Review-owned selected-file executor instead of the previous page-wide selector path.
+- Scoped Review tab activation to the active right panel and added a transcript `Review` fallback, so focused Review smokes do not accidentally validate the Environment tab.
+- Constrained preview file selection to `.diff-panel-list` rows or Review file-section headers, avoiding transcript-card file rows with the same names.
+- Verified diff-first behavior before rich preview, rich-preview toggles for JSON/CSV/DOCX/notebook/image fixtures, binary fallback state, and binary `Open`/`Reveal` actions.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --diff-preview` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-preview-1779597980824.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-preview-1779597980824.png`.
+
+Remaining:
+
+- `--diff-entry`, `--diff-core`, `--diff-source`, and `--diff-preview` are now reliable green Review gates. Remaining Review work is visual side-by-side parity against Codex plus product slices such as provider checkpoint/last-turn Undo, provider-native review sources, real PR metadata adapters, and diff virtualization.
+
+### 2026-05-24 - Review Source Smoke Isolation Slice
+
+Implemented in Orchestrator:
+
+- Moved `--diff-source` onto a source-state Review executor inside the focused surface smoke runner.
+- The source executor returns after source-mode switching, full-source rows, line comments, selected-line blame, gutter popovers, changed-files side-pane behavior, hidden-context expansion, file jump, and source-tab handoff.
+- Replaced the previous binary-preview-dependent search-clear assertion with a direct source-state cleanup assertion over `diff-file-search` and `review-file-jump-search`.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --diff-source` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779591684365.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779591684365.png`.
+
+Remaining:
+
+- `--diff-entry`, `--diff-core`, and `--diff-source` are now reliable green gates. `--diff-preview` still needs a clean rich-preview/binary executor.
+
+### 2026-05-24 - Review Core Smoke Isolation Slice
+
+Implemented in Orchestrator:
+
+- Moved `--diff-core` onto a clean-state Review executor inside the focused surface smoke runner.
+- The core executor now returns before source-mode, rich-preview, binary, file-tab, Environment, and final visual-cleanup mutations.
+- Covered detailed Review workspace assertions include toolbar compactness, changed-file tree rows, file-section/header structure, diff row metrics, hunk separator structure, gutter indicators, line-number content, gutter utility placement, tree git lane, tabpanel focus ring, tree grouping, keyboard navigation, selected-path reveal, line selection, hunk collapse, split/unified mode toggle, expanded/collapsed diff toggle, and action-menu material/compactness.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --diff-core` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779591534719.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779591534719.png`.
+
+Remaining:
+
+- `--diff-entry` and `--diff-core` are now reliable green gates. `--diff-source` still needs a cleanup fix for `reviewSearchClear=false`, and `--diff-preview` still needs a clean rich-preview/binary executor.
+
+### 2026-05-24 - Review Split Smoke Mapping Slice
+
+Implemented in Orchestrator:
+
+- Added focused Review smoke aliases to `scripts/run-automated-ui-smoke.mjs`: `--diff-entry`, `--diff-core`, `--diff-source`, and `--diff-preview`.
+- Routed the new aliases through the existing deterministic Review fixture and focused `diff` surface runner.
+- Split the Review summary contract into entry, core diff, source/interactions, and rich-preview/binary groups so one group can be validated without treating the entire Review panel as failed.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --diff-entry` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779591125055.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779591125055.png`.
+- `npm run smoke:ui:auto -- --diff-core` failed with targeted core-state evidence; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779591159182.json`.
+- `npm run smoke:ui:auto -- --diff-source` failed only on the source group's search-clear assertion while proving the source-mode, full-source-row, comment, blame, side-pane, hidden-context, and file-tab handoff checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779591205594.json`.
+- `npm run smoke:ui:auto -- --diff-preview` failed on rich-preview and binary assertions while proving whitespace, word-diff, and diff-first checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-preview-1779591240064.json`.
+
+Remaining:
+
+- The new aliases separate reporting, but core/source/preview still share the old long executor. Next Review verification work should state-isolate those executors so core layout checks run before preview/search mutations, source checks do not inherit final visual cleanup state, and preview/binary checks run against a clean rich-preview path.
+
+### 2026-05-24 - Browser Shell Tab Controller Slice
+
+Implemented in Orchestrator:
+
+- Replaced the Browser panel's custom multi-tab strip with the shared app-shell `PanelTabStrip`, preserving Browser tab selection, close, new-tab, and reorder behavior.
+- Added Browser tab-controller evidence hooks: `data-browser-tab-controller="app-shell"` and a stable Browser tab controller id.
+- Kept single-tab Browser chrome hidden, so the normal Browser panel remains quiet until multiple browser tabs exist.
+- Updated Browser smoke coverage to verify the shared app-shell tab controller, shared toolbar marker, tab ARIA wiring, calm tab metrics, webview persistence, and existing Browser lifecycle behavior.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto -- --browser` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779590795286.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779590795286.png`.
+
+Remaining:
+
+- Browser is closer to shared shell tab behavior, but still not fully Codex-like: the browser webview host is still owned by the Browser panel subtree rather than a top-level shell/lifecycle controller, and provider-produced browser-use events, conversation/fork transfer, route lifecycle, capture geometry, and deeper annotation behavior remain open.
+
+### 2026-05-22 - Panel Tab Foundation Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/app-shell-tab-controller-B2eCi4Le.js` confirmed the reference controller concepts: tab id, kind, tab state, preview replacement, pinning, move/receive moved tab, reset, close hooks, and right/bottom panel event logging.
+- `webview/assets/tabs-BgnCzZaP.js` confirmed shared toolbar/segmented tab treatment with keyboard/accessibility-friendly tab roles and hover close controls.
+
+Implemented in Orchestrator:
+
+- Added shared panel-tab state helpers in `src/types/panelTabs.ts`: open/upsert, preview replacement, close active with adjacent fallback, move/reorder, pin/promote preview, and active-id reset.
+- Routed Workbench right-panel tab open/close/move and Terminal bottom-panel close/move behavior through those shared helpers instead of separate local array logic.
+- Extended the shared `PanelTabStrip`/`TabButton` primitive with closable, preview, pinned, and shimmering states; Arrow/Home/End keyboard tab navigation; non-active close support; lighter count badge weight; hover close spacing; and shimmer styling for pending tabs.
+- Fixed shared tooltip/header accessibility discovered by smoke: header tooltip targets are keyboard-focusable, and `Tooltip` responds to mouseover paths used by Electron smoke while still preserving native-title-free custom tooltip behavior.
+
+Verification:
+
+- `npm run test:providers` passed: 213 tests, including the new `src/main/__tests__/panelTabs.test.ts` coverage for preview replacement, pin promotion, close-active fallback, movement, reorder, and invalid active-id recovery.
+- `npm run build` passed after the final tooltip fix.
+- `npm run smoke:ui:auto` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779477324089.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779477324089.png`.
+
+Remaining:
+
+- This slice establishes shared state/chrome primitives but does not yet complete the larger Codex controller surface: generic per-tab state payloads in renderer store, first-class file/browser/terminal tab types, cross-panel move/receive semantics, route-level telemetry, and shell-owned focus/shortcut routing remain open.
+
+### 2026-05-22 - Shared TabPanel Accessibility Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/app-shell-tab-controller-B2eCi4Le.js` confirmed Codex scrolls active tabs with `data-app-shell-tab-controller="{panel}"` plus `data-tab-id`, focuses the matching `[role="tabpanel"][data-app-shell-tab-panel-controller="{panel}"][data-tab-id="{tab}"]` after activation, and exits fullscreen if a closing tab owns fullscreen content.
+- `webview/assets/tabs-BgnCzZaP.js` confirmed Codex tab buttons expose `role="tab"`, `aria-selected`, and `aria-controls` for the selected panel, and scrollable tab lists map wheel deltas onto horizontal `scrollLeft`.
+
+Implemented in Orchestrator:
+
+- Added stable shared tab and tabpanel DOM id helpers to `designSystem.tsx`.
+- Extended `PanelTabStrip`/`TabButton` with an optional `panelId`, per-tab `data-app-shell-tab-controller`, `data-tab-id`, `aria-controls`, and stable tab ids.
+- Added shared active-tab scroll and active-`tabpanel` focus routing after tab activation, using the same panel-id/data-tab-id shape as the Codex controller.
+- Added shared wheel-to-horizontal tab scrolling for overflowed tab rows.
+- Added shared fullscreen-owner cleanup for closing panel tabs, and wired it through Workbench, Terminal, and global close-active-tab command paths.
+- Added shared `panel.tab.opened`, `panel.tab.closed`, and `panel.tab.viewed` metrics for Workbench and Terminal tab lifecycle/activation, using the existing provider-agnostic performance telemetry channel.
+- Added a shared `resolvePanelCloseTarget` focus resolver so the global close-active-panel-tab command honors focused Workbench/Terminal panels but still falls back from the main thread area to the first closeable open panel.
+- Proved shared close affordances for inactive tab hover/focus close buttons and middle-click tab close through the right-panel smoke runner.
+- Marked Workbench and Terminal panel bodies as real `role="tabpanel"` regions with `aria-labelledby`, `data-app-shell-tab-panel-controller`, and `data-tab-id`.
+- Extended right-panel and terminal smokes with `rightPanelTabPanelA11y`, `rightPanelTabWheelScroll`, `rightPanelFullscreenCleanup`, `rightPanelTabTelemetry`, `rightPanelTabLifecycleTelemetry`, `rightPanelCloseFallbackFromMain`, `rightPanelInactiveClose`, `rightPanelMiddleClickClose`, `terminalTabPanelA11y`, `terminalFullscreenCleanup`, and `terminalTabTelemetry` assertions for tab/panel ownership, active panel focus where appropriate, overflow tab wheel behavior, fullscreen cleanup, tab lifecycle/view telemetry, inactive/middle-click close, and main-area close fallback.
+
+Verification:
+
+- `npm run test:providers` passed: 216 tests, including the shared close-target resolver cases.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --right-panel` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779486017881.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779486017881.png`.
+- `npm run smoke:ui:auto -- --terminal` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779486132372.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779486132372.png`.
+- `git diff --check` passed before smoke verification.
+
+Remaining:
+
+- Workbench and Terminal now share Codex-like tab-to-panel ownership, focus routing, wheel scrolling for overflowed tab rows, hover/focus and middle-click close affordances, fullscreen-owner cleanup, close-active fallback from the main focus area, and tab opened/closed/viewed telemetry. Later slices also add right/bottom terminal move semantics and focused find routing. Larger shell-controller gaps remain: product-level panel open/close analytics, route/window lifecycle, and panel shortcuts beyond close/find.
+
+### 2026-05-22 - Measured Panel Tab Action Slot Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `ResizeObserver` remains present throughout the current Codex bundle near panel/tab shell code, matching the audit finding that panel chrome measures layout slots rather than relying on fixed action fades.
+- Re-checking `right-panel` strings confirmed this slice is still in the right-panel/workbench chrome scope.
+
+Implemented in Orchestrator:
+
+- Extended shared `PanelTabStrip` with a measured action slot using `ResizeObserver`, a stable `data-panel-tab-actions-width` evidence attribute, and the `--panel-tab-actions-width` CSS variable.
+- Changed shared tab row scroll padding to reserve the measured action width instead of a fixed 28px end padding.
+- Removed the fixed `.panel-tab-actions::before` gradient overlay and negative margin guesswork so action slots are reserved by measurement rather than local overlap.
+- Removed old `right-sidebar-tab-label` / `right-sidebar-tab-count` aliases from shared `PanelTabStrip` output and moved the smoke checks to provider-neutral `panel-tab-*` selectors.
+- Wired shared tab shimmer state to live Agents tabs and pending side-chat tabs, so pending/lively Workbench tabs use the existing `data-shimmering` tab primitive instead of static labels.
+- Tightened right-panel and terminal smoke checks so Workbench and Terminal tabbars must expose a measured action slot and scroll padding that reserves it, in addition to the shared toolbar/action variant assertions.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --right-panel` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779497258808.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779497258808.png`.
+- `npm run smoke:ui:auto -- --terminal` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779497282889.json`; screenshot captured the terminal surface and was not used as visual proof: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779497282889.png`.
+- `npm run smoke:ui:auto -- --right-panel` passed after removing shared `right-sidebar-tab-*` aliases; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779497479490.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779497479490.png`.
+- `npm run smoke:ui:auto -- --terminal` passed after removing shared `right-sidebar-tab-*` aliases; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779497506779.json`; screenshot captured the terminal surface and was not used as visual proof: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779497506779.png`.
+- `npm run smoke:ui:auto -- --plan` passed after wiring live Agents tabs to shared shimmer state; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1779497814598.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1779497814598.png`.
+
+Remaining:
+
+- Workbench and Terminal tabbars now reserve trailing actions through shared measurement, shared tab internals no longer emit old `right-sidebar-tab-*` label/count aliases, and live/pending Workbench tabs can shimmer through shared tab state. Remaining tab-strip parity is deeper: full shell-owned tab controller state, cross-panel move/receive semantics, and richer drag sensors/separators/layout animation. This historical slice predated the later active `workbench-panel-*` wrapper/test selector cleanup.
+
+### 2026-05-22 - First-Class File Tab Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/review-file-source-tab-_AZBZ4OY.js` confirmed Codex treats source/file viewing as a right-panel tab surface rather than only an inline Files/Review preview.
+- `webview/assets/open-workspace-file-DFjZ10XZ.js` confirmed Codex has an explicit open-workspace-file decision path that classifies previewable files and unsupported file kinds.
+- `webview/assets/workspace-directory-tree-CHHgPVoD.js` confirmed file browsing keeps selected path/search state separate from the opened file tab lifecycle.
+
+Implemented in Orchestrator:
+
+- Added dynamic Workbench file tab ids (`file:<encoded path>`) and file-tab metadata to the right-panel store, including preview vs pinned state.
+- Added `openRightPanelFileTab` and `pinRightPanelTab` store actions so file previews can open as Codex-style Workbench tabs and then be promoted to stable tabs.
+- Added `FileTabPanel`, reusing the existing file preview renderers for text, markdown, structured data, media, HTML, PDF, binary, missing, and unreadable states.
+- Wired Files and Review actions to open the selected file in a Workbench file tab. Files also supports double-clicking a file row to open a preview tab.
+- Kept the existing Files split preview intact for now, but added a first-class Workbench file path so future work can reduce the permanent hard split without losing current behavior.
+- Extended automated UI smoke coverage with `workbenchFileTab` and `workbenchFileTabPin` checks for file-tab open and preview-to-pinned promotion.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 213 tests.
+- `npm run smoke:ui:auto -- --files` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779477867532.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779477867532.png`.
+- `npm run smoke:ui:auto` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779477889023.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779477889023.png`.
+
+Remaining:
+
+- File tabs are now first-class Workbench tabs, but the Files panel still renders its permanent list/preview split and still uses local non-virtualized rows. The next Files parity work should move the file tree/list onto a shared virtualized Workbench tree primitive, make opened files the primary preview path, and add richer file-source controls such as blame, rich/source toggles, and preferred editor targets.
+
+### 2026-05-22 - File Source Line Selection Slice
+
+Implemented in Orchestrator:
+
+- Added a typed main-process `git:blameLine` IPC path backed by `git blame --line-porcelain`, with parsed author/commit metadata and safe failure results for non-Git or unavailable blame cases.
+- Replaced plain text workspace previews with a source preview surface that includes a sticky source header, line-number gutter, and selectable source rows.
+- Added selected-line state with `data-source-selected-line`, `data-source-line-number`, `data-source-line-selected`, and `aria-selected` evidence so file-source behavior can be smoke-tested.
+- Added a Workbench file-tab source wrap toggle, surfaced through `data-source-wrap`, so source tabs can switch between wrapped and unwrapped code layout.
+- Hoisted selected source-line state into Workbench file tabs, enabling toolbar utilities for Copy selected line reference and Open selected line through the existing preferred-editor `openPath` line-target path.
+- File tabs now fetch selected-line blame and surface compact `L<line> · <author>` metadata in the toolbar; uncommitted lines report Git's `Not Committed Yet` author state.
+- Reused the source preview in first-class Workbench file tabs and the existing Files split preview, keeping markdown/rich previews unchanged.
+- Extended Files focused smoke coverage with `fileSourceLineSelection`, `fileSourceLineUtilities`, `fileSourceLineBlame`, and `fileSourceWrapToggle`, proving a text file can open as a Workbench file tab, select line 2 from the source gutter, enable selected-line actions, copy `review-base.txt:2`, render `Not Committed Yet` blame, and toggle source wrapping.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed, including `line blame returns author metadata for a tracked source line`.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779492359961.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779492359961.png`.
+- `git diff --check` passed before smoke verification.
+
+Remaining:
+
+- File source tabs now have basic line selection, source wrap control, selected-line copy/open utilities, and selected-line blame metadata. Codex still has richer gutter utilities, comments, inline blame affordance depth, virtualized source rendering, and deeper artifact/source tab behavior.
+
+### 2026-05-22 - Shared Workbench Tree/List Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-tree-search-input-Cg1SVtq4.js` confirmed Codex's file tree component owns a fixed `itemHeight` of `28`, uses `--trees-font-size-override: 13px`, `--trees-item-padding-x-override: 6px`, `--trees-item-margin-x-override: 0px`, `--trees-item-row-gap-override: 10px`, sticky folders, `hide-non-matches` search mode, treeitem roles, and virtualized scroll wrappers.
+- `webview/assets/workspace-directory-tree-CHHgPVoD.js` confirmed the workspace browser wraps the shared file tree with `px-2` list padding, selected-path reveal, double-click open behavior, preview/pin file open options, and separate search state.
+- `webview/assets/review-file-tree-side-pane-qCgJ0jE8.js` confirmed Review and workspace browsing share the same file-tree/search primitives, with `data-review-path` used for active review-path sync and scrolling.
+
+Implemented in Orchestrator:
+
+- Added `WorkbenchTree`, a shared Workbench row/list primitive with 28px fixed rows, 13px inherited text, 6px row padding, 10px indentation steps, `role="tree"`/`role="treeitem"` semantics, selected state, metadata/decorations slots, double-click open hooks, and optional fixed-row virtualization for larger lists.
+- Refactored `FilesPanel` file/directory entries onto `WorkbenchTree`, preserving search, selection, inline preview, double-click-to-file-tab, file actions, and first-class Workbench file-tab open behavior while removing local `SurfaceRow` row chrome.
+- Refactored `DiffPanel` changed-file and directory rows onto the same `WorkbenchTree`, preserving grouped directory rows, `data-review-path`, keyboard navigation, review preview toggles, binary/rich preview paths, and double-click-to-file-tab behavior for non-deleted files.
+- Reduced local Review/Files row CSS to shared Workbench tree tokens and removed the visible row separators/heavy selected row treatment that made Review look unlike Codex's calmer file tree.
+- Removed native `title` attributes from `WorkbenchTree` rows/status markers while preserving custom tooltip metadata and ARIA labels.
+- Extended automated UI smoke coverage with `diffWorkbenchTree`, `diffWorkbenchTreeNativeTitleFree`, `filesWorkbenchTree`, and `filesWorkbenchTreeNativeTitleFree` checks that assert the shared tree marker, treeitem roles, 28-ish row metrics, 13-ish text, and native-title-free row behavior in the rendered app.
+
+Verification:
+
+- `npm run build` passed before smoke verification.
+- `npm run test:providers` passed: 213 tests.
+- `npm run smoke:ui:auto -- --diff` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779486876686.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779486876686.png`.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779486795958.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779486795959.png`.
+
+Remaining:
+
+- The shared tree now aligns Review and Files row metrics/chrome, but it is still a pragmatic React primitive rather than Codex's full shadow-DOM file tree model. Remaining gaps include host-aware lazy directory loading, sticky folder behavior under large scroll ranges, and real hide-non-match tree search projection.
+
+### 2026-05-22 - Files Row Context Menu and Open Target Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `thread.fileTreePanel.searchingFiles` and `thread.fileTreePanel.noMatchingFiles` remain the localized strings for Codex's file-tree panel empty/loading states.
+- `thread.fileCommandMenu.filesGroup` and `thread.fileCommandMenu.searchFiles` confirm Codex exposes file browsing through a command-menu file group rather than a local-only panel control.
+- `thread.sidePanel.newTab.openFile.description` confirms the right-panel new-tab surface presents file browsing as "Browse project files", consistent with first-class side-panel file tabs.
+
+Implemented in Orchestrator:
+
+- Extended `WorkbenchTree` rows with a reusable `onContextMenu` hook and `data-open-target` marker so tree consumers can expose Codex-like row menus and smoke-verifiable preferred open targets without bespoke row chrome.
+- Added a Files row context menu that selects the right-clicked row, opens the shared translucent `MenuSurface` at the pointer, and reuses the same file actions as the toolbar menu: Add to chat, Open in Workbench, Copy path, Reveal file, and Open file.
+- Tagged file rows with `data-open-target="workbench-preview"` when a session can open first-class Workbench file tabs; directory rows keep `data-open-target="select"`.
+- Kept existing single-click inline preview and double-click preview-tab open behavior intact while making the row-level context path explicit.
+- Extended Files focused smoke coverage with `filesRowContextMenu` and `filesPreferredOpenTarget`, proving the right-click menu is row-owned, selects `Nested Folder/nested note.md`, exposes all expected file actions, and marks file rows as Workbench-preview targets.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779494228797.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779494228797.png`.
+- `git diff --check` passed after smoke verification.
+
+Remaining:
+
+- Files now has row context menus and explicit Workbench-preview open targets, but the panel still needs sticky-folder behavior, host-aware lazy loading, and hidden non-match tree search projection.
+
+### 2026-05-22 - Files File-Tab-First Layout Slice
+
+Fresh Codex bundle evidence reused the earlier file-source/right-panel references:
+
+- `review-file-source-tab-_AZBZ4OY.js` and `thread.sidePanel.newTab.openFile.description` keep pointing at file viewing as a first-class right-panel tab surface rather than a permanent Files split.
+- The Codex file-tree evidence still frames Files as a compact browser with row actions/open targets, with previews handled by tab/file-source surfaces.
+
+Implemented in Orchestrator:
+
+- Changed embedded Workbench `FilesPanel` to render a single-column `data-files-layout="file-tabs"` browser instead of the hard list/preview split.
+- Kept the inline preview split as a fallback for standalone/no-session Files usage, preserving existing reusable `FilePreview` behavior for non-Workbench contexts.
+- Kept single-click row selection in the browser, with double-click and `Open in Workbench` opening preview file tabs through the existing preview/pin lifecycle.
+- Updated focused Files smoke coverage from the old stacked split assertion to `filesFileTabFirstLayout`, and moved HTML/JSON/CSV/DOCX/notebook/binary preview checks through Workbench file tabs.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779498221982.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779498221982.png`.
+
+Remaining:
+
+- Files is now a Workbench browser plus first-class preview/pinned tabs, but still needs host-aware file tab identity, sticky folders, lazy directory loading, hidden non-match search projection, and richer source controls. Host-aware identity was addressed in the next slice below.
+
+### 2026-05-22 - Host-Aware File Tab Identity Slice
+
+Fresh Codex bundle evidence reused the existing source-tab identity finding:
+
+- Codex file tabs use host/path identity (`file:<host>:<path>` shape in the audit model) so a file tab belongs to a workspace/source context rather than only a bare path string.
+
+Implemented in Orchestrator:
+
+- Added shared `filePanelTabId(host, filePath)` and `parseFilePanelTabId(tabId)` helpers that encode `file:<host>:<path>` while still decoding older path-only `file:<path>` ids as `host: "workspace"`.
+- Updated Workbench file-tab creation to use the current session workdir as the file host.
+- Stored `fileHost` on file tab state and exposed it on rendered `FileTabPanel` as `data-file-tab-host` for smoke-verifiable identity.
+- Tightened Files smoke coverage so `workbenchFileTab` now proves the rendered tab id has host and path segments and the file tab receives the smoke workspace host.
+
+Verification:
+
+- `npm run test:providers` passed: 219 tests, including the new host-aware file tab id decode/legacy compatibility coverage.
+- `npm run build` passed after updating the renderer type barrel exports.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779498498712.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779498498712.png`.
+
+Remaining:
+
+- File tab identity is now host-aware and backward-compatible. Remaining Files parity is sticky folders, lazy directory loading, hidden non-match search projection, richer source controls, and deeper source-tab state. Hidden non-match search projection was addressed in the next slice below.
+
+### 2026-05-22 - Files Search Projection Slice
+
+Fresh Codex bundle evidence reused the earlier tree/search finding:
+
+- `file-tree-search-input-Cg1SVtq4.js` confirmed Codex file search uses a `hide-non-matches` projection rather than a flat search-result-only list, preserving useful tree context around matched files.
+
+Implemented in Orchestrator:
+
+- Added a filtered Files projection that inserts ancestor directory rows for matching files while keeping unmatched sibling rows hidden.
+- Preserved unfiltered browsing unchanged; ancestor projection only applies when the file search query is non-empty.
+- Kept projected ancestor rows as directory/select targets while matched file rows retain the Workbench preview open target.
+- Extended focused Files smoke coverage with `filesSearchProjection`, proving `Nested Folder` appears as a directory row before `nested note.md` in filtered search results.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779498628354.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779498628354.png`.
+
+Remaining:
+
+- Files filtered results now keep parent context. Remaining Files parity is sticky folders, host-aware lazy directory loading, richer source controls, and deeper source-tab state. Sticky folders were addressed in the next slice below.
+
+### 2026-05-22 - Files Sticky Folder Slice
+
+Fresh Codex bundle evidence reused the earlier tree finding:
+
+- `file-tree-search-input-Cg1SVtq4.js` confirmed Codex's file tree model includes sticky folders alongside fixed 28px rows, virtualized wrappers, and hidden non-match search projection.
+
+Implemented in Orchestrator:
+
+- Added opt-in sticky directory support to the shared `WorkbenchTree` primitive, including `data-sticky-directories` and a sticky clone row for the current directory context during virtualized scrolling.
+- Enabled sticky directories for embedded Files without forcing the behavior onto Review yet.
+- Extended the Files smoke fixture with a large `Sticky Folder` directory so the list virtualizes and the sticky-folder behavior is exercised under scroll.
+- Added `filesStickyFolders` smoke coverage proving Files uses sticky directory mode, the tree is virtualized, and `Sticky Folder` sticks to the top of the scrolled list.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed after correcting the verifier to re-query the live Files list after tab switches; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779499005358.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779499005358.png`.
+
+Remaining:
+
+- Files now covers sticky folders in the current virtualized tree. Remaining Files parity is host-aware lazy directory loading, richer source controls, and deeper source-tab state. Basic source/rich switching was addressed in the next slice below.
+
+### 2026-05-22 - File Source/Rich Mode Slice
+
+Fresh Codex bundle evidence reused the source-tab control finding:
+
+- `review-file-source-tab-_AZBZ4OY.js` and the file viewer audit row show Codex file-source tabs expose rich/source-style controls alongside wrapping, open, copy, and blame utilities.
+
+Implemented in Orchestrator:
+
+- Added a Workbench file-tab `Show source` / `Show rich preview` toolbar toggle for text-backed rich previews: markdown, JSON, CSV, notebooks, and DOCX text previews.
+- Extended `FilePreview` with a source override path that reuses the selectable source viewer, line gutter, selected-line state, and existing wrap behavior instead of creating a parallel renderer.
+- Added `data-file-tab-view-mode` and `workbench-file-tab-source-mode` evidence hooks for rendered verification.
+- Extended focused Files smoke coverage with `fileSourceMode`, proving a markdown Workbench file tab starts in rich preview mode and can switch to raw selectable source.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779499178996.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779499178996.png`.
+
+Remaining:
+
+- Workbench file tabs now cover basic rich/source switching, source wrap, selected line utilities, and selected-line blame. Remaining Files/source parity is host-aware lazy directory loading, deeper source-tab state, artifact-specific controls, comments/annotations, and richer blame UI. Host-aware lazy directory loading was addressed in the next slice below.
+
+### 2026-05-22 - Files Host-Aware Lazy Directory Loading Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing, extracted to `/private/tmp/codex-asar-files-lazy-audit`:
+
+- `webview/assets/workspace-directory-tree-CHHgPVoD.js` confirmed Codex's workspace browser uses `workspace-directory-entries` requests with host/root/directory/include-hidden parameters and tracks expanded tree state instead of loading the entire workspace tree up front.
+- `webview/assets/file-tree-search-input-Cg1SVtq4.js` confirmed the same 28px row file-tree model still owns search, selected-path reveal, and hide-non-match tree behavior around that lazy directory browser.
+
+Implemented in Orchestrator:
+
+- Extended the workspace search request/result contract with `host`, `lazyDirectories`, `expandedDirectories`, and per-entry `hasChildren`/`loaded` metadata.
+- Updated main-process workspace search so empty-query browsing returns only root plus expanded directory children, while filtered search remains recursive for search-result projection.
+- Updated `FilesPanel` to track expanded directories per workspace host, pass host-aware lazy browse requests, reset expansion when the workspace changes, and toggle directory rows without opening file tabs.
+- Extended the shared `WorkbenchTree` row contract with expandable/expanded/loading metadata, chevron disclosure icons, `aria-expanded`, and smoke-visible `data-workbench-tree-host` / `data-lazy-directories` markers.
+- Extended focused Files smoke coverage with `filesLazyDirectories`, proving the root tree is host-tagged/lazy, nested files are absent before expansion, `Sticky Folder` expands through the tree, and sticky virtualization still works after expansion.
+
+Verification:
+
+- `npm run test:providers` passed: 222 tests, including the new lazy workspace-search coverage.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779503060194.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779503060194.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- Files now covers host-aware lazy browsing, sticky folders, hidden non-match ancestor projection, file-tab-first preview/open behavior, and basic source/rich controls. Remaining Files/source parity is deeper source-tab state, artifact-specific controls, comments/annotations, richer blame UI, and shared search refinements. Basic source-tab state persistence was addressed in the next slice below.
+
+### 2026-05-22 - File Source Tab State Slice
+
+Fresh Codex bundle evidence reused the file-source tab findings:
+
+- `webview/assets/review-file-source-tab-_AZBZ4OY.js` confirmed Codex treats file/source viewing as a first-class right-panel tab surface with source controls rather than only local preview component state.
+- `webview/assets/app-shell-tab-controller-B2eCi4Le.js` confirmed tab records are the right ownership boundary for persistent per-tab state.
+
+Implemented in Orchestrator:
+
+- Added file-source state fields to right-panel file tabs: `fileViewMode`, `sourceWrap`, and `selectedSourceLine`.
+- Added a provider-agnostic store action, `updateRightPanelFileTabState`, so file tabs can patch source state on their own tab record without coupling to the Files panel.
+- Updated `FileTabPanel` to read source mode/wrap/selected-line state from the active file tab and write changes back to the right-panel tab record.
+- Kept copied-line-reference and blame request state local to the rendered panel, while preserving selected line, source wrapping, and rich/source mode across tab switches.
+- Extended focused Files smoke coverage with `fileSourceTabState`, proving a source file keeps selected line 2 and disabled wrapping after switching to the Files tab and back.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 222 tests.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779503301765.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779503301765.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- File tabs now keep basic source mode, wrapping, and selected-line state on the tab record. Remaining Files/source parity is artifact-specific controls, comments/annotations, richer blame UI, richer source loading/reveal behavior, visible open-target diagnostics, and shared search refinements. Visible open-target diagnostics were addressed in the next slice below.
+
+### 2026-05-22 - File Open Target Diagnostic Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/workspace-directory-tree-CHHgPVoD.js` confirmed Codex workspace browsing exposes open-file actions through preview/pin callbacks.
+- Current bundle locale strings confirmed Codex exposes `threadSidePanel.workspaceBrowser.openIn`, `threadSidePanel.workspaceBrowser.openInTarget`, and `threadSidePanel.workspaceBrowser.openInTargetSubmenu`, plus diff context-menu `openInTarget` strings. This makes the selected editor target a visible file-viewer affordance rather than only a hidden setting.
+
+Implemented in Orchestrator:
+
+- Added a compact file-tab toolbar badge that shows the active preferred open target, using existing `settings.get()` and `fs.listOpenTargets()` APIs.
+- The badge exposes `data-open-target`, availability, and line-target support markers for smoke coverage.
+- Updated file-tab Open/Open selected line toolbar labels to include the current target label while continuing to route through the existing preferred-editor `openPath` bridge.
+- Added `fileOpenTargetDiagnostic` focused Files smoke coverage. The smoke sets the isolated profile's preferred editor to Cursor, opens a Workbench file tab, and proves the tab reports `data-file-tab-open-target="cursor"` plus visible `Open in Cursor` text.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 222 tests.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779503576229.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779503576229.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- File tabs now show the active open target and keep using the existing preferred-editor bridge. Remaining Files/source parity is artifact-specific controls, comments/annotations, richer blame UI, richer source loading/reveal behavior, and shared search refinements. Basic richer blame metadata was addressed in the next slice below.
+
+### 2026-05-22 - File Source Blame Metadata Slice
+
+Fresh Codex bundle evidence reused the file-source tab findings:
+
+- `webview/assets/review-file-source-tab-_AZBZ4OY.js` and the Review/File Viewer audit rows confirm blame is part of the source/file-viewer parity surface, not just a backend helper.
+
+Implemented in Orchestrator:
+
+- Updated the Workbench file-tab blame badge to render from structured blame metadata instead of only the preformatted summary.
+- Added visible working-tree blame state for uncommitted lines and smoke-visible metadata attributes: `data-line-blame-author`, `data-line-blame-commit`, and `data-line-blame-source`.
+- Preserved the existing selected-line blame IPC path and toolbar placement while making the displayed text more explicit: uncommitted lines now show `Not Committed Yet · Working tree`.
+- Tightened focused Files smoke coverage under `fileSourceLineBlame`, proving selected line 2 reports author `Not Committed Yet`, source `working-tree`, and visible `Working tree` text.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 222 tests.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779503708073.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779503708073.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- File tabs now expose structured selected-line blame metadata and visible working-tree blame state. Remaining Files/source parity is artifact-specific controls, comments/annotations, inline selected-line source utilities, richer source loading/reveal behavior, and shared search refinements. Inline selected-line source utilities were addressed in the next slice below.
+
+### 2026-05-22 - File Source Inline Gutter Utilities Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-diff-D_Wkd-VE.js` confirmed Codex's source/diff renderer has line annotations, selection-aware line interaction state, gutter metadata, and open-target actions tied to source lines.
+- `webview/assets/file-tree-search-input-Cg1SVtq4.js` confirmed Codex exposes open-in-target context actions such as `Open in {target}` and `Open with`, reinforcing that selected source lines should surface local utility actions near the line context.
+
+Implemented in Orchestrator:
+
+- Extended `FilePreview` and `TextSourcePreview` with a `renderSelectedLineActions` hook so file tabs can render selected-line actions beside the active source line without coupling the generic preview to Workbench state.
+- Added an inline selected-line action strip in Workbench file tabs with Copy line reference, Open line in the active preferred target, and the selected line's blame summary.
+- Kept the existing toolbar actions intact while giving the selected line its own source-context utility row that exposes smoke-visible line, button, and blame metadata.
+- Extended focused Files smoke coverage with `fileSourceInlineGutterUtilities`, proving line 2 renders the inline action strip, the copy/open controls use shared toolbar icon buttons, the blame summary reports working-tree state, and Copy line reference writes `review-base.txt:2` back to the file-tab state.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 222 tests.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779504000828.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779504000828.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- File tabs now cover basic inline selected-line source utilities. Remaining Files/source parity is artifact-specific controls, comments/annotations, deeper annotation/blame affordances, richer source loading/reveal behavior, virtualized source rendering, and shared search refinements. Selected-path tree reveal behavior was addressed in the next slice below.
+
+### 2026-05-22 - Shared Tree Selected-Path Reveal Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-tree-search-input-Cg1SVtq4.js` confirmed Codex's workspace file tree has a `revealSelectedPath` path, calls `revealPath`, tracks selected paths, preserves scroll state, and retries reveal/scroll work through `requestAnimationFrame`.
+
+Implemented in Orchestrator:
+
+- Added shared `WorkbenchTree` selected-row reveal support with `revealActiveRow`, active-row index/id/visibility metadata, and requestAnimationFrame-based scroll adjustment when the active row identity changes.
+- Enabled the behavior in both Files and Review trees so the active file row stays visible when selection changes without fighting directory expansion/lazy-loading scroll state.
+- Extended focused Files smoke coverage with `filesRevealSelectedPath`, proving the selected `Nested Folder/nested note.md` row is active, tracked by the tree, and visible.
+- Extended focused Review smoke coverage with `diffRevealSelectedPath`, proving keyboard navigation updates the active review path and the shared tree reports that row visible.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 222 tests.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779504332568.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779504332568.png`.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779504407331.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779504407331.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- Files and Review trees now reveal selected rows through the shared tree primitive. Remaining Files/source parity is artifact-specific controls, comments/annotations, deeper annotation/blame affordances, richer source loading state, virtualized source rendering, and shared search refinements. Basic structured artifact controls were addressed in the next slice below.
+
+### 2026-05-22 - Structured Artifact Preview Controls Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/review-file-source-tab-_AZBZ4OY.js` confirmed Codex file-source tabs have file-viewer options with copy path, artifact preview, rich preview, word wrap, and git blame controls, plus an open-in-editor toolbar action.
+- The same chunk imports `artifact-tab-file-kind-fsu6JKhI.js` and `open-artifact-side-panel-tab-W_-1ZcV6.js`, confirming structured/artifact file previews participate in the file viewer controls surface.
+
+Implemented in Orchestrator:
+
+- Added reusable structured-preview header actions for JSON, CSV, DOCX, and notebook previews.
+- Structured artifact headers now expose compact toolbar-icon controls for Copy path, Copy raw preview, Open file, and Reveal file.
+- Kept the existing shared `PanelToolbar` header treatment and added smoke-visible `data-preview-controls` metadata.
+- Extended focused Files smoke coverage with `filesArtifactPreviewControls`, proving JSON, CSV, DOCX, and notebook preview headers all expose the artifact control strip using shared toolbar icon buttons.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 222 tests.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779504621889.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779504621889.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- Structured file previews now have basic per-artifact controls. Remaining Files/source parity is comments/annotations, deeper annotation/blame affordances, richer source loading state, virtualized source rendering, and shared search refinements. Basic source virtualization was addressed in the next slice below.
+
+### 2026-05-22 - File Source Virtualization Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/review-file-source-tab-_AZBZ4OY.js` confirmed Codex's file-source renderer renders by `renderRange`, tracks `startingLine` and `totalLines`, applies `bufferBefore`/`bufferAfter`, measures line height, and restores scroll positions through requestAnimationFrame.
+
+Implemented in Orchestrator:
+
+- Added fixed-row virtualization to `TextSourcePreview` for large text previews, with overscan and top/bottom spacer rows instead of rendering every source line.
+- Exposed source-window metadata with `data-source-virtualized`, `data-source-total-lines`, `data-source-render-start`, `data-source-render-end`, and `data-source-render-count`.
+- Constrained the source preview to a real scroll viewport so large files scroll inside the file tab rather than expanding the tab content to every rendered line.
+- Preserved existing selected-line state, inline selected-line actions, blame, wrapping state, and toolbar actions for non-large and large source previews.
+- Extended the Files smoke fixture with `large-source-smoke.txt` and added `fileSourceVirtualization`, proving an 1,800-line text file renders a bounded line window, advances the window after scroll, and keeps rendered DOM rows below the full source line count.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 222 tests.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779504963579.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779504963579.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- Text source previews now cover basic large-file virtualization. Remaining Files/source parity is comments/annotations, deeper annotation/blame affordances, richer source loading state, and shared search refinements. Richer source loading state was addressed in the next slice below.
+
+### 2026-05-22 - File Source Loading State Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "review\.fileSource\.(loading|error)|Loading file|Unable to load file"` confirmed Codex's file source fallback component (`Xr` in `webview/assets/review-file-source-tab-_AZBZ4OY.js`) switches between the localized `review.fileSource.loading` and `review.fileSource.error` states, with English defaults `Loading file...` and `Unable to load file`.
+
+Implemented in Orchestrator:
+
+- Changed text/file preview loading from a generic `Loading...` fallback into an explicit tab-level file loading state with `workspace-file-loading-state`, `data-file-state="loading"`, `Loading file...`, and `Fetching preview`.
+- Added loading metadata to Workbench file tabs and preview containers with `data-file-tab-loading` and `data-file-preview-loading` so transient tab loading can be asserted without relying only on visible timing.
+- Preserved existing loaded preview behavior after the loading state clears.
+- Extended the Files smoke fixture with `loading-source-smoke.txt` and added a MutationObserver-based `fileSourceLoadingState` assertion that catches the transient loading DOM while opening a Workbench file tab, then verifies the final loaded content.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 222 tests.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779505305389.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779505305389.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- Text source previews now cover explicit file loading state and basic large-file virtualization. Remaining Files/source parity is comments/annotations, deeper annotation/blame affordances, and shared source-search refinements. Basic source search was addressed in the next slice below.
+
+### 2026-05-22 - File Source Search Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "sourceSearchSource|data-review-file-source-metrics-probe|review-file-source"` confirmed Codex's file-source tab wires source contents into a `sourceSearchSource`, keeps a metrics probe for line measurement, and attaches the source search source inside the review/file-source renderer rather than the workspace tree filter.
+
+Implemented in Orchestrator:
+
+- Added persisted `sourceSearchQuery` and `sourceSearchIndex` to Workbench file-tab state.
+- Added a compact source search field and previous/next match controls to text-capable Workbench file tabs.
+- Added active source-match reveal and line metadata in `TextSourcePreview` with `data-source-search-query`, `data-source-search-match-count`, `data-source-search-active-line`, `data-source-line-search-match`, and `data-source-line-search-active`.
+- Preserved virtualization while searching by scrolling the active match into the virtualized source window instead of rendering all lines.
+- Extended the Files smoke with `fileSourceSearch`, proving query persistence on the file tab, match count, active-line navigation, active row metadata, next-match behavior, and clear control availability.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779505833457.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779505833457.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+- `npm run test:providers` passed: 222 tests.
+
+Remaining:
+
+- Text source previews now cover explicit file loading state, basic large-file virtualization, and basic in-source search. Remaining Files/source parity is comments/annotations, deeper annotation/blame affordances, richer reveal behavior, and broader workspace/global search polish. Basic line annotations were addressed in the next slice below.
+
+### 2026-05-22 - File Source Annotation Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "use-diff-annotations|annotation-comment|draft-comment|enableGutterUtility|onGutterUtilityClick|renderCommentAnnotation|addDraftComment"` confirmed Codex's file-source path wires source lines through `enableGutterUtility`, `onGutterUtilityClick`, `addDraftComment`, annotation keys, and `renderCommentAnnotation`, reusing the same annotation/comment model as Review.
+
+Implemented in Orchestrator:
+
+- Added `sourceAnnotations` to Workbench file-tab state so line notes are owned by the file tab instead of the outer Files tree.
+- Added a selected-line Add comment toolbar action and inline selected-line comment action.
+- Added source annotation rendering under the relevant source line, with draft textarea, save/delete controls, saved comment body, and gutter/line metadata for annotated lines.
+- Exposed smoke-facing metadata with `data-file-tab-source-annotation-count`, `data-source-annotation-count`, `data-source-line-has-annotation`, `data-source-line-annotation-for`, and annotation card status/line attributes.
+- Preserved selected-line actions, source search, source wrapping, blame metadata, and large-file virtualization while adding annotations.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779506179706.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779506179706.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+- `npm run test:providers` passed: 222 tests.
+
+Remaining:
+
+- Text source previews now cover explicit file loading state, basic large-file virtualization, basic in-source search, and local line annotations. Remaining Files/source parity is deeper Review/PR-backed comments, richer annotation/blame affordances, richer reveal behavior, and broader workspace/global search polish. Richer selected-line blame details were addressed in the next slice below.
+
+### 2026-05-22 - File Source Blame Details Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "review\.fileSource\.gitBlame\.(disable|enable|tooltip|tooltip\.author|tooltip\.commit|tooltip\.date|tooltip\.pullRequest)|enableGitBlame|gitBlame"` confirmed Codex exposes explicit git-blame enable/disable copy and structured blame tooltip labels for Author, Commit, Date, and PR.
+
+Implemented in Orchestrator:
+
+- Added `sourceBlameVisible` to Workbench file-tab state so blame detail visibility persists with the file tab.
+- Added a toolbar `workbench-file-tab-toggle-blame` action that toggles selected-line blame details and uses the shared toolbar icon-button treatment.
+- Added `SourceBlameDetails`, rendering selected-line Author, Commit, and Date rows with source metadata for committed, working-tree, unavailable, and unknown states.
+- Exposed smoke-facing metadata with `data-file-tab-source-blame-visible`, `data-source-blame-line`, `data-source-blame-ok`, `data-source-blame-source`, `data-source-blame-author`, `data-source-blame-commit`, and `data-source-blame-date`.
+- Preserved the existing compact selected-line blame badge and inline selected-line action strip.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779506463579.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779506463579.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+- `npm run test:providers` passed: 222 tests.
+
+Remaining:
+
+- Text source previews now cover explicit file loading state, basic large-file virtualization, basic in-source search, local line annotations, and richer selected-line blame details. Remaining Files/source parity is deeper Review/PR-backed comments, richer reveal behavior, and broader workspace/global search polish. Selected-line source reveal was addressed in the next slice below.
+
+### 2026-05-24 - Codex-Style Transcript Review Card Slice
+
+Fresh Codex UI evidence was re-checked before editing:
+
+- Chronicle's live Codex screenshot on 2026-05-24 showed the first visible review affordance as an inline transcript card: `Edited 17 files`, aggregate additions/deletions, `Undo`, `Review`, a compact first-file list, and a `Show more files` disclosure. The right rail separately summarized environment/changes/branch/commit, so matching only the always-open right-panel Review tab missed the actual entry structure.
+- The focused Orchestrator Review screenshot before this slice still showed an empty chat next to an open Review panel, which made Review feel panel-first and unlike the visible Codex workflow.
+
+Implemented in Orchestrator:
+
+- Added a Codex-shaped `ChangesReviewCard` for status/change entries and for empty chats when the workspace has local changes.
+- The card fetches local changed files through the existing Review diff source, shows `Edited N files`, aggregate addition/deletion totals, the first three changed files with per-file stats, and a `Show N more files` disclosure.
+- The card's `Review` action opens the Workbench Review tab through the existing provider-agnostic right-panel state. Local current-change `Undo` is covered by the newer Review Transcript Local Undo slice above.
+- Added smoke-facing metadata with `codex-review-card`, file-count/totals attributes, file-list rows, and the Review action.
+
+Verification:
+
+- `npm run build` passed after the transcript review-card change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewTranscriptCard` plus existing Review toolbar, side-pane, diff-renderer, source-mode, comments, blame, and file-preview checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779588532107.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779588532107.png`.
+- `npm run smoke:ui:auto` passed after the transcript review-card change, including broad `reviewTranscriptCard`, Review, Files, Browser, Terminal, Settings, composer, and shell checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779588665556.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779588665556.png`.
+
+Remaining:
+
+- The visible Review entry structure now has Codex's transcript-card shape before the full side-panel Review opens. Remaining Review parity is provider checkpoint/last-turn Undo, provider-native/last-turn review sources, PR/reviewer-backed metadata, richer context thresholds, and side-by-side pixel spacing checks.
+
+### 2026-05-24 - Review Full-Source Row/Gutter Structure Slice
+
+Fresh Codex bundle evidence was re-checked before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "review\\.fileSource|data-line|data-column-number|selectedLines|enableGutterUtility|sourceSearchSource|fileSource\\.wrap|fileSource\\.gitBlame"` confirmed Codex's Review/file-source path renders source as line-addressable rows with `data-line`, column metadata, selected-line state, wrap/search controls, and gutter utility/blame affordances.
+- Orchestrator's Review full-source mode still rendered a raw `<pre class="review-source-code">`, which was structurally unlike Codex even when the `Load full files` action worked.
+
+Implemented in Orchestrator:
+
+- Replaced the Review source/full-source raw `<pre>` preview with a Codex-like source surface: scroll region, `review-source-lines` grid, per-line selectable rows, line-number gutter, code cells, and source metadata.
+- Added `data-review-source-line-count`, `data-review-source-selected-line`, `data-line`, `data-column-number`, and per-row selected-line attributes so Review source behavior is verifiable instead of only text-present.
+- Added Review-specific source CSS that mirrors the existing Workbench file-source row/gutter treatment while staying visually quiet inside the Review panel.
+- Extended focused and broad automated UI smoke summaries with `reviewFullSourceRows`; the focused check now fails if full-source mode falls back to a raw `pre.review-source-code`.
+
+Verification:
+
+- `npm run build` passed after the Review source-row change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewFullSourceRows` and `reviewLoadFullFile`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779589032368.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779589032368.png`.
+- `npm run smoke:ui:auto` passed with broad `reviewFullSourceRows` plus Review, Files, Browser, Terminal, Settings, composer, and shell checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779589105281.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779589105281.png`.
+
+Remaining:
+
+- Review full-source mode now has Codex-like row/gutter structure rather than a raw text block. Remaining Review parity is provider checkpoint/last-turn Undo, provider-native/last-turn sources, PR/reviewer metadata, richer diff virtualization/context behavior, and live side-by-side spacing checks.
+
+### 2026-05-24 - File Source Gutter Blame Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "review\\.fileSource\\.gitBlame|data-line|data-column-number|lineAnnotations|selectedLines"` again confirmed Codex treats git blame as a file-source line-margin/gutter feature with structured Author, Commit, Date, and PR tooltip labels.
+- The previous Orchestrator Workbench file-source implementation had selected-line blame details and toolbar metadata, but no line-gutter blame marker for the rendered source rows.
+
+Implemented in Orchestrator:
+
+- Added a bounded Workbench file-source blame cache, using the existing `git.blameLine` IPC path for source files up to 400 lines when git blame is enabled.
+- Changed the file-source git-blame toolbar/menu action so it can enable blame for any text source preview, not only after selecting a line.
+- Added `renderLineGutterAdornment` to the shared text source preview path and rendered compact `workspace-source-gutter-blame` badges inside `.workspace-source-gutter` for source lines with loaded blame metadata.
+- Exposed structured source-gutter metadata with `data-source-gutter-blame-line`, `data-source-gutter-blame-source`, `data-source-gutter-blame-author`, `data-source-gutter-blame-commit`, and `data-source-gutter-blame-date`.
+- Added focused and broad smoke coverage with `fileSourceGutterBlame`, requiring multiple source-line gutter badges, selected-line working-tree metadata, and compact line-margin sizing.
+
+Verification:
+
+- `npm run build` passed after the file-source gutter blame change.
+- `npm run smoke:ui:auto -- --files` passed with `fileSourceGutterBlame`, `fileSourceBlameDetails`, source annotations, source search, source reveal, file tabs, tree, and preview checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779587466843.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779587466843.png`.
+- `npm run smoke:ui:auto` passed after the file-source gutter blame change, including broad `fileSourceGutterBlame`, Review, Files, Browser, Terminal, Settings, composer, and shell regression checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779587527683.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779587527683.png`.
+
+Remaining:
+
+- Workbench file-source tabs now have selected-line blame details plus line-gutter blame summaries for bounded local text files. Remaining blame parity is provider-native blame sources, PR/reviewer-backed metadata/tooltips, unbounded/virtualized blame loading for very large files, and deeper shared source/comment integration.
+
+### 2026-05-22 - File Source Reveal Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "initialLine|initialEndLine|review\\.fileSource|fileSource|sourceSearchSource|scrollIntoView|reveal"` confirmed Codex's file-source path keeps explicit source controls around open-in-editor, wrapping, source search, blame, and reveal/scroll behavior rather than treating source navigation as incidental DOM state.
+
+Implemented in Orchestrator:
+
+- Added `sourceRevealLine` and `sourceRevealRequest` to Workbench file-tab state so selected-line reveal is owned by the tab and can be repeated for the same line.
+- Added a compact `workbench-file-tab-reveal-line` toolbar action that switches text-backed rich previews into source mode when needed and reveals the selected line inside the source viewport.
+- Updated `TextSourcePreview` to scroll reveal targets into view for both normal and virtualized source views, with smoke-facing metadata: `data-source-revealed-line`, `data-source-reveal-request`, `data-source-reveal-visible`, and `data-source-line-revealed`.
+- Added a quiet source-line reveal highlight that shares the existing source accent treatment without changing source row height or virtualization math.
+- Extended the Files smoke with `fileSourceRevealSelectedLine`, proving a selected line in `large-source-smoke.txt` can be selected under virtualization, scrolled out of view, then explicitly revealed back into the virtual window.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779506900782.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779506900782.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+- `npm run test:providers` passed: 222 tests.
+
+Remaining:
+
+- Text source previews now cover explicit file loading state, basic large-file virtualization, basic in-source search, local line annotations, richer selected-line blame details, and selected-line reveal. Remaining Files/source parity is deeper Review/PR-backed comments and broader workspace/global search polish.
+
+### 2026-05-22 - Review Split/Unified Diff Mode Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-diff-D_Wkd-VE.js` confirmed Codex's review controls expose a direct diff-mode toggle with labels for "Switch to split diff" and "Switch to unified diff".
+- The same bundle chunk confirmed those controls live alongside Review options, Refresh, word wrap, expand/collapse all diffs, rich preview, word diffs, whitespace, load-full-files, and Copy git apply command actions.
+
+Implemented in Orchestrator:
+
+- Added a Review diff mode state with `unified` and `split` modes, surfaced as `data-review-diff-mode` on the Review panel.
+- Added a compact toolbar `review-diff-mode-toggle` that switches between unified and split diff rendering using the shared icon-button/tooltip treatment.
+- Added split diff rendering for text diffs with left/right columns, hunk rows spanning the split, and changed-line coloring that preserves the existing unified diff behavior when toggled back.
+- Kept the same diff mode action available in the Review actions menu for keyboard/menu-driven access.
+- Extended focused Review smoke coverage with `diffModeToggle`, proving a fixture diff starts unified, switches to split, renders split rows/cells with changed content, then returns to unified.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779489114982.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779489114982.png`.
+- `git diff --check` passed before the final audit update.
+
+Remaining:
+
+- Split/unified diff mode is covered for the current text-diff renderer. Remaining Review toolbar parity still includes richer source-mode controls, expand-all/context-threshold depth, and PR/reviewer/check metadata.
+
+### 2026-05-22 - Review Expand/Collapse Diff Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-diff-D_Wkd-VE.js` confirmed Codex exposes review menu labels for "Collapse all diffs" and "Expand all diffs".
+- The same bundle chunk confirmed Codex's richer hunk model includes `data-expand-button`, `data-expand-all-button`, `expandedHunks`, `expandHunk`, `collapsed`, `expandUnchanged`, and `collapsedContextThreshold` concepts, so global collapse is only one visible part of the full diff behavior.
+
+Implemented in Orchestrator:
+
+- Added global Review diff expansion state surfaced as `data-review-diff-expanded` on the Review panel.
+- Added a compact toolbar `review-diff-expand-toggle` plus a matching Review actions menu item for Collapse all diffs / Expand all diffs.
+- Added collapsed diff rendering for the current text-diff renderer: each collapsed file shows hunk headers and changed-line counts instead of the full unified/split diff body.
+- Kept the implementation mode-aware with `data-review-collapsed-mode`, so collapsed summaries work from either unified or split mode.
+- Extended focused Review smoke coverage with `diffExpandCollapse`, proving the fixture starts expanded, toggles to collapsed hunk summaries, hides the full diff rows while collapsed, then expands back to the unified diff.
+
+Verification:
+
+- `npm run build` passed.
+- `git diff --check` passed before focused smoke verification.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779489334859.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779489334859.png`.
+
+Remaining:
+
+- Global expand/collapse is now covered for the current text-diff renderer. Codex still goes much deeper: collapsed context thresholds, comments, blame, deeper hosted/mark-resolved conflict workflows, and richer source controls still require a more complete diff model.
+
+### 2026-05-22 - Review Hide Whitespace Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-diff-D_Wkd-VE.js` confirmed Codex exposes Review controls for whitespace display alongside word diffs, split/unified diff mode, expand/collapse, wrapping, rich preview, and load-full-files behavior.
+- The same bundle chunk confirmed Codex's full implementation is part of its richer diff state/model, so this Orchestrator slice should be treated as a focused text-diff parity step rather than full diff-engine parity.
+
+Implemented in Orchestrator:
+
+- Added Review hide-whitespace state surfaced as `data-review-hide-whitespace` on the Review panel.
+- Added a compact toolbar `review-whitespace-toggle` and matching Review actions menu item for Hide whitespace changes / Show whitespace changes.
+- Added whitespace-only diff filtering for the current text-diff renderer by removing adjacent deletion/addition pairs whose content only differs by whitespace.
+- Added an inline hidden-whitespace notice and `data-review-hidden-whitespace-count` evidence on rendered unified/split diffs, with collapsed summaries preserving the hidden count.
+- Extended the focused Review smoke fixture with `whitespace-smoke.txt`, a whitespace-only changed file, and added `reviewWhitespaceToggle` coverage to prove the toggle hides changed rows and can reset back.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779489630038.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779489630038.png`.
+
+Remaining:
+
+- Hide-whitespace parity is covered for straightforward whitespace-only deletion/addition pairs in the current text-diff renderer. Codex still supports a richer diff pipeline with comments, blame, deeper hosted/mark-resolved conflict workflows, expand-all/context-threshold depth, and richer source controls.
+
+### 2026-05-22 - Review Word Diff Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-diff-D_Wkd-VE.js` confirmed Codex's file diff renderer has word-level line diff options: `lineDiffType` defaults to `word-alt`, with `maxLineDiffLength`, split/unified `diffStyle`, hunk separators, collapsed context, and virtualization options in the same renderer configuration.
+- This confirms word diffs are part of Codex's diff engine rather than a separate preview mode, so Orchestrator's slice adds word-level highlighting to the current text-diff renderer while leaving the full virtualized engine rewrite as a remaining gap.
+
+Implemented in Orchestrator:
+
+- Added Review word-diff state surfaced as `data-review-word-diff` on the Review panel.
+- Added a compact toolbar `review-word-diff-toggle` and matching Review actions menu item for Show word diff / Hide word diff.
+- Added word-level inline highlighting for adjacent deletion/addition pairs in the current unified and split text-diff renderers.
+- Added rendered evidence via `data-review-word-diff-count` and `data-review-word-diff-token` attributes so focused smoke can prove actual inline token highlighting rather than only control state.
+- Extended the focused Review smoke fixture with `word-diff-smoke.txt`, a word-only changed file, and added `reviewWordDiffToggle` coverage to prove changed tokens render and the toggle resets.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779489897333.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779489897333.png`.
+
+Remaining:
+
+- Word-diff parity is now covered for adjacent changed line pairs in the current text-diff renderer. Codex still has the more complete diff engine: virtualization, richer context thresholds/expand-all behavior, comments, blame, deeper hosted/mark-resolved conflict workflows, max-line behavior, and richer source controls.
+
+### 2026-05-22 - Review Line Number Gutter Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-diff-D_Wkd-VE.js` confirmed Codex's diff renderer enables line numbers by default through `disableLineNumbers: false` in the file-diff options.
+- The same chunk confirmed Codex's richer diff model also carries `selectedLines`, `lineAnnotations`, and `gutterLineType` through the renderer, so line numbers are one visible part of a broader gutter/selection/comment system.
+
+Implemented in Orchestrator:
+
+- Added hunk-header parsing and old/new line-number annotation for the current Review text-diff renderer.
+- Rendered line-number gutters in both unified and split Review diff modes with `data-line-number` and `data-line-number-side` evidence.
+- Kept the gutter compatible with existing line wrap, split/unified mode, global collapse, hide-whitespace, and word-diff rendering.
+- Extended focused Review smoke coverage with `diffLineNumbers`, proving unified mode renders numbered lines and split mode renders both old and new numbered gutter cells.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779490128415.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779490128415.png`.
+
+Remaining:
+
+- Line-number visibility is covered for the current text-diff renderer. Codex still has gutter utilities, annotations/comments, blame, virtualized hunks, richer context thresholds/expand-all behavior, deeper hosted/mark-resolved conflict workflows, max-line behavior, and richer source controls.
+
+### 2026-05-22 - Review Selected Line Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-diff-D_Wkd-VE.js` confirmed Codex passes `selectedLines` into the file diff instance and applies it through `setSelectedLines`.
+- The same chunk confirmed selected lines are managed by the diff `interactionManager`, separate from `lineAnnotations` and gutter utility rendering, so selection can be a focused step before comments/blame/gutter actions.
+
+Implemented in Orchestrator:
+
+- Added selected-line state to the current Review text-diff renderer.
+- Made numbered diff cells selectable by click and keyboard activation, with `aria-selected` and `data-review-selected-line` evidence on the active cell.
+- Preserved selected-line behavior across the existing unified/split, line-wrap, hide-whitespace, word-diff, and line-number gutter rendering paths.
+- Extended focused Review smoke coverage with `diffLineSelection`, proving a rendered unified diff line can be selected and exposes the expected selected-line DOM state.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779490385912.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779490385912.png`.
+
+Remaining:
+
+- Review diff line selection is covered for the current text-diff renderer. Codex still has richer gutter utilities, annotations/comments, blame, virtualized hunks, richer context thresholds/expand-all behavior, deeper hosted/mark-resolved conflict workflows, max-line behavior, and file-source-tab line selection. Local Review line annotations were addressed in the next slice below.
+
+### 2026-05-22 - Review Line Comment Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-diff-D_Wkd-VE.js` confirmed Codex's diff renderer carries `selectedLines`, `lineAnnotations`, and gutter utility state through the same file-diff model.
+- Earlier source-tab evidence also confirmed comment annotations are shared through `addDraftComment`, `renderCommentAnnotation`, and gutter utility hooks, so Review comments should build on selected line state instead of a separate panel-level form.
+
+Implemented in Orchestrator:
+
+- Added local Review diff comment state for selected old/new diff lines in the current text-diff renderer.
+- Added compact selected-line actions with `review-diff-line-add-comment`, draft textarea, save/delete controls, saved comment body rendering, and line-side metadata.
+- Added line/comment metadata with `data-review-comment-count`, `data-review-line-comment-count`, `data-review-line-has-comment`, `data-review-comment-side`, `data-review-comment-line`, and `data-review-comment-status`.
+- Kept comment rendering compatible with line-number gutters, selected-line state, unified/split diff modes, wrapping, hide-whitespace, word diffs, and hunk collapse state.
+- Extended focused Review smoke coverage with `reviewLineComments`, proving a selected unified diff line can create, save, and render a Review comment on the correct side/line.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779507235102.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779507235102.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+- `npm run test:providers` passed: 222 tests.
+
+Remaining:
+
+- Local Review line annotations are covered for the current text-diff renderer. Remaining Review comment parity is external PR/reviewer-backed comment loading/publishing plus the broader Codex diff engine gaps: blame, virtualized hunks, richer context thresholds/expand-all behavior, deeper hosted/mark-resolved conflict workflows, and max-line behavior. Selected-line Review blame was addressed in the next slice below.
+
+### 2026-05-23 - Review Selected-Line Blame Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "review\\.fileSource\\.gitBlame|gitBlame|enableGitBlame|lineAnnotations|selectedLines|gutterLineType"` confirmed Codex exposes git-blame enable/disable and structured blame tooltip labels for Author, Commit, Date, and PR alongside selected-line/annotation/gutter state in the source/diff model.
+
+Implemented in Orchestrator:
+
+- Added selected-line Review blame state to the current text-diff renderer, using the existing `window.api.git.blameLine` bridge.
+- Added a compact selected-line `review-diff-line-toggle-blame` action next to the Review comment action.
+- Rendered selected-line Author, Commit, and Date details with `review-diff-blame-details`, using the same working-tree/unavailable/commit metadata model as Workbench file-source blame details.
+- Limited the blame action to `new`/current-file lines because old-side diff lines are not guaranteed to exist at the same line number in the working tree.
+- Added smoke-facing metadata with `data-review-blame-visible`, `data-review-blame-line`, `data-review-blame-ok`, `data-review-blame-source`, `data-review-blame-author`, `data-review-blame-commit`, and `data-review-blame-date`.
+- Extended focused Review smoke coverage with `reviewLineBlame`, proving an added current-file line can show working-tree blame details without regressing Review comments, hunk collapse, diff modes, or preview toggles.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779507576833.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779507576833.png`.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+- `npm run test:providers` passed: 222 tests.
+
+Remaining:
+
+- Selected-line Review blame is covered for current-file lines in the current text-diff renderer, including details and rendered-current-line gutter summaries. Workbench file-source tabs now have bounded source-line gutter blame; Review full-source selected-line/gutter blame is covered by the later 2026-05-24 slice. Remaining Review blame parity is PR/reviewer-backed metadata plus the broader diff engine gaps: virtualized hunks, richer context thresholds/expand-all behavior, deeper hosted/mark-resolved conflict workflows, and max-line behavior.
+
+### 2026-05-23 - Review Selected-Line Source Tab Handoff Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "selectedLines|addDraftComment|openInEditor|enableLineSelection|sourceSearchSource|review-file-source-tab|onLineSelected"` confirmed Codex keeps Review/source line selection, draft comments, open-in-editor actions, and file-source tab search/selection behavior in the same Review/file-source model.
+
+Implemented in Orchestrator:
+
+- Extended `openRightPanelFileTab` with an optional line target so Review can open a Workbench file tab directly in source mode with `selectedSourceLine`, `sourceRevealLine`, and `sourceRevealRequest` set on the tab record.
+- Added a selected-line `review-diff-line-open-workbench` action beside comment and blame actions in the Review diff line action strip.
+- Limited the action to `new`/current-file lines because the Workbench file tab represents the current workspace file.
+- Preserved normal file-tab opens without line targets by only patching selected/revealed line state when a positive line is provided.
+- Extended focused Review smoke coverage with `reviewLineOpensFileSourceTab`, proving a selected added line in `review-base.txt` opens a Workbench file tab in source mode with the same selected and revealed line visible in the source preview.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779508144977.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779508144977.png`.
+
+Remaining:
+
+- Review selected-line handoff into Workbench file-source tabs is covered for current-file lines, Workbench file-source tabs expose bounded source-line gutter blame, and Review full-source selected-line/gutter blame is covered by the later 2026-05-24 slice. Remaining Review/source parity is external PR/reviewer-backed comments/blame metadata, virtualized hunks, richer context thresholds/expand-all behavior, deeper hosted/mark-resolved conflict workflows, max-line behavior, and broader workspace/global search polish.
+
+### 2026-05-23 - Review Hidden Context Expansion Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "expandUnchanged|collapsedContextThreshold|expansionLineCount|expandHunk|data-expand-button|data-expand-all-button"` confirmed Codex's diff iterator tracks expanded unchanged context, collapsed context thresholds, expansion line counts, and explicit hunk/context expansion controls.
+
+Implemented in Orchestrator:
+
+- Added a hidden-context model for the current Review text-diff renderer that infers omitted unchanged ranges from consecutive hunk headers instead of requiring a provider-specific backend contract.
+- Added compact `review-hidden-context-toggle` rows before hunks with omitted unchanged context, including smoke-visible count, line-start, loading, and expanded state metadata.
+- Expanding a hidden context row reads the current workspace file through the existing `window.api.fs.readFile` bridge, renders the omitted unchanged lines, and preserves the expanded range while switching between unified and split diff modes.
+- Added a deterministic two-hunk `hidden-context-smoke.txt` fixture to the automated UI smoke workspace.
+- Extended focused Review smoke coverage with `reviewHiddenContextExpansion`, proving a large hidden unchanged range expands in unified mode, shows the expected source text, remains available in split mode, and then returns to unified mode without regressing the existing diff checks.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779508555269.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779508555269.png`.
+
+Remaining:
+
+- Basic hidden unchanged context expansion is covered for local current-file Review diffs in unified and split modes. Remaining Codex diff-engine parity is virtualized hunk measurement, richer context-threshold tuning/aggregate expansion behavior, PR/reviewer-backed comments/blame metadata, deeper hosted/mark-resolved conflict workflows, max-line behavior, branch/commit/last-turn review sources, and broader workspace/global search polish. Aggregate expansion was addressed in the next slice below, and full-source blame was addressed by the later 2026-05-24 slice.
+
+### 2026-05-23 - Review Hidden Context Expand-All Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `strings /Applications/Codex.app/Contents/Resources/app.asar | rg "data-expand-all-button|expandAll|expandUnchanged|collapsedContextThreshold|expansionLineCount"` confirmed Codex exposes expand-all style controls and tracks expansion line counts alongside its hidden unchanged-context model.
+
+Implemented in Orchestrator:
+
+- Added a compact `review-hidden-context-expand-all` control when a Review diff contains multiple hidden unchanged-context segments.
+- The control expands all hidden context ranges in the current local diff, loads the full current file once through the existing filesystem bridge, exposes total segment/line/expanded counts for smoke proof, and can collapse all expanded hidden context again.
+- Reused the existing per-segment hidden-context renderer so the aggregate control stays a view-level convenience rather than a second diff model.
+- Extended focused Review smoke coverage with `reviewHiddenContextExpandAll`, proving the aggregate control sees multiple hidden context segments, expands more lines than the largest individual segment, updates the aggregate expanded count, and preserves the unified/split hidden-context proof.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779508842292.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779508842292.png`.
+
+Remaining:
+
+- Hidden-context expansion now covers individual and aggregate expansion for local current-file Review diffs. Remaining Codex diff-engine parity is virtualized hunk measurement, richer context-threshold tuning, PR/reviewer-backed comments/blame metadata, deeper hosted/mark-resolved conflict workflows, max-line behavior, branch/commit/last-turn review sources, and broader workspace/global search polish. Full-source blame was addressed by the later 2026-05-24 slice.
+
+### 2026-05-23 - Browser Manager State Bridge Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- Extracted `webview/assets/browser-sidebar-manager-ivre5jEI.js`, `browser-sidebar-state-BFSGuaA8.js`, `thread-side-panel-browser-tab-state-PqkmuSww.js`, and `use-webview-execution-target-B7RRBzs9.js` with `node_modules/.bin/asar`/`@electron/asar`.
+- The Codex browser manager keeps conversation-scoped hidden webviews, browser-use active state, viewport size, capture-surface size, cursor state, local server state, device-toolbar state, transfer keys, and focus/visibility resync. Hidden browser-use paint hosts use fixed positioning, `opacity: 0.001`, pointer-events suppression, and layout/paint/size/style containment instead of unmounting.
+
+Implemented in Orchestrator:
+
+- Added provider-agnostic browser-use manager state to `BrowserWorkbenchState`: active/turn id, browser-use viewport size, capture-surface size, and cursor state.
+- Added a browser manager bridge entry point through `orchestrator:browser-manager-state` plus `window.__orchestratorSetBrowserManagerState`, so future provider adapters can sync browser-use state without Codex-specific hardcoding.
+- Moved browser manager evidence into `BrowserWebviewManager`: manager-level active/paint-host/viewport/capture/visual/cursor metadata, hidden-webview paint-host styling, and a smoke-visible browser-use cursor overlay.
+- Preserved the existing Browser panel webview persistence, local-target, security-policy, inspector, device preset, and comment-mode behavior.
+- Extended focused Browser smoke coverage with `browserManagerStateBridge`, proving manager state can be driven through the bridge, exposes active/turn/viewport/capture/cursor metadata on the panel and manager, renders a cursor overlay, then resets before existing hidden-webview containment checks.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --browser` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779509568702.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779509568702.png`.
+
+Remaining:
+
+- Browser now has a provider-agnostic manager state bridge for active/capture/viewport/cursor/bounds evidence, but shell-level webview host ownership, conversation/fork transfer, provider-produced browser-use events, conversation-scoped local server route lifecycle, and deeper annotation behavior remain.
+
+### 2026-05-22 - Review Per-Hunk Collapse Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-diff-D_Wkd-VE.js` confirmed Codex renders hunk expansion controls with `data-expand-button`, `data-expand-all-button`, and `expandHunk`.
+- The same chunk confirmed Codex tracks `expandedHunks`, `collapsed`, `expandUnchanged`, `collapsedContextThreshold`, and `expansionLineCount`, so per-hunk behavior belongs to the diff renderer state rather than only the global Review toolbar.
+
+Implemented in Orchestrator:
+
+- Added per-hunk collapse/expand state to the current Review text-diff renderer.
+- Turned hunk header rows into compact toggle controls with chevron affordances, `aria-expanded`, `data-review-hunk-index`, and `data-review-hunk-collapsed` evidence.
+- Preserved compatibility with unified/split rendering, line-number gutters, selected-line state, line wrap, hide-whitespace, word diff, and the existing global expand/collapse all diffs control.
+- Extended focused Review smoke coverage with `diffHunkCollapse`, proving a rendered hunk collapses, hides its body lines, shows a hidden-line summary, and expands back independently.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779490643570.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779490643570.png`.
+
+Remaining:
+
+- Per-hunk collapse/expand is covered for hunks already present in the current text-diff renderer, and hidden-context ranges now support individual and aggregate expansion. Codex still supports richer context-threshold tuning, virtualized hunk measurement, gutter utilities, annotations/comments, blame, deeper hosted/mark-resolved conflict workflows, max-line behavior, and richer source controls.
+
+### 2026-05-22 - Review Load Full File Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-diff-D_Wkd-VE.js` confirmed Codex's file diff component accepts `isLoadingFullContent`, alongside selected lines, annotations, hunk separators, split/unified rendering, and full diff renderer options.
+- The earlier Review toolbar evidence in the same chunk already showed load-full-files behavior lives with the Review controls, so Orchestrator needs a first-class source/full-file path rather than treating rich preview as the only alternate view.
+
+Implemented in Orchestrator:
+
+- Added a Review `Load full file` / `Show diff` control to the toolbar and Review actions menu.
+- Reused the existing provider-neutral `window.api.fs.readFile` IPC path to load the selected text-capable workspace file without the preview truncation limit.
+- Added `review-full-source`, loading, and unavailable states with `data-review-source-truncated` evidence; the existing truncated text preview path now shares the same `SourcePreview` surface.
+- Kept the feature disabled for binary/deleted/non-text files and reset full-source state when the selected Review file changes.
+- Extended focused Review smoke coverage with `reviewLoadFullFile`, proving the selected text diff can switch to full source, includes both baseline and updated lines, reports non-truncated source, and returns to the diff.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779490910883.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779490910883.png`.
+
+Remaining:
+
+- Load-full-file behavior is covered for text-capable Review files through the local filesystem bridge. Codex still has richer provider review sources, comments, blame, gutter utilities, virtualized hunk measurement, richer context-threshold/expand-all behavior, deeper hosted/mark-resolved conflict workflows, and first-class file-source-tab parity.
+
+### 2026-05-22 - Review Source Modes Slice
+
+Implemented in Orchestrator:
+
+- Added source-scoped Review filtering for All, Worktree/unstaged, and Staged changes using the staged/unstaged file state already produced by the main-process Git status parser.
+- Extended the `sessions:getDiffForFile` IPC path and Git backend with `ReviewDiffSource`, so staged mode returns `git diff --cached`, worktree mode returns unstaged diffs, and all mode preserves the existing HEAD/current diff behavior.
+- Kept untracked diffs limited to All and Worktree modes by checking `git ls-files --others` before using the `/dev/null` no-index fallback.
+- Added a compact Review source segmented control and a `data-review-source` state marker for focused UI smoke proof.
+- Added repo-scoped `localStorage` persistence for the selected Review source under `orchestrator.review.source:*`, closing the basic diff-filter persistence gap for the local All/Worktree/Staged modes.
+- Added compiled main-side coverage for scoped staged/unstaged/all diffs, including a file with both staged and unstaged changes.
+- Extended focused Review smoke coverage with `reviewSourceModes`, using a staged-only fixture to prove Staged hides worktree-only files, Worktree hides staged-only files, All shows both, and the selected source is persisted.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed, including `file diffs can be scoped to all, staged, or unstaged changes`.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779491537924.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779491537924.png`.
+
+Remaining:
+
+- Review source-mode parity now covers persisted All, Worktree/unstaged, and Staged modes for local Git state. Codex still supports branch, commit, and last-turn review sources plus richer request batching/abort handling, comments, blame, gutter utilities, virtualized hunk measurement, richer context-threshold/expand-all behavior, deeper hosted/mark-resolved conflict workflows, and first-class file-source-tab parity.
+
+### 2026-05-22 - Shared Search/Address Input Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/file-tree-search-input-Cg1SVtq4.js` confirmed the file-tree search wrapper uses one compact tokenized input surface: `h-token-button-composer`, rounded-lg border, fog/input background, icon slot, borderless full-width input, placeholder token color, and clear button.
+- `webview/assets/keyboard-shortcuts-search-input-YNLcd75V.js` confirmed settings shortcut search uses a compact rounded/bordered text input with text-sm typography and token placeholder/foreground colors.
+- `webview/assets/keyboard-shortcuts-settings-RVscBDKb.js` confirmed Codex exposes a `focusBrowserAddressBar` command in the same command/keybinding model, so browser address focus should behave like a first-class panel input rather than a bespoke local field.
+- `webview/assets/browser-sidebar-manager-ivre5jEI.js` was re-checked for Browser context; it primarily confirmed browser toolbar/device geometry and lifecycle state, while the visible URL field itself is not a standalone extracted primitive in that chunk.
+
+Implemented in Orchestrator:
+
+- Extended `WorkbenchSearchField` into a shared search/address/text input primitive with optional leading/trailing slots, optional icon, optional clear action, field kind metadata, URL/text/search modes, aria label, and spellcheck control.
+- Migrated Browser URL input from bespoke `.browser-address-field` / `.browser-address-input` markup to `WorkbenchSearchField` with a leading address badge and `data-field-kind="url"`.
+- Kept Files, Review, Browser find, and Settings shortcut search on the same shared primitive, preserving their existing clear buttons, autofocus behavior, and smoke-facing test ids.
+- Migrated Command Palette search and transcript search onto `WorkbenchSearchField`, preserving keyboard navigation, focus behavior, command execution, and transcript-search close behavior.
+- Removed stale inspector-specific search field CSS and Browser address input duplicate styling so input metrics now come from the shared Workbench input contract.
+- Extended Browser smoke coverage to assert the URL input is hosted by `.workbench-search-field`, carries `data-field-kind="url"`, remains 13px, and stays within the compact toolbar height.
+- Extended transcript-layout smoke coverage with `commandPaletteSearchField` and `transcriptSearchField`, asserting those fields also use `.workbench-search-field` and the shared search kind.
+- Extended Browser smoke coverage with `browserTabChromeCalm`, asserting nested browser tabs stay at Workbench-tab scale instead of the older heavier strip metrics.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --browser` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779486572454.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779486572454.png`.
+- `npm run smoke:ui:auto -- --transcript-layout` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1779486265032.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-transcript-layout-1779486265032.png`.
+
+Remaining:
+
+- The shared input primitive now covers Review, Files, Browser URL, Browser find, Settings shortcut search, Command Palette search, and transcript search. Remaining input parity work is narrower: shortcut capture and any future settings/page fields should move onto the same primitive or a closely related settings field variant.
+
+### 2026-05-22 - Shared Panel Toolbar Primitive Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `h-toolbar`, `h-toolbar-pane`, and `toolbar-pane` strings are present in the current Codex bundle, matching the audit finding that panel toolbars are shared chrome rather than per-surface local rows.
+- `h-7`, `rounded-md`, and `hover:bg-token-list-hover-background` are present in the current Codex bundle, reinforcing that compact action sizing, radius, and hover material should be shared primitives rather than local panel overrides.
+- `thread.browser.addressPlaceholder` remains the localized browser toolbar address placeholder, confirming Browser toolbar controls still need to participate in the same panel toolbar contract.
+
+Implemented in Orchestrator:
+
+- Added a shared `PanelToolbar` primitive in `designSystem.tsx` with a stable `data-panel-toolbar="true"` contract and support for either `div` or `form` toolbar rows; the sibling shared `PanelTabStrip` now exposes the same contract for tabbar-style toolbar rows.
+- Added a documented shared `IconButton` / `ToolbarButton` `variant="toolbar"` contract for compact transparent toolbar actions with token hover/focus/active states; `IconButton` now has a shared `xs` size for inline disclosure actions that need 18px metrics without local CSS.
+- Migrated Files, Review, Browser address/find/status/inspector toolbars, Workbench file-tab toolbars, structured file preview headers, and the Settings topbar onto `PanelToolbar` while preserving their existing class names, test ids, layout, Browser form submit behavior, Settings back-to-chat behavior, and focused smoke selectors.
+- Migrated Workbench tabbar, Workbench file-tab, Terminal, Browser inspector, Files, Review, Plan goal disclosure, and sidebar section action buttons to the shared toolbar button variant and removed the shared `.panel-tab-actions .motion-icon-button` `!important` size/color override plus the Browser inspector, file-tab, Files, Review, Plan goal, and sidebar section action size overrides. Also removed obsolete right-sidebar/terminal action class blocks that no component used after the `PanelTabStrip` migration.
+- Added shared `.panel-toolbar` CSS matching the existing 34px compact toolbar rhythm so future panel rows can migrate without copying local flex/border/padding chrome.
+- Tightened existing Files, Review, Browser, Terminal, Settings, and right-panel smoke checks so toolbar compactness, Browser find behavior, Browser device-mode status rows, Browser inspector chrome, Workbench/Terminal tabbar actions, Terminal bottom-panel tabbars, and Settings topbar behavior now also prove the row is using the shared toolbar/tabbar/action primitive.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779494471905.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779494471905.png`.
+- `npm run smoke:ui:auto -- --files` passed after migrating Workbench file-tab toolbar/actions to the shared primitives and tightening `workbenchFileTab`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779495863841.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779495863841.png`.
+- `npm run smoke:ui:auto -- --files` passed after migrating Files toolbar action buttons to the shared toolbar variant and tightening `filesToolbarCompact`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779496015792.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779496015792.png`.
+- `npm run smoke:ui:auto -- --files` passed after migrating structured file preview headers to `PanelToolbar` and adding `filesPreviewHeaderShared`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779496976572.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779496976572.png`.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779494495081.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779494495081.png`.
+- `npm run smoke:ui:auto -- --diff` passed after migrating Review toolbar action buttons to the shared toolbar variant and tightening `diffToolbarCompact`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779496037777.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779496037777.png`.
+- `npm run smoke:ui:auto -- --browser` passed after migrating the Browser find, status/device, and inspector toolbars; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779495070693.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779495070693.png`.
+- `npm run smoke:ui:auto -- --browser` passed after migrating Browser inspector action buttons to the shared toolbar button variant and tightening `browserInspectorChromeCompact`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779495735318.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779495735318.png`.
+- `npm run smoke:ui:auto -- --terminal` passed after adding the shared tabbar toolbar contract; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779494950478.json`; screenshot captured the terminal's black surface and was not used as visual proof: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779494950478.png`.
+- `npm run smoke:ui:auto -- --right-panel` passed after migrating Workbench tabbar actions to the shared toolbar button variant; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779495516961.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779495516961.png`.
+- `npm run smoke:ui:auto -- --right-panel` passed after removing obsolete right-sidebar action class CSS; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779496147934.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779496147934.png`.
+- `npm run smoke:ui:auto -- --terminal` passed after tightening Terminal tabbar actions to the shared toolbar button variant; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779495550111.json`; screenshot captured the terminal's black surface and was not used as visual proof: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779495550111.png`.
+- `npm run smoke:ui:auto -- --terminal` passed after removing obsolete terminal action class CSS; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779496184842.json`; screenshot captured the terminal's black surface and was not used as visual proof: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779496184842.png`.
+- `npm run smoke:ui:auto -- --settings` passed after migrating the Settings topbar; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779495203902.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779495203902.png`.
+- `npm run smoke:ui:auto -- --plan` passed after migrating the Plan goal disclosure toggle to shared `IconButton` `size="xs"` plus `variant="toolbar"` and tightening `planPanel`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1779496445364.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-plan-1779496445365.png`.
+- `npm run smoke:ui:auto -- --sidebar` passed after migrating sidebar section action buttons to the shared toolbar variant and tightening `sidebarSectionChromeCompact`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779496586796.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779496586796.png`.
+- `git diff --check` passed after smoke verification.
+
+Remaining:
+
+- `PanelToolbar` now covers Files, Review, Browser address/find/status/inspector toolbars, Workbench file-tab toolbars, structured file preview headers, and the Settings topbar, while `PanelTabStrip` carries the same shared toolbar contract for Workbench and Terminal tabbars. Workbench tabbar, Workbench file-tab, Terminal, Browser inspector, Files, Review, Plan goal disclosure, and sidebar section actions now use the shared toolbar button variant. This closes the audited toolbar/action local override cleanup; broader remaining visual gaps are shell material, tab slot measurement, tree/search model depth, and sidebar organization features.
+
+### 2026-05-22 - Shared Menu Material Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/popover-DPlyXlNf.js` confirmed Codex popovers use translucent dropdown background, `ring-[0.5px]`, `rounded-xl`, `shadow-lg`, `backdrop-blur-sm`, and bounded viewport dimensions.
+- `webview/assets/dropdown-9F1MU8ql.css` confirmed dropdown open motion starts from `translateY(-2px) scale(.98)` and animates to full opacity/scale.
+
+Implemented in Orchestrator:
+
+- Updated shared `MenuSurface` to use 12px radius, 0.5px border/ring equivalent, 90% translucent surface material, blur, shared menu shadow, and reduced-motion-aware scale/translate entrance.
+- Updated sidebar session hover cards to use the same translucent rounded/blurred/shadowed material and entrance motion while preserving the compact chat/project/branch content.
+- Kept existing compact menu rows and no row hover translation.
+- Extended Files smoke with `filesActionMenuMaterial`, asserting the shared File actions menu has the new radius, blur, shadow, and thin border material.
+- Extended Sidebar smoke with `hoverCardMaterial`, asserting the session hover card has the same material direction and remains readable.
+- Extended Review smoke with `diffActionMenuMaterial`, asserting the shared change-action menu has the same radius, blur, shadow, and thin border material.
+- Extended Browser smoke with `browserActionsMenuMaterial` and `browserContextMenuMaterial`, asserting the main Browser actions menu and page context menu share the same material.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --files` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779486994494.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779486994494.png`.
+- `npm run smoke:ui:auto -- --sidebar` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779487128528.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779487128528.png`.
+- `npm run smoke:ui:auto -- --diff` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779487462044.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779487462044.png`.
+- `npm run smoke:ui:auto -- --browser` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779487478947.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779487478947.png`.
+
+Remaining:
+
+- The shared menu surface and sidebar session hover cards now use Codex-like material across Files, Review, Review metadata, simple Browser actions/history/zoom/data rows, Browser page context menus, and sidebar hover cards. Richer provider-populated metadata flyouts, dialog action surfaces, and future file tree context menus still need to consistently reuse this primitive.
+
+### 2026-05-22 - Browser Comment Mode Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- Binary string search confirmed Codex ships browser comment-mode strings including `thread.browser.commentMode`, `thread.browser.commentModeActive`, `thread.browser.commentModeCoachmarkTitle`, `thread.browser.commentModeCoachmarkDescription`, `thread.browser.commentModeUnavailableForSite`, and browser tweak/send/cancel strings.
+- The existing bundle inventory still points at `browser-sidebar-comment-mode-coachmark-state-DonNJgsl.js` and `thread-side-panel-browser-tab-state-PqkmuSww.js`, keeping comment mode tied to browser side-panel state rather than a standalone chat-only feature.
+
+Implemented in Orchestrator:
+
+- Added `commentMode` to `BrowserWorkbenchState`, default workbench state, and BrowserPanel normalization so the mode persists with the Browser workbench.
+- Added a Browser actions menu item for Comment mode, disabled when no live visible page is available.
+- Added a transparent comment overlay on the active browser viewport. Clicking it sends composer context with URL, title, viewport point, and a compact visible-page structure excerpt, then exits comment mode.
+- Added smoke-facing state markers: `data-browser-comment-mode`, `data-browser-last-comment`, and `browser-comment-overlay`.
+- Extended Browser smoke coverage with `browserCommentMode`, verifying the actions menu enables comment mode, the overlay appears, a point comment reaches the composer, and comment mode clears afterward.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --browser` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779492777876.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779492777876.png`.
+
+Remaining:
+
+- Browser comment parity is now covered at the basic page/point-to-composer workflow. Later 2026-05-24 slices replace the immediate composer write with pending point/region editors, add a shared unavailable-message state for failed pages, prove original-preview behavior, and add a design-tweak intent. Codex still has richer provider-produced annotation/design-change behavior and hidden-webview lifecycle integration.
+
+### 2026-05-22 - Browser Comment Coachmark Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- Binary string search confirmed Codex ships `thread.browser.commentModeCoachmarkTitle`, `thread.browser.commentModeCoachmarkDescription`, `thread.browser.commentModeCoachmarkDismiss`, `thread.browser.commentModeUnavailableForSite`, and browser tweaks strings such as `thread.browser.tweaks.send`, `thread.browser.tweaks.cancel`, `thread.browser.tweaks.exitAnnotations`, and `thread.browser.tweaks.previewOriginal`.
+
+Implemented in Orchestrator:
+
+- Added `commentCoachmarkDismissed` to Browser workbench state, default state, and normalization.
+- Added Browser root evidence for comment availability and coachmark visibility: `data-browser-comment-unavailable` and `data-browser-comment-coachmark`.
+- Added a compact comment-mode coachmark inside the browser comment overlay with a Dismiss action. Dismissal keeps comment mode active, persists in the Browser workbench state, and the first placed comment also dismisses future coachmark prompts.
+- Preserved the point-to-composer behavior while making the overlay keyboard-focusable.
+- Extended Browser smoke with `browserCommentCoachmark`, verifying comment mode is available on the live page, the coachmark appears, dismissing it leaves comment mode active, and the overlay still submits a page-point comment.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --browser` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779493207844.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779493207844.png`.
+
+Remaining:
+
+- Browser comment coachmark state and unavailable markers are now covered for the current direct Browser workbench. Later 2026-05-24 slices cover floating point/region editors with Cancel/Send, original-preview behavior, design-tweak intent, and a shared unavailable-message state for failed pages. Codex still has richer provider-produced annotation/design-change behavior and hidden-webview lifecycle integration.
+
+### 2026-05-22 - Browser Device Preset Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- Browser localization strings confirmed Codex exposes device presets for Responsive, 4K, Laptop, Laptop Large, Surface Pro 7, iPad Air, iPad Mini, Surface Duo, iPhone 15 Pro, iPhone 15 Pro Max, Pixel 8, Galaxy S24 Ultra, and iPhone SE.
+- The existing `browser-sidebar-manager-ivre5jEI.js` evidence still anchors the preset sizes and bounds: minimum 240x160, maximum 4096x4096, and a 20px stage margin.
+
+Implemented in Orchestrator:
+
+- Aligned Browser preset dimensions with the Codex catalog: Galaxy S24 Ultra 384x824, iPad Mini 768x1024, Laptop 1024x768, 4K 2560x1440, plus existing matching phone/tablet/laptop-large sizes.
+- Added shared viewport clamping constants for Browser workbench viewport size: minimum 240x160 and maximum 4096x4096.
+- Applied clamping to custom viewport input, custom preset restoration, and rendered browser viewport dimensions.
+- Tightened Browser smoke coverage so `browserDevicePresetCatalog` verifies the full preset label set and the Codex Galaxy S24 Ultra dimensions, not just the presence of a few options.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --browser` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779492942472.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779492942472.png`.
+
+Remaining:
+
+- Device preset dimensions and clamps are aligned for the current direct-embed Browser. Remaining Browser device parity is tied to the larger hidden-webview manager: stage margin math, browser-use cursor/capture surface state, and transfer/focus lifecycle still need the Codex-style manager.
+
+### 2026-05-22 - Browser Persistent Tab Webview Manager Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- Binary string search reconfirmed `browser-sidebar-manager` is present in the local bundle. The existing audit evidence for `webview/assets/browser-sidebar-manager-ivre5jEI.js` remains the reference for hidden webviews using fixed/offscreen placement, `pointerEvents: none`, containment, and focus/visibility resync.
+
+Implemented in Orchestrator:
+
+- Extracted a dedicated `BrowserWebviewManager` component from `BrowserPanel` as the first manager boundary for webview host ownership.
+- Added a Workbench-provided browser host id (`right:{sessionId}:browser`) and manager/webview evidence markers so the host identity is no longer an implicit local panel detail.
+- Changed BrowserPanel from a single active `webview` element to persistent per-tab webviews keyed by Browser tab id.
+- Inactive tab webviews now remain mounted with hidden fixed positioning, `pointer-events: none`, opacity 0, and `contain: layout paint size style`, while the active tab keeps the existing embedded visible behavior.
+- The Browser hidden-state path now keeps webviews mounted in an offscreen host so hiding the surface no longer destroys the loaded tab.
+- Added Browser root evidence markers: `data-browser-webview-host-id`, `data-browser-webview-count`, and `data-browser-active-webview-tab`.
+- Added per-webview evidence markers: `data-browser-webview-host-id`, `data-browser-webview-tab-id`, `data-browser-webview-active`, active `browser-webview`, and inactive `browser-webview-hidden`.
+- Extended Browser smoke with `browserWebviewManagerBoundary`, proving BrowserPanel and active webview agree on the Workbench-provided host id.
+- Extended Browser smoke with `browserWebviewPersistence`, proving a loaded tab's webview remains mounted as hidden after a new blank Browser tab becomes active.
+- Extended Browser smoke with `browserHiddenWebviewPersistence`, proving a loaded webview remains mounted while the Browser surface is hidden.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --browser` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779493967955.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779493967955.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- This is the first extracted lifecycle manager boundary, not the full Codex browser manager. Remaining gaps include moving the webview host out of the panel into a shell-level manager, transfer between conversation ids/forks, richer focus/visibility resync, browser-use cursor/capture surface state, richer annotation lifecycle handling beyond the basic unavailable-message state, and manager-owned stage bounds.
+
+### 2026-05-22 - Browser Focus/Visibility Resync Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- Binary string search reconfirmed `browser-sidebar-manager`, `focus`, `transfer`, and repeated `capture` strings in the local bundle, matching the audit's lifecycle target around focus/visibility resync and manager-owned browser state.
+
+Implemented in Orchestrator:
+
+- Added Browser lifecycle resync on active-tab changes, Browser surface show transitions, window focus, and document visibility changes.
+- The resync path rebinds the active webview ref from the manager, reapplies zoom, reapplies find-in-page state, refreshes title/url/navigation state, and exposes `data-browser-lifecycle-syncs` for rendered proof.
+- Added explicit manager data markers for hidden webviews: `data-browser-webview-lifecycle="mounted-hidden"` and `data-browser-webview-containment="layout paint size style"`.
+- Tightened hidden-webview CSS to match Codex's offscreen manager behavior more closely with fixed placement, opacity 0, pointer-events none, containment, and a top z-index.
+- Extended Browser smoke coverage with `browserLifecycleResync` and `browserHiddenWebviewContainment`, proving hide/show triggers a lifecycle resync and hidden webviews retain manager containment/offscreen geometry.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --browser` passed after correcting the verifier boundary for Electron's computed containment normalization; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779499507424.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779499507424.png`.
+
+Remaining:
+
+- Browser now has an extracted manager boundary, hidden webview persistence, hidden containment proof, focus/visibility/show resync proof, and a shared unavailable-message state for comment mode on failed pages. Remaining lifecycle parity is still larger: shell-level webview host ownership, transfer between conversation ids/forks, browser-use cursor/capture surface state, richer annotation lifecycle behavior, and manager-owned stage bounds.
+
+### 2026-05-22 - Browser Local Target List Chrome Slice
+
+Fresh Codex bundle evidence reused the Browser/sidebar lifecycle and local-route audit findings:
+
+- Codex tracks local server routes as conversation/browser state rather than presenting them as a heavy standalone card; the audit target for Orchestrator was to make local targets lighter while preserving hide/unhide lifecycle behavior.
+
+Implemented in Orchestrator:
+
+- Removed the bordered/card-like local server container from the Browser empty state.
+- Tightened local target rows to compact 26px list rows with no row borders or shadows.
+- Hid local target hide/unhide controls until row hover/focus, matching the calmer Codex row-action pattern already used elsewhere in Orchestrator.
+- Preserved the existing sort, refresh, hide/unhide, hidden-target view, and target navigation behavior.
+- Extended Browser smoke coverage with `browserLocalTargetsListChrome`, proving the local-target shell is unframed, rows are compact/unshadowed, and row actions are quiet until interaction.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --browser` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779499661070.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779499661070.png`.
+
+Remaining:
+
+- Browser local targets now have calmer list chrome, but full route parity still needs conversation-scoped hidden route lifecycle, shell-level browser tab state, browser-use cursor/capture surface state, and deeper annotation behavior.
+
+### 2026-05-22 - Shared Settings Surface Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/settings-page-Cs2EUu3v.js` confirmed Codex settings are page/routing surfaces with a left settings nav and a content region, not isolated one-off modal panels.
+- `webview/assets/settings-surface-YwAy0P94.js` confirmed shared settings surfaces are rounded, divided, tokenized containers with default and secondary variants.
+- `webview/assets/settings-group-DNhpghsa.js` confirmed settings groups are flex-column sections with optional header/content primitives rather than bespoke cards.
+- `webview/assets/settings-row-DYYQqFuu.js` confirmed settings rows use compact `p-3`/`gap-4` row contracts, text-sm primary labels, and nested compact field rows.
+- `webview/assets/keyboard-shortcuts-settings-RVscBDKb.js` and `keyboard-shortcuts-search-input-YNLcd75V.js` confirmed keyboard shortcuts are rendered inside `SettingsPage` / `SettingsGroup` / `SettingsSurface`, with a compact search field, table-like command/keybinding rows, icon-only hover actions, capture, reset, and empty/loading states.
+
+Implemented in Orchestrator:
+
+- Added shared settings content primitives in `src/renderer/src/components/shared/designSystem.tsx`: `SettingsPageSection`, `SettingsContentGroup`, `SettingsGroupContent`, and `SettingsSurface`.
+- Migrated the Shortcuts settings section from local inline table/card styles onto the shared settings page/surface/group primitives.
+- Replaced text-heavy shortcut edit/reset buttons with icon-only row actions wrapped in the existing custom tooltip primitive, preserving the same accessible labels and smoke selectors.
+- Moved shortcut table/search/row/recorder/key/action styling into tokenized CSS under the shared settings surface contract.
+- Extended settings smoke coverage with `settingsShortcutsSurface`, asserting the page-section class, settings surface, group content, rounded surface, compact icon actions, and existing shortcut edit/reset flow.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779479175236.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779479175236.png`.
+
+Remaining:
+
+- The settings primitive migration is only proven on the Shortcuts section so far. Appearance, Providers, Data controls, Pets, and General still carry mixed local styles and should be migrated section by section onto `SettingsPageSection` / `SettingsSurface` / settings row primitives.
+- Orchestrator now has editable shortcut smoke coverage, but it still lacks Codex's full keybinding conflict model, multi-binding append/clear behavior, platform/global-hotkey handling, and command-backed settings route.
+
+### 2026-05-22 - Data Controls Settings Surface Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/settings-page-Cs2EUu3v.js` confirmed settings content is page/layout-owned rather than a standalone modal card stack.
+- `webview/assets/settings-surface-YwAy0P94.js` confirmed shared settings surfaces are rounded, divided, overflow-hidden containers with token borders/backgrounds.
+- `webview/assets/settings-row-DYYQqFuu.js` confirmed default settings rows use `flex items-center justify-between gap-4 p-3`, text-sm labels, lighter descriptions, and nested compact variants.
+
+Implemented in Orchestrator:
+
+- Migrated Data controls from local `SettingGroup` / `SettingsPanel` / `CompactSetting` cards to `SettingsPageSection`, `SettingsContentGroup`, `SettingsGroupContent`, `SettingsSurface`, and `SettingsRow`.
+- Added shared `SettingsSurface` test-id support so migrated settings sections can be verified without bespoke wrapper divs.
+- Replaced large bordered archived-chat cards with divided rows inside a shared settings surface and normalized action buttons to compact settings controls.
+- Added Data controls CSS for shared settings headings, action buttons, path rows, archived rows, and status text without reintroducing nested card borders.
+- Extended settings smoke coverage with `settingsDataControlsSurfaceWorks`, proving Data controls now use shared page/surface/row primitives and no longer render local settings panels or compact-setting rows.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779480985416.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779480985416.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Appearance, Providers, Pets, and General still have mixed legacy settings layout. Data controls now shares the same primitive direction as Shortcuts, but broader settings route/page ownership and Codex keybinding conflict/multi-binding behavior remain open.
+
+### 2026-05-22 - General Settings Surface Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/settings-page-Cs2EUu3v.js` confirmed settings route content is hosted inside shared settings pages.
+- `webview/assets/settings-content-layout-Bnulb0lM.js` confirmed settings content layout owns page-level spacing and title/action regions.
+- `webview/assets/settings-surface-YwAy0P94.js` confirmed grouped controls should sit inside shared rounded/divided settings surfaces rather than bespoke section cards.
+
+Implemented in Orchestrator:
+
+- Migrated the General settings file-handoff section from local `SettingGroup` layout to `SettingsPageSection`, `SettingsContentGroup`, `SettingsGroupContent`, and `SettingsSurface`.
+- Kept the existing editor target choice cards and availability behavior, but hosted them in a shared `settings-choice-grid` inside the settings surface.
+- Extended settings smoke coverage with `settingsGeneralSurfaceWorks`, proving General uses shared page/surface primitives, keeps editor choice cards compact, and no longer renders local `settings-group` or `settings-panel` wrappers.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779481093784.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779481093784.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Appearance, Providers, and Pets still carry mixed legacy settings layout. General, Data controls, and Shortcuts now use the shared settings primitive stack, but full Codex settings parity still requires route/page ownership, row migration for remaining sections, and shortcut conflict/multi-binding behavior.
+
+### 2026-05-22 - Pets Settings Surface Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/settings-page-Cs2EUu3v.js` confirmed settings route content is hosted inside shared settings pages.
+- `webview/assets/settings-surface-YwAy0P94.js` confirmed grouped settings controls should use shared rounded, divided, overflow-hidden surfaces.
+- `webview/assets/settings-row-DYYQqFuu.js` confirmed settings rows use compact `gap-4 p-3` default layout and nested compact rows instead of large bespoke cards.
+
+Implemented in Orchestrator:
+
+- Migrated Personalization/Pets settings from local `SettingGroup` sections and inline styles to `SettingsPageSection`, `SettingsContentGroup`, `SettingsGroupContent`, `SettingsSurface`, and `SettingsRow`.
+- Replaced the bespoke overlay toggle with shared `SwitchControl` while preserving `window.api.pet.setOpen`.
+- Replaced large inline pet cards with tokenized `pet-choice-card` rows inside a shared settings surface while preserving selection and spritesheet preview behavior.
+- Replaced import button inline styles with shared compact settings action buttons.
+- Extended pets smoke coverage with `petsSettingsSurfaceWorks`, proving the section uses shared page/surface primitives, keeps pet cards compact, preserves import actions, and no longer renders local settings groups/panels.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --pets` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-pets-1779481329629.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-pets-1779481329629.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Appearance and Providers still carry mixed legacy settings layout. General, Data controls, Shortcuts, and Pets now share the settings primitive stack, but full settings parity still requires route/page ownership, row migration for remaining sections, and shortcut conflict/multi-binding behavior.
+
+### 2026-05-22 - Appearance Settings Surface Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/settings-content-layout-Bnulb0lM.js` confirmed settings pages use a shared scroll/content layout with constrained content width and panel padding.
+- `webview/assets/appearance-settings-C6oiotxg.js` confirmed Appearance composes shared settings content layout plus shared row/surface/group primitives.
+- `webview/assets/font-settings-D-vhQ1CB.js` was checked as part of the Appearance/font settings surface inventory.
+
+Implemented in Orchestrator:
+
+- Migrated Appearance settings from legacy `SettingGroup` sections and inline layout styles to `SettingsPageSection`, `SettingsContentGroup`, `SettingsGroupContent`, `SettingsSurface`, and shared settings rows.
+- Kept existing theme behavior: mode selection, portable theme import/copy, preset switching, preview rendering, light/dark chrome editing, accent selection, font sizing, density, transcript rhythm, and motion/cursor toggles.
+- Replaced bespoke pill button styles and inline textarea/control layout with tokenized `settings-action-button`, `appearance-*` CSS classes, compact surfaces, and row controls.
+- Extended settings smoke coverage with `settingsAppearanceSurfaceWorks`, proving Appearance uses shared page/surface primitives, renders all expected content groups, keeps action buttons on shared controls, and no longer renders local `settings-group` / `settings-panel` wrappers.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779481737570.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779481737570.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Providers is the last settings section still using the older `SettingsPanel` / `CompactSetting` shape. General, Appearance, Data controls, Shortcuts, and Pets now share the settings primitive stack, but full settings parity still requires settings route/page ownership and shortcut conflict/multi-binding behavior.
+
+### 2026-05-22 - Providers Settings Surface Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/settings-content-layout-Bnulb0lM.js` confirmed settings routes should use shared content layout constraints rather than local page shells.
+- `webview/assets/settings-surface-YwAy0P94.js` confirmed settings controls should sit inside shared rounded/divided surfaces.
+- `webview/assets/settings-row-DYYQqFuu.js` confirmed compact label/control rows are the right primitive for provider defaults and toggles.
+
+Implemented in Orchestrator:
+
+- Migrated Providers settings from the last `SettingsPanel` / `CompactSetting` stack to `SettingsPageSection`, `SettingsContentGroup`, `SettingsGroupContent`, `SettingsSurface`, and `SettingsRow`.
+- Kept existing provider behavior intact: provider dropdown/default selection, default model picker, effort control, permission mode contract, model-list manager, details disclosure, command surface selector, diagnostics, usage, setup, and runtime cards.
+- Split Providers into shared settings groups for Provider, Defaults, and Details while preserving the compact diagnostics grid and existing provider-specific smoke selectors.
+- Extended provider settings smoke coverage so `settingsProviderControlSurfaceUnifiedWorks` now proves the shared provider control surface exists and the old `settings-panel` / `compact-setting` wrappers are gone.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings-providers` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779481956740.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779481956740.png`.
+- Screenshot was inspected for shared row/surface rendering and horizontal-overflow risk.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Settings sections now share the primitive stack across General, Appearance, Providers, Shortcuts, Personalization/Pets, and Data controls. Remaining settings parity work is broader route/page ownership, finer Codex shortcut conflict/multi-binding behavior, and any future settings fields that still need the shared input variant.
+
+### 2026-05-22 - Data Controls Settings Page Module Slice
+
+Fresh Codex bundle evidence reused the settings route/page findings:
+
+- `webview/assets/settings-page-Cs2EUu3v.js` and `settings-content-layout-Bnulb0lM.js` remain the reference for settings as page-owned content modules inside a route-like settings layout rather than one monolithic modal file.
+- `webview/assets/settings-surface-YwAy0P94.js` and `settings-row-DYYQqFuu.js` remain the reference for the Data controls page's already-migrated surface/row primitives.
+
+Implemented in Orchestrator:
+
+- Extracted Data controls from `SettingsModal.tsx` into `src/renderer/src/components/Settings/DataControlsSettingsPage.tsx`.
+- Kept the existing Data controls behavior intact: profile loading, user-data path actions, archived-chat inventory, restore, delete, refresh, and shared settings surface/row layout.
+- Added a `data-settings-page-module="data-controls"` marker so focused smoke can prove the page is module-owned rather than only rendered through the monolithic settings component.
+- Removed Data controls-only imports and helper code from `SettingsModal.tsx`, narrowing that file toward route/page composition.
+- Extended settings smoke coverage with `settingsDataControlsModule`, alongside the existing Data controls content and shared-surface checks.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779500865182.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779500865182.png`.
+
+Remaining:
+
+- Data controls is now the first route/page-owned settings module. General, Appearance, Providers, Shortcuts, and Personalization/Pets still need extraction from `SettingsModal.tsx`; shortcut conflict/multi-binding behavior and host-aware settings pages remain separate parity gaps.
+
+### 2026-05-22 - General Settings Page Module Slice
+
+Fresh Codex bundle evidence reused the settings route/page findings:
+
+- `webview/assets/settings-page-Cs2EUu3v.js` and `settings-content-layout-Bnulb0lM.js` remain the reference for settings pages as independently owned route content.
+- `webview/assets/settings-surface-YwAy0P94.js` remains the reference for keeping the already-migrated General page controls inside shared settings surfaces.
+
+Implemented in Orchestrator:
+
+- Extracted General settings from `SettingsModal.tsx` into `src/renderer/src/components/Settings/GeneralSettingsPage.tsx`.
+- Kept preferred editor/open-target behavior intact, including async target availability loading, disabled unavailable editor choices, and existing shared choice-card/surface layout.
+- Added `data-settings-page-module="general"` so focused smoke can prove General is also page-module owned.
+- Removed General-only open-target rendering helpers from `SettingsModal.tsx`, leaving it as the route composer for General and Data controls.
+- Extended settings smoke coverage with `settingsGeneralModule`, alongside the existing `settingsGeneralSurface` check.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779501008167.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779501008167.png`.
+
+Remaining:
+
+- General and Data controls are now page-owned settings modules. Appearance, Providers, Shortcuts, and Personalization/Pets still need extraction from `SettingsModal.tsx`; shortcut conflict/multi-binding behavior and host-aware settings pages remain separate parity gaps.
+
+### 2026-05-22 - Personalization Settings Page Module Slice
+
+Fresh Codex bundle evidence reused the settings route/page findings:
+
+- `webview/assets/settings-page-Cs2EUu3v.js` and `settings-content-layout-Bnulb0lM.js` remain the reference for independent settings page modules inside a shared settings layout.
+- `webview/assets/settings-surface-YwAy0P94.js` and `settings-row-DYYQqFuu.js` remain the reference for the already-migrated Personalization/Pets surfaces and rows.
+
+Implemented in Orchestrator:
+
+- Extracted Personalization/Pets settings from `SettingsModal.tsx` into `src/renderer/src/components/Settings/PetsSettingsPage.tsx`.
+- Preserved pet overlay toggle, pet selection, local pet package import, Codex pet import, selected-pet state, and shared surface/card layout.
+- Added `data-settings-page-module="pets"` so focused smoke can prove the Personalization page is module-owned.
+- Removed pets-only state, entry types, and handler code from `SettingsModal.tsx`.
+- Extended pets smoke coverage with `petsSettingsModule`, alongside the existing `petsSettingsSurface` check.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --pets` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-pets-1779501164886.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-pets-1779501164886.png`.
+
+Remaining:
+
+- General, Data controls, and Personalization/Pets are now page-owned settings modules. Appearance, Providers, and Shortcuts still need extraction from `SettingsModal.tsx`; shortcut conflict/multi-binding behavior and host-aware settings pages remain separate parity gaps.
+
+### 2026-05-22 - Shortcuts Settings Page Module Slice
+
+Fresh Codex bundle evidence reused the keyboard-shortcuts and settings route/page findings:
+
+- `webview/assets/keyboard-shortcuts-settings-RVscBDKb.js` remains the reference for shortcut settings as its own content page rather than an inline section inside a catch-all settings component.
+- `webview/assets/settings-page-Cs2EUu3v.js`, `settings-content-layout-Bnulb0lM.js`, and `settings-surface-YwAy0P94.js` remain the reference for route/page-owned settings content inside shared settings surfaces.
+
+Implemented in Orchestrator:
+
+- Extracted Shortcuts settings from `SettingsModal.tsx` into `src/renderer/src/components/Settings/ShortcutsSettingsPage.tsx`.
+- Preserved shortcut search, compact command labels, edit/capture, reset, override persistence, and existing shared settings surface layout.
+- Added `data-settings-page-module="shortcuts"` so focused smoke can prove the Shortcuts page is module-owned.
+- Removed shortcut-row rendering helpers from `SettingsModal.tsx`, leaving shortcut override state/save ownership at the route composer boundary.
+- Extended settings smoke coverage with `settingsShortcutsModule`, alongside the existing Shortcuts surface, compactness, and editable-keybinding checks.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779501437628.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779501437628.png`.
+- `npm run test:smoke-config` passed 2 tests.
+
+Remaining:
+
+- General, Data controls, Personalization/Pets, and Shortcuts are now page-owned settings modules. Appearance and Providers still need extraction from `SettingsModal.tsx`; shortcut conflict/multi-binding behavior and host-aware settings pages remain separate parity gaps.
+
+### 2026-05-22 - Appearance Settings Page Module Slice
+
+Fresh Codex bundle evidence reused the appearance-settings and settings route/page findings:
+
+- `webview/assets/appearance-settings-C6oiotxg.js` remains the reference for appearance settings as a dedicated content page with its own controls and theme state.
+- `webview/assets/settings-page-Cs2EUu3v.js`, `settings-content-layout-Bnulb0lM.js`, `settings-surface-YwAy0P94.js`, and `settings-row-DYYQqFuu.js` remain the reference for route/page-owned settings content built from shared settings primitives.
+
+Implemented in Orchestrator:
+
+- Extracted Appearance settings from `SettingsModal.tsx` into `src/renderer/src/components/Settings/AppearanceSettingsPage.tsx`.
+- Moved the Appearance page's preset cards, preview, chrome/theme editor controls, portable theme copy/import UI, quick accent controls, typography controls, and layout/reading toggles into the page module.
+- Exported shared appearance defaults and the `AppearancePreset` type from the page module so `SettingsModal.tsx` can keep owning settings persistence without keeping the page rendering implementation inline.
+- Added `data-settings-page-module="appearance"` so focused smoke can prove the Appearance page is module-owned.
+- Extended settings smoke coverage with `settingsAppearanceModule`, alongside the existing appearance surface, taxonomy, theme import, theme sharing, and preview checks.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779501762599.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779501762599.png`.
+- `npm run test:smoke-config` passed 2 tests.
+
+Remaining:
+
+- General, Appearance, Data controls, Personalization/Pets, and Shortcuts are now page-owned settings modules. Providers is the only settings section still inline in `SettingsModal.tsx`; shortcut conflict/multi-binding behavior and host-aware settings pages remain separate parity gaps.
+
+### 2026-05-22 - Providers Settings Page Module Slice
+
+Fresh Codex bundle evidence reused the provider/settings route findings:
+
+- `webview/assets/settings-page-Cs2EUu3v.js` and `settings-content-layout-Bnulb0lM.js` remain the reference for settings sections as page-owned modules within shared settings layout.
+- `webview/assets/settings-surface-YwAy0P94.js` and `settings-row-DYYQqFuu.js` remain the reference for the already-migrated provider settings surface/row layout.
+
+Implemented in Orchestrator:
+
+- Extracted Providers settings from `SettingsModal.tsx` into `src/renderer/src/components/Settings/ProvidersSettingsPage.tsx`.
+- Moved the provider page's dropdown/defaults UI, model manager, permission contract, command surfaces, diagnostics, setup/config editor, usage diagnostics, probe grid, and install-command helpers into the page module.
+- Kept provider state and persistence ownership in `SettingsModal.tsx`, matching the other extracted settings pages.
+- Added `data-settings-page-module="providers"` so focused smoke can prove the Providers page is module-owned.
+- Extended settings smoke coverage with `settingsProvidersModule`, alongside the existing provider dropdown, diagnostics, usage, model-list, control-surface, catalog-label, and disclosure checks.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings-providers` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779501987393.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779501987393.png`.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779502003362.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779502003362.png`.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Settings primitive and page-module ownership is now complete for the current settings sections: General, Appearance, Providers, Data controls, Personalization/Pets, and Shortcuts. Remaining settings parity is focused on Codex's fuller shortcut conflict/multi-binding behavior, host-aware settings pages, and deeper native theme/font/chrome controls.
+
+### 2026-05-22 - Shortcut Conflict And Multi-Binding Slice
+
+Fresh Codex bundle evidence reused the keyboard-shortcuts findings:
+
+- `webview/assets/keyboard-shortcuts-settings-RVscBDKb.js` remains the reference for editable shortcuts as settings content with conflict-aware capture, multiple keybindings per command, and reset/clear behavior.
+
+Implemented in Orchestrator:
+
+- Changed shortcut overrides from a single replacement sequence to backward-compatible custom binding lists, so existing saved single-sequence overrides still load while new recordings can add multiple custom shortcuts.
+- Kept default shortcuts active when adding custom bindings, matching the multi-binding direction instead of replacing the command's default binding.
+- Added shortcut conflict detection across built-in defaults and custom bindings before saving a recorded shortcut.
+- Updated Shortcuts settings to render multiple key chips per command, mark custom bindings, keep reset behavior for clearing custom bindings, and show a conflict error when a captured shortcut is already owned by another command.
+- Extended settings smoke coverage with `settingsShortcutsConflict`, which first tries to bind Open File Search to the Command Palette shortcut, expects the conflict error, then records a valid custom shortcut.
+
+Verification:
+
+- `npm run test:providers` passed 220 tests, including new app-command coverage for multi-binding overrides and conflict detection.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779502209540.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779502209540.png`.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Shortcut settings now cover conflict-aware custom multi-binding at the Orchestrator command layer. Remaining shortcut parity is narrower: global/native accelerator refresh behavior across windows, platform-specific edge cases, and per-binding clear UI if needed after live Codex comparison.
+
+### 2026-05-22 - Native Shortcut Accelerator Refresh Slice
+
+Fresh Codex bundle evidence reused the app-shell shortcut-routing framing:
+
+- `webview/assets/app-shell-JLpboL12.js` and the keyboard-shortcuts settings chunk remain the reference for one command registry driving visible shortcuts and active command routing instead of separate static/menu-only shortcut definitions.
+
+Implemented in Orchestrator:
+
+- Added `shortcutSequenceToAccelerator` so the shared app-command shortcut registry can emit Electron accelerator strings.
+- Updated Electron menu construction to derive each menu command accelerator from `commandShortcuts(command, shortcutOverrides)` instead of the static `APP_COMMANDS[command].accelerator` field.
+- Rebuilds the native application menu when `shortcutOverrides` changes, so settings edits propagate to native menu accelerators without restarting the app.
+- Kept renderer keyboard handling and command palette shortcut labels on the same command model as the native menu.
+
+Verification:
+
+- `npm run test:providers` passed 221 tests, including accelerator conversion coverage.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779502407140.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779502407140.png`.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Shortcut settings now share command state across renderer handling, visible settings rows, and native menu accelerators. Remaining shortcut parity is platform-specific edge cases and any per-binding clear UI found in live Codex comparison.
+
+### 2026-05-22 - Thread Action Mark Unread Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/thread-actions-C8deI8Bf.js` includes `markThreadAsUnread` and the localized `Mark as unread` menu item alongside rename, archive, copy working directory, copy session ID, deeplink, Markdown export, automation, fork, and interrupt actions.
+- `webview/assets/conversation-markdown-CsuFLk49.js` and `webview/assets/heartbeat-automation-thread-bridge-CrVxqBXS.js` remain evidence for still-open thread action gaps after this slice.
+
+Implemented in Orchestrator:
+
+- Added a provider-agnostic Mark as unread / Mark as read item to the shared `SessionActionsMenu`.
+- Wired the action from both sidebar row menus and the titlebar chat actions menu through existing `setHasUnread` UI state.
+- Extended sidebar smoke coverage with `actionMarkUnreadWorks`, verifying the menu action creates the unread dot and then clears it again so existing idle/unread/error dot invariants stay intact.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779482217253.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779482217253.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Current thread-action gaps are add/edit automation and broader provider-backed remote/pending-worktree lifecycle semantics.
+
+### 2026-05-22 - Thread Action Copy Markdown Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/thread-actions-C8deI8Bf.js` includes `copyConversationMarkdown` and the localized `Copy as Markdown` thread action alongside rename, archive, mark unread, deeplink, automation, fork, and interrupt actions.
+- `webview/assets/conversation-markdown-CsuFLk49.js` remains the deeper Codex markdown formatter reference. Orchestrator's first pass uses a local transcript formatter over the stored provider-agnostic session model.
+
+Implemented in Orchestrator:
+
+- Added a main-process `sessions:copyMarkdown` IPC handler that formats the stored session transcript and writes it with Electron `clipboard.writeText`, avoiding renderer clipboard user-activation failures after async session reads.
+- Added `copyMarkdown` to preload and renderer API typings.
+- Added `Copy as Markdown` to the shared `SessionActionsMenu`, making it available from sidebar row menus and the titlebar chat actions menu.
+- Extended sidebar smoke coverage with `actionCopyMarkdownWorks`, verifying the copied transcript includes the session title, working-directory metadata, assistant section, and fixture message.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779482772491.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779482772491.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Current thread-action gaps are add/edit automation and broader provider-backed remote/pending-worktree lifecycle semantics.
+
+### 2026-05-22 - Thread Action Deeplink Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/thread-actions-C8deI8Bf.js` confirmed Codex's `copyAppLink` thread action copies `codex://threads/${conversationId}` and labels it `Copy deeplink`.
+
+Implemented in Orchestrator:
+
+- Added `Copy deeplink` to the shared `SessionActionsMenu`, copying `orchestrator://threads/{sessionId}` through a main-process `sessions:copyDeeplink` IPC handler.
+- Added Electron protocol metadata for the `orchestrator` scheme in `package.json` and register the scheme at app startup.
+- Added app-level deeplink handling for `orchestrator://threads/{id}` and `orchestrator://sessions/{id}` on macOS `open-url`, with a pending-navigation bridge so renderer startup can select the target session after session summaries load.
+- Added renderer app navigation IPC separate from the pet overlay navigation channel while keeping pet navigation on the same active-session selection helper.
+- Extended sidebar smoke coverage with `actionCopyDeeplinkWorks`, verifying the copied link uses the Orchestrator thread scheme and the expected session id.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779483052616.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779483052616.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Current thread-action gaps are add/edit automation and broader provider-backed remote/pending-worktree lifecycle semantics.
+
+### 2026-05-22 - Thread Action Stop Chat Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/thread-actions-C8deI8Bf.js` confirmed Codex includes an `interruptThread` action in the shared thread action handler set, with `interruptThreadError` used when stopping an in-progress local thread fails.
+
+Implemented in Orchestrator:
+
+- Added `Stop chat` to the shared `SessionActionsMenu` when a session is running, waiting for permission, waiting for user input, or reconnecting.
+- Wired the action through the existing provider-neutral `sessions.stop` IPC path from both sidebar row menus and the titlebar chat actions menu.
+- Added optimistic status clearing in the sidebar/titlebar callers after a successful stop request, matching existing local update patterns for pin/name state.
+- Tightened `sessionManager.stop` so it clears orphaned visible running/waiting/reconnecting statuses even when no active provider process remains.
+- Extended sidebar smoke coverage with `actionStopChatWorks`, verifying the running row exposes the thread action and clears its spinner after activation.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779483493788.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779483493788.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Current thread-action gaps are add/edit automation and broader provider-backed remote/pending-worktree lifecycle semantics.
+
+### 2026-05-22 - Thread Action Open Window Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/thread-actions-C8deI8Bf.js` confirmed Codex exposes `Open in new window` from the shared thread action surface.
+
+Implemented in Orchestrator:
+
+- Added `Open in new window` to the shared `SessionActionsMenu`, available from sidebar row menus and the titlebar chat actions menu.
+- Added an app-layer `openSessionWindow` IPC path that creates a new Electron window and seeds the pending navigation id so the new renderer selects the requested session after session summaries load.
+- Reused the same pending-navigation bridge as deeplinks, keeping app navigation separate from pet overlay navigation while sharing the renderer active-session selection helper.
+- Extended sidebar smoke coverage with `actionOpenInNewWindowWorks`. The assertion runs at the end of the sidebar smoke so the extra renderer window cannot disturb earlier sidebar fixture ordering and hover/menu checks.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779483685711.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779483685711.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Current thread-action gaps are add/edit automation and broader provider-backed remote/pending-worktree lifecycle semantics.
+
+### 2026-05-22 - Thread Action Fork Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/thread-actions-C8deI8Bf.js` confirmed Codex exposes `Fork into local`, `Fork into same worktree`, and `Fork into new worktree` from the shared thread action surface.
+- The same bundle asset confirmed Codex's new-worktree guard copy: `Fork into new worktree requires a git repository`, plus pending worktree defaults `Forked conversation` and `Fork this conversation into a new worktree.`
+
+Implemented in Orchestrator:
+
+- Added `SessionForkMode` and a provider-neutral `sessionManager.fork` path for local, same-worktree, and new-worktree forks.
+- Added `sessions:fork` IPC/preload/renderer typing and project membership updates so forked sessions appear immediately in the sidebar.
+- Added shared `SessionActionsMenu` actions for `Fork into local`, `Fork into same worktree`, and `Fork into new worktree`, reusing the sidebar and titlebar menu surface.
+- Local fork creates a fresh idle session rooted at the source repository/root, clears provider session ids, clones the visible transcript, and appends a small system note. Same-worktree preserves the active worktree directory. New-worktree validates a git repository and creates an app-managed worktree through the existing git worktree primitive.
+- Extended sidebar smoke coverage with `actionForkLocalWorks`, asserting that the row action creates and selects a `Forked: ...` local session and records the expected fork mode.
+- Extended the sidebar smoke workspace into a real git repository and added `actionForkNewWorktreeWorks`, asserting that `Fork into new worktree` creates a selected worktree-backed session under `.orchestrator-worktrees`.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779484303907.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779484303907.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- Thread actions still lack Codex parity for add/edit automation.
+- Local and new-worktree fork actions now have sidebar smoke proof. Full pending-worktree lifecycle parity still needs pending row identity, cleanup, and richer Codex-style worktree state.
+
+### 2026-05-22 - Sidebar Nav Row Primitive Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/selectable-list-row-Du758VIB.js` confirmed Codex's generic selectable row contract: role/button keyboard selection, rounded-lg list rows, active vs hover background, icon slot, primary title, optional secondary title, right text, and optional second line.
+- `webview/assets/settings-back-route-Cfgk-CZa.js` confirmed settings/sidebar navigation rows use a shared `h-token-nav-row` button primitive with row padding variables, rounded-lg hover/active background, icon/label/trailing slots, active foreground, badge support, and section wrappers with tight row gaps.
+- `webview/assets/sidebar-signals-DI3M13c-.js` confirmed sidebar organization, sort, collapsed section, group, and selected-row state are modeled centrally rather than scattered per row.
+- `webview/assets/sidebar-project-groups-DUHIVRJe.js` confirmed project/thread grouping is identity-aware across local, remote, projectless, and pending-worktree sources, which Orchestrator's local-only sidebar model still does not match.
+
+Implemented in Orchestrator:
+
+- Added `SidebarListRow` to `src/renderer/src/components/shared/designSystem.tsx`, wrapping `SurfaceRow` with shared icon, label, detail, trailing, active, disabled, aria, and test-id slots.
+- Added tokenized `.sidebar-list-row*` CSS for full-width compact rows, active foreground, label/detail truncation, and trailing alignment.
+- Migrated the sidebar/settings navigation rows, sidebar footer action, and empty-project add row onto `SidebarListRow`, removing their local inline row layout/styling.
+- Extended settings smoke coverage with `settingsSidebarNavPrimitive`, asserting settings nav/footer rows render through the shared sidebar row primitive and keep the shared content/label slots.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779479367616.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779479367616.png`.
+
+Remaining:
+
+- This slice only migrated low-risk sidebar navigation rows. Session/project row migration was completed in the follow-up slice below.
+- Orchestrator still lacks Codex's central sidebar signals for projectless chats, collapsed custom sections, label colors, remote/pending-worktree identity, and drag/drop section/project order.
+
+### 2026-05-22 - Sidebar Session/Project Row Primitive Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/selectable-list-row-Du758VIB.js` confirmed Codex's selectable list rows use one row contract with role/button keyboard selection, active/hover treatment, icon/leading content, primary title, secondary/right text, and optional second-line metadata.
+- `webview/assets/settings-back-route-Cfgk-CZa.js` confirmed sidebar-style nav rows are shared slot-based controls with row padding variables, active foreground, trailing/badge support, and tight grouped row spacing.
+- `webview/assets/sidebar-signals-DI3M13c-.js` and `sidebar-project-groups-DUHIVRJe.js` remain the evidence for the still-open data-model gap: Codex centralizes sidebar organization, collapsed state, sort, projectless, local, remote, and pending-worktree identities.
+
+Implemented in Orchestrator:
+
+- Extended `SidebarListRow` into a composite row primitive with `button` or `div` rendering, leading/detail/trailing slots, double-click/context-menu forwarding, and density variants for nav, thread, section, and compact rows.
+- Migrated `SessionItem` rows from bespoke `SurfaceRow` layout to `SidebarListRow` thread rows while preserving nested pin/action buttons, active state, status spinner/dot behavior, recency metadata, double-click rename, context menu, and hover-card wiring.
+- Migrated `ProjectSection` headers, empty-project "New Chat" rows, and show-more/show-less disclosure rows to `SidebarListRow` section/compact rows while preserving collapse, project action menu, new-chat action, pinned project indicator, rename, and pin ordering.
+- Tightened shared row CSS with `box-sizing: border-box`, density-specific heights, label/detail truncation, and trailing gap alignment.
+- Quieted active sidebar rows to use the sidebar token background with a transparent border, so selected rows no longer inherit the generic `SurfaceRow` outline-like active border.
+- Replaced the hardcoded 264px rail with a shared `--orchestrator-sidebar-width` clamp token matching Codex's 240-300px width direction.
+- Extended dedicated sidebar smoke coverage with `sessionRowsSharedPrimitive`, `projectHeadersSharedPrimitive`, `emptyProjectNewChatSharedPrimitive`, `sidebarWidthToken`, and stricter `sessionRowsCalm` checks that assert active rows have no shadow and no visible active border.
+
+Verification:
+
+- `npm run build` passed before UI verification.
+- `npm run test:smoke-config` passed: 2 tests.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779479795518.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779479795518.png`.
+- `npm run smoke:ui:auto -- --sidebar` passed after active-row quieting; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779487578701.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779487578701.png`.
+- `npm run smoke:ui:auto -- --sidebar` passed after clamp-width tokenization; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779487701669.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779487701669.png`.
+
+Remaining:
+
+- Sidebar row chrome is now shared across nav, footer, empty, session, and project rows, but the underlying sidebar data model is still local-project-first. Codex parity still requires central sidebar signals for projectless chats, custom/collapsed sections, label colors, remote/cloud/pending-worktree rows, drag/drop ordering, and richer thread actions.
+
+### 2026-05-22 - Sidebar State Signal Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/sidebar-signals-DI3M13c-.js` confirmed Codex stores sidebar organize mode, keep-projects-in-recent, projectless chats-first, thread sort key, section order, collapsed groups, collapsed built-in sections, collapsed custom sections, and active/selected sidebar keys as central persisted signals.
+- `webview/assets/sidebar-project-groups-DUHIVRJe.js` confirmed those signals feed an identity-aware grouping model across local, remote, projectless, and pending-worktree threads.
+
+Implemented in Orchestrator:
+
+- Added `src/renderer/src/store/sidebar.ts`, a renderer sidebar store for view mode, sort mode, and collapsed project ids.
+- Moved sidebar view mode and sort mode out of component-local `Sidebar` state into the shared sidebar store while preserving the existing localStorage keys and behavior.
+- Moved project collapsed state out of per-`ProjectSection` local state into the shared sidebar store, persisted as `orchestrator.sidebar.collapsedProjects`.
+- Extended sidebar smoke coverage with `projectCollapsePersistenceWorks`, proving project collapse hides child session rows, persists a collapsed-project record, and can expand the section again.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779479928777.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779479928777.png`.
+
+Remaining:
+
+- Orchestrator now has central sidebar state for the existing local project model, but it still lacks Codex's section order, built-in/custom collapsed sections, projectless chat placement, label colors, remote/pending-worktree grouping, and drag/drop ordering.
+
+### 2026-05-22 - Sidebar Built-In Section Collapse Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/sidebar-signals-DI3M13c-.js` confirmed Codex persists collapsed built-in sidebar sections separately from collapsed groups and custom sections, with default keys for chats, pinned, and threads.
+- `webview/assets/settings-back-route-Cfgk-CZa.js` confirmed sidebar-like section rows keep compact row geometry and explicit interactive state.
+
+Implemented in Orchestrator:
+
+- Extended `src/renderer/src/store/sidebar.ts` with persisted built-in section collapse state for `pinned` and `projects`, stored under `orchestrator.sidebar.collapsedSections`.
+- Added compact collapse toggles for the Pinned and Projects/Recent chats sidebar section headers with `aria-expanded` state.
+- Kept both sections expanded by default so existing sidebar ordering and pinning behavior is preserved.
+- Extended dedicated sidebar smoke coverage with `builtInSectionCollapseWorks`, proving Pinned collapse hides pinned rows, Projects collapse hides unpinned project rows, both states persist to localStorage, and both sections expand again.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779480137145.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779480137145.png`.
+
+Remaining:
+
+- Orchestrator now covers local sidebar organize mode, sort key, collapsed projects, and collapsed built-in sections. Remaining Codex sidebar signal gaps are section order, custom collapsed sections, custom section membership, projectless chat placement, label colors, remote/pending-worktree grouping, and drag/drop ordering.
+
+### 2026-05-22 - Sidebar Built-In Section Order Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/sidebar-signals-DI3M13c-.js` confirmed Codex persists sidebar section order as a central signal alongside organize mode, sort key, collapsed built-in sections, collapsed groups, and collapsed custom sections.
+
+Implemented in Orchestrator:
+
+- Extended `src/renderer/src/store/sidebar.ts` with persisted built-in section order under `orchestrator.sidebar.sectionOrder`, normalizing invalid or partial saved values back to `['pinned', 'projects']`.
+- Moved Pinned and Projects/Recent chats rendering through the shared section-order signal instead of a fixed hardcoded order.
+- Added organize-menu actions for "Pinned above projects" and "Projects above pinned", keeping the default pinned-first order while allowing the section order to persist.
+- Extended sidebar smoke coverage with `builtInSectionOrderWorks`, proving the menu can move Projects above Pinned, persist the order, update DOM section order, and reset back to Pinned above Projects.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779480727701.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779480727701.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+- `git diff --check` passed.
+
+Remaining:
+
+- This only covers the built-in section order signal. Orchestrator still lacks Codex custom sections, custom collapsed sections, drag/drop section ordering, custom membership, projectless placement, label colors, and remote/pending-worktree grouping.
+
+### 2026-05-22 - Sidebar Custom Section Primitive Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/sidebar-signals-DI3M13c-.js` remains the reference for custom sidebar sections, collapsed custom sections, and persisted section order as central sidebar signals.
+- `webview/assets/sidebar-project-groups-DUHIVRJe.js` remains the reference for routing custom membership through the same identity-aware grouping layer rather than treating custom sections as display-only labels.
+
+Implemented in Orchestrator:
+
+- Extended `src/renderer/src/store/sidebar.ts` with persisted custom sections under `orchestrator.sidebar.customSections`, storing `id`, `name`, `emoji`, `sessionIds`, and collapsed state.
+- Expanded `orchestrator.sidebar.sectionOrder` from built-in-only entries to mixed built-in/custom section keys while preserving old saved `['pinned', 'projects']` values.
+- Added a "New custom section" organize-menu action that creates a section from the selected unpinned chat, inserts it before Projects, and removes that chat from project/recent grouping so the custom section is a real organization primitive.
+- Rendered custom sidebar sections with the same compact section header/collapse pattern as built-in sections, plus section actions for adding the selected chat or removing the custom section.
+- Extended dedicated sidebar smoke coverage with `customSectionModelWorks`, `customSectionMembershipWorks`, and `customSectionCollapseWorks`, proving custom section persistence, section order, membership rendering, project-list exclusion, and collapsed-state persistence.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779500371983.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779500371983.png`.
+
+Remaining:
+
+- Orchestrator now covers local custom sections and collapsed custom sections. Remaining Codex sidebar model gaps are projectless placement, label colors, remote/cloud/pending-worktree grouping, drag/drop custom membership/order, and provider-backed pinned/automation state.
+
+### 2026-05-22 - Sidebar Thread Identity / Label Color Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/sidebar-project-groups-DUHIVRJe.js` remains the reference for thread keys that distinguish local, remote, projectless, and pending-worktree rows.
+- The Chat Sidebar audit's bundle-backed label-color finding remains the reference for carrying row-level visual metadata separately from title text.
+
+Implemented in Orchestrator:
+
+- Added provider/thread identity metadata to each `SessionItem` shell through `data-sidebar-thread-kind`, `data-sidebar-provider-id`, and `data-sidebar-label-color`.
+- Derived local row identity as `local`, `remote`, `worktree`, or `pending-worktree` from the existing session fields without changing storage shape.
+- Added a quiet provider-color marker in the existing pin slot for unpinned rows, fading it when hover/focus reveals the pin action so the marker does not add another permanent action column.
+- Extended focused sidebar smoke with `sidebarThreadIdentityMetadata` and `sidebarLabelColorMetadata`, proving row identity attributes and rendered color metadata exist alongside the existing compact row behavior.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779500601752.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779500601752.png`.
+
+Remaining:
+
+- Orchestrator now exposes local row identity and label color metadata, but it still does not have first-class projectless, remote/cloud, or pending-worktree grouping, nor drag/drop custom membership/order or provider-backed pinned/automation state.
+
+### 2026-05-23 - Sidebar Connection Grouping Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/sidebar-signals-DI3M13c-.js` confirmed Codex persists a connection-aware organize mode alongside project/recent/all modes, collapsed groups, collapsed standard sections, custom sections, and projectless chats-first ordering.
+- `webview/assets/sidebar-thread-keys-DewPLpqM.js` confirmed thread keys distinguish `local:`, `remote:`, and `pending-worktree:` identities instead of treating every row as a local project session.
+- `webview/assets/sidebar-project-group-signals-B2IlZT8R.js` confirmed Codex builds provider/connection groups for local, remote/cloud/hosted, and pending-worktree sources, with explicit connection group order/collapse state.
+- `webview/assets/sidebar-thread-list-signals-FpAb9VJn.js` confirmed the reference labels and top-level modes: "Connections", "Projects", "Chats", and "All chats".
+
+Implemented in Orchestrator:
+
+- Added provider-neutral sidebar identity helpers in `src/types/index.ts` for `local`, `remote`, `worktree`, and `pending-worktree` thread kinds plus provider-aware connection group identities.
+- Added `Session.worktreeState` as a persisted pending/ready hint so pending worktree rows do not depend only on transient `reconnecting` runtime status, while still treating live reconnecting worktree sessions as pending.
+- Extended the central sidebar store with persisted `connections` organize mode and `orchestrator.sidebar.collapsedConnectionGroups`.
+- Added a "By connection" organize-menu mode that groups unpinned chats by provider-aware local, remote, worktree, and pending-worktree identities while leaving pinned chats in the pinned section.
+- Rendered connection groups with the shared compact sidebar section row primitive, provider/kind metadata attributes, quiet kind markers, counts, sorted child sessions, and persisted collapse behavior.
+- Extended the sidebar smoke fixture with remote Codex, Cursor worktree, and pending Claude worktree sessions, and added `sidebarConnectionGrouping` smoke coverage for connection mode, group identity metadata, pinned exclusion, shared group headers, and collapse persistence.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779510437105.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779510437105.png`.
+
+Remaining:
+
+- Orchestrator now has first-class local/remote/worktree/pending-worktree connection grouping for local session records, but it still lacks Codex's projectless chats-first placement, hosted/cloud/remote host-specific groups, drag/drop group/section ordering, provider-backed pinned state, automation state, and the full pending-worktree launch lifecycle.
+
+### 2026-05-24 - Sidebar Provider Source Identity Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/sidebar-project-group-signals-B2IlZT8R.js` confirmed Codex groups local, cloud, remote host, pending-worktree, and projectless sources, including `cloud` and `host:${hostId}` connection groups.
+- `webview/assets/sidebar-thread-list-signals-FpAb9VJn.js` confirmed thread rows carry pinned, automation, projectless, and label-color metadata across local, remote, and pending keys.
+- `webview/assets/sidebar-thread-keys-DewPLpqM.js` confirmed thread keys distinguish `local:`, `remote:`, and `pending-worktree:` identities.
+
+Implemented in Orchestrator:
+
+- Added provider-neutral `Session.providerThreadSource`, `providerHostId`, and `providerHostLabel` fields for sidebar source identity.
+- Extended `sidebarConnectionGroupIdentity` so local session records can split generic remote, Codex cloud, remote-host, worktree, and pending-worktree groups instead of collapsing every provider-backed row into one remote bucket.
+- Exposed row-level source/host metadata on sidebar session rows for smoke checks and future adapter/debug use.
+- Added cloud and remote-host Codex fixtures to focused Sidebar smoke, and asserted `cloud:codex`, `host:codex:remote-mac`, `cloud` kind metadata, and the `Remote Mac` host label.
+- Fixed the built-in section collapse verifier so it scopes assertions to the Projects section instead of depending on a row that later moved into a custom section.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed 248 tests.
+- `npm run smoke:ui:auto -- --sidebar` passed with all sidebar checks true, including `sidebarConnectionGrouping`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779614876454.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779614876454.png`.
+
+Remaining:
+
+- Local records can now carry cloud/remote-host source identity, but provider adapters still need to populate those fields from real hosted/cloud/remote-host sources.
+- Provider pin list/set adapters, provider projectless metadata adapters, real provider worktree metadata population/lifecycle adapters, and live Codex side-by-side visual comparison remain open.
+
+### 2026-05-24 - Sidebar Provider-Pinned Merge Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/pinned-threads-query-C44A652V.js` and `webview/assets/set-pinned-thread-BF6dMuHF.js` confirmed Codex has provider/server-backed pinned thread list and mutation paths.
+- `webview/assets/thread-actions-C8deI8Bf.js` confirmed pin/unpin actions call the provider-backed set-pinned path for supported thread identities.
+- `webview/assets/sidebar-thread-list-signals-FpAb9VJn.js` confirmed Codex merges provider pinned ids with local/pending thread keys before rendering the pinned section and excluding pinned rows from normal groups.
+
+Implemented in Orchestrator:
+
+- Added provider-neutral session fields `providerPinned`, `providerPinOrder`, and `providerPinnedThreadKey` so provider adapters can project server-pinned thread state into the shared Sidebar model without turning it into Codex-specific UI state.
+- Added shared `isSidebarPinnedSession` and updated pinned sorting to merge local `pinned/pinOrder` rows with provider-pinned rows.
+- Updated Sidebar grouping, custom-section membership, and drag guards to treat provider-pinned rows as pinned, keeping them out of Projects, Connections, and custom sections.
+- Updated Sidebar row metadata and pin affordances so provider-pinned rows expose their provider pinned key and display as pinned.
+- Added a focused Sidebar smoke fixture for a provider-pinned Codex cloud row, and asserted it appears in the global Pinned section, preserves order, stays out of Projects/Connections, and exposes provider-pinned metadata.
+
+Verification:
+
+- `npm run test:providers` passed 249 tests, including the new provider-pinned merge test.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed with `providerPinnedMetadata=true` and all existing Sidebar checks true; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779615476304.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779615476304.png`.
+
+Remaining:
+
+- This implements the provider-pinned merge primitive and visible Sidebar behavior for provider-projected pinned state. Real provider adapters still need to populate pinned lists and call provider-native set/unset APIs where supported.
+- Provider projectless adapters, real provider worktree metadata population/lifecycle adapters, and live Codex side-by-side visual comparison remain open.
+
+### 2026-05-24 - Sidebar Provider Pin-State Normalization Slice
+
+Fresh Codex bundle evidence was re-checked before editing:
+
+- `webview/assets/pinned-threads-query-C44A652V.js` confirmed Codex fetches pinned thread state through `list-pinned-threads`.
+- `webview/assets/set-pinned-thread-BF6dMuHF.js` confirmed Codex mutates pin state through `set-thread-pinned` and `set-pinned-threads-order`.
+- `webview/assets/sidebar-thread-keys-DewPLpqM.js` confirmed Codex thread keys use `local:<id>`, `remote:<id>`, and `pending-worktree:<id>` forms.
+- `webview/assets/sidebar-thread-list-signals-FpAb9VJn.js` confirmed the sidebar lifts provider pinned keys ahead of unpinned keys.
+
+Implemented in Orchestrator:
+
+- Added shared `normalizeProviderPinnedThreadKey`, `providerPinnedThreadKeyForSession`, and `applyProviderPinnedThreadState` primitives.
+- Normalization accepts Codex-native `remote:<id>` keys and strips the older Orchestrator-only `remote:<provider>:<id>` shape for compatibility.
+- Provider pin-state application sets `providerPinned`, `providerPinOrder`, and `providerPinnedThreadKey`, clears stale provider pins for that provider, and leaves other providers/local pin fields untouched.
+- Added a `sessionManager.applyProviderPinnedThreads(providerId, threadKeys)` internal application path so provider adapters have a single shared projection point when live pin list APIs are wired.
+- Updated the focused Sidebar smoke fixture to use the Codex-native `remote:<providerSessionId>` key shape instead of `remote:<provider>:<id>`.
+
+Verification:
+
+- `npm run test:providers` passed 260 tests, including the new provider pin-key normalization/application tests.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` needed an escalated rerun because the sandbox blocked `127.0.0.1:5173`; the escalated run passed with `providerPinnedMetadata=true`, `sidebarPinnedRowsKeepIdentityMarker=true`, `sidebarPinActionsConsolidated=true`, and all existing Sidebar checks true. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779637973503.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779637973503.png`.
+
+Remaining:
+
+- Live provider adapters still need to call the real provider pin list/set/order APIs and feed the shared projection helper.
+- Provider projectless adapters, real provider worktree metadata population/lifecycle adapters, richer Codex action coverage, and live Codex side-by-side visual comparison remain open.
+
+### 2026-05-24 - Sidebar Codex Thread-List Metadata Projection Slice
+
+Fresh live Codex app-server evidence was checked before editing:
+
+- `/Applications/Codex.app/Contents/Resources/codex app-server --listen stdio://` initialized as Codex Desktop `0.133.0-alpha.1` with codexHome `/Users/nadav/.codex`.
+- `thread/list` with `useStateDbOnly:true` returned real thread rows with `id`, `sessionId`, `preview`, `createdAt`, `updatedAt`, `status`, `path`, `cwd`, `cliVersion`, `source:"vscode"`, `threadSource:null`, `gitInfo`, `name`, and `turns`.
+- The current app-server rejected `list-pinned-threads`, `set-thread-pinned`, and `set-pinned-threads-order` as unknown variants, even though the webview bundle still uses those bridge calls. Live provider pin RPC wiring remains unavailable through app-server and needs a different bridge/state boundary.
+
+Implemented in Orchestrator:
+
+- Added shared `applyCodexThreadListMetadata` and `codexThreadListItems` helpers.
+- The projection matches Codex provider sessions by `providerSessionId` or session id, accepts array / `{ data }` / `{ threads }` result shapes, and leaves non-Codex providers untouched by default.
+- The projection maps Codex `source:"vscode"` rows to local provider identity, preserves local user-owned fields such as `name`, `workDir`, and `repoRoot`, and applies preview / updated timestamp, cloud, remote-host, worktree, host, and projectless metadata when those fields are present.
+- Added `sessionManager.applyCodexThreadListMetadata(threadListResult)` as the shared session-store application point for future live provider adapter wiring, emitting only the provider metadata / preview / timestamp patches that changed.
+- Added focused provider tests covering local `source:"vscode"`, cloud, remote-host, worktree, projectless, unmatched, and non-Codex rows.
+- Added a lightweight Sidebar smoke debug payload for selected-key state so future selected-key flakes can be diagnosed without weakening the existing assertion.
+
+Verification:
+
+- `npm run test:providers` passed 261 tests, including the new Codex thread-list projection test.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after an escalated rerun with `sidebarSelectedKeySignal=true`, `sidebarSelectedKeyPersistence=true`, `providerWorktreeMetadata=true`, `providerProjectlessMetadata=true`, `providerPinnedMetadata=true`, and `sidebarConnectionGrouping=true`. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779638994731.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779638994731.png`.
+
+Remaining:
+
+- This creates the shared projection path but does not yet automatically poll or subscribe to Codex app-server `thread/list`.
+- Live pinned thread list/set/order still cannot be claimed through app-server because the current app-server rejects those request variants.
+- Provider-specific adapters still need to reconcile richer hosted/cloud/remote-host rows, projectless ids, worktree source/root/host metadata, and provider-native action semantics from real sources.
+
+### 2026-05-24 - Sidebar Codex Thread-List Startup Sync Slice
+
+Built on the live app-server evidence from the previous thread-list projection slice:
+
+- `thread/list` is the current safe app-server surface for real Codex thread rows.
+- `list-pinned-threads`, `set-thread-pinned`, and `set-pinned-threads-order` are still unavailable through app-server, so the startup sync intentionally avoids pretending pin mutation/list parity exists.
+
+Implemented in Orchestrator:
+
+- Added a provider-sidebar sync boundary for Codex thread metadata that skips when no Codex sessions exist, fetches `thread/list` when Codex sessions are present, applies the shared thread-list projection, and reports app-server failures without throwing.
+- Exported a raw, safe Codex app-server command-surface runner for no-quota, non-mutating app-server surfaces so adapter code can consume structured `thread/list` results instead of parsing settings-display output.
+- Added `sessionManager.refreshCodexSidebarMetadata()` and wired normal app startup to run it non-blockingly after the main window is created.
+- Kept automated UI smoke deterministic by skipping the external Codex app-server metadata refresh when `ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT` is set.
+- Tightened the Sidebar selected-key smoke diagnostic and final verdict so it checks the stable session / settings-provider / capabilities / back-to-session round trip instead of failing on a transient settings-footer landing state after the stable keys have already recovered.
+
+Verification:
+
+- `npm run test:providers` passed 264 tests, including the new provider-sidebar sync skip/fetch/error coverage.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after an escalated run with `sidebarSelectedKeySignal=true`, `sidebarSelectedKeyPersistence=true`, `sidebarSelectedNavKeys=true`, `providerWorktreeMetadata=true`, `providerProjectlessMetadata=true`, `providerPinnedMetadata=true`, and `sidebarConnectionGrouping=true`. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779639322476.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779639322476.png`.
+
+Remaining:
+
+- This is startup sync only. Recurring refresh, event-driven refresh after Codex provider runs, and a visible/manual refresh affordance remain open.
+- Live provider pinned thread state still needs a non-app-server bridge/state boundary or a future app-server surface.
+- Provider-specific adapters still need to reconcile richer hosted/cloud/remote-host rows, projectless ids, worktree source/root/host metadata, and provider-native action semantics from real sources.
+
+### 2026-05-24 - Sidebar Codex Thread-List Post-Run Sync Slice
+
+Built on the same current Codex app-server evidence:
+
+- `thread/list` remains the safe app-server surface for real Codex thread metadata.
+- Pinned thread list/set/order calls remain unavailable through app-server and are intentionally not claimed by this slice.
+
+Implemented in Orchestrator:
+
+- Added a shared `shouldRefreshCodexSidebarMetadataAfterRun` gate so post-run refresh only applies to Codex app-server runs and skips automated UI smoke.
+- Added a debounced `sessionManager.scheduleCodexSidebarMetadataRefresh()` path that runs `refreshCodexSidebarMetadata()` shortly after a Codex app-server run exits, after queued follow-ups settle.
+- Kept the hook non-blocking and side-effect scoped: provider completion callbacks still run, the session returns to idle normally, and repeated completions coalesce into one refresh.
+- Stabilized the Sidebar selected-key smoke around the provider Settings row by using the row's stable active state as equivalent evidence for that section while still checking root sidebar key persistence for session, settings namespace, capabilities, and back-to-session transitions.
+
+Verification:
+
+- `npm run test:providers` passed 265 tests, including provider-sidebar sync and post-run refresh gate coverage.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after an escalated run with `sidebarSelectedKeySignal=true`, `sidebarSelectedKeyPersistence=true`, `sidebarSelectedNavKeys=true`, `providerWorktreeMetadata=true`, `providerProjectlessMetadata=true`, `providerPinnedMetadata=true`, and `sidebarConnectionGrouping=true`. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779639731497.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779639731497.png`.
+
+Remaining:
+
+- Manual/recurring refresh affordances remain open for long-running idle sessions.
+- Live provider pinned thread state still needs a non-app-server bridge/state boundary or a future app-server surface.
+- Provider-specific adapters still need to reconcile richer hosted/cloud/remote-host rows, projectless ids, worktree source/root/host metadata, and provider-native action semantics from real sources.
+
+### 2026-05-24 - Sidebar Provider Projectless Identity Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/sidebar-thread-list-signals-FpAb9VJn.js` confirmed Codex filters explicit `PROJECTLESS_THREAD_IDS` for both local and remote tasks, uses `Chat` as the hover fallback label, and keeps that separate from normal project labels.
+- `webview/assets/sidebar-project-groups-DUHIVRJe.js` confirmed Codex excludes remote tasks whose ids are present in `projectlessThreadIds` from normal project assignment/grouping.
+- `webview/assets/projectless-thread-CYxQuwGA.js` remains evidence that projectless conversations are first-class launch/source inputs, not merely missing directories.
+
+Implemented in Orchestrator:
+
+- Added provider-neutral `Session.providerProjectless` and `providerProjectlessThreadId` fields so adapters can project explicit provider projectless thread ids into the shared Sidebar model.
+- Updated `isSidebarProjectlessSession` to treat provider-projected projectless ids as authoritative even when the session still has a local `projectId`.
+- Exposed row-level `data-sidebar-projectless` and `data-sidebar-projectless-thread-id` metadata for smoke checks and future adapter/debug use.
+- Added a remote Codex projectless fixture whose local project id is valid but whose provider projectless metadata forces it into the "Chats" group.
+- Extended focused Sidebar smoke so the "Chats" group count is two, both local/stale and provider-projectless rows are scoped under the group, collapse/expand hides/restores both rows, and provider-projectless metadata is asserted independently.
+
+Verification:
+
+- `npm run test:providers` passed 249 tests, including the expanded projectless identity helper test.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed with `providerProjectlessMetadata=true`, `sidebarProjectlessChats=true`, and all existing Sidebar checks true; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779615848978.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779615848978.png`.
+
+Remaining:
+
+- This implements provider projectless identity projection and visible Sidebar grouping for local session records. Real provider adapters still need to populate `providerProjectless` / `providerProjectlessThreadId` from hosted/cloud/remote source data.
+- Full projectless launch lifecycle, real provider worktree metadata population/lifecycle adapters, real provider pin adapters, and live Codex side-by-side visual comparison remain open.
+
+### 2026-05-24 - Sidebar Provider Worktree Source Identity Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/sidebar-project-groups-DUHIVRJe.js` confirmed Codex uses pending-worktree `hostId`, `sourceWorkspaceRoot`, workspace root hints, worktree workspace roots, and Codex-worktree detection when assigning threads to sidebar project/group identities.
+- `webview/assets/sidebar-project-group-signals-B2IlZT8R.js` confirmed pending worktrees participate in connection grouping through local or `host:${hostId}` identities instead of collapsing into a generic worktree bucket.
+
+Implemented in Orchestrator:
+
+- Added provider-neutral `Session.providerWorktreeSourceRoot`, `providerWorktreeRoot`, `providerWorktreeHostId`, and `providerWorktreeHostLabel` fields so adapters can project provider-native worktree source/root/host identity into the shared Sidebar model.
+- Updated `sidebarConnectionGroupIdentity` so provider-hosted worktree and pending-worktree rows split into host-specific connection group keys such as `worktree:codex:remote-mac` and `pending-worktree:codex:remote-mac`.
+- Exposed row-level `data-sidebar-worktree-source-root`, `data-sidebar-worktree-root`, and `data-sidebar-worktree-host-id` metadata for smoke checks and future adapter/debug use.
+- Added focused Sidebar smoke fixtures for ready and pending Codex remote-host worktree rows.
+
+Verification:
+
+- `npm run test:providers` passed 249 tests, including provider-hosted worktree connection-group helper coverage.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed with `providerWorktreeMetadata=true`, `sidebarConnectionGrouping=true`, and all existing Sidebar checks true; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779616286354.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779616286354.png`.
+
+Remaining:
+
+- This implements provider worktree source identity projection and visible Sidebar grouping for local session records. Real provider adapters still need to populate these fields from hosted/cloud/remote worktree sources and route provider-native worktree lifecycle events into the shared session model.
+- Real provider pin adapters, real provider projectless adapters, full projectless launch lifecycle, and live Codex side-by-side visual comparison remain open.
+
+### 2026-05-23 - Sidebar Projectless Chats Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/sidebar-signals-DI3M13c-.js` confirmed Codex persists `projectless-sidebar-chats-first-v1` separately from organize mode, sort key, collapsed groups, and section order.
+- `webview/assets/sidebar-thread-list-signals-FpAb9VJn.js` confirmed Codex filters projectless thread ids into a "Chats" grouping and uses "Chat" as the hover/project fallback for projectless local or remote threads.
+- `webview/assets/sidebar-project-groups-DUHIVRJe.js` confirmed Codex excludes local `workspaceKind === "projectless"` and explicit projectless thread ids from normal project grouping instead of silently assigning them to a workspace project.
+- `webview/assets/projectless-thread-CYxQuwGA.js` confirmed projectless conversations are first-class launch inputs, not just rows with a missing directory.
+
+Implemented in Orchestrator:
+
+- Added `isSidebarProjectlessSession` in `src/types/index.ts` so projectless/stale project assignment detection is a shared provider-neutral helper rather than local sidebar string handling.
+- Added persisted `orchestrator.sidebar.collapsedProjectlessChats` state to the central sidebar store.
+- Changed the Chat Sidebar project mode to split unpinned, non-custom sessions with missing/stale project assignments into a compact "Chats" group before project sections.
+- Rendered the projectless "Chats" group with the shared compact sidebar section row primitive, count metadata, a quiet marker, and persisted collapse behavior.
+- Updated `SessionItem` hover metadata so projectless rows fall back to "Chat" instead of "No project", matching Codex's projectless hover label semantics.
+- Extended the sidebar smoke fixture with a stale-project projectless chat and added `sidebarProjectlessChats` smoke coverage proving chats-first placement, row scoping, shared section header usage, and collapse persistence.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779511021248.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779511021248.png`.
+
+Remaining:
+
+- Orchestrator now handles projectless visibility for local session records whose project assignment is missing or stale; the later provider-projectless slice adds provider-projected projectless ids. Full projectless launch lifecycle and real provider adapter population remain open.
+
+### 2026-05-23 - Thread Automation Action Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/thread-actions-C8deI8Bf.js` confirmed Codex exposes `Add automation...` and `Edit automation...` thread actions for heartbeat automations attached to a local thread.
+- `webview/assets/heartbeat-automation-thread-bridge-CrVxqBXS.js` confirmed heartbeat automations bridge back to a target local chat/thread rather than living only as global scheduler records.
+- `webview/assets/automation-shared-9U9-pQH8.js` confirmed automation records distinguish `cron` and `heartbeat`, `ACTIVE` and `PAUSED` status, target thread ids, prompts, names, and schedule configuration.
+- `webview/assets/automation-dialog-BYgYAePq.js` and `webview/assets/automation-schedule-9oeon9DY.js` confirmed the full Codex surface also includes scheduling UI, RRULE-style recurrence, lifecycle warnings, and richer status handling.
+
+Implemented in Orchestrator:
+
+- Added provider-neutral automation types for heartbeat/cron kind, active/paused/deleted status, session targets, manual/interval schedule metadata, and upsert requests.
+- Added a persisted main-process `automationManager` with list, list-for-session, upsert, and soft-delete operations backed by `electron-store`.
+- Exposed automation APIs through IPC, preload, and renderer window types.
+- Added `Add automation...` / `Edit automation...` to the shared session actions menu. The action creates or edits a paused heartbeat automation targeted at the current local session and preserves prompt/schedule metadata for later scheduler work.
+- Extended focused sidebar smoke coverage with `actionAddAutomationWorks` and `actionEditAutomationWorks`, proving the menu opens the dialog, persists a paused heartbeat record, reopens as edit, and keeps exactly one session-targeted automation after rename.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779511435446.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779511435446.png`.
+
+Remaining:
+
+- Orchestrator now has the Codex-visible thread Add/Edit automation action and a provider-neutral persisted record model, but it intentionally stops short of full scheduler parity. Remaining automation gaps are RRULE/interval UI, execution scheduling, run history, lifecycle warnings, permissions/eligibility, automations pages/tabs, provider-backed remote/thread targets, and sidebar row next-run/state metadata.
+
+### 2026-05-23 - Automation Runtime Metadata Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/automations-page-pDqA9ydJ.js` confirmed Codex sorts automation rows by `nextRunAt`, separates "Current" and "Paused" sections, and exposes Run now, Pause, Resume, and Delete row actions.
+- `webview/assets/automation-shared-9U9-pQH8.js` confirmed Codex formats paused automations as `-`, active automations with relative next-run labels, and records heartbeat/cron kind plus active/paused/deleted status.
+- `webview/assets/automation-schedule-9oeon9DY.js` confirmed Codex uses RRULE-derived schedule modes for minute/hour/day/week recurrence and schedule summaries.
+- `webview/assets/use-automation-history-items-BiZ0hNjH.js` confirmed automation history is a first-class data source.
+- `webview/assets/heartbeat-automation-eligibility-hSIxfARy.js` and `webview/assets/heartbeat-automation-permissions-BIzzD5lQ.js` confirmed heartbeat eligibility depends on host/local thread state, active turns, pending input/approval, and permission snapshots.
+
+Implemented in Orchestrator:
+
+- Extended provider-neutral automation types with `AutomationRun`, run status/trigger fields, permission snapshots, and `rrule` schedule mode.
+- Refactored the main-process automation manager into an injectable runtime with lazy real-store initialization so unit tests do not touch the user Electron profile.
+- Added next-run computation for manual, interval, and common RRULE minute/hour/day/week schedules, with local-time daily/weekly semantics matching Codex's schedule-summary direction.
+- Added runtime methods for `listRuns`, `listDue`, `pause`, `resume`, `startRun`, and `finishRun`; finishing a run records history, updates `lastRunAt`, and computes the next scheduled run.
+- Exposed list-runs, pause, and resume through IPC/preload/window types so future Automations pages or sidebar metadata use the same manager.
+- Added fake-clock automation manager tests covering absent next runs for paused/manual schedules, interval advancement, common RRULE recurrence, due-list behavior, pause/resume/delete, permission snapshot persistence, and run history.
+
+Verification:
+
+- `npm run test:providers` passed: 229 tests, including the new `src/main/__tests__/automationManager.test.ts` coverage.
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779511953128.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779511953128.png`.
+
+Remaining:
+
+- Orchestrator now has scheduler metadata, due-list, lifecycle status changes, and run-history primitives, but it still does not execute due automations, show an Automations page/tab, expose schedule editing UI, enforce heartbeat eligibility/permission snapshots at run time, surface next-run/sidebar metadata, or support provider-backed remote/thread targets.
+
+### 2026-05-23 - Automation Due-Run Execution Boundary Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/automations-page-pDqA9ydJ.js` confirmed Codex treats scheduled automations as runnable rows with Run now, Pause, Resume, Delete, current/paused sections, and in-progress row state.
+- `webview/assets/use-automation-history-items-BiZ0hNjH.js` confirmed run history is the backing source for automation execution state.
+- `webview/assets/heartbeat-automation-eligibility-hSIxfARy.js` confirmed heartbeat execution must be blocked while the target conversation is missing, unsupported, already active, waiting on user input, or waiting on approval/MCP elicitation.
+- `webview/assets/heartbeat-automation-permissions-BIzzD5lQ.js` confirmed permission policy is captured as an execution snapshot rather than inferred only from current UI controls.
+
+Implemented in Orchestrator:
+
+- Added a provider-neutral `runDue` execution boundary to the main-process automation manager.
+- Added a single-flight guard so an automation with an existing `RUNNING` run is omitted from due-run selection and cannot start duplicate scheduled turns.
+- Added execution result recording for `SUCCEEDED`, `FAILED`, and `SKIPPED` due runs, with failure messages or eligibility reasons preserved on the run record.
+- Added an injectable eligibility callback that defaults to eligible now but gives the future heartbeat scheduler a Codex-shaped boundary for host/session/turn/input/approval checks.
+- Added `AutomationEligibilityResult` and eligibility reason types to the shared automation model.
+- Extended fake-clock automation manager tests to cover due-run success, executor failure, running-run duplicate prevention, ineligible skip recording, and next-run advancement after skipped runs.
+
+Verification:
+
+- `npm run test:providers` passed: 231 tests, including the new due-run execution and skip coverage.
+- `npm run build` passed.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- Orchestrator now has a Codex-shaped due-run execution boundary, single-flight guard, eligibility skip path, and run-history updates, but it still does not have a scheduler daemon/timer, provider executor wiring, Run now IPC/UI, Automations page/tab, RRULE schedule editing UI, real heartbeat eligibility mapped from session state, sidebar next-run metadata, or provider-backed remote/thread targets.
+
+### 2026-05-23 - Automation Manual Run Boundary Slice
+
+Fresh Codex bundle evidence was re-used from the automation due-run slice:
+
+- `webview/assets/automations-page-pDqA9ydJ.js` confirmed Codex exposes a Run now row action and row-level in-progress state.
+- `webview/assets/heartbeat-automation-eligibility-hSIxfARy.js` confirmed manual heartbeat execution must still respect missing conversation, active turn, pending input, pending approval, and pending MCP elicitation states rather than blindly queueing a follow-up.
+
+Implemented in Orchestrator:
+
+- Added `automationManager.runNow`, a provider-neutral manual execution boundary that records `manual` runs with `scheduledFor: null`.
+- Reused the single-flight guard so repeated Run now calls return the existing `RUNNING` run instead of starting duplicate turns.
+- Recorded paused/ineligible manual runs as `SKIPPED` with a reason, matching the same history shape as scheduled skips.
+- Added `automations:runNow` IPC/preload/window typing. The IPC path executes the automation prompt through the existing session provider runtime only after checking current session state.
+- Added Codex-shaped session eligibility for the IPC path: missing sessions skip as `missing_session`, running sessions as `turn_in_progress`, reconnecting sessions as `pending_request`, user-input waits as `waiting_on_user_input`, and permission waits as `waiting_on_approval`.
+- Extended fake-clock automation manager tests to cover active manual success, paused manual skip, and duplicate manual Run now reuse.
+
+Verification:
+
+- `npm run test:providers` passed: 233 tests, including the new manual Run now manager coverage.
+- `npm run build` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- At this point in the implementation sequence, manual Run now had a backend/provider execution boundary while the visible Automations page/tab, row button, run-state UI, scheduler daemon/timer, RRULE schedule editing UI, runtime permission snapshot enforcement, sidebar next-run metadata, and provider-backed remote/thread targets were still queued for later slices.
+
+### 2026-05-23 - Automation Thread Action Lifecycle Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `rg -a -o "automation[[:alnum:]._-]*runNow|automationsPage[[:alnum:]._-]*runNow|Run now|Pause automation|Resume automation|Delete automation" /Applications/Codex.app/Contents/Resources/app.asar` confirmed the current bundle still exposes `automations.runNow`, "Run now", "Pause automation", "Resume automation", and "Delete automation" strings.
+- The earlier `webview/assets/automations-page-pDqA9ydJ.js` evidence remains the reference for Codex row-level Run now, Pause, Resume, Delete, current/paused sections, and in-progress row state.
+
+Implemented in Orchestrator:
+
+- Added visible automation lifecycle actions to the shared chat action menu when a session-targeted automation exists: Run automation now, Pause automation, Resume automation, and Delete automation.
+- Run automation now is disabled for paused automations and enabled once the record is resumed, matching Codex's active-vs-paused action boundary without starting a provider run in the paused state.
+- Reused the provider-neutral automation IPC paths for run-now, pause, resume, and delete instead of local renderer state.
+- Emitted smoke-only action markers and custom automation update/run/delete events so focused UI smoke can prove lifecycle actions without relying on private component state.
+- Extended sidebar smoke coverage with `actionRunAutomationVisible`, `actionResumeAutomationWorks`, `actionPauseAutomationWorks`, and `actionDeleteAutomationWorks`.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 233 tests.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779512704508.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779512704508.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- Thread action lifecycle parity is now covered for local session-targeted automation records. At this point in the implementation sequence, remaining automation gaps were the Automations page/tab, scheduler daemon/timer, row run-state and next-run metadata, RRULE schedule editing UI, runtime permission snapshot enforcement, and provider-backed remote/thread targets.
+
+### 2026-05-23 - Automation Sidebar Row Metadata Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- The bundle still includes `sidebarTaskRow.heartbeatAutomation.nextRun` and the localized "Next run: {nextRunLabel}" string, confirming automation row state belongs in the sidebar/task-row status vocabulary.
+- `webview/assets/automation-shared-9U9-pQH8.js` remained the reference for active automations with relative next-run labels and paused automations with a non-running state.
+
+Implemented in Orchestrator:
+
+- `SessionItem` now loads session-targeted automation records, refreshes when automation update/delete events fire, and chooses the active automation first when multiple records exist.
+- Added a compact right-slot automation status signal that uses the existing sidebar status/action choreography instead of adding a visible text column.
+- Added custom tooltip/ARIA labels for `Automation paused`, `Automation ready`, and `Next run: <relative time>`, with smoke-facing `data-testid="session-automation-status"`, `data-automation-status`, and `data-automation-next-run` evidence attributes.
+- Added automation metadata to the delayed sidebar hover card so the row signal has an inspectable text counterpart.
+- Extended sidebar smoke so `actionAddAutomationWorks`, `actionResumeAutomationWorks`, `actionPauseAutomationWorks`, and `actionDeleteAutomationWorks` also prove the row metadata transitions from paused to active and disappears after delete.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 233 tests.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779512927276.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779512927276.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- Sidebar automation row metadata is now covered for local session-targeted records, including paused/active transitions and existing `nextRunAt` display. At this point in the implementation sequence, remaining automation gaps were the Automations page/tab, scheduler daemon/timer, RRULE schedule editing UI, runtime permission snapshot enforcement, richer in-progress run-state UI, and provider-backed remote/thread targets.
+
+### 2026-05-23 - Automation Scheduler Daemon Slice
+
+Codex bundle evidence used for this slice:
+
+- The existing `webview/assets/automations-page-pDqA9ydJ.js` and current-bundle string evidence for `automations.runNow` confirmed scheduled automation execution is app-owned, row-action driven, and backed by current/paused sections plus run state rather than only a per-thread menu action.
+- `sidebarTaskRow.heartbeatAutomation.nextRun` and "Next run: {nextRunLabel}" remained the sidebar reference for scheduler-backed row metadata.
+- `webview/assets/heartbeat-automation-eligibility-hSIxfARy.js` and `webview/assets/heartbeat-automation-permissions-BIzzD5lQ.js` remained the reference for blocking unattended heartbeat execution while the target thread is missing, active, or waiting on user input/approval.
+
+Implemented in Orchestrator:
+
+- Added an app-owned automation scheduler that starts after the main window is created and stops on app quit.
+- The scheduler ticks immediately on startup and every 60 seconds, asks `automationManager.runDue` for due records, and prevents overlapping ticks.
+- Moved heartbeat eligibility into a shared `automationEligibilityForSession` helper so manual Run now and scheduled due runs use the same session-state skip reasons.
+- Wired scheduled execution through the existing session provider runtime by sending the automation prompt to the target session only after eligibility succeeds.
+- Split the pure scheduler factory from the production singleton so fake-clock scheduler tests do not initialize Electron profile state.
+- Added scheduler tests for start/stop, immediate and interval ticks, overlap prevention, and session-state eligibility mapping.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 236 tests, including the new scheduler coverage.
+- `npm run test:smoke-config` passed.
+- `git diff --check` passed.
+
+Remaining:
+
+- Scheduler daemon/timer wiring is now covered for local session-targeted automations. At this point in the implementation sequence, the Automations page/tab, full schedule editing UI, lifecycle warnings, runtime permission snapshot enforcement, richer in-progress automation run-state UI, provider-backed remote/thread targets, and lifecycle hardening for same/new-worktree forks, pending-worktree rows, and worktree cleanup were still queued for later slices.
+
+### 2026-05-23 - Automations Settings Page Slice
+
+Codex bundle evidence used for this slice:
+
+- `webview/assets/automations-page-pDqA9ydJ.js` remained the reference for a first-class Automations page with Current and Paused sections, next-run ordering, run-now/pause/resume/delete row actions, and run-history-backed row state.
+- `webview/assets/automation-shared-9U9-pQH8.js` remained the reference for active/paused status labels and next-run formatting.
+- The existing current-bundle string evidence for `automations.runNow`, "Run now", "Pause automation", "Resume automation", and "Delete automation" remained the reference for page-visible lifecycle actions.
+
+Implemented in Orchestrator:
+
+- Added an Automations settings tab in the sidebar settings navigation.
+- Added `AutomationsSettingsPage`, backed by the existing provider-neutral automation IPC APIs.
+- The page shows Current and Paused sections, sorts rows by `nextRunAt`, displays target chat, schedule, next/last run, and latest run state, and exposes Run now, Pause, Resume, Delete, and Refresh controls.
+- Added a compact Run history section across local automation records, showing recent run status, trigger, time, and errors.
+- Added focused settings-smoke setup that seeds a local heartbeat automation and verifies the Automations page module, Current/Paused/Run history sections, active row, and row lifecycle buttons.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 236 tests.
+- `npm run smoke:ui:auto -- --settings` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779513728467.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779513728467.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- Automations page/tab parity is now covered for local session-targeted automations. At this point in the implementation sequence, full schedule editing UI, lifecycle warnings, runtime permission snapshot enforcement, richer in-progress automation run-state UI, provider-backed remote/thread targets, and lifecycle hardening for same/new-worktree forks, pending-worktree rows, and worktree cleanup were still queued for later slices.
+
+### 2026-05-23 - Automation Schedule Editing UI Slice
+
+Codex bundle evidence used for this slice:
+
+- `webview/assets/automation-dialog-BYgYAePq.js` and `webview/assets/automation-schedule-9oeon9DY.js` remained the reference for editing automation name/prompt/status together with schedule mode and recurrence.
+- `webview/assets/automation-shared-9U9-pQH8.js` remained the reference for persisted active/paused status and schedule metadata feeding next-run display.
+
+Implemented in Orchestrator:
+
+- Replaced the one-field Add/Edit automation prompt with a compact automation edit dialog.
+- The dialog now edits name, prompt, active/paused status, manual/interval/RRULE schedule mode, interval minutes, and RRULE text while preserving the existing session-targeted heartbeat record model.
+- The saved schedule flows through `automations.upsert`, recomputes `nextRunAt`, updates sidebar row metadata, and appears on the Automations settings page.
+- Extended sidebar smoke so the Edit automation flow changes a record from manual to a 30-minute interval and verifies the persisted schedule.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779513952621.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779513952621.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- Schedule editing UI is now covered for local session-targeted automations. At this point in the implementation sequence, lifecycle warnings, runtime permission snapshot enforcement, richer in-progress automation run-state UI, provider-backed remote/thread targets, and lifecycle hardening for same/new-worktree forks, pending-worktree rows, and worktree cleanup were still queued for later slices.
+
+### 2026-05-23 - Automation Lifecycle Warning Slice
+
+Implemented in Orchestrator:
+
+- Added an inline lifecycle warning to the automation edit dialog when a scheduled automation is set to Active.
+- Extended sidebar smoke to flip an interval automation to Active in the dialog, verify the warning appears, then return it to Paused before saving so the existing lifecycle flow remains stable.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --sidebar` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779514191166.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779514191166.png`.
+
+Remaining:
+
+- Lifecycle warning affordance is now covered for active scheduled local automations. Runtime permission snapshot enforcement and in-progress run-state UI are handled in following slices; the current remaining automation gaps are provider-backed remote/thread targets and lifecycle hardening for same/new-worktree forks, pending-worktree rows, and worktree cleanup.
+
+### 2026-05-23 - Automation Permission Snapshot Enforcement Slice
+
+Codex bundle evidence used for this slice:
+
+- `webview/assets/heartbeat-automation-permissions-BIzzD5lQ.js` remained the reference that heartbeat automations carry a permission snapshot rather than inheriting whatever the thread happens to use at execution time.
+- `webview/assets/heartbeat-automation-thread-bridge-DXwhZizF.js` remained the reference that heartbeat execution is bridged back into the selected thread instead of inventing a separate transient chat context.
+
+Implemented in Orchestrator:
+
+- Extended the shared `AutomationPermissionSnapshot` model to carry the session execution policy plus allowed and disallowed tool lists.
+- The sidebar Add/Edit automation flow now captures the selected session's permission mode and tool allow/deny lists on first creation, then preserves the existing snapshot when editing the automation.
+- Manual Run now and scheduler-driven due runs both pass the saved automation permission snapshot into `sessionManager.sendMessage`.
+- Added `applyAutomationPermissionSnapshot` as the shared run-request helper so automation execution overrides the provider request permission fields without changing prompt, cwd, model, runtime, attachments, or other run metadata.
+- Extended the sidebar smoke fixture with a non-default permission mode and allow/deny tool lists, then verified the saved automation record includes that snapshot via `actionAutomationPermissionSnapshotWorks`.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 237 tests.
+- `npm run smoke:ui:auto -- --sidebar` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779514509690.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779514509690.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- Session permission snapshot capture and execution enforcement are now covered for local session-targeted automations. In-progress run-state UI is handled in the following slice; the current remaining automation gaps are provider-backed remote/thread targets and lifecycle hardening for same/new-worktree forks, pending-worktree rows, and worktree cleanup.
+
+### 2026-05-23 - Automation In-Progress Run-State Slice
+
+Codex bundle evidence used for this slice:
+
+- `sidebarTaskRow.heartbeatAutomation` and the Automations page chunks remained the reference that automation state is visible in both the sidebar row vocabulary and run-history-backed automation surfaces.
+
+Implemented in Orchestrator:
+
+- Changed automation execution so manual Run now and scheduler due runs can keep the `AutomationRun` in `RUNNING` state after the provider process starts, then finish it from the provider run exit callback.
+- Added a deferred-run manager test proving a running automation blocks duplicate due selection, then updates `lastRunAt` and `nextRunAt` when `finishRun` completes it.
+- Sidebar automation metadata now reads automation runs, shows `Automation running`, renders a compact spinner, and exposes `data-automation-run-status="RUNNING"` for smoke proof.
+- The Automations settings rows now show a Running pill, expose `data-automation-run-status`, and disable destructive/lifecycle actions while a run is active.
+- Extended the sidebar smoke fixture with a seeded running automation and verified the row with `sidebarAutomationRunningMetadata`.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 239 tests.
+- `npm run smoke:ui:auto -- --sidebar` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779514955916.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779514955916.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- In-progress automation run-state parity is now covered for local session-targeted automations. Remaining automation gaps are provider-backed remote/thread targets and lifecycle hardening for same/new-worktree forks, pending-worktree rows, and worktree cleanup.
+
+### 2026-05-23 - Pending Worktree Fork Lifecycle Slice
+
+Codex bundle evidence used for this slice:
+
+- `webview/assets/pending-worktree-store-DrLQAPeP.js` confirmed Codex tracks pending worktree starts through `waiting`, `starting`, `failed`, and `succeeded` states and exposes retry/remove transitions.
+- `webview/assets/pending-worktree-conversation-BLMIYE40.js` confirmed pending worktree starts bridge into a real conversation, then set worktree owner metadata, pinned metadata, and optional thread goal metadata after the conversation starts.
+- `webview/assets/thread-actions-C8deI8Bf.js` remained the reference for the shared Fork into local/same worktree/new worktree thread actions and the default fork pending-worktree copy.
+- `webview/assets/worktrees-settings-page-CcamGTRF.js` confirmed Codex worktree deletion archives related conversations with `cleanupWorktree: false` before calling `worktree-delete`.
+- `webview/assets/use-codex-worktrees-AEz9f9Un.js`, `worktree-query-keys-lwmsrOtv.js`, and `worktrees-settings-page-CcamGTRF.js` confirmed Worktrees settings are a first-class inventory: refreshable query, repo-grouped rows, linked conversation list, loading/error/empty states, and targeted delete.
+- `webview/assets/worktree-init-v2-page-BABEGk11.js` confirmed Codex's launch flow distinguishes creating worktrees, running setup, ready, setup failed, starting conversation, failed-to-start, retry/cancel, and work-locally fallback states.
+- `webview/assets/pending-worktree-store-DrLQAPeP.js` confirmed Codex pending worktree starts carry launch modes such as `create-stable-worktree`, `fork-conversation`, and `start-conversation` with label, source workspace root, starting state, and local environment metadata.
+- `webview/assets/worktree-environment-dropdown-B3hVIgDU.js` confirmed Codex exposes a local environment dropdown and create-environment affordance as part of the richer worktree launch surface.
+
+Implemented in Orchestrator:
+
+- New-worktree forks now save and emit a pending session immediately with an app-managed planned worktree path and `worktreeState: 'pending'`, instead of blocking the row on `git worktree add`.
+- Background worktree materialization updates the same session to `worktreeState: 'ready'`, `status: 'idle'`, and the final worktree path through the existing session update event.
+- Failed worktree creation now marks the row as `worktreeState: 'failed'`/`status: 'error'` and appends a system result message with the failure text.
+- Failed pending-worktree rows now expose `Retry worktree creation` from the shared chat action menu. Retry moves the same session back to `worktreeState: 'pending'`/`status: 'reconnecting'`, then reuses the background materializer to resolve the row to ready or failed.
+- Failed pending-worktree rows also relabel the existing archive action as `Archive failed worktree`, keeping removal conservative because Orchestrator failed forks can already contain copied transcript history.
+- Added a provider-neutral `worktrees` IPC/API inventory surface that derives app-managed worktree groups from local session records and linked conversations.
+- Added a Worktrees settings page using the shared settings section/surface/row primitives. It shows inventory counts, repo-grouped worktree rows, state pills, paths, linked conversations, refresh, empty state, and disabled delete for non-managed worktrees.
+- Worktree settings deletion now follows the Codex shape: archive linked active conversations without session-level cleanup, then delete the targeted app-managed git worktree once.
+- Sidebar row shells now expose `data-session-id`, letting smoke and future row primitives disambiguate duplicate fork titles.
+- Worktree cleanup is now scoped to app-managed `.orchestrator-worktrees/<session id>` paths, so archiving/removing a same-worktree fork cannot delete another session's worktree.
+- Worktrees settings now includes a provider-neutral local Create surface for app-managed worktree chats, with project, base ref, and branch-name controls.
+- `sessions.create` and the Git worktree backend now accept explicit worktree base refs and branch names, validate branch names through `git check-ref-format --branch`, and pass the selected base to `git worktree add -b`.
+- Worktrees settings linked conversation rows now expose an `Open` action that switches to the selected worktree-backed chat and returns to the chat surface.
+- The sidebar smoke now verifies both phases of a new-worktree fork: `actionForkNewWorktreePendingWorks` proves the immediate pending row record, and `actionForkNewWorktreeReadyWorks` proves the specific forked row becomes a ready `worktree` row after materialization. The same smoke now verifies failed-row retry with `actionRetryPendingWorktreeWorks` and `actionRetryPendingWorktreeReadyWorks`.
+- The settings smoke now verifies the Worktrees page module, shared settings chrome, managed inventory row, linked conversation row, local create with explicit branch/base controls, linked-chat open/switch, and targeted delete flow through `settingsWorktreesPage`, `settingsWorktreesCreate`, `settingsWorktreesOpen`, and `settingsWorktreesDelete`.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 238 tests.
+- `npm run smoke:ui:auto -- --sidebar` passed after adding failed-row retry coverage; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779515912829.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779515912829.png`.
+- `npm run smoke:ui:auto -- --settings` passed after adding Worktrees settings inventory/delete coverage; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779516384398.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779516384398.png`.
+- `npm run smoke:ui:auto -- --settings` passed after adding Worktrees settings create coverage; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779516730802.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779516730802.png`.
+- `npm run smoke:ui:auto -- --settings` passed after adding linked-chat open/switch coverage; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779559185788.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779559185788.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- Pending-to-ready lifecycle parity, failed-row retry, and first-class local Worktrees settings inventory/create/open/delete are covered for local app-managed worktrees, including explicit project/base/branch creation and linked-chat switching. Remaining worktree gaps are richer launch-page pending starts for new chats and side-chat/fork-turn flows, browser-transfer metadata, owner/pin metadata beyond local session fields, richer worktree switching across raw Git worktrees, richer local-environment metadata, and provider-native worktree target adapters.
+
+### 2026-05-22 - Terminal Lifecycle / Keyboard Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/thread-page-bottom-panel-state-D1Lz0U4Y.js` confirmed Codex wraps the embedded terminal in a reloadable error UI with the text "The terminal encountered an error", "Try reloading the terminal to continue", and a "Reload" action.
+- The same bundle chunk confirmed Codex handles terminal keyboard behavior for new terminal tab (`Cmd-T`), copy, and paste before falling back to terminal input.
+- `webview/assets/terminal-service-BsiZiRKt.js` confirmed Codex terminal service publishes data, exit, error, and init-log events while keeping session snapshots separate from the visible panel.
+
+Implemented in Orchestrator:
+
+- Added terminal exit/error IPC events from the main-process terminal manager through preload typings, so the renderer can react to shell exit and spawn failures instead of silently logging them.
+- Wrapped `TerminalView` in a reloadable terminal error boundary and added an in-panel terminal failure state for initialization errors and ended shells.
+- Added terminal keyboard handling for `Cmd-T` new terminal tab, copy-selection shortcuts, and paste shortcuts, using the same terminal tab creation path as the toolbar action.
+- Extended terminal smoke coverage with `terminalNewTabShortcutWorks` and relaxed the close-active-tab assertion to prove tab count changes correctly even when shortcut-created tabs exist.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --terminal` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779480503453.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779480503453.png`.
+- `npm run test:providers` passed 213 tests.
+- `npm run test:smoke-config` passed 2 tests.
+
+Remaining:
+
+- Terminal still needs full Codex parity for bottom/right placement, service snapshots across conversations, and deeper theme/font integration.
+
+### 2026-05-22 - Terminal Web-Link Routing Slice
+
+Fresh Codex bundle evidence was re-checked from `/Applications/Codex.app/Contents/Resources/app.asar` before editing:
+
+- `webview/assets/terminal-service-BsiZiRKt.js` confirmed Codex keeps terminal service state, session snapshots, pending actions, and session/conversation mappings separate from visible terminal panel state.
+- `webview/assets/thread-side-panel-browser-tab-state-PqkmuSww.js` confirmed Codex keeps browser tab state as a first-class side-panel state object that terminal/link actions can route into instead of treating links as external-only behavior.
+
+Implemented in Orchestrator:
+
+- Added terminal URL detection through an xterm link provider, restricted to normalized `http` and `https` URLs with trailing punctuation trimmed before routing.
+- Routed terminal web links into the Workbench Browser tab by updating the browser workbench active tab, history, visible state, and right-panel active tab in one store action.
+- Added a smoke-only terminal URL hook that exercises the same normalized terminal-to-browser route without depending on live network navigation.
+- Focused the terminal automated UI smoke checks on terminal assertions, matching the existing focused smoke pattern for other targeted surfaces.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --terminal` passed; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779488731041.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779488731041.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- Terminal link routing is covered at the terminal-to-browser store boundary; broader browser panel DOM behavior remains covered by the dedicated Browser/Workbench smokes.
+- Terminal still needs bottom/right placement parity, service snapshots across conversations, and deeper theme/font integration.
+
+### 2026-05-23 - Terminal Shell Ownership Slice
+
+Audit direction re-checked from this document's Codex bundle evidence before editing:
+
+- Codex bottom/right panels are owned by the app shell and share tab-controller/focus semantics; the remaining Orchestrator gap was that Terminal tabs had shared controller behavior, but bottom-panel placement and sizing still lived inline in `SessionPane`.
+
+Implemented in Orchestrator:
+
+- Extracted the bottom terminal panel from `SessionPane` into `TerminalPanel`, keeping chat/input/right Workbench composition in `SessionPane` and moving terminal panel sizing, resizing, tab menus, tab lifecycle, keyboard handoff, and terminal-to-Browser routing into a dedicated shell panel component.
+- Extended shared `MotionPanel` to accept standard div attributes so shell-owned panel surfaces can expose provider-agnostic markers without wrapper-only selectors.
+- Marked the bottom terminal surface with `data-app-shell-panel="bottom"`, `data-app-shell-panel-surface="terminal"`, and `data-app-shell-focus-area="bottom-panel"`.
+- Tightened automated terminal smoke with `terminalShellOwnershipWorks`, proving the shell-owned bottom surface contains the active terminal panel header while preserving the existing tab persistence, toolbar, a11y, telemetry, shortcut, fullscreen cleanup, drag/context reorder, and link-routing checks.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run smoke:ui:auto -- --terminal` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779568530239.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779568530239.png`.
+- `npm run test:providers` passed 241 tests.
+- `git diff --check` passed.
+- `npm run smoke:ui:auto` passed after allowing the local Vite/Electron dev server to bind `127.0.0.1`, proving the broader embedded Workbench path still passes Review, Files, Browser, Terminal, Settings, composer, and sidebar assertions including `terminalShellOwnership`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779568588418.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779568588418.png`.
+
+Remaining:
+
+- This is the first ownership extraction, not full Codex terminal placement parity. Terminal still needs bottom/right routeability, cross-panel move/receive semantics, terminal service snapshots across conversations, and deeper theme/font integration.
+
+### 2026-05-23 - Shared App Shell Panel Primitive Slice
+
+Codex bundle evidence re-checked from the current audit before editing:
+
+- `webview/assets/app-shell-state-HP0T5lEX.js` and `app-shell-panel-animation-C6SMnz6V.js` remain the reference for shell-owned right/bottom panel state, animated size, panel focus areas, and shared visibility markers.
+- `webview/assets/app-shell-tab-controller-B2eCi4Le.js` remains the reference for using the same shell/controller shape around right-panel and bottom-panel tab content.
+
+Implemented in Orchestrator:
+
+- Added a shared `AppShellPanel` primitive on top of `MotionPanel`, centralizing app-shell panel markers, focus-area attributes, and the right/bottom shell border material.
+- Migrated the Workbench/right panel from direct `MotionPanel` usage to `AppShellPanel` with `data-app-shell-panel="right"`, `data-app-shell-panel-surface="workbench"`, and `data-app-shell-focus-area="right-panel"`.
+- Migrated the Terminal/bottom panel to the same primitive with `data-app-shell-panel="bottom"`, preserving the existing terminal shell ownership markers through the shared path.
+- Added right-panel smoke coverage for `rightPanelShellOwnership`, matching the already-covered `terminalShellOwnership` gate.
+- Fixed a real shell sizing regression exposed by focused smoke: double-clicking the Workbench resize handle reset the pixel width but left a persisted width ratio active. `setRightPanelWidth` can now explicitly clear the ratio, and the reset path does so.
+- Tightened the focused right-panel narrow-overlay probe to use a width below the actual overlay breakpoint instead of sitting on the breakpoint edge.
+
+Verification:
+
+- `npm run build` passed after introducing `AppShellPanel` and after the width-ratio reset fix.
+- `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelShellOwnership`, `rightPanelResizeReset`, and `rightPanelNarrowOverlay` active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779569963516.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779569963516.png`.
+- `npm run smoke:ui:auto -- --terminal` passed after Terminal moved onto `AppShellPanel`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779569981852.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779569981852.png`.
+- `npm run test:providers` passed after the shared shell primitive slice: 241 tests.
+- `npm run smoke:ui:auto` passed with the broader embedded Workbench path, including both `rightPanelShellOwnership` and `terminalShellOwnership`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779570017486.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779570017486.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- `AppShellPanel` centralizes panel markers and shell material, and later slices cover the shared right/bottom size model, terminal move/receive, and focused find routing. The root shell still does not own product-level panel open/close analytics, route/window lifecycle, packaged proof, or remaining panel keyboard arbitration beyond close/find.
+
+### 2026-05-23 - Review Toolbar Structure Correction Slice
+
+Codex bundle evidence used for this slice:
+
+- `webview/assets/review-header-toolbar-B_kdqvHA.js` confirmed the Review toolbar is compact: file/search affordance, small icon actions, and a `Review options` dropdown containing refresh, wrap, expand/collapse, load-full-file, rich preview, word diff, whitespace, and copy-git-apply options.
+- `webview/assets/review-navigation-model-BQVAIXWq.js` confirmed Review source selection is model state (`unstaged`, `staged`, `branch`, `commit`, `last-turn`, `cloud`, `local`, `worktree`) rather than a permanently visible broad toolbar strip.
+- Current installed Codex bundle chunks `webview/assets/review-header-toolbar-6CN1dM2m.js` and `webview/assets/review-file-tree-side-pane-CGo_VDrf.js` were re-extracted during the correction pass. They confirmed the jump-to-file control is an icon-only toolbar action with a searchable menu, and the changed-files surface is a resizable side pane with a left divider beside the review content.
+- Current installed Codex bundle chunks `webview/assets/review-header-toolbar-6CN1dM2m.js` and `webview/assets/file-diff-DVuLEIDo.js` were re-checked again after screenshot comparison. They confirmed the visible toolbar clusters around one `Review options` trigger, a divider, refresh, wrap, expand/collapse, and diff-mode controls; lower-priority review/file actions belong in menus, and Codex's diff renderer disables a separate file header in the embedded diff body.
+- Current installed Codex bundle chunks `webview/assets/git-branch-picker-dropdown-content-qjFA5f4r.js`, `webview/assets/use-git-recent-branches-bV7_l-_8.js`, and `webview/assets/git-commit-D8X8YhWj.js` confirmed base-branch/recent-branch and commit selection are picker-backed controls, not plain text-only fields.
+
+Implemented in Orchestrator:
+
+- Removed the always-visible Review source segmented strip (`All / Worktree / Staged / Branch / Commit`) from the side-panel toolbar.
+- Added a compact `Review options` popover that owns local source selection plus branch/commit ref entry while preserving the existing local source behavior.
+- Updated the focused Review smoke to exercise source mode changes through the options popover instead of relying on permanent toolbar buttons.
+- Moved the Review changed-files tree out of the stacked top-list layout and into a dedicated side pane beside the diff preview, matching Codex's `review-file-tree-side-pane` structure more closely.
+- Moved changed-file search from the Review toolbar into the changed-files side pane, matching Codex's separate file-tree search placement and keeping the top toolbar for compact review actions.
+- Corrected the changed-files pane to sit on the far side of the Review content with a left divider, matching Codex's side-pane geometry more closely than the earlier left rail attempt.
+- Added a compact icon-only toolbar jump-to-file dropdown with in-menu search and truncated file/path rows, matching the Codex Review header's file-jump affordance more closely.
+- Hid lower-priority rich-preview/load-full/whitespace/word-diff controls from the visible toolbar and left them in the Review options menu, so the visible header is the Codex-style icon cluster: options, jump-to-file, refresh, wrap, expand/collapse, and diff mode.
+- Added a Codex-like left-edge resize handle to the changed-files side pane, with persisted per-workspace width, a 200px minimum, 60%-of-parent maximum, and keyboard-accessible Arrow/Home/End resizing.
+- Added compact branch and commit picker affordances inside `Review options`, backed by main-process Git metadata for recent local/remote branches and current-branch commits while keeping typed refs available.
+- Tightened the changed-files side-pane chrome after visual comparison: the default pane width is now 220px, the old 260px default is migrated down, and the pane header is search-only instead of showing an Orchestrator-style file-count pill above the tree.
+- Tightened the source file-tab toolbar reached from Review selected-line handoff by leaving only primary source controls visible and moving lower-priority file/line actions behind a compact file actions menu.
+- Tightened Review empty/binary preview states with a Review-specific compact fallback marker, so unavailable/binary files top-align in the diff body instead of using the generic centered Files fallback chrome.
+- Corrected a larger Review structure mismatch found in the smoke screenshot: the Workbench right panel now uses Codex's 600px default width, 320px minimum width, and 352px main-content reserve instead of Orchestrator's old 468px / 34% default.
+- Removed the old embedded Review compact-list cap that limited the changed-files tree to 132px tall; the changed-files tree now fills the Codex-like right-side pane under its search row.
+- Removed the second visible Review ellipsis menu from the embedded toolbar and folded Open file, Reveal file, and Copy path into `Review options`, leaving one visible Review options trigger.
+- Added a Codex-like toolbar divider after Review options and reordered the visible controls to options, jump-to-file, refresh, wrap, expand/collapse, and diff mode.
+
+Verification:
+
+- `npm run build` passed.
+- `npm run test:providers` passed: 240 tests.
+- `npm run smoke:ui:auto -- --diff` passed after the Review toolbar/source structure correction; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779564101499.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779564101499.png`.
+- `npm run smoke:ui:auto -- --diff` passed after the changed-files side-pane restructure; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779564281110.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779564281110.png`.
+- `npm run smoke:ui:auto` passed after updating the embedded Review side-pane smoke assertion; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779564312153.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779564312153.png`.
+- `npm run smoke:ui:auto -- --diff` passed after moving changed-file search into the side pane; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779564552688.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779564552688.png`.
+- `npm run smoke:ui:auto` passed after the side-pane search smoke update; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779564576076.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779564576076.png`.
+- `npm run smoke:ui:auto -- --diff` passed after adding the toolbar jump-to-file dropdown; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779564729173.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779564729173.png`.
+- `npm run smoke:ui:auto -- --diff` passed after adding explicit jump-to-file interaction coverage and correcting the visible Review capture back onto the Review tab; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779565689505.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779565689505.png`.
+- `npm run smoke:ui:auto` passed after the final icon-toolbar/side-pane correction, proving the broader embedded Workbench path still passes Review, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779565795897.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779565795897.png`.
+- `npm run smoke:ui:auto -- --diff` passed after adding explicit changed-files side-pane resize coverage; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779566150350.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779566150350.png`.
+- `npm run smoke:ui:auto` passed after adding the broader embedded Review `reviewSidePaneResize` gate; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779566233657.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779566233657.png`.
+- `npm run test:providers` passed: 241 tests, including `review source branch and commit pickers expose recent refs`.
+- `npm run smoke:ui:auto -- --diff` passed after adding branch/commit picker interaction coverage to the Review source-mode smoke; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779566705711.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779566705711.png`.
+- `npm run smoke:ui:auto` passed after the picker slice, proving the broader embedded Workbench path still passes Review, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779566731395.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779566731395.png`.
+- `npm run smoke:ui:auto -- --diff` passed after adding the `reviewSidePaneChrome` visual-structure gate for the quieter search-only changed-files rail; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779567151267.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779567151267.png`.
+- `npm run smoke:ui:auto` passed after the side-pane chrome gate was added to the broad app smoke; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779567223844.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779567223844.png`.
+- `npm run build` passed after the side-pane chrome pass.
+- `npm run test:providers` passed: 241 tests after the side-pane chrome pass.
+- `npm run smoke:ui:auto -- --diff` passed after adding the compact Review empty/binary fallback assertion; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779567557537.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779567557537.png`.
+- `npm run build` passed after the Review empty/binary fallback cleanup.
+- `npm run smoke:ui:auto` passed after the compact fallback fix, proving the broader embedded Workbench path still passes Review, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779567636552.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779567636552.png`.
+- `npm run test:providers` passed after the compact fallback fix: 241 tests.
+- `npm run build` passed after the Codex right-panel default and full-height changed-files tree correction.
+- `npm run smoke:ui:auto -- --diff` passed after adding smoke gates for the Codex-width right panel and full-height Review side pane; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779568088744.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779568088744.png`.
+- `npm run test:providers` passed after the Codex-width Review correction: 241 tests.
+- `npm run smoke:ui:auto` passed after the Codex-width Review correction, proving the broader embedded Workbench path still passes Review, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779568154098.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779568154098.png`.
+- `npm run build` passed after the single-menu Review toolbar correction.
+- `npm run smoke:ui:auto -- --diff` passed after the single-menu Review toolbar correction; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779568794664.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779568794664.png`.
+- `npm run test:providers` passed after the single-menu Review toolbar correction: 241 tests.
+- `npm run smoke:ui:auto` passed after the single-menu Review toolbar correction, proving the broader embedded Workbench path still passes Review, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779568888033.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779568888033.png`.
+- `npm run build` passed after adding a smoke guard that fails if the embedded Review toolbar regresses to a second visible `Change actions` menu or loses the Codex-style divider.
+- `npm run smoke:ui:auto -- --diff` passed with the single-menu/divider guard active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779568949315.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779568949315.png`.
+- `git diff --check` passed.
+
+### 2026-05-23 - Review File-Section Workspace Structure Slice
+
+Evidence:
+
+- `webview/assets/review-file-tree-side-pane-CGo_VDrf.js` reconfirmed Codex's changed-files side pane is a right-edge `relative flex h-full shrink-0 border-l` surface that selects review paths and scrolls matching `[data-review-path]` content, not just a local one-file picker.
+- `webview/assets/review-header-toolbar-6CN1dM2m.js` reconfirmed the top Review controls are a shared `flex items-center gap-px` toolbar over a review workspace, with jump-to-file and diff controls operating on the review surface.
+- The focused Orchestrator screenshot before this slice proved the remaining structural miss: the side pane was Codex-shaped, but the main Review surface still behaved like one selected-file preview instead of a file-section review workspace.
+
+Implemented:
+
+- Reworked embedded Review rendering so the main preview area is now a `review-files-stack` containing one `review-file-section` per changed file, each with a `data-review-path` marker, compact file header, status/stats, and its own diff/preview body.
+- Kept the right changed-files side pane as the selector/scroll navigator. Selecting a tree row now updates the active path and scrolls the matching main file section, matching the Codex bundle's path-scroll ownership model.
+- Moved Review diff/preview loading to a per-path content map so multiple file sections can render without replacing the main surface with only the currently selected file.
+- Preserved existing line comments, selected-line blame, source-tab handoff, hidden-context controls, whitespace/word diff toggles, binary fallbacks, rich previews, and source-mode behavior.
+- Added `reviewFileSectionStructureWorks` smoke coverage to fail if Review regresses to a single selected-file preview or loses file-section `data-review-path` structure.
+
+Verified:
+
+- `npm run build` passed after the file-section workspace structure change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewFileSections` active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779569558993.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779569558993.png`.
+- `npm run test:providers` passed after the file-section workspace structure change: 241 tests.
+- `npm run smoke:ui:auto` passed after adding the `reviewFileSections` gate to the broader app smoke; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779569633225.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779569633225.png`.
+
+Remaining:
+
+- This fixes the visibly wrong source-strip structure, top-stacked/capped file list, left/right side-pane geometry, too-narrow Workbench default width, wide file-jump pill, double-ellipsis toolbar, visible action ordering, obvious icon run-on, fixed-width/over-wide changed-files pane, count-heavy side-pane header, one-selected-file-only main Review surface, text-only branch/commit ref controls, and sparse centered empty/binary preview fallback in the Review/source path. Review still needs live Codex screenshot comparison for exact spacing, `last-turn` and cloud/local/worktree provider-native source variants, richer context-threshold behavior, final right-panel tab/header spacing, and deeper provider-backed file-source/review-source behavior.
+
+### 2026-05-23 - Review Flat File-Section Header Correction
+
+Evidence:
+
+- Re-opened `webview/assets/review-file-tree-side-pane-CGo_VDrf.js`; Codex's Review changed-files pane remains a right-edge `relative flex h-full shrink-0 border-l` surface with animated width and a left resize edge, and it scrolls matching `[data-review-path]` content.
+- Re-opened `webview/assets/review-header-toolbar-6CN1dM2m.js`, `webview/assets/review-file-source-tab-CjS7Xe_W.js`, `webview/assets/file-diff-DVuLEIDo.js`, and `webview/assets/codex-diff-css-CXZtaFdl.js`; Codex's file/diff header is a relative flat `[data-diffs-header='default']` row with 16px inline padding, `data-header-content`, `data-metadata`, and colored addition/deletion counts.
+- Focused screenshot before this correction showed the main Review surface had the right stacked-file idea but still looked locally invented because each file section used a rounded sticky card header.
+
+Implemented:
+
+- Changed each `review-file-section` to declare `data-review-file-section-shell="codex-flat"` and `data-review-file-header="true"` so the renderer and smoke tests distinguish the Codex-like flat stack from a generic card list.
+- Restyled file-section headers as flat full-width diff/file headers: no rounded card background, no sticky positioning, compact path-leading content, 16px inline padding, right-aligned status/stats metadata, and Codex-like colored deletion/addition counts.
+- Removed the padded card-stack feel from `review-files-stack`, leaving continuous file sections separated by thin dividers while preserving the right-side changed-files navigator and `[data-review-path]` scroll ownership.
+- Hardened `reviewFileSectionStructureWorks` in both focused and broad smoke paths so regressions back to generic section cards lose coverage.
+- Stabilized Review smoke capture by removing a non-parity dependency on an initially visible search clear button and waiting for Review search/full-source text to settle before recording evidence.
+
+Verified:
+
+- `npm run build` passed after the flat Review header correction and after the smoke stability correction.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewFileSections` active and the corrected settled screenshot inspected; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779570730756.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779570730756.png`.
+- `npm run test:providers` passed after the flat Review header correction: 241 tests.
+- `npm run smoke:ui:auto` passed after the correction, including `reviewFileSections`, Review side-pane, Review comments/blame/jump/source handoff, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779570774646.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779570774646.png`.
+- `git diff --check` passed.
+
+Remaining:
+
+- Review is now structurally closer, but still needs live Codex screenshot comparison for exact file-header spacing, native diff renderer typography/line-height, toolbar icon ordering, and side-pane row treatment. Source variants, context-threshold behavior, richer summaries, and provider-backed review/source flows remain open.
+
+### 2026-05-23 - Review Changed-Files Git Lane Slice
+
+Evidence:
+
+- Re-opened `webview/assets/file-tree-search-input-Cg1SVtq4.js`; Codex's shared file tree keeps `itemHeight` at 28px in the Review/workspace theme, with 13px text, 6px inline row padding, zero row margin, zero level gap, 10px row gap, selected/background token overrides, and a dedicated git-status lane.
+- The same bundle chunk confirmed Codex rows carry git status as row data (`data-item-git-status`, `data-item-has-git-lane`) while preserving the regular disclosure, icon, and content lanes. The git marker is rendered separately from the file icon instead of replacing it with a status letter.
+- Re-opened `webview/assets/review-file-tree-side-pane-CGo_VDrf.js`; Codex Review passes entries, active path, select-path callbacks, and per-path comment counts into the right changed-files file tree, then syncs selection by scrolling matching `[data-review-path]` sections.
+
+Implemented:
+
+- Changed shared `WorkbenchTree` rows so Review/Files status markers no longer replace the file icon. Rows now keep the disclosure/icon/label lanes and add a separate `.workbench-tree-git-lane` only when a row has git status.
+- Added `data-workbench-git-status` and `data-workbench-has-git-lane` evidence attributes with Codex-style status names (`modified`, `added`, `deleted`, `renamed`, `untracked`) while preserving the compact tree semantics and row selection behavior.
+- Added Review-specific git status coloring so changed-file rows tint the icon and label by status, while the right git lane carries the status letter independently.
+- Hardened focused and broad smoke coverage with `reviewFileTreeGitLane`, proving Review changed-file rows have icon, label, status lane, git-status data, no legacy `.workbench-tree-status`, and a lane positioned to the right of the label.
+- Stabilized focused Review capture by checking the final settled toolbar/search elements and waiting for the Review surface to settle before screenshot capture.
+
+Verified:
+
+- `npm run build` passed after the changed-files git lane correction.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewFileTreeGitLane` active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779571127646.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779571127646.png`.
+- `npm run test:providers` passed after the shared Workbench tree change: 241 tests.
+- `npm run smoke:ui:auto` passed after the changed-files git lane correction, including `reviewFileTreeGitLane`, Review file sections, Review side-pane behavior, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779571169770.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779571169770.png`.
+- `git diff --check` passed before this documentation update.
+
+Remaining:
+
+- The right changed-files tree now matches Codex's lane model much more closely, but exact live Codex screenshot comparison is still needed for pixel spacing, comment-count decoration, hide-non-match projection, virtualization edge cases, and provider-backed Review source variants.
+
+### 2026-05-23 - Review Changed-Files Filter Input Correction
+
+Evidence:
+
+- Re-opened `webview/assets/review-file-tree-side-pane-CGo_VDrf.js`; Codex wraps the changed-files filter in a `shrink-0 px-2 pt-2 pb-px` row before the file tree.
+- Re-opened `webview/assets/file-tree-search-input-Cg1SVtq4.js`; the shared Codex file-tree search input uses the placeholder `Filter files…` and the same file-tree search primitive for Review and workspace file browsing.
+- The focused Orchestrator screenshot after the git-lane slice still showed a visibly local `Search changed files` placeholder and heavier bottom spacing in the Review side pane.
+
+Implemented:
+
+- Changed the Review changed-files search placeholder to `Filter files…` to match the Codex file-tree search primitive.
+- Tightened `.diff-panel-file-search-row` bottom padding from 3px to 1px to match Codex's `pb-px` framing.
+- Extended broad and focused Review smoke checks so the side-pane chrome fails if the search placeholder or compact bottom padding drifts.
+
+Verified:
+
+- `npm run build` passed after the filter input correction.
+- `npm run smoke:ui:auto -- --diff` passed with the updated `reviewSidePaneChrome` and `diffToolbarCompact` guards; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779571394264.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779571394264.png`.
+- `npm run smoke:ui:auto` passed after the filter input correction; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779571447359.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779571447359.png`.
+- `npm run test:providers` passed after the filter input correction: 241 tests.
+
+Remaining:
+
+- Review side-pane filtering now matches the Codex file-tree label and tighter search-row frame. Remaining visible Review gaps are exact side-pane row colors/spacing against live Codex screenshots, comment-count decoration, hide-non-match projection, native diff typography, and provider-backed source variants.
+
+### 2026-05-23 - Review Diff Header Metadata Correction
+
+Evidence:
+
+- Re-opened `webview/assets/codex-diff-css-CMbwsKi9.js`; Codex renders default diff headers with `data-diffs-header="default"`, `data-header-content`, `data-title`, `data-metadata`, `data-additions-count`, and `data-deletions-count`.
+- The same bundle function maps changed-file state into `data-change-type` and `data-change-icon` values (`change`, `new`, `deleted`, `rename-pure`, `rename-changed`) and colors the icon by state. The default metadata lane carries colored line-count text, not a persistent `Modified` pill.
+- The focused Orchestrator screenshot before this correction still showed gray status pills in every main Review file header, which made the file-section stack look locally invented despite the broader structure being closer.
+
+Implemented:
+
+- Updated main Review file-section headers to expose Codex-like `data-diffs-header="default"`, `data-change-type`, `data-header-content`, `data-title`, `data-metadata`, `data-additions-count`, and `data-deletions-count` attributes.
+- Removed the visible status `Badge` from main Review file-section headers. Change state now appears through the file/change icon color and data attributes, while the metadata lane only shows compact colored deletion/addition counts.
+- Adjusted file-section header CSS to match Codex's header layout more closely: 8px content gap, 1ch metadata/stat gap, RTL ellipsis behavior for long paths with `bdi`, and status-colored change icons.
+- Hardened focused and broad smoke coverage so `reviewFileSections` fails if file-section headers lose the Codex diff-header data structure or regress to a rounded status pill.
+
+Verified:
+
+- `npm run build` passed after the Review diff-header metadata correction.
+- `npm run smoke:ui:auto -- --diff` passed with the stricter `reviewFileSections` guard; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779571669263.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779571669263.png`.
+- `npm run smoke:ui:auto` passed after the correction; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779571702477.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779571702477.png`.
+- `npm run test:providers` passed after the correction: 241 tests.
+- `git diff --check` passed before this documentation update.
+
+Remaining:
+
+- Main Review file-section headers now use Codex's diff-header metadata shape and are visibly calmer. Remaining Review gaps are exact live screenshot spacing, native diff renderer typography/line-height, comment-count decoration in the changed-files tree, hide-non-match projection, provider-native/last-turn source variants, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Changed-Files Comment Count Structure
+
+Evidence:
+
+- Re-opened `webview/assets/review-file-tree-side-pane-CGo_VDrf.js`; Codex Review computes `commentCountByPath` and passes it into the changed-files side-pane tree together with `entries`, `activePath`, and selection callbacks.
+- Re-opened `webview/assets/review-header-toolbar-6CN1dM2m.js`; Codex uses compact 20px-ish rounded comment/count pills (`h-5`, `rounded-[7px]`, subtle foreground background, medium text) rather than additions/deletions badges in the side file tree.
+- The focused Orchestrator Review screenshot still had line stats duplicated in the file tree while local line comments were trapped inside each diff renderer, so the changed-files tree could not reflect review comment structure.
+
+Implemented:
+
+- Lifted local Review line comments from individual `DiffLines` instances into `DiffPanel` state keyed by file path.
+- Fed per-path comment counts back into the changed-files `WorkbenchTree` row decorations with a compact `.review-file-comment-count` pill and `data-review-file-comment-count` evidence.
+- Removed Review side-tree additions/deletions badge decorations. File change stats now live in the main diff file headers, matching Codex's separation between the changed-files navigator and diff metadata.
+- Tightened focused smoke to select the same Review file in the changed-files tree before comment/blame/source-tab interactions, proving that a saved Review line comment updates the side-pane row decoration instead of only the diff body.
+- Added broad smoke coverage for `reviewSidePaneCommentCount` so the file-tree comment-count contract is guarded alongside Review comments, blame, source-tab handoff, side-pane chrome, and git-lane checks.
+
+Verified:
+
+- `npm run build` passed after the Review comment-count state lift and smoke scoping corrections.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewSidePaneCommentCount` active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779572475238.json`; screenshot inspected: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779572475238.png`.
+- `npm run smoke:ui:auto` passed after the correction, including `reviewSidePaneCommentCount`, Review file sections, changed-files git lane, side-pane chrome/resize, Review comments/blame/source handoff, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779572510319.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779572510319.png`.
+- `npm run test:providers` passed after the correction: 241 tests.
+- `git diff --check` passed before this documentation update.
+
+Remaining:
+
+- The Review changed-files tree now matches Codex's structural lanes more closely: filter, file tree, active path, file icon, separate git lane, and comment-count decoration. Remaining Review gaps are exact live screenshot spacing/row coloring, native Codex diff typography and line-height, hide-non-match projection behavior, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Side-Tree Lane Width And Shell Focus Ring Slice
+
+Evidence:
+
+- Re-opened `webview/assets/file-tree-search-input-Cg1SVtq4.js`; Codex's file tree defines `--trees-icon-width` separately from `--trees-git-lane-width`, with the git lane defaulting to 12px while regular file icons keep a 16px lane.
+- The same file-tree chunk confirmed Codex does tint changed file icons/content/status by git state, so the visible blue/green/red Review filenames are expected; the mismatch was the oversized status lane, not the presence of status color.
+- The focused Orchestrator Review screenshot after the comment-count slice showed an unrelated large orange browser-default focus outline around the right-panel Review tabpanel. Codex's panel surfaces keep focus routing but do not draw that default work-surface outline over Review content.
+
+Implemented:
+
+- Added `--workbench-tree-git-lane-width: 12px` to the shared `WorkbenchTree` token set and changed `.workbench-tree-git-lane` to use that width instead of reusing the 16px icon lane.
+- Tightened focused and broad Review smoke checks so `reviewFileTreeGitLane` now proves the git lane remains 10-13px wide, has a separate row status marker, and does not regress to the legacy `.workbench-tree-status` lane.
+- Removed browser-default focus outlines from shell tabpanels with `.app-shell-panel [role='tabpanel']:focus { outline: none; }`, preserving tabpanel focus routing without the non-Codex orange frame.
+- Added `reviewTabPanelFocusRingCalm` smoke coverage in focused and broad UI smokes so the right-panel Review tabpanel cannot regain that default outline.
+
+Verified:
+
+- `npm run build` passed after the shared tree lane and shell focus correction.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewFileTreeGitLane` and `reviewTabPanelFocusRingCalm` active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779572843641.json`; screenshot inspected: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779572843641.png`.
+- `npm run smoke:ui:auto` passed after the correction, including `reviewTabPanelFocusRingCalm`, Review file sections, changed-files git lane, side-pane chrome/resize, Review comments/blame/source handoff, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779572886219.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779572886219.png`.
+- `npm run test:providers` passed after the correction: 241 tests.
+- `git diff --check` passed before this documentation update.
+
+Remaining:
+
+- Review now avoids the most obvious screenshot-only focus artifact and uses the Codex file-tree git lane width. Remaining Review gaps are native diff typography and line-height, exact toolbar/header spacing, hide-non-match projection behavior, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review File Header And Diff Metric Parity Slice
+
+Evidence:
+
+- Re-opened `webview/assets/diff-unified-f1PAwyk9.js`; Codex's Review file diff uses `headerVariant="full-review"` for the review file header path, with compact `px-2 py-[2px]` outer framing and a rounded 6px inner header row.
+- Re-opened `webview/assets/codex-diff-css-CXZtaFdl.js`; Codex's diff renderer sets the root diff metrics to `font-size: var(--diffs-font-size, 13px)` and `line-height: var(--diffs-line-height, 20px)`, with wrapped lines using the same diff line-height.
+- The focused Orchestrator screenshot after the side-tree/focus slice showed the main Review file headers were still oversized 36px bold section headers and the custom diff rows were not guarded against drifting away from Codex's 13px/20px diff metric.
+
+Implemented:
+
+- Restyled main Review file-section headers to match Codex's compact full-review header frame: 25px-ish row height, 2px/8px outer spacing, 6px radius, 13px/20px text metrics, lighter font weight, compact metadata gap, and a subtle hover background.
+- Changed Review diff line cells to use the Codex diff renderer's monospaced 13px font and fixed 20px line-height instead of inheriting a generic UI line-height.
+- Changed Review hunk headers to the same 13px/20px metric and reduced their minimum height to Codex's compact line rhythm.
+- Added `reviewFileHeaderMetrics` and `reviewDiffRowMetrics` smoke checks to both focused and broad UI smokes so file-header height/font/radius and diff row/hunk font-size/line-height remain guarded.
+
+Verified:
+
+- `npm run build` passed after the file-header and diff metric correction.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewFileHeaderMetrics` and `reviewDiffRowMetrics` active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779573246820.json`; screenshot inspected: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779573246820.png`.
+- `npm run smoke:ui:auto` passed after the correction, including `reviewFileHeaderMetrics`, `reviewDiffRowMetrics`, Review file sections, changed-files git lane, side-pane chrome/resize, Review comments/blame/source handoff, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779573302121.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779573302121.png`.
+
+Remaining:
+
+- The Review main stack now follows Codex's compact file-header and base diff metric shape. Remaining Review gaps are live screenshot matching for exact native diff renderer gutter behavior, toolbar/tab-header spacing, hide-non-match projection behavior, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Diff Indicator Gutter Parity Slice
+
+Evidence:
+
+- Re-opened `webview/assets/codex-diff-css-CXZtaFdl.js`; Codex's diff renderer has a `data-indicators="classic"` path where line content is padded and `+`/`-` signs are rendered as separate line indicators, not as part of the code text.
+- Confirmed Codex also has a `data-indicators="bars"` path for alternate indicator rendering, with line numbers and indicators modeled as distinct diff columns.
+- Orchestrator's custom Review diff still passed raw unified diff lines into the code text, so addition/deletion/context rows displayed the leading `+`, `-`, or context space inside `.review-diff-line-content`.
+
+Implemented:
+
+- Added a dedicated `.review-diff-line-marker` lane between the line-number gutter and code content, using the same monospaced 13px/20px rhythm as the diff rows.
+- Strip the unified diff prefix from displayed addition/deletion/context content while preserving the raw line for parsing, metadata, comments, blame, and hunk behavior.
+- Updated word-diff rendering so highlighted changed tokens no longer include the `+`/`-` prefix as a word-diff part.
+- Added `data-review-diff-marker` and `reviewDiffIndicatorStructure` smoke coverage in focused and broad UI smokes, proving marker/content separation and marker geometry between the line number and code lanes.
+
+Verified:
+
+- `npm run build` passed after the marker-lane correction.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewDiffIndicatorStructure` active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779573905584.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779573905584.png`.
+- `npm run smoke:ui:auto` passed after the correction, including `reviewDiffIndicatorStructure`, Review file sections, file-header metrics, diff row metrics, changed-files git lane, side-pane chrome/resize, Review comments/blame/source handoff, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779573948922.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779573948922.png`.
+
+Remaining:
+
+- Review diff rows now separate indicators from code content like Codex's classic diff indicator path. Remaining Review gaps are exact native diff gutter/bar mode behavior, toolbar/tab-header spacing, hide-non-match projection behavior, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Annotated Selection Background Slice
+
+Evidence:
+
+- Re-opened `webview/assets/codex-diff-css-CXZtaFdl.js`; Codex explicitly resets `[data-selected-line][data-line-annotation]` to the normal diff background, so selected annotated lines do not paint a large active-selection block over comment annotation surfaces.
+- Re-opened `webview/assets/use-diff-annotations-Df5ExFHc.js`; Codex renders diff comments as annotation content in a constrained `max-w-3xl` surface, separate from the line indicator/gutter structure.
+- The focused Orchestrator screenshot after the marker-lane slice showed a selected commented/blame line rendering as one large blue block across the line, actions, blame, and comment card.
+
+Implemented:
+
+- Changed selected Review lines that have comments to keep their underlying diff-row background instead of the generic blue selected background.
+- Added a subtle inset accent marker for selected commented rows, preserving selection affordance without flooding the inline annotation area.
+- Added `reviewAnnotatedSelectionCalm` smoke coverage in focused and broad UI smokes, proving the selected commented addition row keeps the addition diff background and an inset selection marker.
+
+Verified:
+
+- `npm run build` passed after the selected annotated-row styling correction.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewAnnotatedSelectionCalm` active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779574188293.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779574188293.png`.
+- `npm run smoke:ui:auto` passed after the correction, including `reviewAnnotatedSelectionCalm`, `reviewDiffIndicatorStructure`, Review file sections, file-header metrics, diff row metrics, changed-files git lane, side-pane chrome/resize, Review comments/blame/source handoff, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779574236759.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779574236759.png`.
+- `npm run test:providers` passed after the correction: 241 tests.
+- `git diff --check` passed after the correction.
+
+Remaining:
+
+- Annotated selected Review rows no longer create the most obvious non-Codex blue annotation block. Remaining Review gaps are exact native diff gutter/bar mode behavior, toolbar/tab-header spacing, hide-non-match projection behavior, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Changed-Files Git Lane Color Parity Slice
+
+Evidence:
+
+- Re-opened Codex Review file-tree side pane evidence from the extracted bundle: the side pane is a dedicated right-edge changed-files tree with separate search row, tree body, and compact status/comment metadata rather than a link-colored filename list.
+- Re-checked current Codex Review toolbar/file-tree assets in the installed bundle; the file tree remains a status-lane/tree primitive, while toolbar controls are grouped separately in the Review header.
+- The Orchestrator focused Review screenshot before this slice showed nearly every modified filename in the changed-files side pane painted blue, which made the pane read unlike Codex's calmer neutral tree rows.
+
+Implemented:
+
+- Changed Review changed-file rows so file labels inherit the neutral active tree text, while the icon and compact git status lane carry the git status color.
+- Kept the shared Workbench tree primitive and avoided adding Review-only row markup.
+- Tightened focused and broad `reviewFileTreeGitLane` smoke coverage so colored statuses verify label/status-lane color separation, compact lane width, right-aligned lane placement, and absence of the legacy `.workbench-tree-status` element.
+
+Verified:
+
+- `npm run build` passed after the changed-files side-pane styling and smoke assertion update.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewFileTreeGitLane` active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779574838054.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779574838054.png`.
+- `npm run smoke:ui:auto` passed after the correction, including Review file sections, diff rows, indicator lane, annotated selection, changed-files git lane, side-pane chrome/resize, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779574881228.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779574881228.png`.
+- `npm run test:providers` passed after the correction: 241 tests.
+- `git diff --check` passed after the correction.
+
+Remaining:
+
+- The changed-files side pane no longer has the most visible non-Codex blue-link-list treatment. Remaining Review UI gaps are toolbar/tab-header spacing, exact native diff gutter/bar mode behavior, hide-non-match projection behavior, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Visual Checkpoint Reset Slice
+
+Evidence:
+
+- Re-ran the focused Review smoke after the git-lane color correction and inspected the screenshot. The UI was on Review, but the proof image still reflected interaction-test leftovers: a filtered changed-files search, resized side pane, and a selected file that did not line up cleanly with the main diff viewport.
+- Re-checked current Codex Review side-pane evidence from `webview/assets/review-file-tree-side-pane-DTvkJOnY.js`; Codex's Review file tree side pane is a persistent resizable review rail with separate search row and tree body, so visual proof should capture a normal side-pane width and unfiltered tree state when claiming visual parity.
+
+Implemented:
+
+- Added a double-click reset on Orchestrator's Review changed-files resize handle, restoring the side pane to the Codex-like 220px default width.
+- Added a focused and broad smoke gate, `reviewVisualCheckpointReset`, which returns the Review surface to a clean visual checkpoint before screenshots: Review tab active, search cleared, side pane reset to 220px, and `review-base.txt` selected with its main diff scrolled into view.
+- Kept the interaction tests intact; this slice only normalizes the final evidence state so screenshots can be compared against Codex without test-state noise.
+
+Verified:
+
+- `npm run build` passed after the resize reset and visual-checkpoint smoke update.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewVisualCheckpointReset` active; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779575307011.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779575307011.png`.
+- `npm run smoke:ui:auto` passed after the visual checkpoint update, including Review, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779575352218.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779575352218.png`.
+- `npm run test:providers` passed after the visual checkpoint update: 241 tests.
+- `git diff --check` passed after the visual checkpoint update.
+
+Remaining:
+
+- Review visual evidence is now cleaner and suitable for screenshot comparison. Remaining Review UI gaps are toolbar/tab-header spacing, exact native diff gutter/bar mode behavior, hide-non-match projection behavior, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Normal Tab-Strip Visual Checkpoint Slice
+
+Evidence:
+
+- The focused Review smoke still left the source-handoff file tab open in the final screenshot, even though Review was active. That made the proof image structurally different from Codex's normal Review side-panel state because the tab strip was polluted by a temporary file-source tab.
+- Re-inspected the focused screenshot after cleanup; it now shows the normal Review tab strip with no leftover file-source tab, an unfiltered changed-files side pane at the default width, and `review-base.txt` selected in both the main diff and side tree.
+
+Implemented:
+
+- Kept the source-handoff interaction coverage intact by asserting the file-source tab opens and selects/reveals the target line first.
+- Closed the temporary file-source tab during the final visual-checkpoint reset, reopened Review, cleared the side-tree filter, reset the side-pane width, selected `review-base.txt`, and scrolled its diff section into view.
+- Tightened `reviewVisualCheckpointReset` so final Review evidence must have zero lingering `file:` tabs.
+
+Verified:
+
+- `npm run build` passed after the tab-strip cleanup.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewVisualCheckpointReset`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779575586862.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779575586862.png`.
+- `npm run smoke:ui:auto` passed after the tab-strip cleanup; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779575627476.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779575627476.png`.
+- `npm run test:providers` passed after the tab-strip cleanup: 241 tests.
+- `git diff --check` passed after the tab-strip cleanup.
+
+Remaining:
+
+- Review visual evidence is now a normal tab-strip checkpoint. Remaining Review UI gaps are toolbar/tab-header spacing, exact native diff gutter/bar mode behavior, hide-non-match projection behavior, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Header Toolbar Structure Slice
+
+Evidence:
+
+- Re-inspected the focused Review screenshot against the Codex side-panel structure. Orchestrator still rendered Review controls as a separate toolbar band under the side-panel tab strip, while Codex's Review action cluster belongs visually to the Review header/tab chrome.
+- The earlier visual checkpoint also preserved interaction-test artifacts in the screenshot, including a filtered changed-files tree and selected-line blame/comment UI, which made it poor evidence for normal Review structure.
+
+Implemented:
+
+- Collapsed embedded Review controls into the side-panel header row between the active Review tab and the panel add/expand actions, removing the extra toolbar band from the Review content area.
+- Preserved the same Review actions and menus, but positioned them as a compact Codex-like header cluster with the existing quiet toolbar icon treatment.
+- Tightened `reviewToolbarHeaderRow` so smoke now requires the Review toolbar rectangle to align with the tabbar row and requires at least six visible header-row Review controls.
+- Reset the final Review visual checkpoint to an unfiltered tree, default 220px changed-files side pane, no leftover `file:` source tab, and a clean selected file (`staged-source-smoke.txt`) without line-comment/blame artifacts in the captured viewport.
+
+Verified:
+
+- `npm run build` passed after the header-toolbar structure change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewToolbarHeaderRow` and `reviewVisualCheckpointReset`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779576692849.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779576692849.png`.
+- `npm run smoke:ui:auto` passed after fixing the broad-smoke duplicate injected variable and includes `reviewToolbarHeaderRow`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779576825925.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779576825925.png`.
+- `npm run test:providers` passed after the header-toolbar structure change: 241 tests.
+- `git diff --check` passed after the header-toolbar structure change.
+
+Remaining:
+
+- Review no longer has the most obvious non-Codex extra toolbar band. Remaining Review UI gaps are exact Codex toolbar spacing/icon ordering, native diff renderer gutter/header parity, hide-non-match projection behavior, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Changed-Files Search Projection Slice
+
+Evidence:
+
+- Re-checked the current Codex bundle's Review side-pane path: `review-file-tree-side-pane-DTvkJOnY.js` passes the changed-file entries into the tree and wires search through the file-tree search input, while `file-tree-search-input-X-DM55OR.js` keeps the default `hide-non-matches` search mode.
+- Orchestrator already rebuilt directory ancestors for matching Review files, but its selection effect still treated the changed-files filter as the authoritative active-file set. That made the side-tree filter able to pull the active Review file away from the main diff stack instead of behaving like Codex's tree-local hide-non-match projection.
+
+Implemented:
+
+- Review search now filters only the changed-files tree rows; the active selected Review file and action enablement are resolved against the full current Review source file set.
+- Added explicit Review root diagnostics for tree query count versus main file count so smoke can assert that a filtered side tree still leaves the full Review stack mounted.
+- Added focused and broad smoke coverage for `reviewSearchProjection`: selecting `review-base.txt`, filtering the changed-files tree to `nested note`, preserving `review-base.txt` as the active diff, keeping `Nested Folder/nested note.md` visible in the filtered tree, and confirming the main Review stack still contains more files than the filtered side tree.
+- Hardened the focused Review smoke's branch-source assertion with a bounded wait for async diff text, avoiding a false failure where the branch file header rendered before its diff body.
+
+Verified:
+
+- `npm run build` passed after the changed-files search projection change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewSearchProjection`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779577528277.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779577528277.png`.
+- `npm run smoke:ui:auto` passed with broad `reviewSearchProjection`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779577509856.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779577509856.png`.
+- `npm run test:providers` passed after the changed-files search projection change: 241 tests.
+- `git diff --check` passed after the changed-files search projection change.
+
+Remaining:
+
+- Review changed-files search now matches Codex's tree-local hide-non-match behavior. Remaining Review UI gaps are exact Codex toolbar spacing/icon ordering, native diff renderer gutter/header parity, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Header Action Order Slice
+
+Evidence:
+
+- Re-read the current Codex `review-header-toolbar-6CN1dM2m.js` bundle. The primary Review header action cluster renders options, jump-to-file, refresh, word-wrap, expand/collapse, and split/unified controls in a tight `gap-px` row without a visible divider between options and jump-to-file.
+- Orchestrator had the same broad action order after the header-toolbar slice, but still carried an extra `review-toolbar-divider` and used "line wrap" wording where Codex uses "word wrap."
+
+Implemented:
+
+- Removed the visible divider from the embedded Review header action strip so the cluster is a continuous Codex-like toolbar row.
+- Renamed Review wrap actions/tooltips/menu items from "line wrap" to Codex's "word wrap" wording.
+- Tightened the compact-toolbar smoke assertion so the old divider is now explicitly absent, and updated menu-label checks to expect the word-wrap label.
+
+Verified:
+
+- `npm run build` passed after the header action order cleanup.
+- `npm run smoke:ui:auto -- --diff` passed with `diffToolbarCompact` and `reviewToolbarHeaderRow`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779577713700.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779577713700.png`.
+- `npm run smoke:ui:auto` passed with broad `diffToolbarCompact` and `reviewToolbarHeaderRow`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779577748353.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779577748353.png`.
+- `git diff --check` passed after the header action order cleanup.
+
+Remaining:
+
+- Review header action ordering now matches the current Codex bundle at the structural level. Remaining Review UI gaps are pixel-level toolbar spacing/icon glyph parity, native diff renderer gutter/header parity, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Diff Gutter Bars Slice
+
+Evidence:
+
+- Re-read the current Codex `file-diff-DVuLEIDo.js` and `codex-diff-css-CXZtaFdl.js` bundle paths. Codex's diff renderer defaults `diffIndicators` to `bars`, emits `data-indicators="bars"` on the diff pre, and draws a 4px indicator on the `data-column-number` gutter for `change-addition` and `change-deletion` rows.
+- The Codex CSS uses a solid addition gutter bar and a patterned deletion gutter bar on the number column, while classic `+`/`-` text indicators are only for `data-indicators="classic"`.
+- Orchestrator still had a separate `+`/`-` marker lane between the line-number gutter and code content, which made the Review diff look unlike Codex's default native diff gutter.
+
+Implemented:
+
+- Replaced the separate `+`/`-` marker lane in Review diff rows with a Codex-like gutter bar rendered inside the line-number column.
+- Added `data-review-diff-indicators="bars"` and `data-review-diff-gutter-line-type="change-addition|change-deletion|context"` evidence attributes to Review diff cells.
+- Updated Review diff grid metrics from a three-column number/marker/content layout to a two-column number/content layout, keeping line selection, comments, blame, split/unified rendering, wrapping, hide-whitespace, and word-diff behavior on the same cells.
+- Tightened focused and broad smoke coverage so `reviewDiffIndicatorStructure` now requires a number-column gutter bar, no text marker prefix in code content, and a two-column row grid.
+
+Verified:
+
+- `npm run build` passed after the gutter-bar change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewDiffIndicatorStructure`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779578016663.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779578016663.png`.
+- `npm run smoke:ui:auto` passed with broad `reviewDiffIndicatorStructure`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779578052270.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779578052270.png`.
+- `git diff --check` passed before the audit update.
+
+Remaining:
+
+- Review diff indicators now match Codex's default bar-mode structure instead of classic text indicators. Remaining Review UI gaps are native diff renderer header/gutter utility depth, pixel-level toolbar glyph/spacing parity, provider-native/last-turn review sources, external PR/reviewer-backed comments, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Gutter Utility Comment Slice
+
+Evidence:
+
+- Re-read the current Codex `codex-diff-css-CXZtaFdl.js` interaction path. Codex creates a `data-gutter-utility-slot` inside the line-number column and uses a `data-utility-button` plus control for gutter-owned line utilities.
+- Codex positions that utility slot absolutely inside the number column, with a compact 1-line-height button, rather than exposing the primary comment affordance as a separate action strip after the code text.
+- Orchestrator already had selected-line Review comments, but the add-comment action lived in the in-line selected-row action strip.
+
+Implemented:
+
+- Moved the Review add-comment affordance into a Codex-like gutter utility slot inside `.review-diff-line-number`.
+- Added `data-gutter-utility-slot` and `data-utility-button` evidence to the Review diff gutter button while preserving the existing `review-diff-line-add-comment` behavior for the selected line.
+- Left the selected-line open-in-Workbench and blame actions in the compact selected-line action strip for now, but removed the most visible non-Codex add-comment button from the code-content lane.
+- Added focused and broad smoke coverage for `reviewDiffGutterUtility`, proving the gutter utility button is sized and positioned inside the number gutter, and re-ran the existing `reviewLineComments`, `reviewAnnotatedSelectionCalm`, and `reviewSidePaneCommentCount` checks through that gutter button.
+
+Verified:
+
+- `npm run build` passed after the gutter utility change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewDiffGutterUtility` plus the existing Review comment/blame checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779578315296.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779578315296.png`.
+- `npm run smoke:ui:auto` passed with broad `reviewDiffGutterUtility`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779578345959.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779578345959.png`.
+- `git diff --check` passed after the gutter utility change.
+
+Remaining:
+
+- Review now has Codex-like gutter-owned add-comment utility behavior. Remaining Review UI gaps are utility depth, pixel-level toolbar glyph/spacing parity, provider-native/last-turn review sources, external PR/reviewer-backed comments/blame metadata, and richer context-threshold behavior. Full-source blame was addressed by the later 2026-05-24 slice.
+
+### 2026-05-23 - Review Native File Header Shape Slice
+
+Evidence:
+
+- Re-read the current Codex `codex-diff-css-CXZtaFdl.js` bundle. Codex's default file/diff header uses `[data-diffs-header='default']` as a full-width relative row with `background-color: var(--diffs-bg)`, `display: flex`, `justify-content: space-between`, `align-items: center`, `min-height: calc(1lh + gap * 3)`, `padding-inline: 16px`, `top: 0`, and `z-index: 2`.
+- The same Codex header CSS expects `data-header-content`, `data-title`, `data-metadata`, `data-additions-count`, and `data-deletions-count`, with no rounded inset button shell.
+- Orchestrator still rendered Review file headers as an inset rounded transparent button with `width: calc(100% - 16px)`, `margin: 2px 8px`, `border-radius: 6px`, and 12px inline padding, which made the Review structure visibly diverge from Codex.
+
+Implemented:
+
+- Converted `.review-file-section-header[data-diffs-header='default']` to a Codex-like full-width native diff header row: `width: 100%`, `min-height: 32px`, square edges, zero margin, surface background, and 16px inline padding.
+- Preserved the existing Codex data structure (`data-header-content`, `data-title`, `data-metadata`, addition/deletion count spans, and file change icon) while removing the old inset-pill geometry.
+- Tightened focused and broad smoke coverage so `reviewFileHeaderMetrics` now rejects the old rounded/inset shape and requires full section width, near-zero radius/margins, 16px inline padding, and non-transparent header background.
+
+Verified:
+
+- `npm run build` passed after the native file-header shape change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewFileSections` and `reviewFileHeaderMetrics`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779578608324.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779578608324.png`.
+- `npm run smoke:ui:auto` passed with broad `reviewFileHeaderMetrics`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779578702994.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779578702994.png`.
+- `git diff --check` and the screenshot review passed after the file-header shape change.
+
+Remaining:
+
+- Review file headers now match Codex's native full-width default diff header structure instead of Orchestrator's old rounded inset row. Remaining Review UI gaps are utility depth, pixel-level toolbar glyph/spacing parity, provider-native/last-turn review sources, external PR/reviewer-backed comments/blame metadata, and richer context-threshold behavior. Full-source blame was addressed by the later 2026-05-24 slice.
+
+### 2026-05-23 - Review File Header Status Glyph Slice
+
+Evidence:
+
+- Re-read the current Codex `codex-diff-css-CXZtaFdl.js` bundle. Codex maps default diff-header status icons through `data-change-icon`: `change` and rename variants use `diffs-icon-symbol-modified`/`diffs-icon-symbol-moved`, `new` uses `diffs-icon-symbol-added`, `deleted` uses `diffs-icon-symbol-deleted`, and plain `file` is only a lower-opacity fallback.
+- Orchestrator still rendered every Review file header with the same generic document icon, even when the header carried Codex-like `data-change-icon="change|new|deleted|rename-changed"` metadata.
+
+Implemented:
+
+- Replaced the generic Review file-header document icon with status-specific Codex-like filled SVG glyphs for modified, added, deleted, and renamed headers.
+- Sized the header glyph lane to Codex's 16px symbol box and kept colors driven by the existing `data-change-icon` styling.
+- Tightened focused and broad smoke coverage so `reviewFileSections` now requires a status-specific `data-codex-review-change-icon` glyph that matches the header's `data-change-type`.
+
+Verified:
+
+- `npm run build` passed after the status-glyph change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewFileSections` and `reviewFileHeaderMetrics`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779578913515.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779578913515.png`.
+- `npm run smoke:ui:auto` passed with broad `reviewFileSections`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779579009417.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779579009417.png`.
+- `git diff --check` passed after the status-glyph change.
+
+Remaining:
+
+- Review file headers now use Codex-like status glyphs instead of generic document icons. Remaining Review UI gaps are utility depth, pixel-level toolbar spacing, provider-native/last-turn review sources, external PR/reviewer-backed comments/blame metadata, and richer context-threshold behavior. Full-source blame was addressed by the later 2026-05-24 slice.
+
+### 2026-05-23 - Review Gutter-Owned Line Actions Slice
+
+Evidence:
+
+- Re-read the current Codex `codex-diff-css-CXZtaFdl.js` gutter interaction CSS. Codex positions `[data-gutter-utility-slot]` absolutely inside the number column and uses that gutter slot as the line utility anchor.
+- Orchestrator had already moved the add-comment action into the gutter, but still rendered Open-in-Workbench and Review-blame actions in a separate `.review-diff-line-actions` row after the code content whenever a line was selected.
+- That selected-line action row changed the diff body structure and did not match Codex's native diff utility model.
+
+Implemented:
+
+- Removed the separate selected-line `.review-diff-line-actions` row from Review diffs.
+- Anchored the secondary selected-line actions (`Open selected line in Workbench`, `Show/Hide review blame`) in a compact gutter-owned popover inside `[data-gutter-utility-slot]`, while keeping add-comment as the primary gutter utility button.
+- Fixed the Review blame detail grid placement so it stays in the code column of the two-column Codex-like diff row structure.
+- Added focused and broad smoke coverage for `reviewGutterActionPopover`, proving selected-line actions live under the gutter utility slot and the old selected-line action row is absent.
+
+Verified:
+
+- `npm run build` passed after the gutter-owned line actions change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewGutterActionPopover`, `reviewLineComments`, `reviewLineBlame`, and `reviewLineOpensFileSourceTab`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779579430028.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779579430028.png`.
+- `npm run smoke:ui:auto` passed with broad `reviewGutterActionPopover`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779579504003.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779579504003.png`.
+- `git diff --check` passed after the gutter-owned line actions change.
+
+Remaining:
+
+- Review line actions are now gutter-owned instead of body-row-owned. Remaining Review UI gaps are deeper PR/reviewer-backed comment integration, pixel-level toolbar spacing, provider-native/last-turn review sources, and richer context-threshold behavior.
+
+### 2026-05-23 - Review Toolbar Label Parity Slice
+
+Evidence:
+
+- Re-read the current Codex `review-header-toolbar-6CN1dM2m.js` bundle. Codex uses concise Review toolbar/menu labels: `Refresh`, `Enable/Disable word wrap`, `Enable/Disable rich preview`, `Load full files` / `Don't load full files`, `Hide/Show white space`, `Enable/Disable word diffs`, and split/unified diff labels.
+- Orchestrator still used older wording in Review toolbar buttons and menus, including `Refresh changes`, `Show preview`, `Load full file`, `Hide whitespace changes`, and `Show word diff`.
+
+Implemented:
+
+- Aligned Review toolbar and Review menu labels to the current Codex bundle wording.
+- Updated focused smoke expectations so preview, whitespace, word-diff, load-full-files, and refresh checks require the Codex labels.
+
+Verified:
+
+- `npm run build` passed after the toolbar label parity change.
+- `npm run smoke:ui:auto -- --diff` passed with `diffToolbarCompact`, `reviewToolbarHeaderRow`, preview, whitespace, word-diff, and load-full-file checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779579734313.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779579734313.png`.
+- `npm run smoke:ui:auto` passed with broad Review toolbar/menu checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779579805866.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779579805866.png`.
+- `git diff --check` passed after the toolbar label parity change.
+
+Remaining:
+
+- Review toolbar labels now match Codex's current bundle wording. Remaining Review UI gaps are deeper PR/reviewer-backed comment integration, provider-native/last-turn review sources, richer context-threshold behavior, and any pixel-level toolbar spacing differences only visible in live side-by-side comparison.
+
+### 2026-05-23 - Review Header Structure Re-check
+
+Evidence:
+
+- Re-read the current Codex `review-header-toolbar-6CN1dM2m.js`, `review-file-tree-side-pane-CGo_VDrf.js`, `review-mode-content-DupHpvO4.js`, and extracted `review-navigation-model-T6VawcmA.js` chunks after user feedback that the Review UI still did not match the Codex side-panel structure.
+- Codex's Review controls are a compact header action cluster (`Review options`, jump-to-file, refresh, word-wrap, expand/collapse, split/unified) associated with the Review header chrome, while the changed-files tree remains a right-side `border-l` pane with the search at the top.
+- The immediate intermediate Orchestrator correction moved controls into a separate visible band below the tabbar, but the screenshot showed that extra band still did not match Codex's header structure.
+
+Implemented:
+
+- Kept the Review body as Codex structures it: main diff content first, changed-files/search pane on the right.
+- Re-positioned embedded Review controls back into the same side-panel header row as the active Review tab, with stronger chrome layering so the action cluster is visible between the Review tab and the panel add/expand controls instead of becoming an extra content toolbar band.
+- Preserved the Codex-like compact action ordering and existing Review menu contents.
+- Re-tightened `reviewToolbarHeaderRow` to prove the Review toolbar aligns with the right-sidebar tabbar row and has at least six visible controls.
+
+Verified:
+
+- `git diff --check` passed after the header-structure correction.
+- `npm run build` passed after the header-structure correction.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewToolbarHeaderRow`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779580731023.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779580731023.png`.
+- `npm run smoke:ui:auto` passed with broad `reviewToolbarHeaderRow`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779580910273.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779580910273.png`.
+
+Remaining:
+
+- The Review header control cluster is structurally back in the Codex-style chrome row. Remaining Review gaps are provider-native/last-turn sources, deeper PR/reviewer-backed comment integration, richer context-threshold behavior, and live side-by-side pixel spacing checks.
+
+### 2026-05-23 - Review Header Action Host Correction
+
+Evidence:
+
+- Re-inspected the post-correction Review screenshot and confirmed the previous absolute/negative-offset header toolbar was still not structurally equivalent to Codex: the tab row appeared mostly empty and the controls were not reliably occupying shell header chrome.
+- Re-read the current Codex `review-header-toolbar-6CN1dM2m.js` and side-panel shell references. Codex treats Review controls as a compact header action cluster (`Review options`, jump-to-file, refresh, word-wrap, expand/collapse, split/unified) in the panel chrome, not as a content toolbar band.
+- The focused smoke needed to prove the toolbar was physically hosted by the active tab action area, not only visually near the tabbar.
+
+Implemented:
+
+- Added a Workbench active-tab action host in `ContextSidebar` and portaled embedded Review header controls into that host.
+- Removed the fragile negative-position toolbar behavior for embedded Review and disabled inline-size containment for the shell-hosted toolbar so the action slot reserves the real control width.
+- Updated Review smoke coverage so `reviewToolbarHeaderRow` proves the toolbar is contained by `right-panel-active-tab-actions`, the host is active for `diff`, and the controls sit in the tabbar row before the Workbench add/expand controls.
+- Updated Review jump-menu smoke selectors for the portaled toolbar structure while still querying the Review root for selected-file and changed-files pane state.
+
+Verified:
+
+- `git diff --check` passed after the active-tab action-host correction.
+- `npm run build` passed after the active-tab action-host correction.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewToolbarHeaderRow`, `reviewFileJump`, `reviewSidePaneChrome`, and `reviewSidePaneResize`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779581926224.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779581926224.png`.
+- `npm run smoke:ui:auto` passed with broad Review/header checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779581973286.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779581973286.png`.
+
+Remaining:
+
+- The Review toolbar now lives in shell-owned Workbench header chrome instead of a local overlay. Remaining Review work is functional depth and provider integration: provider-native/last-turn sources, PR/reviewer-backed comment flows, richer context-threshold behavior, and live pixel comparison against Codex in more window widths.
+
+### 2026-05-23 - Shared Active-Tab Action Host Slice
+
+Evidence:
+
+- Re-read current Codex side-panel shell references in `thread-app-shell-chrome-BVkAxLhy.js`, including `RightPanelTabListAfter`, `RightPanelTabListAfterSticky`, and the shell-owned tab/action slot pattern.
+- The preceding Review toolbar fix proved the right UI shape, but the implementation still used a one-off `ContextSidebar` DOM node (`right-panel-active-tab-actions`) instead of a reusable panel-tab primitive.
+
+Implemented:
+
+- Added `panelActiveTabActionsDomId(panelId)` and a shared `panel-active-tab-actions` outlet inside `PanelTabStrip`.
+- Moved the active-tab action host out of local `ContextSidebar` markup and into the shared tab strip action slot, with `data-panel-active-tab-actions`, `data-panel-id`, and `data-active-tab` evidence attributes.
+- Updated embedded Review to portal to the shared active-tab action outlet by panel id instead of a local hardcoded Workbench div.
+- Tightened `reviewToolbarHeaderRow` smoke evidence so the host must be shell-owned by the shared panel tab strip before the Review toolbar can pass.
+
+Verified:
+
+- `git diff --check` passed after the shared active-tab action host change.
+- `npm run build` passed after the shared active-tab action host change.
+- `npm run smoke:ui:auto -- --diff` passed with the Review toolbar still in the header action row; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779582165518.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779582165518.png`.
+- `npm run smoke:ui:auto -- --right-panel` passed with shared Workbench tab/chrome checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779582194730.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779582194730.png`.
+
+Remaining:
+
+- The active-tab header action outlet is now a shared Workbench tab-strip primitive. Remaining Workbench chrome parity is broader shell-controller ownership: root-level right-panel sizing/overlay/full-width state and cross-panel move/receive semantics. The later active `workbench-panel-*` selector cleanup supersedes the old wrapper-naming note.
+
+### 2026-05-23 - Review Provider Source Variants Slice
+
+Evidence:
+
+- Re-read current Codex Review source/navigation chunks (`review-mode-content-DupHpvO4.js`, `review-navigation-model-T6VawcmA.js`, and `review-header-toolbar-6CN1dM2m.js`). Codex has an explicit review-source/filter model around unstaged/branch review flows and header-owned source controls.
+- Orchestrator already supported local Git-backed All, Worktree/unstaged, Staged, Branch, and Commit sources. It did not expose the provider-native/last-turn/cloud/local/worktree source shape that Codex can show in native Review contexts.
+- There is still no Orchestrator provider adapter that can truthfully return cloud or last-turn diffs, so this slice preserves parity in UI structure without pretending unsupported sources work.
+
+Implemented:
+
+- Extended `ReviewDiffSource` with provider-native variants (`last-turn`, `cloud`, `local`, `worktree`) and renders those source rows in the Review source menu as disabled `Unavailable` options.
+- Kept only the locally implemented sources selectable and persisted; unsupported stored values fall back to `All`.
+- Added compact All/Worktree/Staged file-count badges to the Review source rows, using the local Git index/worktree state instead of asking users to infer staged/unstaged scope from the changed-file list.
+- Added defensive main-process Git handling so unsupported provider-native source ids return empty file/diff results instead of accidentally falling through to local Git diffs.
+- Tightened focused Review smoke coverage so provider-native source rows must be present, disabled, marked unavailable, and unable to mutate the current Review source.
+
+Verified:
+
+- `git diff --check` passed after the provider source variants change.
+- `npm run build` passed after the provider source variants change.
+- `npm run test:providers` passed, including `file diffs can be scoped to all, staged, or unstaged changes` with unsupported provider-native source assertions.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewSourceModes` and `reviewToolbarHeaderRow`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779582541437.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779582541437.png`.
+- `npm run smoke:ui:auto` passed with broad side-panel/header regression coverage; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779582595125.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779582595125.png`.
+- `npm run build` and `npm run smoke:ui:auto -- --diff` passed after adding source count badges; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779582805065.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779582805065.png`.
+
+Remaining:
+
+- Provider-native Review source rows are now honest, visible, and non-mutating when unsupported. Full parity still requires real provider adapters for last-turn/cloud/local/worktree diffs and any Codex-native request batching/abort semantics once those data sources are available in Orchestrator.
+
+### 2026-05-23 - Review Changed-Files Side Pane Shell Slice
+
+Evidence:
+
+- Re-read the current Codex `review-file-tree-side-pane-CGo_VDrf.js` bundle chunk. Codex renders the Review file-tree side pane as a right-side `border-l` shell pane, clamps it to 60% of the parent, keeps a 200px minimum, animates size/opacity, and hides the pane when resize falls below the minimum.
+- Orchestrator already had the right visual placement and file/search/tree content, but the pane was permanent and only clamped at its minimum width instead of behaving like a closeable shell pane.
+
+Implemented:
+
+- Added persisted per-repo Review side-pane visibility under `orchestrator.review.sidePaneVisible:*`.
+- Added a Review actions menu `Changed files` hide/show command plus a header restore button that appears only after the pane is hidden, keeping the normal visible toolbar aligned with Codex's compact action order.
+- Changed the resize path so dragging below the 200px minimum hides the changed-files pane instead of pinning it at the minimum.
+- Kept the pane shell mounted with a width/flex-basis/opacity transition and `data-review-side-pane-visible` evidence so restore behavior remains smoke-verifiable.
+- Extended focused Review smoke coverage so `reviewSidePaneResize` proves normal resize, hide-below-min, persisted hidden state, toolbar restore, and final reset.
+
+Verified:
+
+- `git diff --check` passed after the side-pane shell change.
+- `npm run build` passed after the side-pane shell change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewSidePaneChrome`, `reviewSidePaneResize`, `reviewToolbarHeaderRow`, and `reviewVisualCheckpointReset`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779583181797.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779583181797.png`.
+- `npm run smoke:ui:auto` passed with broad side-panel/header regression coverage; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779583234401.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779583234401.png`.
+- `npm run build` and `npm run smoke:ui:auto -- --diff` passed after hiding the restore button during the normal visible-pane state; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779583344286.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779583344286.png`.
+- `npm run smoke:ui:auto` passed after the final restore-button visibility adjustment; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779583396903.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779583396903.png`.
+
+Remaining:
+
+- Changed-files side-pane resize/hide/restore now follows the Codex shell behavior more closely. Remaining Review shell gaps are richer context-threshold behavior, provider-backed source flows, and exact live-width screenshot comparison against Codex across narrow and expanded Workbench states.
+
+### 2026-05-23 - Review Header And File-Tree Structure Recheck Slice
+
+Evidence:
+
+- Re-read the current Codex `review-header-toolbar-6CN1dM2m.js` chunk after user feedback that the Review UI still did not match Codex. The visible Review toolbar cluster is `Review options`, a divider, jump-to-file, refresh, word-wrap, expand/collapse, and split/unified diff controls; lower-priority review/file actions remain in menus.
+- Re-read the current Codex `review-file-tree-side-pane-CGo_VDrf.js` chunk. The changed-files pane content is a search-only top row (`Filter files...`) followed by the file tree, with sticky folder behavior in the file-tree model and the right-side `border-l` shell already covered by the previous slice.
+- The focused Orchestrator screenshot from `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779583688004.png` was inspected after the patch. It shows the Review toolbar hosted in the side-panel header, the main diff stack on the left, and the changed-files tree/search pane on the right.
+
+Implemented:
+
+- Re-introduced the Codex-like toolbar divider in the embedded Review header and kept the visible order aligned as `Review options`, divider, jump-to-file, refresh, wrap, expand/collapse, and diff mode.
+- Kept the changed-files pane mounted on the right while tightening the tree surface: sticky directories are now enabled for Review, row gap/radius are reduced, the active row material is quieter, and the search input height is tuned to the Codex-like pane search surface.
+- Updated the Review UI smoke expectation for the slightly taller Codex-like file-tree search field.
+
+Verified:
+
+- `npm run build` passed after the header/file-tree recheck.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewToolbarHeaderRow`, `reviewSidePaneChrome`, `diffWorkbenchTree`, and `reviewFileJump`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779583688004.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779583688004.png`.
+- `git diff --check` passed after the header/file-tree recheck.
+- `npm run smoke:ui:auto` passed after the header/file-tree recheck, proving the broader embedded Workbench path still passes Review, Files, Browser, Terminal, Settings, composer, and sidebar assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779583764153.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779583764153.png`.
+
+Remaining:
+
+- Review is now much closer structurally in the header and right file-tree pane. Remaining Review parity gaps are exact live Codex pixel comparison across widths, richer context-threshold behavior, provider-backed Review source flows, and external PR/reviewer comment integration.
+
+### 2026-05-23 - Workbench Right-Panel Close-Below-Min Slice
+
+Evidence:
+
+- Re-read the current Codex app-shell/right-panel references and `review-file-tree-side-pane-CGo_VDrf.js`; Codex's panel resize path hides the pane when the dragged size drops below the minimum instead of only clamping the panel width.
+- Re-checked Orchestrator's right-panel shell path in `ContextSidebar`: it already had shared resize handles, double-click reset, overlay mode, and tab preservation, but dragging below the minimum still behaved like a width clamp rather than a close/hide action.
+
+Implemented:
+
+- Added `setRightPanelOpen` to the session store so the Workbench right panel can close without destroying its tab stack or active-tab state.
+- Changed right-panel drag resizing so a below-minimum raw width hides the Workbench panel, clears full-width mode if needed, and preserves tabs for titlebar restore.
+- Updated the titlebar inspector toggle so a hidden Workbench panel with preserved tabs reopens those tabs instead of creating a fresh Review tab.
+- Added explicit `data-right-panel-open` evidence on the Workbench panel and focused smoke coverage for close-below-min plus restore, while keeping existing reset, expand, overlay, tab-order, close shortcut, and tab accessibility checks.
+
+Verified:
+
+- `npm run build` passed before focused smoke verification.
+- `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelCloseBelowMin`, `rightPanelResizeReset`, `rightPanelExpand`, `rightPanelNarrowOverlay`, tab reorder, close shortcut, inactive/middle-click close, focus fallback, and tab accessibility coverage; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779584202757.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779584202757.png`.
+- `npm run build` passed again after audit and smoke assertion updates.
+- `git diff --check` passed after the shell slice.
+- `npm run smoke:ui:auto` passed after the shell slice, including broad `rightPanelCloseBelowMin`, Review, Files, Browser, Terminal, Settings, composer, and sidebar regression checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779584277039.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779584277039.png`.
+
+Remaining:
+
+- Workbench right-panel hide/restore now matches the Codex close-below-min behavior at the shell state level. Remaining Workbench shell parity is root-level ownership of the right/bottom panel width model, edge-aware shared controller semantics, cross-panel move/receive behavior, and exact live Codex width/animation comparison.
+
+### 2026-05-23 - Review Diff Native Color Tone Slice
+
+Evidence:
+
+- Re-read the current Codex diff renderer references (`diff-unified-f1PAwyk9.js` and `codex-diff-css-CXZtaFdl.js`). Codex's native diff CSS uses subtle surface/color mixing for addition/deletion rows and number gutters instead of painting the entire code foreground bright red/green.
+- Inspected the latest focused Orchestrator Review screenshot after the header/file-tree work. The remaining obvious visual mismatch was the diff body: every added/deleted line used saturated red/green text, making the Review pane read unlike Codex even though the surrounding structure was closer.
+
+Implemented:
+
+- Changed Review diff line foregrounds so added/deleted code inherits normal text color while change state is carried by Codex-like tinted row backgrounds and gutter bars.
+- Added subtle addition/deletion number-gutter background tints matching Codex's separate diff-number surface treatment.
+- Added focused smoke coverage via `reviewDiffNativeColorCalm` to reject the old full-line red/green foreground treatment while preserving non-transparent change backgrounds and gutter tinting.
+
+Verified:
+
+- `npm run build` passed after the diff color change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewDiffNativeColorCalm` plus existing Review header, tree, diff row, gutter utility, source-mode, preview, and git-action assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779584518765.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779584518765.png`.
+- `git diff --check` passed after the diff color change.
+- `npm run smoke:ui:auto` passed after the diff color change, including broad `reviewDiffNativeColorCalm`, right-panel shell, Files, Browser, Terminal, Settings, composer, and sidebar regression checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779584589164.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779584589164.png`.
+
+Remaining:
+
+- Review diff color treatment now matches Codex's calmer native-diff direction. Remaining Review UI gaps are exact native diff renderer typography/gutter behavior, provider-native/last-turn source variants, external PR/reviewer comment integration, richer context-threshold behavior, and live side-by-side pixel comparison across widths.
+
+### 2026-05-23 - Review Diff Line-Number Gutter Structure Slice
+
+Evidence:
+
+- Re-read the current Codex native diff CSS in `codex-diff-css-CXZtaFdl.js`. Codex renders line numbers through a `[data-column-number]` gutter with a nested `[data-line-number-content]` span, `min-width: 3ch`, asymmetric number-column padding, and separate addition/deletion number foreground colors from the code line foreground.
+- The focused Orchestrator Review screenshot after the color-tone slice showed the code foreground was calmer, but the line-number gutter still did not expose Codex's nested number-content structure and still used a flex gutter layout.
+
+Implemented:
+
+- Wrapped Review diff line numbers in a `data-line-number-content` element with a `3ch` minimum width.
+- Changed the Review line-number gutter from flex layout to block layout so the nested content computes like Codex's native diff content span.
+- Matched Codex's number-column padding model more closely with `2ch` left padding and `1ch` right padding.
+- Added separate addition/deletion line-number foreground colors while keeping the code foreground neutral.
+- Added focused and broad smoke coverage via `reviewDiffLineNumberContent`, proving the nested line-number content exists, has a minimum rendered width, keeps asymmetric gutter padding, and gives addition/deletion number cells a distinct color from the code text.
+
+Verified:
+
+- `npm run build` passed after the line-number gutter change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewDiffLineNumberContent`, `reviewDiffNativeColorCalm`, `reviewDiffIndicatorStructure`, and the existing Review header/tree/gutter/comment/source-mode assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779584956232.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779584956232.png`.
+- `git diff --check` passed before broad smoke.
+- `npm run smoke:ui:auto` passed after the line-number gutter change, including broad `reviewDiffLineNumberContent`, right-panel shell, Files, Browser, Terminal, Settings, composer, and sidebar regression checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779585003914.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779585003915.png`.
+
+Remaining:
+
+- Review's line-number gutter now matches more of Codex's native diff DOM and metric model. Remaining Review UI gaps are broader native diff renderer behavior, especially virtualized hunk measurement, richer context-threshold behavior, provider-native/last-turn source variants, external PR/reviewer comments/blame metadata, and live side-by-side pixel comparison across widths. Full-source blame was addressed by the later 2026-05-24 slice.
+
+### 2026-05-23 - Review Hunk Separator Structure Slice
+
+Evidence:
+
+- Re-read the current Codex native diff CSS in `codex-diff-css-CXZtaFdl.js`. Codex renders hunk/separator rows through `[data-separator="line-info|line-info-basic"]`, a `[data-separator-wrapper]`, `[data-expand-button]`, and `[data-separator-content]`, with a 32px line-info rhythm and subtle separator surface.
+- The focused Orchestrator Review screenshot still showed hunk headers as compact blue text buttons, which made the diff body read less like Codex's native diff renderer even after the line-number gutter improvements.
+
+Implemented:
+
+- Converted Review hunk headers to emit Codex-like separator attributes: `data-separator="line-info-basic"` and `data-expand-index`.
+- Added a nested separator wrapper, a dedicated 32px expand gutter, and separator content around the hunk range and collapsed-line summary.
+- Restyled hunk rows from compact blue text buttons to 32px separator bands with calmer text and a subtle separator surface.
+- Updated focused and broad smoke coverage with `reviewHunkSeparatorStructure`, requiring the separator wrapper, expand gutter, content surface, 32px hunk height, and Codex-like data attributes.
+
+Verified:
+
+- `npm run build` passed after the hunk separator change.
+- The first `npm run smoke:ui:auto -- --diff` attempt timed out during Electron startup and did not produce assertion output; the immediate rerun passed.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewHunkSeparatorStructure`, `reviewDiffLineNumberContent`, `reviewDiffNativeColorCalm`, and existing Review header/tree/gutter/comment/source-mode assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779585212885.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779585212885.png`.
+- `git diff --check` passed after the hunk separator change.
+- `npm run smoke:ui:auto` passed after the hunk separator change, including broad `reviewHunkSeparatorStructure`, `reviewDiffLineNumberContent`, right-panel shell, Files, Browser, Terminal, Settings, composer, and sidebar regression checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779585254629.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779585254629.png`.
+
+Remaining:
+
+- Review hunk separators now follow Codex's native diff separator structure more closely. Remaining Review renderer gaps are virtualized hunk measurement, richer context-threshold behavior, provider-native/last-turn source variants, external PR/reviewer comments/blame metadata, and live side-by-side pixel comparison across widths. Full-source blame was addressed by the later 2026-05-24 slice.
+
+### 2026-05-23 - Review Hidden Context Separator Structure Slice
+
+Evidence:
+
+- Re-checked the current Codex native diff renderer evidence in `codex-diff-css-CXZtaFdl.js`, including the shared separator row attributes and `collapsedContextThreshold`/`expandUnchanged` renderer path. Codex treats hidden-context expansion as part of the diff separator system, not as a centered pill control.
+- The current Orchestrator Review still rendered hidden-context controls as local rounded controls even after hunk headers were converted to separator rows.
+
+Implemented:
+
+- Converted per-hunk hidden-context toggles and the aggregate hidden-context expand-all control to emit Codex-like `data-separator="line-info-basic"` and `data-expand-index` attributes.
+- Added the same nested separator wrapper, dedicated 32px expand gutter, and separator content structure used by the hunk separator rows.
+- Restyled hidden-context controls from centered rounded controls to full-width 32px separator bands so expanded context reads as part of the native diff body.
+- Added focused and broad smoke coverage with `reviewHiddenContextSeparatorStructure`, requiring the separator wrapper, expand gutter, content surface, and 32px metrics before hidden context expansion is accepted.
+
+Verified:
+
+- `npm run build` passed after the hidden-context separator change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewHiddenContextSeparatorStructure`, `reviewHiddenContextExpansion`, `reviewHiddenContextExpandAll`, `reviewHunkSeparatorStructure`, line-number gutter, native color tone, and existing Review assertions; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779585600464.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779585600464.png`.
+- `npm run smoke:ui:auto` passed after the hidden-context separator change, including broad `reviewHiddenContextSeparatorStructure`, `reviewHiddenContextExpansion`, `reviewHiddenContextExpandAll`, Review, Files, Browser, Terminal, Settings, composer, and shell regression checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779585638491.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779585638491.png`.
+
+Remaining:
+
+- Hidden-context controls now share the Codex-like separator structure with hunk rows. Remaining Review renderer gaps are virtualized hunk measurement, deeper context-threshold behavior, provider-native/last-turn source variants, external PR/reviewer comments/blame metadata, and live side-by-side pixel comparison across widths. Full-source blame was addressed by the later 2026-05-24 slice.
+
+### 2026-05-23 - Review Toolbar Primary Action Order Slice
+
+Evidence:
+
+- Re-read the current Codex `review-header-toolbar-6CN1dM2m.js` chunk. Codex's Review header exposes a compact primary action group: Review options, refresh, word wrap, expand/collapse diffs, and split/unified diff mode, with richer toggles kept in the Review options menu.
+- The current Orchestrator Review toolbar had moved many secondary controls into the options menu, but still carried local grouping chrome and the old non-embedded `Change actions` path, making the header read more custom than Codex.
+
+Implemented:
+
+- Removed the local `Change actions` header menu for non-embedded Review, so Review uses one options menu contract instead of two competing action menus.
+- Removed the local toolbar separator between Review options and the rest of the action strip.
+- Marked the Review toolbar action strip as the primary Review toolbar cluster and added smoke-visible action ids for Refresh and word wrap.
+- Added focused and broad smoke coverage with `reviewToolbarPrimaryOrder`, requiring the visible toolbar to start with Review options, Jump to file, Refresh, then include word-wrap, expand/collapse, and diff-mode controls without any `Change actions` affordance.
+
+Verified:
+
+- `npm run build` passed after the Review toolbar primary-order change.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewToolbarPrimaryOrder`, `reviewToolbarHeaderRow`, `diffToolbarCompact`, Review separator/gutter/comment/source-mode assertions, and existing Review preview checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779585918963.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779585918963.png`.
+- `npm run smoke:ui:auto` passed after the toolbar change, including broad `reviewToolbarPrimaryOrder`, Review, Files, Browser, Terminal, Settings, composer, and shell regression checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779585957201.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779585957201.png`.
+
+Remaining:
+
+- Review toolbar chrome is closer to Codex's primary action strip. Remaining Review gaps are full provider-native/last-turn source behavior, real provider population for PR/check/reviewer metadata, virtualized diff rendering, deeper context thresholds, provider-backed comments/blame metadata, and live side-by-side pixel comparison across widths. Full-source blame was addressed by the later 2026-05-24 slice.
+
+### 2026-05-23 - Review Gutter Blame Summary Slice
+
+Evidence:
+
+- Re-checked the current Codex bundle strings in `/Applications/Codex.app/Contents/Resources/app.asar` for `review.fileSource.gitBlame.*`; Codex describes git blame as showing author, date, and commit details in the line margin/gutter.
+- Re-used the existing Codex diff/source evidence around `data-line`, `data-column-number`, source line metadata, and selected-line gutter interaction instead of treating blame as a detached details card.
+- Orchestrator already showed selected-line Review blame details in the content column, but the line-number gutter had no visible blame-owned state across rendered current-file lines.
+
+Implemented:
+
+- Added compact gutter blame badges inside `.review-diff-line-number` for rendered current-file diff lines when Review blame is enabled, using `WT` for working-tree blame and initials/commit fallback for committed metadata.
+- Added a bounded visible-line blame cache that reuses the existing `git.blameLine` IPC path for the rendered new-line numbers instead of fetching blame only for the selected line.
+- Exposed structured gutter metadata with `data-review-gutter-blame-line`, `data-review-gutter-blame-source`, `data-review-gutter-blame-author`, `data-review-gutter-blame-commit`, and `data-review-gutter-blame-date`.
+- Kept the existing details card for Author/Commit/Date while adding gutter-owned visual state, so the Review line model now has both margin and detail affordances.
+- Added focused and broad smoke coverage with `reviewGutterBlameSummary`, requiring blame badges to live inside the line-number gutter, match the selected line, expose working-tree metadata, prove multiple rendered current-file gutter badges on a multi-line diff, and stay compact enough not to become content-column UI.
+
+Verified:
+
+- `npm run build` passed after the selected-line gutter blame change and again after expanding blame to rendered current-file lines.
+- `npm run smoke:ui:auto -- --diff` passed with `reviewGutterBlameSummary`, `reviewLineBlame`, Review toolbar/separator/gutter assertions, and existing Review preview checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779586780658.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-1779586780658.png`.
+- `npm run smoke:ui:auto` passed after the visible-line gutter blame change, including broad `reviewGutterBlameSummary`, Review, Files, Browser, Terminal, Settings, composer, and shell regression checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779586821735.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779586821735.png`.
+- `git diff --check` passed after the gutter blame change.
+
+Remaining:
+
+- This adds gutter-owned blame state for rendered current-file diff lines. Full-source selected-line/gutter blame was addressed by the later 2026-05-24 slice. Remaining Review blame gaps are richer hover tooltip depth, PR/reviewer-backed metadata, provider-native blame sources, plus the broader Review gaps: virtualized diff rendering, deeper context thresholds, last-turn/provider-native sources, and live side-by-side pixel comparison across widths.
+
+### 2026-05-23 - Sidebar Row Material Rhythm Slice
+
+Evidence:
+
+- Re-read the current Codex sidebar references (`sidebar-signals-DI3M13c-.js`, `sidebar-thread-list-signals-FpAb9VJn.js`, `sidebar-project-groups-DUHIVRJe.js`, plus app shell/main CSS tokens) and the focused Orchestrator sidebar screenshot.
+- The audit still called out row/header styling as too visibly custom: active rows, section spacing, and local action slots made the sidebar read heavier than Codex's tokenized list surfaces.
+
+Implemented:
+
+- Added explicit sidebar row material tokens for active and hover opacity (`--sidebar-row-active-opacity`, `--sidebar-row-hover-opacity`) instead of hardcoded stronger fills.
+- Reduced active row fill from 8% to 6%, hover fill from 5% to 4%, capped shared sidebar row radius at 7px, and tightened sidebar section top spacing from 4px to 2px.
+- Added focused smoke coverage for `sidebarRowsMaterialQuiet` and `sidebarSectionRhythm`, proving compact row height, calm material tokens, no row shadows, capped radius, and tight section rhythm.
+
+Verified:
+
+- `git diff --check` passed after the sidebar material/rhythm change.
+- `npm run build` passed after the sidebar material/rhythm change.
+- `npm run smoke:ui:auto -- --sidebar` passed with `sidebarRowsMaterialQuiet` and `sidebarSectionRhythm`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779581219803.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779581219803.png`.
+- `npm run smoke:ui:auto` passed after the sidebar material/rhythm change; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779581280121.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-main-1779581280121.png`.
+
+Remaining:
+
+- Sidebar row material is quieter and now token-enforced. Remaining sidebar gaps are hosted/cloud source identities, drag/drop custom section membership/order, provider-backed pinned state, and further reduction of local pin/action/status row slots.
+
 ## Highest Priority Gaps
 
 | Priority | Area | Difference | Why It Matters |
@@ -85,7 +5140,7 @@ Minimum completion bar for each implementation slice:
 | P0 | Shared shell | Codex uses a shared app shell for left/right/bottom panels; Orchestrator uses one-off panel implementations. | This is the root cause of inconsistent motion, sizing, focus, shortcuts, and chrome. |
 | P0 | Right panel tab controller | Codex tabs are controller-backed with open/update/close/move/reset/preview/pin semantics; Orchestrator tabs are mostly store arrays plus local handlers. | This blocks Codex-like file tabs, browser tabs, artifacts, terminal movement, preview tabs, and robust close behavior. |
 | P0 | Right panel content model | Codex right panel can host browser, review, file, artifact, PR, automation, MCP app, and terminal tabs through the same controller. Orchestrator has fixed Workbench content types plus local side-chat tabs. | Orchestrator needs panel extensibility before its UI will feel powerful instead of stitched together. |
-| P0 | Review/File viewer | Codex review supports modes, filters, split/unified diff, hunk expand/collapse, comments, file-source tabs, git blame, rich previews, and search. Orchestrator has a useful but much thinner Review/Files pair. | The right panel's most important productivity surface is far below Codex. |
+| P0 | Review/File viewer | Codex review supports modes, filters, split/unified diff, hunk expand/collapse, comments, file-source tabs, git blame, rich previews, and search. Orchestrator now covers many local Review/Files basics, but still lacks the full provider-backed review/file-source depth. | The right panel's most important productivity surface still needs deeper Codex-style review/source behavior. |
 | P0 | Browser panel | Codex keeps hidden transferable webviews, browser-use cursor/viewport state, device presets, local servers, and comment mode. Orchestrator embeds a simpler browser workbench. | Browser smoothness and persistence will keep feeling worse until lifecycle moves closer to Codex. |
 | P1 | Left sidebar information architecture | Codex supports project/connection/recent/all modes, custom sections, collapsed sections, server-backed pinned threads, projectless/cloud/pending-worktree grouping. Orchestrator is mostly local projects plus pinned/recent. | The left sidebar remains visually and structurally less capable. |
 | P1 | Settings/windows | Codex settings use page/surface/group/row primitives; Orchestrator settings remain a large modal with dense custom sections. | Settings will continue to feel messy unless rebuilt on shared settings primitives. |
@@ -99,20 +5154,20 @@ This section records the exact bundle-backed styling differences found on 2026-0
 
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
-| Token source | Codex relies heavily on semantic token classes such as `text-token-text-primary`, `text-token-text-secondary`, `text-token-description-foreground`, `border-token-border`, `bg-token-bg-fog`, `bg-token-input-background`, `h-token-button-composer`, `w-token-sidebar`, `h-toolbar`, and `px-row-x` / `py-row-y`. | Orchestrator has local CSS variables and maps some `--color-token-*` aliases, but most surfaces still use bespoke classes such as `right-sidebar-*`, `diff-panel-*`, `files-panel-*`, `browser-*`, `settings-*`, and `surface-row`. | Build one Orchestrator app token layer that all panes consume; reduce surface-specific colors/radii/weights to a minimum. |
+| Token source | Codex relies heavily on semantic token classes such as `text-token-text-primary`, `text-token-text-secondary`, `text-token-description-foreground`, `border-token-border`, `bg-token-bg-fog`, `bg-token-input-background`, `h-token-button-composer`, `w-token-sidebar`, `h-toolbar`, and `px-row-x` / `py-row-y`. | Orchestrator has local CSS variables and maps some `--color-token-*` aliases, but most surfaces still use bespoke classes such as `workbench-panel-*`, `diff-panel-*`, `files-panel-*`, `browser-*`, `settings-*`, and `surface-row`. | Build one Orchestrator app token layer that all panes consume; reduce surface-specific colors/radii/weights to a minimum. |
 | Default UI font | Codex rows and controls generally sit at `text-sm` or `text-base leading-[18px]` depending on the component primitive, with secondary descriptions usually `text-xs` or `text-sm`. File tree explicitly overrides to `13px`. | Orchestrator sets `--font-ui-size: 13px`, `--font-code-size: 13px`, but many local elements use 11px, 11.5px, 12px, 12.5px, 13.5px, 14px, and heavier local weights. | Normalize panel interiors around 13px body text, 12px secondary text, and avoid ad hoc half-pixel sizes unless a component primitive requires it. |
 | Font weight | Codex mostly uses normal text for rows, `font-medium` for pills/headings, and hides action emphasis until hover. | Orchestrator still uses 560/600/620/640/650/700 in many sidebar, settings, browser, file, and menu surfaces. | Lower row/control weights: active state should come from color/background, not boldness. Reserve 600+ for real section titles. |
 | Radii | Codex commonly uses `rounded-lg` for inputs/nav rows, `rounded-[7px]` for compact pills, toolbar-sized icon buttons, and fewer nested framed cards. | Orchestrator has `--radius-sm: 6px`, `--radius-md: 9px`, `--radius-lg: 13px`, and uses `radius-lg` frequently on settings rows, hover cards, side chat composer, local target cards, browser/error/cards. | Reduce large radii in dense work surfaces; use smaller radii for rows and compact controls, reserving large radii for dialogs/composer-level surfaces. |
 | Borders | Codex uses token borders sparingly and lets list primitives define hover/selection; many controls are borderless ghost buttons until active/hover. | Orchestrator often stacks borders: panel border, toolbar border, list border, selected row border, row separators, preview border, card border. | Remove nested hard frames where a parent already supplies separation. Use token border only at pane edges, major splits, and focused controls. |
 | Shadows | Codex right panel has shell-level shadow/elevation, not many inner shadows. | Orchestrator right panel has shell shadow in overlay/full states, and most inner surfaces now avoid shadows, but hover/menu/dialog shadows are still custom per surface. | Centralize popover/dialog shadows and avoid content-level shadows in Workbench/Sidebar rows. |
-| Motion | Codex app shell exposes animation progress/animated size and uses tab shimmer/loading states. | Orchestrator has CSS transitions and performance smoke budgets, but no shell-wide animated size or Codex-like tab shimmer/pending states. | Move motion into app-shell primitives so resizing, tab changes, loading, and pending states all share timing/easing. |
+| Motion | Codex app shell exposes animation progress/animated size and uses tab shimmer/loading states. | Orchestrator has CSS transitions, performance smoke budgets, and shared tab shimmer for live Agents/pending side-chat tabs, but no shell-wide animated size/progress model yet. | Move motion into app-shell primitives so resizing, tab changes, loading, and all pending states share timing/easing. |
 
 ### App Header And Main Chrome
 
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
 | Header ownership | Codex title/header tint and edge states are owned by app shell. | Orchestrator `Titlebar` and CSS own header rendering separately from panel shell. | Header should become another shell slot with shared height, tint, drag region, toolbar buttons, and scroll-edge behavior. |
-| Toolbar height | Codex uses shared toolbar classes such as `h-toolbar` and toolbar-sized buttons. | Orchestrator uses `--app-shell-toolbar-height: 34px`; settings topbar is 42px; Browser tab strip is 38px plus a 34px toolbar. | Keep top-level shell height shared; avoid nested browser/file toolbars that visually grow taller than Codex equivalents. |
+| Toolbar height | Codex uses shared toolbar classes such as `h-toolbar` and toolbar-sized buttons. | Orchestrator uses `--app-shell-toolbar-height: 34px`; settings topbar is 42px; Browser nested tab chrome now has `browserTabChromeCalm` smoke proof, but Browser still has a nested URL/find/status toolbar stack. | Keep top-level shell height shared; keep reducing nested browser/file toolbar layers that visually grow taller than Codex equivalents. |
 | Pills/chips | Codex compact pills use `inline-flex h-5 rounded-[7px] px-1.5 text-sm font-medium leading-[22px] tracking-[-0.12px]`. | Orchestrator has count badges at 16-20px with `font-weight: 700` and many pill-like provider/header controls with custom constraints. | Adopt one compact pill primitive with predictable height and typography; lower count badge weight. |
 | Tooltip behavior | Codex uses delayed tooltips on icon/action controls and keeps flyouts sized to content. | Orchestrator shared tooltips now delay, but some hover cards/flyouts remain custom and one-off. | Route Workbench, sidebar, settings, and terminal action hints through the same tooltip/flyout primitives. |
 
@@ -120,9 +5175,9 @@ This section records the exact bundle-backed styling differences found on 2026-0
 
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
-| Panel surface | Codex right panel is a shell-owned `aside` with thin border, `shadow-xl`, inner absolute pane, and `data-app-shell-focus-area="right-panel"`. | Orchestrator has `.motion-panel-right`, an `aside`, border-left, and focus attribute, but overlay/full-width behavior is CSS-local. | Keep the simple pane look but move sizing, focus, overlay/full mode, and animation into shared shell state. |
-| Width model | Codex stores a right-panel width ratio against main content and clamps at breakpoints. | Orchestrator now persists a ratio compatibility layer but still owns much of it in `ContextSidebar`. | Shell should own ratio width, pixel migration, min main width, narrow overlay, full width, and double-click reset. |
-| Panel naming | Codex calls the surface `right-panel`; user-facing language is panel/work surface. | Orchestrator still has `right-sidebar-*` classes and old `ContextSidebar` naming. | Continue using user-facing "Workbench Panel"; gradually retire `right-sidebar` naming from new code. |
+| Panel surface | Codex right panel is a shell-owned `aside` with thin border, `shadow-xl`, inner absolute pane, and `data-app-shell-focus-area="right-panel"`. | Orchestrator now wraps Workbench and Terminal in a shared `AppShellPanel` primitive with shell panel/surface/focus markers and shared border material, while content still includes the old `aside` and local wrapper classes. | Continue moving sizing, overlay/full mode, animation, and keyboard ownership from local panel components into shared shell state. |
+| Width model | Codex stores a right-panel width ratio against main content and clamps/hides at breakpoints. | Orchestrator now persists a ratio compatibility layer, smoke-proves double-click reset, clears stale width ratios when resetting to default width, smoke-proves narrow overlay, and hides/restores the Workbench panel when a resize drag drops below minimum while preserving tabs. | Shell should still own ratio width, pixel migration, min main width, narrow overlay, full width, and close-below-min semantics instead of leaving them in `ContextSidebar`. |
+| Panel naming | Codex calls the surface `right-panel`; user-facing language is panel/work surface. | Orchestrator active Workbench DOM/CSS/test selectors now use `workbench-panel-*` plus right-panel app-shell data attributes; `ContextSidebar` remains an internal component name. | Continue using user-facing "Workbench Panel"; rename the internal component during the larger route/window ownership cleanup. |
 | Nested chrome | Codex content tabs live under one panel tab controller. | Orchestrator Browser has its own separate tab strip inside the Workbench tab, and Files/Review have their own toolbars. | Browser tabs, file tabs, review tabs, artifact tabs, and terminal tabs should use the same panel-tab controller rather than nested local tab chrome where possible. |
 
 ### Workbench Tab Strip
@@ -130,96 +5185,96 @@ This section records the exact bundle-backed styling differences found on 2026-0
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
 | Controller API | Codex exposes `openTab`, `updateTab`, `activateTab`, `closeTab`, `closeActiveTab`, `reorderTab`, `moveTabTo`, `receiveMovedTab`, `resetTabState`, `pinTab`, `activeTabReactKey`, and `tabById`. | Orchestrator has a reusable `PanelTabStrip`, but tab state is still built by store arrays and local handlers. | Introduce a real panel-tab controller before adding more Workbench-specific tab behavior. |
-| Tab metrics | Codex tabs are toolbar-sized, overflow-aware, label-fading, and close controls appear on hover/focus for closable tabs. | Orchestrator uses 24px tab height, 11px labels, 500/560 weights, 6px radius, 7px x-padding. This is close, but active tabs still read more segmented than Codex. | Keep dimensions but lower active visual weight further; rely on controller state and subtle background. |
-| Action slots | Codex supports before-list, after-list, and sticky-after-list slots with measured reserve space. | Orchestrator approximates this with fixed action blocks and gradient fades. | Replace gradient guesswork with measured sticky slot reserve. |
+| Tab metrics | Codex tabs are toolbar-sized, overflow-aware, label-fading, and close controls appear on hover/focus for closable tabs. | Orchestrator uses 24px tab height, 11px labels, 500/520 weights, 6px radius, 7px x-padding, quieter 500-weight count badges, and now has smoke-proven inactive hover/focus close plus middle-click close. | Remaining differences are deeper drag/layout animation and residual surface-specific CSS rather than the core tab weight/close behavior. |
+| Action slots | Codex supports before-list, after-list, and sticky-after-list slots with measured reserve space. | Orchestrator `PanelTabStrip` now measures trailing action-slot width with `ResizeObserver`, exposes `data-panel-tab-actions-width`, reserves it in scroll padding, and no longer uses the fixed action fade overlay. | Add before-list/sticky-after-list variants when new tab surfaces need them; current Workbench/Terminal trailing action reserve is covered. |
 | Drag/reorder | Codex uses drag sensors, sortable context, separator visibility, and layout animation. | Orchestrator supports context-menu reordering and some drag metadata, but not full Codex behavior. | Complete drag reorder with measured hit targets and screenshot/perf coverage. |
-| Loading tabs | Codex supports shimmering tabs/labels for pending loads. | Orchestrator has no tab shimmer/pending tab visual. | Add loading/shimmer state to shared tabs for file/browser/artifact/pending provider tabs. |
+| Loading tabs | Codex supports shimmering tabs/labels for pending loads. | Orchestrator shared tabs support `data-shimmering`, and live Agents plus pending side-chat tabs now feed that state; `planAgentTabShimmer` smoke proves the live Agents tab shimmers in the Workbench strip. | Extend the same shimmer state to future file/browser/artifact tabs when their provider adapters expose pending load state. |
 
 ### Workbench Panel Style-Only Gaps
 
 | Dimension | Codex evidence | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
-| Shell material | Codex right panel is shell-owned and uses `bg-token-main-surface-primary`, `border-token-border`, `shadow-xl`, `h-toolbar-pane`, and an inner `grid-rows-[auto_minmax(0,1fr)]` panel structure. | Orchestrator `.motion-panel-right`, `.right-sidebar-chrome`, `workbench-panel-surface`, and embedded panel roots each set local backgrounds, borders, and overlay/full-width shadows. | Move Workbench material, border, overlay/full mode, and chrome background to one right-panel shell primitive. Panel content should not restate the same surface rules. |
-| Toolbar pane | Codex panel chrome uses compact toolbar rows with `h-toolbar-pane`, `gap-px`, `h-7` controls, `rounded-md`, `hover:bg-token-list-hover-background`, and `focus:bg-token-list-hover-background`. | Orchestrator uses `--app-shell-toolbar-height: 34px`, plus separate `.right-sidebar-tabbar`, `.diff-panel-toolbar`, `.files-panel-toolbar`, `.browser-toolbar`, `.browser-find-toolbar`, and terminal toolbar styles. | Create a single `ToolbarPane` / `PanelToolbar` primitive and migrate Workbench, Browser, Review, Files, Terminal, and Settings page headers to it. |
-| Tab visual language | Codex panel tabs use toolbar-row typography (`text-sm`, Electron `text-base` where needed), compact row padding, subtle active backgrounds, hover/focus-only close controls, measured sticky action slots, and scroll-to-active behavior. | Orchestrator `PanelTabStrip` is close, but `right-sidebar-*` overrides, count badges at `font-weight: 700`, gradient action fades, active segmented backgrounds, and context-menu-only reordering still make it feel custom. | Keep the shared strip but align it to Codex tab metrics: measured sticky slots, lower badge weight, quieter active state, close non-active tabs on hover/focus, middle-click close, drag reorder, and loading shimmer. |
-| Action buttons | Codex toolbar actions mostly use shared `size-7`, `rounded-md`, transparent border, description foreground, and token hover/focus backgrounds. | Orchestrator has shared buttons, but Workbench, Browser, Review, Files, Terminal, and sidebar action areas override sizes/colors with `!important`. | Add documented toolbar icon-button variants and remove panel-specific overrides. |
-| Search and address fields | Codex file/search input is `h-token-button-composer`, `rounded-lg`, `border-token-border`, `bg-token-bg-fog`, `text-base leading-[18px]`, with icon and clear button primitives. | Orchestrator has `WorkbenchSearchField`, `.inspector-search-field`, `.browser-address-field`, `.browser-find-search`, and settings search variants with different heights, radii, backgrounds, and font sizes. | Replace these with one tokenized search/address input primitive that supports search, URL, find, and shortcut capture modes. |
-| Tree/list rows | Codex workspace/review trees use a virtualized tree with `itemHeight = 28`, 13px text, small icon slots, sticky folders, selected-path reveal, hidden non-match search, and row hover/focus tokens. | Orchestrator Review and Files rows use `SurfaceRow`, visible separators, local directory/file row styling, hard status letters, and non-virtualized maps. | Build one `WorkbenchTree` primitive for Review, Files, file source tabs, artifacts, and any provider-backed trees. Styling parity depends on removing local row chrome. |
+| Shell material | Codex right panel is shell-owned and uses `bg-token-main-surface-primary`, `border-token-border`, `shadow-xl`, `h-toolbar-pane`, and an inner `grid-rows-[auto_minmax(0,1fr)]` panel structure. | Orchestrator `.motion-panel-right`, `.workbench-panel-chrome`, `workbench-panel-surface`, and embedded panel roots each set local backgrounds, borders, and overlay/full-width shadows. | Move Workbench material, border, overlay/full mode, and chrome background to one right-panel shell primitive. Panel content should not restate the same surface rules. |
+| Toolbar pane | Codex panel chrome uses compact toolbar rows with `h-toolbar-pane`, `gap-px`, `h-7` controls, `rounded-md`, `hover:bg-token-list-hover-background`, and `focus:bg-token-list-hover-background`. | Orchestrator now has `PanelToolbar` for Files, Review, Browser address/find/status/inspector toolbars, Workbench file-tab toolbars, structured file preview headers, and the Settings topbar while preserving compact rows and smoke-facing selectors; `PanelTabStrip` carries the same `data-panel-toolbar` contract for Workbench and Terminal tabbars. | Primitive adoption is covered for the audited toolbar rows; remaining work is larger shell/material and lifecycle parity rather than toolbar primitive adoption. |
+| Tab visual language | Codex panel tabs use toolbar-row typography (`text-sm`, Electron `text-base` where needed), compact row padding, subtle active backgrounds, hover/focus-only close controls, measured sticky action slots, and scroll-to-active behavior. | Orchestrator `PanelTabStrip` is close and now covers hover/focus close, middle-click close, drag reorder, active scroll, measured trailing action reserve, shimmer states, 520 active weight, 500 badge weight, and provider-neutral Workbench wrapper/test selectors. | Keep the shared strip but align the remaining details to Codex tab metrics: richer drag sensors/separators/layout animation, quieter active background, and less surface-specific wrapper CSS. |
+| Action buttons | Codex toolbar actions mostly use shared `size-7`, `rounded-md`, transparent border, description foreground, and token hover/focus backgrounds. | Orchestrator now has a documented shared `IconButton` / `ToolbarButton` toolbar variant, and Workbench/Terminal tabbar actions, Workbench file-tab actions, Browser inspector actions, Files actions, Review actions, the Plan goal disclosure, and sidebar section actions use it instead of local size overrides. | Audited toolbar/action override cleanup is covered; keep future action surfaces on the shared variant or a documented sibling variant. |
+| Search and address fields | Codex file/search input is `h-token-button-composer`, `rounded-lg`, `border-token-border`, `bg-token-bg-fog`, `text-base leading-[18px]`, with icon and clear button primitives. Codex shortcut capture uses a related compact read-only input variant: `h-token-button-composer w-36 rounded-lg border-token-border bg-token-input-background px-3 text-sm`. | Orchestrator now uses `WorkbenchSearchField` for Review, Files, Browser URL, Browser find, Settings shortcut search, Command Palette search, and transcript search, with shared wrapper/input/clear styling and field-kind metadata. Shortcut capture now uses a compact read-only input with Codex-matching prompt, width, rounded border, input background, and smoke metadata. | Extend the same primitive or a settings-field variant to future settings/page inputs. |
+| Tree/list rows | Codex workspace/review trees use a virtualized tree with `itemHeight = 28`, 13px text, small icon slots, sticky folders, selected-path reveal, hidden non-match search, and row hover/focus tokens. | Orchestrator Review and Files now share `WorkbenchTree` with 28-ish rows, 13-ish text, tree roles, quieter hover/active states, selected-row reveal, optional fixed-row virtualization, hidden-match ancestor projection, opt-in sticky directory rows for Files, and host-aware lazy expansion metadata for Files browsing. | Extend `WorkbenchTree` toward Codex's full tree model: row context menus across all tree consumers, richer loading state, and reuse in file source tabs/artifacts. |
 | Interior borders | Codex favors a single panel boundary plus toolbar/list boundaries only when they clarify hierarchy. File previews become first-class tabs instead of a permanent hard split. | Orchestrator Files has a permanent list/preview split, Review has a hard list/diff divider, Browser has nested tab/address/status/find/inspector rows, and fallback states often look card-like. | Reduce nested borders, promote previews to tabs, and keep only shell boundary, toolbar boundary, focused inputs, and true split handles. |
-| Menu/flyout surfaces | Codex uses translucent dropdown material (`bg-token-dropdown-background/90`), `ring-[0.5px]`, `rounded-xl`, `shadow-lg`/`shadow-xl-spread`, backdrop blur, and scale/translate entrance motion. | Orchestrator menus are compact, but Workbench tab menus, Browser action sections, Review/File action menus, and metadata flyouts are mixed local layouts on flatter surfaces. | Extend the shared Codex-like menu/flyout primitive to Workbench tabs, Browser history/zoom/data rows, Review metadata, file tree context menus, and side-chat actions. |
+| Menu/flyout surfaces | Codex uses translucent dropdown material (`bg-token-dropdown-background/90`), `ring-[0.5px]`, `rounded-xl`, `shadow-lg`/`shadow-xl-spread`, backdrop blur, and scale/translate entrance motion. | Orchestrator `MenuSurface` and sidebar session hover cards now use 12px translucent blurred material, 0.5px border/ring equivalent, shared shadow, and scale/translate entrance motion while preserving compact rows/content. | Continue applying the shared primitive/material to richer Browser history/zoom/data rows, Review metadata, file tree context menus, and side-chat actions. |
 | Browser chrome | Codex browser work is panel-shell integrated and its webviews are managed offscreen with containment, transfer, and browser/comment mode state. | Orchestrator Browser is a nested browser workbench with its own tab strip, URL toolbar, local target card, status row, find row, inspector tabs, and direct embedded webview lifecycle. | Browser parity requires a hidden webview manager and lighter panel-native browser controls; styling the current nested chrome will only partially help. |
-| Motion and focus | Codex shell exposes animated panel size/progress, central focus areas, tab panel focus, reduced-motion handling, and fullscreen cleanup when closing tabs. | Orchestrator has CSS width transitions and focus-area attributes, but focus, overlay/full-width motion, tab activation focus, and resize side effects are still local. | Move right-panel animation/focus into shell state so resizing, dragging, closing, opening, and shortcuts all feel like one system. |
+| Motion and focus | Codex shell exposes animated panel size/progress, central focus areas, tab panel focus, reduced-motion handling, and fullscreen cleanup when closing tabs. | Orchestrator has CSS width transitions and focus-area attributes; active tabpanel focus, fullscreen cleanup, close-active fallback, focused find routing, Browser address/reload/back/forward routing, focused Browser/right-Terminal/bottom-Terminal `Cmd+T` routing, and native menu enabled-state updates for focused panel commands are now shared, but overlay/full-width motion, resize side effects, packaged accelerator proof, and multi-window focus-switch proof remain incomplete. | Move right-panel animation/focus into shell state so resizing, dragging, closing, opening, and packaged cross-window command state feel like one system. |
 
 ### Review / Changes Interior
 
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
 | Toolbar row | Codex review toolbar rows use `flex items-center gap-2 px-[var(--padding-row-x)] py-[var(--padding-row-y)]`, `text-sm` truncated labels, toolbar buttons, and compact flyout pills. | Orchestrator `.diff-panel-toolbar` is 36px tall, gap 5px, padding 5px 8px, with search, count badge, preview toggle, and actions squeezed into one row. | Make Review toolbar a Codex-like action bar with consistent toolbar buttons and grouped flyouts instead of several local compact chips. |
-| Search field | Codex file search wrapper is `h-token-button-composer`, `rounded-lg`, `border-token-border`, `bg-token-bg-fog`, `text-base leading-[18px]`, search icon `icon-xs ms-2`, input borderless. | Orchestrator `.inspector-search-field` is 26px tall, 9px radius, local control background, 5px gap, 6px padding. | Use one file/search input primitive across Review, Files, Browser find, and settings shortcut search. |
-| File rows | Codex review/workspace file tree uses a custom `file-tree-container` with `itemHeight = 28`, `--trees-font-size-override: 13px`, `--trees-item-padding-x-override: 6px`, `--trees-level-gap-override: 0px`, and `--trees-item-row-gap-override: 10px`. | Orchestrator Review rows are 28px, but use `SurfaceRow`/local row CSS, status letters, visible separators, stronger selected outlines, and less capable tree behavior. | Replace Review/Files file lists with one virtualized tree/list primitive that matches Codex row metrics and hides non-match search results. |
-| Directory rows | Codex sticky folders come from the file tree model and inherit tree row styling. | Orchestrator `.diff-directory-row` uses local 26px height, 2px left border, control-bg, and 560 weight. | Remove the special heavy directory row styling; use the shared tree's folder row affordance. |
-| Diff viewer | Codex `file-diff` supports virtualized hunks, split/unified modes, line numbers, selected lines, annotations/comments, hunk separators, collapsed context, gutter utilities, rich preview, wrapping, whitespace, word diffs, and merge-conflict actions. | Orchestrator has a simpler `DiffLines` renderer with line wrap and preview toggle. | Treat diff parity as a component rewrite, not a toolbar tweak. Need virtualized diff model, hunk controls, split/unified, whitespace, word diff, comments, blame, and load-full-file controls. |
+| Search field | Codex file search wrapper is `h-token-button-composer`, `rounded-lg`, `border-token-border`, `bg-token-bg-fog`, `text-base leading-[18px]`, search icon `icon-xs ms-2`, input borderless. Codex shortcut capture is a read-only compact input with the same rounded token-field language. | Orchestrator Review, Files, Browser find, Browser URL, Settings shortcut search, Command Palette search, and transcript search now use `WorkbenchSearchField`; stale inspector-specific search CSS was removed. Shortcut capture now uses the related compact settings field contract and is smoke-gated by `settingsShortcutCaptureFieldShared=true`. | Continue migrating future settings/page fields to the shared input contract. |
+| File rows | Codex review/workspace file tree uses a custom `file-tree-container` with `itemHeight = 28`, `--trees-font-size-override: 13px`, `--trees-item-padding-x-override: 6px`, `--trees-level-gap-override: 0px`, and `--trees-item-row-gap-override: 10px`. | Orchestrator Review rows now render through `WorkbenchTree` with shared 28-ish/13-ish row metrics, `data-review-path`, keyboard navigation, and calmer active/hover styling, but still expose simpler status/decorations and do not hide non-matching tree branches like Codex. | Add Codex-like search projection, richer status/icon decoration handling, and virtualized review/file source state that scales to large changes. |
+| Directory rows | Codex sticky folders come from the file tree model and inherit tree row styling. | Orchestrator directory rows now inherit `WorkbenchTree` styling instead of bespoke heavy row chrome, and Files opts into sticky folder behavior with smoke proof under virtualized scroll plus lazy expansion/loading metadata. | Keep expanding shared tree behavior into Review/source/artifact consumers where useful. |
+| Diff viewer | Codex `file-diff` supports virtualized hunks, split/unified modes, line numbers, selected lines, annotations/comments, hunk separators, collapsed context, gutter utilities, rich preview, wrapping, whitespace, word diffs, blame, and merge-conflict actions. | Orchestrator has a simpler `DiffLines` renderer with line wrap, preview toggle, split/unified rendering, line-number gutters, selected-line state, local selected-line review comments, selected-line blame details plus rendered-current-line gutter blame summaries for current-file lines, inferred hidden-context expansion plus aggregate expand-all, global collapsed hunk summaries, per-hunk collapse toggles, hide-whitespace filtering, word-level changed-token highlighting, load-full-file source mode with Codex-like row/gutter source structure and full-source selected-line/gutter blame for current text diffs, and All/Worktree/Staged review source filters. File-source previews now have basic large-source virtualization, but Review diffs do not. | Treat full diff parity as a component rewrite, not a toolbar tweak. Need virtualized diff model, richer context thresholds, PR/reviewer-backed comments/blame metadata, and hosted/cloud review modes. |
 | Review metadata | Codex review toolbar includes PR status, checks, comments, reviewers, flyouts sized around `max-w-[420px]`, `max-h-[280px]`, compact `max-w-[220px]` reviewer flyouts. | Orchestrator Review does not expose PR/check/reviewer metadata. | Add provider-agnostic review metadata slots, with Codex mapping to PR/check/comment data where available. |
-| Screenshot finding | Current Orchestrator Review screenshot passes smoke but shows a crowded top toolbar, prominent row selection, plus/minus/status pills, and a hard list-to-diff divider. | Codex reference relies on a calmer tree and richer toolbar/flyout model. | Review should visually calm down while becoming functionally richer. |
+| Screenshot finding | Current Orchestrator Review screenshot now includes a Codex-like inline `Edited N files` transcript card before the full Review panel opens, plus the side-panel Review tab, compact header toolbar, changed-files right rail, local current-change Undo, and smoke-proven full-source line/gutter structure. | Codex reference uses that transcript card as the first review entry, then opens richer review/changing-files and file-source surfaces from it. | Continue calming exact spacing and finish provider checkpoint/last-turn Undo, PR/reviewer metadata, provider-native review sources, and richer diff behavior. |
 
 ### Files / File Viewer Interior
 
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
-| File tree | Codex workspace browser uses the same virtualized file tree with sticky folders, context menus, open targets, add-to-chat, copy path, and hidden non-match search mode. | Orchestrator Files has a local list and grouped rows. | Replace local list rendering with the shared file tree/list primitive. |
-| File identity | Codex opens files as first-class right-panel tabs with `file:<host>:<path>` identity, preview/pin behavior, and file-source tab state. | Orchestrator previews the selected file inside one Files panel. | Add file preview tabs and pin/preview promotion. Files panel should be a browser, not the only viewing surface. |
-| Layout | Codex avoids a heavy permanent split when a file is opened as a tab. | Orchestrator `.files-panel-body` is a hard grid split `minmax(140px, 0.42fr) minmax(0, 1fr)`, or a stacked split at narrow widths, with list border and preview border/header. | Move preview into tabs and reduce hard nested borders in the Files panel. |
-| Preview header | Codex file-source tabs use toolbar primitives and richer source controls. | Orchestrator file preview header is 34px, 11px text, 600 meta strip, and local action buttons. | Use the same toolbar/action primitives as Review and file-source tabs. |
-| Empty/fallback states | Codex empty/loading file tree states are compact list states and tab-level fallbacks. | Orchestrator fallback states are centered mini-cards or grid states with icon boxes and action buttons. | Make Workbench empty states quieter and row-like; reserve centered empty states for full blank panels. |
-| Screenshot finding | Current Files screenshot passes smoke but file names appear heavier/larger, the list and preview are visually separated by hard borders, and toolbar controls crowd the top. | Codex file browsing feels like a compact tree plus first-class file tabs. | Files needs both styling and lifecycle changes. |
+| File tree | Codex workspace browser uses the same virtualized file tree with sticky folders, context menus, open targets, add-to-chat, copy path, selected-path reveal, and hidden non-match search mode. | Orchestrator Files now renders through shared `WorkbenchTree` and keeps file actions, row context menus, sticky folders under virtualized scroll, selected-row reveal, search with ancestor directory projection, host-aware lazy directory expansion, double-click preview-tab open, first-class Workbench file-tab open, explicit Workbench-preview open-target metadata, native-title-free custom tooltip metadata, file-tab loading metadata, basic source search, local line annotations, selected-line blame details, and selected-line source reveal inside text file tabs. | Remaining gaps are external PR/reviewer-backed comments and broader workspace/global search refinements. |
+| File identity | Codex opens files as first-class right-panel tabs with `file:<host>:<path>` identity, preview/pin behavior, and file-source tab state. | Orchestrator now has host-aware `file:<encoded host>:<encoded path>` Workbench tabs with preview/pin promotion, legacy path-only decode compatibility, embedded Files opens previews through those Workbench file tabs rather than a permanent split, and file-source mode/wrap/selected-line state persists on the tab record. | Add richer source/artifact-specific state beyond the current basic source controls. |
+| Layout | Codex avoids a heavy permanent split when a file is opened as a tab. | Embedded Orchestrator Files now renders a single-column `data-files-layout="file-tabs"` browser; the older split preview remains only as a standalone/no-session fallback. | Keep reducing remaining nested borders/fallback states and migrate any future file preview affordances into tabs. |
+| Preview header | Codex file-source tabs use toolbar primitives and richer source controls, including visible open-target actions, source search, comments, and blame metadata. | Orchestrator structured file preview headers now use `PanelToolbar` with smoke proof across JSON, CSV, DOCX, and notebook previews in Workbench file tabs; those structured previews also expose Copy path, Copy raw, Open, and Reveal controls. File tabs support rich/source switching for text-backed rich previews, persisted source wrap/selected-line state, a visible preferred open-target badge, structured selected-line blame metadata/details, bounded source-line gutter blame badges, explicit file loading state, basic source search, selected-line reveal, local line annotations, and basic large-source virtualization. | Remaining file preview parity is external PR/reviewer-backed comment/blame metadata integration and broader search polish. |
+| Empty/fallback states | Codex empty/loading file tree states are compact list states and tab-level fallbacks. | Orchestrator now uses shared `WorkbenchTreeMessage` text rows for Files loading, searching, empty, and no-match states, replacing the older local icon-chip empty state. Other fallback states are still centered mini-cards or grid states with icon boxes and action buttons. | Extend the shared tree/list message primitive to future tree/list empty states; keep centered empty states reserved for full blank panels. |
+| Screenshot finding | Current Files smoke now proves the embedded Files surface is a compact tree/browser, filtered results preserve folder context, host-aware lazy directory loading works, sticky folders work under virtualized scroll, selected rows reveal, structured preview controls render, source search/annotations/reveal work in file tabs, and previews happen in Workbench tabs. | Codex file browsing feels like a compact tree plus first-class file tabs. | Remaining differences are external PR/reviewer-backed comments, deeper source controls, and file-tree lifecycle polish. |
 
 ### Browser Interior
 
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
-| Webview lifecycle | Codex `browser-sidebar-manager` keeps hidden webviews alive with `position: fixed`, offscreen/opacity state, `pointerEvents: none`, `contain: layout paint size style`, z-index `2147483647`, transfer between conversation ids, and resync on focus/visibility. | Orchestrator embeds the browser directly in `BrowserPanel`. | Browser smoothness parity requires a persistent hidden-webview manager, not just UI styling. |
-| Device presets | Codex has presets: responsive 390x844, 4k 2560x1440, laptop-l 1440x900, laptop 1024x768, Surface Pro 7 912x1368, iPad Air 820x1180, iPad Mini 768x1024, Surface Duo 540x720, iPhone 15 Pro Max 430x932, Pixel 8 412x915, iPhone 15 Pro 393x852, Galaxy S24 Ultra 384x824, iPhone SE 375x667. Bounds clamp to min 240x160 and max 4096x4096 with a 20px stage margin. | Orchestrator has viewport/device controls and local targets but not this exact preset/bounds system. | Adopt Codex-like preset list and clamp logic; make device stage math a tested utility. |
-| Browser tabs | Codex browser tabs are side-panel tabs managed by the app shell/browser tab state. | Orchestrator has a nested `.browser-tab-strip` with 38px height, 27px tabs, 12px/640 text, 9px radius, and separate close animation. | Browser nested tabs are visually heavier than Codex. Either promote pages to panel tabs or restyle nested tabs as a lighter toolbar segment. |
-| URL toolbar | Codex browser UI follows toolbar/action primitives and browser-use state. | Orchestrator toolbar is 34px with local address field, 9px radius, badge max 76px, 10.5px/650 text. | Normalize URL/search/action controls to the same toolbar input/button primitive used elsewhere. |
-| Local server list | Codex tracks local server routes and hidden server routes per conversation. | Orchestrator has local targets table/cards with a visible bordered container. | Make local target rows lighter and integrate lifecycle with browser tab state, hidden routes, and conversation identity. |
-| Browser modes | Codex supports browse/comment mode and coachmark state. | Orchestrator has side questions and inspector drawers but no browser comment mode. | Add provider-agnostic browser annotation/comment concept where supported. |
-| Screenshot finding | Current Browser screenshot shows a usable panel, but the nested tab strip, URL toolbar, and local servers card make the panel feel heavier than Codex. | Codex browser polish comes mostly from hidden-webview lifecycle and shell integration. | Prioritize lifecycle and shared controls before micro-adjusting local target cards. |
+| Webview lifecycle | Codex `browser-sidebar-manager` keeps hidden webviews alive with `position: fixed`, offscreen/opacity state, `pointerEvents: none`, `contain: layout paint size style`, z-index `2147483647`, transfer between conversation ids, and resync on focus/visibility. | Orchestrator now has a `BrowserWebviewManager` boundary that keeps per-tab webviews mounted across Browser tab switches and surface hide/show using fixed hidden containment for inactive tabs, with smoke-proven focus/visibility/show resync markers. | Browser smoothness parity still requires a shell-level manager for transfer between conversation ids/forks, capture state, and manager-owned bounds. |
+| Device presets | Codex has presets: responsive 390x844, 4k 2560x1440, laptop-l 1440x900, laptop 1024x768, Surface Pro 7 912x1368, iPad Air 820x1180, iPad Mini 768x1024, Surface Duo 540x720, iPhone 15 Pro Max 430x932, Pixel 8 412x915, iPhone 15 Pro 393x852, Galaxy S24 Ultra 384x824, iPhone SE 375x667. Bounds clamp to min 240x160 and max 4096x4096 with a 20px stage margin. | Orchestrator now uses the Codex preset dimensions for the current Browser workbench catalog, clamps custom/rendered viewport size to 240x160 through 4096x4096, and preserves browser-use capture bounds/scale evidence. | Remaining device parity is stage margin plus shell-level lifecycle and visible-webview geometry integration. |
+| Browser tabs | Codex browser tabs are side-panel tabs managed by the app shell/browser tab state. | Orchestrator hides the nested Browser tab strip in normal single-tab state and smoke-proves multi-tab Browser chrome at lighter Workbench-tab scale: strip <=34px, tabs <=26px, and font weight <=520. The right-panel visual checkpoint now resets Browser after command-routing checks so the normal screenshot does not preserve temporary nested tab chrome. | Architectural parity still points toward shell/browser tab state or panel-tab promotion, but the visible normal-state nested tab gap is narrowed. |
+| URL toolbar | Codex browser UI follows toolbar/action primitives and browser-use state. | Orchestrator Browser URL input now uses `WorkbenchSearchField` with a leading address badge and shared compact toolbar input metrics; Browser find already uses the same primitive. | Remaining Browser toolbar parity is mostly lifecycle and panel integration: hidden webview manager, lighter local targets, and shell-native page/tab state. |
+| Local server list | Codex tracks local server routes and hidden server routes per conversation. | Orchestrator now shows local targets as an unframed compact list with quiet hover/focus row actions while preserving sort, refresh, hide/unhide, and target navigation. | Integrate lifecycle with browser tab state, hidden routes, and conversation identity. |
+| Browser modes | Codex supports browse/comment mode, coachmark state, a floating comment editor workflow, region-like annotation behavior, original-preview behavior, design-tweak attachments, and unavailable messaging for pages that cannot be annotated. | Orchestrator now has Browser workbench comment mode with coachmark-dismissal state, availability markers, a shared unavailable message for failed pages, pending point and drag-region comment editors with Cancel/Send, transparent original-preview mode, design-tweak intent, and URL/title/point-or-region/comment-or-requested-design-change/visible-structure composer insertion only after send. | Add richer provider-produced annotations, actual provider application of design tweaks, and lifecycle integration. |
+| Screenshot finding | Current Browser smoke proves hidden webview persistence, hidden containment, lifecycle resync, unframed local target list chrome, single-tab Browser chrome without a nested tab strip, and multi-tab Browser behavior when explicitly opened. | Codex browser polish comes mostly from hidden-webview lifecycle and shell integration. | Continue toward shell-level manager ownership and shell-native browser tab state. |
 
 ### Chat Sidebar
 
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
-| Data model | Codex sidebar state persists organize mode, keep-projects-in-recent, projectless chats-first, thread-sort-key, section order, collapsed groups, collapsed standard sections, and collapsed custom sections. | Orchestrator has projects, pinned sessions, recent/created sorting, and project collapse. | Add provider-agnostic sidebar organization primitives: organize mode, standard/custom sections, section order, projectless chats, and collapsed state. |
-| Thread identity | Codex models local, remote, and pending-worktree thread keys; hover labels derive chat/project/branch/workspace hints; label color metadata exists. | Orchestrator `SessionItem` models local sessions with project/branch hover info after delayed hover. | Extend identity model beyond local project sessions and add label color/remote/pending worktree metadata. |
-| Pinned ordering | Codex merges server/provider pinned ids with local/pending thread keys, preserves pinned order, and excludes pinned ids from unpinned keys. | Orchestrator now preserves local `pinOrder`. | Keep local behavior but prepare adapter-backed pinned state for providers that support it. |
-| Row styling | Codex uses shared selectable/list row primitives and quieter tokenized row/header states. | Orchestrator `.surface-row` has transparent border, hover bg, active bg, active border, custom pin slot, right slot, state control, hover card, and several transitions. | Simplify row internals: fewer moving slots, quieter active border, and one shared selectable row primitive. |
-| Row metadata | Codex can show automation-run state, unread/loading/in-progress across local/remote/pending tasks, project labels, and branch/workspace hints. | Orchestrator shows running/waiting/error/unread dots/spinners and relative time. | Keep the useful local states but map them to a broader task status primitive. |
-| Hover card | Codex hover/action affordances are tied to thread action/menu primitives and tokenized tooltips. | Orchestrator hover card is a fixed 260-320px tooltip-style card showing only chat/project/branch after delay. | Good direction, but it should be a shared tooltip/popover primitive with provider-aware identity. |
-| Actions | Codex exposes Rename, Archive, Mark unread, Add/Edit automation, Copy working directory, Copy session ID, Copy deeplink, Copy as Markdown, Open in new window, Fork into local/same worktree/new worktree, and interrupt. | Orchestrator has rename/archive/copy ids/open/reveal-like actions but lacks many workflow actions. | Add missing actions through provider-agnostic command primitives. |
+| Data model | Codex sidebar state persists organize mode, keep-projects-in-recent, projectless chats-first, thread-sort-key, section order, collapsed groups, collapsed standard sections, collapsed custom sections, and active/selected sidebar keys. | Orchestrator now has local project grouping, a projectless Chats group for missing/stale and provider-projected projectless ids, merged local/provider-pinned rows, Codex app-server `thread/list` metadata projection for matching provider sessions, recent/created sorting, persisted project/recent/chronological/connection organize modes, provider-aware local/remote/cloud/remote-host/worktree/pending-worktree connection groups including provider-hosted worktree source metadata, selected sidebar key persistence for sessions/settings/capabilities, collapsed connection/project/projectless groups, collapsed built-in sections, and custom sections with persisted membership/collapse. | Add the remaining provider-agnostic primitives: automatic/live `thread/list` sync wiring, a non-app-server pin state boundary or provider-native pin adapters, richer hosted/cloud/remote-host reconciliation, real provider worktree metadata population, provider projectless adapters, and full projectless launch lifecycle. |
+| Thread identity | Codex models local, remote, projectless, and pending-worktree thread keys; hover labels derive chat/project/branch/workspace hints; label color metadata exists. | Orchestrator `SessionItem` now exposes local/remote/worktree/pending-worktree row metadata, stable session-id row metadata, provider id, provider-derived label color, provider projectless thread-id metadata, provider worktree source/root/host metadata, projectless "Chat" hover fallback, and project/branch hover info after delayed hover; Codex `source:"vscode"` thread-list rows now project as local provider identity instead of falling back to remote-looking provider-session metadata. Connection/project modes promote those identities into provider-aware, provider-hosted worktree, or projectless groups, and new-worktree forks now transition from pending to ready rows with failed-row retry. Worktrees settings now inventories app-managed worktrees with linked conversations, can create local app-managed worktree chats with explicit project/base/branch controls, and can open linked chats from the inventory. | Extend real provider adapters to automatically feed `thread/list`, populate hosted/cloud source ids and provider-native worktree metadata, and reconcile provider-owned labels/actions. |
+| Pinned ordering | Codex merges server/provider pinned ids with local/pending thread keys, preserves pinned order, and excludes pinned ids from unpinned keys. | Orchestrator now merges local `pinOrder` with provider-projected `providerPinned` / `providerPinOrder` rows, normalizes Codex-style `local:`, `remote:`, and `pending-worktree:` pinned thread keys, exposes provider pinned keys in row metadata, and excludes provider-pinned rows from unpinned groups. | Real provider pin list/set RPC adapters still need to fetch and mutate provider-backed state. |
+| Row styling | Codex uses shared selectable/list row primitives and quieter tokenized row/header states. | Orchestrator session/project/nav rows now use `SidebarListRow`, and active sidebar rows use a transparent-border token background. Custom pin slot, right slot, state control, hover card, and several transitions remain. | Continue simplifying row internals: fewer moving slots, shared action/status slots, and provider-aware row metadata. |
+| Row metadata | Codex can show automation-run state, unread/loading/in-progress across local/remote/pending tasks, project labels, label colors, and branch/workspace hints. | Orchestrator shows running/waiting/error/unread dots/spinners, relative time, provider-derived label color markers, row identity metadata, paused/active/next-run automation row metadata, and running automation row metadata backed by persisted automation records and scheduler execution. | Remaining row metadata work is hosted/cloud/provider-specific row states. |
+| Hover card | Codex hover/action affordances are tied to thread action/menu primitives and tokenized tooltips. | Orchestrator hover card is a fixed 260-320px tooltip-style card showing only chat/project/branch after delay, now with Codex-like translucent/blurred material and motion. | Good visible direction; remaining work is primitive consolidation and provider-aware identity. |
+| Actions | Codex exposes Rename, Archive, Mark unread, Add/Edit automation, Run now/Pause/Resume/Delete automation lifecycle actions, Copy working directory, Copy session ID, Copy deeplink, Copy as Markdown, Open in new window, Fork into local/same worktree/new worktree, and interrupt. | Orchestrator has rename/archive, local mark unread/read, Add/Edit plus Run now/Pause/Resume/Delete automation actions for session-targeted heartbeat records, schedule editing for manual/interval/RRULE modes, scheduler-backed due execution, Automations settings page with Current/Paused/Run history sections, automation permission snapshot capture/execution for session permission mode and tool allow/deny lists, copy folder/project/repo/session/provider/branch ids, copy deeplink, copy transcript markdown, open in new window, stop chat for active/waiting sessions, local/same/new-worktree fork actions, pending-to-ready new-worktree fork rows, failed pending-worktree retry, app-managed worktree cleanup scoping, and Worktrees settings inventory/create/open/delete. | Remaining action gaps are provider-backed remote/deployed semantics and provider-native worktree switch/launch actions. |
 
 #### Chat Sidebar Style-Only Gaps
 
 | Dimension | Codex evidence | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
 | Left rail material | Codex Electron styles make `.app-shell-left-panel` a shell surface using `color-mix(... editor-background 55%, transparent)` and extend that material under the main surface with a `:after` strip sized to `--radius-2xl`. | Orchestrator `.app-sidebar` is a fixed 264px rail with `var(--panel-bg)`, `blur(22px)`, and local width constraints. | Move left rail material into shell tokens: sidebar background, edge blending, main-surface radius/ring, and opaque/translucent modes should be shared with the app shell instead of local sidebar CSS. |
-| Width and spacing tokens | Codex defines `--spacing-token-sidebar: clamp(240px, 300px, min(520px, calc(100vw - 320px)))`, `--padding-row-x: 8px`, and row height from `--height-token-nav-row`. | Orchestrator hardcodes 264px and mixes `px-2`, `px-2.5`, `px-3`, `space-y-1`, `h-7`, and custom margins. | Replace fixed rail and ad hoc section padding with sidebar width/row/panel tokens so spacing scales like Codex. |
+| Width and spacing tokens | Codex defines `--spacing-token-sidebar: clamp(240px, 300px, min(520px, calc(100vw - 320px)))`, `--padding-row-x: 8px`, and row height from `--height-token-nav-row`. | Orchestrator now uses a shared clamp-based `--orchestrator-sidebar-width` token instead of hardcoded 264px, but still mixes `px-2`, `px-2.5`, `px-3`, `space-y-1`, `h-7`, and custom margins. | Continue replacing ad hoc section padding with sidebar row/panel tokens so spacing scales like Codex. |
 | Row primitive | Codex sidebar-adjacent rows use shared list/selectable classes such as `rounded-lg`, `px-row-x`, `py-row-y`, `text-sm`, `hover:bg-token-list-hover-background`, and focus outline tokens. | Orchestrator session rows are `SurfaceRow` plus `.session-row-*` local CSS, active border mixing, fixed pin slot, fixed right slot, and status/action overlays. | Build a `SidebarListRow` primitive: one row shell, one icon/meta slot, one action slot, token hover/active/focus states, no per-row border unless selected/focused needs it. |
 | Active/hover state | Codex derives emphasis mostly from token backgrounds and foreground changes; action emphasis stays hidden until hover/focus or menu open. | Orchestrator active sessions still use a visible border and custom surface mixing; project headers and footer rows each define their own active/hover language. | Use a quieter token active state across session, project, nav, footer, and settings-nav rows; active state should not add a strong outline-like border. |
 | Section chrome | Codex standard sections, custom sections, and import/status cards use compact `min-h-7`, `rounded-lg`, `border-token-foreground/5`, `bg-token-foreground/[0.01]`, and `p-1`/`p-2.5` wrappers. | Orchestrator has `sidebar-section`, project sections, pinned sections, empty project states, and capability/settings rows with separate local margins and font weights. | Normalize section labels, separators, empty states, and status cards around the same compact section primitive; remove one-off section spacing. |
-| Menus and flyouts | Codex dropdown/context/popover surfaces use `bg-token-dropdown-background/90`, `ring-[0.5px] ring-token-border`, `rounded-xl`, `shadow-xl-spread`/`shadow-lg`, `backdrop-blur-sm`, and open animation from translate 2px + scale `.98`. | Orchestrator shared menu rows are compact now, but the surface is a flatter 8px `PopoverSurface` with local shadow/background tokens and no Codex-like translucent ring/scale motion. | Evolve `MenuSurface`/popover styling to match Codex dropdown material and motion, then apply it to sidebar organize/project/chat menus and hover surfaces. |
+| Menus and flyouts | Codex dropdown/context/popover surfaces use `bg-token-dropdown-background/90`, `ring-[0.5px] ring-token-border`, `rounded-xl`, `shadow-xl-spread`/`shadow-lg`, `backdrop-blur-sm`, open animation from translate 2px + scale `.98`, shared section labels/rows, shared dropdown message rows for no-match/empty content, reusable banner/notice surfaces with optional leading visuals and CTAs, and dialog-layout content/header/body/footer primitives. | Orchestrator `MenuSurface` now matches the shared material/motion direction and has `filesActionMenuMaterial` smoke proof; sidebar session hover cards have `hoverCardMaterial` proof; composer worktree/agent/permission dropdowns now use the same translucent material, 0.5px ring direction, 12px radius, shared menu shadow, and bounded viewport sizing; Review file-jump and source-ref empty rows now use shared `MenuMessage`; Review metadata flyout rows now use shared `MenuSection`, `MenuSectionLabel`, and `MenuRow`; Browser action-menu section labels/separators now use shared `MenuSection` and `MenuSectionLabel`; Browser history and zoom rows now use shared `MenuRow`; Browser local-target/inspector fallback rows use shared `PanelMessage`; Browser load-error/recovery uses shared `PanelNotice` and shared `Button` actions; Browser inspector target/assets/security action controls now use shared `Button` and `IconButton`; Browser inspector target/assets/security containers now use shared `InspectorSection`, `InspectorDisclosure`, and `InspectorRow`; Files action/context menus, Workbench file-tab action menus, and right/bottom shell tab context menus now use shared `MenuSection` and `MenuSectionLabel`; Files binary/unreadable fallback actions and Review binary fallback actions now use shared `PanelNotice` plus shared `Button`; confirm/text-input/rename/automation dialogs now use shared dialog content/header/footer/field primitives; Settings shortcut capture now uses the compact shared-field styling. | Apply the shared material/message/section/row/notice/dialog/inspector primitives to remaining file-tree section menus, specialized sheet-style editors, platform-specific shortcut capture live edge cases, and any remaining specialized local flyouts or fallback/action groups that still bypass the shared surface. |
 | Action buttons | Codex button primitive handles ghost/icon/toolbar sizes, `[data-state=open]` background, Electron cursor behavior, and opacity reveal via group hover/focus. | Orchestrator uses shared `IconButton`, but sidebar section actions, project actions, row actions, pin buttons, and footer rows override sizes/colors individually. | Remove sidebar-specific button overrides by adding sidebar action-button variants to the shared button primitive. |
 | Pin/status/timestamp choreography | Codex rows tend to reveal actions through opacity and keep status/metadata tied to the row primitive. | Orchestrator currently has a persistent left pin slot plus a right slot that swaps timestamp/status/actions. It is functional, but visually busy and layout-specific. | Decide whether pin belongs in the same action slot as row actions or a slimmer leading icon state; keep timestamp/status/action swaps opacity-only and tokenized. |
-| Hover card | Codex tooltips/popovers use shared dropdown/tooltip surfaces with token foreground/background and motion. | Orchestrator uses `.session-hover-card` fixed custom tooltip styling with its own border, width, and row grid. | Rebuild the sidebar hover card on shared tooltip/popover primitives, with only chat name, project, and branch content. |
+| Hover card | Codex tooltips/popovers use shared dropdown/tooltip surfaces with token foreground/background and motion. | Orchestrator `.session-hover-card` now uses Codex-like translucent rounded/blurred/shadowed material and motion, with only chat name, project, and branch content. | Remaining hover-card work is primitive consolidation, not visible material/content shape. |
 | Sidebar nav/settings mode | Codex settings/window sidebars use page/window primitives and nav rows with the same row tokens. | Orchestrator's left settings nav is directionally liked, but it lives as a mode swap inside the same custom rail and still uses local row style. | Keep the left settings nav shape, but migrate both chat and settings nav rows onto shared sidebar row tokens so switching modes does not change visual language. |
 
 ### Terminal / Bottom Panel
 
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
-| Shell integration | Codex bottom panel uses the same app-shell tab controller and focus routing as right panel. | Orchestrator Terminal uses `SessionPane` local terminal tabs and `terminal-panel-*` CSS. | Migrate Terminal onto the shared panel-tab controller. |
-| Placement | Codex can route terminal panels based on right/bottom panel state. | Orchestrator terminal is bottom-only. | Add terminal-as-panel-tab support where it improves workflow. |
-| Header styling | Codex toolbar/header styling is shared. | Orchestrator terminal header is close to Workbench tab tokens but still separate selectors. | Remove Terminal-specific tab/header CSS after shared controller migration. |
-| Runtime robustness | Codex terminal has service snapshots, error boundaries/reload UI, keyboard behavior, theme/font integration, and link handling. | Orchestrator has basic xterm lifecycle, clear/hide/new tab, and guarded fit/open paths. | Add terminal error state, service snapshots, copy/paste/new-tab keyboard parity, theme integration, and link routing. |
+| Shell integration | Codex bottom panel uses the same app-shell tab controller and focus routing as right panel. | Orchestrator Terminal now lives in a dedicated `TerminalPanel` shell component with `data-app-shell-panel="bottom"` ownership markers, shared `PanelTabStrip` tab/controller semantics, tabpanel focus routing, lifecycle telemetry, drag/context reorder, close-active cleanup, and the shared tabbar toolbar contract. | Finish migration into a broader root shell controller that owns right and bottom panel placement together. |
+| Placement | Codex can route terminal panels based on right/bottom panel state. | Orchestrator can move terminal tabs between the bottom panel and right Workbench panel, and focused right/bottom terminal tabs route `Cmd+T` to the appropriate terminal target. | Broader root shell ownership should make right/bottom placement feel like one controller rather than coordinated local components. |
+| Header styling | Codex toolbar/header styling is shared. | Orchestrator terminal tabbar is shared through `PanelTabStrip`, smoke-proves `terminalToolbarShared`, is contained by the dedicated shell panel component, and uses shared `app-shell-panel-chrome` instead of terminal-local header CSS. | Fold the remaining right/bottom placement ownership into the broader root shell controller. |
+| Runtime robustness | Codex terminal has service snapshots, error boundaries/reload UI, keyboard behavior, theme/font integration, line-height/content spacing, and link handling. | Orchestrator now has terminal service snapshots, terminal exit/error UI, reload actions, copy/paste/new-tab shortcuts, terminal-to-Workbench Browser link routing, pipe-backed fallback content when native PTY startup fails, live theme/font option sync from Appearance tokens into xterm, exact VS Code terminal color-token matrix mapping, and Codex-matched xterm content spacing. | Add exact live Codex bottom-panel height/open-close/resize animation comparison. |
 
 ### Settings
 
@@ -229,16 +5284,16 @@ This section records the exact bundle-backed styling differences found on 2026-0
 | Nav grouping | Codex groups settings into App and Host sections and uses icon rows with `px-row-x`, `py-row-y`, `text-base`, `rounded-lg`, `font-normal`, plus collapse support. | Orchestrator has left nav sections but fewer host-aware groups. | Add host/provider grouping, collapsed nav behavior, and consistent nav row primitive. |
 | Settings row | Codex `SettingsRow` default is `flex items-center justify-between gap-4 p-3`; label is `text-sm text-token-text-primary`; description is `text-sm` or `text-xs` for nested; nested rows use `min-h-10 px-4 py-0.5`. | Orchestrator `.settings-row` is a bordered card with `radius-lg`, `padding: 11px 13px`, label 13px/650, description 12px; groups use 156px label column and custom panels. | Codex rows are simpler and less card-like. Lower label weight, remove per-row card borders where inside a surface, and use p-3 row rhythm. |
 | Settings surface | Codex `SettingsSurface` wraps related content and allows overflow-hidden tables/lists. | Orchestrator `.settings-panel` is close but combines custom compact settings and card rows. | Build explicit `SettingsPage`, `SettingsSurface`, `SettingsGroup`, `SettingsRow`, `SettingsFieldRow` components and migrate content section by section. |
-| Shortcuts | Codex shortcuts are editable: table with `text-sm`, columns, hover-only action icons, capture input `h-token-button-composer w-36 rounded-lg border-token-border bg-token-input-background px-3 text-sm`, conflict detection, reset/clear. | Orchestrator shortcuts are mostly a reference section. | Implement editable shortcuts with capture/conflict/reset UI. |
+| Shortcuts | Codex shortcuts are editable: table with `text-sm`, columns, hover-only action icons, capture input `h-token-button-composer w-36 rounded-lg border-token-border bg-token-input-background px-3 text-sm`, conflict detection, reset/clear. | Orchestrator shortcuts are editable with custom multi-binding, per-binding clear/remove, disabled-default state, reset, conflict detection, shifted-punctuation/code normalization, shared toolbar icon actions, and a compact read-only capture input with `settingsShortcutCaptureFieldShared=true` smoke proof. | Remaining shortcut work is live/platform-specific capture comparison against Codex and any future provider/host command-scope rules, not basic edit/capture UI. |
 | Appearance/theme | Codex has richer appearance, font, appshot/browser-use/computer-use/plugin/MCP/worktree pages using shared settings primitives. | Orchestrator has expanded custom theming, but it is not as broad or structured as Codex. | Expand theme/font/chrome controls after settings primitives are in place. |
 
 ### Menus, Dialogs, Flyouts, And Empty States
 
 | Dimension | Codex reference | Orchestrator current state | Gap / target |
 | --- | --- | --- | --- |
-| Menus/flyouts | Codex flyouts have predictable widths: review check flyouts around `max-w-[420px]`, reviewer compact flyouts `max-w-[220px]`, comment flyouts `w-[420px] max-h-[280px]`, section lists `max-h-[104px]`. | Orchestrator shared menu surfaces now have bounded 8px-radius flyouts, 28px/13px/400 menu rows, scroll max-height, and no hover translation; sidebar, Review, Files, Capabilities, and simple Browser action/context rows assert these basics. Some richer local rows, metadata flyouts, and dialog actions still need migration. | Continue centralizing section labels, separators, metadata flyouts, and dialog action styles on the same primitives. |
+| Menus/flyouts | Codex flyouts have predictable widths: review check flyouts around `max-w-[420px]`, reviewer compact flyouts `max-w-[220px]`, comment flyouts `w-[420px] max-h-[280px]`, section lists `max-h-[104px]`, and shared labels/message rows for menu sections and empty/no-match content. | Orchestrator shared menu surfaces now have Codex-like material, bounded flyouts, 28px/13px/400 menu rows, shared menu sections/labels/rows/messages, shared compact dialog layout, scroll max-height, and no row hover translation; sidebar, Review, Files, Capabilities, Browser action/context rows, Settings shortcut action/capture controls, and current compact dialogs assert these basics. Some metadata flyouts, file-tree menus, platform-specific shortcut capture live edge cases, and sheet-style editors still need migration. | Continue centralizing file-tree section menus, message rows, metadata flyouts, platform-specific shortcut capture behavior, and dialog/sheet action styles on the same primitives. |
 | Icon buttons | Codex uses toolbar-sized ghost buttons and hides row action buttons with `opacity-0 group-hover:opacity-100`. | Orchestrator uses shared icon buttons, but local browser/actions/settings/sidebar code often overrides sizes and weights. | Stop overriding icon button metrics per surface except for documented sizes. |
-| Dialogs | Codex dialogs use dialog-layout primitives and compact content. | Orchestrator confirm/text-input/rename/generic modal dialogs now share compact dialog surface/content/input/action classes; larger sheet-style editors still use sheet primitives. | Keep dialog smoke coverage on shared classes and migrate any newly added local modals to the shared dialog primitive. |
+| Dialogs | Codex dialogs use dialog-layout primitives and compact content/header/body/footer composition. | Orchestrator now has shared `DialogContent`, `DialogHeader`, `DialogFooter`, and `DialogField` primitives. Confirm, text-input, rename, and automation edit dialogs use those primitives while preserving existing behavior; larger sheet-style editors still use sheet primitives. | Keep dialog smoke coverage on shared classes and migrate any newly added local modals or specialized dialog bodies to the shared dialog primitive where they are true dialogs rather than sheets. |
 | Empty states | Codex empty/loading states are compact and surface-specific: file tree empty is list-level, settings loading is row/table-level, browser has native browser-sidebar states. | Orchestrator often uses card-like centered empty states inside panels. | Use compact in-panel empty states unless the whole page is empty. |
 
 ### Efficiency / Rendering Implications
@@ -256,11 +5311,11 @@ These are the concrete UI targets before declaring sidebar/workbench parity:
 
 1. Move all Workbench, Terminal, and nested browser/file tab chrome onto one tab/controller primitive.
 2. Replace Review and Files local list styling with a shared 28px-row, 13px-text virtualized tree/list primitive.
-3. Replace `inspector-search-field`, `files-panel-search`, Browser find/search, and shortcut search with one Codex-like search input primitive.
+3. Continue extending the shared input/field contract beyond Review, Files, Browser URL/find, Settings shortcut search, command palette, transcript search, and shortcut capture to future settings fields.
 4. Reduce Workbench interior font weights: row labels normal/500, active tabs 500-560 max, badges/pills medium rather than 700.
 5. Remove heavy nested borders from Files/Review/Browser interiors; keep only panel boundaries, toolbar boundaries, and focused inputs.
 6. Promote file previews to first-class preview/pinned panel tabs and remove the permanent hard Files split as the primary file-viewing path.
-7. Restyle Browser nested tabs or promote pages to panel tabs; current 38px strip and 12px/640 tab labels are visibly heavier than Codex.
+7. Continue browser lifecycle parity: nested tab chrome is now smoke-proven calmer, but page tabs still need shell/browser-tab state or eventual panel-tab promotion.
 8. Rebuild settings rows/pages on `SettingsPage` / `SettingsSurface` / `SettingsGroup` / `SettingsRow` equivalents; keep the left nav, which is already directionally right.
 9. Extend the shared Codex-sized flyout/menu primitive from sidebar, Review, Files, Capabilities, and simple Browser action rows to shortcuts, richer Browser/history/zoom rows, Review metadata, file tree sections, and any remaining local action menus.
 10. Add screenshot checkpoints for the exact surfaces above before marking any parity item complete.
@@ -273,13 +5328,13 @@ These are the concrete UI targets before declaring sidebar/workbench parity:
 | --- | --- | --- |
 | `AppShell.Root` extracts left panel, right panel, bottom panel, header, right-panel tabs, bottom-panel tabs, and outlets from one slot system. | `SessionPane` composes primary chat, `ContextSidebar`, and bottom terminal directly. | Orchestrator lacks a real shell slot model. |
 | Shell context tracks header widths, left panel width, main content width, shell width, right panel animated width, and layout ticks. | `ContextSidebar` measures `session-main-row` with `ResizeObserver`; `SessionPane` handles terminal separately. | Panel layout knowledge is scattered and harder to stabilize. |
-| Right panel uses `data-app-shell-focus-area="right-panel"` as part of central focus state. | Orchestrator sets the attribute, but does not have the full central focus-area event/shortcut model. | Attribute exists without the same behavioral system. |
+| Right panel uses `data-app-shell-focus-area="right-panel"` as part of central focus state. | Orchestrator sets the attribute and now uses shared resolvers for close-active-panel-tab and focused find routing from main/right/bottom focus. | Full focus-area routing for every panel command is still incomplete. |
 | Codex right panel width is ratio-based against main content, with default size and storage key semantics. | Orchestrator persists pixel width and clamps against a primary-content minimum. | Resizing feels less adaptive across window sizes. |
 | Codex panel animation exposes progress and animated size so dependent layout updates during motion. | Orchestrator uses CSS transitions on width/height and local resize state. | Layout can lag or feel less integrated during motion. |
 | Codex handles breakpoints centrally and moves focus/collapses panels when shell width changes. | Orchestrator has `shouldOverlayPanel` local logic in `ContextSidebar`. | Narrow-window behavior is local and easier to regress. |
-| Codex full-width mode is a width mode inside shell state. | Orchestrator full-width is absolute overlay style with `right-sidebar-expanded`. | Similar end state, different architecture and more special CSS. |
+| Codex full-width mode is a width mode inside shell state. | Orchestrator full-width is absolute overlay style with `workbench-panel-expanded`. | Similar end state, different architecture and more special CSS. |
 | Codex right panel is an `aside` with thin border, `shadow-xl`, and inner absolutely positioned pane. | Orchestrator uses `MotionPanel` plus an `aside` flex surface. | Orchestrator is close visually but not structurally identical. |
-| Codex resize handle is shared, edge-aware, pointer-scale aware, and supports double-click reset. | Orchestrator `PanelResizeHandle` is simple and surface-specific. | Missing reset, close-below-min, and shared semantics. |
+| Codex resize handle is shared, edge-aware, pointer-scale aware, supports double-click reset, and hides the panel below minimum width. | Orchestrator `PanelResizeHandle` supports right-panel and terminal double-click reset, and right-panel reset plus close-below-min restore now have smoke proof. | Remaining gap is moving those semantics into a shared edge-aware shell controller instead of keeping Workbench-specific logic in `ContextSidebar`. |
 
 ### Tab Controller And Tab Strip
 
@@ -292,18 +5347,18 @@ These are the concrete UI targets before declaring sidebar/workbench parity:
 | Codex tabs support `onBeforeClose`, `onClose`, `onMove`, per-tab context menu items, trailing content, highlighted icons, label-only tabs, and shimmering tabs. | Orchestrator has move left/right/close menu and fixed labels/icons/counts. | Missing many lifecycle and presentation states. |
 | Codex can move tabs between right and bottom panels. | Orchestrator terminal tabs are bottom-only; Workbench tabs are right-only. | No cross-panel tab movement. |
 | Codex drag-reorders tabs with sortable sensors and layout animation. | Orchestrator reorders only by context menu. | Less fluid and less discoverable. |
-| Codex close affordance appears on hover/focus and can close non-active tabs; middle-click closes closable tabs. | `TabButton` renders close only for active tab. | Non-active close behavior differs. |
+| Codex close affordance appears on hover/focus and can close non-active tabs; middle-click closes closable tabs. | `TabButton` exposes hover/focus close for inactive tabs and middle-click close for closable tabs, now covered by `rightPanelInactiveClose` and `rightPanelMiddleClickClose` smoke checks. | Basic close affordance parity is covered; remaining differences are visual weight and sticky action-slot measurement. |
 | Codex tab row has before-list, after-list, and sticky-after-list slots with measured reserve space. | Orchestrator has a fixed tab row plus fixed action area and CSS fade. | Sticky action behavior is approximate. |
 | Codex tab overflow has hidden scrollbars, intersection-observer edge fades, and scroll-to-active. | Orchestrator uses overflow-x and a pseudo fade before actions. | Works partially, but lacks robust active-tab visibility and edge detection. |
-| Codex activates tab panels and focuses the active `tabpanel`. | Orchestrator activates state but does not centralize tab panel focus. | Keyboard flow is weaker. |
-| Codex exits fullscreen if a closed tab owns fullscreen content. | Orchestrator has no equivalent. | Closing media/browser/file tabs can be less robust. |
-| Codex logs side panel open/close/viewed telemetry. | Orchestrator has smoke/perf hooks but no equivalent product telemetry. | Harder to track UX quality in real use. |
+| Codex activates tab panels and focuses the active `tabpanel`. | Orchestrator `PanelTabStrip` now links tabs and panels with stable ids/ARIA and focuses the active Workbench or Terminal `tabpanel` after activation; close-active-panel-tab also falls back from main focus to an open panel; focused find routes to Review, Files, file-source, and Browser find targets. | Basic tab-to-panel focus, close-target, and find-target parity is covered; broader focus-area shortcut arbitration remains. |
+| Codex exits fullscreen if a closed tab owns fullscreen content. | Orchestrator now exits fullscreen for Workbench and Terminal tab close paths, including shared tab close and global close-active-tab commands. | Basic fullscreen cleanup parity is covered; cross-window shell lifecycle remains broader work. |
+| Codex logs side panel open/close/viewed telemetry. | Orchestrator now records shared `panel.tab.opened`, `panel.tab.closed`, and `panel.tab.viewed` metrics for Workbench and Terminal tabs, with panel id, tab id, and tab count metadata. | Shared tab lifecycle telemetry is covered; product-level side-panel analytics remain incomplete. |
 
 ### Workbench Header/Chrome
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Codex panel chrome is highly tokenized with toolbar-size buttons, subtle active backgrounds, and shared app-shell styling. | Orchestrator has improved but still uses `right-sidebar-*` CSS and local token overrides. | Styling still reads as custom patchwork. |
+| Codex panel chrome is highly tokenized with toolbar-size buttons, subtle active backgrounds, and shared app-shell styling. | Orchestrator has improved but still uses `workbench-panel-*` CSS and local token overrides. | Styling still reads as custom patchwork. |
 | Codex action buttons are mostly icon-only with delayed tooltips and stable sizes. | Orchestrator uses shared `IconButton`, but panel-specific CSS sometimes overrides size and active states. | Close but still inconsistent across Workbench, Terminal, Browser, and Settings. |
 | Codex keeps tab labels visible and adds local text fades for overflow. | Orchestrator keeps labels visible now, but truncation/fade behavior is simpler. | Long tab labels are less polished. |
 | Codex action slots reserve space so tabs do not disappear under controls. | Orchestrator's action block uses a gradient overlay. | It can still feel cramped with many tabs. |
@@ -314,27 +5369,27 @@ These are the concrete UI targets before declaring sidebar/workbench parity:
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Review model supports `unstaged`, `staged`, `branch`, `commit`, and `last-turn` sources. | Orchestrator Review shows current changed files for a session/workdir. | Missing review source modes. |
-| Codex has `diff-filter` storage and staged/unstaged counts from index info. | Orchestrator preserves staged/unstaged data in backend but removed inline controls from Review to match placement. | Need proper Git surface and review filters, not toolbar clutter. |
-| Codex can review against base branch or commit. | Orchestrator has no base branch/commit picker. | Missing core review workflows. |
+| Review model supports `unstaged`, `staged`, `branch`, `commit`, and `last-turn` sources. | Orchestrator Review now supports All, Worktree/unstaged, Staged, Branch, and Commit local Git sources for file filtering and selected-file diffs; Last turn is backed by normalized provider `diff.updated` events; Local provider source rows are enabled for local sessions; Worktree provider source rows are enabled for worktree sessions; Cloud remains visible but unavailable without a cloud diff adapter. Source selection still lives in Review options instead of a permanent toolbar strip. | Still missing cloud/hosted provider diff adapters and richer source-picker UX. |
+| Codex has `diff-filter` storage and staged/unstaged counts from index info. | Orchestrator preserves staged/unstaged data in backend, persists the selected local source/ref per repo, shows local All/Worktree/Staged counts inside the compact Review options menu, and safely falls back if a stored unsupported source is encountered. | Need provider-backed filter state and a fuller Git surface. |
+| Codex can review against base branch or commit. | Orchestrator now has branch and commit review refs as compact picker-backed controls inside Review options, with recent branch and current-branch commit options from the Git bridge plus typed-ref fallback. | Provider-backed source adapters remain. |
 | Codex batches `review-diff` requests, aborts stale path requests, retries, and handles large diffs. | Orchestrator calls file diff APIs per selected file without the same request model. | Less scalable on large changes. |
 | Codex has live git refresh/watch paths for index/head/working-tree changes. | Orchestrator refreshes manually and through session events. | Less reactive and robust. |
-| Codex Review toolbar has Review options, Refresh, word wrap, expand/collapse all diffs, split/unified diff mode, and Copy git apply command. | Orchestrator now has Refresh, line wrap, preview toggle, Copy git apply command, Open, Reveal, Copy path. | Still missing expand/collapse, split/unified, whitespace, word diff, load-full-files, rich-preview parity. |
-| Codex supports hide/show whitespace and word diffs. | Orchestrator has no whitespace/word-diff controls. | Diff readability gap. |
-| Codex supports rich preview toggles and load-full-files. | Orchestrator has explicit preview/diff toggle but no load-full-files model. | Partial parity only. |
+| Codex Review toolbar has Review options, jump-to-file, Refresh, word wrap, expand/collapse all diffs, split/unified diff mode, Copy git apply command in the options menu, and an inline transcript review card as the entry point. | Orchestrator now has a compact visible toolbar with Review options, icon-only jump-to-file, Refresh, word wrap, global expand/collapse all diffs, and split/unified diff mode; lower-priority rich preview, load-full-files, white-space, word-diffs, Copy git apply command, Open, Reveal, and Copy path actions are menu-owned with Codex wording. Copy git apply now emits a Review-level heredoc over all loaded local Review diffs instead of only the selected file. The changed-files side pane now has Codex-like left-edge resizing with persisted width, provider-native source rows are state-aware, branch/commit refs use compact pickers inside Review options, and the transcript/empty-chat path renders a Codex-like `Edited N files` card with totals, file rows, Show more, local current-change Undo, and a Review action. | Still missing provider checkpoint/last-turn Undo behavior, cloud/hosted provider-backed source behavior, and richer context-threshold behavior. |
+| Codex supports hide/show whitespace and word diffs. | Orchestrator now has focused hide-whitespace and word-diff controls for the current text-diff renderer. | Basic readability control parity is covered; full Codex diff-engine behavior still depends on the larger virtualized diff rewrite. |
+| Codex supports rich preview toggles and load-full-files. | Orchestrator has explicit preview/diff toggle plus load-full-file source mode for text-capable Review files. | Partial parity remains around file-source tab state and deeper source/view controls. |
 | Codex has changed-file side pane with search and active file path sync. | Orchestrator has grouped file rows and filter search. | Good start, but not as integrated with global find/navigation. |
-| Codex supports comments and PR code review comments in diffs. | Orchestrator has no line comments or PR comment surfaces. | Large missing review capability. |
-| Codex file source tabs support line selection, gutter utilities, comments, and git blame. | Orchestrator Files/Review previews do not support blame, line selection, or comments. | File viewer is much thinner. |
-| Codex can open workspace file tabs in the right panel from review/file tree. | Orchestrator Files is one panel, not many file tabs. | Missing Codex-style file tab lifecycle. |
-| Codex has open-in-editor target preference. | Orchestrator has open/reveal only. | Missing preferred editor target model. |
+| Codex supports comments and PR code review comments in diffs. | Orchestrator now has local selected-line Review comments in the current text-diff renderer, including draft/save UI and line-side metadata. | Still missing external PR/reviewer-backed comment loading and publishing. |
+| Codex file source tabs support line selection, gutter utilities, source search, comments, and git blame. | Orchestrator Review diffs and text file-source previews now support selected lines, source wrap, selected-line copy reference, selected-line reveal, open selected line with visible preferred-target diagnostics, structured selected-line blame metadata including working-tree state, a selected-line inline source action strip, selected-line blame details in file-source tabs and Review diffs, rendered-current-line gutter blame summaries in Review diffs, bounded source-line gutter blame badges in Workbench file-source tabs, explicit file loading state, basic source search, local line annotations, local Review line comments, selected Review line handoff into Workbench source tabs, and basic large-source virtualization. | Still missing external PR/reviewer-backed comments/blame metadata and broader workspace/global search polish. |
+| Codex can open workspace file tabs in the right panel from review/file tree. | Orchestrator can open Files and Review entries as Workbench file tabs with preview/pin lifecycle, and selected current-file Review lines can open Workbench source tabs with the selected/revealed line preserved. | Basic file-tab lifecycle and selected-line handoff are covered; deeper provider-backed source-tab behavior remains. |
+| Codex has open-in-editor target preference. | Orchestrator has preferred editor settings, routes `openPath` through system, VS Code, VS Code Insiders, Cursor, or Zed when configured, and surfaces the active open target plus availability in file tabs. | Basic file-tab target visibility is covered; broader context-menu/open-with parity remains. |
 
 ### Files / File Viewer
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Codex file viewer is a first-class right-panel tab type with `file:<host>:<path>` identity. | Orchestrator has one `FilesPanel` and previews selected entry inside it. | Missing per-file tabs and preview tabs. |
-| Codex file viewer supports Copy path, Open in editor, rich view, word wrap, git blame, and artifact preview controls. | Orchestrator supports basic open/reveal/copy and previews common formats. | Missing advanced file-viewer controls. |
-| Codex workspace tree/search is server-backed and host-aware. | Orchestrator recently moved workspace search main-process side, but panel UI is still simpler. | Backend improved; UI still behind. |
+| Codex file viewer is a first-class right-panel tab type with `file:<host>:<path>` identity. | Orchestrator now has host-aware Workbench file tabs with preview/pinned state, persisted source mode/wrap/selected-line/reveal state, explicit file loading state, structured artifact header controls, and an embedded file-tab-first Files flow, while the standalone/no-session Files panel still has an inline preview fallback. | External PR/reviewer-backed comments and broader search polish remain. |
+| Codex file viewer supports Copy path, Open in editor, rich view, word wrap, git blame, comments, and artifact preview controls. | Orchestrator supports open/reveal/copy/add-to-chat, preferred-editor open routing including selected-line targets, visible preferred open-target diagnostics, many rich previews, structured artifact Copy path/Copy raw/Open/Reveal controls, source/rich toggle for text-backed rich previews, source wrap, selected-line copy references, selected-line reveal, selected-line inline source actions, selected Review line handoff into Workbench source tabs, structured selected-line blame metadata/details in file-source and Review diffs, rendered-current-line gutter blame summaries in Review diffs, bounded source-line gutter blame badges in Workbench file-source tabs, local line annotations, local Review line comments, and basic source line selection for text files. | Missing external PR/reviewer-backed comments/blame metadata and broader search polish. |
+| Codex workspace tree/search is server-backed and host-aware, and source search is attached to opened file-source tabs. | Orchestrator workspace search is main-process side, host-tagged, and Files now uses lazy empty-query browsing with expanded-directory requests, selected-row reveal, recursive filtered search, explicit file-preview loading metadata, and basic source search inside text file tabs. | Remaining tree/search gaps are broader workspace/global search refinements and tree lifecycle polish. |
 | Codex previews image, markdown, PDF, notebooks, docs, artifacts, and source through specialized panels. | Orchestrator previews many formats but mostly inside Files/Review panels. | Similar coverage, less tab/lifecycle polish. |
 
 ### Browser
@@ -342,18 +5397,18 @@ These are the concrete UI targets before declaring sidebar/workbench parity:
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
 | Codex Browser uses a `browser-sidebar-manager` with hidden persistent webviews. | Orchestrator browser lives directly inside `BrowserPanel`. | Switching/transfer/persistence likely less smooth. |
-| Codex can transfer a webview between conversation ids. | Orchestrator has no webview transfer model. | Forks/side chats/browser continuity are weaker. |
-| Codex tracks browser-use active state, viewport size, capture surface size, and cursor state. | Orchestrator has browser workbench state, device mode, policies, inspector, and tabs, but not the full browser-use state bridge. | Browser automation UI is less native. |
-| Codex has responsive device presets with robust size clamping and visual/webview bounds. | Orchestrator has viewport controls, but not the same preset/bounds system. | Device testing feels less mature. |
-| Codex tracks local server routes and hidden server routes per conversation. | Orchestrator has local targets but less integrated route lifecycle. | Local app testing surface differs. |
-| Codex has browser comment mode and coachmark state. | Orchestrator has side questions, not browser comments. | Missing browser review/comment workflow. |
-| Codex keeps offscreen webviews alive with opacity/pointer-events/layout containment tricks. | Orchestrator does not use the same hidden webview lifecycle. | Performance and visual continuity gap. |
+| Codex can transfer a webview between conversation ids. | Orchestrator now transfers Browser workbench state on fork, including active URL/tabs/history/device/manager state, and clears transient browser-use overlay state from the source. | Local fork DOM webview transfer is now covered by the later 2026-05-24 Browser cross-host DOM transfer slice; side-chat/fork-turn transfer metadata remains weaker. |
+| Codex tracks browser-use active state, viewport size, capture surface size, and cursor state. | Orchestrator now has provider-agnostic browser manager bridge state plus a `browser.manager_state` run-event contract/reducer for browser-use active/turn id, viewport, capture surface, cursor state, capture bounds, manager-owned smoke evidence, Codex app-server adapter parsing for the current browser-use notification channels, and a local no-mutation smoke for the visible tab/webview/URL/composer boundary. | Real live provider-emitted Codex/browser-use proof still remains, non-Codex providers still need adapters if they expose browser-use payloads, and deeper automation behavior remains. |
+| Codex has responsive device presets with robust size clamping and visual/webview bounds. | Orchestrator now uses the Codex preset dimensions and viewport clamps in the current Browser workbench, measures the visible Browser stage, derives visual/webview bounds plus scale for device previews, and applies scaled logical webview content inside the visible frame. | Fully body-attached shell-owned webview geometry, route lifecycle, and hidden-webview lifecycle still differ. |
+| Codex tracks local server routes and hidden server routes per conversation. | Orchestrator now has conversation-scoped local server route state, route rows under local targets, and route removal/hiding behavior covered by Browser smoke. | Deeper provider-owned local-server lifecycle and hidden-server adapters remain incomplete. |
+| Codex has browser comment mode, coachmark state, a floating comment editor workflow, preview-original behavior, design-tweak attachment flow, and unavailable messaging. | Orchestrator has browser comment mode with coachmark-dismissal state, unavailable messaging for failed pages, point and drag-region selection, a floating Cancel/Send editor, transparent original-preview mode, a design-tweak editor intent, and point/region/comment or requested-design-change page context insertion after send. | Still missing provider-produced design-change attachments/application and shell-level lifecycle integration. |
+| Codex keeps offscreen webviews alive with opacity/pointer-events/layout containment tricks. | Orchestrator now keeps per-tab BrowserPanel webviews mounted with hidden fixed containment across tab switches and Browser surface hide/show, and the manager can switch hidden browser-use paint hosts to Codex-like `opacity: 0.001` containment when capture/viewport state is active. | Body-attached manager ownership and local fork DOM transfer are now covered by later 2026-05-24 Browser slices; live/browser-use no-mutation adapter proof, and deeper focus/visibility resync. |
 
 ### Artifacts, MCP Apps, Automations, PRs
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Codex right panel has artifact tabs, file tabs, MCP app tabs, automation tabs, pull-request tabs, and browser/review tabs under one controller. | Orchestrator has Browser, Files, Review, Plan, Agents, Extensions, and side chats. | Orchestrator lacks the general "tabbed work surface" model. |
+| Codex right panel has artifact tabs, file tabs, MCP app tabs, automation tabs, pull-request tabs, and browser/review tabs under one controller. | Orchestrator has Browser, Files, Review, Plan, Agents, Extensions, side chats, and session-targeted heartbeat automation records reachable from thread actions. | Orchestrator still lacks automation tabs/pages and the general "tabbed work surface" model for non-file artifacts. |
 | Codex can open artifact side-panel tabs from content. | Orchestrator previews files and attachments but has no equivalent artifact tab lifecycle. | Missing artifact workspace. |
 | Codex has pending request item panels. | Orchestrator shows permissions in transcript/sidebar/pet paths. | Different and less panel-native. |
 | Codex has MCP/app/plugin/skill settings and panel integration. | Orchestrator has Capabilities/Extensions but not Codex-level app-panel integration. | Capability UI is not yet as useful or integrated. |
@@ -364,19 +5419,19 @@ These are the concrete UI targets before declaring sidebar/workbench parity:
 | --- | --- | --- |
 | Codex side chats/forks are conversation-level concepts. | Orchestrator side chats/questions are Orchestrator-owned side panels and side calls. | Missing native fork/lineage semantics. |
 | Codex collapses agent activity in transcript and exposes structured state in panels. | Orchestrator has `RunningAgentsStrip` and `EventInspectorPanel`, but transcript/panel split is still custom. | Needs activity collapse and shared agent/task model. |
-| Codex app shell routes panel shortcuts through active focus area. | Orchestrator has command palette/shortcuts but not a central shell focus router. | Keyboard ergonomics gap. |
+| Codex app shell routes panel shortcuts through active focus area. | Orchestrator has command palette/shortcuts plus shared focus/availability resolvers for close-active-panel-tab and focused `Cmd+F` find routing. | Remaining panel shortcuts still need the same central focus router. |
 
 ## Terminal / Bottom Panel Differences
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Codex terminal tabs use the same app-shell tab controller as right panel. | Orchestrator terminal tabs are implemented in `SessionPane`. | Bottom and right panels drift. |
-| Codex can route terminal panels to bottom or right based on state and available panel. | Orchestrator terminal is bottom-only. | Missing flexible terminal placement. |
-| Codex supports new terminal sessions per conversation through terminal service snapshots. | Orchestrator creates terminal ids from session/tab id and stores simple tabs. | Less robust lifecycle and persistence. |
-| Codex terminal has an error boundary with reload UI. | Orchestrator has guarded xterm fit/open paths but no equivalent terminal error state. | Crash recovery is weaker. |
-| Codex terminal handles copy/paste/new-tab keyboard behavior across platforms. | Orchestrator has basic terminal UI and clear/hide actions. | Keyboard behavior gap. |
+| Codex terminal tabs use the same app-shell tab controller as right panel. | Orchestrator terminal tabs now live in a dedicated `TerminalPanel` shell component, share `PanelTabStrip` controller/focus semantics, and can render terminal tabs in the right Workbench panel. | Bottom and right panel placement is closer, but still not owned by one root shell controller. |
+| Codex can route terminal panels to bottom or right based on state and available panel. | Orchestrator can move terminal tabs from bottom to right and back while preserving terminal ids and new-terminal behavior by destination. | Flexible placement exists for terminal tabs; remaining gap is integrating the move/receive model into a root shell controller and service snapshots. |
+| Codex supports new terminal sessions per conversation through terminal service snapshots. | Orchestrator creates terminal ids from session/tab id, stores simple tabs, and exposes service snapshots with terminal id, work directory, lifecycle status, buffer length, and exit state. | Broader lifecycle/persistence still belongs in the root shell/service controller. |
+| Codex terminal has an error boundary with reload UI. | Orchestrator has terminal exit/error IPC, reloadable initialization/ended-shell states, and matching terminal failure copy. | Basic crash recovery parity is covered. |
+| Codex terminal handles copy/paste/new-tab keyboard behavior across platforms. | Orchestrator handles terminal `Cmd-T`, copy-selection, and paste shortcuts before falling back to terminal input. | Basic keyboard parity is covered; broader shortcut routing still belongs in the shared app-shell controller. |
 | Codex terminal uses theme/font settings directly from app settings and xterm tokens. | Orchestrator uses xterm but theme integration is thinner. | Visual parity gap. |
-| Codex terminal web links open via app browser/open-in-browser message. | Orchestrator terminal link behavior is not equivalent. | Integration gap. |
+| Codex terminal web links open via app browser/open-in-browser message. | Orchestrator normalizes terminal `http`/`https` links and routes them into the Workbench Browser tab state. | Store-level routing parity is covered; live browser DOM behavior remains covered by Browser/Workbench smokes. |
 
 ## Chat Sidebar Differences
 
@@ -384,74 +5439,76 @@ These are the concrete UI targets before declaring sidebar/workbench parity:
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Codex has persisted organize mode: project, connection, recent/all chats. | Orchestrator has project, recent projects, chronological. | Similar but not equivalent. |
+| Codex has persisted organize mode: project, connection, recent/all chats. | Orchestrator has persisted project, recent projects, chronological, and connection modes, plus a projectless Chats group in project mode and a persisted Chats-before-projects preference. | Similar but not equivalent: provider adapters still need to feed real hosted/cloud source and projectless metadata. |
 | Codex has persisted `thread-sort-key` for updated/created. | Orchestrator has local `sortMode` updated/created. | Similar, but not tied into remote/cloud/worktree task model. |
-| Codex has collapsed sections, collapsed groups, custom sections, and section order. | Orchestrator has project collapse and pinned/projects sections only. | Missing custom organization primitives. |
-| Codex supports pinned section, chats section, threads section, custom sections. | Orchestrator supports pinned chats and projects/recent. | Less flexible organization. |
-| Codex supports custom sidebar sections with emoji/name/threadIds and drag membership. | Orchestrator has no custom sections. | Missing major organization feature. |
-| Codex groups local, cloud, remote connection, projectless, and pending-worktree conversations. | Orchestrator groups local sessions by user-added projects. | Missing remote/cloud/connection/worktree grouping. |
+| Codex has collapsed sections, collapsed groups, custom sections, and section order. | Orchestrator now has persisted built-in/custom section order, collapsed built-in sections, collapsed custom sections, collapsed project groups, collapsed projectless Chats, collapsed connection groups, drag/drop custom-section membership, in-section row reorder, and section-level custom-section drag reorder. | Missing provider-backed group sources beyond local session records. |
+| Codex supports pinned section, chats section, threads section, custom sections. | Orchestrator supports pinned chats, projectless Chats, projects/recent, chronological, custom sections, and the user-facing projectless Chats-first preference. | Still lacks Codex's remote/thread section breadth. |
+| Codex supports custom sidebar sections with emoji/name/threadIds and drag membership. | Orchestrator now supports persisted custom sections with name/emoji/sessionIds, collapse state, selected-chat creation, exclusive membership, drag/drop into custom sections, in-section row reorder, and section-level reorder. | Provider/thread-key membership is still missing. |
+| Codex groups local, cloud, remote connection, projectless, and pending-worktree conversations. | Orchestrator groups local session records by projectless Chats, user-added projects, or provider-aware local/remote/cloud/remote-host/worktree/provider-hosted-worktree/pending-worktree connection groups when source fields exist. | Provider adapters still need to populate real hosted/cloud/remote-host, projectless, and worktree source records; full provider-native pending-worktree lifecycle remains. |
 | Codex resolves project labels from workspace roots, git origins, remote projects, and project assignments. | Orchestrator projects are explicit local roots. | Less automatic and less provider aware. |
-| Codex handles Codex worktrees specially when grouping under projects. | Orchestrator has worktree flags but sidebar grouping is simpler. | Worktree sidebar parity missing. |
+| Codex handles Codex worktrees specially when grouping under projects. | Orchestrator derives worktree and pending-worktree row identities, exposes connection grouping for local and provider-hosted worktree source records, new-worktree forks now transition from pending to ready rows with failed-row retry, and Worktrees settings provides first-class inventory/delete for app-managed worktrees. | Remaining worktree sidebar parity is deeper provider-native project/worktree adapter population, new-chat/side-chat/fork-turn starts, and provider-native lifecycle plumbing. |
 
 ### Pinned And Ordering Behavior
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Codex pinned thread ids come from `list-pinned-threads` and are merged with local/pending thread keys. | Orchestrator stores pinned sessions locally with `pinOrder`. | Works locally but not server/provider backed. |
-| Codex preserves pinned order while excluding pinned ids from unpinned keys. | Orchestrator now preserves pin order locally. | Near parity for local sessions only. |
+| Codex pinned thread ids come from `list-pinned-threads` and are merged with local/pending thread keys. | Orchestrator now merges local pinned rows with provider-projected pinned rows via `providerPinned`, `providerPinOrder`, and `providerPinnedThreadKey`, and shared helpers normalize/apply Codex-style `local:`, `remote:`, and `pending-worktree:` keys into the session store. | Visible merge and state-application behavior are covered; live provider list/set RPC adapters still need to feed and mutate the state. |
+| Codex preserves pinned order while excluding pinned ids from unpinned keys. | Orchestrator now preserves local/provider pin order and excludes provider-pinned rows from Projects, Connections, and custom sections. | Provider mutation semantics remain adapter work. |
 | Codex project/group ordering is persisted through project order and connection group order. | Orchestrator can pin projects and sort recent projects. | Missing general persisted group order. |
-| Codex supports drag/drop order for custom sections and project/thread membership. | Orchestrator uses no drag/drop ordering. | Interaction gap. |
+| Codex supports drag/drop order for custom sections and project/thread membership. | Orchestrator now supports drag/drop membership into custom sections with exclusive session placement, before-row ordering, section-level custom-section ordering, and visual insertion feedback. | Provider-backed project/thread ordering remains incomplete. |
 
 ### Thread Rows And Hover Identity
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Codex thread keys model local, remote, pending-worktree identities. | Orchestrator `SessionItem` models one local `Session`. | Less flexible identity layer. |
+| Codex thread keys model local, remote, projectless, and pending-worktree identities. | Orchestrator now derives local/remote/cloud/remote-host/worktree/pending-worktree row metadata and projectless grouping from local `Session` fields. | Identity is promoted for local session records; hosted/cloud/remote-host adapters still need to populate real source ids. |
 | Codex hover identity derives chat/project label and branch/workspace root hints. | Orchestrator hover card shows chat name, project, branch after delayed hover. | Now close for local identity, but less provider aware. |
-| Codex row metadata includes automation-run state and display name. | Orchestrator has no automation-run sidebar identity yet. | Missing automation integration. |
+| Codex row metadata includes automation-run state and display name. | Orchestrator now persists session-targeted heartbeat automation records, computes `nextRunAt`/`lastRunAt`, records run history, executes scheduled due runs, defers active run completion until provider exit, and surfaces paused/active/next-run/running row metadata. | Local automation row-state parity is covered; hosted/provider-backed automation targets remain. |
 | Codex row state detects loading/unread/in-progress across local, remote, and pending tasks. | Orchestrator has running/waiting/error/unread dots and times. | Useful local state, but not equivalent across provider/task types. |
-| Codex supports label color metadata. | Orchestrator does not expose label colors. | Missing visual metadata. |
-| Codex projectless chats can be sorted/chats-first. | Orchestrator every session belongs to a project. | Projectless UX gap. |
+| Codex supports label color metadata. | Orchestrator now renders provider-derived label color markers and row color metadata. | Needs true provider/thread label-color adapters if providers expose custom labels. |
+| Codex projectless chats can be sorted/chats-first. | Orchestrator now shows missing/stale project assignments and provider-projected projectless thread ids in a projectless Chats group, and lets the user choose whether Chats appear before projects. | Full projectless launch lifecycle and real provider adapter population remain. |
 
 ### Thread Actions
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
 | Codex thread actions include Rename chat and Archive chat. | Orchestrator has Rename and Archive. | Partial parity. |
-| Codex can Mark as unread. | Orchestrator does not expose mark unread. | Missing action. |
-| Codex can Add/Edit automation from thread actions. | Orchestrator does not expose thread automation actions. | Missing action. |
-| Codex can Copy working directory, Copy session ID, Copy deeplink, Copy as Markdown. | Orchestrator copies folder/project/repo/session/provider IDs and branch, but not deeplink or conversation markdown. | Missing sharing/export actions. |
-| Codex can Open in new window. | Orchestrator has window reopen issues and no multi-window thread action. | Missing window model. |
-| Codex can Fork into local, same worktree, or new worktree. | Orchestrator has no first-class thread fork actions. | Major missing workflow. |
-| Codex can interrupt in-progress local thread from actions. | Orchestrator can stop via composer/session controls but not the same row action set. | Action placement gap. |
+| Codex can Mark as unread. | Orchestrator now exposes Mark as unread / Mark as read from the shared chat actions menu in the sidebar and titlebar. | Local unread action parity is covered; broader remote/pending task unread semantics still need provider adapters. |
+| Codex can Add/Edit automation from thread actions and surface automation row state. | Orchestrator now exposes Add/Edit plus Run now/Pause/Resume/Delete automation actions from the shared chat action menu and persists heartbeat automations targeted at the selected local session, backed by a runtime that computes next runs, records run history, defers active run completion until provider exit, executes due-run/manual-run boundaries through an app-owned scheduler, surfaces an Automations settings page, supports manual/interval/RRULE schedule editing, warns for active scheduled records, skips ineligible runs, captures/enforces session permission snapshots, and surfaces paused/active/next-run/running row metadata. | Thread action lifecycle parity, runtime metadata, scheduler daemon, Automations page, schedule editing, lifecycle warning, due-run/manual-run boundaries, session permission snapshot enforcement, in-progress run-state UI, and sidebar automation row metadata are covered for local session records; provider-backed targets remain. |
+| Codex can Copy working directory, Copy session ID, Copy deeplink, Copy as Markdown. | Orchestrator copies folder/project/repo/session/provider IDs, branch, conversation markdown, and `orchestrator://threads/{id}` deeplinks. | Sharing/export action parity is covered for local sessions; provider-backed remote/deployed link semantics remain future adapter work. |
+| Codex can Open in new window. | Orchestrator exposes Open in new window from the shared chat action menu and routes the new renderer to the selected session through pending app navigation. | Local multi-window action parity is covered; broader route/window lifecycle hardening remains in the app chrome gap list. |
+| Codex can Fork into local, same worktree, or new worktree. | Orchestrator exposes Fork into local/same worktree/new worktree from the shared chat action menu. Local fork and new-worktree fork are sidebar-smoked against local and git-backed fixtures; new-worktree forks now create a pending row before resolving to a ready worktree row, failed pending rows can retry, same-worktree cleanup is scoped so it cannot remove another session's worktree, and Worktrees settings can create app-managed worktree chats with explicit base/branch controls, open linked chats, and delete app-managed worktrees after archiving linked chats. | Local fork action, pending-to-ready new-worktree parity, failed-row retry, and local inventory/create/open/delete are covered; side-chat/fork-turn starts, raw Git worktree switching, and provider-native worktree adapters remain. |
+| Codex can interrupt in-progress local thread from actions. | Orchestrator exposes Stop chat from the shared sidebar/titlebar chat action menu for active and waiting sessions. | Local action placement is covered; remote/pending task stop semantics still need provider adapters. |
 
 ### Sidebar Visual Chrome
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Codex uses shared selectable/list row primitives and tokenized sidebar signals. | Orchestrator uses `SurfaceRow`, local sidebar CSS, fixed pin/right slots, and custom hover cards. | Visual primitives differ; add a shared `SidebarListRow` and migrate session/project/nav/footer rows to it. |
-| Codex row/header styling is generally quieter and more tokenized. | Orchestrator sidebar still has stronger active outlines, larger empty spaces, fixed width, and custom section controls. | User-visible messiness remains; shell material, row tokens, and section tokens need a styling pass before more sidebar features. |
-| Codex hover/action affordances are tied to shared thread action/menu primitives. | Orchestrator has local pin slot, time/status/actions slot, portal hover card, and sidebar-specific icon button overrides. | More moving parts per row; consolidate action reveal and status metadata into a single sidebar-row primitive. |
-| Codex menus/popovers use translucent dropdown material, 0.5px rings, rounded-xl surfaces, and scale/translate open motion. | Orchestrator menu rows are compact, but the surface is flatter and less Codex-like. | Menu/flyout surface polish is still a left-sidebar styling gap, not just a functionality gap. |
+| Codex uses shared selectable/list row primitives and tokenized sidebar signals. | Orchestrator now uses `SidebarListRow` for nav, footer, empty, session, projectless Chats, connection groups, and project header rows while preserving local pin/action/status behavior. | Row chrome is closer; keep reducing local pin/action/status slots and add provider adapters for hosted/cloud source identities. |
+| Codex row/header styling is generally quieter and more tokenized. | Orchestrator sidebar active/hover row material and section rhythm are now tokenized and smoke-tested, with visible outlines removed and rail width tokenized. | Remaining user-visible sidebar messiness is mostly custom section controls, hosted/cloud identity rows, and local pin/action/status slots that still need consolidation. |
+| Codex hover/action affordances are tied to shared thread action/menu primitives. | Orchestrator now keeps session identity markers in the leading slot and moves pin/unpin into the consolidated row action slot with the chat actions menu; portal hover card and some sidebar-specific icon button overrides remain. | Row choreography is calmer; continue consolidating status metadata and remaining sidebar button overrides into shared row/action primitives. |
+| Codex menus/popovers use translucent dropdown material, 0.5px rings, rounded-xl surfaces, and scale/translate open motion. | Orchestrator shared `MenuSurface`, sidebar session hover cards, composer dropdowns, Settings shortcut action/capture controls, and current compact dialogs now have Codex-like material/layout with focused smoke proof, but some custom local flyouts and sheet-style editors still bypass it. | Remaining menu/flyout polish is mostly primitive adoption across file-tree section menus, platform-specific shortcut capture live edge cases, Browser subpane containers, specialized sheet-style editors, and other custom surfaces. |
 | Codex settings/sidebar routing is part of app navigation. | Orchestrator swaps sidebar into settings nav inside the same left rail. | Good direction, but both modes should share the same row/material tokens and eventually be shell-owned. |
+| Codex persists organize mode, sort key, collapsed sections/groups, and selected sidebar keys in central signals. | Orchestrator now centralizes view mode, sort mode, selected sidebar key, projectless Chats-first preference, section order, custom sections, collapsed built-in sections, collapsed project ids, collapsed projectless Chats, and collapsed connection group ids in a sidebar store, and persists session-targeted heartbeat automation records. | Add provider adapters for hosted/cloud/remote-host source identities and provider-backed pinned/automation state. |
 
 ## Settings And Window/Modal Differences
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
-| Codex settings use `SettingsPage`, `SettingsContentLayout`, `SettingsSurface`, `SettingsGroup`, and `SettingsRow`. | Orchestrator has one large `SettingsModal.tsx` with many custom sections. | Settings are still cluttered by architecture. |
-| Codex settings pages are route/page-like and host-aware. | Orchestrator settings are modal-like with left nav. | The left nav is liked, but content structure is not Codex-like. |
-| Codex appearance settings include deeper theme/font/chrome controls through shared primitives. | Orchestrator has expanded theming, but it is still custom and less extensive. | Theming parity incomplete. |
-| Codex shortcut settings support editable keybinding capture/conflict/reset behavior. | Orchestrator shortcuts are mostly a reference/settings section. | Missing editable shortcut system. |
+| Codex settings use `SettingsPage`, `SettingsContentLayout`, `SettingsSurface`, `SettingsGroup`, and `SettingsRow`. | Orchestrator now has shared settings page/surface/group/row primitives across General, Appearance, Providers, Shortcuts, Personalization/Pets, and Data controls; all current sections are extracted into page-owned modules. | Content primitives and page ownership are aligned for current sections; host-aware settings pages and deeper specialized settings parity remain open. |
+| Codex settings navigation groups pages under App and Host headings, with host-aware settings pages where applicable. | Orchestrator left settings nav now groups existing sections under App and Host headings while preserving shared sidebar row primitives; the Host section heading owns the host selector when provider remote-host metadata exists, and remote hosts filter local-only pages out of the nav. | Visible nav taxonomy, basic host context, and unsupported remote-page filtering are closer; route/page ownership plus real remote-host page adapters remain incomplete. |
+| Codex settings pages are route/page-like and host-aware. | Orchestrator settings remain modal-like with left nav and local section switching, but now persist and normalize a selected Settings host id, expose selected host metadata on the Settings shell, remount content by selected host id, and redirect local-only active sections back to General for remote hosts. | Route/page ownership and deep host-specific settings behavior remain incomplete. |
+| Codex appearance settings include deeper theme/font/chrome controls through shared primitives. | Orchestrator has expanded theming on shared settings primitives, including mode, presets, preview, portable theme import/copy, editor, accent, typography, density, and motion toggles. | Theming is structurally closer, but not as broad as Codex's native appearance/font/chrome pages. |
+| Codex shortcut settings support editable keybinding capture/conflict/reset behavior. | Orchestrator shortcuts now support smoke-tested edit/capture/reset, conflict detection, custom multi-binding, per-binding clear/remove, disabled default binding state, and native menu accelerator refresh while using a Codex-like settings surface. | Remaining shortcut parity is platform-specific capture edge cases and deeper host-specific behavior found in live Codex comparison. |
 | Codex plugin/MCP/browser/worktree settings are mature pages. | Orchestrator has Capabilities and provider settings, but fewer native install/config flows. | Capability/settings parity incomplete. |
-| Codex dialogs use compact dialog/layout primitives. | Orchestrator dialogs have improved backgrounds but remain custom per dialog. | Dialog polish remains uneven. |
+| Codex dialogs use compact dialog/layout primitives. | Orchestrator confirm, text-input, rename, and automation edit dialogs now share dialog content/header/footer/field primitives and shared button actions. | Remaining dialog polish is specialized sheet-style editors, platform-specific shortcut capture edge cases, and newly added local modals that should not reintroduce per-dialog chrome. |
 
 ## Window And App Chrome Differences
 
 | Codex | Orchestrator | Gap |
 | --- | --- | --- |
 | Codex has route-backed thread identity and can open threads/hotkey threads/windows consistently. | Orchestrator still mostly uses `activeSessionId` in renderer state. | Window reopen and multi-window behavior remain weaker. |
-| Codex shell dispatches shortcut-state changes based on active focus area and open panels. | Orchestrator shortcuts are not fully panel-focus aware. | Cross-window/panel keyboard parity missing. |
+| Codex shell dispatches shortcut-state changes based on active focus area and open panels. | Orchestrator close-active-panel-tab is panel-focus aware and falls back from main focus; focused `Cmd+F` routes to transcript, Review file search, Files search, file-tab source search, or Browser find; Browser address/reload/back/forward commands route only when the focused right-panel tab is Browser; focused Browser/right-Terminal/bottom-Terminal `Cmd+T` routes through the shell; native menu enabled-state now follows the focused shell area for the smoked panel commands, including temp packaged-app proof. | Dedicated multi-window focus-switch proof remains incomplete. |
 | Codex title/header edge-scroll tint is shell-managed. | Orchestrator title/header styling is custom in `Titlebar` and CSS. | Header/chrome polish differs. |
 | Codex browser webviews and panels handle visibility/focus lifecycle carefully. | Orchestrator has had crashes/glitches around terminal/sidebar/window state. | Needs shell lifecycle hardening. |
 
@@ -461,56 +5518,814 @@ This should be tackled as foundation first, then visual polish. Small CSS patche
 
 1. Build a shared Orchestrator app shell.
    - Own Chat Sidebar, Workbench Panel, Terminal Panel, focus areas, measured widths, animated sizes, resize handles, and panel keyboard routing.
-   - Migrate `ContextSidebar` and Terminal Panel to it.
+   - Covered foundation: `AppShellPanel` now owns shared right/bottom panel markers, focus-area attributes, shell border material for Workbench and Terminal, Workbench right-panel sizing, Terminal bottom-panel sizing, app-owned active-window command targeting, and multi-window command-state restoration.
+   - Remaining: route/window lifecycle, exact live Codex spacing/animation, installed-app replacement proof, and live/manual OS focus-switch proof beyond the app-owned automated command-routing gate.
 
 2. Build a reusable panel tab controller.
    - Match Codex concepts: open/update/activate/close/closeActive/reorder/move/reset, tab state, preview tabs, pinning, trailing content, context menu items.
    - Use it for Workbench and Terminal.
 
 3. Rebuild Workbench chrome on the shared controller.
-   - Add drag reorder, close non-active tab, middle-click close, sticky action slots, overflow fades, scroll-to-active, and true `tabpanel` focus.
-   - Remove remaining `right-sidebar-*` naming from user-facing code and eventually from CSS.
+   - Add sticky action slots and continue hardening drag reorder, close non-active tab, middle-click close, overflow fades, scroll-to-active, and `tabpanel` focus through shared controller coverage.
+   - Covered: active Workbench wrapper/test selectors now use `workbench-panel-*` instead of `right-sidebar-*`.
+   - Rename the internal `ContextSidebar` component during the larger route/window ownership cleanup.
 
 4. Upgrade Review into a Codex-like review workspace.
-   - Add review source modes: unstaged, staged, branch, commit, last turn where provider supports them.
-   - Add branch/base/commit controls, split/unified diff, expand/collapse, whitespace, word diffs, load-full-files, richer summary, and file-source tabs.
+   - Extend review source modes beyond the now-covered local All/Worktree/Staged/Branch/Commit modes and provider-agnostic Last turn/Local/Worktree rows to cloud and hosted provider variants where supported.
+   - Covered: split/unified rendering, Codex-like full-width file headers with status glyphs, line-number gutters, Codex-like gutter bar indicators, gutter-owned line utilities, selected-line comments/blame/source-tab handoff, rendered-current-line gutter blame summaries, changed-files comment-count decoration, tree-local hide-non-match Review search projection, per-hunk collapse, individual and aggregate hidden unchanged context expansion, hide-whitespace, word diff, load-full-file source mode with row/gutter structure and full-source selected-line/gutter blame, rich preview toggles, local All/Worktree/Staged/Branch/Commit sources, provider-agnostic Last turn from `diff.updated`, state-aware Local/Worktree provider source rows, Review-options-owned source selection, compact branch/commit pickers, icon-only jump-to-file, Codex-ordered header actions, and a resizable right-side changed-files side pane with Codex-like filter/file/git/comment lanes.
+   - Add cloud/hosted provider source variants, richer context-threshold behavior, richer summary, provider-backed review-source flows, and live side-by-side spacing verification.
    - Keep stage/unstage/commit in a proper Git surface, not inline clutter.
 
 5. Upgrade Files into file tabs.
-   - Open files as preview/pinned right-panel tabs.
-   - Add git blame, line selection, copy path, open target preference, rich/source toggles, and shared search.
+   - Covered: open files as preview/pinned right-panel tabs, with Workbench file-tab-first embedded Files layout, host-aware file identity, sticky folders, filtered ancestor projection, lazy directory loading, selected-row reveal, structured artifact controls, basic persisted source-tab state, visible open-target diagnostics, inline selected-line source actions, selected Review line source-tab handoff, structured selected-line blame metadata/details in file-source and Review diffs, selected-line Review gutter blame summary, bounded source-line gutter blame badges, explicit file loading state, basic source search, selected-line source reveal, local line annotations, local Review line comments, and basic large-source virtualization.
+   - Remaining: external PR/reviewer-backed comments/blame metadata and broader workspace/global search refinements.
 
 6. Rework Browser around a persistent webview manager.
-   - Preserve webviews across tab switches and conversation/fork movement.
-   - Add Codex-like device presets, bounds scaling, browser-use cursor/state bridge, local server route lifecycle, and comment mode where useful.
+   - Covered: persistent per-tab webviews across tab switches and hide/show, hidden containment, focus/visibility resync, shared app-shell Browser multi-tab chrome, Codex-like device presets, visible stage/visual/webview geometry with scaled device-preview content, basic comment mode, provider-agnostic manager state for browser-use active/capture/viewport/cursor/bounds evidence, capture bounds/scale state and smoke attributes, a normal run-event path for provider-originated Browser manager state, Codex app-server parsing for current browser-use state/viewport/capture/cursor/bounds notifications, conversation-scoped local server route rows/removal, Codex app-server local-server route notification normalization, and fork-time Browser workbench transfer.
+   - Remaining: live/browser-use no-mutation adapter proof, non-Codex provider browser-use/local-server adapters if exposed, richer provider-produced annotation/design-change workflows, actual provider application of design tweaks, and deeper annotation behavior.
 
 7. Rebuild the Chat Sidebar data model.
-   - Add local/remote/cloud/projectless/pending-worktree identities, connection grouping, custom sections, section order, collapsed sections, label colors, and automation row state.
-   - Keep local project behavior but do not make it the only model.
+   - Covered: local/remote/cloud/remote-host/worktree/provider-hosted-worktree/pending-worktree identities for local session records, Codex app-server `thread/list` metadata projection for matching provider sessions, non-blocking startup `thread/list` metadata sync, debounced post-run Codex app-server metadata sync, manual Provider Settings `thread/list` metadata refresh, throttled idle/focus `thread/list` metadata refresh, provider-pinned merge metadata, provider projectless thread-id metadata, provider worktree source/root/host metadata, pending-to-ready new-worktree fork row lifecycle, projectless Chats grouping for missing/stale/provider-projected assignments, provider-aware connection grouping, label colors, central selected sidebar key persistence, automation paused/active/next-run/running row metadata, built-in/custom section order, collapsed project/projectless/connection/built-in/custom sections, local custom section membership, in-section row reorder, and section-level custom-section reorder.
+   - Remaining: a non-app-server pin state boundary or provider-native pin adapters, provider adapters that reconcile richer hosted/cloud/remote-host records, provider projectless metadata, and provider worktree source/root/host metadata from real sources.
 
 8. Expand thread actions.
-   - Add mark unread, copy deeplink, copy as Markdown, open in new window, automation actions, fork actions, worktree actions, and interrupt placement where appropriate.
+   - Covered: Add/Edit automation actions, visible Run now/Pause/Resume/Delete automation actions, session-targeted heartbeat records, provider-neutral automation records, runtime next-run metadata, scheduler daemon/timer, Automations settings page with Current/Paused/Run history sections, schedule editing UI for manual/interval/RRULE modes, active-scheduled lifecycle warning, sidebar paused/active/next-run/running metadata, run history primitives, pause/resume/delete lifecycle, due-run execution boundary, backend manual Run now boundary, deferred provider-exit run completion, single-flight guards, ineligible skip recording, failure recording, session-state eligibility checks, session permission snapshot capture/execution for permission mode and tool allow/deny lists, and focused unit/sidebar/settings smoke proof.
+   - Remaining: provider-backed targets, new-chat/side-chat/fork-turn pending starts, browser-transfer metadata, raw Git worktree switching, richer local-environment metadata, and provider-native worktree settings adapters.
 
 9. Rebuild settings content on shared primitives.
-   - Keep the left settings nav, but migrate content to `SettingsPage`/`SettingsSurface`/`SettingsGroup`/`SettingsRow` equivalents.
-   - Add editable shortcuts and deeper theme/font/chrome controls.
+   - Keep the left settings nav, but move the migrated `SettingsPage`/`SettingsSurface`/`SettingsGroup`/`SettingsRow` content into route/page-owned modules.
+   - General, Appearance, Providers, Data controls, Shortcuts, and Personalization/Pets are already extracted.
+   - Covered: route-owned `/settings/<section>?host=...` paths for dev HTTP and packaged `orchestrator-app://renderer/` windows, direct-file hash fallback parsing, settings-shell route metadata, host selector backed by provider-host metadata, local/remote host normalization, remote-host filtering for local-only sections, active-section redirect, and host-keyed content remount.
+   - Remaining settings parity is real remote-host page adapters for Automations/Worktrees/Data controls, deeper native theme/font/chrome controls, platform-specific shortcut capture edge cases, and deeper host-specific settings behavior found in live Codex comparison.
+   - Do not claim full host-aware Settings parity until each page is either backed by a provider-host adapter or intentionally hidden/disabled with fresh Codex evidence.
 
 10. Add parity verification.
-   - Screenshot checkpoints for Chat Sidebar, Workbench Panel, Review, Files, Browser, Terminal, Settings.
-   - Smoke tests for tab overflow, close-active-tab, drag reorder, resize reset, focus routing, file tab open/close, browser persistence, sidebar custom sections, and settings layout.
+   - Covered: local screenshot checkpoints for Chat Sidebar, Workbench Panel, Review entry/core/source/preview, Files, Browser, Terminal bottom-panel chrome/content, Settings, provider Settings, Side Chat, Plan, Extensions, Composer, Capabilities, Pets, and narrow transcript via `npm run smoke:visual:side-panels -- --full`; the core Settings visual checkpoint now leaves an actual Settings General page visible, and Terminal visual inventory no longer black-frames or accepts a failure overlay.
+   - Remaining: live Codex side-by-side comparison, installed-app replacement proof for release-level claims, native PTY availability proof in a non-smoke environment, live/manual OS focus-switch proof, and exact Terminal bottom-panel height/open-close/resize animation comparison.
+   - Smoke tests for tab overflow, close-active-tab, drag reorder, resize reset, focused find routing, remaining focus routing, file tab open/close, browser persistence, sidebar custom sections, and settings layout.
 
 ## Implementation Slices
+
+### 2026-05-24 - Browser Manager Run-Event Bridge Slice
+
+Codex evidence: `browser-sidebar-manager-ivre5jEI.js` keeps browser-use active state, viewport size, capture surface size, and cursor state in shell-owned Browser manager state. Orchestrator already had a renderer-local browser manager bridge; the missing piece was the normal provider `RunEvent` path.
+
+Implemented: added a provider-agnostic `browser.manager_state` run event, shared reducer, and renderer session-event application path so provider-originated Browser manager state can open the Browser workbench and update browser-use active/turn id, viewport, capture surface, and cursor state.
+
+Verification: `npm run build`, `npm run test:providers` (255/255), `git diff --check`, and `npm run smoke:ui:auto -- --browser` passed. Browser evidence: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779628706045.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779628706045.png`.
+
+Remaining at that checkpoint: provider adapters still needed to emit `browser.manager_state` from real browser-use payloads. The following Codex adapter slice covers the current Codex app-server notification channels, the fork-transfer slice covers state continuity, and the later no-mutation smoke covers local overlay safety. Any non-Codex provider adapters remain separate. Browser still needs route lifecycle, capture geometry ownership, live provider-emitted Codex/browser-use proof, and deeper annotation behavior.
+
+### 2026-05-24 - Codex Browser-Use Notification Adapter Slice
+
+Codex evidence: re-extracted Browser/app-server chunks from `/Applications/Codex.app/Contents/Resources/app.asar` into `/private/tmp/orch-codex-browser-audit`. Current `browser-sidebar-manager-ivre5jEI.js` subscribes to `browser-sidebar-browser-use-state`, `browser-sidebar-browser-use-viewport`, `browser-sidebar-browser-use-capture-surface`, and `browser-sidebar-browser-use-cursor-state`, then updates Browser manager maps for active turn id, viewport size, capture surface size, and cursor state.
+
+Implemented: the Codex provider parser now recognizes those current app-server notification channels and direct `browser.manager_state` payloads, emitting normalized provider-agnostic `browser.manager_state` events. Missing optional fields no longer clear state; only explicit `null` clears a size/cursor field, matching incremental manager updates.
+
+Verification: `npm run test:providers` passed (256/256) with a new Codex browser-use notification normalization test; `npm run build` passed; `git diff --check` passed; `npm run smoke:ui:auto -- --browser` passed with `browserManagerStateBridge=true`, `browserWebviewPersistence=true`, and `browserHiddenWebviewContainment=true`. Browser evidence: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779629083505.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779629083505.png`.
+
+Remaining: run a safe live Codex app-server/browser-use smoke when credentials/runtime make that practical. Later Browser slices cover body-attached webview host ownership, local fork DOM transfer, and local no-mutation proof. Browser still needs route lifecycle, capture geometry ownership, live provider-emitted browser-use proof, and deeper annotation behavior. Non-Codex providers still need browser-use adapters only if their runtimes expose equivalent browser manager payloads.
+
+### 2026-05-24 - Browser Fork Transfer Slice
+
+Codex evidence: the current Browser manager exposes `transferWebview(sourceConversationId, targetConversationId)` and moves browser manager/webview state across conversation ids while clearing transient source browser-use state.
+
+Implemented: Orchestrator now transfers Browser workbench state when a chat is forked from either the titlebar or sidebar actions. The fork receives the active URL, tabs/history, device/visibility, and browser manager state, the Browser Workbench tab opens in the fork when it was open in the source, and the source clears transient browser-use active/turn/cursor/capture/viewport overlay fields.
+
+Verification: `npm run build`, `git diff --check`, and `npm run smoke:ui:auto -- --browser` passed. The Browser smoke now includes `browserForkTransfer=true` in addition to the existing manager bridge, hidden webview containment, lifecycle, and tab reset checks. Browser evidence: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779629557406.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779629557406.png`.
+
+Remaining: this is workbench-state transfer, not a true shell-level DOM webview move. Shell-level host ownership, live/browser-use no-mutation proof, route lifecycle, true shell-owned visible-webview geometry, and deeper annotation behavior remain open.
+
+### 2026-05-24 - Browser Capture Geometry Slice
+
+Codex evidence: the current `browser-sidebar-manager-ivre5jEI.js` has Browser manager geometry helpers that derive stage, visual, and webview bounds plus scale from container bounds, toolbar height, capture surface size, viewport size, and the last visible bounds. It also tracks browser-use viewport sizes, capture surface sizes, cursor states, and hidden browser-use paint host dimensions separately from regular visible Browser layout.
+
+Implemented: added provider-neutral browser-use capture bounds with `x`, `y`, `width`, `height`, and optional `scale` beside the existing capture surface size. The shared `browser.manager_state` event, Codex app-server notification parser, renderer session state, Browser bridge, and Browser webview manager now preserve and expose capture bounds/scale through deterministic DOM attributes while still keeping visible webview layout unchanged.
+
+Verification: `npm run test:providers` passed (258/258) with capture bounds normalization coverage; `npm run build` passed; `git diff --check` passed; focused Browser smoke passed with `browserCaptureGeometry=true`, `browserManagerStateBridge=true`, and existing Browser lifecycle/persistence checks. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779635622575.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779635622575.png`.
+
+Remaining: this covers provider/state/DOM evidence for browser-use capture geometry, not true shell-owned visible-webview geometry. Local fork DOM webview transfer is now covered by the later 2026-05-24 slice; live/browser-use no-mutation proof, route lifecycle, non-Codex browser-use adapters if exposed, and deeper annotation behavior remain open.
+
+### 2026-05-24 - Browser Visible Geometry Slice
+
+Codex evidence: `browser-sidebar-manager-ivre5jEI.js` derives `stageBounds`, `visualBounds`, `webviewBounds`, and `scale` from the Browser container and device toolbar state, then attaches the visible webview with the measured visual rectangle while scaling the logical webview content from the top-left origin.
+
+Implemented: Orchestrator now measures the visible Browser stage with `ResizeObserver`, computes Codex-like stage, visual, and logical webview bounds for device previews, exposes those measurements on the Browser manager/webview DOM, and scales the active webview content inside the visual frame. Desktop Browser layout remains full-frame while device preview uses the same 20px horizontal and bottom fit margin direction as Codex's manager.
+
+Verification: `npm run build` passed; `npm run test:providers` passed (258/258); `git diff --check` passed; focused Browser smoke passed with `browserVisibleGeometry=true`, `browserCaptureGeometry=true`, `browserManagerStateBridge=true`, and existing Browser lifecycle/persistence checks. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779635972733.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779635972733.png`.
+
+Remaining: this is still a React-owned Browser frame, not Codex's body-attached shell manager with DOM webview transfer. Body-attached webview host ownership is now covered by the later 2026-05-24 slice; live/browser-use no-mutation proof, route lifecycle, non-Codex browser-use adapters if exposed, and deeper annotation behavior remain open.
+
+### 2026-05-24 - Browser Local Server Route Slice
+
+Codex evidence: `browser-sidebar-manager-ivre5jEI.js` stores `localServersStates` per conversation and exposes `removeLocalServerRoute(conversationId, serverUrl, routeUrl)` to remove individual routes from a local server while keeping the Browser manager state conversation-scoped.
+
+Implemented: Orchestrator Browser workbench state now includes conversation-scoped local server route records plus hidden route urls. Browser manager bridge payloads can seed route rows, route rows render under matching local targets, route actions remove/hide individual routes without hiding the whole local server, and derived route state also folds in recent local history for the same origin.
+
+Verification: `npm run build` passed; `npm run test:providers` passed (258/258); `git diff --check` passed; focused Browser smoke passed with `browserLocalServerRoutes=true`, `browserLocalTargetHide=true`, existing local-target chrome checks, and the restored five-item Browser page context menu. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779636504063.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779636504063.png`.
+
+Remaining: this covers route rows/removal in Orchestrator state, not a full provider-owned local server lifecycle. Real provider adapters still need to populate local server/hidden-server route state when runtimes expose it, and Browser still needs shell-level webview host ownership, DOM transfer, live/browser-use no-mutation proof, and deeper annotation behavior.
+
+### 2026-05-24 - Codex Local Server Route Adapter Slice
+
+Codex evidence: `browser-sidebar-manager-ivre5jEI.js` subscribes to `browser-sidebar-local-servers`, stores `localServersStates` by conversation id, and exposes `removeLocalServerRoute(conversationId, serverUrl, routeUrl)` for route-level removal without hiding the whole server.
+
+Implemented: the shared `browser.manager_state` event now carries provider-owned `localServerRoutes` and `hiddenLocalServerRoutes`. The shared reducer normalizes local-only route urls, strips fragments, dedupes/sorts records, and clears route state on null. The Codex app-server provider parser now maps `browser-sidebar-local-servers` notifications into provider-neutral route and hidden-route state, and the Browser bridge applies hidden-route state alongside explicit route records.
+
+Verification: `npm run test:providers` passed (258/258) with shared reducer and Codex notification parser coverage; `npm run build` passed; `git diff --check` passed; focused Browser smoke passed with `browserLocalServerRoutes=true`, `browserVisibleGeometry=true`, `browserCaptureGeometry=true`, and existing Browser lifecycle checks. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779636899781.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779636899781.png`.
+
+Remaining: this closes the Codex app-server route notification path, but not body-attached webview host ownership and local fork DOM transfer are now covered by later 2026-05-24 slices; live/browser-use no-mutation proof, non-Codex local-server adapters if exposed, or deeper annotation behavior.
+
+### 2026-05-24 - Review Transcript Last-Turn Source Slice
+
+Codex evidence: the Review source model continues to treat provider turn diffs as a first-class Review source, and the transcript Review entry is the visible entry point into a turn's changed files. Orchestrator already had normalized `diff.updated` events and detailed Review Last turn support; the missing gap was that the transcript card still substituted local git state.
+
+Implemented: the transcript `Edited N files` Review card now reads the latest normalized provider `diff.updated` event from the session event buffer, parses its unified diff into file rows, renders inline diffs from the provider patch, and marks the card as `data-review-card-source="last-turn"`. Local git cards keep the existing local-current-change Undo. Provider last-turn cards explicitly mark Undo as provider-checkpoint unsupported and disable it so a provider patch cannot accidentally discard unrelated local working-tree files.
+
+Verification: `npm run smoke:ui:auto -- --diff-source` passed with `reviewTranscriptCardLastTurn=true`, `reviewSourceModes=true`, `reviewWorktreeProviderSource=true`, and existing source/search/comment/blame/hidden-context gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779637363718.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779637363718.png`. `npm run build`, `npm run test:providers` (258/258), and `git diff --check` also passed.
+
+Remaining: true provider checkpoint Undo is still open because no provider checkpoint/restore adapter is wired. Cloud/hosted provider diff adapters, hosted provider source flows, real PR metadata adapters, richer context thresholds, diff virtualization, and live Codex spacing comparison remain separate Review backlog items.
+
+### 2026-05-24 - Sidebar Codex Thread-List Manual Refresh Slice
+
+Codex evidence: live app-server probing showed `thread/list` is the safe exposed sidebar metadata source for current Codex Desktop `0.133.0-alpha.1`; pin bridge calls remain unavailable through the app-server and return unknown-variant errors. This slice uses the known-safe thread-list boundary and avoids starting an agent run.
+
+Implemented: Orchestrator now exposes a typed provider sidebar metadata refresh result through shared types, IPC, preload, and renderer API surfaces. Provider Settings shows a Codex-only `Refresh chats` action in the Status card, calls `sessionManager.refreshCodexSidebarMetadata(cwd)`, and reports changed/skipped/error outcomes without invoking a new run. The focused settings-provider smoke now selects Codex and verifies the affordance renders without clicking through to the live app-server.
+
+Verification: `npm run smoke:ui:auto -- --settings-providers` passed with `settingsProviderSidebarRefresh=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779640324525.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779640324525.png`. `npm run build`, `npm run test:providers` (265/265), and `git diff --check` passed.
+
+Remaining: at this checkpoint, background recurring idle refresh was still open and is covered by the next slice. Pin list/set parity remains externally blocked through the current app-server surface until a different bridge or provider-native state boundary is available. Richer hosted/cloud/remote-host sidebar adapters and live Codex side-by-side screenshot comparison remain separate sidebar backlog items.
+
+### 2026-05-24 - Sidebar Codex Thread-List Idle Refresh Slice
+
+Codex evidence: `thread/list` remains the current safe app-server source for sidebar metadata. Startup, post-run, and manual Provider Settings refresh cover most changes, but a long-open Orchestrator window still needed a non-interactive way to converge toward Codex's live sidebar metadata.
+
+Implemented: Orchestrator now starts a smoke-disabled, ten-minute Codex sidebar metadata refresh loop after startup, runs the same throttled refresh check when the app is reactivated, and prevents overlapping refreshes. The underlying sync still skips without fetching when no Codex sessions exist, so non-Codex-only users do not trigger app-server work. Manual refresh remains immediate; the idle loop is only a background convergence path.
+
+Verification: `npm run test:providers` passed (266/266) with new idle-refresh throttle/smoke/single-flight coverage. `npm run build` and `git diff --check` passed. Focused `npm run smoke:ui:auto -- --sidebar` passed with the recurring refresh disabled under smoke and all sidebar gates still green; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779640604361.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779640604361.png`.
+
+Remaining: pin list/set parity remains externally blocked through the current app-server surface until a different bridge or provider-native state boundary is available. Richer hosted/cloud/remote-host sidebar adapters, provider-native projectless/worktree metadata, and live Codex side-by-side screenshot comparison remain separate sidebar backlog items.
+
+### 2026-05-24 - Settings Route Ownership Slice
+
+Codex evidence: current Codex settings assets include `settings-page-Cs2EUu3v.js`, `settings-back-route-Cfgk-CZa.js`, `settings-sections-D0Ixubqt.js`, `settings-host-context-B5kZhSF6.js`, and `settings-host-selection-9fosNT9W.js`. The bundle routes Settings through `/settings/:section/*`, routes section selection with `navigate('/settings/${section}', { replace: true, state })`, and routes Back to the previous app path or `/`.
+
+Implemented: Orchestrator Settings now owns a route-like hash path, `#/settings/<section>?host=...`. Opening Settings pushes the route, Settings section/host changes replace the route, direct hash changes open the matching Settings section, Back-to-chat clears a Settings route, and the Settings shell exposes `data-settings-route-owned="true"` plus the active `/settings/<section>` route for verification. Provider Settings also drops the default visible explanatory line under `Refresh chats`, keeping the status card compact and showing sync feedback only after a manual refresh result exists.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --settings` passed with `settingsRouteOwned=true` and the existing Settings host/nav/shortcut gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779640998121.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779640998121.png`. Focused `npm run smoke:ui:auto -- --settings-providers` passed with `settingsRouteOwned=true`, `settingsProviderSidebarRefresh=true`, and compact provider status gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779641105239.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-providers-1779641105239.png`.
+
+Remaining: this is a hash-backed Electron route, not a full app-router path identical to Codex. Real remote-host settings adapters for Automations/Worktrees/Data controls, deeper native theme/font/chrome controls, platform-specific shortcut capture edge cases, specialized dialogs, and live Codex Settings side-by-side comparison remain open.
+
+### 2026-05-24 - Composer Dropdown Material Slice
+
+Codex evidence: the shared dropdown/flyout treatment uses translucent dropdown material, a 0.5px ring direction, rounded-xl surfaces, shared menu shadow, backdrop blur, and bounded viewport sizing. The audit already tracked custom local flyouts as a remaining visible mismatch after `MenuSurface` and sidebar hover-card material landed.
+
+Implemented: the composer worktree, agent, and permission dropdown wrapper now uses the same Codex-like translucent surface direction: 12px radius, 0.5px subtle border, 90% surface background, shared menu shadow, blur, overflow clipping, and viewport-bounded max size. Behavior stays on the existing dismissable popover path so the richer permission panel inputs and chip controls keep their current interaction model.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --composer` passed with `composerDropdownMaterial=true` plus existing permission/agent menu, focus return, native-tooltip, draft, attachment, drag/drop, and responsive toolbar gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779641435581.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-composer-1779641435582.png`.
+
+Remaining: this closes the composer dropdown material mismatch, not every local flyout. Browser history/zoom/data rows, file-tree section menus, platform-specific shortcut capture live edge cases/specialized dialogs, Workbench empty/fallback states, and other custom local surfaces still need shared primitive/material adoption when touched.
+
+### 2026-05-24 - Files Tree Message Primitive Slice
+
+Codex evidence: re-extracted the current Codex bundle from `/Applications/Codex.app/Contents/Resources/app.asar` to `/private/tmp/orchestrator-codex-app-asar-20260524`. The current `webview/assets/workspace-directory-tree-CHHgPVoD.js` renders workspace tree loading, empty, and search-empty states through a simple text row (`px-2 py-2 text-left text-base text-token-description-foreground`) with messages such as `Loading directory entries...`, `No files in this folder`, `Searching files...`, and `No matching files`.
+
+Implemented: added shared `WorkbenchTreeMessage` to the Workbench tree module and migrated Files loading/searching/empty/no-match states to that primitive. The old Files-only icon-chip empty state CSS was removed, so no-match and loading rows now match Codex's quieter text-row direction and future tree/list states have a shared primitive to reuse.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --files` passed with `filesNoResults=true` and existing Files tree/search/source/preview gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779641698256.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779641698256.png`.
+
+Remaining: this covers Files tree-level empty/loading/search rows, not every Workbench fallback. File preview empty states, Browser local-target empty states, settings empty rows, platform-specific shortcut capture live edge cases/specialized dialogs, and other custom local fallback surfaces still need shared primitive adoption when touched.
+
+### 2026-05-24 - Menu Message Primitive Slice
+
+Codex evidence: rechecked the current Codex bundle extracted at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/dropdown-PBHuhi3M.js` exposes shared dropdown message rows (`px-[var(--padding-row-x)] text-sm`, `py-2`/`py-3`, `text-token-description-foreground`, optional centered layout), and `webview/assets/context-menu-TJfRSX1h.js` keeps menu content on the same rounded translucent material used by dropdowns.
+
+Implemented: added shared `MenuMessage` to the design system and migrated Review file-jump and source-ref picker empty/no-match rows from local `review-*-empty` CSS to the shared primitive. The primitive exposes stable `data-menu-message`/state/tone attributes so other menu-backed empty rows can adopt it without adding more one-off classes.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --diff-source` passed with `reviewMenuMessage=true` and `reviewFileJump=true` plus source/search/comment/blame gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779642085278.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779642085278.png`. Focused `npm run smoke:ui:auto -- --diff-core` also passed after the menu primitive change; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779642059729.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779642059729.png`.
+
+Remaining: source-ref empty rows share the primitive but still need a focused empty-source-ref smoke path. Browser history/zoom/data rows, file-tree section menus, platform-specific shortcut capture live edge cases/specialized dialogs, and other local flyouts still need shared `MenuMessage` or richer menu primitives as they are touched.
+
+### 2026-05-24 - Browser Menu Section Primitive Slice
+
+Codex evidence: the current Codex bundle extracted at `/private/tmp/orchestrator-codex-app-asar-20260524` keeps dropdown section labels in the shared dropdown primitive (`px-[var(--padding-row-x)] py-1 text-sm text-token-description-foreground`) and uses the shared rounded translucent context/dropdown material for sectioned menus.
+
+Implemented: added shared `MenuSection` and `MenuSectionLabel` primitives to the design system, moved the Browser action menu's Page, Data, History, and View sections onto those primitives, and removed the Browser-only section/label CSS definitions. Browser keeps its richer history and zoom rows for now, but their section grouping and label/separator treatment now come from the shared menu primitive instead of local menu chrome.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --browser` passed with `browserMenuSectionsShared=true`, `browserActionsMenuMaterial=true`, `browserActionsMenuCompact=true`, and the existing Browser lifecycle, geometry, local target, history, data, context-menu, inspector, and hidden-state gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779642404674.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779642404674.png`.
+
+Remaining: Browser history rows and zoom controls are still richer local rows inside shared menu sections. Browser local-target empty states, file-tree section menus, platform-specific shortcut capture live edge cases/specialized dialogs, and other local flyouts still need shared message/row/action primitives when touched.
+
+### 2026-05-24 - Browser Menu Row Primitive Slice
+
+Codex evidence: the current Codex dropdown/context menu primitives use the same compact row metrics for regular items, custom rows, and nested section content. The remaining Browser action-menu mismatch was not the material or section labels anymore; it was the custom history and zoom rows carrying Browser-only row chrome inside the shared surface.
+
+Implemented: added shared `MenuRow` to the design system for custom menu rows that need richer children than `MenuItem`. It supports clickable `role="menuitem"` rows and static rows with inline controls. Browser history entries and the zoom row now use `MenuRow`, and the Browser-only shared row chrome CSS was removed; only Browser-specific history grid and zoom mini-control styling remains local.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --browser` passed with `browserMenuRowsShared=true`, `browserMenuSectionsShared=true`, `browserActionsMenuMaterial=true`, `browserActionsMenuCompact=true`, and the existing Browser lifecycle, geometry, local target, history, data, context-menu, inspector, and hidden-state gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779642729139.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779642729139.png`.
+
+Remaining: Browser load-error/recovery panels and deeper inspector layout/subpane containers still need broader shared panel-state primitives. File-tree section menus, platform-specific shortcut capture live edge cases/specialized dialogs, metadata flyouts, and other local flyouts still need shared row/message/action primitives when touched.
+
+### 2026-05-24 - Settings Host Adapter Boundary Slice
+
+Codex evidence: current Codex settings assets keep App and Host settings as distinct sections (`settings-host-context-B5kZhSF6.js`, `settings-host-selection-9fosNT9W.js`, settings page/surface/group/row primitives). The audit tracked that Orchestrator remote-host settings were only filtered, not adapter-backed.
+
+Implemented: Settings content now exposes `data-settings-content-scope` and `data-settings-host-adapter`. App-scoped pages on a remote host are marked `app-global`; host-scoped pages on a remote host without a provider adapter render `SettingsHostAdapterUnavailable` instead of local controls. This prevents remote Shortcuts/Personalization from silently editing local app settings while still keeping host navigation explicit.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --settings` passed with `settingsHostAdapterBoundary=true`, `settingsHostContext=true`, `settingsHostSectionFiltering=true`, and the existing Settings page gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779643065088.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779643065088.png`.
+
+Remaining: this is an explicit unavailable boundary, not a real remote-host adapter. Automations/Worktrees/Data remain hidden for remote hosts; Shortcuts/Pets need provider-native host adapters before becoming editable remotely. Full app-router path parity and deeper live Codex Settings comparison remain open.
+
+### 2026-05-24 - Browser Fallback Message Primitive Slice
+
+Codex evidence: current Codex Browser and menu-adjacent empty rows use the same compact text-message treatment as other popover/list states instead of one-off dashed local boxes. Orchestrator's Browser menu sections and rows had been shared, but local-target empty rows and inspector fallback messages still used Browser-only message chrome.
+
+Implemented: added shared `PanelMessage` to the design system with stable `data-panel-message` attributes, compact/centered/framed variants, and tone/state metadata. Browser local-target empty rows, console empty output, and assets-empty inspector output now use the shared primitive; Browser-specific CSS was reduced to local layout sizing instead of owning the message chrome.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --browser` passed with `browserFallbackMessagesShared=true`, `browserMenuRowsShared=true`, `browserMenuSectionsShared=true`, and the existing Browser lifecycle, geometry, local target, inspector, context-menu, hidden-state, and fork-transfer gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779643456095.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779643456095.png`.
+
+Remaining: this covers Browser text fallback messages, not every Browser state. Load-error/recovery panels, security/target subpane empty states, Browser annotation unavailable states, file-tree section menus, platform-specific shortcut capture live edge cases/specialized dialogs, metadata flyouts, and other local flyouts still need shared panel/message/action primitives when touched.
+
+### 2026-05-24 - Sidebar Menu Section Primitive Slice
+
+Codex evidence: current Codex sidebar/project menus group related actions with shared dropdown sections and quiet section labels rather than standalone divider elements. Orchestrator sidebar actions already used shared menu surfaces/items, but the organize and project menus still hand-rolled divider lines and lacked shared section metadata.
+
+Implemented: Sidebar organize menu now uses shared `MenuSection` and `MenuSectionLabel` for View, Sort, Layout, and Sections groups. Project action menus now use shared Project and Manage sections. Custom section action menus now use the same section primitive. This removes local divider markup and gives these menus the same `data-menu-section`/`data-menu-section-label` contract used by Browser and other shared surfaces.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --sidebar` passed with `projectActionMenuSharedSections=true`, `organizeMenuSharedSections=true`, `projectActionMenuWorks=true`, `organizeMenuWorks=true`, and the existing Sidebar pinning, projectless, provider metadata, custom-section drag/drop, automation, tooltip, and row-primitive gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779643699417.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779643699417.png`.
+
+Remaining: this covers Sidebar project/organize/custom-section menus, not all Sidebar or Workbench flyouts. Session action menu grouping, file-tree section menus, platform-specific shortcut capture live edge cases/specialized dialogs, Browser load-error/recovery panels, metadata flyouts, and other local action groups still need shared primitive migration when touched.
+
+### 2026-05-24 - Sidebar Session Action Menu Section Slice
+
+Codex evidence: Codex thread overflow/action menus group chat, automation, workspace/fork, copy, and destructive actions into shared dropdown sections. Orchestrator's session action menu had the right behavior coverage but remained a long flat list with local divider elements.
+
+Implemented: session action menus now use shared `MenuSection` and `MenuSectionLabel` for Chat, Automation, Workspace, Copy, and Manage groups. The existing menu item behavior is unchanged, including rename, pin/unread/stop, automation create/edit/run/resume/pause/delete, fork/open-window/worktree retry, copy actions, and archive.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --sidebar` passed with `sidebarActionMenuSharedSections=true`, `sidebarActionMenuChromeCalm=true`, all session action gates, all automation lifecycle gates, and the existing Sidebar provider/project/custom-section gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779643889134.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779643889134.png`.
+
+Remaining: file-tree section menus, platform-specific shortcut capture live edge cases/specialized dialogs, deeper Browser inspector layout/subpane containers, and specialized local flyouts or fallback/action groups still need shared primitive migration when touched. This slice does not address externally blocked provider pin list/set RPC parity.
+
+### 2026-05-24 - Files Action Menu Section Slice
+
+Codex evidence: Codex file/workspace action menus group file actions and system/open actions through shared dropdown sections instead of a flat item list. Orchestrator Files already used shared `MenuSurface` and `MenuItem`, but both the toolbar File actions menu and row context menu still rendered as one flat group.
+
+Implemented: Files action menus now use shared `MenuSection` and `MenuSectionLabel` with File and System groups. The existing item test ids and behavior are preserved for Add to chat, Open in Workbench, Copy path, Reveal file, and Open file.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --files` passed with `filesActionMenuSharedSections=true`, `filesRowContextMenuSharedSections=true`, `filesActionMenuCompact=true`, `filesActionMenuMaterial=true`, and the existing Files tree, file-tab, source-line, preview, search, and empty-state gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779644116973.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779644116973.png`.
+
+Remaining: this closes the current Files action/context menu grouping gap. Broader Files gaps remain provider-backed comments/blame metadata, richer workspace/global search, standalone/no-session preview fallback, and artifact tab lifecycle. Cross-surface menu gaps still include platform-specific shortcut capture live edge cases/specialized dialogs, deeper Browser inspector layout/subpane containers, and specialized local flyouts or fallback/action groups.
+
+### 2026-05-24 - Browser Load Error Panel Primitive Slice
+
+Codex evidence: direct string search of the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524` did not find a Browser-specific `Page unavailable` panel string, so this slice uses Codex's broader shared notice/banner direction as the reference. The bundle includes reusable notice/banner composition with leading visual, title/body, optional badge, and CTAs in `webview/assets/home-announcements-BLvEVXtK.js`; the relevant Orchestrator mismatch was that Browser load failures still used a local panel and raw buttons after adjacent Browser menu/message states had moved to shared primitives.
+
+Implemented: added shared `PanelNotice` to the design system for action-capable panel states with stable `data-panel-notice` attributes, tone/state metadata, leading icon, title, description, code, action area, and children. Browser load-error/recovery now composes `PanelNotice` with shared `Button` actions for Retry, Hard reload, Copy URL, and Open in browser. Browser-specific CSS is reduced to local width and action sizing while shared notice chrome owns icon/copy/code/actions/suggestion layout.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --browser` passed with `browserLoadErrorSharedState=true`, `browserLoadErrorPanel=true`, `browserErrorRecovery=true`, `browserFallbackMessagesShared=true`, `browserMenuRowsShared=true`, `browserMenuSectionsShared=true`, and the existing Browser lifecycle, geometry, local target, inspector, context-menu, hidden-state, and fork-transfer gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779644492943.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779644492944.png`.
+
+Remaining: this closes the explicit Browser load-error/recovery shared panel-state gap. Later Browser slices cover shell/body-host ownership, local fork DOM transfer, annotation workflows, and local browser-use no-mutation proof. Browser still needs live provider-emitted Codex/browser-use proof, non-Codex local-server adapters if exposed, and deeper inspector layout/subpane primitives. Cross-surface gaps remain platform-specific shortcut capture live edge cases/specialized dialogs and specialized local flyouts or fallback/action groups.
+
+### 2026-05-24 - Review Metadata Flyout Primitive Slice
+
+Codex evidence: current Codex review assets keep review toolbar/flyout controls on shared button/dropdown primitives (`review-runtime-bridge-CZUIqW4U.js`, `review-header-toolbar-6CN1dM2m.js`, `dropdown-PBHuhi3M.js`, `button-bq66r8jD.js`). Orchestrator had already added PR/check/reviewer metadata affordances, but the metadata flyout still used a local section title and local button rows inside the shared menu surface.
+
+Implemented: Review metadata flyouts now use shared `MenuSection` and `MenuSectionLabel` for the Review group and shared `MenuRow` for PR, checks, and reviewers rows while preserving the external-open buttons, active row state, check-status tone, and existing PR/check/reviewer metadata text. The focused smoke now checks `reviewMetadataFlyoutShared=true`. I also split the smoke sequencing so `--diff-entry` verifies the local current-change Review card/Undo path while `--diff-source` owns the Last turn provider-source mutation; this preserves both Review entry and Last turn coverage instead of letting the virtualized transcript replace the visible local card mid-test.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --diff-entry` passed with `reviewMetadataFlyoutShared=true`, `reviewMetadataToolbar=true`, `reviewTranscriptCard=true`, `reviewTranscriptCardUndo=true`, and `reviewEnvironmentPanel=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779645216043.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779645216043.png`. Focused `npm run smoke:ui:auto -- --diff-source` also passed with `reviewTranscriptCardLastTurn=true`, `reviewSourceModes=true`, `reviewWorktreeProviderSource=true`, and the existing source/search/comment/blame/hidden-context gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779645251214.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779645251214.png`.
+
+Remaining: this closes the current local Review metadata flyout primitive gap. The Review backlog still includes true provider checkpoint/last-turn Undo, real hosted PR/check/reviewer metadata adapters, provider-backed comments/blame, cloud/hosted diff adapters, richer context thresholds, diff virtualization, and live Codex side-by-side spacing comparison.
+
+### 2026-05-24 - Files and Review Fallback Notice Primitive Slice
+
+Codex evidence: checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/file-preview-page-MYWZ2m0h.js` keeps binary PDF fallback treatment as a compact centered token text state (`Binary file not shown`) rather than a bespoke heavy panel. `webview/assets/review-file-source-tab-CjS7Xe_W.js` uses centered icon/title/description states for empty open-file content and compact token text/actions for file-source fallbacks.
+
+Implemented: extended shared `PanelNotice` with root attributes so consumers can keep existing state test hooks while sharing the notice/action chrome. Files `EmptyFileState` and Review `ReviewEmptyState` now compose `PanelNotice` plus shared `Button` actions for binary, unreadable, missing, and no-selection fallback states. CSS now preserves the compact right-panel layout while centralizing icon, copy, code, and action structure through the shared notice primitive.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --files` passed with `filesFallbackNoticeShared=true`, `filesActionMenuSharedSections=true`, `filesRowContextMenuSharedSections=true`, and the existing Files tree/search/source/preview gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779645715259.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779645715259.png`. Focused `npm run smoke:ui:auto -- --diff-preview` passed with `reviewFallbackNoticeShared=true`, binary action states, and rich preview modes; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-preview-1779645748850.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-preview-1779645748850.png`.
+
+Remaining: this closes the Files/Review fallback notice primitive gap. It does not replace the Review backlog: true provider checkpoint/last-turn Undo, real hosted PR/check/reviewer metadata adapters, provider-backed comments/blame, cloud/hosted diff adapters, richer context thresholds, diff virtualization, and live Codex side-by-side spacing comparison remain explicit Review work. Cross-surface primitive gaps still include platform-specific shortcut capture live edge cases/specialized dialogs, deeper Browser inspector layout/subpane containers, and any specialized local fallback surfaces not yet covered by smoke.
+
+### 2026-05-24 - Browser Inspector Action Primitive Slice
+
+Codex evidence: checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/button-bq66r8jD.js` defines the shared button primitive used for toolbar/action controls, and `webview/assets/browser-use-settings-DMAxxI2Y.js` uses that button primitive for Browser-use settings, browsing-data actions, add-domain actions, and origin removal controls. The relevant Orchestrator mismatch was not the Browser toolbar anymore; it was Browser inspector target/assets/security subpane actions still using raw local buttons after the toolbar, menu rows, fallback messages, and load-error state had moved to shared primitives.
+
+Implemented: Browser target run now uses shared `IconButton`; target coordinate actions, clipboard actions, asset bundling, and security policy Add/Clear controls now use shared `Button` through the local inspector action wrapper. The behavior is unchanged, but smoke now proves these inspector action controls expose the shared motion/button contracts instead of local button-only chrome.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --browser` passed with `browserInspectorActionsShared=true`, `browserInspectorChromeCompact=true`, `browserTargetsPane=true`, `browserTargetsPaneNoHorizontalOverflow=true`, `browserMenuRowsShared=true`, `browserFallbackMessagesShared=true`, `browserLoadErrorSharedState=true`, and the existing Browser lifecycle/geometry/local-target/security/fork-transfer gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779646250145.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779646250145.png`.
+
+Remaining: this closes the current Browser inspector action-control primitive gap. Body-attached host ownership and local fork DOM transfer are now covered by later 2026-05-24 Browser slices. Browser still needs live/browser-use no-mutation proof, non-Codex provider browser-use/local-server adapters if exposed, body-attached shell-owned webview geometry, deeper annotation behavior, and deeper inspector layout/subpane container consolidation. Cross-surface primitive gaps still include platform-specific shortcut capture live edge cases/specialized dialogs and specialized local fallback surfaces not yet covered by smoke.
+
+### 2026-05-24 - Shared Dialog Layout Primitive Slice
+
+Codex evidence: checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/dialog-layout-D-x8fMKh.js` defines shared dialog content/header/body/footer/field composition, and `webview/assets/button-bq66r8jD.js` is the shared button primitive used by dialog footers and adjacent actions.
+
+Implemented: added shared `DialogContent`, `DialogHeader`, `DialogFooter`, and `DialogField` primitives to the design system. Confirm, text-input, rename, and automation edit dialogs now compose those primitives while preserving existing labels, submit/cancel behavior, status editing, schedule/interval/RRULE controls, and shared button actions. Focused smoke now gates `renameDialogSharedLayout=true` and `actionAutomationDialogSharedLayout=true`, including shared content/header/footer markers, shared footer buttons, field wrappers, and no horizontal overflow in the automation editor.
+
+Verification: `npm run build` passed. `git diff --check` passed before the focused smoke. The first focused sidebar smoke failed inside the sandbox with `listen EPERM 127.0.0.1:5173`, then the escalated `npm run smoke:ui:auto -- --sidebar` passed with `renameDialogSharedLayout=true`, `actionAutomationDialogSharedLayout=true`, and the existing Sidebar/automation gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779646643168.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779646643168.png`.
+
+Remaining: this closes the current rename/automation shared dialog-layout gap, not all dialog or Review work. Platform-specific shortcut capture edge cases, specialized sheet-style editors, deeper Browser inspector layout/subpane containers, file-tree section menus, and specialized local flyouts/fallback action groups remain open. The Review backlog remains unchanged: true provider checkpoint/last-turn Undo, real hosted PR/check/reviewer metadata adapters, provider-backed comments/blame, cloud/hosted diff adapters, richer context thresholds, diff virtualization, and live Codex side-by-side spacing comparison.
+
+### 2026-05-24 - Workbench File-Tab Action Menu Section Slice
+
+Codex evidence: checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/review-file-source-tab-CjS7Xe_W.js` wires file-source options through the shared dropdown/menu system, and `webview/assets/dropdown-PBHuhi3M.js` / `webview/assets/context-menu-TJfRSX1h.js` provide the shared rounded translucent surface, compact rows, and quiet section label/message primitives. The relevant Orchestrator mismatch was the Workbench file-tab actions menu staying a long flat local list after Files toolbar and row context menus had moved to shared sections.
+
+Implemented: Workbench file-tab actions now use shared `MenuSection` and `MenuSectionLabel` groups for Tab, File, View, and Selection. Existing actions and labels are preserved: Pin file tab, Add file to chat, Copy path, Open file, Reveal file, Show source/rich preview, Show/Hide git blame, Reveal selected line, Copy selected line reference, Open selected line, and Add source comment. The focused Files smoke now gates `workbenchFileTabActionMenuSharedSections=true`.
+
+Verification: `npm run build` passed. The first focused Files smoke failed inside the sandbox with `listen EPERM 127.0.0.1`, then the escalated `npm run smoke:ui:auto -- --files` passed with `workbenchFileTabActionMenuSharedSections=true` and all existing Files/source/preview gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779647149472.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779647149472.png`.
+
+Remaining: this closes the current Workbench file-tab action-menu grouping gap. It does not address provider-backed comments/blame metadata, richer workspace/global search, standalone/no-session fallback, artifact tab lifecycle, file-tree section menus, platform-specific shortcut capture live edge cases, specialized sheet-style editors, or deeper Browser inspector subpane containers.
+
+### 2026-05-24 - Shell Tab Context Menu Section Slice
+
+Codex evidence: checked `webview/assets/app-shell-tab-controller-B2eCi4Le.js` in the current extracted Codex bundle. The controller treats tab `contextMenuItems` as part of the shared app-shell tab model, while `webview/assets/context-menu-TJfRSX1h.js` and `webview/assets/dropdown-PBHuhi3M.js` provide the shared rounded translucent menu surface, compact rows, and section/separator direction. The Orchestrator mismatch was that Workbench and Terminal tab context menus used flat local item lists after the tab controller itself had been shared.
+
+Implemented: Workbench tab context menus now group actions with shared `MenuSection` / `MenuSectionLabel` under Tab, optional Terminal, and Manage. Terminal bottom-panel tab context menus now use Tab, Terminal, and Manage sections. Existing behavior is preserved for moving tabs left/right, resetting Browser tabs, moving terminals between right/bottom panels, and closing tabs.
+
+Verification: `npm run build` passed. The first focused right-panel and terminal smokes failed inside the sandbox with `listen EPERM 127.0.0.1`/`:5173`, then escalated focused smokes passed. `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelContextMenuSharedSections=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779647426240.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779647426240.png`. `npm run smoke:ui:auto -- --terminal` passed with `terminalTabMenuSharedSections=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779647459095.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779647459095.png`.
+
+Remaining: this closes the current shell tab context-menu grouping gap. Route/window lifecycle, true Codex shell spacing/animation comparison, richer drag sensors/separators/layout animation, cross-panel receive semantics, terminal service snapshots, exact terminal token comparison, and installed-app replacement proof remain open shell/terminal work.
+
+### 2026-05-24 - Browser Inspector Container Primitive Slice
+
+Codex evidence: checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. Browser and settings-related chunks continue to prefer reusable compact panel/action primitives instead of each subpane carrying unrelated local card chrome. The Orchestrator mismatch after the action-control slice was that Browser Targets, Assets, and Security still used local section/card/row containers even though their actions, menus, and fallback messages had moved to shared primitives.
+
+Implemented: added shared `InspectorSection`, `InspectorDisclosure`, and `InspectorRow` primitives to the design system with stable `data-inspector-section`, `data-inspector-section-title`, and `data-inspector-row` markers. Browser Targets now uses a shared section for Element and shared disclosure containers for Pointer/Clipboard; Assets uses shared rows for inventory, manifest, kind stats, and asset rows plus a shared section for inline SVGs; Security uses shared raised sections for Current origin, Defaults, and Origins plus shared rows for policy entries. Local Browser CSS now owns layout-specific behavior while the shared primitive owns card/row/disclosure chrome.
+
+Verification: `npm run build` passed. The first focused Browser smoke failed inside the sandbox with `listen EPERM 127.0.0.1`, then the escalated `npm run smoke:ui:auto -- --browser` passed with `browserInspectorContainersShared=true`, `browserInspectorActionsShared=true`, `browserInspectorChromeCompact=true`, `browserTargetsPane=true`, `browserTargetsPaneNoHorizontalOverflow=true`, and the existing Browser lifecycle/geometry/local-target/security/fork-transfer gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779648123953.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779648123953.png`. `git diff --check` passed.
+
+Remaining: this closes the current deeper Browser inspector subpane container primitive gap. Body-attached host ownership and local fork DOM transfer are now covered by later 2026-05-24 Browser slices. Browser still needs live/browser-use no-mutation proof, non-Codex provider browser-use/local-server adapters if exposed, body-attached shell-owned webview geometry, and deeper annotation behavior. Cross-surface primitive gaps still include platform-specific shortcut capture live edge cases/specialized dialogs and specialized local fallback surfaces not yet covered by smoke.
+
+### 2026-05-24 - Browser Floating Comment Editor Slice
+
+Codex evidence: checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `browser-sidebar-comment-mode-coachmark-state-DonNJgsl.js` keeps Browser comment-mode coachmark state in the Browser side-panel state, and `annotation-comment-editor-card-Doy_omTj.js` shows a floating browser annotation/comment editor with Cancel/Save/Send-style actions instead of immediately writing a click point into the composer.
+
+Implemented: Browser comment overlay clicks now create a pending point and open a floating editor with a point pin, point label, textarea, Cancel, and Send. Browser root state exposes `data-browser-comment-editor-open` and `data-browser-comment-pending-point`. Sending inserts URL/title/point/comment/visible-structure context into the composer and exits comment mode; cancel exits without mutating the composer. The focused Browser smoke now gates `browserCommentEditor=true` by verifying the editor opens first, the composer is unchanged until send, the sent comment appears in the composer, and comment mode/editor state clears afterward.
+
+Verification: `npm run build` passed. `npm run test:providers` passed with 266 tests. `git diff --check` passed. The first focused Browser smoke failed inside the sandbox with `listen EPERM 127.0.0.1`; the first escalated rerun exposed a smoke-harness helper scope issue (`setNativeValue is not defined`); after switching the harness to a local native textarea setter, escalated `npm run smoke:ui:auto -- --browser` passed with `browserCommentEditor=true` plus all existing Browser lifecycle, geometry, local-target, inspector, menu, fallback, load-error, and fork-transfer gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779650602229.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779650602229.png`.
+
+Remaining: this closes the basic floating Browser point-comment editor/send-cancel gap. Later Browser slices cover failed-page unavailable messaging, drag-region comments, original-preview proof, and design-tweak intent. Body-attached host ownership and local fork DOM transfer are now covered by later 2026-05-24 Browser slices. Browser still needs live/browser-use no-mutation proof, non-Codex provider browser-use/local-server adapters if exposed, body-attached shell-owned webview geometry, richer provider-produced annotation/design-change workflows, and actual provider application of design tweaks.
+
+### 2026-05-24 - Browser Comment Unavailable Message Slice
+
+Codex evidence: checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. Browser strings include `thread.browser.commentModeUnavailableForSite` and the adjacent browser tweak/comment strings, so comment-mode availability should be an explicit Browser state instead of only a disabled menu action.
+
+Implemented: Browser now exposes a stable unavailable reason through `data-browser-comment-unavailable-reason`, and the Browser actions menu renders a shared `MenuMessage` under the disabled Comment mode action when the current page cannot be annotated. The message uses shared menu-message state metadata, danger tone on load-error pages, and a Browser-specific wrapping class so the explanation remains readable inside the compact actions menu without horizontal overflow.
+
+Verification: `npm run build` passed. `npm run test:providers` passed with 266 tests. `git diff --check` passed. The first focused Browser smoke failed inside the sandbox with `listen EPERM 127.0.0.1`; the first escalated Browser smoke exposed a wrapping issue and failed only `browserCommentUnavailable=false`. After letting the message wrap inside the Browser menu, escalated `npm run smoke:ui:auto -- --browser` passed with `browserCommentUnavailable=true`, `browserCommentEditor=true`, `browserLoadErrorSharedState=true`, and all existing Browser lifecycle, geometry, local-target, inspector, menu, fallback, load-error, hidden-state, and fork-transfer gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779653197416.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779653197416.png`.
+
+Remaining: this closes the basic unavailable-message gap for failed Browser pages. Later Browser slices cover basic region comments, original-preview proof, and design-tweak intent. Body-attached host ownership and local fork DOM transfer are now covered by later 2026-05-24 Browser slices. Browser still needs live/browser-use no-mutation proof, non-Codex provider browser-use/local-server adapters if exposed, body-attached shell-owned webview geometry, richer provider-produced annotation/design-change workflows, actual provider application of design tweaks, and broader annotation lifecycle behavior.
+
+### 2026-05-24 - Settings Shortcut Capture Edge Slice
+
+Codex evidence: checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/keyboard-shortcuts-settings-C5AEKt2i.js` uses the shared settings surface/group stack, shared toolbar-sized button primitives for shortcut clear/reset/edit actions, a capture input, and code-backed keyboard accelerator helpers (`keyboard-event-accelerator-BjyHBB-R.js`) so shifted punctuation is normalized through keyboard event metadata instead of literal glyph text alone.
+
+Implemented: shortcut capture now normalizes `event.code` for shifted punctuation and digit keys before building editable sequences, so cases like `Cmd+Shift+?`, `Cmd+Shift+{`, `Cmd+Shift+~`, and `Cmd+Shift+!` record the stable `/`, `[`, `` ` ``, and `1` tokens used by the app command registry. Shortcuts row edit/reset/per-binding-clear controls now use shared `IconButton` with toolbar sizing while preserving hover/focus reveal, aria labels, per-binding clear behavior, conflict detection, and reset behavior.
+
+Verification: `npm run build` passed. `npm run test:providers` passed with 266 tests, including new shortcut recorder normalization cases. The first focused Settings smoke failed inside the sandbox with `listen EPERM 127.0.0.1:5173`, then the escalated `npm run smoke:ui:auto -- --settings` passed with `settingsShortcutsPunctuationCapture=true`, `settingsShortcutActionsShared=true`, `settingsShortcutsPerBindingClear=true`, and all existing Settings gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779648566468.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779648566468.png`.
+
+Remaining: this closes the current shifted-punctuation shortcut capture edge and shortcut row action primitive gap. The later 2026-05-25 packaged renderer protocol slice covers full app-router path ownership for packaged main windows. Settings still need real remote-host page adapters for Automations/Worktrees/Data controls, deeper native theme/font/chrome controls, platform-specific shortcut capture live edge cases, and specialized sheet-style editors.
+
+### 2026-05-24 - Settings Shortcut Capture Field Slice
+
+Codex evidence: checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/keyboard-shortcuts-settings-C5AEKt2i.js` renders shortcut capture as a read-only `input` with `data-codex-shortcut-capture`, `autoFocus`, `value="Press shortcut"`, `aria-label="Shortcut capture for {commandTitle}"`, and compact token-field classes: `h-token-button-composer w-36 rounded-lg border border-token-border bg-token-input-background px-3 py-0 text-sm text-token-text-primary shadow-sm outline-none`.
+
+Implemented: Orchestrator's shortcut recorder now renders as a read-only input instead of the old recorder button, uses the Codex prompt text, exposes capture-field metadata, disables spellcheck/mobile text input hints, keeps the command-specific capture aria label, and uses the compact token-field dimensions/background/radius/shadow already matched in CSS. Settings smoke now records `settingsShortcutCaptureFieldSharedWorks` before dispatching shortcut key events and requires it for the Shortcuts surface/editable gates.
+
+Verification: `npm run build` passed. `npm run test:providers` passed with 266 tests. The first focused Settings smoke failed inside the sandbox with `listen EPERM 127.0.0.1:5173`, then the escalated `npm run smoke:ui:auto -- --settings` passed with `settingsShortcutCaptureFieldShared=true`, `settingsShortcutsPunctuationCapture=true`, `settingsShortcutActionsShared=true`, `settingsShortcutsPerBindingClear=true`, and all existing Settings gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779648924668.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779648924668.png`. `git diff --check` passed.
+
+Remaining: this closes the current shortcut capture input styling/semantics gap. The later 2026-05-25 packaged renderer protocol slice covers full app-router path ownership for packaged main windows. Settings still need real remote-host page adapters for Automations/Worktrees/Data controls, deeper native theme/font/chrome controls, platform-specific shortcut capture live edge cases, specialized sheet-style editors, and live Codex Settings side-by-side comparison.
+
+### 2026-05-24 - Settings Content Layout Primitive Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/settings-content-layout-Bnulb0lM.js` owns a reusable Settings content layout with a content-level title/subtitle/action header, padded scroll body, and centered `max-w-2xl` content. This is distinct from the app-shell toolbar and avoids settings pages relying on loose intro copy alone.
+
+Implemented: added a shared `SettingsContentLayout` primitive in Orchestrator's design system with title, subtitle, optional action, body, and `data-settings-content-layout="codex"` metadata. Migrated General, Appearance, and Providers to this content-level header and removed loose intro copy on the pages that had it while preserving existing page surfaces, theme import/preset behavior, and provider diagnostics/default controls. The focused Settings smoke now gates `settingsContentLayout=true` across all three rendered page paths.
+
+Verification: `pnpm exec tsc --noEmit` passed. `git diff --check` passed. The first focused `npm run smoke:ui:auto -- --settings` failed inside the sandbox with `listen EPERM 127.0.0.1:5173`; the escalated run passed with `settingsContentLayout=true` and all existing Settings gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779665820506.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779665820506.png`. `npm run build` passed.
+
+Remaining: this covers the highest-traffic App Settings pages, but it does not migrate every Settings page, replace the hash route with Codex's full app-router path, add real remote-host settings adapters, or close deeper native theme/font/chrome controls, platform-specific shortcut capture live edges, specialized dialogs, or live Codex Settings side-by-side comparison.
+
+### 2026-05-24 - Review Last-Turn Git Apply Proof Slice
+
+Codex evidence: the current bundle-backed Review notes show `Copy git apply command` is part of the Review options surface alongside source-aware Review controls. Orchestrator already assembled Copy git apply from the loaded Review source, but only the local all-files path had focused proof; Last turn provider diffs from normalized `diff.updated` events were still listed as unproven.
+
+Implemented: extended the focused `--diff-source` smoke to select the synthetic Last turn provider diff, reopen Review options, invoke `Copy git apply command`, and assert the copied heredoc comes from the active Last turn source with exactly one `diff --git` entry containing `review-base.txt` and the `last turn smoke` diff body. This prevents stale local patches or selected-file-only patches from satisfying the provider Last turn path.
+
+Verification: `npm run build` passed. `npm run test:providers` passed with 266 tests. The first focused Review diff-source smoke failed inside the sandbox with `listen EPERM 127.0.0.1`, then the escalated `npm run smoke:ui:auto -- --diff-source` initially exposed the missing result property and failed `reviewLastTurnGitApplyCommand=false`. After wiring the return/debug path, the escalated `npm run smoke:ui:auto -- --diff-source` passed with `reviewLastTurnGitApplyCommand=true`, `reviewTranscriptCardLastTurn=true`, `reviewWorktreeProviderSource=true`, and all existing diff-source gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779649387824.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779649387824.png`. `git diff --check` passed.
+
+Remaining: this proves Copy git apply for loaded local and Last turn Review sources, but not cloud/hosted provider source adapters that do not exist yet. The Review backlog still includes true provider checkpoint/last-turn Undo, real hosted PR/check/reviewer metadata adapters, provider-backed comments/blame, cloud/hosted diff adapters, richer context thresholds, diff virtualization, and live Codex side-by-side spacing comparison.
+
+### 2026-05-24 - Review Full-Source Blame Slice
+
+Codex evidence: the Review/file-source bundle notes keep git blame as part of the source-review affordance set, and Orchestrator already had the equivalent selected-line/gutter blame behavior in Workbench file source tabs. The remaining Review gap was that load-full-file source mode rendered only a plain line grid.
+
+Implemented: Review source preview now accepts `workDir`, exposes a toolbar blame toggle, loads selected-line blame for the chosen full-source line, bulk-loads bounded gutter blame for the visible full-source file, and reuses the Workbench source blame detail/gutter styling with Review-specific test metadata. The focused diff-source smoke now gates `reviewFullSourceBlame=true` by selecting line 2 in `review-base.txt`, toggling source blame, and asserting selected-line details, action metadata, loaded-count metadata, and the line-2 gutter blame come from the working-tree blame result.
+
+Verification: `npm run build` passed. `npm run test:providers` passed with 266 tests. `git diff --check` passed. The first focused Review diff-source smoke failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated `npm run smoke:ui:auto -- --diff-source` passed with `reviewFullSourceBlame=true`, `reviewFullSourceRows=true`, `reviewLoadFullFile=true`, `reviewLastTurnGitApplyCommand=true`, and all existing diff-source gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779650083994.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779650083994.png`.
+
+Remaining: this closes the local full-source Review blame gap. The Review backlog still includes true provider checkpoint/last-turn Undo, non-GitHub/provider-native hosted PR/check/reviewer metadata adapters, provider-backed comments/blame, cloud/hosted diff adapters, richer context thresholds, diff virtualization, deeper hosted/mark-resolved conflict workflows, and live Codex side-by-side spacing comparison.
+
+### 2026-05-24 - Review GitHub Metadata Adapter Slice
+
+Codex evidence: the Review toolbar/flyout parity notes already established PR/check/reviewer metadata as first-class Review affordances. The remaining gap was not another toolbar restyle; Orchestrator needed a real adapter path that could populate the existing provider-neutral metadata model from hosted PR state.
+
+Implemented: added `gitManager.getReviewMetadata(cwd)` using optional `gh pr view --json number,title,url,state,isDraft,headRefName,baseRefName,statusCheckRollup,reviewRequests,reviews`, plus a pure `reviewMetadataFromGitHubPullRequestView` normalizer for PR state, check totals/status, and reviewer/request summaries. `sessionManager.getReviewMetadata(sessionId)` now caches successful metadata on the session, emits `session:updated`, and is exposed through IPC/preload/renderer typings. `DiffPanel` now loads Review metadata through that adapter-backed session API instead of only reading preseeded session metadata.
+
+Verification: `npm run build` passed. `npm run test:providers` passed with 268 tests, including GitHub PR metadata normalization coverage. `git diff --check` passed. The focused `npm run smoke:ui:auto -- --diff-entry` first failed in the sandbox with `listen EPERM 127.0.0.1`, then the escalated run passed with `reviewMetadataToolbar=true`, `reviewMetadataFlyoutShared=true`, `reviewTranscriptCardUndo=true`, and `reviewEnvironmentPanel=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779653681761.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779653681761.png`.
+
+Remaining: this closes the local GitHub PR metadata adapter slice, not the full Review backlog. True provider checkpoint/last-turn Undo, non-GitHub/provider-native hosted metadata adapters, provider-backed comments/blame, cloud/hosted diff adapters, richer context thresholds, diff virtualization, deeper hosted/mark-resolved conflict workflows, and live Codex side-by-side spacing comparison remain open.
+
+### 2026-05-24 - Review Floating Local Git Actions Slice
+
+Codex evidence: the current Codex Review bundle (`thread-side-panel-tabs-CVr2AbYP.js`) renders a bottom floating action pill for diff-wide git actions, including Stage all / Unstage all and a destructive Revert all path behind confirmation.
+
+Implemented: detailed Review now renders a sticky floating local git action pill when the loaded local source contains stageable or unstageable paths. The pill exposes Stage all and Unstage all through the existing safe `git.stagePaths` / `git.unstagePaths` IPC paths, refreshes local Review files after the action, and initially left destructive Revert all out until the Codex-like confirmation dialog was added in the follow-up slice. The focused `--diff-core` smoke now gates `reviewFloatingGitActions=true` by asserting the local-git pill, both action buttons, stageable/unstageable counts, sticky positioning, and blur-backed pill material.
+
+Verification: `npm run build` passed. `npm run test:providers` passed with 268 tests. `git diff --check` passed. The first focused `npm run smoke:ui:auto -- --diff-core` failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated rerun passed with `reviewFloatingGitActions=true`, `reviewGitApplyCommandCoversAll=true`, and all existing diff-core gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779654366322.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779654366322.png`.
+
+Remaining: this closed only the non-destructive local floating Stage all / Unstage all gap. The follow-up Revert all confirmation slice closes the destructive local confirmation gap. True provider checkpoint/last-turn Undo, non-GitHub/provider-native hosted metadata adapters, provider-backed comments/blame, cloud/hosted diff adapters, richer context thresholds, diff virtualization, deeper hosted/mark-resolved conflict workflows, and live Codex side-by-side spacing comparison remain open.
+
+### 2026-05-24 - Review Revert All Confirmation Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/thread-side-panel-tabs-CVr2AbYP.js` renders a Review revert confirmation dialog with `Revert changes?`, `This action removes all of these changes.`, a `Don't ask again` checkbox, Cancel, and danger Confirm before running the destructive diff-wide revert action.
+
+Implemented: the detailed Review floating local git pill now includes `Revert all` for mutable non-staged local sources, opens a shared Orchestrator dialog matching the Codex copy and controls, persists the optional skip-confirm preference in local storage, and only calls the existing safe `sessions.undoChangedFiles` path after confirmation. The same pill still exposes Stage all / Unstage all through the non-destructive git paths. The shared icon registry now includes an `undo` icon so the new action uses a real registered symbol instead of an undefined runtime icon.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run build` passed. `npm run test:providers` passed with 268 tests, including the existing `discard paths reverts tracked, staged, and untracked review files` and unsafe-path refusal coverage. Focused `npm run smoke:ui:auto -- --diff-core` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `reviewRevertAllConfirmation=true`, `reviewFloatingGitActions=true`, `reviewGitApplyCommandCoversAll=true`, and all existing diff-core gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779656797684.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779656797684.png`.
+
+Remaining: this closes the local Codex-style Revert all confirmation gap, not the full Review backlog. True provider checkpoint/last-turn Undo, non-GitHub/provider-native hosted metadata adapters, provider-backed comments/blame, cloud/hosted diff adapters, richer context thresholds, diff virtualization, deeper hosted/mark-resolved conflict workflows, and live Codex side-by-side spacing comparison remain open.
+
+### 2026-05-24 - Provider Checkpoint Undo Capability Boundary Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524` and current Orchestrator normalization. Codex app-server event names include provider-owned undo/rollback concepts, but Orchestrator currently normalizes only `turn/diff/updated` into `diff.updated`; no checkpoint id, rollback method, or undo-completed event is available to the renderer.
+
+Implemented: provider checkpoint Undo is now an explicit provider capability (`checkpointUndo`) in the shared provider capability model. Claude, Codex, Cursor, and Copilot adapters all declare it unsupported until an adapter can provide both a provider checkpoint id and rollback API. The transcript Review card now exposes `data-review-card-provider-checkpoint-undo="unsupported"` and `data-review-card-undo-kind="provider-checkpoint-unsupported"` for Last turn provider patch cards, with a specific tooltip explaining that provider checkpoint Undo is not supported by the adapter yet. This keeps local git discard separate from provider rollback and prevents false parity claims.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run build` passed. `npm run test:providers` passed with 269 tests, including the new checkpoint Undo capability coverage. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --diff-source` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `reviewTranscriptCardLastTurn=true`, `reviewLastTurnGitApplyCommand=true`, and all existing diff-source gates while asserting the Last turn Review card's disabled provider Undo state through the new unsupported markers. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779657348184.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779657348184.png`.
+
+Remaining: actual provider checkpoint Undo still requires a real provider adapter contract: checkpoint identifiers from the provider event stream, a rollback command, success/failure events, and Review card state updates after rollback. Until that exists, the correct parity state is explicit unsupported provider capability rather than local discard fallback.
+
+### 2026-05-24 - Shared Panel Tab Drag Marker Slice
+
+Codex evidence: `webview/assets/app-shell-tab-controller-B2eCi4Le.js` in the current extracted Codex bundle treats tab drag/reorder as part of the shared app-shell tab controller, not as local Workbench-only behavior. The remaining Orchestrator mismatch was that right-panel and bottom-panel tabs could reorder, but drag feedback highlighted a whole tab instead of showing a precise before/after insertion marker.
+
+Implemented: `PanelTabStrip` now computes a before/after drop position from the pointer location, exposes `data-drop-position`, renders a shared accent insertion marker, and writes dragover marker attributes immediately for low-latency feedback while retaining React state for normal rendering. Because Workbench and Terminal both use the same tab strip, the behavior applies to both right-panel Workbench tabs and bottom-panel Terminal tabs.
+
+Verification: `npm run build` passed. `git diff --check` passed. Focused smokes first hit the known sandbox `listen EPERM 127.0.0.1` path, then escalated runs passed. `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelTabDragMarker=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779654930736.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779654930736.png`. `npm run smoke:ui:auto -- --terminal` passed with `terminalTabDragMarker=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779654930225.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779654930225.png`.
+
+Remaining: this closes the precise drag insertion-marker gap, not the full app-shell move/receive model. Generic Codex-style cross-panel tab transfer for non-terminal tabs, richer layout animation, live Codex spacing/animation comparison, and route/window lifecycle cleanup remain open.
+
+### 2026-05-24 - Shared Panel Tab Transfer Primitive Slice
+
+Codex evidence: re-checked `webview/assets/app-shell-tab-controller-B2eCi4Le.js` in the current extracted Codex bundle. The Codex app-shell tab controller exposes shared `moveTabTo` and `receiveMovedTab` paths for right/bottom panel controllers, with per-tab `onMove` hooks adapting the moved tab state to the destination panel.
+
+Implemented: added a shared `transferPanelTab` primitive in `src/types/panelTabs.ts` that removes a tab from one controller-owned set, maps it into the destination set, activates it there, and preserves both sets when a tab cannot be moved. Terminal bottom-to-right and right-to-bottom movement now uses this shared primitive instead of hand-coded terminal-only remove/add state updates. `MenuSection` now forwards standard div attributes so shared menu sections can carry transfer metadata, and Terminal/Workbench terminal move menu sections expose `data-panel-tab-transfer-model="shared"` with source/target panel markers.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run test:providers` passed with 271 tests, including new `panel tabs transfer between controller-owned sets` and refusal coverage. The first focused Terminal smoke hit the expected sandbox `listen EPERM 127.0.0.1:5173`; the escalated rerun passed with `terminalSharedTransferModel=true`, `terminalMoveToRightPanel=true`, `terminalRightPanelNewTabShortcut=true`, `terminalMoveBackToBottom=true`, and existing tab/menu/telemetry/theme gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779659230452.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779659230452.png`.
+
+Remaining: this moves the existing Terminal transfer behavior onto shared app-shell primitives, but does not yet make arbitrary non-terminal Workbench tabs transferable to the bottom panel. Broader Codex-style move/receive still needs destination support for other tab kinds, route/window lifecycle cleanup, and live Codex animation/spacing comparison.
+
+### 2026-05-24 - Terminal Service Snapshot Slice
+
+Codex evidence: re-used the current extracted Codex bundle terminal notes for `webview/assets/terminal-service-BsiZiRKt.js`. Codex keeps terminal service state, session snapshots, pending actions, and session/conversation mappings separate from visible terminal panel state; this slice targets that service boundary rather than more Review-only panel styling.
+
+Implemented: added typed terminal service snapshots with per-terminal id, work directory, lifecycle status (`starting`, `running`, `exited`, `buffered`), buffer length, buffer presence, and exit state. The main terminal manager now exposes the snapshot through `terminal:getServiceSnapshot`, preload and renderer typings include `window.api.terminal.getServiceSnapshot()`, and snapshot construction lives in a focused pure helper covered by tests. The focused Terminal smoke now verifies the service snapshot for the visible bottom terminal and again after a bottom-to-right terminal move, proving that terminal service state survives visible placement changes.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run test:providers` passed with 272 tests, including `terminal service snapshot reports stable session status and counts`. The first focused Terminal smoke hit the expected sandbox `listen EPERM 127.0.0.1:5173`; the escalated rerun passed with `terminalServiceSnapshot=true` alongside the existing terminal transfer, menu, telemetry, shortcut, link-routing, and theme gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779659776450.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779659776450.png`. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes the current terminal service snapshot gap for local terminal sessions and placement changes. It does not yet add a root shell controller for all tab kinds, exact live Codex terminal height/animation/content spacing, installed-app replacement proof, or cross-conversation terminal persistence beyond the current terminal id/workDir/buffer/exit snapshot.
+
+### 2026-05-24 - Terminal Token Matrix Slice
+
+Codex evidence: re-extracted the current installed Codex bundle from `/Applications/Codex.app/Contents/Resources/app.asar` to `/private/tmp/orchestrator-codex-current-asar-terminal-20260524`. `webview/assets/thread-page-bottom-panel-state-D1Lz0U4Y.js` defines Codex's terminal theme resolver (`le`) by reading `--vscode-terminal-background`, `--vscode-terminal-foreground`, `--vscode-terminal-selectionBackground`, `--vscode-terminal-inactiveSelectionBackground`, and all 16 `--vscode-terminal-ansi*` tokens from the terminal element first, then `documentElement`, resolving CSS colors through a temporary element before passing them to xterm.
+
+Implemented: extracted the VS Code terminal token matrix into shared `src/types/terminalAppearance.ts`, including the Codex-matched cursor-to-foreground mapping and all normal/bright ANSI colors. `TerminalView` now resolves terminal CSS variables from the terminal surface before root tokens, converts CSS color strings through a probe element, keeps existing fallback colors only for missing tokens, and exposes the resolved matrix through `data-terminal-theme-token-matrix` for deterministic UI smoke assertions. Focused tests cover the exact Codex token map, token-over-fallback precedence, and smoke serialization.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run test:providers` passed with 275 tests, including the new terminal token-map tests. The first focused Terminal smoke hit the expected sandbox `listen EPERM 127.0.0.1:5173`; the escalated rerun passed with `terminalThemeTokenMatrix=true` alongside the existing terminal service, transfer, menu, telemetry, shortcut, link-routing, and theme/font gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779660167397.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779660167397.png`. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes the current exact terminal token-matrix gap at the xterm option boundary. It does not prove pixel-level terminal rendering under every Codex theme, exact live Codex terminal height/animation/content spacing, root shell controller ownership for all tab kinds, or installed-app replacement proof.
+
+### 2026-05-24 - Terminal Shared Header Chrome Slice
+
+Codex evidence: the current bundle-backed terminal notes keep Terminal in the shared app-shell/bottom-panel tab controller path. The Orchestrator mismatch was that the visible Terminal bottom-panel header still carried terminal-local `terminal-panel-*` header/tab CSS after the tab controller itself had already moved to shared primitives.
+
+Implemented: Terminal bottom-panel header now uses `app-shell-panel-chrome` with terminal surface metadata, and the tab strip relies on shared `PanelTabStrip` / `panel-tab-strip` classes instead of terminal-specific header and tabstrip classes. The terminal behavior smoke now gates `terminalHeaderSharedChrome=true` so the old local header class cannot silently return.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run test:providers` passed with 275 tests. The first focused Terminal smoke and Terminal visual smoke hit the expected sandbox `listen EPERM 127.0.0.1:5173`; escalated reruns passed. Terminal behavior evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779660570424.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779660570424.png`. Terminal visual evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779660598742.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779660598742.png`. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes the terminal-specific header CSS cleanup gap. It does not prove exact live Codex bottom-panel height/animation/content spacing, root shell controller ownership for all tab kinds, installed-app replacement proof, or any remaining Review backlog.
+
+### 2026-05-24 - Terminal Content Spacing Slice
+
+Codex evidence: re-used the current installed Codex bundle extraction at `/private/tmp/orchestrator-codex-current-asar-terminal-20260524`. `webview/assets/thread-page-bottom-panel-state-D1Lz0U4Y.js` constructs xterm with `lineHeight: 1.2`, renders the terminal surface with `backgroundColor: var(--vscode-terminal-background)` and `color: var(--vscode-terminal-foreground)`, and wraps the xterm mount in `px-4 pb-3 tracking-normal`, which resolves to 16 px horizontal padding, no top padding, and 12 px bottom padding.
+
+Implemented: `TerminalView` now uses the Codex terminal line-height, terminal-token background/foreground surface, and Codex xterm content padding. The terminal smoke exposes and verifies `terminalContentSpacing=true`, including rendered padding and surface token color matching, so future terminal UI changes cannot drift back to the prior local `1.45` line-height / `8px 12px 14px` padding.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run test:providers` passed with 275 tests. `npm run build` passed. `git diff --check` passed. The first focused Terminal smoke and Terminal visual smoke hit the expected sandbox `listen EPERM 127.0.0.1:5173`; escalated reruns passed. Terminal behavior evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779660921070.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779660921070.png`. Terminal visual evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779660953202.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779660953202.png`.
+
+Remaining: this closes the concrete terminal xterm content spacing/token-surface mismatch. It does not prove exact live Codex bottom-panel height, open/close/resize animation timing, root shell controller ownership for all tab kinds, installed-app replacement proof, or any remaining Review backlog.
+
+### 2026-05-24 - Terminal Resize Reset Slice
+
+Codex evidence: `app-shell-panel-animation-C6SMnz6V.js` keeps panel size/visibility behavior inside shared app-shell animation primitives, and the bottom-panel terminal reference remains part of the same shell-owned panel model rather than a terminal-local resize surface.
+
+Implemented: shared `PanelResizeHandle` now exposes edge metadata (`data-app-shell-resize-edge`) and orientation for shell-owned resize handles. Terminal marks its handle as the top edge, Workbench marks its handle as the left edge, and Terminal's resize handler now tolerates synthetic pointer-capture failures the same way the right panel already did. The focused Terminal smoke now drags the top-edge resize handle and double-clicks it back to the default height, gating the behavior with `terminalResizeReset=true`.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run test:providers` passed with 275 tests. `npm run build` passed. `git diff --check` passed. Focused Terminal smoke first hit the expected sandbox `listen EPERM 127.0.0.1:5173`; the escalated rerun passed with `terminalResizeReset=true`. Terminal behavior evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779661460460.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779661460460.png`. Terminal visual smoke also passed: JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779661489167.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779661489167.png`.
+
+Remaining: this closes the shared top-edge Terminal drag/reset parity gate. It does not prove exact live Codex bottom-panel height, open/close/resize animation timing, root shell controller ownership for all tab kinds, installed-app replacement proof, or any remaining Review backlog.
+
+### 2026-05-24 - Shared Resize Handle Overlay Slice
+
+Codex evidence: re-checked `/Applications/Codex.app/Contents/Resources/app.asar` via the extracted bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/app-shell-panel-animation-C6SMnz6V.js` renders resize handles as absolute overlay separators: left/right handles are `w-4` and translated half outside the edge, top/bottom handles are `h-4` and translated half outside the edge, with the visible one-pixel gradient line inside the hit target. Codex's resize handle therefore does not consume panel layout space.
+
+Implemented: the shared Orchestrator `PanelResizeHandle` CSS now follows that shell pattern. `motion-panel` is relative, resize handles are absolute 16 px overlay hit targets keyed by `data-app-shell-resize-edge`, and the visible line is centered inside the overlay. This removes the previous 8 px in-flow handle space that pushed the Terminal header/content down and made the bottom panel subtly taller/different from Codex. The same shared CSS applies to the Workbench left-edge handle and Terminal top-edge handle.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run smoke:ui:auto -- --terminal` first hit the expected sandbox `listen EPERM 127.0.0.1:5173`; the escalated rerun passed with `terminalResizeHandleOverlay=true` and `terminalResizeReset=true`, proving the top-edge handle overlaps the panel edge and no longer displaces the header. Terminal evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779661796903.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779661796903.png`. `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelResizeReset=true` and `rightPanelCloseBelowMin=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779661818780.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779661818780.png`. Terminal visual smoke passed: JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779661843980.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779661843980.png`. `npm run test:providers` passed with 275 tests. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes the shared resize-handle geometry mismatch. It does not prove Codex's animated-size progress timing, live bottom-panel height across real window sizes, root shell controller ownership for all tab kinds, installed-app replacement proof, or any remaining Review backlog.
+
+### 2026-05-24 - Shared Resize Handle Separator Slice
+
+Codex evidence: `webview/assets/app-shell-panel-animation-C6SMnz6V.js` renders app-shell resize handles as `role="separator"` elements with `aria-orientation` instead of button controls. The edge-aware separator owns pointer down, double-click reset, and active resize state in the shared shell primitive.
+
+Implemented: Orchestrator's shared `PanelResizeHandle` now renders a semantic separator instead of a button while preserving the shared `data-app-shell-resize-handle`, edge metadata, orientation, pointer drag, and double-click reset behavior. Right-panel smoke selectors now use the shell handle data attributes instead of looking for a `Resize panel` button, and Terminal smoke now requires the top-edge handle to be a separator.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --terminal` passed with `terminalResizeReset=true` and `terminalResizeHandleOverlay=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779662101956.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779662101956.png`. Focused `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelResizeReset=true` and `rightPanelCloseBelowMin=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779662098184.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779662098184.png`. `npm run test:providers` passed with 275 tests. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closed the shared resize-handle semantic primitive mismatch. At this checkpoint keyboard resizing was still missing; the later shared resize accessibility slice closes that follow-up gap. Exact Codex animated-size progress timing, live bottom-panel height across real window sizes, root shell controller ownership for all tab kinds, installed-app replacement proof, and the remaining Review backlog stay open.
+
+### 2026-05-24 - Shared Resize Controller Slice
+
+Codex evidence: re-checked `webview/assets/app-shell-panel-animation-C6SMnz6V.js` in the current extracted Codex bundle. The app-shell resize primitive centralizes resize state around edge/default-size/get-size-from-pointer behavior, normalizes pointer coordinates by window zoom, listens for `pointermove`, `pointerup`, and `pointercancel`, and handles double-click reset in the shared shell layer.
+
+Implemented: added `useAppShellResizeController` in `src/renderer/src/components/shared/designSystem.tsx` to own pointer capture, zoom-normalized pointer math, edge-aware delta direction, min/max clamping, below-min callbacks, active resize state, pointer-cancel cleanup, and double-click reset. Terminal and Workbench now pass only storage-specific callbacks into the shared controller instead of owning duplicate local drag state.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --terminal` passed with `terminalResizeReset=true` and `terminalResizeHandleOverlay=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779662391410.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779662391410.png`. Focused `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelResizeReset=true` and `rightPanelCloseBelowMin=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779662393272.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779662393272.png`. `npm run test:providers` passed with 275 tests. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes duplicate local resize-drag ownership for the existing Terminal and Workbench handles. It does not prove exact Codex animated-size progress timing, live bottom-panel height across real window sizes, root shell controller ownership for all tab kinds, installed-app replacement proof, or any remaining Review backlog.
+
+### 2026-05-24 - Shared Resize Accessibility Slice
+
+Codex evidence: re-checked `webview/assets/app-shell-panel-animation-C6SMnz6V.js` in the current extracted Codex bundle. Codex's resize primitive renders `role="separator"` and centralizes pointer resize/reset behavior, but the inspected chunk does not expose keyboard resizing or ARIA value attributes. Orchestrator's broader parity objective explicitly includes accessibility and keyboard behavior, so this slice extends the shared primitive while preserving Codex's separator role, overlay geometry, edge direction, and pointer semantics.
+
+Implemented: `PanelResizeHandle` is now focusable and exposes `aria-valuenow`, `aria-valuemin`, and `aria-valuemax` when backed by the shared resize controller. `useAppShellResizeController` now owns keyboard resizing for edge-aware arrow keys, `Home`/`End` min/max jumps, and `Enter`/Space default reset. Terminal and Workbench receive this through the shared controller props rather than local key handlers.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --terminal` passed with `terminalResizeKeyboard=true`, `terminalResizeReset=true`, and `terminalResizeHandleOverlay=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779662894867.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779662894867.png`. Focused `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelResizeKeyboard=true`, `rightPanelResizeReset=true`, and `rightPanelCloseBelowMin=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779662896888.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779662896888.png`. `npm run test:providers` passed with 275 tests. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes the shared keyboard/ARIA resize gap for the existing right and bottom app-shell separators. It does not prove exact Codex animated-size progress timing, live bottom-panel height across real window sizes, root shell controller ownership for all tab kinds, installed-app replacement proof, or any remaining Review backlog.
+
+### 2026-05-24 - Shared Panel Animation Controller Slice
+
+Codex evidence: re-checked `webview/assets/app-shell-panel-animation-C6SMnz6V.js` in the current extracted Codex bundle. Codex exports a shared panel animation result with `isMounted`, `animatedSize`, `opacity`, and `progress`, derived from the panel visibility animation and target size. That means panel consumers can observe mounted state and animated dimensions from one shell primitive instead of relying only on surface-local CSS transitions.
+
+Implemented: `MotionPanel` now uses a shared app-shell panel animation model for right and bottom panels. It drives panel width/height from shared animated size, exposes `data-app-shell-panel-animation="shared"`, animation state, progress, animated size, target size, and mounted metadata, respects reduced-motion preference, and disables the old CSS dimension transition for panels using the shared model. Terminal and Workbench inherit this through `AppShellPanel`, and focused smokes gate the new animation metadata for both surfaces.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --terminal` passed with `terminalSharedAnimationController=true` plus existing terminal shell/resize/transfer gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779663282115.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779663282115.png`. Focused `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelSharedAnimationController=true` plus existing right-panel shell/resize/command-routing gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779663345466.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779663345466.png`. `npm run test:providers` passed with 275 tests. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes the shared panel animation primitive/telemetry gap for existing right and bottom panels. It does not prove pixel-level live Codex timing, live bottom-panel height across real window sizes, route/window lifecycle cleanup, root shell controller ownership for all tab kinds, installed-app replacement proof, or any remaining Review backlog.
+
+### 2026-05-24 - Shared Shell Transfer Boundary Slice
+
+Codex evidence: re-checked `webview/assets/app-shell-tab-controller-B2eCi4Le.js` in the current extracted Codex bundle. Codex's app-shell tab controller owns generic right/bottom tab sets and exposes `moveTabTo` / `receiveMovedTab` semantics that move a tab plus its state between panel controllers. The thread-side-panel bundle wires those shared controller operations into specific surface capabilities instead of making every tab type automatically movable to every panel.
+
+Implemented: added a shared `resolvePanelTabTransferAvailability` capability resolver and a session-level `transferSessionPanelTab` action. Existing Terminal bottom-to-right and right-to-bottom moves now route through that shared session action. `MenuSurface` and `PopoverSurface` now forward standard div attributes so transfer capability metadata is visible from the actual menu surfaces. Workbench tab menus expose right-to-bottom capability metadata for the active tab and explicitly mark non-terminal right-to-bottom moves as unsupported; terminal menus expose supported bottom-to-right transfer metadata.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run test:providers` passed with 276 tests, including shared transfer availability coverage. `npm run build` passed after adding the renderer barrel export for the shared resolver. Focused `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelTransferUnsupportedBoundary=true` plus existing right-panel shell/resize/command-routing gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779664174471.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779664174471.png`. Focused `npm run smoke:ui:auto -- --terminal` passed with `terminalSharedTransferModel=true`, `terminalMoveToRightPanel=true`, `terminalRightPanelNewTabShortcut=true`, and `terminalMoveBackToBottom=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779664201401.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779664201401.png`. `git diff --check` passed.
+
+Remaining: this closes the immediate terminal-specific transfer-action exposure gap and documents the actual non-terminal bottom-panel boundary. It does not implement bottom rendering for Browser/Files/Review tabs, prove exact live Codex tab-state migration for all tab kinds, route/window lifecycle cleanup, installed-app replacement proof, or any remaining Review backlog.
+
+### 2026-05-24 - Terminal Bottom-Panel Size Decomposition Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/app-shell-panel-animation-C6SMnz6V.js` animates a shared target panel size, and `webview/assets/thread-page-bottom-panel-state-D1Lz0U4Y.js` keeps the Terminal surface as a full-height app-theme child below shared bottom-panel chrome.
+
+Implemented: Terminal now exposes content height, chrome height, total shell height, and default/reset height metadata on the bottom app-shell panel, the bottom-panel chrome, and the active tab panel. The focused Terminal smoke now gates `terminalBottomPanelSizeDecomposition=true` by checking that the app-shell animation target is the total panel height, that total height equals content plus chrome, that the content tab panel's rendered height matches the resolved Terminal content height, and that the reset/default target remains the Codex-style 260 px content height.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --terminal` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `terminalBottomPanelSizeDecomposition=true` plus existing terminal animation, layout, resize, transfer, service snapshot, shortcut, link-routing, and theme gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779666210652.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-1779666210652.png`. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes the local Terminal content/chrome/animation-target ambiguity and gives future live Codex comparisons exact dimensions to compare. It does not yet prove live Codex numeric height at multiple window sizes, pixel-level animation timing curves, route/window lifecycle cleanup, bottom rendering for Browser/Files/Review tabs, installed-app replacement proof, or any remaining Review backlog.
+
+### 2026-05-24 - Review Shared Source Viewer Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/review-file-source-tab-CjS7Xe_W.js` routes Review file-source content through the same source-viewer model used by file tabs: line selection, gutter utilities, blame controls, scroll state, and virtualized source rendering. This slice targets the full-source/source-preview path in detailed Review, not the general diff renderer.
+
+Implemented: Orchestrator's detailed Review `Load full files` / source-preview state now wraps the shared `FilePreview` source renderer instead of a bespoke Review-only line list. The Review wrapper preserves Review-specific title/action/blame state, while the actual source rows now use the same source-line DOM, selection attributes, gutter adornment hook, selected-line action hook, and virtualization metadata as Workbench file tabs. The focused Review smoke now asserts `data-review-source-shared-preview="true"` and the shared `workspace-text-preview` source-line structure under `review-full-source`.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --diff-source` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `reviewFullSourceRows=true`, `reviewFullSourceBlame=true`, `reviewLoadFullFile=true`, `reviewLineOpensFileSourceTab=true`, `reviewHiddenContextExpansion=true`, `reviewHiddenContextExpandAll=true`, and `reviewLargeDiffWindow=true`. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779667607626.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779667607626.png`. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this removes one duplicate Review-only source-viewer implementation and brings full-source Review closer to Codex's file-source tab structure. It does not close provider-backed comments/blame, cloud/hosted review source adapters, true provider checkpoint/last-turn Undo, real hosted PR/check/reviewer metadata adapters, deeper hosted/mark-resolved conflict workflows, richer context thresholds, or full Codex diff DOM virtualization/buffers.
+
+### 2026-05-24 - Settings Full Content Layout Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/settings-content-layout-Bnulb0lM.js` is the reusable Settings content header/layout primitive, and the current app bundle groups App and Host settings through the shared Settings page structure rather than one-off intro blocks.
+
+Implemented: extended Orchestrator's shared `SettingsContentLayout` from General, Appearance, and Providers to the remaining local Settings pages: Automations, Worktrees, Data controls, Personalization/Pets, and Shortcuts. The focused Settings smoke now gates the content-layout marker/title/subtitle across General, Appearance, Providers, Data controls, Automations, Worktrees, and Shortcuts; the dedicated Pets smoke gates `petsSettingsContentLayout=true` for the Personalization page.
+
+Verification: `pnpm exec tsc --noEmit` passed. `rg -n "SettingsIntro" src/renderer/src/components/Settings` has no matches, leaving only the intentional host-adapter unavailable boundary in `SettingsModal.tsx`. Focused `npm run smoke:ui:auto -- --settings` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `settingsContentLayout=true` plus all existing Settings route, grouped-nav, host-context, shortcut, provider, data, automations, and worktrees gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779667023714.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779667023714.png`. Dedicated `npm run smoke:ui:auto -- --pets` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `petsSettingsContentLayout=true` plus the broader Personalization/Pets gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-pets-1779667146960.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-pets-1779667146960.png`. `npm run build` passed.
+
+Remaining: this closes the stale Settings content-layout migration backlog. Settings still needs a true app-router path equivalent to Codex's `/settings/:section/*`, real remote-host settings adapters behind the current unavailable boundaries, deeper native theme/font/chrome controls, platform-specific shortcut capture live checks, and live Codex side-by-side Settings screenshots before final visual parity is claimed.
+
+### 2026-05-24 - Review Side-Pane Shared Resize Handle Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/review-file-tree-side-pane-CGo_VDrf.js` renders the changed-files side pane as a right-side `border-l` rail and wires its left edge through the shared resize primitive, with min width 200 px and max width 60% of the parent.
+
+Implemented: Orchestrator's Review changed-files pane now uses the shared `PanelResizeHandle` plus `useAppShellResizeController` instead of a local button and local pointer/key handlers. The handle now exposes Codex-style separator semantics, `data-app-shell-resize-handle`, left-edge metadata, ARIA value bounds, pointer drag, keyboard resize, and double-click reset while preserving the existing hide-below-min behavior and side-pane width persistence.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run smoke:ui:auto -- --diff-source` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `reviewSidePaneResize=true` plus source search, provider Last turn, full-source rows/blame, comments, gutter actions, hidden context, and large-diff gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779666509234.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779666509234.png`. `npm run build` passed. `git diff --check` passed.
+
+Remaining: this closes one concrete Review structure mismatch in the changed-files rail. The Review backlog remains provider checkpoint/last-turn Undo, non-GitHub/provider-native hosted metadata adapters, provider-backed comments/blame, cloud/hosted diff adapters, richer context thresholds, true diff virtualization, deeper hosted/mark-resolved conflict workflows, and live Codex side-by-side spacing comparison.
+
+### 2026-05-24 - Review Large Diff Render Window Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/parse-diff-BXe0fwiB.js` has explicit large-diff thresholds, and `webview/assets/file-diff-DVuLEIDo.js` contains a true `VirtualizedFileDiff` / `little-virtualized-file-diff` path with rendered ranges and buffer metadata.
+
+Implemented: added the initial shared `resolveReviewDiffRenderWindow` helper, limited detailed Review diff rendering before explicit expansion, and added a shared `PanelNotice`-style `Large diff limited` notice with `Show full diff`. This initial slice used an over-eager 1,200-total-row threshold and a 3,204-row fixture; the later `Review Codex-Scale Large-Diff Threshold Slice` supersedes that threshold with Codex-scale changed-line/byte/max-line metrics and newer evidence.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run test:providers` passed with 277 tests, including the new render-window unit coverage. `npm run build` passed. The first focused `npm run smoke:ui:auto -- --diff-source` failed inside the sandbox with `listen EPERM 127.0.0.1`, then the escalated run exposed a smoke assertion bug where the pre-click DOM element attributes were read after React updated them. After snapshotting the pre-expand attributes, the escalated `npm run smoke:ui:auto -- --diff-source` passed with `reviewLargeDiffWindow=true` and all existing diff-source gates; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779665091352.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779665091352.png`. `git diff --check` passed.
+
+Remaining: this closed the immediate max-render guard and explicit expansion affordance, then the later Codex-scale threshold slice closed the over-eager threshold mismatch. It is still not a full Codex-style DOM virtualizer with scroll buffers/range metadata, and live Codex side-by-side Review spacing remains open.
+
+### 2026-05-24 - Browser Drag-Region Comment Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/annotation-comment-editor-card-Doy_omTj.js` is still the floating annotation editor reference, and the adjacent Browser comment/tweak strings keep the workflow broader than a one-click point-to-composer action.
+
+Implemented: Browser comment mode now supports drag-to-select region comments in addition to point comments. Dragging across the comment overlay renders a dashed region selection, opens the same floating editor anchored to the region, keeps Cancel/Send semantics, exposes `data-browser-comment-pending-region`, renders a persistent region marker behind the editor, and sends `Region: x%, y% - w% x h%` composer metadata only after Send. Existing point-comment behavior is preserved.
+
+Verification: `npm run build` passed. Focused `npm run smoke:ui:auto -- --browser` first failed inside the sandbox with `listen EPERM 127.0.0.1`, then the escalated smoke exposed and fixed only the new assertion path. The final escalated run passed with `browserCommentRegion=true`, `browserCommentEditor=true`, `browserCommentUnavailable=true`, and all existing Browser lifecycle, geometry, local-target, inspector, menu, fallback, load-error, hidden-state, tab-shell, and fork-transfer gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779655514156.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779655514156.png`. `git diff --check` passed.
+
+Remaining: this closes the basic Browser drag-region comment gap. Later Browser slices prove preview-original state and add design-tweak intent. Body-attached host ownership and local fork DOM transfer are now covered by later 2026-05-24 Browser slices. Browser still needs live/browser-use no-mutation proof, non-Codex provider browser-use/local-server adapters if exposed, body-attached shell-owned webview geometry, richer provider-produced annotation/design-change workflows, actual provider application of design tweaks, and broader annotation lifecycle behavior.
+
+### 2026-05-24 - Browser Original Preview Comment Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. The Browser annotation strings include `thread.browser.tweaks.previewOriginal`, `thread.browser.tweaks.exitAnnotations`, and adjacent send/cancel tweak strings, so previewing the unannotated page is part of the Browser annotation workflow rather than a passive label.
+
+Implemented: Browser comment-mode `Preview original` now uses a transparent overlay state so the underlying page remains visually inspectable, removes the overlay button role/tab stop while previewing, blocks point/region placement, and keeps composer text unchanged until the user returns to annotations and explicitly sends a comment. The focused Browser smoke now gates `browserCommentPreviewOriginal=true` by toggling preview, asserting the Original banner and Back action, clicking the page without opening an editor or mutating the composer, and returning to annotation mode.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run build` passed. Focused `npm run smoke:ui:auto -- --browser` first failed inside the sandbox with `listen EPERM 127.0.0.1`, then the escalated run passed with `browserCommentPreviewOriginal=true`, `browserCommentRegion=true`, `browserCommentEditor=true`, `browserCommentUnavailable=true`, and all existing Browser lifecycle, geometry, local-target, inspector, menu, fallback, load-error, hidden-state, tab-shell, and fork-transfer gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779655821599.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779655821599.png`.
+
+Remaining: this closes the basic Browser original-preview state gap. The later Browser design-tweak slice adds editor-side requested design changes. Body-attached host ownership and local fork DOM transfer are now covered by later 2026-05-24 Browser slices. Browser still needs live/browser-use no-mutation proof, non-Codex provider browser-use/local-server adapters if exposed, body-attached shell-owned webview geometry, richer provider-produced annotation/design-change workflows, actual provider application of design tweaks, and broader annotation lifecycle behavior.
+
+### 2026-05-24 - Browser Design-Tweak Comment Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/above-composer-panel-row-u8ZTJgs2.js` separates `designTweakCommentAttachments` through `localBrowserDesignChange`, and the Browser tweak strings include send/cancel/preview-original and a submit banner for design changes. This confirms design tweaks are a distinct Browser annotation intent, not only generic point comments.
+
+Implemented: Browser comment editor now has a compact `Comment` / `Tweak` intent control. The default remains `Comment`; selecting `Tweak` changes the editor header/placeholder, records `data-browser-comment-intent`, and sends a region- or point-scoped `Design tweak for this browser page:` composer block with `Requested design change:` only after Send. Existing point comments, region comments, preview original, cancel, and unavailable behavior remain intact.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run build` passed. Focused `npm run smoke:ui:auto -- --browser` first failed inside the sandbox with `listen EPERM 127.0.0.1`, then the escalated smoke initially exposed a stale hidden-panel selector in the new assertion. After tightening the smoke to assert the active editor/buttons/composer content, the final escalated run passed with `browserCommentDesignTweak=true`, `browserCommentPreviewOriginal=true`, `browserCommentRegion=true`, `browserCommentEditor=true`, `browserCommentUnavailable=true`, and all existing Browser lifecycle, geometry, local-target, inspector, menu, fallback, load-error, hidden-state, tab-shell, and fork-transfer gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779656274944.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779656274944.png`.
+
+Remaining: this closes the editor-side Browser design-tweak intent gap. Body-attached host ownership and local fork DOM transfer are now covered by later 2026-05-24 Browser slices. Browser still needs live/browser-use no-mutation proof, non-Codex provider browser-use/local-server adapters if exposed, body-attached shell-owned webview geometry, richer provider-produced annotation/design-change workflows, actual provider application of design tweaks, and broader annotation lifecycle behavior.
+
+### 2026-05-24 - Browser Compact Local Target Chooser Slice
+
+Codex evidence: re-used the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524` and the Browser/sidebar assets listed in the steering matrix. The relevant Codex pattern remains compact, icon-first panel action chrome with low-emphasis rows; the observed Orchestrator mismatch was the local-app chooser reading as a wide table with repeated URL metadata and text action buttons.
+
+Implemented: the Browser empty-state local-server chooser now uses a narrower compact list, icon-only accessible header actions for hidden/online view, sort, and refresh, left-aligned row labels, and source metadata (`Recent` / `Port`) instead of repeating the URL in the right metadata lane. The focused Browser smoke now gates `browserLocalTargetsCompactChooser=true` by requiring a compact chooser width, icon-first header buttons with accessible labels, left-aligned target buttons, and non-duplicated compact metadata.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --browser` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `browserLocalTargetsCompactChooser=true`, `browserLocalTargetsListChrome=true`, `browserLocalServerRoutes=true`, and all existing Browser lifecycle/comment/inspector/menu gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779658694849.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779658694849.png`. Focused right-panel visual smoke also passed after the change and captured the corrected Browser chooser: JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779658718345.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779658718345.png`.
+
+Remaining: this closes only the visible local-target chooser mismatch. Body-attached host ownership and local fork DOM transfer are now covered by later 2026-05-24 Browser slices. Browser still needs live/browser-use no-mutation proof, non-Codex provider browser-use/local-server adapters if exposed, body-attached shell-owned webview geometry, and richer provider-produced annotation/design-change workflows.
+
+### 2026-05-24 - Browser Host-Scoped Partition Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/browser-sidebar-manager-ivre5jEI.js` owns Browser webviews in a manager map, transfers webviews by conversation, appends webview containers to `document.body`, and scopes persistence with `persist:codex-browser-app-route:${encodeURIComponent(conversationId)}`.
+
+Implemented: Orchestrator now derives Browser webview partitions from the Browser host id instead of using one global `persist:orchestrator-side-browser` partition for every session/tab. `BrowserPanel` and `BrowserWebviewManager` expose host-scoped partition metadata, active and hidden webviews use the same host partition, and Browser clear-data actions pass the current host partition through preload to the main process. The main process only accepts Orchestrator Browser partitions and falls back to the legacy partition for older callers.
+
+Verification: `pnpm exec tsc --noEmit` passed. `pnpm test src/main/__tests__/browserManagerEvents.test.ts` passed with helper coverage for host-scoped partitions and partition validation. Focused `npm run smoke:ui:auto -- --browser` passed with `browserWebviewManagerBoundary=true`, `browserClearData=true`, `browserWebviewPersistence=true`, and all existing Browser lifecycle, local-target, comment, inspector, menu, fallback, load-error, hidden-state, tab-shell, and fork-transfer gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779673424882.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779673424882.png`.
+
+Remaining: this closes the storage/session-isolation part of the Browser host-ownership gap. At that checkpoint it did not implement Codex's body-attached shell-owned webview containers, true DOM webview transfer across hosts, or browser-use no-mutation proof; later 2026-05-24 slices cover those. Browser still needs live provider-emitted Codex/browser-use proof, non-Codex browser/local-server adapters if exposed, richer provider-produced annotation/design-change workflows, and actual provider application of design tweaks.
+
+### 2026-05-24 - Browser Body-Attached Webview Host Slice
+
+Codex evidence: re-checked `webview/assets/browser-sidebar-manager-ivre5jEI.js` in the current extracted Codex bundle. Codex creates a container with `document.createElement("div")`, creates a `webview`, appends the webview to the container, appends the container to `document.body`, and then drives visible state through fixed-position container geometry, scaled webview transforms, and hidden paint-host containment.
+
+Implemented: Orchestrator's `BrowserWebviewManager` now renders the Browser webview elements through a `document.body` portal instead of keeping them as children of the Browser panel subtree. The Browser panel still owns stage measurement, toolbar, inspector, comment overlay, and visible geometry; the body host owns the actual active/hidden webview DOM. Active webviews now expose `data-browser-webview-dom-host="body"` plus `data-browser-webview-containment="body-fixed"`, while hidden webviews keep mounted body-host containment and the existing paint-host behavior for browser-use capture state. Focused smoke also asserts the webview's parent host is directly attached under `document.body`.
+
+Verification: `pnpm exec tsc --noEmit` passed. `pnpm test src/main/__tests__/browserManagerEvents.test.ts` passed. `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --browser` first exposed a stale hidden-containment assertion from the old inline structure; after updating it to assert the body host, the smoke passed with `browserWebviewManagerBoundary=true`, `browserHiddenWebviewContainment=true`, `browserWebviewPersistence=true`, `browserCommentPreviewOriginal=true`, `browserCommentDesignTweak=true`, `browserClearData=true`, and all existing Browser lifecycle, local-target, comment, inspector, menu, fallback, load-error, hidden-state, tab-shell, and fork-transfer gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779673771673.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779673771673.png`. Focused right-panel smoke also passed with Browser command routing and visual reset intact; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779673813372.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779673813372.png`.
+
+Remaining: this closes the body-attached visible/hidden webview-host geometry gap. The following Browser cross-host DOM transfer slice closes the forked DOM-node continuity gap, and the later no-mutation smoke closes local browser-use overlay safety. Live provider-emitted Codex/browser-use proof, non-Codex browser/local-server adapters if exposed, richer provider-produced annotation/design-change workflows, and actual provider application of design tweaks remain open.
+
+### 2026-05-24 - Browser Cross-Host DOM Webview Transfer Slice
+
+Codex evidence: re-checked `webview/assets/browser-sidebar-manager-ivre5jEI.js` in the current extracted Codex bundle. Codex keeps Browser webviews in a manager-level `webviews` map and exposes `transferWebview(sourceConversationId, targetConversationId)`, which deletes the source key, calls `transfer(targetConversationId)` on the existing webview record, sets it under the target key, and moves browser-use/capture/local-server state to the target.
+
+Implemented: Orchestrator's fork path now carries Browser transfer source/target host ids through `transferBrowserWorkbench`. The target `BrowserPanel` keeps the target panel host identity while the `BrowserWebviewManager` inherits the source webview host id and source partition for the transferred webview, which matches the practical Electron constraint that a live webview's partition is fixed. The manager/webview DOM now exposes transfer source, target, id, target host, inherited source host, and inherited partition metadata.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --browser` passed with `browserForkDomTransfer=true`, proving a local fork keeps the same active body-hosted webview DOM object, switches the visible Browser panel to the target host, and preserves the source partition/source-host metadata on the transferred webview. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779676488818.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779676488818.png`. Focused `npm run smoke:ui:auto -- --right-panel` passed after the Browser metadata changes; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779676519116.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779676519116.png`.
+
+Remaining: this closes true local fork DOM webview continuity for the active Browser tab. The following no-mutation smoke closes local browser-use overlay safety. Browser still needs live provider-emitted Codex/browser-use proof, non-Codex browser/local-server adapters if exposed, richer provider-produced annotation/design-change workflows, actual provider application of design tweaks, and broader route/window lifecycle comparison.
+
+### 2026-05-24 - Browser-Use No-Mutation Smoke Slice
+
+Codex evidence: re-used the current Browser manager evidence from `/private/tmp/orchestrator-codex-app-asar-20260524`. Codex's Browser manager layers browser-use viewport, capture-surface, capture-bounds, and cursor state onto the existing Browser route/webview manager; those signals should not create a new visible tab, navigate the page, rewrite the address field, change the webview partition, or mutate the chat composer.
+
+Implemented: the focused Browser smoke now snapshots the visible Browser panel, active body-hosted webview object, body host, active tab id, current URL/address input, host-scoped partition/source host, device viewport mode, hidden webview count, and composer text before browser-use activation. It then toggles synthetic provider-style browser-use state on and off and gates that the capture/cursor metadata appears and clears while the visible Browser route, tab, webview DOM object, partition, viewport mode, and composer text remain unchanged.
+
+Verification: `pnpm exec tsc --noEmit` passed. `pnpm test src/main/__tests__/browserManagerEvents.test.ts` passed. Focused `npm run smoke:ui:auto -- --browser` passed with `browserUseNoMutation=true`, `browserManagerStateBridge=true`, `browserCaptureGeometry=true`, and all existing Browser lifecycle, local-target, annotation, inspector, load-error, hidden-state, body-host, and fork-transfer gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779678965678.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779678965678.png`.
+
+Remaining: this closes the local no-mutation regression proof for Browser-use state. It is not a live provider-emitted Codex session proof. Browser still needs live provider-emitted browser-use verification, non-Codex browser/local-server adapters if exposed, richer provider-produced annotation/design-change workflows, actual provider application of design tweaks, and broader route/window lifecycle comparison.
+
+### 2026-05-24 - Review Panel-Root Floating Actions Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `thread-side-panel-tabs-CVr2AbYP.js` renders the Review action pill through a panel-level overlay path (`Dg` / `Og`) with absolute positioning at `left-1/2` and `bottom-[20px]`, rather than as a child of the scrollable diff preview pane.
+
+Implemented: Orchestrator's detailed Review floating local git pill now renders as a root-level Review overlay anchored to the full `.diff-panel-root`, with `data-review-floating-action-anchor="panel-root"`. The prior sticky-in-preview placement centered the pill over only the diff preview column when the changed-files rail was visible; the new placement matches Codex's panel-level action overlay and keeps Revert all / Stage all / Unstage all on one line.
+
+Verification: `pnpm exec tsc --noEmit` passed. `npm run build` passed. `git diff --check` passed. Focused `npm run smoke:ui:auto -- --diff-core` first failed inside the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `reviewFloatingGitActions=true`, `reviewRevertAllConfirmation=true`, `reviewGitApplyCommandCoversAll=true`, and all existing diff-core gates. The smoke now asserts panel-root anchoring, absolute positioning, full-panel horizontal centering, bottom offset, blur material, and no wrapped pill labels. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779657926769.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-core-1779657926769.png`.
+
+Remaining: this closes a visible Review action-overlay mismatch, not the full Review backlog. True provider checkpoint/last-turn Undo, cloud/provider-native review source adapters, hosted provider source flows, real PR metadata adapters beyond the local GitHub path, richer context thresholds, diff virtualization, deeper hosted/mark-resolved conflict workflows, and broader live Codex side-by-side Review spacing comparison remain open.
+
+### 2026-05-24 - Sidebar Codex Thread-List Items Metadata Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `sidebar-thread-list-signals-FpAb9VJn.js` consumes `inbox-items` with `data?.items`, while `sidebar-project-group-signals-B2IlZT8R.js` models local conversation, remote task, and pending-worktree entries before deriving projectless, cloud, remote-host, and worktree group identities.
+
+Implemented: Orchestrator's shared Codex sidebar metadata adapter now accepts `items` in addition to array, `data`, and `threads` results. It normalizes nested `conversation`, `task`, and `pendingWorktree` records into the provider-agnostic session projection, including projectless state, cloud task state, remote-host labels, worktree source/root/host metadata, preview text, and numeric or ISO timestamp fields. This makes the existing Sidebar grouping model usable with more realistic Codex thread-list shapes instead of only the synthetic flat fixture shape.
+
+Verification: `npx tsc -p tsconfig.node.json --outDir out-test --module commonjs` plus `node --test out-test/src/main/__tests__/sessionOrdering.test.js` passed with new coverage for `items` plus nested local conversation, remote task, pending worktree, and hosted-conversation records. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --sidebar` passed with existing provider metadata, projectless/worktree grouping, pinning, action menu, automation, custom-section, and connection-group gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779672991967.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779672991967.png`.
+
+Remaining: this closes one real adapter-shape gap for Codex sidebar metadata, but it is not a live provider pin mutation path and not a live side-by-side visual parity certificate. Provider pin list/set remains externally blocked through the current app-server surface, deeper provider-native reconciliation may still be needed for hosted/cloud/worktree records, and live Codex screenshot comparison remains open.
+
+### 2026-05-24 - Settings Personalization Host Boundary Slice
+
+Codex evidence: re-checked the current extracted Codex bundle at `/private/tmp/orchestrator-codex-app-asar-20260524`. `webview/assets/settings-host-context-B5kZhSF6.js` provides the selected host id to Settings, and `webview/assets/personalization-settings-YskFHfNU.js` reads that selected host id for memory, personality, and custom-instructions surfaces. This means Codex Personalization is host-scoped, not an app-global page.
+
+Implemented: moved Settings app/host scope and host-adapter-state decisions into shared typed helpers in `src/types/index.ts`, then used those helpers in the renderer. Remote Personalization now keeps the visible Host navigation row but renders an explicit unavailable state that names the missing Codex-style memory/personality/custom-instructions adapter instead of showing local pet-overlay controls for a remote host. The focused Settings smoke now gates `settingsPersonalizationHostBoundary=true`.
+
+Verification: `pnpm test src/main/__tests__/sessionOrdering.test.ts` passed with helper coverage for app/host scope and remote adapter states. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --settings` passed with `settingsPersonalizationHostBoundary=true`, `settingsHostAdapterBoundary=true`, `settingsHostContext=true`, `settingsHostSectionFiltering=true`, and the existing Settings gates. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779678251521.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779678251521.png`.
+
+Remaining at that checkpoint: this corrected the remote boundary and prevented a false parity claim; it did not implement the real Codex Personalization adapter. The following taxonomy slice split Orchestrator's Pet overlay settings away from Host Personalization.
+
+### 2026-05-24 - Settings Pet Overlay / Host Personalization Split Slice
+
+Codex evidence: re-used the same current Codex Settings bundle evidence. Codex Personalization is a host-scoped page for memory, personality, and custom instructions; Orchestrator's pet controls are app-level product settings and are not equivalent to that page.
+
+Implemented: added a distinct `personalization` Settings section id for the Host nav and kept `pets` as an app-scoped `Pet overlay` page. The Settings nav now shows App: General, Appearance, Providers, Pet overlay; Host: Automations, Worktrees, Shortcuts, Personalization, Data controls. `settingsHostAdapterState('personalization', ...)` remains unavailable until a real provider adapter exists, while Pet overlay is app-global on remote hosts and local on Local. The Pet overlay content header now reads `Pet overlay` instead of `Personalization`, preserving pet controls without claiming Codex Personalization parity.
+
+Verification: `pnpm test src/main/__tests__/sessionOrdering.test.ts` passed with app/host scope coverage for `personalization` and `pets`. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --settings` passed with `settingsSidebarGroupedNav=true`, `settingsPersonalizationHostBoundary=true`, and existing Settings gates; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779678561891.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-1779678561891.png`. Focused `npm run smoke:ui:auto -- --pets` passed with `petsSettingsContentLayout=true`, `petsSettingsSurface=true`, and `petsSettingsModule=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-pets-1779678586608.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-pets-1779678586608.png`.
+
+Remaining: true Host Personalization is still a real adapter gap. The next Settings adapter slice should either implement host-scoped memory/personality/custom-instructions behavior for the supported provider path or keep it unavailable with more provider-specific evidence.
+
+### 2026-05-25 - Settings App-Protocol Deep Link Slice
+
+Codex evidence: re-used the current extracted Codex Settings route/host chunks: `settings-page-mdGEmNCB.js`, `settings-back-route-Cfgk-CZa.js`, and `settings-host-context-B5kZhSF6.js`. Codex Settings is route-owned and host-context aware, so app-entry navigation must preserve both the section and selected host rather than falling back to local Settings state.
+
+Implemented: added shared `orchestrator://settings/<section>?host=...` parsing/building alongside the existing session deep-link path, wired main/preload/renderer navigation for settings links, and added pending-navigation support so app-protocol entry can open Settings directly. Settings preference loading now preserves a non-local host selected by route/deep-link navigation instead of overwriting it with persisted local state.
+
+Verification: `pnpm test src/main/__tests__/settingsRoutes.test.ts` passed. `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --settings-deeplink` passed with `settingsDeepLinkRoute=true`, proving `/settings/providers?host=codex%3Aremote-mac`, active section `providers`, host id `codex:remote-mac`, and host kind `remote`. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-deeplink-1779679851579.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-deeplink-1779679851579.png`.
+
+Remaining: this closes app-protocol entry into route-owned Settings with host preservation. The follow-up packaged renderer protocol slice below removes the packaged main-window `file://` hash dependency for Settings routes. Real remote-host Settings adapters, deeper native theme/font/chrome controls, and live Codex side-by-side Settings visual comparison remain open.
+
+### 2026-05-25 - Settings Packaged Renderer Protocol Route Slice
+
+Codex evidence: re-used the current Settings route bundle evidence. `settings-page-mdGEmNCB.js` reads `/settings/:section/*`, redirects visible sections through `/settings/${section}`, and keeps host selection in `settings-host-context-B5kZhSF6.js`. This confirmed the target is path-owned Settings, not a packaged hash-only renderer route.
+
+Implemented: added a privileged internal `orchestrator-app://renderer/` protocol for packaged Orchestrator main windows, served the renderer bundle through that protocol, and mapped `/settings/...` paths back to `index.html` so packaged Settings can own `/settings/<section>?host=...` routes. The route helper now treats `orchestrator-app:` like HTTP for path routing while preserving the old `file://` hash parser as a direct-file fallback. Dev HTTP behavior is unchanged, and the pet overlay still loads through its dedicated renderer entry.
+
+Verification: `pnpm test src/main/__tests__/settingsRoutes.test.ts` passed with custom-protocol route coverage. `pnpm exec tsc --noEmit` passed. `npm run pack:mac` passed. Packaged focused `npm run smoke:ui:auto -- --settings-deeplink --packaged` passed with `settingsDeepLinkRoute=true`; route debug proves `protocol: "orchestrator-app:"`, `pathname: "/settings/providers"`, empty hash, active section `providers`, and host id `codex:remote-mac`. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-deeplink-1779681835187.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-settings-deeplink-1779681835187.png`.
+
+Remaining: this closes the packaged path-route ownership gap for the main Settings window. It does not implement real remote-host Settings adapters, Codex Personalization memory/personality/custom-instructions behavior, deeper native theme/font/chrome controls, platform-specific shortcut capture live checks, larger sheet-style editors, or live Codex side-by-side Settings screenshots.
+
+### 2026-05-25 - Review Diff Content Search Slice
+
+Codex evidence: re-checked the current extracted Review bundle. `review-file-tree-side-pane-CGo_VDrf.js` wires the Review changed-files rail to Codex's thread-find/search model, including diff-domain matches, capped search results, and active-match visibility. Orchestrator's Review changed-files search was only filtering by path, so a query that appeared only in diff content could leave the rail empty.
+
+Implemented: Review search now indexes each loaded Review file by path, loaded diff text, and preview text. Matching rows stay visible even when the file path does not include the query, and the changed-files rail shows a compact `data-review-file-search-match-count` badge for content matches while preserving existing comment-count badges.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --diff-source` passed with `reviewSearchContent=true`; the smoke searches for `after review`, which appears in the diff body rather than the path, and verifies the `review-base.txt` row remains visible with a search-match badge. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779680223342.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779680223342.png`.
+
+Remaining: this is the first concrete content-search parity step. The follow-up active-match slice below adds local match stepping and a capped visible count. Full Codex parity still needs cross-conversation/thread-find integration, line-level active-match reveal, and virtualized search reveal semantics.
+
+### 2026-05-25 - Review Search Active-Match Navigation Slice
+
+Codex evidence: re-used `review-file-tree-side-pane-CGo_VDrf.js`, where Review search participates in Codex's thread-find model with diff-domain results, active match ids (`codex-thread-find-active`), capped result collection (`Se=250`), and reveal/scroll helpers. The local Orchestrator Review rail had content match visibility after the prior slice, but it still had no active-match navigation state.
+
+Implemented: added Review search previous/next controls beside the changed-files search field, a capped 250-result navigation list over loaded diff/preview matches, visible match-count metadata, and active-row state through `data-review-search-active`. Stepping to the next local Review search match selects the matching Review file through the changed-files rail, preserves the single selected-file main renderer, and exposes smoke-readable active path/count metadata on both the Review root and match controls.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --diff-source` passed with `reviewSearchContent=true` while clicking `review-search-next-match`, proving a query present only in diff content keeps `Nested Folder/nested note.md` visible, marks it as the active search row, updates `data-review-tree-search-active-path`, and selects that file. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779680746643.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779680746643.png`.
+
+Remaining: this is a local Review-rail parity step, not the full Codex thread-find implementation. The follow-up diff-body active-line slice below covers local line focus/highlighting for rendered text diffs. Review still needs cross-conversation/thread-find integration, exact active-match reveal/scroll behavior under virtualized diff rows, a user-facing over-cap/warning treatment beyond the `250+` local count, true provider checkpoint/last-turn Undo, cloud/hosted diff adapters, hosted provider source flows, provider-backed PR/comments/blame metadata, deeper hosted conflict workflows, and live Codex side-by-side spacing comparison.
+
+### 2026-05-25 - Review Search Diff-Body Active Line Slice
+
+Codex evidence: re-used `review-file-tree-side-pane-CGo_VDrf.js`. Codex marks actual diff text with `codex-thread-find-match`, marks the active hit with `codex-thread-find-active`, maps diff results to line locations, and scrolls the active match into view through the Review file container. Orchestrator had active file-row state only; the main rendered diff body did not expose or visually focus the active search match.
+
+Implemented: threaded the active Review search match ordinal into the selected rendered `DiffLines` surface, computed per-line match metadata for rendered text diffs, marked matching rows with `data-review-search-line-match`, marked the active row with `data-review-search-active-line`, exposed diff-root search metadata, and scroll-revealed the active row when stepping through Review search matches. The row treatment uses a restrained warning-colored inset/fill so it reads as search focus without overriding existing add/delete diff coloring.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --diff-source` passed with `reviewSearchContent=true`; the smoke clicks `review-search-next-match` and now additionally verifies the selected `Nested Folder/nested note.md` diff body has `data-review-diff-search-active-visible="true"` plus an active line containing `review tree grouping`. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779681153265.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779681153265.png`.
+
+Remaining: this closes local rendered-diff active-line focus for the current text renderer. It still does not implement Codex's cross-conversation/thread-find controller, mark-level inline text wrapping, exact active-match reveal/scroll under a true virtualized diff renderer, over-cap UI beyond local `250+` count semantics, provider checkpoint Undo, hosted/cloud diff adapters, provider-backed PR/comments/blame metadata, deeper hosted conflict workflows, or live Codex side-by-side Review spacing comparison.
 
 Recommended order:
 
 1. Shell/tab foundation only.
 2. Workbench chrome migration.
-3. Terminal migration to shared bottom/right panel controller.
-4. Review source modes and Codex toolbar parity.
-5. File tabs and file viewer parity.
+3. Terminal live Codex bottom-panel height/animation comparison at multiple window sizes plus root shell ownership for any remaining non-shared tab paths. The local content/chrome/target decomposition is now smoke-gated; live Codex numeric comparison remains.
+4. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, provider-backed comments/blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
+5. File tabs and file viewer parity, now focused on full artifact rendering/provider search after the artifact identity/source-boundary slice.
 6. Browser lifecycle parity.
 7. Chat Sidebar model and visual rebuild.
-8. Settings primitive migration.
+8. Settings remote-adapter parity: real remote-host Settings adapters behind the current unavailable boundaries, native theme/font/chrome checks, platform shortcut live checks, and live Codex Settings screenshot comparison. The packaged custom-protocol route gap is now covered by the 2026-05-25 Settings packaged renderer-route slice.
 9. Thread actions, worktrees, automations, and multi-window parity.
 
 Do not start with individual sidebar colors, shadows, or row padding unless a screenshot test proves a small visual mismatch after the shared primitives are in place.

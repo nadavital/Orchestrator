@@ -1,16 +1,39 @@
 import { create } from 'zustand'
 import type { Attachment, Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, TranscriptPage, UsageSummary } from '../types'
-import { nextPinOrder } from '../types'
+import { closePanelTab, filePanelTabId, movePanelTabByDirection, nextPinOrder, parseFilePanelTabId, reorderPinnedSessions, resetPanelTabSet, resolvePanelTabTransferAvailability, transferPanelTab, upsertPanelTab } from '../types'
+import type { SettingsSectionId } from '../../../types'
 
-export type SettingsSection = 'general' | 'appearance' | 'providers' | 'shortcuts' | 'pets' | 'data'
-export type RightPanelTabKind = 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'sidechat'
-export type RightPanelTabId = Exclude<RightPanelTabKind, 'sidechat'> | `sidechat:${string}`
+export type SettingsSection = SettingsSectionId
+export type RightPanelTabKind = 'new-tab' | 'environment' | 'plan' | 'diff' | 'agents' | 'extensions' | 'side' | 'files' | 'browser' | 'file' | 'sidechat' | 'terminal'
+export type RightPanelTabId = Exclude<RightPanelTabKind, 'file' | 'sidechat' | 'terminal'> | `file:${string}` | `sidechat:${string}` | `terminal:${number}`
+
+export interface SourceAnnotationState {
+  id: string
+  line: number
+  body: string
+  status: 'draft' | 'saved'
+  updatedAt: number
+}
 
 export interface RightPanelTabState {
   id: RightPanelTabId
   kind: RightPanelTabKind
   title: string
   closable: boolean
+  isPreview?: boolean
+  isPinned?: boolean
+  fileHost?: string
+  filePath?: string
+  terminalTabId?: number
+  fileViewMode?: 'rich' | 'source'
+  sourceWrap?: boolean
+  selectedSourceLine?: number | null
+  sourceSearchQuery?: string
+  sourceSearchIndex?: number
+  sourceAnnotations?: SourceAnnotationState[]
+  sourceBlameVisible?: boolean
+  sourceRevealLine?: number | null
+  sourceRevealRequest?: number
 }
 
 export interface RightPanelState {
@@ -31,6 +54,18 @@ export interface BrowserWorkbenchState {
   deviceMode: BrowserDeviceMode
   viewportWidth: number
   viewportHeight: number
+  browserUseActive: boolean
+  browserUseTurnId: string | null
+  browserUseViewportSize: BrowserUseSurfaceSize | null
+  browserUseCaptureSurfaceSize: BrowserUseSurfaceSize | null
+  browserUseCaptureBounds: BrowserUseSurfaceBounds | null
+  browserUseCursorState: BrowserUseCursorState | null
+  webviewTransferSourceHostId: string | null
+  webviewTransferTargetHostId: string | null
+  webviewTransferId: string | null
+  commentMode: boolean
+  commentCoachmarkDismissed: boolean
+  commentPreviewOriginal: boolean
   visible: boolean
   activeTabId: string
   tabs: BrowserTabState[]
@@ -49,6 +84,34 @@ export interface BrowserWorkbenchState {
   allowedUploadOrigins: string[]
   blockedUploadOrigins: string[]
   hiddenLocalTargets: string[]
+  localServerRoutes: BrowserLocalServerRoute[]
+  hiddenLocalServerRoutes: string[]
+}
+
+export interface BrowserUseSurfaceSize {
+  width: number
+  height: number
+}
+
+export interface BrowserUseSurfaceBounds extends BrowserUseSurfaceSize {
+  x: number
+  y: number
+  scale?: number
+}
+
+export interface BrowserUseCursorState {
+  visible: boolean
+  x: number
+  y: number
+  animateMovement?: boolean
+  moveSequence?: number
+}
+
+export interface BrowserLocalServerRoute {
+  serverUrl: string
+  url: string
+  title?: string | null
+  source?: 'provider' | 'history' | 'manual'
 }
 
 export type BrowserDeviceMode =
@@ -105,6 +168,20 @@ export interface TerminalPanelState {
   nextTabId: number
 }
 
+export type SessionPanelTabTransferIntent =
+  | {
+    sourcePanel: 'bottom'
+    targetPanel: 'right'
+    tabKind: 'terminal'
+    tabId: number
+  }
+  | {
+    sourcePanel: 'right'
+    targetPanel: 'bottom'
+    tabKind: RightPanelTabKind
+    tabId: RightPanelTabId
+  }
+
 export interface SessionUIState {
   showPlan: boolean
   showDiff: boolean
@@ -137,6 +214,7 @@ interface SessionState {
   showSettings: boolean
   showCapabilities: boolean
   settingsSection: SettingsSection
+  settingsHostId: string
   setSessions: (sessions: SessionListItem[]) => void
   addSession: (session: Session) => void
   hydrateSession: (session: Session) => void
@@ -146,6 +224,7 @@ interface SessionState {
   updateStatus: (id: string, status: Session['status']) => void
   updateName: (id: string, name: string) => void
   updatePinned: (id: string, pinned: boolean, pinOrder?: number) => void
+  reorderPinned: (orderedPinnedSessionIds: string[]) => void
   updateSession: (id: string, patch: Partial<Session>) => void
   updateSettings: (id: string, patch: {
     provider?: string
@@ -177,19 +256,28 @@ interface SessionState {
   appendSideChatMessage: (id: string, chatId: string, message: SideQuestionMessage) => void
   updateSideChatMessage: (id: string, chatId: string, messageId: string, patch: Partial<SideQuestionMessage>) => void
   setShowSideQuestions: (id: string, v: boolean) => void
-  setRightPanelWidth: (id: string, width: number, widthRatio?: number) => void
+  setRightPanelWidth: (id: string, width: number, widthRatio?: number | null) => void
+  setRightPanelOpen: (id: string, open: boolean) => void
   setRightPanelFullWidth: (id: string, fullWidth: boolean) => void
   openRightPanelTab: (id: string, tabId: RightPanelTabId) => void
+  openRightPanelFileTab: (id: string, filePath: string, options?: { preview?: boolean; line?: number }) => void
+  updateRightPanelFileTabState: (id: string, tabId: RightPanelTabId, patch: Pick<Partial<RightPanelTabState>, 'fileViewMode' | 'sourceWrap' | 'selectedSourceLine' | 'sourceSearchQuery' | 'sourceSearchIndex' | 'sourceAnnotations' | 'sourceBlameVisible' | 'sourceRevealLine' | 'sourceRevealRequest'>) => void
+  pinRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   closeRightPanelTab: (id: string, tabId: RightPanelTabId) => void
   moveRightPanelTab: (id: string, tabId: RightPanelTabId, direction: 'left' | 'right') => void
   resetRightPanelTabState: (id: string, tabId: RightPanelTabId) => void
   setRightPanelBrowserUrl: (id: string, url: string) => void
+  openRightPanelBrowserUrl: (id: string, url: string) => void
   setRightPanelBrowserWorkbench: (id: string, patch: Partial<BrowserWorkbenchState>) => void
+  transferBrowserWorkbench: (sourceId: string, targetId: string) => void
   closeRightPanel: (id: string) => void
   setTerminalHeight: (id: string, height: number) => void
   addTerminalTab: (id: string) => number
   setActiveTerminalTab: (id: string, tabId: number) => void
   moveTerminalTab: (id: string, tabId: number, direction: 'left' | 'right') => void
+  transferSessionPanelTab: (id: string, intent: SessionPanelTabTransferIntent) => boolean
+  moveTerminalTabToRight: (id: string, tabId: number) => void
+  moveRightPanelTerminalTabToBottom: (id: string, tabId: RightPanelTabId) => void
   closeTerminalTab: (id: string, tabId: number) => void
   setHasUnread: (id: string, v: boolean) => void
   setComposerDraft: (id: string, draft: string) => void
@@ -199,6 +287,7 @@ interface SessionState {
   setShowSettings: (v: boolean) => void
   setShowCapabilities: (v: boolean) => void
   setSettingsSection: (section: SettingsSection) => void
+  setSettingsHostId: (hostId: string) => void
   appendMessages: (id: string, messages: ChatMessage[]) => void
   upsertMessage: (id: string, message: ChatMessage) => void
   appendEvents: (id: string, events: SessionRunEventRecord[]) => void
@@ -232,8 +321,8 @@ export const defaultUI: SessionUIState = {
   },
   rightPanel: {
     open: false,
-    width: 468,
-    widthRatio: 0.34,
+    width: 600,
+    widthRatio: undefined,
     fullWidth: false,
     activeTabId: null,
     tabs: []
@@ -248,6 +337,18 @@ function defaultBrowserWorkbench(): BrowserWorkbenchState {
     deviceMode: 'desktop',
     viewportWidth: 1280,
     viewportHeight: 720,
+    browserUseActive: false,
+    browserUseTurnId: null,
+    browserUseViewportSize: null,
+    browserUseCaptureSurfaceSize: null,
+    browserUseCaptureBounds: null,
+    browserUseCursorState: null,
+    webviewTransferSourceHostId: null,
+    webviewTransferTargetHostId: null,
+    webviewTransferId: null,
+    commentMode: false,
+    commentCoachmarkDismissed: false,
+    commentPreviewOriginal: false,
     visible: true,
     activeTabId: 'tab-1',
     tabs: [{
@@ -270,7 +371,9 @@ function defaultBrowserWorkbench(): BrowserWorkbenchState {
     blockedDownloadOrigins: [],
     allowedUploadOrigins: [],
     blockedUploadOrigins: [],
-    hiddenLocalTargets: []
+    hiddenLocalTargets: [],
+    localServerRoutes: [],
+    hiddenLocalServerRoutes: []
   }
 }
 
@@ -278,7 +381,7 @@ export function hasComposerDraft(ui?: Pick<SessionUIState, 'composerDraft' | 'co
   return Boolean(ui?.composerDraft?.trim() || (ui?.composerAttachments?.length ?? 0) > 0)
 }
 
-export const useSessionStore = create<SessionState>((set) => ({
+export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
   activeSessionId: null,
   rawBuffers: {},
@@ -289,6 +392,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   showSettings: false,
   showCapabilities: false,
   settingsSection: 'general',
+  settingsHostId: 'local',
 
   setSessions: (sessions) => set({ sessions }),
 
@@ -366,9 +470,23 @@ export const useSessionStore = create<SessionState>((set) => ({
     set((s) => {
       const order = pinOrder ?? (pinned ? nextPinOrder(s.sessions) : undefined)
       return {
-        sessions: s.sessions.map((x) => (x.id === id ? { ...x, pinned, pinOrder: order } : x))
+        sessions: s.sessions.map((x) => (
+          x.id === id
+            ? {
+                ...x,
+                pinned,
+                pinOrder: order,
+                ...(pinned ? {} : { providerPinned: false, providerPinOrder: undefined, providerPinnedThreadKey: undefined })
+              }
+            : x
+        ))
       }
     }),
+
+  reorderPinned: (orderedPinnedSessionIds) =>
+    set((s) => ({
+      sessions: reorderPinnedSessions(s.sessions, orderedPinnedSessionIds)
+    })),
 
   updateSession: (id, patch) =>
     set((s) => ({
@@ -381,20 +499,26 @@ export const useSessionStore = create<SessionState>((set) => ({
     })),
 
   setShowDiff: (id, v) =>
-    set((s) => ({
-      uiState: {
-        ...s.uiState,
-        [id]: {
-          ...(s.uiState[id] ?? defaultUI),
-          rightPanel: syncRightPanelTab(s.uiState[id]?.rightPanel, 'diff', v),
-          showDiff: v,
-          showPlan: v ? false : (s.uiState[id]?.showPlan ?? false),
-          showEvents: v ? false : (s.uiState[id]?.showEvents ?? false),
-          showExtensions: v ? false : (s.uiState[id]?.showExtensions ?? false),
-          showSideQuestions: v ? false : (s.uiState[id]?.showSideQuestions ?? false)
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const rightPanel = v
+        ? syncRightPanelTab(syncRightPanelTab(current.rightPanel, 'environment', true), 'diff', true)
+        : syncRightPanelTab(current.rightPanel, 'diff', false)
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel,
+            showDiff: v,
+            showPlan: v ? false : (current.showPlan ?? false),
+            showEvents: v ? false : (current.showEvents ?? false),
+            showExtensions: v ? false : (current.showExtensions ?? false),
+            showSideQuestions: v ? false : (current.showSideQuestions ?? false)
+          }
         }
       }
-    })),
+    }),
 
   setShowPlan: (id, v) =>
     set((s) => ({
@@ -429,16 +553,28 @@ export const useSessionStore = create<SessionState>((set) => ({
     })),
 
   setShowTerminal: (id, v) =>
-    set((s) => ({
-      uiState: {
-        ...s.uiState,
-        [id]: {
-          ...(s.uiState[id] ?? defaultUI),
-          showTerminal: v,
-          terminalPanel: ensureTerminalPanel(s.uiState[id]?.terminalPanel)
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const terminalPanel = ensureTerminalPanel(current.terminalPanel)
+      const restoredPanel = v && terminalPanel.tabs.length === 0
+        ? {
+            ...terminalPanel,
+            tabs: [terminalPanel.nextTabId],
+            activeTabId: terminalPanel.nextTabId,
+            nextTabId: terminalPanel.nextTabId + 1
+          }
+        : terminalPanel
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            showTerminal: v,
+            terminalPanel: restoredPanel
+          }
         }
       }
-    })),
+    }),
 
   setShowExtensions: (id, v) =>
     set((s) => ({
@@ -681,8 +817,22 @@ export const useSessionStore = create<SessionState>((set) => ({
             rightPanel: {
               ...rightPanel,
               width,
-              widthRatio: widthRatio ?? rightPanel.widthRatio
+              widthRatio: widthRatio === undefined ? rightPanel.widthRatio : widthRatio ?? undefined
             }
+          }
+        }
+      }
+    }),
+
+  setRightPanelOpen: (id, open) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: { ...ensureRightPanel(current.rightPanel), open }
           }
         }
       }
@@ -711,6 +861,87 @@ export const useSessionStore = create<SessionState>((set) => ({
           [id]: {
             ...current,
             rightPanel: syncRightPanelTab(current.rightPanel, tabId, true)
+          }
+        }
+      }
+    }),
+
+  openRightPanelFileTab: (id, filePath, options) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const currentPanel = ensureRightPanel(current.rightPanel)
+      const session = s.sessions.find((candidate) => candidate.id === id)
+      const preview = options?.preview ?? true
+      const line = typeof options?.line === 'number' && Number.isFinite(options.line) && options.line > 0
+        ? Math.floor(options.line)
+        : null
+      const tab = {
+        ...rightPanelTab(fileTabId(filePath, session?.workDir)),
+        isPreview: preview,
+        isPinned: !preview,
+        ...(line !== null
+          ? {
+              fileViewMode: 'source' as const,
+              selectedSourceLine: line,
+              sourceRevealLine: line,
+              sourceRevealRequest: Date.now()
+            }
+          : {})
+      }
+      const next = resetPanelTabSet(upsertPanelTab(currentPanel, tab, { activate: true, replacePreview: preview }))
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: {
+              ...currentPanel,
+              open: true,
+              activeTabId: next.activeTabId,
+              tabs: next.tabs
+            }
+          }
+        }
+      }
+    }),
+
+  pinRightPanelTab: (id, tabId) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const currentPanel = ensureRightPanel(current.rightPanel)
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: {
+              ...currentPanel,
+              tabs: currentPanel.tabs.map((tab) =>
+                tab.id === tabId ? { ...tab, isPreview: false, isPinned: true } : tab
+              )
+            }
+          }
+        }
+      }
+    }),
+
+  updateRightPanelFileTabState: (id, tabId, patch) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const currentPanel = ensureRightPanel(current.rightPanel)
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            rightPanel: {
+              ...currentPanel,
+              tabs: currentPanel.tabs.map((tab) =>
+                tab.id === tabId && tab.kind === 'file'
+                  ? { ...tab, ...patch }
+                  : tab
+              )
+            }
           }
         }
       }
@@ -779,6 +1010,37 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
     }),
 
+  openRightPanelBrowserUrl: (id, url) =>
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const workbench = current.browserWorkbench ?? defaultBrowserWorkbench()
+      const tabs = workbench.tabs.length ? workbench.tabs : defaultBrowserWorkbench().tabs
+      const activeTabId = tabs.some((tab) => tab.id === workbench.activeTabId) ? workbench.activeTabId : tabs[0].id
+      const openedAt = Date.now()
+      const title = browserTitleForUrl(url)
+      const nextWorkbench: BrowserWorkbenchState = {
+        ...workbench,
+        visible: true,
+        activeTabId,
+        tabs: tabs.map((tab) => tab.id === activeTabId ? { ...tab, url, title, lastOpened: openedAt } : tab),
+        history: [
+          { url, title, visitedAt: openedAt },
+          ...workbench.history.filter((item) => item.url !== url)
+        ].slice(0, 12)
+      }
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            browserUrl: url,
+            browserWorkbench: nextWorkbench,
+            rightPanel: syncRightPanelTab(current.rightPanel, 'browser', true)
+          }
+        }
+      }
+    }),
+
   setRightPanelBrowserWorkbench: (id, patch) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
@@ -791,6 +1053,44 @@ export const useSessionStore = create<SessionState>((set) => ({
               ...(current.browserWorkbench ?? defaultUI.browserWorkbench!),
               ...patch
             }
+          }
+        }
+      }
+    }),
+
+  transferBrowserWorkbench: (sourceId, targetId) =>
+    set((s) => {
+      if (sourceId === targetId) return s
+      const source = s.uiState[sourceId]
+      if (!source?.browserWorkbench) return s
+      const target = s.uiState[targetId] ?? defaultUI
+      const sourceRightPanel = ensureRightPanel(source.rightPanel)
+      const targetRightPanel = ensureRightPanel(target.rightPanel)
+      const sourceHasBrowserTab = sourceRightPanel.tabs.some((tab) => tab.id === 'browser')
+      const nextTargetRightPanel = sourceHasBrowserTab
+        ? {
+            ...syncRightPanelTab(targetRightPanel, 'browser', true),
+            width: sourceRightPanel.width,
+            widthRatio: sourceRightPanel.widthRatio,
+            fullWidth: sourceRightPanel.fullWidth,
+            open: sourceRightPanel.open
+          }
+        : targetRightPanel
+      const sourceHostId = `right:${sourceId}:browser`
+      const targetHostId = `right:${targetId}:browser`
+      const transferredWorkbench = cloneBrowserWorkbenchForTransfer(source.browserWorkbench, sourceHostId, targetHostId)
+      return {
+        uiState: {
+          ...s.uiState,
+          [sourceId]: {
+            ...source,
+            browserWorkbench: clearTransferredBrowserUseState(source.browserWorkbench)
+          },
+          [targetId]: {
+            ...target,
+            browserUrl: activeBrowserWorkbenchUrl(transferredWorkbench) || source.browserUrl || target.browserUrl || '',
+            browserWorkbench: transferredWorkbench,
+            rightPanel: nextTargetRightPanel
           }
         }
       }
@@ -882,13 +1182,126 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
     }),
 
+  transferSessionPanelTab: (id, intent) => {
+    const availability = resolvePanelTabTransferAvailability(intent.sourcePanel, intent.targetPanel, intent.tabKind)
+    if (!availability.supported) return false
+
+    let moved = false
+    set((s) => {
+      const current = s.uiState[id] ?? defaultUI
+      const terminalPanel = ensureTerminalPanel(current.terminalPanel)
+      const rightPanel = ensureRightPanel(current.rightPanel)
+
+      if (intent.sourcePanel === 'bottom' && intent.targetPanel === 'right') {
+        const tabId = intent.tabId
+        const transfer = transferPanelTab(
+          {
+            activeTabId: terminalPanel.activeTabId,
+            tabs: terminalPanel.tabs.map((candidate) => ({ id: candidate }))
+          },
+          rightPanel,
+          tabId,
+          (tab) => rightPanelTab(terminalTabId(tab.id)),
+          { activate: true, replacePreview: true }
+        )
+        if (!transfer.moved) return s
+        moved = true
+        const remainingTabs = transfer.source.tabs.map((tab) => tab.id)
+        const activeTabId = remainingTabs.length > 0
+          ? transfer.source.activeTabId ?? remainingTabs.at(-1) ?? remainingTabs[0] ?? terminalPanel.activeTabId
+          : terminalPanel.activeTabId
+        return {
+          uiState: {
+            ...s.uiState,
+            [id]: {
+              ...current,
+              showTerminal: remainingTabs.length > 0 ? current.showTerminal : false,
+              terminalPanel: {
+                ...terminalPanel,
+                tabs: remainingTabs,
+                activeTabId
+              },
+              rightPanel: {
+                ...rightPanel,
+                open: true,
+                activeTabId: transfer.target.activeTabId,
+                tabs: transfer.target.tabs
+              }
+            }
+          }
+        }
+      }
+
+      const rightPanelTabId = intent.tabId
+      const terminalId = terminalTabIdFromTabId(rightPanelTabId)
+      if (terminalId === null) return s
+      const transfer = transferPanelTab(
+        rightPanel,
+        {
+          activeTabId: terminalPanel.activeTabId,
+          tabs: terminalPanel.tabs.map((candidate) => ({ id: candidate }))
+        },
+        rightPanelTabId,
+        () => ({ id: terminalId }),
+        { activate: true }
+      )
+      if (!transfer.moved) return s
+      moved = true
+      const tabs = transfer.target.tabs.map((tab) => tab.id)
+      return {
+        uiState: {
+          ...s.uiState,
+          [id]: {
+            ...current,
+            showTerminal: true,
+            terminalPanel: {
+              ...terminalPanel,
+              tabs,
+              activeTabId: transfer.target.activeTabId ?? terminalId,
+              nextTabId: Math.max(terminalPanel.nextTabId, terminalId + 1)
+            },
+            rightPanel: {
+              ...rightPanel,
+              open: transfer.source.tabs.length > 0,
+              activeTabId: transfer.source.activeTabId,
+              tabs: transfer.source.tabs
+            }
+          }
+        }
+      }
+    })
+    return moved
+  },
+
+  moveTerminalTabToRight: (id, tabId) => {
+    get().transferSessionPanelTab(id, {
+      sourcePanel: 'bottom',
+      targetPanel: 'right',
+      tabKind: 'terminal',
+      tabId
+    })
+  },
+
+  moveRightPanelTerminalTabToBottom: (id, tabId) => {
+    get().transferSessionPanelTab(id, {
+      sourcePanel: 'right',
+      targetPanel: 'bottom',
+      tabKind: 'terminal',
+      tabId
+    })
+  },
+
   closeTerminalTab: (id, tabId) =>
     set((s) => {
       const current = s.uiState[id] ?? defaultUI
       const terminalPanel = ensureTerminalPanel(current.terminalPanel)
-      const remaining = terminalPanel.tabs.filter((candidate) => candidate !== tabId)
-      const tabs = remaining.length > 0 ? remaining : [0]
-      const activeTabId = terminalPanel.activeTabId === tabId ? tabs.at(-1) ?? 0 : terminalPanel.activeTabId
+      const next = closePanelTab({
+        activeTabId: terminalPanel.activeTabId,
+        tabs: terminalPanel.tabs.map((candidate) => ({ id: candidate }))
+      }, tabId)
+      const remaining = next.tabs.map((tab) => tab.id)
+      const tabs = remaining
+      const activeTabId = remaining.length > 0 ? next.activeTabId ?? tabs[0] ?? 0 : 0
       return {
         uiState: {
           ...s.uiState,
@@ -899,8 +1312,9 @@ export const useSessionStore = create<SessionState>((set) => ({
               ...terminalPanel,
               tabs,
               activeTabId,
-              nextTabId: remaining.length > 0 ? terminalPanel.nextTabId : 1
-            }
+              nextTabId: terminalPanel.nextTabId
+            },
+            rightPanel: syncRightPanelTab(current.rightPanel, terminalTabId(tabId), false)
           }
         }
       }
@@ -941,6 +1355,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   setShowCapabilities: (v) => set((s) => ({ showCapabilities: v, showSettings: v ? false : s.showSettings })),
 
   setSettingsSection: (section) => set({ settingsSection: section }),
+  setSettingsHostId: (settingsHostId) => set({ settingsHostId }),
 
   appendMessages: (id, messages) =>
     set((s) => ({
@@ -991,6 +1406,8 @@ export const useSessionStore = create<SessionState>((set) => ({
 }))
 
 const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabKind, string> = {
+  'new-tab': 'New tab',
+  environment: 'Environment',
   plan: 'Plan',
   diff: 'Review',
   agents: 'Agents',
@@ -998,14 +1415,20 @@ const RIGHT_PANEL_TAB_TITLES: Record<RightPanelTabKind, string> = {
   side: 'Side',
   files: 'Files',
   browser: 'Browser',
-  sidechat: 'Side chat'
+  file: 'File',
+  sidechat: 'Side chat',
+  terminal: 'Terminal'
 }
 
 function ensureRightPanel(panel?: RightPanelState): RightPanelState {
+  const isLegacyDefaultPanel =
+    panel?.width === 468 &&
+    typeof panel?.widthRatio === 'number' &&
+    Math.abs(panel.widthRatio - 0.34) <= 0.0001
   return {
     open: panel?.open ?? false,
-    width: panel?.width ?? 468,
-    widthRatio: panel?.widthRatio,
+    width: isLegacyDefaultPanel ? 600 : panel?.width ?? 600,
+    widthRatio: isLegacyDefaultPanel ? undefined : panel?.widthRatio,
     fullWidth: panel?.fullWidth ?? false,
     activeTabId: panel?.activeTabId ?? null,
     tabs: panel?.tabs ?? []
@@ -1013,13 +1436,82 @@ function ensureRightPanel(panel?: RightPanelState): RightPanelState {
 }
 
 function ensureTerminalPanel(panel?: TerminalPanelState): TerminalPanelState {
-  const tabs = panel?.tabs?.length ? panel.tabs : [0]
+  const tabs = panel?.tabs ?? [0]
   const activeTabId = tabs.includes(panel?.activeTabId ?? 0) ? panel?.activeTabId ?? 0 : tabs[0]
+  const maxTabId = tabs.length > 0 ? Math.max(...tabs) : 0
   return {
     height: panel?.height ?? 260,
     tabs,
-    activeTabId,
-    nextTabId: Math.max(panel?.nextTabId ?? 1, Math.max(...tabs) + 1)
+    activeTabId: activeTabId ?? 0,
+    nextTabId: Math.max(panel?.nextTabId ?? 1, maxTabId + 1)
+  }
+}
+
+function browserTitleForUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname || url
+  } catch {
+    return url
+  }
+}
+
+function activeBrowserWorkbenchUrl(workbench: BrowserWorkbenchState): string {
+  return workbench.tabs.find((tab) => tab.id === workbench.activeTabId)?.url ?? workbench.tabs[0]?.url ?? ''
+}
+
+function cloneBrowserUseSurfaceSize(size: BrowserUseSurfaceSize | null): BrowserUseSurfaceSize | null {
+  return size ? { ...size } : null
+}
+
+function cloneBrowserUseSurfaceBounds(bounds: BrowserUseSurfaceBounds | null): BrowserUseSurfaceBounds | null {
+  return bounds ? { ...bounds } : null
+}
+
+function cloneBrowserUseCursorState(state: BrowserUseCursorState | null): BrowserUseCursorState | null {
+  return state ? { ...state } : null
+}
+
+function clearTransferredBrowserUseState(workbench: BrowserWorkbenchState): BrowserWorkbenchState {
+  return {
+    ...workbench,
+    browserUseActive: false,
+    browserUseTurnId: null,
+    browserUseViewportSize: null,
+    browserUseCaptureSurfaceSize: null,
+    browserUseCaptureBounds: null,
+    browserUseCursorState: null,
+    webviewTransferSourceHostId: null,
+    webviewTransferTargetHostId: null,
+    webviewTransferId: null
+  }
+}
+
+function cloneBrowserWorkbenchForTransfer(
+  workbench: BrowserWorkbenchState,
+  sourceHostId: string,
+  targetHostId: string
+): BrowserWorkbenchState {
+  return {
+    ...workbench,
+    webviewTransferSourceHostId: sourceHostId,
+    webviewTransferTargetHostId: targetHostId,
+    webviewTransferId: `${sourceHostId}->${targetHostId}:${Date.now()}`,
+    browserUseViewportSize: cloneBrowserUseSurfaceSize(workbench.browserUseViewportSize),
+    browserUseCaptureSurfaceSize: cloneBrowserUseSurfaceSize(workbench.browserUseCaptureSurfaceSize),
+    browserUseCaptureBounds: cloneBrowserUseSurfaceBounds(workbench.browserUseCaptureBounds),
+    browserUseCursorState: cloneBrowserUseCursorState(workbench.browserUseCursorState),
+    tabs: workbench.tabs.map((tab) => ({ ...tab })),
+    history: workbench.history.map((item) => ({ ...item })),
+    allowedOrigins: [...workbench.allowedOrigins],
+    blockedOrigins: [...workbench.blockedOrigins],
+    allowedDownloadOrigins: [...workbench.allowedDownloadOrigins],
+    blockedDownloadOrigins: [...workbench.blockedDownloadOrigins],
+    allowedUploadOrigins: [...workbench.allowedUploadOrigins],
+    blockedUploadOrigins: [...workbench.blockedUploadOrigins],
+    hiddenLocalTargets: [...workbench.hiddenLocalTargets],
+    localServerRoutes: workbench.localServerRoutes.map((route) => ({ ...route })),
+    hiddenLocalServerRoutes: [...workbench.hiddenLocalServerRoutes]
   }
 }
 
@@ -1028,26 +1520,32 @@ function moveTerminalTab(
   id: number,
   direction: 'left' | 'right'
 ): TerminalPanelState {
-  const index = panel.tabs.findIndex((tabId) => tabId === id)
-  if (index === -1) return panel
-  const nextIndex = direction === 'left'
-    ? Math.max(0, index - 1)
-    : Math.min(panel.tabs.length - 1, index + 1)
-  if (nextIndex === index) return panel
-  const tabs = [...panel.tabs]
-  const [tab] = tabs.splice(index, 1)
-  if (tab === undefined) return panel
-  tabs.splice(nextIndex, 0, tab)
-  return { ...panel, tabs }
+  const next = movePanelTabByDirection({
+    activeTabId: panel.activeTabId,
+    tabs: panel.tabs.map((tabId) => ({ id: tabId }))
+  }, id, direction)
+  return {
+    ...panel,
+    activeTabId: next.activeTabId ?? panel.activeTabId,
+    tabs: next.tabs.map((tab) => tab.id)
+  }
 }
 
 function rightPanelTab(id: RightPanelTabId): RightPanelTabState {
   const kind = rightPanelTabKind(id)
+  const fileIdentity = parseFilePanelTabId(id)
+  const filePath = fileIdentity?.filePath ?? null
+  const terminalId = terminalTabIdFromTabId(id)
   return {
     id,
     kind,
-    title: RIGHT_PANEL_TAB_TITLES[kind],
-    closable: true
+    title: filePath ? basename(filePath) : terminalId !== null ? `Terminal ${terminalId + 1}` : RIGHT_PANEL_TAB_TITLES[kind],
+    closable: true,
+    fileHost: fileIdentity?.host,
+    filePath: filePath ?? undefined,
+    terminalTabId: terminalId ?? undefined,
+    isPreview: kind === 'file' ? true : undefined,
+    isPinned: kind === 'file' ? false : undefined
   }
 }
 
@@ -1055,12 +1553,36 @@ export function sideChatTabId(chatId: string): `sidechat:${string}` {
   return `sidechat:${chatId}`
 }
 
+export function fileTabId(filePath: string, host = 'workspace'): `file:${string}` {
+  return filePanelTabId(host, filePath)
+}
+
+export function terminalTabId(tabId: number): `terminal:${number}` {
+  return `terminal:${tabId}`
+}
+
 export function sideChatIdFromTabId(tabId: RightPanelTabId): string | null {
   return tabId.startsWith('sidechat:') ? tabId.slice('sidechat:'.length) : null
 }
 
+export function terminalTabIdFromTabId(tabId: RightPanelTabId): number | null {
+  if (!tabId.startsWith('terminal:')) return null
+  const parsed = Number(tabId.slice('terminal:'.length))
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null
+}
+
+export function filePathFromTabId(tabId: RightPanelTabId): string | null {
+  return parseFilePanelTabId(tabId)?.filePath ?? null
+}
+
 function rightPanelTabKind(id: RightPanelTabId): RightPanelTabKind {
-  return id.startsWith('sidechat:') ? 'sidechat' : id as Exclude<RightPanelTabId, `sidechat:${string}`>
+  if (id.startsWith('file:')) return 'file'
+  if (id.startsWith('terminal:')) return 'terminal'
+  return id.startsWith('sidechat:') ? 'sidechat' : id as Exclude<RightPanelTabId, `file:${string}` | `sidechat:${string}` | `terminal:${number}`>
+}
+
+function basename(path: string): string {
+  return path.split('/').filter(Boolean).at(-1) ?? path
 }
 
 function ensureSideChatThread(sideChats: SideChatThread[] | undefined, chatId: string): SideChatThread[] {
@@ -1078,23 +1600,20 @@ function sideChatTitle(currentTitle: string, message: SideQuestionMessage): stri
 function syncRightPanelTab(panel: RightPanelState | undefined, id: RightPanelTabId, open: boolean): RightPanelState {
   const current = ensureRightPanel(panel)
   if (!open) {
-    const tabs = current.tabs.filter((tab) => tab.id !== id)
-    const activeTabId = current.activeTabId === id ? tabs.at(-1)?.id ?? null : current.activeTabId
+    const next = closePanelTab(current, id)
     return {
       ...current,
-      open: tabs.length > 0,
-      activeTabId,
-      tabs
+      open: next.tabs.length > 0,
+      activeTabId: next.activeTabId,
+      tabs: next.tabs
     }
   }
-  const tabs = current.tabs.some((tab) => tab.id === id)
-    ? current.tabs
-    : [...current.tabs, rightPanelTab(id)]
+  const next = resetPanelTabSet(upsertPanelTab(current, rightPanelTab(id), { activate: true, replacePreview: true }))
   return {
     ...current,
     open: true,
-    activeTabId: id,
-    tabs
+    activeTabId: next.activeTabId,
+    tabs: next.tabs
   }
 }
 
@@ -1104,19 +1623,9 @@ function moveRightPanelTab(
   direction: 'left' | 'right'
 ): RightPanelState {
   const current = ensureRightPanel(panel)
-  const index = current.tabs.findIndex((tab) => tab.id === id)
-  if (index === -1) return current
-  const nextIndex = direction === 'left'
-    ? Math.max(0, index - 1)
-    : Math.min(current.tabs.length - 1, index + 1)
-  if (nextIndex === index) return current
-  const tabs = [...current.tabs]
-  const [tab] = tabs.splice(index, 1)
-  if (!tab) return current
-  tabs.splice(nextIndex, 0, tab)
   return {
     ...current,
-    tabs
+    ...movePanelTabByDirection(current, id, direction)
   }
 }
 

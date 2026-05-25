@@ -1,7 +1,7 @@
-import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref, type RefObject } from 'react'
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type HTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import Icon, { type IconName } from './Icon'
-import { rowMotionStyle } from '../../design/motion'
+import { rowMotionStyle, useReducedMotionPreference } from '../../design/motion'
 
 type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger'
 
@@ -22,8 +22,66 @@ const focusableSelector = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',')
 
+const APP_SHELL_PANEL_ANIMATION_MS = 360
+
+function appShellPanelEaseOut(progress: number): number {
+  const clamped = Math.max(0, Math.min(1, progress))
+  return 1 - Math.pow(1 - clamped, 3)
+}
+
 const hoverSurfaceOpenEvent = 'orchestrator:hover-surface-open'
 const tooltipHoverDelayMs = 700
+
+function cssEscape(value: string): string {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') return CSS.escape(value)
+  return value.replace(/["\\]/g, '\\$&')
+}
+
+function panelTabSafeId(value: string | number): string {
+  return encodeURIComponent(String(value)).replace(/%/g, '-')
+}
+
+export function panelTabDomId(panelId: string, tabId: string | number): string {
+  return `orchestrator-${panelTabSafeId(panelId)}-tab-${panelTabSafeId(tabId)}`
+}
+
+export function panelTabPanelDomId(panelId: string, tabId: string | number): string {
+  return `orchestrator-${panelTabSafeId(panelId)}-tabpanel-${panelTabSafeId(tabId)}`
+}
+
+export function panelActiveTabActionsDomId(panelId: string): string {
+  return `orchestrator-${panelTabSafeId(panelId)}-active-tab-actions`
+}
+
+export function exitFullscreenForPanelTab(panelId: string, tabId: string | number): boolean {
+  const fullscreenElement = document.fullscreenElement
+  if (!(fullscreenElement instanceof Element)) return false
+  const tabPanel = document.querySelector<HTMLElement>(
+    `[data-app-shell-tab-panel-controller="${cssEscape(panelId)}"][data-tab-id="${cssEscape(String(tabId))}"]`
+  )
+  if (!tabPanel?.contains(fullscreenElement)) return false
+  document.exitFullscreen().catch(() => undefined)
+  return true
+}
+
+function recordPanelTabMetric(
+  name: 'panel.tab.opened' | 'panel.tab.closed' | 'panel.tab.viewed',
+  panelId: string,
+  tabId: string | number,
+  tabCount: number
+): void {
+  void window.api.performance.record({
+    name,
+    surface: 'renderer',
+    startedAt: Date.now(),
+    durationMs: 0,
+    metadata: {
+      panelId,
+      tabId: String(tabId),
+      tabCount
+    }
+  }).catch(() => undefined)
+}
 
 export function announceHoverSurfaceOpen(id: string): void {
   window.dispatchEvent(new CustomEvent(hoverSurfaceOpenEvent, { detail: { id } }))
@@ -111,6 +169,7 @@ interface ButtonProps {
   ariaLabel?: string
   dataTestId?: string
   dataReviewPath?: string
+  dataSidebarKey?: string
 }
 
 export function Button({
@@ -179,7 +238,8 @@ interface IconButtonProps {
   disabled?: boolean
   active?: boolean
   tone?: Tone
-  size?: 'sm' | 'md'
+  size?: 'xs' | 'sm' | 'md'
+  variant?: 'default' | 'toolbar'
   className?: string
   style?: CSSProperties
   tooltip?: boolean
@@ -195,12 +255,15 @@ export function IconButton({
   active = false,
   tone = 'neutral',
   size = 'md',
+  variant = 'default',
   className = '',
   style,
   tooltip = true,
   dataTestId,
   ariaExpanded,
 }: IconButtonProps): JSX.Element {
+  const buttonSize = size === 'xs' ? 18 : size === 'sm' ? 24 : 30
+  const iconSize = size === 'xs' ? 11 : size === 'sm' ? 13 : 15
   const button = (
     <button
       type="button"
@@ -213,17 +276,19 @@ export function IconButton({
       data-native-title-free="true"
       data-testid={dataTestId}
       data-active={active ? 'true' : 'false'}
+      data-icon-button-variant={variant}
+      data-icon-button-size={size}
       className={`motion-icon-button grid shrink-0 place-items-center rounded-md disabled:cursor-default disabled:opacity-45 ${className}`}
       style={{
-        width: size === 'sm' ? 24 : 30,
-        height: size === 'sm' ? 24 : 30,
+        width: buttonSize,
+        height: buttonSize,
         color: active ? 'var(--text-primary)' : toneColor[tone],
-        background: active ? 'var(--control-bg-active)' : 'transparent',
-        border: active ? '1px solid var(--border-strong)' : '1px solid transparent',
+        background: variant === 'toolbar' ? undefined : active ? 'var(--control-bg-active)' : 'transparent',
+        border: variant === 'toolbar' ? undefined : active ? '1px solid var(--border-strong)' : '1px solid transparent',
         ...style,
       }}
     >
-      <Icon name={icon} size={size === 'sm' ? 13 : 15} />
+      <Icon name={icon} size={iconSize} />
     </button>
   )
 
@@ -239,6 +304,7 @@ export function ToolbarButton({
   tone = 'neutral',
   dataTestId,
   size = 'md',
+  variant = 'default',
 }: {
   icon: IconName
   label: string
@@ -248,6 +314,7 @@ export function ToolbarButton({
   tone?: Tone
   dataTestId?: string
   size?: 'sm' | 'md'
+  variant?: 'default' | 'toolbar'
 }): JSX.Element {
   return (
     <IconButton
@@ -259,12 +326,57 @@ export function ToolbarButton({
       tone={tone}
       dataTestId={dataTestId}
       size={size}
+      variant={variant}
       className="toolbar-button"
-      style={{
-        background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
-        borderColor: active ? 'var(--border-strong)' : 'var(--border-subtle)',
-      }}
+      style={variant === 'toolbar'
+        ? undefined
+        : {
+            background: active ? 'var(--control-bg-active)' : 'var(--control-bg)',
+            borderColor: active ? 'var(--border-strong)' : 'var(--border-subtle)',
+          }}
     />
+  )
+}
+
+interface PanelToolbarProps {
+  children: ReactNode
+  className?: string
+  dataTestId?: string
+  ariaLabel?: string
+  as?: 'div' | 'form'
+  onSubmit?: (event: React.FormEvent<HTMLFormElement>) => void
+}
+
+export function PanelToolbar({
+  children,
+  className = '',
+  dataTestId,
+  ariaLabel,
+  as = 'div',
+  onSubmit,
+}: PanelToolbarProps): JSX.Element {
+  const shared = {
+    className: `panel-toolbar ${className}`.trim(),
+    'data-testid': dataTestId,
+    'data-panel-toolbar': 'true',
+    'aria-label': ariaLabel,
+  }
+
+  if (as === 'form') {
+    return (
+      <form
+        {...shared}
+        onSubmit={onSubmit}
+      >
+        {children}
+      </form>
+    )
+  }
+
+  return (
+    <div {...shared}>
+      {children}
+    </div>
   )
 }
 
@@ -272,13 +384,21 @@ interface WorkbenchSearchFieldProps {
   value: string
   onChange: (value: string) => void
   placeholder: string
-  clearLabel: string
+  clearLabel?: string
   inputRef?: Ref<HTMLInputElement>
   id?: string
   dataTestId?: string
   clearDataTestId?: string
   className?: string
+  inputClassName?: string
   autoFocus?: boolean
+  type?: 'search' | 'url' | 'text'
+  icon?: IconName | null
+  leading?: ReactNode
+  trailing?: ReactNode
+  ariaLabel?: string
+  spellCheck?: boolean
+  onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void
 }
 
 export function WorkbenchSearchField({
@@ -291,16 +411,27 @@ export function WorkbenchSearchField({
   dataTestId,
   clearDataTestId,
   className = '',
+  inputClassName = '',
   autoFocus = false,
+  type = 'search',
+  icon = 'search',
+  leading,
+  trailing,
+  ariaLabel,
+  spellCheck,
+  onKeyDown,
 }: WorkbenchSearchFieldProps): JSX.Element {
   const hasQuery = value.trim().length > 0
+  const canClear = Boolean(clearLabel) && hasQuery
 
   return (
     <div
       className={`workbench-search-field ${className}`.trim()}
       data-has-query={hasQuery ? 'true' : 'false'}
+      data-field-kind={type}
     >
-      <Icon name="search" size={13} />
+      {leading}
+      {icon && <Icon name={icon} size={13} />}
       <input
         ref={inputRef}
         id={id}
@@ -308,10 +439,15 @@ export function WorkbenchSearchField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="workbench-search-input"
+        className={`workbench-search-input ${inputClassName}`.trim()}
         autoFocus={autoFocus}
+        type={type === 'url' ? 'text' : type}
+        aria-label={ariaLabel}
+        spellCheck={spellCheck}
+        onKeyDown={onKeyDown}
       />
-      {hasQuery && (
+      {trailing}
+      {canClear && (
         <button
           type="button"
           aria-label={clearLabel}
@@ -422,6 +558,9 @@ export function Tooltip({ label, children }: { label: string; children: ReactNod
       onPointerMove={(event) => {
         if (event.pointerType !== 'touch') scheduleShow()
       }}
+      onMouseEnter={scheduleShow}
+      onMouseMove={scheduleShow}
+      onMouseOver={showNow}
       onPointerLeave={hide}
       onMouseLeave={hide}
       onFocus={showNow}
@@ -474,6 +613,69 @@ export function MotionView({
   )
 }
 
+interface AppShellPanelAnimationState {
+  isMounted: boolean
+  animatedSize: number
+  opacity: number
+  progress: number
+  state: 'opening' | 'open' | 'closing' | 'closed'
+}
+
+function useAppShellPanelAnimation(open: boolean, size: number): AppShellPanelAnimationState {
+  const reducedMotion = useReducedMotionPreference()
+  const [progress, setProgress] = useState(() => (open ? 1 : 0))
+  const progressRef = useRef(open ? 1 : 0)
+
+  useEffect(() => {
+    const target = open ? 1 : 0
+    if (reducedMotion) {
+      progressRef.current = target
+      setProgress(target)
+      return
+    }
+
+    const startProgress = progressRef.current
+    if (Math.abs(startProgress - target) < 0.001) {
+      progressRef.current = target
+      setProgress(target)
+      return
+    }
+
+    const startTime = window.performance.now()
+    let frame = 0
+    const tick = (now: number): void => {
+      const elapsed = now - startTime
+      const rawProgress = Math.min(1, elapsed / APP_SHELL_PANEL_ANIMATION_MS)
+      const easedProgress = appShellPanelEaseOut(rawProgress)
+      const nextProgress = startProgress + (target - startProgress) * easedProgress
+      progressRef.current = nextProgress
+      setProgress(nextProgress)
+      if (rawProgress < 1) {
+        frame = window.requestAnimationFrame(tick)
+        return
+      }
+      progressRef.current = target
+      setProgress(target)
+    }
+
+    frame = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(frame)
+  }, [open, reducedMotion])
+
+  const clampedProgress = Math.max(0, Math.min(1, progress))
+  const state = open
+    ? clampedProgress >= 0.999 ? 'open' : 'opening'
+    : clampedProgress <= 0.001 ? 'closed' : 'closing'
+
+  return {
+    isMounted: open || clampedProgress > 0.001,
+    animatedSize: Math.max(0, size * clampedProgress),
+    opacity: clampedProgress,
+    progress: clampedProgress,
+    state
+  }
+}
+
 export function MotionPanel({
   open,
   side,
@@ -481,6 +683,7 @@ export function MotionPanel({
   children,
   className = '',
   style,
+  ...attrs
 }: {
   open: boolean
   side: 'right' | 'bottom'
@@ -488,20 +691,28 @@ export function MotionPanel({
   children: ReactNode
   className?: string
   style?: CSSProperties
-}): JSX.Element {
+} & Omit<HTMLAttributes<HTMLDivElement>, 'children'>): JSX.Element {
+  const animation = useAppShellPanelAnimation(open, size)
   const dimensionStyle: CSSProperties = side === 'right'
-    ? { width: open ? size : 0, minWidth: open ? size : 0, maxWidth: open ? size : 0 }
-    : { height: open ? size : 0, minHeight: open ? size : 0, maxHeight: open ? size : 0 }
+    ? { width: animation.animatedSize, minWidth: animation.animatedSize, maxWidth: animation.animatedSize }
+    : { height: animation.animatedSize, minHeight: animation.animatedSize, maxHeight: animation.animatedSize }
 
   return (
     <div
+      {...attrs}
       data-open={open ? 'true' : 'false'}
       data-motion-panel={side}
+      data-app-shell-panel-animation="shared"
+      data-app-shell-panel-animation-state={animation.state}
+      data-app-shell-panel-animation-progress={animation.progress.toFixed(3)}
+      data-app-shell-panel-animated-size={Math.round(animation.animatedSize)}
+      data-app-shell-panel-target-size={Math.round(size)}
+      data-app-shell-panel-mounted={animation.isMounted ? 'true' : 'false'}
       aria-hidden={!open}
       className={`motion-panel motion-panel-${side} shrink-0 overflow-hidden ${className}`}
       style={{
         ...dimensionStyle,
-        opacity: open ? 1 : 0,
+        opacity: animation.opacity,
         pointerEvents: open ? 'auto' : 'none',
         ...style,
       }}
@@ -511,38 +722,492 @@ export function MotionPanel({
   )
 }
 
+export function AppShellPanel({
+  open,
+  side,
+  size,
+  panel,
+  surface,
+  focusArea,
+  children,
+  className = '',
+  style,
+  ...attrs
+}: {
+  open: boolean
+  side: 'right' | 'bottom'
+  size: number
+  panel: 'right' | 'bottom'
+  surface: string
+  focusArea: string
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+} & Omit<HTMLAttributes<HTMLDivElement>, 'children'>): JSX.Element {
+  const shellBorder: CSSProperties = side === 'right'
+    ? { borderLeft: '1px solid var(--border-subtle)' }
+    : { borderTop: '1px solid var(--border-subtle)' }
+
+  return (
+    <MotionPanel
+      {...attrs}
+      open={open}
+      side={side}
+      size={size}
+      className={`app-shell-panel app-shell-panel-${panel} ${className}`.trim()}
+      style={{ ...shellBorder, ...style }}
+      data-app-shell-panel={panel}
+      data-app-shell-panel-surface={surface}
+      data-app-shell-focus-area={focusArea}
+    >
+      {children}
+    </MotionPanel>
+  )
+}
+
+export type AppShellSidePanelLayoutMode = 'docked' | 'overlay' | 'full'
+
+export interface AppShellSidePanelLayout {
+  containerSize: number
+  storedSize: number
+  size: number
+  widthRatio?: number
+  maxSize: number
+  mode: AppShellSidePanelLayoutMode
+  isOverlay: boolean
+  className: string
+  style: CSSProperties
+}
+
+export function useAppShellSidePanelLayout({
+  containerTestId,
+  defaultSize,
+  size,
+  widthRatio,
+  legacyDefaultSize,
+  legacyDefaultSizeRatio,
+  fullWidth,
+  minSize,
+  minPrimaryContentSize,
+  minOverlaySize,
+  overlayInset = 16
+}: {
+  containerTestId: string
+  defaultSize: number
+  size?: number
+  widthRatio?: number
+  legacyDefaultSize?: number
+  legacyDefaultSizeRatio?: number
+  fullWidth?: boolean
+  minSize: number
+  minPrimaryContentSize: number
+  minOverlaySize: number
+  overlayInset?: number
+}): AppShellSidePanelLayout {
+  const [containerSize, setContainerSize] = useState(() => (typeof window === 'undefined' ? defaultSize : window.innerWidth))
+  const isLegacyDefaultSize =
+    legacyDefaultSize !== undefined &&
+    legacyDefaultSizeRatio !== undefined &&
+    size === legacyDefaultSize &&
+    typeof widthRatio === 'number' &&
+    Math.abs(widthRatio - legacyDefaultSizeRatio) <= 0.0001
+  const effectiveRatio = typeof widthRatio === 'number' && !isLegacyDefaultSize ? widthRatio : undefined
+  const storedSize = effectiveRatio !== undefined
+    ? Math.round(containerSize * effectiveRatio)
+    : isLegacyDefaultSize
+      ? defaultSize
+      : size ?? defaultSize
+  const isOverlay = !fullWidth && containerSize < minPrimaryContentSize + minSize
+  const maxSize = Math.max(minSize, containerSize - minPrimaryContentSize)
+  const resolvedSize = fullWidth
+    ? Math.max(minSize, containerSize)
+    : isOverlay
+      ? Math.min(
+          Math.max(minOverlaySize, storedSize),
+          Math.max(minOverlaySize, containerSize - overlayInset)
+        )
+      : Math.max(minSize, Math.min(maxSize, storedSize))
+  const mode: AppShellSidePanelLayoutMode = fullWidth ? 'full' : isOverlay ? 'overlay' : 'docked'
+
+  useEffect(() => {
+    const updateSize = (): void => {
+      const container = document.querySelector(`[data-testid="${cssEscape(containerTestId)}"]`)
+      if (container instanceof HTMLElement) setContainerSize(container.getBoundingClientRect().width)
+    }
+    updateSize()
+    const container = document.querySelector(`[data-testid="${cssEscape(containerTestId)}"]`)
+    const observer = container instanceof HTMLElement ? new ResizeObserver(updateSize) : null
+    if (container instanceof HTMLElement) observer?.observe(container)
+    window.addEventListener('resize', updateSize)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updateSize)
+    }
+  }, [containerTestId])
+
+  return {
+    containerSize,
+    storedSize,
+    size: resolvedSize,
+    widthRatio: effectiveRatio,
+    maxSize,
+    mode,
+    isOverlay,
+    className: fullWidth ? 'workbench-panel-expanded' : isOverlay ? 'workbench-panel-overlay' : '',
+    style: fullWidth ? { width: '100%', minWidth: '100%', maxWidth: '100%' } : {}
+  }
+}
+
+export interface AppShellBottomPanelLayout {
+  containerSize: number
+  storedSize: number
+  size: number
+  maxSize: number
+  mode: 'docked' | 'compressed'
+  className: string
+  style: CSSProperties
+}
+
+export function useAppShellBottomPanelLayout({
+  containerTestId,
+  defaultSize,
+  size,
+  minSize,
+  minPrimaryContentSize,
+  maxSize
+}: {
+  containerTestId: string
+  defaultSize: number
+  size?: number
+  minSize: number
+  minPrimaryContentSize: number
+  maxSize: number
+}): AppShellBottomPanelLayout {
+  const [containerSize, setContainerSize] = useState(() => (typeof window === 'undefined' ? defaultSize : window.innerHeight))
+  const storedSize = size ?? defaultSize
+  const availableSize = Math.max(minSize, containerSize - minPrimaryContentSize)
+  const resolvedMaxSize = Math.max(minSize, Math.min(maxSize, availableSize))
+  const resolvedSize = Math.max(minSize, Math.min(resolvedMaxSize, storedSize))
+  const mode = resolvedMaxSize < storedSize ? 'compressed' : 'docked'
+
+  useEffect(() => {
+    const updateSize = (): void => {
+      const container = document.querySelector(`[data-testid="${cssEscape(containerTestId)}"]`)
+      if (container instanceof HTMLElement) setContainerSize(container.getBoundingClientRect().height)
+    }
+    updateSize()
+    const container = document.querySelector(`[data-testid="${cssEscape(containerTestId)}"]`)
+    const observer = container instanceof HTMLElement ? new ResizeObserver(updateSize) : null
+    if (container instanceof HTMLElement) observer?.observe(container)
+    window.addEventListener('resize', updateSize)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updateSize)
+    }
+  }, [containerTestId])
+
+  return {
+    containerSize,
+    storedSize,
+    size: resolvedSize,
+    maxSize: resolvedMaxSize,
+    mode,
+    className: '',
+    style: {}
+  }
+}
+
 export function PanelResizeHandle({
   orientation,
+  edge,
   onPointerDown,
+  onKeyDown,
   onDoubleClick,
   label,
   active = false,
   className = '',
+  valueNow,
+  valueMin,
+  valueMax,
+  dataTestId,
 }: {
   orientation: 'vertical' | 'horizontal'
-  onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void
-  onDoubleClick?: (event: React.MouseEvent<HTMLButtonElement>) => void
+  edge?: 'left' | 'right' | 'top' | 'bottom'
+  onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
+  onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void
+  onDoubleClick?: (event: React.MouseEvent<HTMLDivElement>) => void
   label: string
   active?: boolean
   className?: string
+  valueNow?: number
+  valueMin?: number
+  valueMax?: number
+  dataTestId?: string
 }): JSX.Element {
+  const resolvedEdge = edge ?? (orientation === 'horizontal' ? 'top' : 'left')
   return (
-    <button
-      type="button"
+    <div
+      role="separator"
       aria-label={label}
+      aria-orientation={orientation}
+      aria-valuenow={typeof valueNow === 'number' ? Math.round(valueNow) : undefined}
+      aria-valuemin={typeof valueMin === 'number' ? Math.round(valueMin) : undefined}
+      aria-valuemax={typeof valueMax === 'number' ? Math.round(valueMax) : undefined}
+      tabIndex={0}
       data-native-title-free="true"
+      data-app-shell-resize-handle="true"
+      data-app-shell-resize-edge={resolvedEdge}
       data-active={active ? 'true' : 'false'}
       data-orientation={orientation}
+      data-testid={dataTestId}
       className={`panel-resize-handle ${className}`}
       onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
       onDoubleClick={onDoubleClick}
     />
   )
 }
 
+export type AppShellResizeEdge = 'left' | 'right' | 'top' | 'bottom'
+
+interface AppShellResizePointer {
+  x: number
+  y: number
+}
+
+interface AppShellResizeUpdate {
+  edge: AppShellResizeEdge
+  size: number
+  rawSize: number
+  startSize: number
+  delta: number
+  minSize: number
+  maxSize: number
+  pointer: AppShellResizePointer
+  startPointer: AppShellResizePointer
+}
+
+export interface AppShellResizeController {
+  isResizing: boolean
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void
+  onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void
+  onDoubleClick: (event: ReactMouseEvent<HTMLDivElement>) => void
+  valueNow: number
+  valueMin: number
+  valueMax: number
+}
+
+function appShellPointerScale(): number {
+  const visualViewportScale = typeof window !== 'undefined' ? window.visualViewport?.scale : undefined
+  return typeof visualViewportScale === 'number' && Number.isFinite(visualViewportScale) && visualViewportScale > 0
+    ? visualViewportScale
+    : 1
+}
+
+function appShellPointerFromEvent(event: PointerEvent | ReactPointerEvent<HTMLDivElement>): AppShellResizePointer {
+  const scale = appShellPointerScale()
+  return {
+    x: event.clientX / scale,
+    y: event.clientY / scale
+  }
+}
+
+function appShellResizeDelta(edge: AppShellResizeEdge, start: AppShellResizePointer, pointer: AppShellResizePointer): number {
+  if (edge === 'left') return start.x - pointer.x
+  if (edge === 'right') return pointer.x - start.x
+  if (edge === 'top') return start.y - pointer.y
+  return pointer.y - start.y
+}
+
+function appShellResizeKeyboardDelta(edge: AppShellResizeEdge, key: string, step: number): number | null {
+  if (edge === 'left') {
+    if (key === 'ArrowLeft') return step
+    if (key === 'ArrowRight') return -step
+    return null
+  }
+  if (edge === 'right') {
+    if (key === 'ArrowRight') return step
+    if (key === 'ArrowLeft') return -step
+    return null
+  }
+  if (edge === 'top') {
+    if (key === 'ArrowUp') return step
+    if (key === 'ArrowDown') return -step
+    return null
+  }
+  if (key === 'ArrowDown') return step
+  if (key === 'ArrowUp') return -step
+  return null
+}
+
+export function useAppShellResizeController({
+  edge,
+  size,
+  defaultSize,
+  minSize,
+  maxSize,
+  onSizeChange,
+  onBelowMin,
+  onReset,
+}: {
+  edge: AppShellResizeEdge
+  size: number
+  defaultSize: number
+  minSize: number
+  maxSize: number | (() => number)
+  onSizeChange: (nextSize: number, update: AppShellResizeUpdate) => void
+  onBelowMin?: (update: AppShellResizeUpdate) => void
+  onReset?: () => void
+}): AppShellResizeController {
+  const [isResizing, setIsResizing] = useState(false)
+  const startRef = useRef<{ pointer: AppShellResizePointer; size: number } | null>(null)
+
+  const resolveMaxSize = useCallback((): number => {
+    const resolved = typeof maxSize === 'function' ? maxSize() : maxSize
+    return Math.max(minSize, resolved)
+  }, [maxSize, minSize])
+
+  const applySize = useCallback((rawSize: number, startSize: number, pointer: AppShellResizePointer): void => {
+    const resolvedMaxSize = resolveMaxSize()
+    const nextSize = Math.max(minSize, Math.min(resolvedMaxSize, rawSize))
+    const update: AppShellResizeUpdate = {
+      edge,
+      size: nextSize,
+      rawSize,
+      startSize,
+      delta: rawSize - startSize,
+      minSize,
+      maxSize: resolvedMaxSize,
+      pointer,
+      startPointer: pointer
+    }
+    if (rawSize < minSize && onBelowMin) {
+      onBelowMin(update)
+      return
+    }
+    onSizeChange(nextSize, update)
+  }, [edge, minSize, onBelowMin, onSizeChange, resolveMaxSize])
+
+  const finishResize = useCallback((): void => {
+    startRef.current = null
+    setIsResizing(false)
+  }, [])
+
+  const onPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    } catch {
+      // Synthetic smoke-test pointer events do not always create a capturable pointer.
+    }
+    startRef.current = { pointer: appShellPointerFromEvent(event), size }
+    setIsResizing(true)
+
+    const onMove = (moveEvent: PointerEvent): void => {
+      const start = startRef.current
+      if (!start) return
+      moveEvent.preventDefault()
+      const pointer = appShellPointerFromEvent(moveEvent)
+      const delta = appShellResizeDelta(edge, start.pointer, pointer)
+      const rawSize = start.size + delta
+      const resolvedMaxSize = resolveMaxSize()
+      const nextSize = Math.max(minSize, Math.min(resolvedMaxSize, rawSize))
+      const update: AppShellResizeUpdate = {
+        edge,
+        size: nextSize,
+        rawSize,
+        startSize: start.size,
+        delta,
+        minSize,
+        maxSize: resolvedMaxSize,
+        pointer,
+        startPointer: start.pointer
+      }
+      if (rawSize < minSize && onBelowMin) {
+        onBelowMin(update)
+        return
+      }
+      onSizeChange(nextSize, update)
+    }
+
+    const onUp = (upEvent: PointerEvent): void => {
+      upEvent.preventDefault()
+      finishResize()
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp, { once: true })
+    window.addEventListener('pointercancel', onUp, { once: true })
+  }, [edge, finishResize, minSize, onBelowMin, onSizeChange, resolveMaxSize, size])
+
+  const onKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (event.key === 'Home') {
+      event.preventDefault()
+      applySize(minSize, size, { x: 0, y: 0 })
+      return
+    }
+    if (event.key === 'End') {
+      event.preventDefault()
+      applySize(resolveMaxSize(), size, { x: 0, y: 0 })
+      return
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      const resolvedMaxSize = resolveMaxSize()
+      const nextSize = Math.max(minSize, Math.min(resolvedMaxSize, defaultSize))
+      applySize(nextSize, size, { x: 0, y: 0 })
+      return
+    }
+    const delta = appShellResizeKeyboardDelta(edge, event.key, event.shiftKey ? 64 : 16)
+    if (delta === null) return
+    event.preventDefault()
+    const resolvedMaxSize = resolveMaxSize()
+    const nextSize = Math.max(minSize, Math.min(resolvedMaxSize, size + delta))
+    applySize(nextSize, size, { x: 0, y: 0 })
+  }, [applySize, defaultSize, edge, minSize, resolveMaxSize, size])
+
+  const onDoubleClick = useCallback((event: ReactMouseEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    startRef.current = null
+    setIsResizing(false)
+    if (onReset) {
+      onReset()
+      return
+    }
+    const resolvedMaxSize = resolveMaxSize()
+    const nextSize = Math.max(minSize, Math.min(resolvedMaxSize, defaultSize))
+    onSizeChange(nextSize, {
+      edge,
+      size: nextSize,
+      rawSize: defaultSize,
+      startSize: size,
+      delta: nextSize - size,
+      minSize,
+      maxSize: resolvedMaxSize,
+      pointer: { x: 0, y: 0 },
+      startPointer: { x: 0, y: 0 }
+    })
+  }, [defaultSize, edge, minSize, onReset, onSizeChange, resolveMaxSize, size])
+
+  return {
+    isResizing,
+    onPointerDown,
+    onKeyDown,
+    onDoubleClick,
+    valueNow: size,
+    valueMin: minSize,
+    valueMax: resolveMaxSize()
+  }
+}
+
 export function TabButton({
   children,
   active,
+  tabId,
+  panelId,
   onClick,
   onClose,
   onContextMenu,
@@ -556,9 +1221,15 @@ export function TabButton({
   draggable = false,
   dragging = false,
   dragOver = false,
+  dropPosition = null,
+  preview = false,
+  pinned = false,
+  shimmering = false,
 }: {
   children: ReactNode
   active: boolean
+  tabId?: string
+  panelId?: string
   onClick: () => void
   onClose?: () => void
   onContextMenu?: (event: React.MouseEvent) => void
@@ -572,18 +1243,31 @@ export function TabButton({
   draggable?: boolean
   dragging?: boolean
   dragOver?: boolean
+  dropPosition?: 'before' | 'after' | null
+  preview?: boolean
+  pinned?: boolean
+  shimmering?: boolean
 }): JSX.Element {
   const tab = (
     <div
+      id={tabId && panelId ? panelTabDomId(panelId, tabId) : undefined}
       role="tab"
       tabIndex={0}
       aria-label={ariaLabel}
       aria-selected={active}
+      aria-controls={tabId && panelId ? panelTabPanelDomId(panelId, tabId) : undefined}
       data-native-title-free="true"
+      data-app-shell-tab-controller={panelId}
+      data-tab-id={tabId}
       data-active={active ? 'true' : 'false'}
       data-draggable={draggable ? 'true' : 'false'}
       data-dragging={dragging ? 'true' : 'false'}
       data-drag-over={dragOver ? 'true' : 'false'}
+      data-drop-position={dropPosition ?? ''}
+      data-preview={preview ? 'true' : 'false'}
+      data-pinned={pinned ? 'true' : 'false'}
+      data-shimmering={shimmering ? 'true' : 'false'}
+      data-closable={onClose ? 'true' : 'false'}
       className="motion-tab-button"
       draggable={draggable}
       onClick={onClick}
@@ -630,6 +1314,10 @@ export interface PanelTabItem<T extends string | number> {
   label: string
   icon?: IconName
   count?: number
+  closable?: boolean
+  preview?: boolean
+  pinned?: boolean
+  shimmering?: boolean
   closeLabel?: string
   ariaLabel?: string
   tooltipLabel?: string
@@ -638,6 +1326,7 @@ export interface PanelTabItem<T extends string | number> {
 export function PanelTabStrip<T extends string | number>({
   tabs,
   activeTabId,
+  panelId,
   onActivate,
   onClose,
   onContextMenu,
@@ -647,9 +1336,11 @@ export function PanelTabStrip<T extends string | number>({
   stripTestId,
   tabRowTestId,
   actionsTestId,
+  activeActionsHostTestId,
 }: {
   tabs: PanelTabItem<T>[]
   activeTabId: T | null
+  panelId?: string
   onActivate: (tabId: T) => void
   onClose?: (tabId: T) => void
   onContextMenu?: (event: React.MouseEvent, tabId: T) => void
@@ -659,12 +1350,17 @@ export function PanelTabStrip<T extends string | number>({
   stripTestId?: string
   tabRowTestId?: string
   actionsTestId?: string
+  activeActionsHostTestId?: string
 }): JSX.Element {
   const rowRef = useRef<HTMLDivElement | null>(null)
+  const actionsRef = useRef<HTMLDivElement | null>(null)
   const draggingTabIdRef = useRef<T | null>(null)
+  const previousActiveTabIdRef = useRef<T | null>(activeTabId)
+  const previousTelemetryTabIdsRef = useRef<Set<string> | null>(null)
   const [edges, setEdges] = useState({ start: false, end: false })
+  const [actionsWidth, setActionsWidth] = useState(0)
   const [draggingTabId, setDraggingTabId] = useState<T | null>(null)
-  const [dragOverTabId, setDragOverTabId] = useState<T | null>(null)
+  const [dragOverTab, setDragOverTab] = useState<{ tabId: T; position: 'before' | 'after' } | null>(null)
 
   const updateEdges = (): void => {
     const row = rowRef.current
@@ -680,10 +1376,24 @@ export function PanelTabStrip<T extends string | number>({
     updateEdges()
     const row = rowRef.current
     if (!row) return
-    const activeTab = row.querySelector<HTMLElement>('[data-active="true"]')
+    const activeTab = panelId && activeTabId !== null
+      ? row.querySelector<HTMLElement>(`[data-app-shell-tab-controller="${cssEscape(panelId)}"][data-tab-id="${cssEscape(String(activeTabId))}"]`)
+      : row.querySelector<HTMLElement>('[data-active="true"]')
     activeTab?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    const activeChanged = previousActiveTabIdRef.current !== activeTabId
+    previousActiveTabIdRef.current = activeTabId
+    if (panelId && activeTabId !== null && activeChanged) {
+      window.requestAnimationFrame(() => {
+        const panel = document.querySelector<HTMLElement>(
+          `[role="tabpanel"][data-app-shell-tab-panel-controller="${cssEscape(panelId)}"][data-tab-id="${cssEscape(String(activeTabId))}"]`
+        )
+        if (panel && !panel.contains(document.activeElement)) {
+          panel.focus({ preventScroll: true })
+        }
+      })
+    }
     window.requestAnimationFrame(updateEdges)
-  }, [activeTabId, tabs.length])
+  }, [activeTabId, panelId, tabs.length])
 
   useEffect(() => {
     const row = rowRef.current
@@ -699,6 +1409,45 @@ export function PanelTabStrip<T extends string | number>({
     }
   }, [])
 
+  useLayoutEffect(() => {
+    const actionSlot = actionsRef.current
+    if (!actionSlot) {
+      setActionsWidth(0)
+      return
+    }
+    const updateActionWidth = (): void => {
+      setActionsWidth(Math.ceil(actionSlot.getBoundingClientRect().width))
+      window.requestAnimationFrame(updateEdges)
+    }
+    updateActionWidth()
+    const resizeObserver = new ResizeObserver(updateActionWidth)
+    resizeObserver.observe(actionSlot)
+    return () => resizeObserver.disconnect()
+  }, [actions])
+
+  useEffect(() => {
+    if (!panelId || activeTabId === null) return
+    recordPanelTabMetric('panel.tab.viewed', panelId, activeTabId, tabs.length)
+  }, [activeTabId, panelId, tabs.length])
+
+  useEffect(() => {
+    if (!panelId) return
+    const currentIds = new Set(tabs.map((tab) => String(tab.id)))
+    const previousIds = previousTelemetryTabIdsRef.current
+    previousTelemetryTabIdsRef.current = currentIds
+    if (!previousIds) return
+    for (const tab of tabs) {
+      if (!previousIds.has(String(tab.id))) {
+        recordPanelTabMetric('panel.tab.opened', panelId, tab.id, tabs.length)
+      }
+    }
+    previousIds.forEach((tabId) => {
+      if (!currentIds.has(tabId)) {
+        recordPanelTabMetric('panel.tab.closed', panelId, tabId, tabs.length)
+      }
+    })
+  }, [panelId, tabs])
+
   const reorderDraggedTab = (targetTabId: T): void => {
     const sourceTabId = draggingTabIdRef.current
     if (!onMove || sourceTabId === null || sourceTabId === targetTabId) return
@@ -711,12 +1460,75 @@ export function PanelTabStrip<T extends string | number>({
     }
   }
 
+  const clearDragDropMarkers = (): void => {
+    rowRef.current?.querySelectorAll<HTMLElement>('[role="tab"]').forEach((element) => {
+      element.dataset.dragOver = 'false'
+      element.dataset.dropPosition = ''
+    })
+  }
+
+  const dropPositionForTab = (event: React.DragEvent<HTMLDivElement>, targetTabId: T): 'before' | 'after' => {
+    const sourceTabId = draggingTabIdRef.current
+    const targetRect = event.currentTarget.getBoundingClientRect()
+    if (event.clientX >= targetRect.left && event.clientX <= targetRect.right) {
+      return event.clientX < targetRect.left + targetRect.width / 2 ? 'before' : 'after'
+    }
+    const sourceIndex = sourceTabId === null ? -1 : tabs.findIndex((tab) => tab.id === sourceTabId)
+    const targetIndex = tabs.findIndex((tab) => tab.id === targetTabId)
+    return sourceIndex >= 0 && targetIndex >= 0 && sourceIndex < targetIndex ? 'after' : 'before'
+  }
+
+  const focusTabAt = (index: number): void => {
+    const row = rowRef.current
+    if (!row || tabs.length === 0) return
+    const tabElements = Array.from(row.querySelectorAll<HTMLElement>('[role="tab"]'))
+    const targetIndex = Math.max(0, Math.min(tabElements.length - 1, index))
+    tabElements[targetIndex]?.focus({ preventScroll: true })
+    const targetTab = tabs[targetIndex]
+    if (targetTab) onActivate(targetTab.id)
+  }
+
+  const handleTabRowKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    const row = rowRef.current
+    if (!row) return
+    const tabElements = Array.from(row.querySelectorAll<HTMLElement>('[role="tab"]'))
+    const focusedIndex = tabElements.findIndex((element) => element === document.activeElement || element.contains(document.activeElement))
+    const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTabId))
+    const currentIndex = focusedIndex === -1 ? activeIndex : focusedIndex
+    event.preventDefault()
+    if (event.key === 'Home') {
+      focusTabAt(0)
+      return
+    }
+    if (event.key === 'End') {
+      focusTabAt(tabs.length - 1)
+      return
+    }
+    const delta = event.key === 'ArrowLeft' ? -1 : 1
+    focusTabAt((currentIndex + delta + tabs.length) % tabs.length)
+  }
+
+  const handleTabRowWheel = (event: React.WheelEvent<HTMLDivElement>): void => {
+    const row = rowRef.current
+    if (!row) return
+    const delta = event.deltaX || event.deltaY
+    if (delta === 0 || row.scrollWidth <= row.clientWidth) return
+    const before = row.scrollLeft
+    row.scrollLeft += delta
+    if (row.scrollLeft !== before) event.preventDefault()
+    updateEdges()
+  }
+
   return (
     <div
       className={`panel-tab-strip ${className}`}
+      style={{ '--panel-tab-actions-width': `${actionsWidth}px` } as CSSProperties}
       data-testid={stripTestId}
+      data-panel-toolbar="true"
       data-overflow-start={edges.start ? 'true' : 'false'}
       data-overflow-end={edges.end ? 'true' : 'false'}
+      data-panel-tab-actions-width={actionsWidth}
     >
       <div className="panel-tab-scroll-frame">
         <div
@@ -725,17 +1537,30 @@ export function PanelTabStrip<T extends string | number>({
           role="tablist"
           data-testid={tabRowTestId}
           data-app-shell-tab-controller
+          onKeyDown={handleTabRowKeyDown}
+          onWheel={handleTabRowWheel}
         >
-          {tabs.map((tab) => (
+          {tabs.map((tab) => {
+            const closeTab = onClose && tab.closable !== false ? () => {
+              if (panelId) exitFullscreenForPanelTab(panelId, tab.id)
+              onClose(tab.id)
+            } : undefined
+            return (
             <TabButton
               key={tab.id}
               active={activeTabId === tab.id}
+              tabId={String(tab.id)}
+              panelId={panelId}
               onClick={() => onActivate(tab.id)}
-              onClose={onClose ? () => onClose(tab.id) : undefined}
+              onClose={closeTab}
               onContextMenu={(event) => onContextMenu?.(event, tab.id)}
               draggable={Boolean(onMove && tabs.length > 1)}
               dragging={draggingTabId === tab.id}
-              dragOver={dragOverTabId === tab.id && draggingTabId !== tab.id}
+              dragOver={dragOverTab?.tabId === tab.id && draggingTabId !== tab.id}
+              dropPosition={dragOverTab?.tabId === tab.id && draggingTabId !== tab.id ? dragOverTab.position : null}
+              preview={tab.preview}
+              pinned={tab.pinned}
+              shimmering={tab.shimmering}
               onDragStart={(event) => {
                 if (!onMove || tabs.length < 2) {
                   event.preventDefault()
@@ -744,26 +1569,34 @@ export function PanelTabStrip<T extends string | number>({
                 event.dataTransfer.effectAllowed = 'move'
                 event.dataTransfer.setData('application/x-orchestrator-panel-tab', String(tab.id))
                 draggingTabIdRef.current = tab.id
+                clearDragDropMarkers()
                 setDraggingTabId(tab.id)
+                setDragOverTab(null)
               }}
               onDragOver={(event) => {
                 if (!onMove || draggingTabIdRef.current === null) return
                 event.preventDefault()
                 event.dataTransfer.dropEffect = 'move'
-                setDragOverTabId(tab.id)
+                const position = dropPositionForTab(event, tab.id)
+                clearDragDropMarkers()
+                event.currentTarget.dataset.dragOver = 'true'
+                event.currentTarget.dataset.dropPosition = position
+                setDragOverTab({ tabId: tab.id, position })
               }}
               onDrop={(event) => {
                 if (!onMove) return
                 event.preventDefault()
                 reorderDraggedTab(tab.id)
                 draggingTabIdRef.current = null
+                clearDragDropMarkers()
                 setDraggingTabId(null)
-                setDragOverTabId(null)
+                setDragOverTab(null)
               }}
               onDragEnd={() => {
                 draggingTabIdRef.current = null
+                clearDragDropMarkers()
                 setDraggingTabId(null)
-                setDragOverTabId(null)
+                setDragOverTab(null)
               }}
               closeLabel={tab.closeLabel ?? `Close ${tab.label}`}
               ariaLabel={tab.ariaLabel ?? tab.label}
@@ -771,17 +1604,28 @@ export function PanelTabStrip<T extends string | number>({
             >
               <span className="panel-tab-content" data-tab-id={tab.id}>
                 {tab.icon && <Icon name={tab.icon} size={13} />}
-                <span className="panel-tab-label right-sidebar-tab-label">{tab.label}</span>
+                <span className="panel-tab-label">{tab.label}</span>
                 {tab.count !== undefined && tab.count > 0 && (
-                  <span className="panel-tab-count right-sidebar-tab-count">{tab.count}</span>
+                  <span className="panel-tab-count">{tab.count}</span>
                 )}
               </span>
             </TabButton>
-          ))}
+            )
+          })}
         </div>
       </div>
       {actions && (
-        <div className="panel-tab-actions" data-testid={actionsTestId}>
+        <div ref={actionsRef} className="panel-tab-actions" data-testid={actionsTestId}>
+          {panelId && (
+            <div
+              id={panelActiveTabActionsDomId(panelId)}
+              className="panel-active-tab-actions"
+              data-testid={activeActionsHostTestId}
+              data-panel-active-tab-actions="true"
+              data-panel-id={panelId}
+              data-active-tab={activeTabId ?? ''}
+            />
+          )}
           {actions}
         </div>
       )}
@@ -852,6 +1696,61 @@ export function SettingsIntro({
   )
 }
 
+export function SettingsContentLayout({
+  title,
+  subtitle,
+  action,
+  children,
+  className = '',
+  contentClassName = '',
+  dataTestId,
+}: {
+  title?: ReactNode
+  subtitle?: ReactNode
+  action?: ReactNode
+  children: ReactNode
+  className?: string
+  contentClassName?: string
+  dataTestId?: string
+}): JSX.Element {
+  return (
+    <div
+      className={`settings-content-layout ${className}`.trim()}
+      data-settings-content-layout="codex"
+      data-testid={dataTestId}
+    >
+      {(title || subtitle || action) && (
+        <div className="settings-content-layout-header">
+          <div className="settings-content-layout-title-stack">
+            {title && <div className="settings-content-layout-title">{title}</div>}
+            {subtitle && <div className="settings-content-layout-subtitle">{subtitle}</div>}
+          </div>
+          {action && <div className="settings-content-layout-action">{action}</div>}
+        </div>
+      )}
+      <div className={`settings-content-layout-body ${contentClassName}`.trim()}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export function SettingsPageSection({
+  children,
+  className = '',
+  dataTestId,
+}: {
+  children: ReactNode
+  className?: string
+  dataTestId?: string
+}): JSX.Element {
+  return (
+    <div className={`settings-page-section ${className}`.trim()} data-testid={dataTestId}>
+      {children}
+    </div>
+  )
+}
+
 export function SettingGroup({
   title,
   description,
@@ -872,6 +1771,34 @@ export function SettingGroup({
   )
 }
 
+export function SettingsContentGroup({
+  children,
+  className = '',
+}: {
+  children: ReactNode
+  className?: string
+}): JSX.Element {
+  return (
+    <section className={`settings-content-group ${className}`.trim()}>
+      {children}
+    </section>
+  )
+}
+
+export function SettingsGroupContent({
+  children,
+  className = '',
+}: {
+  children: ReactNode
+  className?: string
+}): JSX.Element {
+  return (
+    <div className={`settings-group-content ${className}`.trim()}>
+      {children}
+    </div>
+  )
+}
+
 export function SettingsPanel({
   children,
   className = '',
@@ -883,6 +1810,24 @@ export function SettingsPanel({
     <section className={`settings-panel ${className}`}>
       {children}
     </section>
+  )
+}
+
+export function SettingsSurface({
+  children,
+  className = '',
+  dataTestId,
+  variant = 'default',
+}: {
+  children: ReactNode
+  className?: string
+  dataTestId?: string
+  variant?: 'default' | 'secondary'
+}): JSX.Element {
+  return (
+    <div className={`settings-surface ${className}`.trim()} data-testid={dataTestId} data-variant={variant}>
+      {children}
+    </div>
   )
 }
 
@@ -1024,6 +1969,88 @@ export function InspectorCard({
       data-active={active ? 'true' : 'false'}
       className={`inspector-card motion-row ${className}`}
       style={style}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function InspectorSection({
+  children,
+  title,
+  className = '',
+  dataTestId,
+  variant = 'default',
+}: {
+  children: ReactNode
+  title?: ReactNode
+  className?: string
+  dataTestId?: string
+  variant?: 'default' | 'raised'
+}): JSX.Element {
+  return (
+    <section
+      data-testid={dataTestId}
+      data-inspector-section="true"
+      data-inspector-section-variant={variant}
+      className={`orchestrator-inspector-section ${className}`.trim()}
+    >
+      {title && (
+        <div className="orchestrator-inspector-section-title" data-inspector-section-title="true">
+          {title}
+        </div>
+      )}
+      {children}
+    </section>
+  )
+}
+
+export function InspectorDisclosure({
+  children,
+  title,
+  className = '',
+  dataTestId,
+  defaultOpen = false,
+}: {
+  children: ReactNode
+  title: ReactNode
+  className?: string
+  dataTestId?: string
+  defaultOpen?: boolean
+}): JSX.Element {
+  return (
+    <details
+      className={`orchestrator-inspector-section orchestrator-inspector-disclosure ${className}`.trim()}
+      data-inspector-section="true"
+      data-inspector-section-variant="default"
+      data-testid={dataTestId}
+      open={defaultOpen}
+    >
+      <summary className="orchestrator-inspector-disclosure-summary">
+        {title}
+      </summary>
+      {children}
+    </details>
+  )
+}
+
+export function InspectorRow({
+  children,
+  className = '',
+  dataTestId,
+  variant = 'default',
+}: {
+  children: ReactNode
+  className?: string
+  dataTestId?: string
+  variant?: 'default' | 'muted'
+}): JSX.Element {
+  return (
+    <div
+      data-testid={dataTestId}
+      data-inspector-row="true"
+      data-inspector-row-variant={variant}
+      className={`orchestrator-inspector-row ${className}`.trim()}
     >
       {children}
     </div>
@@ -1238,11 +2265,13 @@ export function SurfaceRow({
   ariaLabel,
   dataTestId,
   dataReviewPath,
+  dataSidebarKey,
 }: SurfaceRowProps): JSX.Element {
   const shared = {
     'data-active': active ? 'true' : 'false',
     'data-testid': dataTestId,
     'data-review-path': dataReviewPath,
+    'data-sidebar-key': dataSidebarKey,
     'data-tooltip-label': title,
     'data-native-title-free': title ? 'true' : undefined,
     className: `surface-row motion-row ${className}`,
@@ -1276,6 +2305,65 @@ export function SurfaceRow({
     </div>
   )
   return title ? <Tooltip label={title}>{row}</Tooltip> : row
+}
+
+export function SidebarListRow({
+  icon,
+  leading,
+  label,
+  detail,
+  trailing,
+  active = false,
+  disabled = false,
+  as = 'button',
+  size = 'nav',
+  onClick,
+  onDoubleClick,
+  onContextMenu,
+  dataTestId,
+  dataSidebarKey,
+  ariaLabel,
+  className = '',
+}: {
+  icon?: IconName
+  leading?: ReactNode
+  label: ReactNode
+  detail?: ReactNode
+  trailing?: ReactNode
+  active?: boolean
+  disabled?: boolean
+  as?: 'button' | 'div'
+  size?: 'nav' | 'thread' | 'section' | 'compact'
+  onClick: () => void | Promise<void>
+  onDoubleClick?: (event: React.MouseEvent) => void | Promise<void>
+  onContextMenu?: (event: React.MouseEvent) => void
+  dataTestId?: string
+  dataSidebarKey?: string
+  ariaLabel?: string
+  className?: string
+}): JSX.Element {
+  return (
+    <SurfaceRow
+      as={as}
+      active={active}
+      disabled={disabled}
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
+      dataTestId={dataTestId}
+      dataSidebarKey={dataSidebarKey}
+      ariaLabel={ariaLabel}
+      className={`sidebar-list-row sidebar-list-row-${size} ${className}`.trim()}
+    >
+      <span className="sidebar-list-row-content">
+        {leading}
+        {icon && <Icon name={icon} size={14} />}
+        <span className="sidebar-list-row-label">{label}</span>
+      </span>
+      {detail && <span className="sidebar-list-row-detail">{detail}</span>}
+      {trailing && <span className="sidebar-list-row-trailing">{trailing}</span>}
+    </SurfaceRow>
+  )
 }
 
 interface DisclosureSectionProps {
@@ -1402,14 +2490,16 @@ export const PopoverSurface = forwardRef<HTMLDivElement, {
   children: ReactNode
   className?: string
   style?: CSSProperties
-}>(function PopoverSurface({
+} & HTMLAttributes<HTMLDivElement>>(function PopoverSurface({
   children,
   className = '',
   style,
+  ...divProps
 }, ref): JSX.Element {
   return (
     <div
       ref={ref}
+      {...divProps}
       className={`motion-popover-surface ${className}`}
       style={{
         borderRadius: 'var(--radius-lg)',
@@ -1487,12 +2577,13 @@ export function MenuSurface({
   onClose,
   className = '',
   style,
+  ...surfaceProps
 }: {
   children: ReactNode
   onClose: () => void
   className?: string
   style?: CSSProperties
-}): JSX.Element {
+} & HTMLAttributes<HTMLDivElement>): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1562,9 +2653,14 @@ export function MenuSurface({
   return (
     <PopoverSurface
       ref={ref}
+      {...surfaceProps}
       className={`orchestrator-menu-surface ${className}`.trim()}
       style={{
-        borderRadius: 8,
+        borderRadius: 12,
+        border: '0.5px solid var(--border-subtle)',
+        background: 'color-mix(in srgb, var(--surface-bg) 90%, transparent)',
+        boxShadow: 'var(--shadow-menu)',
+        backdropFilter: 'blur(12px)',
         minWidth: 178,
         maxWidth: 'min(420px, calc(100vw - 16px))',
         maxHeight: 'min(320px, calc(100vh - 16px))',
@@ -1616,11 +2712,311 @@ export function MenuItem({
   )
 }
 
+export function MenuRow({
+  children,
+  icon,
+  onClick,
+  disabled = false,
+  ariaLabel,
+  className = '',
+  dataTestId,
+}: {
+  children: ReactNode
+  icon?: IconName
+  onClick?: () => void | Promise<void>
+  disabled?: boolean
+  ariaLabel?: string
+  className?: string
+  dataTestId?: string
+}): JSX.Element {
+  const sharedClassName = `orchestrator-menu-row ${className}`.trim()
+  const content = (
+    <>
+      {icon && <Icon name={icon} size={13} />}
+      {children}
+    </>
+  )
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        role="menuitem"
+        disabled={disabled}
+        aria-label={ariaLabel}
+        data-testid={dataTestId}
+        data-menu-row="true"
+        onClick={() => { void onClick() }}
+        className={sharedClassName}
+      >
+        {content}
+      </button>
+    )
+  }
+
+  return (
+    <div
+      data-testid={dataTestId}
+      data-menu-row="true"
+      data-menu-row-static="true"
+      className={sharedClassName}
+    >
+      {content}
+    </div>
+  )
+}
+
+export function MenuSection({
+  children,
+  className = '',
+  dataTestId,
+  ...props
+}: {
+  children: ReactNode
+  className?: string
+  dataTestId?: string
+} & HTMLAttributes<HTMLDivElement>): JSX.Element {
+  return (
+    <div
+      {...props}
+      data-testid={dataTestId}
+      data-menu-section="true"
+      className={`orchestrator-menu-section ${className}`.trim()}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function MenuSectionLabel({
+  children,
+  className = '',
+}: {
+  children: ReactNode
+  className?: string
+}): JSX.Element {
+  return (
+    <div
+      data-menu-section-label="true"
+      className={`orchestrator-menu-section-label ${className}`.trim()}
+    >
+      {children}
+    </div>
+  )
+}
+
+type MenuMessageTone = 'muted' | 'danger'
+
+export function MenuMessage({
+  children,
+  tone = 'muted',
+  centered = false,
+  compact = false,
+  className = '',
+  dataTestId,
+  state,
+}: {
+  children: ReactNode
+  tone?: MenuMessageTone
+  centered?: boolean
+  compact?: boolean
+  className?: string
+  dataTestId?: string
+  state?: string
+}): JSX.Element {
+  return (
+    <div
+      data-testid={dataTestId}
+      data-menu-message="true"
+      data-menu-message-tone={tone}
+      data-menu-message-centered={centered ? 'true' : 'false'}
+      data-menu-message-compact={compact ? 'true' : 'false'}
+      data-menu-message-state={state}
+      className={`orchestrator-menu-message ${className}`.trim()}
+    >
+      {children}
+    </div>
+  )
+}
+
+type PanelMessageTone = 'muted' | 'danger' | 'warning'
+
+export function PanelMessage({
+  children,
+  tone = 'muted',
+  centered = false,
+  compact = false,
+  framed = false,
+  className = '',
+  dataTestId,
+  state,
+}: {
+  children: ReactNode
+  tone?: PanelMessageTone
+  centered?: boolean
+  compact?: boolean
+  framed?: boolean
+  className?: string
+  dataTestId?: string
+  state?: string
+}): JSX.Element {
+  return (
+    <div
+      data-testid={dataTestId}
+      data-panel-message="true"
+      data-panel-message-tone={tone}
+      data-panel-message-centered={centered ? 'true' : 'false'}
+      data-panel-message-compact={compact ? 'true' : 'false'}
+      data-panel-message-framed={framed ? 'true' : 'false'}
+      data-panel-message-state={state}
+      className={`orchestrator-panel-message ${className}`.trim()}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function PanelNotice({
+  icon,
+  title,
+  description,
+  code,
+  actions,
+  children,
+  tone = 'muted',
+  className = '',
+  dataTestId,
+  rootAttrs,
+  state,
+}: {
+  icon?: ReactNode
+  title: ReactNode
+  description?: ReactNode
+  code?: ReactNode
+  actions?: ReactNode
+  children?: ReactNode
+  tone?: PanelMessageTone
+  className?: string
+  dataTestId?: string
+  rootAttrs?: Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className'>
+  state?: string
+}): JSX.Element {
+  return (
+    <div
+      {...rootAttrs}
+      data-testid={dataTestId}
+      data-panel-notice="true"
+      data-panel-notice-tone={tone}
+      data-panel-notice-state={state}
+      className={`orchestrator-panel-notice ${className}`.trim()}
+    >
+      {icon && <div className="orchestrator-panel-notice-icon">{icon}</div>}
+      <div className="orchestrator-panel-notice-copy">
+        <div className="orchestrator-panel-notice-title">{title}</div>
+        {description && (
+          <div className="orchestrator-panel-notice-description">
+            {description}
+          </div>
+        )}
+        {code && <div className="orchestrator-panel-notice-code">{code}</div>}
+      </div>
+      {actions && <div className="orchestrator-panel-notice-actions">{actions}</div>}
+      {children}
+    </div>
+  )
+}
+
+export function DialogContent({
+  children,
+  as = 'div',
+  className = '',
+  dataTestId,
+  onSubmit,
+}: {
+  children: ReactNode
+  as?: 'div' | 'form'
+  className?: string
+  dataTestId?: string
+  onSubmit?: (event: FormEvent<HTMLFormElement>) => void
+}): JSX.Element {
+  const classes = `orchestrator-dialog-content ${className}`.trim()
+  if (as === 'form') {
+    return (
+      <form
+        className={classes}
+        data-dialog-content="true"
+        data-testid={dataTestId}
+        onSubmit={onSubmit}
+      >
+        {children}
+      </form>
+    )
+  }
+  return (
+    <div
+      className={classes}
+      data-dialog-content="true"
+      data-testid={dataTestId}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function DialogHeader({
+  title,
+  description,
+  className = '',
+}: {
+  title: ReactNode
+  description?: ReactNode
+  className?: string
+}): JSX.Element {
+  return (
+    <div className={`orchestrator-dialog-copy ${className}`.trim()} data-dialog-header="true">
+      <div className="orchestrator-dialog-title">{title}</div>
+      {description && <div className="orchestrator-dialog-description">{description}</div>}
+    </div>
+  )
+}
+
+export function DialogFooter({
+  children,
+  className = '',
+}: {
+  children: ReactNode
+  className?: string
+}): JSX.Element {
+  return (
+    <div className={`orchestrator-dialog-actions ${className}`.trim()} data-dialog-footer="true">
+      {children}
+    </div>
+  )
+}
+
+export function DialogField({
+  children,
+  label,
+  className = '',
+}: {
+  children: ReactNode
+  label: ReactNode
+  className?: string
+}): JSX.Element {
+  return (
+    <label className={`automation-dialog-field ${className}`.trim()} data-dialog-field="true">
+      <span>{label}</span>
+      {children}
+    </label>
+  )
+}
+
 export function ConfirmDialog({
   title,
   description,
   confirmLabel,
   cancelLabel = 'Cancel',
+  dataTestId,
   tone = 'danger',
   onCancel,
   onConfirm,
@@ -1629,22 +3025,20 @@ export function ConfirmDialog({
   description?: ReactNode
   confirmLabel: ReactNode
   cancelLabel?: ReactNode
+  dataTestId?: string
   tone?: 'danger' | 'accent'
   onCancel: () => void
   onConfirm: () => void | Promise<void>
 }): JSX.Element {
   return (
     <MotionOverlay onClose={onCancel} surfaceClassName="orchestrator-dialog-surface">
-      <div className="orchestrator-dialog-content">
-        <div className="orchestrator-dialog-copy">
-          <div className="orchestrator-dialog-title">{title}</div>
-          {description && <div className="orchestrator-dialog-description">{description}</div>}
-        </div>
-        <div className="orchestrator-dialog-actions">
+      <DialogContent dataTestId={dataTestId}>
+        <DialogHeader title={title} description={description} />
+        <DialogFooter>
           <Button variant="ghost" onClick={onCancel}>{cancelLabel}</Button>
           <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm}>{confirmLabel}</Button>
-        </div>
-      </div>
+        </DialogFooter>
+      </DialogContent>
     </MotionOverlay>
   )
 }
@@ -1686,17 +3080,14 @@ export function TextInputDialog({
 
   return (
     <MotionOverlay onClose={onCancel} surfaceClassName="orchestrator-dialog-surface">
-      <form
-        className="orchestrator-dialog-content"
+      <DialogContent
+        as="form"
         onSubmit={(event) => {
           event.preventDefault()
           submit()
         }}
       >
-        <div className="orchestrator-dialog-copy">
-          <div className="orchestrator-dialog-title">{title}</div>
-          {description && <div className="orchestrator-dialog-description">{description}</div>}
-        </div>
+        <DialogHeader title={title} description={description} />
         <input
           ref={inputRef}
           value={value}
@@ -1704,11 +3095,11 @@ export function TextInputDialog({
           onChange={(event) => setValue(event.target.value)}
           className="orchestrator-dialog-input"
         />
-        <div className="orchestrator-dialog-actions">
+        <DialogFooter>
           <Button variant="ghost" onClick={onCancel}>{cancelLabel}</Button>
           <Button variant="primary" type="submit" disabled={!value.trim()}>{confirmLabel}</Button>
-        </div>
-      </form>
+        </DialogFooter>
+      </DialogContent>
     </MotionOverlay>
   )
 }

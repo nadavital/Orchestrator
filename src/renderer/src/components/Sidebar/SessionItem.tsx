@@ -1,11 +1,13 @@
-import type { Session } from '../../types'
+import type { Automation, AutomationRun, Session } from '../../types'
+import { PROVIDER_DEFS, isSidebarPinnedSession, isSidebarProjectlessSession, sidebarThreadKind } from '../../types'
 import { hasComposerDraft, useSessionStore } from '../../store/sessions'
 import { useProjectStore } from '../../store/projects'
+import { sidebarSessionSelectedKey, useSidebarStore } from '../../store/sidebar'
 import Icon from '../shared/Icon'
 import SessionActionsMenu from '../shared/SessionActionsMenu'
 import RenameChatDialog from '../shared/RenameChatDialog'
-import { announceHoverSurfaceOpen, IconButton, SurfaceRow, Tooltip, useExclusiveHoverSurface } from '../shared/designSystem'
-import { memo, useEffect, useRef, useState } from 'react'
+import { announceHoverSurfaceOpen, IconButton, SidebarListRow, Tooltip, useExclusiveHoverSurface } from '../shared/designSystem'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 interface Props {
@@ -42,19 +44,27 @@ function SessionItem({ session }: Props): JSX.Element {
   const hoverSurfaceId = `session-hover-${session.id}`
   const isActive = useSessionStore((state) => state.activeSessionId === session.id)
   const unread = useSessionStore((state) => state.uiState[session.id]?.hasUnread ?? false)
+  const addSession = useSessionStore((state) => state.addSession)
   const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const transferBrowserWorkbench = useSessionStore((state) => state.transferBrowserWorkbench)
   const removeSession = useSessionStore((state) => state.removeSession)
   const updateName = useSessionStore((state) => state.updateName)
   const updatePinned = useSessionStore((state) => state.updatePinned)
+  const updateStatus = useSessionStore((state) => state.updateStatus)
+  const setHasUnread = useSessionStore((state) => state.setHasUnread)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
-  const { projects, removeSessionFromProject } = useProjectStore()
+  const selectedSidebarKey = useSidebarStore((state) => state.selectedKey)
+  const setSelectedSidebarKey = useSidebarStore((state) => state.setSelectedKey)
+  const { projects, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [detailsVisible, setDetailsVisible] = useState(false)
   const [cardPosition, setCardPosition] = useState<{ left: number; top: number } | null>(null)
   const [branch, setBranch] = useState<string | null>(null)
   const [branchLoadedFor, setBranchLoadedFor] = useState<string | null>(null)
+  const [automations, setAutomations] = useState<Automation[]>([])
+  const [runsByAutomation, setRunsByAutomation] = useState<Record<string, AutomationRun[]>>({})
   const hoverCardTimerRef = useRef<number | null>(null)
   const hasUnread = !isActive && unread
   const hasError = errorStatuses.has(session.status)
@@ -63,9 +73,19 @@ function SessionItem({ session }: Props): JSX.Element {
   const hasUncheckedCompletion = hasUnread && session.status === 'idle'
   const showStatusIndicator = isRunning || isWaiting || hasUncheckedCompletion || hasError
   const project = projects.find((p) => p.id === session.projectId)
+  const projectIdSet = useMemo(() => new Set(projects.map((project) => project.id)), [projects])
+  const projectless = isSidebarProjectlessSession(session, projectIdSet)
   const statusLabel = statusLabelFor(session.status, hasUnread)
   const createdLabel = formatRelativeTime(session.createdAt)
+  const automation = automations.find((item) => item.status === 'ACTIVE') ?? automations[0] ?? null
+  const automationRuns = automation ? runsByAutomation[automation.id] ?? [] : []
+  const automationRun = automationRuns.find((run) => run.status === 'RUNNING') ?? null
+  const automationLabel = automation ? automationStatusLabel(automation, automationRun) : null
   const branchLabel = branch ?? inferredWorktreeBranch(session)
+  const threadKind = sidebarThreadKind(session)
+  const labelColor = sidebarLabelColor(session)
+  const isPinned = isSidebarPinnedSession(session)
+  const rowSelectedKey = sidebarSessionSelectedKey(session.id)
 
   useEffect(() => {
     if (!detailsVisible || branchLoadedFor === session.workDir) return
@@ -82,6 +102,64 @@ function SessionItem({ session }: Props): JSX.Element {
       cancelled = true
     }
   }, [branchLoadedFor, detailsVisible, session.workDir])
+
+  useEffect(() => {
+    let cancelled = false
+    const refreshAutomations = (): void => {
+      window.api.automations.listForSession(session.id)
+        .then(async (nextAutomations) => {
+          const runEntries = await Promise.all(nextAutomations.map(async (automation) => {
+            const runs = await window.api.automations.listRuns(automation.id)
+            return [automation.id, runs] as const
+          }))
+          if (!cancelled) setAutomations(nextAutomations)
+          if (!cancelled) setRunsByAutomation(Object.fromEntries(runEntries))
+        })
+        .catch(() => {
+          if (!cancelled) setAutomations([])
+          if (!cancelled) setRunsByAutomation({})
+        })
+    }
+    const handleAutomationUpdate = (event: Event): void => {
+      const detail = (event as CustomEvent<Automation>).detail
+      if (!detail || detail.target.sessionId === session.id) refreshAutomations()
+    }
+    const handleAutomationDeleted = (event: Event): void => {
+      const detail = (event as CustomEvent<Automation>).detail
+      if (!detail || detail.target.sessionId === session.id) refreshAutomations()
+    }
+    const handleAutomationRun = (event: Event): void => {
+      const detail = (event as CustomEvent<AutomationRun>).detail
+      if (!detail || typeof detail.automationId === 'string') refreshAutomations()
+    }
+    refreshAutomations()
+    window.addEventListener('orchestrator:automation-updated', handleAutomationUpdate)
+    window.addEventListener('orchestrator:automation-deleted', handleAutomationDeleted)
+    window.addEventListener('orchestrator:automation-run', handleAutomationRun)
+    return () => {
+      cancelled = true
+      window.removeEventListener('orchestrator:automation-updated', handleAutomationUpdate)
+      window.removeEventListener('orchestrator:automation-deleted', handleAutomationDeleted)
+      window.removeEventListener('orchestrator:automation-run', handleAutomationRun)
+    }
+  }, [session.id])
+
+  useEffect(() => {
+    if (!automationRun) return
+    const interval = window.setInterval(() => {
+      window.api.automations.listForSession(session.id)
+        .then(async (nextAutomations) => {
+          const runEntries = await Promise.all(nextAutomations.map(async (item) => {
+            const runs = await window.api.automations.listRuns(item.id)
+            return [item.id, runs] as const
+          }))
+          setAutomations(nextAutomations)
+          setRunsByAutomation(Object.fromEntries(runEntries))
+        })
+        .catch(() => undefined)
+    }, 2000)
+    return () => window.clearInterval(interval)
+  }, [automationRun, session.id])
 
   const cleanupSessionIfEmpty = async (sessionId: string | null): Promise<void> => {
     const { sessions, removeSession, uiState } = useSessionStore.getState()
@@ -113,6 +191,7 @@ function SessionItem({ session }: Props): JSX.Element {
       startedAt: performance.now(),
       messageCount: session.messageCount ?? session.messages.length
     }
+    setSelectedSidebarKey(rowSelectedKey)
     setActiveSession(session.id)
     setShowCapabilities(false)
     setShowSettings(false)
@@ -129,13 +208,13 @@ function SessionItem({ session }: Props): JSX.Element {
   const togglePinned = async (event: React.MouseEvent): Promise<void> => {
     event.preventDefault()
     event.stopPropagation()
-    const nextPinned = !session.pinned
+    const nextPinned = !isPinned
     const previousPinOrder = session.pinOrder
     updatePinned(session.id, nextPinned)
     try {
       await window.api.sessions.updatePinned(session.id, nextPinned)
     } catch (error) {
-      updatePinned(session.id, Boolean(session.pinned), previousPinOrder)
+      updatePinned(session.id, isPinned, previousPinOrder)
       console.error('Failed to update pinned chat', error)
     }
   }
@@ -215,6 +294,20 @@ function SessionItem({ session }: Props): JSX.Element {
         aria-current={isActive ? 'page' : undefined}
         aria-describedby={detailsVisible ? hoverSurfaceId : undefined}
         data-details-visible={detailsVisible ? 'true' : 'false'}
+        data-session-id={session.id}
+        data-sidebar-thread-kind={threadKind}
+        data-sidebar-provider-id={session.provider}
+        data-sidebar-provider-thread-source={session.providerThreadSource ?? (session.providerSessionId ? 'remote' : 'local')}
+        data-sidebar-provider-host-id={session.providerHostId ?? undefined}
+        data-sidebar-worktree-source-root={session.providerWorktreeSourceRoot ?? undefined}
+        data-sidebar-worktree-root={session.providerWorktreeRoot ?? undefined}
+        data-sidebar-worktree-host-id={session.providerWorktreeHostId ?? undefined}
+        data-sidebar-label-color={labelColor}
+        data-sidebar-provider-pinned={session.providerPinned ? 'true' : undefined}
+        data-sidebar-pinned-thread-key={session.providerPinnedThreadKey ?? undefined}
+        data-sidebar-projectless={projectless ? 'true' : undefined}
+        data-sidebar-projectless-thread-id={session.providerProjectlessThreadId ?? undefined}
+        data-sidebar-selected-key={rowSelectedKey}
         onMouseEnter={() => showDetails(true)}
         onMouseLeave={hideDetails}
         onFocus={(event) => {
@@ -231,42 +324,37 @@ function SessionItem({ session }: Props): JSX.Element {
           void handleClick()
         }}
       >
-        <SurfaceRow
+        <SidebarListRow
+          as="div"
           dataTestId="session-row"
-          className="group session-row flex h-7 min-w-0 items-center gap-1.5 cursor-pointer select-none"
-          active={isActive}
-          style={{
-            borderRadius: 7,
-            padding: '3px 7px'
-          }}
+          className="group session-row cursor-pointer select-none"
+          size="thread"
+          active={isActive || selectedSidebarKey === rowSelectedKey}
           onClick={handleClick}
           onDoubleClick={openRename}
           onContextMenu={openMenu}
-        >
-          <div className="session-item-pin-slot shrink-0">
-            <Tooltip label={session.pinned ? 'Unpin chat' : 'Pin chat'}>
-              <button
-                type="button"
-                className="session-item-pin-button"
-                data-testid="session-pin-toggle"
-                aria-label={session.pinned ? 'Unpin chat' : 'Pin chat'}
-                data-native-title-free="true"
-                data-pinned={session.pinned ? 'true' : 'false'}
-                onClick={(event) => void togglePinned(event)}
-              >
-                <Icon name="pin" size={12} />
-              </button>
-            </Tooltip>
-          </div>
-          <div className="min-w-0 flex-1">
+          dataSidebarKey={rowSelectedKey}
+          leading={(
+            <div className="session-item-identity-slot shrink-0">
+              <span
+                className="session-item-label-color"
+                data-testid="session-label-color"
+                aria-hidden="true"
+                data-pinned={isPinned ? 'true' : 'false'}
+                style={{ background: labelColor }}
+              />
+            </div>
+          )}
+          label={(
             <div
               className="session-row-title truncate leading-4"
               data-thread-title={session.name}
             >
               {session.name}
             </div>
-          </div>
-          <span className="session-row-right-slot shrink-0">
+          )}
+          trailing={(
+            <span className="session-row-right-slot shrink-0">
             <span className="session-row-state-control">
               {showStatusIndicator ? (
                 isRunning ? (
@@ -296,13 +384,43 @@ function SessionItem({ session }: Props): JSX.Element {
                     />
                   </Tooltip>
                 )
+              ) : automation && automationLabel ? (
+                <Tooltip label={automationLabel}>
+                  <span
+                    className="session-automation-status"
+                    data-testid="session-automation-status"
+                    data-automation-status={automation.status}
+                    data-automation-run-status={automationRun?.status}
+                    data-automation-next-run={automation.nextRunAt ?? undefined}
+                    data-native-title-free="true"
+                    aria-label={automationLabel}
+                  >
+                    {automationRun ? <span className="session-automation-status-spinner" /> : <Icon name="clock" size={12} />}
+                  </span>
+                </Tooltip>
               ) : (
                 <span className="session-row-right-meta" aria-label={`Created ${createdLabel}`}>
                   {createdLabel}
                 </span>
               )}
             </span>
-            <span className="surface-row-secondary session-row-actions">
+            <span
+              className="surface-row-secondary session-row-actions"
+              data-sidebar-row-action-slot="consolidated"
+            >
+              <Tooltip label={isPinned ? 'Unpin chat' : 'Pin chat'}>
+                <button
+                  type="button"
+                  className="session-item-pin-button"
+                  data-testid="session-pin-toggle"
+                  aria-label={isPinned ? 'Unpin chat' : 'Pin chat'}
+                  data-native-title-free="true"
+                  data-pinned={isPinned ? 'true' : 'false'}
+                  onClick={(event) => void togglePinned(event)}
+                >
+                  <Icon name="pin" size={12} />
+                </button>
+              </Tooltip>
               <IconButton
                 icon="ellipsis"
                 label="Chat actions"
@@ -311,8 +429,9 @@ function SessionItem({ session }: Props): JSX.Element {
                 style={{ color: 'var(--text-tertiary)' }}
               />
             </span>
-          </span>
-        </SurfaceRow>
+            </span>
+          )}
+        />
       </div>
       {detailsVisible && cardPosition && createPortal(
         <div
@@ -323,8 +442,9 @@ function SessionItem({ session }: Props): JSX.Element {
           role="tooltip"
         >
           <div className="session-hover-card-title">{session.name}</div>
-          <SessionHoverRow label="Project" value={project?.name ?? 'No project'} />
+          <SessionHoverRow label="Project" value={project?.name ?? (projectless ? 'Chat' : 'No project')} />
           {branchLabel && <SessionHoverRow label="Branch" value={branchLabel} />}
+          {automationLabel && <SessionHoverRow label="Automation" value={automationLabel} />}
         </div>,
         document.body
       )}
@@ -335,6 +455,17 @@ function SessionItem({ session }: Props): JSX.Element {
           y={menuPoint.y}
           onClose={() => setMenuPoint(null)}
           onRemove={handleRemove}
+          isUnread={unread}
+          onMarkUnread={(nextUnread) => setHasUnread(session.id, nextUnread)}
+          onStop={() => updateStatus(session.id, 'idle')}
+          onForked={(forked) => {
+            addSession(forked)
+            transferBrowserWorkbench(session.id, forked.id)
+            addSessionToProject(forked.projectId, forked.id)
+            setActiveSession(forked.id)
+            setShowCapabilities(false)
+            setShowSettings(false)
+          }}
         />
       )}
       {renaming && (
@@ -399,8 +530,37 @@ function formatRelativeTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+function formatFutureRelativeTime(timestamp: number): string {
+  const elapsedSeconds = Math.max(0, Math.floor((timestamp - Date.now()) / 1000))
+  if (elapsedSeconds < 45) return 'now'
+  const elapsedMinutes = Math.ceil(elapsedSeconds / 60)
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m`
+  const elapsedHours = Math.ceil(elapsedMinutes / 60)
+  if (elapsedHours < 24) return `${elapsedHours}h`
+  const elapsedDays = Math.ceil(elapsedHours / 24)
+  if (elapsedDays < 7) return `${elapsedDays}d`
+  const elapsedWeeks = Math.ceil(elapsedDays / 7)
+  if (elapsedWeeks < 8) return `${elapsedWeeks}w`
+  return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function automationStatusLabel(automation: Automation, runningRun?: AutomationRun | null): string {
+  if (runningRun?.status === 'RUNNING') return 'Automation running'
+  if (automation.status === 'PAUSED') return 'Automation paused'
+  if (automation.status === 'ACTIVE' && typeof automation.nextRunAt === 'number') {
+    return `Next run: ${formatFutureRelativeTime(automation.nextRunAt)}`
+  }
+  if (automation.status === 'ACTIVE') return 'Automation ready'
+  return 'Automation deleted'
+}
+
 function inferredWorktreeBranch(session: Session): string | null {
   return session.useWorktree ? `orchestrator/${session.id.slice(0, 8)}` : null
+}
+
+function sidebarLabelColor(session: Session): string {
+  const providerColor = PROVIDER_DEFS[session.provider]?.color
+  return providerColor && /^#[0-9a-f]{6}$/i.test(providerColor) ? providerColor : 'var(--text-tertiary)'
 }
 
 export default memo(SessionItem)

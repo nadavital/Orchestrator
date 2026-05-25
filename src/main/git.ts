@@ -1,8 +1,16 @@
 import { simpleGit } from 'simple-git'
-import { join } from 'path'
+import { join, resolve, sep } from 'path'
 import { mkdirSync } from 'fs'
-import { spawnSync } from 'child_process'
-import type { FileChange, GitPathActionResult } from '../types'
+import { execFile, spawnSync } from 'child_process'
+import { promisify } from 'util'
+import type { FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus } from '../types'
+
+const execFileAsync = promisify(execFile)
+
+interface CreateWorktreeOptions {
+  branchName?: string
+  baseRef?: string
+}
 
 export const gitManager = {
   async isGitRepo(dir: string): Promise<boolean> {
@@ -25,14 +33,87 @@ export const gitManager = {
     }
   },
 
-  async createWorktree(repoRoot: string, sessionId: string): Promise<string> {
+  async listBranches(dir: string, limit = 30): Promise<GitRefOption[]> {
+    try {
+      const git = simpleGit(dir)
+      const [current, raw] = await Promise.all([
+        this.getCurrentBranch(dir),
+        git.raw([
+          'for-each-ref',
+          '--sort=-committerdate',
+          '--format=%(refname:short)%00%(committerdate:unix)',
+          'refs/heads',
+          'refs/remotes'
+        ])
+      ])
+      const seen = new Set<string>()
+      const branches: GitRefOption[] = []
+      for (const line of raw.split('\n').filter(Boolean)) {
+        const [name = '', timestamp = ''] = line.split('\0')
+        const cleanName = name.trim()
+        if (!cleanName || cleanName.endsWith('/HEAD') || seen.has(cleanName)) continue
+        seen.add(cleanName)
+        const isRemote = cleanName.includes('/')
+        const parsedTime = Number.parseInt(timestamp, 10)
+        branches.push({
+          name: cleanName,
+          label: cleanName,
+          description: cleanName === current
+            ? 'Current branch'
+            : `${isRemote ? 'Remote branch' : 'Local branch'}${Number.isFinite(parsedTime) ? ` · ${formatGitRelativeDate(parsedTime)}` : ''}`,
+          current: cleanName === current
+        })
+        if (branches.length >= limit) break
+      }
+      return branches
+    } catch {
+      return []
+    }
+  },
+
+  async listRecentCommits(dir: string, limit = 30): Promise<GitRefOption[]> {
+    try {
+      const git = simpleGit(dir)
+      const raw = await git.raw([
+        'log',
+        `-${Math.max(1, Math.min(limit, 100))}`,
+        '--date-order',
+        '--pretty=format:%H%x00%h%x00%s%x00%ct'
+      ])
+      return raw.split('\n').filter(Boolean).map((line) => {
+        const [hash = '', shortHash = '', subject = '', timestamp = ''] = line.split('\0')
+        const parsedTime = Number.parseInt(timestamp, 10)
+        return {
+          name: hash,
+          label: shortHash || hash.slice(0, 8),
+          description: `${subject || 'Commit'}${Number.isFinite(parsedTime) ? ` · ${formatGitRelativeDate(parsedTime)}` : ''}`
+        }
+      }).filter((option) => option.name.length > 0)
+    } catch {
+      return []
+    }
+  },
+
+  async createWorktree(repoRoot: string, sessionId: string, options: CreateWorktreeOptions = {}): Promise<string> {
     const worktreesDir = join(repoRoot, '.orchestrator-worktrees')
     mkdirSync(worktreesDir, { recursive: true })
-    const worktreePath = join(worktreesDir, sessionId)
-    const branchName = `orchestrator/${sessionId.slice(0, 8)}`
+    const worktreePath = this.worktreePathForSession(repoRoot, sessionId)
+    const branchName = options.branchName?.trim() || `orchestrator/${sessionId.slice(0, 8)}`
     const git = simpleGit(repoRoot)
-    await git.raw(['worktree', 'add', worktreePath, '-b', branchName])
+    await git.raw(['check-ref-format', '--branch', branchName])
+    const args = ['worktree', 'add', worktreePath, '-b', branchName]
+    const baseRef = options.baseRef?.trim()
+    if (baseRef) args.push(baseRef)
+    await git.raw(args)
     return worktreePath
+  },
+
+  worktreePathForSession(repoRoot: string, sessionId: string): string {
+    return join(repoRoot, '.orchestrator-worktrees', sessionId)
+  },
+
+  isManagedWorktreePathForSession(repoRoot: string, worktreePath: string, sessionId: string): boolean {
+    return resolve(worktreePath) === resolve(this.worktreePathForSession(repoRoot, sessionId))
   },
 
   async removeWorktree(repoRoot: string, worktreePath: string): Promise<void> {
@@ -51,9 +132,19 @@ export const gitManager = {
     }
   },
 
-  async getChangedFiles(cwd: string): Promise<FileChange[]> {
+  async getChangedFiles(cwd: string, source: ReviewDiffSource = 'all', ref?: string): Promise<FileChange[]> {
     try {
+      if (!isSupportedLocalReviewSource(source)) return []
       const git = simpleGit(cwd)
+      const cleanRef = ref?.trim()
+      if (source === 'branch') {
+        if (!cleanRef) return []
+        return await getChangedFilesForGitDiff(git, [`${cleanRef}...HEAD`])
+      }
+      if (source === 'commit') {
+        if (!cleanRef) return []
+        return await getChangedFilesForCommit(git, cleanRef)
+      }
 
       // Get +/- counts via numstat (HEAD diff)
       const numstatRaw = await git.raw(['diff', '--numstat', 'HEAD']).catch(() => '')
@@ -84,7 +175,8 @@ export const gitManager = {
 
         const indexStatus = xy[0]
         const workStatus = xy[1]
-        const status = (indexStatus !== ' ' && indexStatus !== '?' ? indexStatus : workStatus) as FileChange['status']
+        const conflicted = isGitConflictStatus(indexStatus, workStatus)
+        const status = conflicted ? 'U' : (indexStatus !== ' ' && indexStatus !== '?' ? indexStatus : workStatus) as FileChange['status']
         const counts = numstatMap.get(filePath) ?? { additions: 0, deletions: 0 }
         files.push({
           path: filePath,
@@ -93,6 +185,8 @@ export const gitManager = {
           worktreeStatus: normalizeGitStatus(workStatus),
           staged: indexStatus !== ' ' && indexStatus !== '?',
           unstaged: workStatus !== ' ' || indexStatus === '?',
+          conflicted,
+          ...(conflicted ? { conflictStatus: xy } : {}),
           ...counts
         })
         if (indexStatus === 'R' || indexStatus === 'C') index += 1
@@ -104,21 +198,35 @@ export const gitManager = {
     }
   },
 
-  async getDiffForFile(cwd: string, filePath: string): Promise<string> {
+  async getDiffForFile(cwd: string, filePath: string, source: ReviewDiffSource = 'all', ref?: string): Promise<string> {
     try {
+      if (!isSupportedLocalReviewSource(source)) return ''
       const git = simpleGit(cwd)
+      const cleanRef = ref?.trim()
+      if (source === 'branch') {
+        if (!cleanRef) return ''
+        return await git.diff([`${cleanRef}...HEAD`, '--', filePath])
+      }
+      if (source === 'commit') {
+        if (!cleanRef) return ''
+        return await git.raw(['show', '--format=', cleanRef, '--', filePath])
+      }
+      if (source === 'staged') {
+        return await git.diff(['--cached', '--', filePath])
+      }
+      if (source === 'unstaged') {
+        const unstaged = await git.diff(['--', filePath])
+        if (unstaged) return unstaged
+        if (await isUntracked(git, filePath)) return diffUntrackedFile(cwd, filePath)
+        return ''
+      }
       const diff = await git.diff(['HEAD', '--', filePath])
       if (diff) return diff
       // Staged-only (e.g. newly added file, no HEAD yet)
       const staged = await git.diff(['--cached', '--', filePath])
       if (staged) return staged
-      // Untracked file — git diff --no-index always exits 1 when content differs
-      const absPath = join(cwd, filePath)
-      const result = spawnSync('git', ['diff', '--no-index', '--', '/dev/null', absPath], {
-        cwd,
-        encoding: 'utf-8'
-      })
-      return result.stdout ?? ''
+      if (await isUntracked(git, filePath)) return diffUntrackedFile(cwd, filePath)
+      return ''
     } catch {
       return ''
     }
@@ -166,6 +274,74 @@ export const gitManager = {
     }
   },
 
+  async discardPaths(cwd: string, paths: string[]): Promise<GitPathActionResult> {
+    const cleanPaths = normalizePathList(paths)
+    if (cleanPaths.length === 0) {
+      return { ok: true, paths: [], changedFiles: await this.getChangedFiles(cwd), discarded: false }
+    }
+    const unsafePath = cleanPaths.find((path) => !isSafeRelativePath(cwd, path))
+    if (unsafePath) {
+      return {
+        ok: false,
+        paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        discarded: false,
+        error: `Refusing to discard unsafe path: ${unsafePath}`
+      }
+    }
+    try {
+      const git = simpleGit(cwd)
+      const changedFiles = await this.getChangedFiles(cwd)
+      const changedByPath = new Map(changedFiles.map((file) => [file.path, file]))
+      const targetPaths = cleanPaths.filter((path) => changedByPath.has(path))
+      const trackedPaths = targetPaths.filter((path) => changedByPath.get(path)?.status !== '?')
+      const untrackedPaths = targetPaths.filter((path) => changedByPath.get(path)?.status === '?')
+      if (trackedPaths.length > 0) {
+        await git.raw(['restore', '--staged', '--worktree', '--', ...trackedPaths])
+      }
+      if (untrackedPaths.length > 0) {
+        await git.raw(['clean', '-f', '--', ...untrackedPaths])
+      }
+      return {
+        ok: true,
+        paths: targetPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        discarded: targetPaths.length > 0
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        paths: cleanPaths,
+        changedFiles: await this.getChangedFiles(cwd),
+        discarded: false,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
+  async blameLine(cwd: string, filePath: string, line: number): Promise<GitLineBlameResult> {
+    const safeLine = Number.isSafeInteger(line) && line > 0 ? line : 1
+    try {
+      const git = simpleGit(cwd)
+      const raw = await git.raw(['blame', '--line-porcelain', '-L', `${safeLine},${safeLine}`, '--', filePath])
+      const blame = parseBlamePorcelain(raw)
+      return {
+        ok: true,
+        path: filePath,
+        line: safeLine,
+        ...blame,
+        summary: blame.author ? `${blame.author}${blame.commit ? ` · ${blame.commit.slice(0, 8)}` : ''}` : blame.commit?.slice(0, 8)
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        path: filePath,
+        line: safeLine,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  },
+
   async getDefaultBranch(repoRoot: string): Promise<string> {
     try {
       const git = simpleGit(repoRoot)
@@ -174,7 +350,191 @@ export const gitManager = {
     } catch {
       return 'main'
     }
+  },
+
+  async getReviewMetadata(cwd: string): Promise<ReviewMetadata | undefined> {
+    try {
+      const { stdout } = await execFileAsync('gh', [
+        'pr',
+        'view',
+        '--json',
+        'number,title,url,state,isDraft,headRefName,baseRefName,statusCheckRollup,reviewRequests,reviews'
+      ], {
+        cwd,
+        encoding: 'utf-8',
+        timeout: 5000,
+        maxBuffer: 1024 * 1024
+      })
+      return reviewMetadataFromGitHubPullRequestView(JSON.parse(stdout))
+    } catch {
+      return undefined
+    }
   }
+}
+
+export function reviewMetadataFromGitHubPullRequestView(value: unknown): ReviewMetadata | undefined {
+  const pr = asRecord(value)
+  if (!pr) return undefined
+  const number = numberValue(pr.number)
+  if (number === undefined) return undefined
+
+  const url = stringValue(pr.url) ?? null
+  const checks = reviewChecksFromGitHubStatusRollup(pr.statusCheckRollup, url)
+  const reviewers = reviewReviewerSummaryFromGitHub(pr.reviewRequests, pr.reviews, url)
+  return {
+    pullRequest: {
+      number,
+      title: stringValue(pr.title),
+      url,
+      state: pr.isDraft === true ? 'draft' : reviewPullRequestState(pr.state),
+      branch: stringValue(pr.headRefName),
+      baseBranch: stringValue(pr.baseRefName)
+    },
+    ...(checks ? { checks } : {}),
+    ...(reviewers ? { reviewers } : {})
+  }
+}
+
+function reviewChecksFromGitHubStatusRollup(value: unknown, url: string | null): ReviewMetadata['checks'] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const total = value.length
+  if (total === 0) return undefined
+  let passed = 0
+  let failing = 0
+  let pending = 0
+  let skipped = 0
+  for (const item of value) {
+    const check = asRecord(item)
+    const status = reviewCheckStatusFromGitHub(check)
+    if (status === 'passing') passed += 1
+    else if (status === 'failing') failing += 1
+    else if (status === 'pending') pending += 1
+    else if (status === 'skipped') skipped += 1
+  }
+  const status: ReviewCheckStatus = failing > 0
+    ? 'failing'
+    : pending > 0
+      ? 'pending'
+      : passed > 0
+        ? 'passing'
+        : skipped === total
+          ? 'skipped'
+          : 'unknown'
+  return {
+    status,
+    total,
+    passed,
+    failing,
+    pending,
+    skipped,
+    url
+  }
+}
+
+function reviewCheckStatusFromGitHub(check: Record<string, unknown> | null): ReviewCheckStatus {
+  const raw = stringValue(
+    check?.conclusion,
+    check?.state,
+    check?.status,
+    check?.workflowRun && asRecord(check.workflowRun)?.conclusion,
+    check?.workflowRun && asRecord(check.workflowRun)?.status
+  )?.toLowerCase().replace(/[_\s-]+/g, '_')
+  if (!raw) return 'pending'
+  if (raw === 'success' || raw === 'neutral') return 'passing'
+  if (raw === 'skipped' || raw === 'cancelled') return 'skipped'
+  if (raw === 'failure' || raw === 'startup_failure' || raw === 'timed_out' || raw === 'action_required' || raw === 'error') return 'failing'
+  if (raw === 'queued' || raw === 'requested' || raw === 'waiting' || raw === 'pending' || raw === 'in_progress' || raw === 'expected') return 'pending'
+  if (raw === 'completed') return 'passing'
+  return 'unknown'
+}
+
+function reviewReviewerSummaryFromGitHub(
+  reviewRequests: unknown,
+  reviews: unknown,
+  url: string | null
+): ReviewMetadata['reviewers'] | undefined {
+  const requestedItems = Array.isArray(reviewRequests) ? reviewRequests : []
+  const reviewItems = Array.isArray(reviews) ? reviews : []
+  if (requestedItems.length === 0 && reviewItems.length === 0) return undefined
+
+  const latestReviewByAuthor = new Map<string, string>()
+  for (const item of reviewItems) {
+    const review = asRecord(item)
+    const author = reviewAuthorName(review)
+    if (!author) continue
+    const state = stringValue(review?.state)?.toUpperCase()
+    if (state) latestReviewByAuthor.set(author, state)
+  }
+
+  let approved = 0
+  let changesRequested = 0
+  let commented = 0
+  const names = new Set<string>()
+  for (const [author, state] of latestReviewByAuthor) {
+    names.add(author)
+    if (state === 'APPROVED') approved += 1
+    else if (state === 'CHANGES_REQUESTED') changesRequested += 1
+    else if (state === 'COMMENTED') commented += 1
+  }
+
+  for (const item of requestedItems) {
+    const name = reviewRequestName(item)
+    if (name) names.add(name)
+  }
+
+  return {
+    requested: requestedItems.length,
+    approved,
+    changesRequested,
+    commented,
+    names: [...names].slice(0, 8),
+    url
+  }
+}
+
+function reviewRequestName(value: unknown): string | undefined {
+  const record = asRecord(value)
+  return stringValue(
+    record?.login,
+    record?.name,
+    record?.slug,
+    record?.requestedReviewer && asRecord(record.requestedReviewer)?.login,
+    record?.requestedReviewer && asRecord(record.requestedReviewer)?.name,
+    record?.team && asRecord(record.team)?.slug,
+    record?.team && asRecord(record.team)?.name
+  )
+}
+
+function reviewAuthorName(review: Record<string, unknown> | null): string | undefined {
+  const author = asRecord(review?.author)
+  return stringValue(author?.login, author?.name, review?.author)
+}
+
+function reviewPullRequestState(value: unknown): NonNullable<ReviewMetadata['pullRequest']>['state'] {
+  const raw = stringValue(value)?.toLowerCase()
+  if (raw === 'merged') return 'merged'
+  if (raw === 'closed') return 'closed'
+  return 'open'
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return undefined
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function stringValue(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value !== 'string') continue
+    const trimmed = value.trim()
+    if (trimmed) return trimmed
+  }
+  return undefined
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
 
 function normalizePathList(paths: string[]): string[] {
@@ -189,9 +549,130 @@ function normalizePathList(paths: string[]): string[] {
   return clean
 }
 
+function isSafeRelativePath(cwd: string, filePath: string): boolean {
+  if (filePath.startsWith('/') || filePath.includes('\0')) return false
+  const root = resolve(cwd)
+  const target = resolve(cwd, filePath)
+  return target !== root && target.startsWith(`${root}${sep}`)
+}
+
+async function getChangedFilesForGitDiff(git: ReturnType<typeof simpleGit>, diffArgs: string[]): Promise<FileChange[]> {
+  const [nameStatusRaw, numstatRaw] = await Promise.all([
+    git.raw(['diff', '--name-status', ...diffArgs]).catch(() => ''),
+    git.raw(['diff', '--numstat', ...diffArgs]).catch(() => '')
+  ])
+  return changedFilesFromDiffOutput(nameStatusRaw, numstatRaw)
+}
+
+async function getChangedFilesForCommit(git: ReturnType<typeof simpleGit>, ref: string): Promise<FileChange[]> {
+  const [nameStatusRaw, numstatRaw] = await Promise.all([
+    git.raw(['diff-tree', '--root', '--no-commit-id', '--name-status', '-r', ref]).catch(() => ''),
+    git.raw(['diff-tree', '--root', '--no-commit-id', '--numstat', '-r', ref]).catch(() => '')
+  ])
+  return changedFilesFromDiffOutput(nameStatusRaw, numstatRaw)
+}
+
+function changedFilesFromDiffOutput(nameStatusRaw: string, numstatRaw: string): FileChange[] {
+  const counts = new Map<string, { additions: number; deletions: number }>()
+  for (const line of numstatRaw.split('\n').filter(Boolean)) {
+    const parts = line.split('\t')
+    if (parts.length < 3) continue
+    const path = parts.at(-1)?.trim()
+    if (!path) continue
+    counts.set(path, {
+      additions: parseGitNumstatCount(parts[0]),
+      deletions: parseGitNumstatCount(parts[1])
+    })
+  }
+
+  return nameStatusRaw.split('\n').filter(Boolean).map((line) => {
+    const parts = line.split('\t')
+    const rawStatus = parts[0] ?? 'M'
+    const path = (parts.at(-1) ?? '').trim()
+    const status = normalizeDiffNameStatus(rawStatus)
+    const stat = counts.get(path) ?? { additions: 0, deletions: 0 }
+    return {
+      path,
+      status,
+      indexStatus: status,
+      worktreeStatus: ' ' as const,
+      staged: false,
+      unstaged: false,
+      ...stat
+    }
+  }).filter((file) => file.path.length > 0)
+}
+
+function parseGitNumstatCount(value: string): number {
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function normalizeDiffNameStatus(status: string): FileChange['status'] {
+  const normalized = status.trim()[0]
+  if (normalized === 'U') return 'U'
+  if (normalized === 'A' || normalized === 'D' || normalized === 'R' || normalized === '?') return normalized
+  return 'M'
+}
+
 function normalizeGitStatus(status: string): FileChange['indexStatus'] {
-  if (status === 'M' || status === 'A' || status === 'D' || status === 'R' || status === 'C' || status === '?' || status === ' ') {
+  if (status === 'M' || status === 'A' || status === 'D' || status === 'R' || status === 'C' || status === '?' || status === 'U' || status === ' ') {
     return status
   }
   return ' '
+}
+
+function isGitConflictStatus(indexStatus: string, worktreeStatus: string): boolean {
+  return indexStatus === 'U' ||
+    worktreeStatus === 'U' ||
+    (indexStatus === 'A' && worktreeStatus === 'A') ||
+    (indexStatus === 'D' && worktreeStatus === 'D')
+}
+
+function isSupportedLocalReviewSource(source: ReviewDiffSource): boolean {
+  return source === 'all' || source === 'unstaged' || source === 'staged' || source === 'branch' || source === 'commit'
+}
+
+async function isUntracked(git: ReturnType<typeof simpleGit>, filePath: string): Promise<boolean> {
+  const output = await git.raw(['ls-files', '--others', '--exclude-standard', '--', filePath]).catch(() => '')
+  return output.split('\n').some((path) => path.trim() === filePath)
+}
+
+function diffUntrackedFile(cwd: string, filePath: string): string {
+  // git diff --no-index exits 1 when content differs, so read stdout directly.
+  const absPath = join(cwd, filePath)
+  const result = spawnSync('git', ['diff', '--no-index', '--', '/dev/null', absPath], {
+    cwd,
+    encoding: 'utf-8'
+  })
+  return result.stdout ?? ''
+}
+
+function formatGitRelativeDate(unixSeconds: number): string {
+  const elapsedSeconds = Math.max(0, Math.floor(Date.now() / 1000) - unixSeconds)
+  const elapsedDays = Math.floor(elapsedSeconds / 86400)
+  if (elapsedDays <= 0) return 'today'
+  if (elapsedDays === 1) return '1 day ago'
+  if (elapsedDays < 30) return `${elapsedDays} days ago`
+  const elapsedMonths = Math.floor(elapsedDays / 30)
+  if (elapsedMonths === 1) return '1 month ago'
+  if (elapsedMonths < 12) return `${elapsedMonths} months ago`
+  const elapsedYears = Math.floor(elapsedDays / 365)
+  return elapsedYears === 1 ? '1 year ago' : `${elapsedYears} years ago`
+}
+
+function parseBlamePorcelain(raw: string): Pick<GitLineBlameResult, 'commit' | 'author' | 'authorTime'> {
+  const lines = raw.split('\n')
+  const first = lines[0]?.trim().split(/\s+/)[0]
+  const commit = first && !/^0+$/.test(first) ? first : undefined
+  let author: string | undefined
+  let authorTime: number | undefined
+  for (const line of lines) {
+    if (line.startsWith('author ')) author = line.slice('author '.length).trim()
+    if (line.startsWith('author-time ')) {
+      const parsed = Number.parseInt(line.slice('author-time '.length), 10)
+      if (Number.isFinite(parsed)) authorTime = parsed
+    }
+  }
+  return { commit, author, authorTime }
 }

@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
-import { gitManager } from '../git'
+import { gitManager, reviewMetadataFromGitHubPullRequestView } from '../git'
 
 test('changed files preserve paths with spaces without git porcelain quotes', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-changes-'))
@@ -59,6 +59,328 @@ test('changed files expose staged and unstaged state for review actions', async 
     assert.equal(unstagedResult.changedFiles.find((file) => file.path === 'tracked.txt')?.staged, false)
     assert.equal(unstagedResult.changedFiles.find((file) => file.path === 'tracked.txt')?.unstaged, true)
     assert.equal(unstagedResult.changedFiles.find((file) => file.path === 'new.txt')?.status, '?')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('changed files expose unmerged conflict state for review helpers', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-conflict-state-'))
+  try {
+    writeFileSync(join(root, 'conflict.txt'), 'base\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'conflict.txt')
+    git(root, 'commit', '-m', 'baseline')
+    const defaultBranch = spawnSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf-8' }).stdout.trim()
+
+    git(root, 'checkout', '-b', 'conflict-topic')
+    writeFileSync(join(root, 'conflict.txt'), 'topic\n')
+    git(root, 'add', 'conflict.txt')
+    git(root, 'commit', '-m', 'topic change')
+    git(root, 'checkout', defaultBranch)
+    writeFileSync(join(root, 'conflict.txt'), 'main\n')
+    git(root, 'add', 'conflict.txt')
+    git(root, 'commit', '-m', 'main change')
+
+    const merge = spawnSync('git', ['merge', 'conflict-topic'], { cwd: root, encoding: 'utf-8' })
+    assert.notEqual(merge.status, 0)
+
+    const files = await gitManager.getChangedFiles(root)
+    const conflict = files.find((file) => file.path === 'conflict.txt')
+    assert.equal(conflict?.status, 'U')
+    assert.equal(conflict?.conflicted, true)
+    assert.equal(conflict?.conflictStatus, 'UU')
+    assert.equal(conflict?.indexStatus, 'U')
+    assert.equal(conflict?.worktreeStatus, 'U')
+
+    const diff = await gitManager.getDiffForFile(root, 'conflict.txt')
+    assert.match(diff, /<<<<<<< HEAD/)
+    assert.match(diff, /=======/)
+    assert.match(diff, />>>>>>> conflict-topic/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('file diffs can be scoped to all, staged, or unstaged changes', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-diff-source-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'baseline\n')
+    writeFileSync(join(root, 'untracked.txt'), 'new working tree file\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'baseline')
+
+    writeFileSync(join(root, 'tracked.txt'), 'staged version\n')
+    git(root, 'add', 'tracked.txt')
+    writeFileSync(join(root, 'tracked.txt'), 'working tree version\n')
+
+    const staged = await gitManager.getDiffForFile(root, 'tracked.txt', 'staged')
+    const unstaged = await gitManager.getDiffForFile(root, 'tracked.txt', 'unstaged')
+    const all = await gitManager.getDiffForFile(root, 'tracked.txt', 'all')
+    const untracked = await gitManager.getDiffForFile(root, 'untracked.txt', 'unstaged')
+    const providerNativeFiles = await gitManager.getChangedFiles(root, 'last-turn')
+    const providerNativeDiff = await gitManager.getDiffForFile(root, 'tracked.txt', 'cloud')
+
+    assert.match(staged, /staged version/)
+    assert.doesNotMatch(staged, /working tree version/)
+    assert.match(unstaged, /working tree version/)
+    assert.match(unstaged, /staged version/)
+    assert.match(all, /working tree version/)
+    assert.match(all, /baseline/)
+    assert.match(untracked, /new working tree file/)
+    assert.deepEqual(providerNativeFiles, [])
+    assert.equal(providerNativeDiff, '')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('discard paths reverts tracked, staged, and untracked review files', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-discard-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'baseline\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'baseline')
+
+    writeFileSync(join(root, 'tracked.txt'), 'changed\n')
+    writeFileSync(join(root, 'staged-new.txt'), 'staged\n')
+    writeFileSync(join(root, 'untracked.txt'), 'untracked\n')
+    git(root, 'add', 'staged-new.txt')
+
+    const result = await gitManager.discardPaths(root, ['tracked.txt', 'staged-new.txt', 'untracked.txt'])
+
+    assert.equal(result.ok, true)
+    assert.equal(result.discarded, true)
+    assert.deepEqual(result.changedFiles, [])
+    assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'baseline\n')
+    assert.equal(existsSync(join(root, 'staged-new.txt')), false)
+    assert.equal(existsSync(join(root, 'untracked.txt')), false)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('discard paths refuses unsafe paths', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-discard-safe-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'baseline\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'baseline')
+    writeFileSync(join(root, 'tracked.txt'), 'changed\n')
+
+    const result = await gitManager.discardPaths(root, ['../outside.txt'])
+
+    assert.equal(result.ok, false)
+    assert.match(result.error ?? '', /unsafe path/)
+    assert.equal(readFileSync(join(root, 'tracked.txt'), 'utf-8'), 'changed\n')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('file diffs can be scoped to branch and commit review sources', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-diff-ref-source-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'baseline\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'baseline')
+    const defaultBranch = spawnSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf-8' }).stdout.trim()
+
+    git(root, 'checkout', '-b', 'review-branch')
+    writeFileSync(join(root, 'tracked.txt'), 'branch version\n')
+    writeFileSync(join(root, 'branch-only.txt'), 'branch file\n')
+    git(root, 'add', '.')
+    git(root, 'commit', '-m', 'branch change')
+    const commitRef = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf-8' }).stdout.trim()
+
+    const branchFiles = await gitManager.getChangedFiles(root, 'branch', defaultBranch)
+    const branchDiff = await gitManager.getDiffForFile(root, 'tracked.txt', 'branch', defaultBranch)
+    const commitFiles = await gitManager.getChangedFiles(root, 'commit', commitRef)
+    const commitDiff = await gitManager.getDiffForFile(root, 'branch-only.txt', 'commit', commitRef)
+
+    assert.deepEqual(branchFiles.map((file) => file.path).sort(), ['branch-only.txt', 'tracked.txt'])
+    assert.equal(branchFiles.find((file) => file.path === 'branch-only.txt')?.status, 'A')
+    assert.match(branchDiff, /branch version/)
+    assert.deepEqual(commitFiles.map((file) => file.path).sort(), ['branch-only.txt', 'tracked.txt'])
+    assert.match(commitDiff, /branch file/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('review source branch and commit pickers expose recent refs', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-review-refs-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'baseline\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'baseline')
+    const defaultBranch = spawnSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf-8' }).stdout.trim()
+
+    git(root, 'checkout', '-b', 'review-base-branch')
+    writeFileSync(join(root, 'tracked.txt'), 'base branch\n')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'base branch commit')
+    git(root, 'checkout', defaultBranch)
+    writeFileSync(join(root, 'tracked.txt'), 'current branch\n')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'current branch commit')
+
+    const branches = await gitManager.listBranches(root)
+    const commits = await gitManager.listRecentCommits(root)
+
+    assert.ok(branches.some((branch) => branch.name === 'review-base-branch'))
+    assert.ok(branches.some((branch) => branch.name === defaultBranch && branch.current === true))
+    assert.ok(commits.some((commit) => commit.description?.includes('current branch commit')))
+    assert.ok(commits.every((commit) => commit.name.length >= 8))
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('GitHub PR view JSON normalizes to review metadata', () => {
+  const metadata = reviewMetadataFromGitHubPullRequestView({
+    number: 42,
+    title: 'Codex parity review',
+    url: 'https://github.com/example/repo/pull/42',
+    state: 'OPEN',
+    isDraft: false,
+    headRefName: 'codex/review-parity',
+    baseRefName: 'main',
+    statusCheckRollup: [
+      { conclusion: 'SUCCESS' },
+      { conclusion: 'FAILURE' },
+      { status: 'IN_PROGRESS' },
+      { conclusion: 'SKIPPED' }
+    ],
+    reviewRequests: [
+      { login: 'grace' },
+      { team: { slug: 'ios' } }
+    ],
+    reviews: [
+      { author: { login: 'ada' }, state: 'COMMENTED' },
+      { author: { login: 'ada' }, state: 'APPROVED' },
+      { author: { login: 'linus' }, state: 'CHANGES_REQUESTED' }
+    ]
+  })
+
+  assert.equal(metadata?.pullRequest?.number, 42)
+  assert.equal(metadata?.pullRequest?.state, 'open')
+  assert.equal(metadata?.pullRequest?.branch, 'codex/review-parity')
+  assert.equal(metadata?.pullRequest?.baseBranch, 'main')
+  assert.equal(metadata?.checks?.status, 'failing')
+  assert.deepEqual({
+    total: metadata?.checks?.total,
+    passed: metadata?.checks?.passed,
+    failing: metadata?.checks?.failing,
+    pending: metadata?.checks?.pending,
+    skipped: metadata?.checks?.skipped
+  }, {
+    total: 4,
+    passed: 1,
+    failing: 1,
+    pending: 1,
+    skipped: 1
+  })
+  assert.deepEqual({
+    requested: metadata?.reviewers?.requested,
+    approved: metadata?.reviewers?.approved,
+    changesRequested: metadata?.reviewers?.changesRequested,
+    commented: metadata?.reviewers?.commented
+  }, {
+    requested: 2,
+    approved: 1,
+    changesRequested: 1,
+    commented: 0
+  })
+  assert.deepEqual(metadata?.reviewers?.names, ['ada', 'linus', 'grace', 'ios'])
+})
+
+test('draft GitHub PR metadata maps to draft state', () => {
+  const metadata = reviewMetadataFromGitHubPullRequestView({
+    number: '7',
+    title: 'Draft metadata',
+    state: 'OPEN',
+    isDraft: true,
+    statusCheckRollup: [],
+    reviewRequests: [],
+    reviews: []
+  })
+
+  assert.equal(metadata?.pullRequest?.number, 7)
+  assert.equal(metadata?.pullRequest?.state, 'draft')
+  assert.equal(metadata?.checks, undefined)
+  assert.equal(metadata?.reviewers, undefined)
+})
+
+test('line blame returns author metadata for a tracked source line', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-line-blame-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'line one\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'baseline')
+
+    writeFileSync(join(root, 'tracked.txt'), 'line one\nline two\n')
+
+    const committedLine = await gitManager.blameLine(root, 'tracked.txt', 1)
+    const workingTreeLine = await gitManager.blameLine(root, 'tracked.txt', 2)
+
+    assert.equal(committedLine.ok, true)
+    assert.equal(committedLine.author, 'Orchestrator Test')
+    assert.match(committedLine.summary ?? '', /Orchestrator Test/)
+    assert.equal(workingTreeLine.ok, true)
+    assert.equal(workingTreeLine.author, 'Not Committed Yet')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('create worktree accepts explicit branch name and base ref', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-worktree-create-'))
+  try {
+    writeFileSync(join(root, 'tracked.txt'), 'main\n')
+    git(root, 'init')
+    git(root, 'config', 'user.email', 'orchestrator-test@example.test')
+    git(root, 'config', 'user.name', 'Orchestrator Test')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'baseline')
+    const defaultBranch = spawnSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf-8' }).stdout.trim()
+    git(root, 'checkout', '-b', 'base-smoke')
+    writeFileSync(join(root, 'tracked.txt'), 'base\n')
+    git(root, 'add', 'tracked.txt')
+    git(root, 'commit', '-m', 'base branch')
+    git(root, 'checkout', defaultBranch)
+
+    const worktreePath = await gitManager.createWorktree(root, 'session-branch-test', {
+      branchName: 'orchestrator/smoke-created',
+      baseRef: 'base-smoke'
+    })
+
+    const branch = spawnSync('git', ['branch', '--show-current'], { cwd: worktreePath, encoding: 'utf-8' })
+    assert.equal(branch.status, 0, branch.stderr || branch.stdout)
+    assert.equal(branch.stdout.trim(), 'orchestrator/smoke-created')
+    const content = spawnSync('git', ['show', 'HEAD:tracked.txt'], { cwd: worktreePath, encoding: 'utf-8' })
+    assert.equal(content.status, 0, content.stderr || content.stdout)
+    assert.equal(content.stdout.trim(), 'base')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { MotionOverlay } from './shared/designSystem'
+import { MotionOverlay, WorkbenchSearchField } from './shared/designSystem'
 
 export interface CommandPaletteAction {
   id: string
@@ -110,11 +110,11 @@ export default function CommandPalette({ actions, onClose }: Props): JSX.Element
     >
       <div className="border-b px-3 py-2" style={{ borderColor: 'var(--border-subtle)' }}>
         <label className="sr-only" htmlFor="command-palette-search">Command</label>
-        <input
+        <WorkbenchSearchField
           id="command-palette-search"
-          ref={inputRef}
+          inputRef={inputRef}
           value={query}
-          onChange={(event) => setQuery(event.currentTarget.value)}
+          onChange={setQuery}
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
               event.preventDefault()
@@ -138,12 +138,10 @@ export default function CommandPalette({ actions, onClose }: Props): JSX.Element
             }
           }}
           placeholder="Search commands"
-          className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-          style={{
-            background: 'var(--control-bg)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-primary)'
-          }}
+          clearLabel="Clear command search"
+          className="h-[34px]"
+          dataTestId="command-palette-search"
+          ariaLabel="Search commands"
         />
       </div>
       <div className="max-h-[360px] overflow-y-auto p-1.5">

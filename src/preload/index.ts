@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, GitPathActionResult, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
-import type { AppMenuCommand } from '../types/appCommands'
+import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../types'
+import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, StableAppCommand } from '../types/appCommands'
 import type { ShortcutOverrides } from '../types/appCommands'
 
 interface AppSettings {
@@ -81,7 +81,7 @@ export type SessionEvent =
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
   | { type: 'pinned'; id: string; pinned: boolean; pinOrder?: number }
-  | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
+  | { type: 'updated'; id: string; workDir?: string; useWorktree?: boolean; repoRoot?: string; worktreeState?: Session['worktreeState']; status?: Session['status'] }
   | { type: 'settingsUpdated'; id: string; provider?: string; model?: string; effort?: string; permissionMode?: string; runtime?: Session['runtime']; useThinking?: boolean; useFast?: boolean; allowedTools?: string[]; disallowedTools?: string[]; availableTools?: string[]; additionalDirs?: string[]; usageSummary?: UsageSummary }
   | { type: 'needsInput'; id: string }
   | { type: 'archived'; id: string }
@@ -91,6 +91,22 @@ type SettingsUpdatedPayload = Omit<Extract<SessionEvent, { type: 'settingsUpdate
 const api = {
   app: {
     getProfile: (): Promise<AppProfile> => ipcRenderer.invoke('app:getProfile'),
+    consumePendingNavigation: (): Promise<OrchestratorDeepLinkNavigation | null> => ipcRenderer.invoke('app:consumePendingNavigation'),
+    openSessionWindow: (sessionId: string): Promise<boolean> => ipcRenderer.invoke('app:openSessionWindow', sessionId),
+    setMenuCommandAvailability: (availability: AppCommandAvailability): Promise<boolean> =>
+      ipcRenderer.invoke('app:setMenuCommandAvailability', availability),
+    getMenuCommandState: (command: StableAppCommand): Promise<AppMenuCommandState | null> =>
+      ipcRenderer.invoke('app:getMenuCommandState', command),
+    onNavigateSession: (cb: (sessionId: string) => void): (() => void) => {
+      const handler = (_: Electron.IpcRendererEvent, sessionId: string): void => cb(sessionId)
+      ipcRenderer.on('app:navigate-session', handler)
+      return () => ipcRenderer.off('app:navigate-session', handler)
+    },
+    onNavigateSettings: (cb: (navigation: Extract<OrchestratorDeepLinkNavigation, { kind: 'settings' }>) => void): (() => void) => {
+      const handler = (_: Electron.IpcRendererEvent, navigation: Extract<OrchestratorDeepLinkNavigation, { kind: 'settings' }>): void => cb(navigation)
+      ipcRenderer.on('app:navigate-settings', handler)
+      return () => ipcRenderer.off('app:navigate-settings', handler)
+    },
     onMenuCommand: (cb: (command: AppMenuCommand) => void): (() => void) => {
       const handler = (_: Electron.IpcRendererEvent, command: AppMenuCommand): void => cb(command)
       ipcRenderer.on('app:menu-command', handler)
@@ -124,12 +140,20 @@ const api = {
       ipcRenderer.invoke('sessions:getTranscriptPage', id, request ?? {}),
     searchTranscript: (id: string, query: string, limit?: number): Promise<TranscriptSearchResult[]> =>
       ipcRenderer.invoke('sessions:searchTranscript', id, query, limit),
+    copyDeeplink: (id: string): Promise<string> => ipcRenderer.invoke('sessions:copyDeeplink', id),
+    copyMarkdown: (id: string): Promise<string> => ipcRenderer.invoke('sessions:copyMarkdown', id),
     create: (opts: {
       projectId: string
       workDir: string
       useWorktree: boolean
       repoRoot?: string
+      worktreeBaseRef?: string
+      worktreeBranchName?: string
     }): Promise<Session> => ipcRenderer.invoke('sessions:create', opts),
+    fork: (id: string, mode: SessionForkMode): Promise<Session> =>
+      ipcRenderer.invoke('sessions:fork', id, mode),
+    retryPendingWorktree: (id: string): Promise<Session> =>
+      ipcRenderer.invoke('sessions:retryPendingWorktree', id),
     sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]): Promise<void> =>
       ipcRenderer.invoke('sessions:sendMessage', sessionId, prompt, useWorktree, attachments ?? []),
     answerSideQuestion: (sessionId: string, question: string): Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }> =>
@@ -138,6 +162,8 @@ const api = {
       ipcRenderer.invoke('sessions:updateName', id, name),
     updatePinned: (id: string, pinned: boolean): Promise<void> =>
       ipcRenderer.invoke('sessions:updatePinned', id, pinned),
+    reorderPinned: (orderedPinnedSessionIds: string[]): Promise<void> =>
+      ipcRenderer.invoke('sessions:reorderPinned', orderedPinnedSessionIds),
     updateSettings: (id: string, patch: {
       provider?: string
       model?: string
@@ -164,10 +190,14 @@ const api = {
     remove: (sessionId: string): Promise<void> => ipcRenderer.invoke('sessions:remove', sessionId),
     getDiff: (sessionId: string): Promise<string> =>
       ipcRenderer.invoke('sessions:getDiff', sessionId),
-    getChangedFiles: (sessionId: string): Promise<FileChange[]> =>
-      ipcRenderer.invoke('sessions:getChangedFiles', sessionId),
-    getDiffForFile: (sessionId: string, filePath: string): Promise<string> =>
-      ipcRenderer.invoke('sessions:getDiffForFile', sessionId, filePath),
+    getReviewMetadata: (sessionId: string): Promise<ReviewMetadata | undefined> =>
+      ipcRenderer.invoke('sessions:getReviewMetadata', sessionId),
+    getChangedFiles: (sessionId: string, source?: ReviewDiffSource, ref?: string): Promise<FileChange[]> =>
+      ipcRenderer.invoke('sessions:getChangedFiles', sessionId, source, ref),
+    getDiffForFile: (sessionId: string, filePath: string, source?: ReviewDiffSource, ref?: string): Promise<string> =>
+      ipcRenderer.invoke('sessions:getDiffForFile', sessionId, filePath, source, ref),
+    undoChangedFiles: (sessionId: string, paths: string[]): Promise<GitPathActionResult> =>
+      ipcRenderer.invoke('sessions:undoChangedFiles', sessionId, paths),
     writeToPty: (sessionId: string, data: string): Promise<void> =>
       ipcRenderer.invoke('sessions:writeToPty', sessionId, data),
     grantAndResume: (sessionId: string, toolNames: string[]): Promise<void> =>
@@ -180,19 +210,42 @@ const api = {
       ipcRenderer.invoke('sessions:denyPermission', sessionId)
   },
 
+  worktrees: {
+    list: (): Promise<WorktreeInventoryItem[]> => ipcRenderer.invoke('worktrees:list'),
+    delete: (workDir: string): Promise<WorktreeInventoryItem[]> => ipcRenderer.invoke('worktrees:delete', workDir)
+  },
+
+  automations: {
+    list: (): Promise<Automation[]> => ipcRenderer.invoke('automations:list'),
+    listForSession: (sessionId: string): Promise<Automation[]> =>
+      ipcRenderer.invoke('automations:listForSession', sessionId),
+    listRuns: (automationId: string): Promise<AutomationRun[]> =>
+      ipcRenderer.invoke('automations:listRuns', automationId),
+    upsert: (request: AutomationUpsertRequest): Promise<Automation> =>
+      ipcRenderer.invoke('automations:upsert', request),
+    runNow: (id: string): Promise<AutomationRun> => ipcRenderer.invoke('automations:runNow', id),
+    pause: (id: string): Promise<Automation | undefined> => ipcRenderer.invoke('automations:pause', id),
+    resume: (id: string): Promise<Automation | undefined> => ipcRenderer.invoke('automations:resume', id),
+    delete: (id: string): Promise<void> => ipcRenderer.invoke('automations:delete', id)
+  },
+
   git: {
     isGitRepo: (dir: string): Promise<boolean> => ipcRenderer.invoke('git:isGitRepo', dir),
     getCurrentBranch: (dir: string): Promise<string | null> => ipcRenderer.invoke('git:getCurrentBranch', dir),
+    listBranches: (dir: string): Promise<GitRefOption[]> => ipcRenderer.invoke('git:listBranches', dir),
+    listRecentCommits: (dir: string): Promise<GitRefOption[]> => ipcRenderer.invoke('git:listRecentCommits', dir),
     stagePaths: (dir: string, paths: string[]): Promise<GitPathActionResult> =>
       ipcRenderer.invoke('git:stagePaths', dir, paths),
     unstagePaths: (dir: string, paths: string[]): Promise<GitPathActionResult> =>
-      ipcRenderer.invoke('git:unstagePaths', dir, paths)
+      ipcRenderer.invoke('git:unstagePaths', dir, paths),
+    blameLine: (dir: string, filePath: string, line: number): Promise<GitLineBlameResult> =>
+      ipcRenderer.invoke('git:blameLine', dir, filePath, line)
   },
 
   browser: {
     openExternal: (url: string): Promise<void> => ipcRenderer.invoke('browser:openExternal', url),
-    clearData: (kind: 'all' | 'cache' | 'cookies' | 'siteData' = 'all'): Promise<void> =>
-      ipcRenderer.invoke('browser:clearData', kind),
+    clearData: (kind: 'all' | 'cache' | 'cookies' | 'siteData' = 'all', partition?: string): Promise<void> =>
+      ipcRenderer.invoke('browser:clearData', kind, partition),
     saveDataUrlArtifact: (dataUrl: string, suggestedName?: string): Promise<{ path: string; size: number }> =>
       ipcRenderer.invoke('browser:saveDataUrlArtifact', dataUrl, suggestedName),
     discoverLocalTargets: (recentUrls?: string[]): Promise<Array<{ url: string; title: string | null; source: 'port-scan' | 'recent' }>> =>
@@ -236,6 +289,8 @@ const api = {
       ipcRenderer.invoke('providers:listRuntimeConnections', providerId),
     runCommandSurface: (providerId: string, surfaceId: string): Promise<ProviderCommandSurfaceResult> =>
       ipcRenderer.invoke('providers:runCommandSurface', providerId, surfaceId),
+    refreshSidebarMetadata: (providerId: string, cwd?: string): Promise<ProviderSidebarSyncResult> =>
+      ipcRenderer.invoke('providers:refreshSidebarMetadata', providerId, cwd),
     getPermissionContext: (providerId: string, cwd?: string): Promise<ProviderPermissionRuntimeContext> =>
       ipcRenderer.invoke('providers:getPermissionContext', providerId, cwd),
     listResources: (providerId?: string, cwd?: string): Promise<Record<string, ProviderResourceSnapshot>> =>
@@ -292,6 +347,8 @@ const api = {
       ipcRenderer.invoke('terminal:spawn', terminalId, workDir),
     getBuffer: (terminalId: string): Promise<string> =>
       ipcRenderer.invoke('terminal:getBuffer', terminalId),
+    getServiceSnapshot: (): Promise<TerminalServiceSnapshot> =>
+      ipcRenderer.invoke('terminal:getServiceSnapshot'),
     write: (terminalId: string, data: string): Promise<void> =>
       ipcRenderer.invoke('terminal:write', terminalId, data),
     runCommand: (terminalId: string, command: string): Promise<void> =>
@@ -306,6 +363,16 @@ const api = {
       const handler = (_: Electron.IpcRendererEvent, id: string, data: string): void => cb(id, data)
       ipcRenderer.on('terminal:data', handler)
       return () => ipcRenderer.off('terminal:data', handler)
+    },
+    onExit: (cb: (terminalId: string, code: number, signal: number | null) => void): (() => void) => {
+      const handler = (_: Electron.IpcRendererEvent, id: string, code: number, signal: number | null): void => cb(id, code, signal)
+      ipcRenderer.on('terminal:exit', handler)
+      return () => ipcRenderer.off('terminal:exit', handler)
+    },
+    onError: (cb: (terminalId: string, message: string) => void): (() => void) => {
+      const handler = (_: Electron.IpcRendererEvent, id: string, message: string): void => cb(id, message)
+      ipcRenderer.on('terminal:error', handler)
+      return () => ipcRenderer.off('terminal:error', handler)
     }
   },
 
@@ -344,7 +411,7 @@ const api = {
       cb({ type: 'renamed', ...p })
     const onPinned = (_: Electron.IpcRendererEvent, p: { id: string; pinned: boolean; pinOrder?: number }): void =>
       cb({ type: 'pinned', ...p })
-    const onUpdated = (_: Electron.IpcRendererEvent, p: { id: string; workDir: string; useWorktree: boolean }): void =>
+    const onUpdated = (_: Electron.IpcRendererEvent, p: { id: string; workDir?: string; useWorktree?: boolean; repoRoot?: string; worktreeState?: Session['worktreeState']; status?: Session['status'] }): void =>
       cb({ type: 'updated', ...p })
     const onSettingsUpdated = (_: Electron.IpcRendererEvent, p: SettingsUpdatedPayload): void =>
       cb({ type: 'settingsUpdated', ...p })

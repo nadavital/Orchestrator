@@ -84,7 +84,8 @@ function GoalBlock({ goal }: { goal: GoalEvent }): JSX.Element {
               <IconButton
                 icon={expanded ? 'chevronDown' : 'chevronRight'}
                 label={expanded ? 'Hide full objective' : 'Show full objective'}
-                size="sm"
+                size="xs"
+                variant="toolbar"
                 className="plan-goal-toggle"
                 dataTestId="plan-goal-toggle"
                 ariaExpanded={expanded}

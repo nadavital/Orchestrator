@@ -15,17 +15,20 @@ import {
   StatusBadge,
   SurfaceRow,
   ThinkingDots,
+  WorkbenchSearchField,
 } from '../shared/designSystem'
 import {
   describeToolAction,
   describeToolActivity,
+  diffForPathFromUnifiedDiff,
   extractFileReferences,
   extractWorkspaceRootsFromText,
   pairToolActivities,
+  parseFileChangesFromUnifiedDiff,
   permissionRequestDetail,
   summarizeToolActivities
 } from '../../types'
-import type { Session, ChatMessage, FileReference, ResultMessage, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
+import type { Session, ChatMessage, FileChange, FileReference, ResultMessage, SessionRunEventRecord, ToolResultMessage, ToolUseMessage, UserInputQuestion } from '../../types'
 import type { Attachment } from '../../types'
 import type { TranscriptSearchResult } from '../../types'
 import { useSessionStore } from '../../store/sessions'
@@ -578,6 +581,9 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
               </span>
             ))}
           </div>
+          <div className="mt-8 text-left">
+            <ChangesReviewCard content="Diff updated" session={session} hideWhenEmpty />
+          </div>
         </div>
       </div>
     )
@@ -762,30 +768,26 @@ function TranscriptSearch({
           backdropFilter: 'blur(18px)'
         }}
       >
-        <label className="sr-only" htmlFor="transcript-search">Search transcript</label>
-        <input
+        <WorkbenchSearchField
           id="transcript-search"
-          data-testid="transcript-search"
-          ref={inputRef}
+          dataTestId="transcript-search"
+          inputRef={inputRef}
           value={query}
-          onChange={(event) => onQueryChange(event.currentTarget.value)}
+          onChange={onQueryChange}
           placeholder="Search transcript"
-          className="w-full rounded-md py-1 pl-2 pr-7 text-xs outline-none"
-          style={{
-            background: 'var(--control-bg)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-primary)'
-          }}
+          className="h-[30px]"
+          ariaLabel="Search transcript"
+          trailing={(
+            <button
+              type="button"
+              aria-label="Close transcript search"
+              onClick={onClose}
+              className="workbench-search-clear"
+            >
+              <Icon name="close" size={12} />
+            </button>
+          )}
         />
-        <button
-          type="button"
-          aria-label="Close transcript search"
-          onClick={onClose}
-          className="absolute right-3 top-2.5 grid h-5 w-5 place-items-center rounded"
-          style={{ color: 'var(--text-tertiary)', background: 'transparent' }}
-        >
-          <Icon name="close" size={12} />
-        </button>
         {(searching || results.length > 0) && (
           <div className="mt-1 max-h-56 overflow-auto rounded-md" style={{ background: 'var(--canvas-bg)' }}>
             {searching ? (
@@ -1326,7 +1328,7 @@ function MessageRow({
       return <PermissionCard msg={msg} sessionId={session.id} sessionStatus={session.status} />
     }
     if (msg.subtype === 'status') {
-      return <StatusCard content={msg.content} />
+      return <StatusCard content={msg.content} session={session} />
     }
     if (msg.subtype === 'success') return null
     return (
@@ -1359,7 +1361,10 @@ type StatusMeta = {
   icon: JSX.Element
 }
 
-function StatusCard({ content }: { content: string }): JSX.Element {
+function StatusCard({ content, session }: { content: string; session: Session }): JSX.Element {
+  if (isChangesStatus(content)) {
+    return <ChangesReviewCard content={content} session={session} />
+  }
   const meta = statusMeta(content)
   return (
     <div className="flex justify-start min-w-0 w-full">
@@ -1390,6 +1395,341 @@ function StatusCard({ content }: { content: string }): JSX.Element {
       </SurfaceRow>
     </div>
   )
+}
+
+function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { content: string; session: Session; hideWhenEmpty?: boolean }): JSX.Element {
+  const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
+  const setShowDiff = useSessionStore((state) => state.setShowDiff)
+  const lastTurnDiff = useSessionStore((state) => latestDiffUpdatedContent(state.eventBuffers[session.id] ?? []))
+  const [files, setFiles] = useState<FileChange[]>([])
+  const [diffsByPath, setDiffsByPath] = useState<Record<string, { loading: boolean; diff: string }>>({})
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(false)
+  const [expandedPath, setExpandedPath] = useState<string | null>(null)
+  const [undoState, setUndoState] = useState<'idle' | 'undoing' | 'undone' | 'error'>('idle')
+  const [undoError, setUndoError] = useState<string | null>(null)
+  const lastTurnFiles = useMemo(() => parseFileChangesFromUnifiedDiff(lastTurnDiff), [lastTurnDiff])
+  const reviewCardSource: 'last-turn' | 'local' = isDiffUpdatedStatus(content) && lastTurnFiles.length > 0 ? 'last-turn' : 'local'
+
+  useEffect(() => {
+    if (reviewCardSource === 'last-turn') {
+      setFiles(lastTurnFiles)
+      setLoading(false)
+      setUndoState('idle')
+      setUndoError(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setUndoState('idle')
+    setUndoError(null)
+    window.api.sessions.getChangedFiles(session.id, 'all')
+      .then((changes) => {
+        if (!cancelled) setFiles(changes)
+      })
+      .catch(() => {
+        if (!cancelled) setFiles([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [lastTurnFiles, reviewCardSource, session.id, content])
+
+  const totals = useMemo(() => files.reduce(
+    (acc, file) => ({
+      additions: acc.additions + file.additions,
+      deletions: acc.deletions + file.deletions
+    }),
+    { additions: 0, deletions: 0 }
+  ), [files])
+  const visibleFiles = expanded ? files : files.slice(0, 3)
+  const hiddenCount = Math.max(0, files.length - visibleFiles.length)
+  const title = files.length > 0
+    ? `Edited ${files.length} ${files.length === 1 ? 'file' : 'files'}`
+    : loading ? 'Edited files' : 'No changed files'
+
+  useEffect(() => {
+    if (!expandedPath) return
+    if (reviewCardSource === 'last-turn') {
+      setDiffsByPath((current) => ({
+        ...current,
+        [expandedPath]: {
+          loading: false,
+          diff: diffForPathFromUnifiedDiff(lastTurnDiff, expandedPath)
+        }
+      }))
+      return
+    }
+    let cancelled = false
+    setDiffsByPath((current) => ({
+      ...current,
+      [expandedPath]: { loading: true, diff: '' }
+    }))
+    window.api.sessions.getDiffForFile(session.id, expandedPath, 'all')
+      .then((diff) => {
+        if (!cancelled) {
+          setDiffsByPath((current) => ({
+            ...current,
+            [expandedPath]: { loading: false, diff }
+          }))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDiffsByPath((current) => ({
+            ...current,
+            [expandedPath]: { loading: false, diff: '' }
+          }))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [expandedPath, lastTurnDiff, reviewCardSource, session.id])
+
+  const openReview = (): void => {
+    openRightPanelTab(session.id, 'environment')
+    setShowDiff(session.id, true)
+    openRightPanelTab(session.id, 'diff')
+  }
+  const canUndo = reviewCardSource === 'local' && !loading && files.length > 0 && undoState !== 'undoing'
+  const undoTitle = canUndo
+    ? `Undo ${files.length} changed ${files.length === 1 ? 'file' : 'files'}`
+    : reviewCardSource === 'last-turn'
+      ? 'Provider checkpoint undo is not supported by this adapter yet'
+      : undoState === 'undoing'
+        ? 'Undoing changes...'
+        : undoState === 'error'
+          ? undoError ?? 'Undo failed'
+          : 'No changed files to undo'
+  const undoReviewChanges = async (): Promise<void> => {
+    if (!canUndo) return
+    setUndoState('undoing')
+    setUndoError(null)
+    const paths = files.map((file) => file.path)
+    const result = await window.api.sessions.undoChangedFiles(session.id, paths)
+    if (!result.ok) {
+      setUndoState('error')
+      setUndoError(result.error ?? 'Undo failed')
+      setFiles(result.changedFiles)
+      return
+    }
+    setFiles(result.changedFiles)
+    setDiffsByPath({})
+    setExpandedPath(null)
+    setExpanded(false)
+    setUndoState(result.discarded ? 'undone' : 'idle')
+  }
+
+  if (hideWhenEmpty && !loading && files.length === 0) return <></>
+
+  return (
+    <div className="flex justify-start min-w-0 w-full">
+      <div
+        className="codex-review-card"
+        data-testid="codex-review-card"
+        data-review-card-layout="file-first"
+        data-review-card-file-count={files.length}
+        data-review-card-additions={totals.additions}
+        data-review-card-deletions={totals.deletions}
+        data-review-card-undo-state={undoState}
+        data-review-card-undo-available={canUndo ? 'true' : 'false'}
+        data-review-card-source={reviewCardSource}
+        data-review-card-provider-checkpoint-undo={reviewCardSource === 'last-turn' ? 'unsupported' : 'not-applicable'}
+        data-review-card-undo-kind={reviewCardSource === 'last-turn' ? 'provider-checkpoint-unsupported' : 'local-current-change'}
+      >
+        <div className="codex-review-card-summary">
+          <span className="codex-review-card-icon" aria-hidden="true">
+            <Icon name="diff" size={15} />
+          </span>
+          <span className="codex-review-card-title">
+            {title}
+          </span>
+          <span className="codex-review-card-totals" data-testid="codex-review-card-totals">
+            {totals.additions > 0 && <span className="codex-review-card-additions">+{totals.additions}</span>}
+            {totals.deletions > 0 && <span className="codex-review-card-deletions">-{totals.deletions}</span>}
+          </span>
+          <span className="codex-review-card-actions">
+            <button
+              type="button"
+              className="codex-review-card-action"
+              data-testid="codex-review-card-undo"
+              disabled={!canUndo}
+              title={undoTitle}
+              onClick={() => { void undoReviewChanges() }}
+            >
+              {undoState === 'undoing' ? 'Undoing...' : 'Undo'}
+            </button>
+            <button
+              type="button"
+              className="codex-review-card-action codex-review-card-review-action"
+              data-testid="codex-review-card-review"
+              onClick={openReview}
+            >
+              Review
+            </button>
+          </span>
+        </div>
+        {undoState === 'error' && undoError && (
+          <div className="codex-review-card-error" data-testid="codex-review-card-undo-error">
+            {undoError}
+          </div>
+        )}
+        <div className="codex-review-card-list" data-testid="codex-review-card-file-list" data-review-card-inline-diffs="true">
+          {loading ? (
+            <div className="codex-review-card-empty">Loading changes...</div>
+          ) : visibleFiles.length === 0 ? (
+            <div className="codex-review-card-empty">{statusBody(content)}</div>
+          ) : (
+            visibleFiles.map((file) => {
+              const fileExpanded = expandedPath === file.path
+              const diffState = diffsByPath[file.path]
+              return (
+                <div
+                  key={file.path}
+                  className="codex-review-card-file-group"
+                  data-review-card-file-expanded={fileExpanded ? 'true' : 'false'}
+                >
+                  <button
+                    type="button"
+                    className="codex-review-card-file"
+                    data-testid="codex-review-card-file"
+                    data-review-card-path={file.path}
+                    data-review-card-status={reviewCardStatus(file)}
+                    aria-expanded={fileExpanded}
+                    onClick={() => setExpandedPath((current) => current === file.path ? null : file.path)}
+                    title={file.path}
+                  >
+                    <span className="codex-review-card-file-leading">
+                      <span className="codex-review-card-file-status">{reviewCardStatusLabel(file)}</span>
+                      <span className="codex-review-card-path">{file.path}</span>
+                    </span>
+                    <span className="codex-review-card-file-stats">
+                      {file.additions > 0 && <span className="codex-review-card-additions">+{file.additions}</span>}
+                      {file.deletions > 0 && <span className="codex-review-card-deletions">-{file.deletions}</span>}
+                    </span>
+                    <span className="codex-review-card-chevron" aria-hidden="true">
+                      <Icon name="chevronDown" size={13} />
+                    </span>
+                  </button>
+                  {fileExpanded && (
+                    <TranscriptDiffPreview
+                      path={file.path}
+                      diff={diffState?.diff ?? ''}
+                      loading={diffState?.loading !== false}
+                    />
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+        {files.length > 3 && (
+          <button
+            type="button"
+            className="codex-review-card-show-more"
+            data-testid="codex-review-card-show-more"
+            onClick={() => setExpanded((value) => !value)}
+            aria-expanded={expanded}
+          >
+            {expanded ? 'Show fewer files' : `Show ${hiddenCount} more ${hiddenCount === 1 ? 'file' : 'files'}`}
+            <span style={{ transform: expanded ? 'rotate(180deg)' : undefined }}>
+              <Icon name="chevronDown" size={13} />
+            </span>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TranscriptDiffPreview({ path, diff, loading }: { path: string; diff: string; loading: boolean }): JSX.Element {
+  const lines = useMemo(() => diff.split(/\r?\n/).slice(0, 80), [diff])
+  if (loading) {
+    return (
+      <div className="codex-review-card-inline-diff" data-testid="codex-review-card-inline-diff" data-review-card-inline-diff-loading="true">
+        <div className="codex-review-card-inline-diff-header">
+          <span className="codex-review-card-inline-diff-path">{path}</span>
+        </div>
+        <div className="codex-review-card-inline-diff-empty">Loading diff...</div>
+      </div>
+    )
+  }
+  if (!diff.trim()) {
+    return (
+      <div className="codex-review-card-inline-diff" data-testid="codex-review-card-inline-diff" data-review-card-inline-diff-empty="true">
+        <div className="codex-review-card-inline-diff-header">
+          <span className="codex-review-card-inline-diff-path">{path}</span>
+        </div>
+        <div className="codex-review-card-inline-diff-empty">No inline diff available.</div>
+      </div>
+    )
+  }
+  return (
+    <div className="codex-review-card-inline-diff" data-testid="codex-review-card-inline-diff">
+      <div className="codex-review-card-inline-diff-header">
+        <span className="codex-review-card-inline-diff-path">{path}</span>
+        <span className="codex-review-card-inline-diff-count">
+          {lines.length < diff.split(/\r?\n/).length ? 'First 80 lines' : `${lines.length} lines`}
+        </span>
+      </div>
+      <pre className="codex-review-card-inline-diff-code" aria-label={`Inline diff for ${path}`}>
+        {lines.map((line, index) => (
+          <span
+            key={`${index}:${line}`}
+            className="codex-review-card-inline-diff-line"
+            data-line-kind={reviewCardDiffLineKind(line)}
+          >
+            {line || ' '}
+          </span>
+        ))}
+      </pre>
+    </div>
+  )
+}
+
+function reviewCardStatus(file: FileChange): 'added' | 'deleted' | 'edited' {
+  if (file.status === 'A' || file.status === '?') return 'added'
+  if (file.status === 'D') return 'deleted'
+  return 'edited'
+}
+
+function reviewCardStatusLabel(file: FileChange): string {
+  switch (reviewCardStatus(file)) {
+    case 'added':
+      return 'Created'
+    case 'deleted':
+      return 'Deleted'
+    case 'edited':
+      return 'Edited'
+  }
+}
+
+function reviewCardDiffLineKind(line: string): 'addition' | 'deletion' | 'hunk' | 'meta' | 'context' {
+  if (line.startsWith('@@')) return 'hunk'
+  if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff --git') || line.startsWith('index ')) return 'meta'
+  if (line.startsWith('+')) return 'addition'
+  if (line.startsWith('-')) return 'deletion'
+  return 'context'
+}
+
+function isChangesStatus(content: string): boolean {
+  return /^(Diff updated|Patch updated|Changes updated|Changes):?/i.test(content.trim())
+}
+
+function isDiffUpdatedStatus(content: string): boolean {
+  return /^Diff updated\b/i.test(content.trim())
+}
+
+function latestDiffUpdatedContent(events: SessionRunEventRecord[]): string {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]?.event
+    if (event?.type === 'diff.updated' && event.content.trim().length > 0) return event.content
+  }
+  return ''
 }
 
 function statusBody(content: string): string {

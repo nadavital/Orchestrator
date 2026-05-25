@@ -228,6 +228,15 @@ function baseCapabilities(provider: ProviderAdapter): ProviderCapability[] {
     capability('workspaceSandbox', 'Workspace Sandbox', provider.capabilities.workspaceSandbox ? 'supported' : 'unsupported', 'adapter'),
     capability('fullAccess', 'Full Access', provider.capabilities.fullAccessMode ? 'supported' : 'unsupported', 'adapter'),
     capability(
+      'checkpointUndo',
+      'Checkpoint Undo',
+      provider.capabilities.checkpointUndo ? 'supported' : 'unsupported',
+      'adapter',
+      provider.capabilities.checkpointUndo
+        ? 'Provider can roll back a completed turn from a provider checkpoint.'
+        : 'Requires a provider checkpoint id plus rollback API; current adapters keep provider last-turn Undo disabled.'
+    ),
+    capability(
       'bypassAll',
       'Bypass All',
       provider.resolveExecutionPolicy('yolo').support === 'unsupported' ? 'unsupported' : 'supported',
@@ -1876,7 +1885,8 @@ const claudeProvider: ProviderAdapter = {
     interactivePermissions: true,
     allowedTools: true,
     workspaceSandbox: false,
-    fullAccessMode: true
+    fullAccessMode: true,
+    checkpointUndo: false
   },
 
   resolveExecutionPolicy: claudePolicy,
@@ -1965,6 +1975,7 @@ const copilotProvider: ProviderAdapter = {
     allowedTools: true,
     workspaceSandbox: false,
     fullAccessMode: true,
+    checkpointUndo: false,
     forcedAllTools: true
   },
 
@@ -2653,6 +2664,183 @@ function codexStatusFromNotification(method: string, params: Record<string, unkn
   return content ? { type: 'assistant.status', content } : null
 }
 
+function codexBrowserManagerStateFromNotification(method: string, params: Record<string, unknown>): RunEvent | null {
+  const normalizedMethod = method.replace(/[./:_-]/g, '').toLowerCase()
+  const isDirectManagerState = normalizedMethod === 'browsermanagerstate' || normalizedMethod === 'browsermanagerstatechanged'
+  const isState = normalizedMethod === 'browsersidebarbrowserusestate' || normalizedMethod === 'browserusestate'
+  const isViewport = normalizedMethod === 'browsersidebarbrowseruseviewport' || normalizedMethod === 'browseruseviewport'
+  const isCapture = normalizedMethod === 'browsersidebarbrowserusecapturesurface' || normalizedMethod === 'browserusecapturesurface'
+  const isCursor = normalizedMethod === 'browsersidebarbrowserusecursorstate' || normalizedMethod === 'browserusecursorstate'
+  const isLocalServers = normalizedMethod === 'browsersidebarlocalservers' || normalizedMethod === 'browserlocalservers'
+  if (!isDirectManagerState && !isState && !isViewport && !isCapture && !isCursor && !isLocalServers) return null
+
+  const active = booleanValue(params.active, params.isActive, params.browserUseActive)
+  const viewportSize = surfaceSizeValue(params.viewportSize, params.viewport, isViewport ? params.size : undefined)
+  const captureSurfaceSize = surfaceSizeValue(params.captureSurfaceSize, params.surfaceSize, params.captureSurface, isCapture ? params.size : undefined)
+  const captureBounds = surfaceBoundsValue(params.captureBounds, params.bounds, params.geometry, params.captureGeometry, isCapture ? params.bounds : undefined)
+  const cursorState = cursorStateValue(params.cursorState, isCursor ? params : undefined)
+  const localServerState = localServerRouteStateValue(params)
+  const hasState = active !== undefined ||
+    'turnId' in params ||
+    'turn_id' in params ||
+    viewportSize !== undefined ||
+    captureSurfaceSize !== undefined ||
+    captureBounds !== undefined ||
+    cursorState !== undefined ||
+    localServerState !== undefined
+  if (!hasState) return null
+
+  const event: Extract<RunEvent, { type: 'browser.manager_state' }> = {
+    type: 'browser.manager_state',
+    open: active === false && viewportSize === undefined && captureSurfaceSize === undefined && captureBounds === undefined && cursorState === undefined && localServerState === undefined ? false : undefined
+  }
+  if (active !== undefined) event.active = active
+  if ('turnId' in params || 'turn_id' in params) event.turnId = stringValue(params.turnId, params.turn_id) ?? null
+  if (viewportSize !== undefined) event.viewportSize = viewportSize
+  if (captureSurfaceSize !== undefined) event.captureSurfaceSize = captureSurfaceSize
+  if (captureBounds !== undefined) event.captureBounds = captureBounds
+  if (cursorState !== undefined) event.cursorState = cursorState
+  if (localServerState !== undefined) {
+    event.localServerRoutes = localServerState.routes
+    event.hiddenLocalServerRoutes = localServerState.hiddenRoutes
+  }
+  return event
+}
+
+function booleanValue(...values: unknown[]): boolean | undefined {
+  for (const value of values) {
+    if (typeof value === 'boolean') return value
+  }
+  return undefined
+}
+
+function surfaceSizeValue(...values: unknown[]): { width: number; height: number } | null | undefined {
+  for (const value of values) {
+    if (value === null) return null
+    if (value === undefined) continue
+    const rec = asRecord(value)
+    if (!rec) continue
+    const width = numberValue(rec.width, rec.w)
+    const height = numberValue(rec.height, rec.h)
+    if (width !== undefined && height !== undefined) return { width, height }
+  }
+  return undefined
+}
+
+function surfaceBoundsValue(...values: unknown[]): { x: number; y: number; width: number; height: number; scale?: number } | null | undefined {
+  for (const value of values) {
+    if (value === null) return null
+    if (value === undefined) continue
+    const rec = asRecord(value)
+    if (!rec) continue
+    const x = numberValue(rec.x, rec.left)
+    const y = numberValue(rec.y, rec.top)
+    const width = numberValue(rec.width, rec.w)
+    const height = numberValue(rec.height, rec.h)
+    if (x !== undefined && y !== undefined && width !== undefined && height !== undefined) {
+      const bounds = {
+        x,
+        y,
+        width,
+        height
+      }
+      const scale = numberValue(rec.scale)
+      return scale === undefined ? bounds : { ...bounds, scale }
+    }
+  }
+  return undefined
+}
+
+function cursorStateValue(...values: unknown[]): { visible: boolean; x: number; y: number; animateMovement?: boolean; moveSequence?: number } | null | undefined {
+  for (const value of values) {
+    if (value === null) return null
+    if (value === undefined) continue
+    const rec = asRecord(value)
+    if (!rec) continue
+    const visible = booleanValue(rec.visible, rec.isVisible)
+    const x = numberValue(rec.x, rec.clientX)
+    const y = numberValue(rec.y, rec.clientY)
+    if (visible === undefined || x === undefined || y === undefined) continue
+    return {
+      visible,
+      x,
+      y,
+      animateMovement: booleanValue(rec.animateMovement),
+      moveSequence: numberValue(rec.moveSequence)
+    }
+  }
+  return undefined
+}
+
+function localServerRouteStateValue(params: Record<string, unknown>): { routes: Array<{ serverUrl: string; url: string; title?: string | null; source?: 'provider' }>; hiddenRoutes: string[] } | undefined {
+  const state = asRecord(params.state) ?? params
+  const routes = new Map<string, { serverUrl: string; url: string; title?: string | null; source?: 'provider' }>()
+  const hiddenRoutes = new Set<string>()
+  const addRoute = (serverUrl: string | undefined, routeUrl: string | undefined, title?: string | null): void => {
+    if (!serverUrl || !routeUrl) return
+    routes.set(routeUrl, {
+      serverUrl,
+      url: routeUrl,
+      title: title ?? null,
+      source: 'provider'
+    })
+  }
+  const addHiddenRoute = (routeUrl: string | undefined): void => {
+    if (routeUrl) hiddenRoutes.add(routeUrl)
+  }
+  const addServerRoutes = (serverValue: unknown, hidden: boolean): void => {
+    const server = asRecord(serverValue)
+    if (!server) return
+    const serverUrl = stringValue(server.url, server.serverUrl, server.baseUrl)
+    const routeValues = Array.isArray(server.routes) ? server.routes : []
+    for (const routeValue of routeValues) {
+      const route = asRecord(routeValue)
+      const routeUrl = typeof routeValue === 'string'
+        ? routeValue
+        : stringValue(route?.url, route?.routeUrl, route?.href)
+      if (hidden) addHiddenRoute(routeUrl)
+      else addRoute(serverUrl, routeUrl, stringValue(route?.title, route?.label, route?.name) ?? null)
+    }
+  }
+
+  const directRoutes = Array.isArray(params.localServerRoutes) ? params.localServerRoutes : Array.isArray(params.routes) ? params.routes : []
+  for (const routeValue of directRoutes) {
+    const route = asRecord(routeValue)
+    const routeUrl = typeof routeValue === 'string'
+      ? routeValue
+      : stringValue(route?.url, route?.routeUrl, route?.href)
+    const serverUrl = stringValue(route?.serverUrl, route?.server, route?.baseUrl, params.serverUrl, params.url)
+    addRoute(serverUrl, routeUrl, stringValue(route?.title, route?.label, route?.name) ?? null)
+  }
+
+  const servers = Array.isArray(state.servers) ? state.servers : Array.isArray(params.servers) ? params.servers : []
+  const hiddenServers = Array.isArray(state.hiddenServers) ? state.hiddenServers : Array.isArray(params.hiddenServers) ? params.hiddenServers : []
+  for (const server of servers) addServerRoutes(server, false)
+  for (const server of hiddenServers) addServerRoutes(server, true)
+
+  const directHiddenRoutes = Array.isArray(params.hiddenLocalServerRoutes)
+    ? params.hiddenLocalServerRoutes
+    : Array.isArray(params.hiddenRoutes)
+      ? params.hiddenRoutes
+      : []
+  for (const routeValue of directHiddenRoutes) {
+    addHiddenRoute(typeof routeValue === 'string' ? routeValue : stringValue(asRecord(routeValue)?.url))
+  }
+
+  const hasLocalServerShape = 'state' in params ||
+    'localServerRoutes' in params ||
+    'routes' in params ||
+    'servers' in params ||
+    'hiddenServers' in params ||
+    'hiddenLocalServerRoutes' in params ||
+    'hiddenRoutes' in params
+  if (!hasLocalServerShape) return undefined
+  return {
+    routes: [...routes.values()],
+    hiddenRoutes: [...hiddenRoutes.values()]
+  }
+}
+
 function parseCodexAppServerMessage(obj: Record<string, unknown>): RunEvent[] {
   const method = stringValue(obj.method)
   if (!method) return []
@@ -2660,6 +2848,8 @@ function parseCodexAppServerMessage(obj: Record<string, unknown>): RunEvent[] {
   const params = asRecord(obj.params) ?? {}
   const requestId = stringValue(obj.id)
   const events: RunEvent[] = []
+  const browserManagerState = codexBrowserManagerStateFromNotification(method, params)
+  if (browserManagerState) events.push(browserManagerState)
 
   if (method === 'thread/started') {
     const thread = asRecord(params.thread)
@@ -2823,7 +3013,8 @@ const codexProvider: ProviderAdapter = {
     interactivePermissions: true,
     allowedTools: false,
     workspaceSandbox: true,
-    fullAccessMode: true
+    fullAccessMode: true,
+    checkpointUndo: false
   },
 
   resolveExecutionPolicy: codexPolicy,
@@ -2855,6 +3046,10 @@ const codexProvider: ProviderAdapter = {
     const events: RunEvent[] = []
     events.push(...parseCodexAppServerMessage(obj))
     const type = obj.type as string | undefined
+    const directBrowserManagerState = type
+      ? codexBrowserManagerStateFromNotification(type, asRecord(obj.data) ?? asRecord(obj.item) ?? obj)
+      : null
+    if (directBrowserManagerState) events.push(directBrowserManagerState)
 
     if (
       type === 'user_input.requested' ||
@@ -3023,6 +3218,7 @@ const cursorProvider: ProviderAdapter = {
     allowedTools: false,
     workspaceSandbox: true,
     fullAccessMode: true,
+    checkpointUndo: false,
     forcedAllTools: true
   },
 
@@ -3399,6 +3595,24 @@ async function runCodexAppServerCommandSurface(
       output: redactProviderCommandOutput(error instanceof Error ? error.message : String(error))
     }
   }
+}
+
+export async function runCodexAppServerCommandSurfaceRaw(surfaceId: string, cwd = process.cwd()): Promise<unknown> {
+  const provider = getProvider('codex')
+  const registry = providerCapabilityRegistry(provider.id)
+  const surface = registry.commandSurfaces.find((candidate) => candidate.id === surfaceId)
+  if (!surface) throw new Error('Unknown Codex app-server surface.')
+  if (surface.quota !== 'none' || surface.mutatesState) {
+    throw new Error('This Codex app-server surface is not safe to run automatically.')
+  }
+  if (surface.runtime !== 'app-server') {
+    throw new Error('This Codex surface is not an app-server surface.')
+  }
+  const request = codexAppServerSurfaceRequest(surface.id, cwd)
+  if (!request) throw new Error('Unknown Codex app-server request.')
+  const binary = resolveProviderBinary(provider)
+  if (!binary) throw new Error('codex CLI is not available.')
+  return await runCodexAppServerSingleRequest(provider, binary, request, cwd)
 }
 
 export function runProviderCommandSurface(providerId: string, surfaceId: string): ProviderCommandSurfaceResult {

@@ -2,6 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
 import { hasComposerDraft, sideChatIdFromTabId, useSessionStore } from './store/sessions'
+import type { SettingsSection } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
 import Titlebar from './components/Titlebar'
@@ -10,14 +11,64 @@ import CapabilitiesPage from './components/CapabilitiesPage'
 import DesignSystemPreview from './components/DesignSystemPreview'
 import CommandPalette, { type CommandPaletteAction } from './components/CommandPalette'
 import RenameChatDialog from './components/shared/RenameChatDialog'
-import { MotionView } from './components/shared/designSystem'
+import { MotionView, exitFullscreenForPanelTab } from './components/shared/designSystem'
 import EmptyState from './components/shared/EmptyState'
 import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
 import { APP_COMMANDS, appMenuCommandForKeyboardEvent, commandShortcuts, formatShortcutSequence } from '../../types/appCommands'
-import type { AppMenuCommand, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
+import type { AppCommandAvailability, AppMenuCommand, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
+import { browserManagerPatchFromEvents, parseSettingsRouteLocation, resolvePanelBrowserCommandTarget, resolvePanelCloseTarget, resolvePanelFindTarget, resolvePanelNewTabTarget, settingsRouteExitUrl, settingsRouteUrlForLocation } from '../../types'
+import type { PanelFindTarget, SessionRunEventRecord } from '../../types'
+import type { PanelCloseFocusArea } from '../../types'
 
-type ShellFocusArea = 'main' | 'right-panel' | 'bottom-panel'
+type ShellFocusArea = PanelCloseFocusArea
+type BrowserPanelCommand =
+  | 'open-browser-tab'
+  | 'focus-browser-address-bar'
+  | 'browser-reload-page'
+  | 'browser-hard-reload-page'
+  | 'browser-navigate-back'
+  | 'browser-navigate-forward'
+
+const BROWSER_PANEL_COMMANDS: BrowserPanelCommand[] = [
+  'focus-browser-address-bar',
+  'browser-reload-page',
+  'browser-hard-reload-page',
+  'browser-navigate-back',
+  'browser-navigate-forward'
+]
+
+function settingsRouteUrl(section: SettingsSection, hostId?: string | null): string {
+  return settingsRouteUrlForLocation(section, hostId, window.location)
+}
+
+function currentUrlMatches(targetUrl: string): boolean {
+  if (targetUrl.startsWith('#')) return window.location.hash === targetUrl
+  return `${window.location.pathname}${window.location.search}` === targetUrl
+}
+
+function replaceRouteUrl(url: string): void {
+  if (currentUrlMatches(url)) return
+  window.history.replaceState(window.history.state, '', url)
+}
+
+function pushRouteUrl(url: string): void {
+  if (currentUrlMatches(url)) return
+  window.history.pushState(window.history.state, '', url)
+}
+
+function applyBrowserManagerRunEvents(sessionId: string, records: SessionRunEventRecord[]): void {
+  const patch = browserManagerPatchFromEvents(records.map((record) => record.event))
+  if (!patch) return
+
+  const { shouldOpenBrowser, ...browserWorkbenchPatch } = patch
+  const store = useSessionStore.getState()
+  if (shouldOpenBrowser) store.openRightPanelTab(sessionId, 'browser')
+
+  if (Object.keys(browserWorkbenchPatch).length > 0) {
+    store.setRightPanelBrowserWorkbench(sessionId, browserWorkbenchPatch)
+  }
+}
 
 export default function App(): JSX.Element {
   const isDesignSystemPreview = window.location.hash === '#design-system'
@@ -26,6 +77,10 @@ export default function App(): JSX.Element {
   const removeSessionFromProject = useProjectStore((state) => state.removeSessionFromProject)
   const sessionCount = useSessionStore((state) => state.sessions.length)
   const activeSessionId = useSessionStore((state) => state.activeSessionId)
+  const activeSessionUi = useSessionStore((state) => {
+    const id = state.activeSessionId
+    return id ? state.uiState[id] : undefined
+  })
   const activeSessionName = useSessionStore((state) => {
     const id = state.activeSessionId
     return id ? state.sessions.find((session) => session.id === id)?.name ?? null : null
@@ -54,9 +109,11 @@ export default function App(): JSX.Element {
   const setShowSettings = useSessionStore((state) => state.setShowSettings)
   const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
   const setSettingsSection = useSessionStore((state) => state.setSettingsSection)
+  const setSettingsHostId = useSessionStore((state) => state.setSettingsHostId)
   const showSettings = useSessionStore((state) => state.showSettings)
   const showCapabilities = useSessionStore((state) => state.showCapabilities)
   const settingsSection = useSessionStore((state) => state.settingsSection)
+  const settingsHostId = useSessionStore((state) => state.settingsHostId)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [renamingActiveChat, setRenamingActiveChat] = useState(false)
   const [shellFocusArea, setShellFocusArea] = useState<ShellFocusArea>('main')
@@ -71,6 +128,64 @@ export default function App(): JSX.Element {
       globals.__orchestratorAppCommitCount += 1
     }
   })
+
+  useEffect(() => {
+    const applyRoute = (): void => {
+      const route = parseSettingsRouteLocation(window.location)
+      if (!route) {
+        if (window.location.hash !== '#design-system') setShowSettings(false)
+        return
+      }
+      setSettingsSection(route.section as SettingsSection)
+      if (route.hostId) setSettingsHostId(route.hostId)
+      setShowCapabilities(false)
+      setShowSettings(true)
+    }
+    applyRoute()
+    window.addEventListener('hashchange', applyRoute)
+    window.addEventListener('popstate', applyRoute)
+    return () => {
+      window.removeEventListener('hashchange', applyRoute)
+      window.removeEventListener('popstate', applyRoute)
+    }
+  }, [setSettingsHostId, setSettingsSection, setShowCapabilities, setShowSettings])
+
+  useEffect(() => {
+    if (window.location.hash === '#design-system') return
+    if (showSettings) {
+      replaceRouteUrl(settingsRouteUrl(settingsSection, settingsHostId))
+      return
+    }
+    const route = parseSettingsRouteLocation(window.location)
+    if (route) {
+      replaceRouteUrl(settingsRouteExitUrl(route.mode))
+    }
+  }, [settingsHostId, settingsSection, showSettings])
+
+  useEffect(() => {
+    const globals = window as typeof window & {
+      __orchestratorAppendSessionEventsForSmoke?: (sessionId: string, events: SessionRunEventRecord[]) => boolean
+      __orchestratorSetActiveSessionForSmoke?: (sessionId: string) => boolean
+    }
+    globals.__orchestratorAppendSessionEventsForSmoke = (sessionId, events) => {
+      appendEvents(sessionId, events)
+      applyBrowserManagerRunEvents(sessionId, events)
+      return true
+    }
+    globals.__orchestratorSetActiveSessionForSmoke = (sessionId) => {
+      const state = useSessionStore.getState()
+      if (!state.sessions.some((session) => session.id === sessionId)) return false
+      state.setShowSettings(false)
+      state.setShowCapabilities(false)
+      state.setActiveSession(sessionId)
+      state.setHasUnread(sessionId, false)
+      return true
+    }
+    return () => {
+      delete globals.__orchestratorAppendSessionEventsForSmoke
+      delete globals.__orchestratorSetActiveSessionForSmoke
+    }
+  }, [appendEvents])
 
   const createNewChat = useCallback(async (): Promise<void> => {
     const sessionState = useSessionStore.getState()
@@ -137,6 +252,33 @@ export default function App(): JSX.Element {
     }
   }, [])
 
+  const openBrowserPanelTab = useCallback((): void => {
+    const { activeSessionId, openRightPanelTab, setShowCapabilities, setShowSettings } = useSessionStore.getState()
+    if (!activeSessionId) return
+    openRightPanelTab(activeSessionId, 'browser')
+    setShowCapabilities(false)
+    setShowSettings(false)
+  }, [])
+
+  const toggleBrowserPanel = useCallback((): void => {
+    const { activeSessionId, uiState, closeRightPanelTab } = useSessionStore.getState()
+    if (!activeSessionId) return
+    const rightPanel = uiState[activeSessionId]?.rightPanel
+    if (rightPanel?.open && rightPanel.activeTabId === 'browser') {
+      closeRightPanelTab(activeSessionId, 'browser')
+      return
+    }
+    openBrowserPanelTab()
+  }, [openBrowserPanelTab])
+
+  const openReviewPanelTab = useCallback((): void => {
+    const { activeSessionId, setShowCapabilities, setShowDiff, setShowSettings } = useSessionStore.getState()
+    if (!activeSessionId) return
+    setShowDiff(activeSessionId, true)
+    setShowCapabilities(false)
+    setShowSettings(false)
+  }, [])
+
   const toggleTerminal = useCallback((): void => {
     const { activeSessionId, uiState, setShowTerminal } = useSessionStore.getState()
     if (!activeSessionId) return
@@ -152,6 +294,18 @@ export default function App(): JSX.Element {
     window.dispatchEvent(new CustomEvent('orchestrator:open-transcript-search'))
   }, [])
 
+  const openReviewFileSearch = useCallback((): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:focus-review-file-search'))
+  }, [])
+
+  const openSourceFileSearch = useCallback((): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:focus-workbench-source-search'))
+  }, [])
+
+  const openBrowserFind = useCallback((): void => {
+    window.dispatchEvent(new CustomEvent('orchestrator:focus-browser-find'))
+  }, [])
+
   const openFileSearch = useCallback((): void => {
     const { activeSessionId, openRightPanelTab, setShowCapabilities, setShowSettings } = useSessionStore.getState()
     if (!activeSessionId) return
@@ -163,7 +317,127 @@ export default function App(): JSX.Element {
     }, 0)
   }, [])
 
-  const openSettings = useCallback((section: 'general' | 'appearance' | 'providers' | 'shortcuts' | 'pets' | 'data' = 'general'): void => {
+  const resolveCurrentPanelFindTarget = useCallback((): PanelFindTarget | null => {
+    const { activeSessionId, uiState } = useSessionStore.getState()
+    if (!activeSessionId) return null
+    const ui = uiState[activeSessionId]
+    return resolvePanelFindTarget(shellFocusAreaRef.current, {
+      rightPanelOpen: Boolean(ui?.rightPanel?.open),
+      rightPanelActiveTabId: ui?.rightPanel?.activeTabId ?? null
+    })
+  }, [])
+
+  const canRunPanelFind = useCallback((): boolean => resolveCurrentPanelFindTarget() !== null, [resolveCurrentPanelFindTarget])
+
+  const canRunBrowserPanelCommand = useCallback((): boolean => {
+    const { activeSessionId, uiState } = useSessionStore.getState()
+    if (!activeSessionId) return false
+    const ui = uiState[activeSessionId]
+    return resolvePanelBrowserCommandTarget(shellFocusAreaRef.current, {
+      rightPanelOpen: Boolean(ui?.rightPanel?.open),
+      rightPanelActiveTabId: ui?.rightPanel?.activeTabId ?? null
+    }) !== null
+  }, [])
+
+  const runBrowserPanelCommand = useCallback((command: BrowserPanelCommand): void => {
+    if (!canRunBrowserPanelCommand()) return
+    window.dispatchEvent(new CustomEvent('orchestrator:browser-panel-command', { detail: { command } }))
+  }, [canRunBrowserPanelCommand])
+
+  const currentMenuCommandAvailability = useCallback((): AppCommandAvailability => {
+    const { activeSessionId, sessions, uiState } = useSessionStore.getState()
+    const hasActiveSession = Boolean(activeSessionId)
+    const sessionCount = sessions.length
+    const activeUi = activeSessionId ? uiState[activeSessionId] : undefined
+    const browserPanelCommandAvailable = hasActiveSession && resolvePanelBrowserCommandTarget(shellFocusAreaRef.current, {
+      rightPanelOpen: Boolean(activeUi?.rightPanel?.open),
+      rightPanelActiveTabId: activeUi?.rightPanel?.activeTabId ?? null
+    }) !== null
+    const panelFindAvailable = hasActiveSession && resolvePanelFindTarget(shellFocusAreaRef.current, {
+      rightPanelOpen: Boolean(activeUi?.rightPanel?.open),
+      rightPanelActiveTabId: activeUi?.rightPanel?.activeTabId ?? null
+    }) !== null
+    const closePanelAvailable = hasActiveSession && resolvePanelCloseTarget(shellFocusAreaRef.current, {
+      rightPanelActiveTabId: activeUi?.rightPanel?.activeTabId ?? null,
+      bottomPanelOpen: Boolean(activeUi?.showTerminal),
+      bottomPanelActiveTabId: activeUi?.terminalPanel?.activeTabId ?? null,
+      bottomPanelTabCount: activeUi?.terminalPanel?.tabs.length ?? 0
+    }) !== null
+    return {
+      'rename-chat': hasActiveSession,
+      'toggle-chat-pin': hasActiveSession,
+      'previous-chat': sessionCount > 1,
+      'next-chat': sessionCount > 1,
+      'previous-recent-chat': sessionCount > 1,
+      'next-recent-chat': sessionCount > 1,
+      'open-file-search': hasActiveSession,
+      'search-transcript': panelFindAvailable,
+      'toggle-inspector': hasActiveSession,
+      'open-review-tab': hasActiveSession,
+      'open-browser-tab': hasActiveSession,
+      'toggle-browser-panel': hasActiveSession,
+      'toggle-terminal': hasActiveSession,
+      'close-active-panel-tab': closePanelAvailable,
+      'focus-browser-address-bar': browserPanelCommandAvailable,
+      'browser-reload-page': browserPanelCommandAvailable,
+      'browser-hard-reload-page': browserPanelCommandAvailable,
+      'browser-navigate-back': browserPanelCommandAvailable,
+      'browser-navigate-forward': browserPanelCommandAvailable
+    }
+  }, [])
+
+  const openPanelFindTarget = useCallback((): void => {
+    const target = resolveCurrentPanelFindTarget()
+    if (target === 'transcript') {
+      openTranscriptSearch()
+      return
+    }
+    if (target === 'review-files') {
+      openReviewFileSearch()
+      return
+    }
+    if (target === 'workspace-files') {
+      window.dispatchEvent(new Event('orchestrator:focus-workspace-file-search'))
+      return
+    }
+    if (target === 'source-file') {
+      openSourceFileSearch()
+      return
+    }
+    if (target === 'browser-page') {
+      openBrowserFind()
+    }
+  }, [openBrowserFind, openReviewFileSearch, openSourceFileSearch, openTranscriptSearch, resolveCurrentPanelFindTarget])
+
+  const openBrowserTabCommand = useCallback((): void => {
+    const { activeSessionId, uiState, addTerminalTab, moveTerminalTabToRight } = useSessionStore.getState()
+    if (!activeSessionId) return
+    const ui = uiState[activeSessionId]
+    const target = resolvePanelNewTabTarget(shellFocusAreaRef.current, {
+      rightPanelOpen: Boolean(ui?.rightPanel?.open),
+      rightPanelActiveTabId: ui?.rightPanel?.activeTabId ?? null,
+      bottomPanelOpen: Boolean(ui?.showTerminal),
+      bottomPanelActiveTabId: ui?.terminalPanel?.activeTabId ?? null,
+      bottomPanelTabCount: ui?.terminalPanel?.tabs.length ?? 0
+    })
+    if (target === 'browser') {
+      runBrowserPanelCommand('open-browser-tab')
+      return
+    }
+    if (target === 'right-terminal') {
+      const newTabId = addTerminalTab(activeSessionId)
+      moveTerminalTabToRight(activeSessionId, newTabId)
+      return
+    }
+    if (target === 'bottom-terminal') {
+      addTerminalTab(activeSessionId)
+      return
+    }
+    openBrowserPanelTab()
+  }, [openBrowserPanelTab, runBrowserPanelCommand])
+
+  const openSettings = useCallback((section: SettingsSection = 'general'): void => {
+    pushRouteUrl(settingsRouteUrl(section, useSessionStore.getState().settingsHostId))
     setSettingsSection(section)
     setShowCapabilities(false)
     setShowSettings(true)
@@ -173,24 +447,30 @@ export default function App(): JSX.Element {
     const { activeSessionId, uiState } = useSessionStore.getState()
     if (!activeSessionId) return false
     const ui = uiState[activeSessionId]
-    if (shellFocusAreaRef.current === 'right-panel') {
-      return Boolean(ui?.rightPanel?.activeTabId)
-    }
-    if (shellFocusAreaRef.current === 'bottom-panel') {
-      const panel = ui?.terminalPanel
-      return Boolean(ui?.showTerminal && panel?.activeTabId !== undefined && panel.tabs.length > 0)
-    }
-    return false
+    const target = resolvePanelCloseTarget(shellFocusAreaRef.current, {
+      rightPanelActiveTabId: ui?.rightPanel?.activeTabId ?? null,
+      bottomPanelOpen: Boolean(ui?.showTerminal),
+      bottomPanelActiveTabId: ui?.terminalPanel?.activeTabId ?? null,
+      bottomPanelTabCount: ui?.terminalPanel?.tabs.length ?? 0
+    })
+    return target !== null
   }, [])
 
   const closeActivePanelTab = useCallback((): void => {
     const { activeSessionId, uiState, closeRightPanelTab, closeSideChat, closeTerminalTab } = useSessionStore.getState()
     if (!activeSessionId) return
     const ui = uiState[activeSessionId]
-    if (shellFocusAreaRef.current === 'right-panel') {
+    const closeTarget = resolvePanelCloseTarget(shellFocusAreaRef.current, {
+      rightPanelActiveTabId: ui?.rightPanel?.activeTabId ?? null,
+      bottomPanelOpen: Boolean(ui?.showTerminal),
+      bottomPanelActiveTabId: ui?.terminalPanel?.activeTabId ?? null,
+      bottomPanelTabCount: ui?.terminalPanel?.tabs.length ?? 0
+    })
+    if (closeTarget === 'right-panel') {
       const activeTabId = ui?.rightPanel?.activeTabId
       if (!activeTabId) return
       const sideChatId = sideChatIdFromTabId(activeTabId)
+      exitFullscreenForPanelTab('right', activeTabId)
       if (sideChatId) {
         closeSideChat(activeSessionId, sideChatId)
       } else {
@@ -198,9 +478,10 @@ export default function App(): JSX.Element {
       }
       return
     }
-    if (shellFocusAreaRef.current === 'bottom-panel') {
+    if (closeTarget === 'bottom-panel') {
       const terminalPanel = ui?.terminalPanel
       if (!ui?.showTerminal || terminalPanel?.activeTabId === undefined) return
+      exitFullscreenForPanelTab('bottom', terminalPanel.activeTabId)
       window.api.terminal.kill(`${activeSessionId}-${terminalPanel.activeTabId}`)
       closeTerminalTab(activeSessionId, terminalPanel.activeTabId)
     }
@@ -293,9 +574,9 @@ export default function App(): JSX.Element {
       group: APP_COMMANDS['search-transcript'].group,
       description: APP_COMMANDS['search-transcript'].description,
       shortcuts: shortcutsFor('search-transcript'),
-      disabled: !activeSessionId,
       keywords: [...(APP_COMMANDS['search-transcript'].keywords ?? [])],
-      run: openTranscriptSearch
+      disabled: !activeSessionId || !canRunPanelFind(),
+      run: openPanelFindTarget
     },
     {
       id: 'open-file-search',
@@ -307,6 +588,16 @@ export default function App(): JSX.Element {
       keywords: [...(APP_COMMANDS['open-file-search'].keywords ?? [])],
       run: openFileSearch
     },
+    ...BROWSER_PANEL_COMMANDS.map((command): CommandPaletteAction => ({
+      id: command,
+      label: APP_COMMANDS[command].label,
+      group: APP_COMMANDS[command].group,
+      description: APP_COMMANDS[command].description,
+      shortcuts: shortcutsFor(command),
+      disabled: !canRunBrowserPanelCommand(),
+      keywords: [...(APP_COMMANDS[command].keywords ?? [])],
+      run: () => runBrowserPanelCommand(command)
+    })),
     {
       id: 'previous-chat',
       label: APP_COMMANDS['previous-chat'].label,
@@ -335,6 +626,36 @@ export default function App(): JSX.Element {
       disabled: !activeSessionId,
       keywords: [...(APP_COMMANDS['toggle-inspector'].keywords ?? [])],
       run: toggleInspector
+    },
+    {
+      id: 'open-review-tab',
+      label: APP_COMMANDS['open-review-tab'].label,
+      group: APP_COMMANDS['open-review-tab'].group,
+      description: APP_COMMANDS['open-review-tab'].description,
+      shortcuts: shortcutsFor('open-review-tab'),
+      disabled: !activeSessionId,
+      keywords: [...(APP_COMMANDS['open-review-tab'].keywords ?? [])],
+      run: openReviewPanelTab
+    },
+    {
+      id: 'open-browser-tab',
+      label: APP_COMMANDS['open-browser-tab'].label,
+      group: APP_COMMANDS['open-browser-tab'].group,
+      description: APP_COMMANDS['open-browser-tab'].description,
+      shortcuts: shortcutsFor('open-browser-tab'),
+      disabled: !activeSessionId,
+      keywords: [...(APP_COMMANDS['open-browser-tab'].keywords ?? [])],
+      run: openBrowserTabCommand
+    },
+    {
+      id: 'toggle-browser-panel',
+      label: APP_COMMANDS['toggle-browser-panel'].label,
+      group: APP_COMMANDS['toggle-browser-panel'].group,
+      description: APP_COMMANDS['toggle-browser-panel'].description,
+      shortcuts: shortcutsFor('toggle-browser-panel'),
+      disabled: !activeSessionId,
+      keywords: [...(APP_COMMANDS['toggle-browser-panel'].keywords ?? [])],
+      run: toggleBrowserPanel
     },
     {
       id: 'toggle-terminal',
@@ -389,15 +710,22 @@ export default function App(): JSX.Element {
     createNewChat,
     openFileSearch,
     openSettings,
+    openPanelFindTarget,
+    openBrowserTabCommand,
+    openReviewPanelTab,
     openTranscriptSearch,
+    runBrowserPanelCommand,
     sessionCount,
     shortcutsFor,
     shellFocusArea,
+    canRunPanelFind,
+    canRunBrowserPanelCommand,
     switchChat,
     canCloseActivePanelTab,
     closeActivePanelTab,
     toggleActiveChatPin,
     toggleInspector,
+    toggleBrowserPanel,
     togglePet,
     toggleTerminal
   ])
@@ -415,10 +743,17 @@ export default function App(): JSX.Element {
         void createNewChat()
         break
       case 'search-transcript':
-        openTranscriptSearch()
+        openPanelFindTarget()
         break
       case 'open-file-search':
         openFileSearch()
+        break
+      case 'focus-browser-address-bar':
+      case 'browser-reload-page':
+      case 'browser-hard-reload-page':
+      case 'browser-navigate-back':
+      case 'browser-navigate-forward':
+        runBrowserPanelCommand(command)
         break
       case 'rename-chat':
         if (useSessionStore.getState().activeSessionId) setRenamingActiveChat(true)
@@ -437,6 +772,15 @@ export default function App(): JSX.Element {
       case 'toggle-inspector':
         toggleInspector()
         break
+      case 'open-review-tab':
+        openReviewPanelTab()
+        break
+      case 'open-browser-tab':
+        openBrowserTabCommand()
+        break
+      case 'toggle-browser-panel':
+        toggleBrowserPanel()
+        break
       case 'toggle-terminal':
         toggleTerminal()
         break
@@ -454,11 +798,16 @@ export default function App(): JSX.Element {
     createNewChat,
     openFileSearch,
     openSettings,
+    openPanelFindTarget,
+    openBrowserTabCommand,
+    openReviewPanelTab,
     openTranscriptSearch,
     closeActivePanelTab,
     switchChat,
     switchChatSlot,
+    runBrowserPanelCommand,
     toggleActiveChatPin,
+    toggleBrowserPanel,
     toggleInspector,
     toggleTerminal
   ])
@@ -512,8 +861,31 @@ export default function App(): JSX.Element {
     }
     media.addEventListener('change', onSystemThemeChanged)
 
+    const navigateToSession = (sessionId: string): boolean => {
+      const state = useSessionStore.getState()
+      if (!state.sessions.some((session) => session.id === sessionId)) return false
+      flushSync(() => {
+        state.setShowSettings(false)
+        state.setShowCapabilities(false)
+        state.setActiveSession(sessionId)
+        state.setHasUnread(sessionId, false)
+      })
+      return true
+    }
+
+    const navigateToSettings = (section: SettingsSection, hostId: string | null): void => {
+      flushSync(() => {
+        setSettingsSection(section)
+        setSettingsHostId(hostId ?? 'local')
+        setShowCapabilities(false)
+        setShowSettings(true)
+      })
+      pushRouteUrl(settingsRouteUrl(section, hostId))
+    }
+
     Promise.all([window.api.projects.list(), window.api.sessions.listSummaries()]).then(
       async ([projects, sessions]) => {
+        const pendingNavigation = await window.api.app.consumePendingNavigation()
         setProjects(projects)
 
         if (projects.length === 0) {
@@ -556,7 +928,13 @@ export default function App(): JSX.Element {
           messages: cleanSessions.reduce((sum, session) => sum + session.messageCount, 0)
         })
 
-        if (reuseCandidate) {
+        if (pendingNavigation?.kind === 'settings') {
+          navigateToSettings(pendingNavigation.section as SettingsSection, pendingNavigation.hostId)
+        } else if (pendingNavigation?.kind === 'session' && cleanSessions.some((session) => session.id === pendingNavigation.sessionId)) {
+          setShowSettings(false)
+          setShowCapabilities(false)
+          setActiveSession(pendingNavigation.sessionId)
+        } else if (reuseCandidate) {
           setActiveSession(reuseCandidate.id)
         } else {
           const session = await window.api.sessions.create({
@@ -573,10 +951,14 @@ export default function App(): JSX.Element {
       }
     )
 
+    const unsubAppNav = window.api.app.onNavigateSession((sessionId) => {
+      navigateToSession(sessionId)
+    })
+    const unsubSettingsNav = window.api.app.onNavigateSettings((navigation) => {
+      navigateToSettings(navigation.section as SettingsSection, navigation.hostId)
+    })
     const unsubNav = window.api.pet.onNavigate((sessionId) => {
-      flushSync(() => {
-        setActiveSession(sessionId)
-      })
+      navigateToSession(sessionId)
     })
 
     const unsub = window.api.onSessionEvent((event) => {
@@ -625,6 +1007,7 @@ export default function App(): JSX.Element {
         upsertMessage(event.id, event.message)
       } else if (event.type === 'events') {
         appendEvents(event.id, event.events)
+        applyBrowserManagerRunEvents(event.id, event.events)
       } else if (event.type === 'raw') {
         appendRaw(event.id, event.data)
       } else if (event.type === 'renamed') {
@@ -632,7 +1015,8 @@ export default function App(): JSX.Element {
       } else if (event.type === 'pinned') {
         updatePinned(event.id, event.pinned, event.pinOrder)
       } else if (event.type === 'updated') {
-        updateSession(event.id, { workDir: event.workDir, useWorktree: event.useWorktree })
+        const { id, type, ...patch } = event
+        updateSession(id, patch)
       } else if (event.type === 'settingsUpdated') {
         const { id, ...patch } = event
         updateSettings(id, patch)
@@ -647,6 +1031,8 @@ export default function App(): JSX.Element {
 
     return () => {
       unsub()
+      unsubAppNav()
+      unsubSettingsNav()
       unsubNav()
       media.removeEventListener('change', onSystemThemeChanged)
       window.removeEventListener('orchestrator:shortcut-overrides-changed', onShortcutOverridesChanged)
@@ -662,6 +1048,8 @@ export default function App(): JSX.Element {
       if (command) {
         updateShellFocusArea(event.target)
         if (command === 'close-active-panel-tab' && !canCloseActivePanelTab()) return
+        if (command === 'search-transcript' && !canRunPanelFind()) return
+        if (BROWSER_PANEL_COMMANDS.includes(command as BrowserPanelCommand) && !canRunBrowserPanelCommand()) return
         event.preventDefault()
         runAppCommand(command)
       }
@@ -672,9 +1060,23 @@ export default function App(): JSX.Element {
   }, [
     isDesignSystemPreview,
     canCloseActivePanelTab,
+    canRunPanelFind,
+    canRunBrowserPanelCommand,
     runAppCommand,
     shortcutOverrides,
     updateShellFocusArea
+  ])
+
+  useEffect(() => {
+    if (isDesignSystemPreview) return
+    void window.api.app.setMenuCommandAvailability(currentMenuCommandAvailability())
+  }, [
+    activeSessionId,
+    activeSessionUi,
+    currentMenuCommandAvailability,
+    isDesignSystemPreview,
+    sessionCount,
+    shellFocusArea
   ])
 
   useEffect(() => {
@@ -714,7 +1116,7 @@ export default function App(): JSX.Element {
       onPointerOverCapture={(event) => updateShellFocusArea(event.target)}
     >
       <Sidebar />
-      <section className="content-shell flex-1 flex flex-col min-w-0 min-h-0">
+      <section className="content-shell main-surface flex-1 flex flex-col min-w-0 min-h-0">
         {showSettings ? (
           <MotionView viewKey={`settings:${settingsSection}`} className="flex flex-col overflow-hidden">
             <SettingsPage

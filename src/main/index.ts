@@ -1,16 +1,32 @@
-import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu, net, protocol } from 'electron'
 import type { MenuItemConstructorOptions, Session } from 'electron'
-import { join } from 'path'
+import { join, resolve, sep } from 'path'
 import { writeFileSync } from 'fs'
+import { pathToFileURL } from 'url'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { configureAppProfile, getAppProfile } from './appProfile'
 import { browserSecurityPolicyAllows } from './browserSecurityPolicy'
-import type { ChatMessage } from '../types'
-import { APP_COMMANDS } from '../types/appCommands'
-import type { AppMenuCommand } from '../types/appCommands'
+import { settingsStore } from './settings'
+import { parseOrchestratorDeepLink, type ChatMessage, type OrchestratorDeepLinkNavigation } from '../types'
+import { APP_COMMANDS, commandShortcuts, shortcutSequenceToAccelerator } from '../types/appCommands'
+import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, ShortcutOverrides, StableAppCommand } from '../types/appCommands'
 import { safeWindowSend } from './safeWebContents'
 
 const appProfile = configureAppProfile()
+const APP_DEEPLINK_PROTOCOL = 'orchestrator'
+const APP_RENDERER_PROTOCOL = 'orchestrator-app'
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_RENDERER_PROTOCOL,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true
+    }
+  }
+])
 
 let registerIpcHandlers: typeof import('./ipc').registerIpcHandlers
 let createPetOverlayWindow: typeof import('./petOverlay').createPetOverlayWindow
@@ -18,13 +34,70 @@ let destroyPetOverlayWindow: typeof import('./petOverlay').destroyPetOverlayWind
 let setCreateMainWindowCallback: typeof import('./petOverlay').setCreateMainWindowCallback
 let projectStore: typeof import('./projects').projectStore
 let sessionManager: typeof import('./sessions').sessionManager
+let automationManager: typeof import('./automations').automationManager
+let automationScheduler: typeof import('./automationSchedulerSingleton').automationScheduler
 
 let mainWindow: BrowserWindow | null = null
 const appWindows = new Set<BrowserWindow>()
 const guardedBrowserSessions = new WeakSet<Session>()
+const menuCommandAvailabilityByWindow = new Map<number, AppCommandAvailability>()
+let pendingNavigation: OrchestratorDeepLinkNavigation | null = null
+let automatedMultiWindowFocusSmokeStarted = false
+
+function activeAppWindow(): BrowserWindow | null {
+  const focusedWindow = BrowserWindow.getFocusedWindow()
+  if (focusedWindow && appWindows.has(focusedWindow) && !focusedWindow.isDestroyed()) return focusedWindow
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
+  return [...appWindows].find((candidate) => !candidate.isDestroyed()) ?? null
+}
+
+function markAppWindowActive(win: BrowserWindow | null): void {
+  if (!win || win.isDestroyed()) return
+  mainWindow = win
+  updateApplicationMenuCommandAvailability(win)
+}
+
+function focusWindowForNavigation(): BrowserWindow | null {
+  const target = activeAppWindow()
+  if (!target) return null
+  if (target.isMinimized()) target.restore()
+  target.show()
+  target.focus()
+  markAppWindowActive(target)
+  return target
+}
+
+function navigateFromDeeplink(rawUrl: string): void {
+  const navigation = parseOrchestratorDeepLink(rawUrl, APP_DEEPLINK_PROTOCOL)
+  if (!navigation) return
+  pendingNavigation = navigation
+  const target = focusWindowForNavigation()
+  if (!target) return
+  if (navigation.kind === 'session') {
+    safeWindowSend(target, 'app:navigate-session', navigation.sessionId)
+  } else {
+    safeWindowSend(target, 'app:navigate-settings', navigation)
+  }
+}
+
+function openSessionInNewWindow(sessionId: string): void {
+  pendingNavigation = { kind: 'session', sessionId }
+  createWindow()
+}
+
+function consumePendingNavigation(): OrchestratorDeepLinkNavigation | null {
+  const navigation = pendingNavigation
+  pendingNavigation = null
+  return navigation
+}
+
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  navigateFromDeeplink(url)
+})
 
 function sendAppMenuCommand(command: AppMenuCommand): void {
-  const target = BrowserWindow.getFocusedWindow() ?? mainWindow
+  const target = activeAppWindow()
   safeWindowSend(target, 'app:menu-command', command)
 }
 
@@ -94,9 +167,17 @@ function installApplicationMenu(): void {
       label: 'View',
       submenu: [
         menuCommand('toggle-inspector'),
+        menuCommand('open-review-tab'),
+        menuCommand('open-browser-tab'),
+        menuCommand('toggle-browser-panel'),
         menuCommand('toggle-terminal'),
         { type: 'separator' },
-        { role: 'reload' },
+        menuCommand('focus-browser-address-bar'),
+        menuCommand('browser-reload-page'),
+        menuCommand('browser-hard-reload-page'),
+        menuCommand('browser-navigate-back'),
+        menuCommand('browser-navigate-forward'),
+        { type: 'separator' },
         { role: 'toggleDevTools' },
         { type: 'separator' },
         { role: 'resetZoom' },
@@ -124,15 +205,70 @@ function installApplicationMenu(): void {
   ]
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+  updateApplicationMenuCommandAvailability(activeAppWindow())
 }
 
-function menuCommand(command: keyof typeof APP_COMMANDS): MenuItemConstructorOptions {
+function menuCommand(command: StableAppCommand): MenuItemConstructorOptions {
   const definition = APP_COMMANDS[command]
   return {
+    id: menuCommandItemId(command),
     label: definition.menuLabel ?? definition.label,
-    accelerator: definition.accelerator,
+    accelerator: menuAcceleratorForCommand(command),
     click: () => sendAppMenuCommand(definition.id)
   }
+}
+
+function menuCommandItemId(command: StableAppCommand): string {
+  return `app-command:${command}`
+}
+
+function setMenuCommandAvailability(win: BrowserWindow | null, availability: AppCommandAvailability): void {
+  if (!win || win.isDestroyed()) return
+  menuCommandAvailabilityByWindow.set(win.webContents.id, sanitizeCommandAvailability(availability))
+  if (activeAppWindow() === win) {
+    updateApplicationMenuCommandAvailability(win)
+  }
+}
+
+function sanitizeCommandAvailability(availability: AppCommandAvailability): AppCommandAvailability {
+  return Object.fromEntries(
+    Object.entries(availability).filter(([command]) => command in APP_COMMANDS).map(([command, enabled]) => [command, enabled === true])
+  ) as AppCommandAvailability
+}
+
+function updateApplicationMenuCommandAvailability(win: BrowserWindow | null): void {
+  const menu = Menu.getApplicationMenu()
+  if (!menu) return
+  const availability = win && !win.isDestroyed()
+    ? menuCommandAvailabilityByWindow.get(win.webContents.id) ?? {}
+    : {}
+  for (const command of Object.keys(APP_COMMANDS) as StableAppCommand[]) {
+    const item = menu.getMenuItemById(menuCommandItemId(command))
+    if (!item) continue
+    item.enabled = availability[command] ?? true
+  }
+}
+
+function applicationMenuCommandState(command: StableAppCommand): AppMenuCommandState | null {
+  const menu = Menu.getApplicationMenu()
+  const item = menu?.getMenuItemById(menuCommandItemId(command)) ?? null
+  if (!item) return null
+  return {
+    command,
+    label: item.label,
+    accelerator: item.accelerator,
+    enabled: item.enabled,
+    visible: item.visible
+  }
+}
+
+function menuAcceleratorForCommand(command: StableAppCommand): string | undefined {
+  const [primaryShortcut] = commandShortcuts(command, currentShortcutOverrides())
+  return primaryShortcut ? shortcutSequenceToAccelerator(primaryShortcut) : APP_COMMANDS[command].accelerator
+}
+
+function currentShortcutOverrides(): ShortcutOverrides {
+  return settingsStore.get('shortcutOverrides', {}) ?? {}
 }
 
 function isBrokenPipeError(error: unknown): boolean {
@@ -195,6 +331,37 @@ function installWebviewGuards(): void {
   })
 }
 
+function installRendererRouteProtocol(): void {
+  if (is.dev) return
+  protocol.handle(APP_RENDERER_PROTOCOL, (request) => {
+    const url = new URL(request.url)
+    const rendererRoot = resolve(__dirname, '../renderer')
+    const pathname = decodeURIComponent(url.pathname)
+    const relativePath = pathname.replace(/^\/+/, '')
+    const requestedPath = shouldServeRendererIndex(pathname) ? 'index.html' : relativePath
+    const resolvedPath = resolve(rendererRoot, requestedPath)
+    const targetPath = isPathInsideRendererRoot(rendererRoot, resolvedPath)
+      ? resolvedPath
+      : join(rendererRoot, 'index.html')
+    return net.fetch(pathToFileURL(targetPath).toString())
+  })
+}
+
+function isPathInsideRendererRoot(rendererRoot: string, filePath: string): boolean {
+  return filePath === rendererRoot || filePath.startsWith(`${rendererRoot}${sep}`)
+}
+
+function shouldServeRendererIndex(pathname: string): boolean {
+  if (pathname === '/' || pathname === '') return true
+  if (pathname.startsWith('/settings')) return true
+  return false
+}
+
+function rendererEntryUrl(rendererHash?: string): string {
+  const hash = rendererHash ? `#${rendererHash}` : ''
+  return `${APP_RENDERER_PROTOCOL}://renderer/${hash}`
+}
+
 function installBrowserTransferGuards(browserSession: Session): void {
   if (guardedBrowserSessions.has(browserSession)) return
   guardedBrowserSessions.add(browserSession)
@@ -253,25 +420,28 @@ function createWindow(): BrowserWindow {
       webviewTag: true
     }
   })
-  mainWindow = win
   appWindows.add(win)
+  if (!mainWindow || mainWindow.isDestroyed()) mainWindow = win
 
   win.on('focus', () => {
-    mainWindow = win
+    markAppWindowActive(win)
     sessionManager.refreshRecoverableStatuses()
   })
 
   win.on('closed', () => {
     appWindows.delete(win)
+    menuCommandAvailabilityByWindow.delete(win.webContents.id)
     if (mainWindow === win) {
       mainWindow = [...appWindows].find((candidate) => !candidate.isDestroyed()) ?? null
     }
+    updateApplicationMenuCommandAvailability(mainWindow)
     if (appWindows.size === 0) destroyPetOverlayWindow?.()
   })
 
   win.on('ready-to-show', () => {
     if (shouldForegroundWindow) {
       win.show()
+      markAppWindowActive(win)
     } else {
       win.showInactive()
     }
@@ -293,7 +463,7 @@ function createWindow(): BrowserWindow {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}${rendererHash ? `#${rendererHash}` : ''}`)
   } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'), rendererHash ? { hash: rendererHash } : undefined)
+    win.loadURL(rendererEntryUrl(rendererHash))
   }
 
   maybeRunAutomatedUiSmoke(win)
@@ -324,6 +494,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedSessionSwitchSmoke(win, outputPath, screenshotPath)
     return
   }
+  if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'multi-window-focus') {
+    if (automatedMultiWindowFocusSmokeStarted) return
+    automatedMultiWindowFocusSmokeStarted = true
+    runAutomatedMultiWindowFocusSmoke(win, outputPath, screenshotPath)
+    return
+  }
   if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'transcript-stress') {
     runAutomatedTranscriptStressSmoke(win, outputPath, screenshotPath)
     return
@@ -352,11 +528,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
     runAutomatedBrowserSmoke(win, outputPath, screenshotPath)
     return
   }
-  if (['header', 'right-panel', 'diff', 'files', 'side-chat'].includes(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW ?? '')) {
+  const smokeView = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW ?? ''
+  if (['header', 'right-panel', 'workbench-new-tab', 'environment', 'diff', 'files', 'side-chat'].includes(smokeView) || smokeView.startsWith('diff-')) {
     runAutomatedFocusedSurfaceSmoke(
       win,
       outputPath,
-      process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
+      (smokeView === 'workbench-new-tab' || smokeView === 'environment' ? 'right-panel' : smokeView.startsWith('diff-') ? 'diff' : smokeView) as 'header' | 'right-panel' | 'diff' | 'files' | 'side-chat',
       screenshotPath
     )
     return
@@ -459,6 +636,32 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(80);
             }
           }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings-deeplink') {
+            const deepLinkSettingsShell = document.querySelector('.settings-shell');
+            var settingsDeepLinkRouteDebug = deepLinkSettingsShell instanceof HTMLElement
+              ? {
+                routeOwned: deepLinkSettingsShell.getAttribute('data-settings-route-owned'),
+                route: deepLinkSettingsShell.getAttribute('data-settings-route'),
+                activeSection: deepLinkSettingsShell.getAttribute('data-settings-active-section'),
+                hostId: deepLinkSettingsShell.getAttribute('data-settings-host-id'),
+                hostKind: deepLinkSettingsShell.getAttribute('data-settings-host-kind'),
+                protocol: window.location.protocol,
+                pathname: window.location.pathname,
+                hash: window.location.hash,
+                search: window.location.search
+              }
+              : { missingShell: true };
+            var settingsDeepLinkRouteWorks =
+              deepLinkSettingsShell instanceof HTMLElement &&
+              deepLinkSettingsShell.getAttribute('data-settings-route-owned') === 'true' &&
+              deepLinkSettingsShell.getAttribute('data-settings-route') === '/settings/providers' &&
+              deepLinkSettingsShell.getAttribute('data-settings-active-section') === 'providers' &&
+              deepLinkSettingsShell.getAttribute('data-settings-host-id') === 'codex:remote-mac' &&
+              deepLinkSettingsShell.getAttribute('data-settings-host-kind') === 'remote' &&
+              (window.location.protocol === 'file:'
+                ? window.location.hash.startsWith('#/settings/providers')
+                : window.location.pathname === '/settings/providers');
+          }
           if (
             ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings' ||
             ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings-providers' ||
@@ -477,6 +680,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               if (diagnosticsButton instanceof HTMLElement) diagnosticsButton.click();
               await sleep(450);
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
+              const providerSettingsShell = document.querySelector('.settings-shell');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
               const providerModelList = document.querySelector('[data-testid="provider-model-list"]');
               const customModelToggle = document.querySelector('[data-testid="provider-custom-model-toggle"]');
@@ -491,12 +695,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               const usageStatusStrip = document.querySelector('[data-testid="provider-usage-status-strip"]');
               const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
-              const providerControlPanels = diagnosticsSection instanceof HTMLElement
-                ? [...diagnosticsSection.querySelectorAll('.provider-settings-stack .settings-panel')]
+              const providerControlSurfaces = diagnosticsSection instanceof HTMLElement
+                ? [...diagnosticsSection.querySelectorAll('.provider-settings-control-surface')]
                 : [];
               const permissionExecutionContract = document.querySelector('[data-testid="settings-permission-execution-contract"]');
-              const providerControlPanelText = providerControlPanels[0] instanceof HTMLElement
-                ? providerControlPanels[0].innerText
+              const providerControlSurfaceText = providerControlSurfaces[0] instanceof HTMLElement
+                ? providerControlSurfaces[0].innerText
                 : '';
               const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
                 ? usageDiagnosticsCard.innerText.replace(/\\s+/g, ' ')
@@ -577,16 +781,30 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;
               var settingsProviderControlSurfaceUnifiedWorks =
-                providerControlPanels.length === 1 &&
-                providerControlPanelText.includes('Default') &&
-                providerControlPanelText.includes('Mode') &&
-                providerControlPanelText.includes('Models') &&
-                providerControlPanelText.includes('Capabilities') &&
+                diagnosticsSection instanceof HTMLElement &&
+                diagnosticsSection.classList.contains('settings-page-section') &&
+                providerControlSurfaces.length === 1 &&
+                providerControlSurfaceText.includes('Default') &&
+                providerControlSurfaceText.includes('Mode') &&
+                providerControlSurfaceText.includes('Models') &&
+                providerControlSurfaceText.includes('Capabilities') &&
+                diagnosticsSection.querySelector('.settings-panel') === null &&
+                diagnosticsSection.querySelector('.compact-setting') === null &&
                 permissionExecutionContract instanceof HTMLElement &&
                 permissionExecutionContract.getBoundingClientRect().height <= 28 &&
                 permissionExecutionContract.textContent?.includes('Source') &&
-                providerControlPanelText.indexOf('Default') < providerControlPanelText.indexOf('Models') &&
-                providerControlPanelText.indexOf('Models') < providerControlPanelText.indexOf('Capabilities');
+                providerControlSurfaceText.indexOf('Default') < providerControlSurfaceText.indexOf('Models') &&
+                providerControlSurfaceText.indexOf('Models') < providerControlSurfaceText.indexOf('Capabilities');
+              var settingsProvidersModuleWorks =
+                diagnosticsSection instanceof HTMLElement &&
+                diagnosticsSection.closest('[data-settings-page-module="providers"]') instanceof HTMLElement;
+              var settingsRouteOwnedWorks =
+                providerSettingsShell instanceof HTMLElement &&
+                providerSettingsShell.getAttribute('data-settings-route-owned') === 'true' &&
+                providerSettingsShell.getAttribute('data-settings-route') === '/settings/providers' &&
+                (window.location.protocol === 'file:'
+                  ? window.location.hash.startsWith('#/settings/providers')
+                  : window.location.pathname === '/settings/providers');
               const diagnosticsToggle = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
               var settingsDiagnosticsDisclosureCompactWorks =
                 diagnosticsToggle instanceof HTMLElement &&
@@ -617,8 +835,166 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   await sleep(100);
                 }
               }
+              const codexProviderSelect = providerSelects.find((select) =>
+                [...select.options].some((option) => option.value === 'codex')
+              );
+              if (codexProviderSelect instanceof HTMLSelectElement) {
+                codexProviderSelect.value = 'codex';
+                codexProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(220);
+              }
+              const sidebarMetadataRefreshButton = document.querySelector('[data-testid="provider-sidebar-metadata-refresh"]');
+              const codexStatusCard = document.querySelector('[data-testid="provider-status-card"]');
+              var settingsProviderSidebarRefreshWorks =
+                codexProviderSelect instanceof HTMLSelectElement &&
+                codexProviderSelect.value === 'codex' &&
+                sidebarMetadataRefreshButton instanceof HTMLButtonElement &&
+                sidebarMetadataRefreshButton.textContent?.trim() === 'Refresh chats' &&
+                sidebarMetadataRefreshButton.disabled === false &&
+                codexStatusCard instanceof HTMLElement;
             }
             if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
+              const settingsTopbar = document.querySelector('[data-testid="settings-topbar"]');
+              const settingsShell = document.querySelector('.settings-shell');
+              var settingsTopbarSharedWorks =
+                settingsTopbar instanceof HTMLElement &&
+                settingsTopbar.getAttribute('data-panel-toolbar') === 'true' &&
+                settingsTopbar.getBoundingClientRect().height <= 40 &&
+                settingsTopbar.querySelector('.settings-topbar-title') instanceof HTMLElement &&
+                settingsTopbar.querySelector('[aria-label="Back to chat"]') instanceof HTMLButtonElement;
+              var settingsRouteOwnedWorks =
+                settingsShell instanceof HTMLElement &&
+                settingsShell.getAttribute('data-settings-route-owned') === 'true' &&
+                settingsShell.getAttribute('data-settings-route') === '/settings/general' &&
+                (window.location.protocol === 'file:'
+                  ? window.location.hash.startsWith('#/settings/general')
+                  : window.location.pathname === '/settings/general');
+              const settingsContentLayoutMatches = (testId, title, subtitleIncludes) => {
+                const layout = document.querySelector('[data-testid="' + testId + '"]');
+                const titleNode = layout?.querySelector('.settings-content-layout-title');
+                const subtitleNode = layout?.querySelector('.settings-content-layout-subtitle');
+                const headerNode = layout?.querySelector('.settings-content-layout-header');
+                return layout instanceof HTMLElement &&
+                  layout.getAttribute('data-settings-content-layout') === 'codex' &&
+                  titleNode instanceof HTMLElement &&
+                  titleNode.textContent?.trim() === title &&
+                  subtitleNode instanceof HTMLElement &&
+                  subtitleNode.textContent?.includes(subtitleIncludes) === true &&
+                  headerNode instanceof HTMLElement &&
+                  headerNode.getBoundingClientRect().height >= 42;
+              };
+              var settingsContentLayoutWorks = settingsContentLayoutMatches(
+                'settings-content-layout',
+                'General',
+                'App-level defaults'
+              );
+              const settingsHostSelector = document.querySelector('[data-testid="settings-host-selector"]');
+              const settingsHostSelect = document.querySelector('[data-testid="settings-host-select"]');
+              const settingsHostNavGroup = document.querySelector('[data-settings-nav-group="host"]');
+              const localWorktreesNav = [...document.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                .find((row) => row.textContent?.replace(/\\s+/g, ' ').trim() === 'Worktrees');
+              if (localWorktreesNav instanceof HTMLButtonElement) {
+                localWorktreesNav.click();
+                await sleep(160);
+              }
+              const localWorktreesSection = document.querySelector('[data-testid="worktrees-settings-section"]');
+              if (settingsHostSelect instanceof HTMLSelectElement) {
+                settingsHostSelect.value = 'codex:remote-mac';
+                settingsHostSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(120);
+              }
+              const remoteSettingsHostNavLabels = settingsHostNavGroup instanceof HTMLElement
+                ? [...settingsHostNavGroup.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                  .map((row) => row.textContent?.replace(/\\s+/g, ' ').trim() ?? '')
+                : [];
+              var settingsHostContextWorks =
+                settingsHostSelector instanceof HTMLElement &&
+                settingsHostNavGroup instanceof HTMLElement &&
+                settingsHostNavGroup.contains(settingsHostSelector) &&
+                !(settingsTopbar instanceof HTMLElement && settingsTopbar.contains(settingsHostSelector)) &&
+                settingsHostSelect instanceof HTMLSelectElement &&
+                [...settingsHostSelect.options].some((option) => option.value === 'local' && option.textContent?.trim() === 'Local') &&
+                [...settingsHostSelect.options].some((option) => option.value === 'codex:remote-mac' && option.textContent?.trim() === 'Remote Mac') &&
+                settingsHostSelect.value === 'codex:remote-mac' &&
+                settingsShell instanceof HTMLElement &&
+                settingsShell.getAttribute('data-settings-host-id') === 'codex:remote-mac' &&
+                settingsShell.getAttribute('data-settings-host-kind') === 'remote';
+              var settingsHostSectionFilteringWorks =
+                localWorktreesSection instanceof HTMLElement &&
+                settingsShell instanceof HTMLElement &&
+                settingsShell.getAttribute('data-settings-active-section') === 'general' &&
+                settingsShell.getAttribute('data-settings-host-section-filtered') === 'false' &&
+                document.querySelector('[data-settings-content-host-id="codex:remote-mac"]') instanceof HTMLElement &&
+                document.querySelector('[data-settings-content-scope="app"][data-settings-host-adapter="app-global"]') instanceof HTMLElement &&
+                !remoteSettingsHostNavLabels.includes('Automations') &&
+                !remoteSettingsHostNavLabels.includes('Worktrees') &&
+                !remoteSettingsHostNavLabels.includes('Data controls') &&
+                remoteSettingsHostNavLabels.includes('Shortcuts') &&
+                remoteSettingsHostNavLabels.includes('Personalization') &&
+                !(document.querySelector('[data-testid="worktrees-settings-section"]') instanceof HTMLElement);
+              const remoteShortcutsNav = settingsHostNavGroup instanceof HTMLElement
+                ? [...settingsHostNavGroup.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                  .find((row) => row.textContent?.replace(/\\s+/g, ' ').trim() === 'Shortcuts')
+                : null;
+              if (remoteShortcutsNav instanceof HTMLButtonElement) {
+                remoteShortcutsNav.click();
+                await sleep(140);
+              }
+              const remoteShortcutsContent = document.querySelector('[data-settings-content-host-id="codex:remote-mac"]');
+              const remoteHostUnavailable = document.querySelector('[data-testid="settings-host-adapter-unavailable"]');
+              var settingsHostAdapterBoundaryWorks =
+                remoteShortcutsNav instanceof HTMLButtonElement &&
+                settingsShell instanceof HTMLElement &&
+                settingsShell.getAttribute('data-settings-active-section') === 'shortcuts' &&
+                remoteShortcutsContent instanceof HTMLElement &&
+                remoteShortcutsContent.getAttribute('data-settings-content-scope') === 'host' &&
+                remoteShortcutsContent.getAttribute('data-settings-host-adapter') === 'unavailable' &&
+                remoteHostUnavailable instanceof HTMLElement &&
+                remoteHostUnavailable.textContent?.includes('Remote Mac') &&
+                !(document.querySelector('[data-testid="shortcuts-settings-section"]') instanceof HTMLElement);
+              const remotePersonalizationNav = settingsHostNavGroup instanceof HTMLElement
+                ? [...settingsHostNavGroup.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                  .find((row) => row.textContent?.replace(/\\s+/g, ' ').trim() === 'Personalization')
+                : null;
+              if (remotePersonalizationNav instanceof HTMLButtonElement) {
+                remotePersonalizationNav.click();
+                await sleep(140);
+              }
+              const remotePersonalizationContent = document.querySelector('[data-settings-content-host-id="codex:remote-mac"]');
+              const remotePersonalizationUnavailable = document.querySelector('[data-testid="settings-host-adapter-unavailable"]');
+              var settingsPersonalizationHostBoundaryWorks =
+                remotePersonalizationNav instanceof HTMLButtonElement &&
+                settingsShell instanceof HTMLElement &&
+                settingsShell.getAttribute('data-settings-active-section') === 'personalization' &&
+                remotePersonalizationContent instanceof HTMLElement &&
+                remotePersonalizationContent.getAttribute('data-settings-content-scope') === 'host' &&
+                remotePersonalizationContent.getAttribute('data-settings-host-adapter') === 'unavailable' &&
+                remotePersonalizationUnavailable instanceof HTMLElement &&
+                remotePersonalizationUnavailable.textContent?.includes('memory') &&
+                remotePersonalizationUnavailable.textContent?.includes('custom instructions') &&
+                !(document.querySelector('[data-testid="pets-settings-section"]') instanceof HTMLElement);
+              const remoteGeneralNav = [...document.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                .find((row) => row.textContent?.replace(/\\s+/g, ' ').trim() === 'General');
+              if (remoteGeneralNav instanceof HTMLButtonElement) {
+                remoteGeneralNav.click();
+                await sleep(140);
+              }
+              const generalSection = document.querySelector('[data-testid="general-settings-section"]');
+              const generalChoiceCards = generalSection instanceof HTMLElement
+                ? [...generalSection.querySelectorAll('.setting-choice-card')]
+                : [];
+              var settingsGeneralSurfaceWorks =
+                generalSection instanceof HTMLElement &&
+                generalSection.classList.contains('settings-page-section') &&
+                generalSection.querySelector('.settings-surface') instanceof HTMLElement &&
+                generalSection.querySelector('.settings-choice-grid') instanceof HTMLElement &&
+                generalSection.querySelector('.settings-group') === null &&
+                generalSection.querySelector('.settings-panel') === null &&
+                generalChoiceCards.length >= 5 &&
+                generalChoiceCards.every((card) => card instanceof HTMLElement && card.getBoundingClientRect().height <= 78);
+              var settingsGeneralModuleWorks =
+                generalSection instanceof HTMLElement &&
+                generalSection.closest('[data-settings-page-module="general"]') instanceof HTMLElement;
               const appearanceButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Appearance'));
               appearanceButton?.click();
@@ -649,6 +1025,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 themePreview instanceof HTMLElement &&
                 themePreview.textContent?.includes('Agent summary');
               const appearanceText = document.querySelector('[data-testid="appearance-settings-section"]')?.textContent ?? '';
+              const appearanceSection = document.querySelector('[data-testid="appearance-settings-section"]');
+              settingsContentLayoutWorks = settingsContentLayoutWorks &&
+                settingsContentLayoutMatches('settings-content-layout-appearance', 'Appearance', 'Tune the app shell');
+              const appearanceSurfaces = appearanceSection instanceof HTMLElement
+                ? [...appearanceSection.querySelectorAll('.settings-surface')]
+                : [];
+              const appearanceContentGroups = appearanceSection instanceof HTMLElement
+                ? [...appearanceSection.querySelectorAll('.settings-content-group')]
+                : [];
+              var settingsAppearanceSurfaceWorks =
+                appearanceSection instanceof HTMLElement &&
+                appearanceSection.classList.contains('settings-page-section') &&
+                appearanceSurfaces.length >= 8 &&
+                appearanceContentGroups.length >= 8 &&
+                appearanceSection.querySelector('.appearance-preset-grid') instanceof HTMLElement &&
+                appearanceSection.querySelector('.appearance-theme-editor-grid') instanceof HTMLElement &&
+                appearanceSection.querySelector('.settings-action-button') instanceof HTMLElement &&
+                appearanceSection.querySelector('.settings-group') === null &&
+                appearanceSection.querySelector('.settings-panel') === null;
+              var settingsAppearanceModuleWorks =
+                appearanceSection instanceof HTMLElement &&
+                appearanceSection.closest('[data-settings-page-module="appearance"]') instanceof HTMLElement;
               var settingsTaxonomyWorks =
                 appearanceText.includes('Mode') &&
                 appearanceText.includes('Presets') &&
@@ -683,6 +1081,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const providerSetupCard = document.querySelector('[data-testid="provider-setup-card"]');
               const providerStatusCard = document.querySelector('[data-testid="provider-status-card"]');
               const usageDiagnosticsCard = document.querySelector('[data-testid="provider-usage-diagnostics-card"]');
+              settingsContentLayoutWorks = settingsContentLayoutWorks &&
+                settingsContentLayoutMatches('settings-content-layout-providers', 'Providers', 'default agent provider');
               const usageDiagnosticsText = usageDiagnosticsCard instanceof HTMLElement
                 ? usageDiagnosticsCard.innerText.replace(/\\s+/g, ' ')
                 : '';
@@ -750,6 +1150,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 configEditor instanceof HTMLElement &&
                 configEditor.dataset.expanded === 'false' &&
                 configEditor.querySelector('textarea') === null;
+              var settingsProvidersModuleWorks =
+                diagnosticsSection instanceof HTMLElement &&
+                diagnosticsSection.closest('[data-settings-page-module="providers"]') instanceof HTMLElement;
               const providerDiagnosticsToggle = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
               var settingsDiagnosticsDisclosureCompactWorks =
                 providerDiagnosticsToggle instanceof HTMLElement &&
@@ -759,12 +1162,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !providerDiagnosticsToggle.textContent?.includes('Advanced') &&
                 !providerDiagnosticsToggle.textContent?.includes('Shown') &&
                 !providerDiagnosticsToggle.textContent?.includes('Hidden');
+              if (settingsHostSelect instanceof HTMLSelectElement) {
+                settingsHostSelect.value = 'local';
+                settingsHostSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(140);
+              }
               const dataButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Data controls'));
               dataButton?.click();
               await sleep(220);
               const dataSection = document.querySelector('[data-testid="data-controls-settings-section"]');
+              settingsContentLayoutWorks = settingsContentLayoutWorks &&
+                settingsContentLayoutMatches('settings-content-layout-data', 'Data controls', 'stores local app data');
               const archivedRows = [...document.querySelectorAll('[data-testid="settings-archived-chat-row"]')];
+              const dataSurfaces = dataSection instanceof HTMLElement
+                ? [...dataSection.querySelectorAll('.settings-surface')]
+                : [];
+              const dataRows = dataSection instanceof HTMLElement
+                ? [...dataSection.querySelectorAll('.settings-row')]
+                : [];
+              const dataPath = dataSection instanceof HTMLElement
+                ? dataSection.querySelector('.data-controls-path')
+                : null;
               var settingsDataControlsWorks =
                 dataSection instanceof HTMLElement &&
                 dataSection.innerText.includes('Local profile') &&
@@ -775,11 +1194,186 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 dataSection.innerText.includes('Restore') &&
                 dataSection.innerText.includes('Delete') &&
                 archivedRows.length >= 1;
+              var settingsDataControlsSurfaceWorks =
+                dataSection instanceof HTMLElement &&
+                dataSection.classList.contains('settings-page-section') &&
+                dataSurfaces.length >= 2 &&
+                dataRows.length >= 3 &&
+                dataPath instanceof HTMLElement &&
+                dataPath.getBoundingClientRect().height <= 64 &&
+                dataSection.querySelector('.settings-panel') === null &&
+                dataSection.querySelector('.compact-setting') === null &&
+                archivedRows.every((row) => row instanceof HTMLElement && row.classList.contains('data-controls-archived-row'));
+              var settingsDataControlsModuleWorks =
+                dataSection instanceof HTMLElement &&
+                dataSection.closest('[data-settings-page-module="data-controls"]') instanceof HTMLElement;
+              if (sessions[0]) {
+                const existingAutomations = await window.api.automations.list();
+                const existingSmokeAutomation = existingAutomations.find((automation) => automation.name === 'Settings automation smoke');
+                await window.api.automations.upsert({
+                  id: existingSmokeAutomation?.id,
+                  kind: 'heartbeat',
+                  name: 'Settings automation smoke',
+                  prompt: 'Settings automation smoke prompt',
+                  status: 'ACTIVE',
+                  target: { type: 'session', sessionId: sessions[0].id },
+                  schedule: { mode: 'interval', intervalMinutes: 15, rrule: null }
+                });
+              }
+              const automationsButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Automations'));
+              automationsButton?.click();
+              await sleep(320);
+              const automationsSection = document.querySelector('[data-testid="automations-settings-section"]');
+              settingsContentLayoutWorks = settingsContentLayoutWorks &&
+                settingsContentLayoutMatches('settings-content-layout-automations', 'Automations', 'scheduled follow-ups');
+              const currentAutomationSurface = document.querySelector('[data-testid="automations-current-surface"]');
+              const pausedAutomationSurface = document.querySelector('[data-testid="automations-paused-surface"]');
+              const automationRows = [...document.querySelectorAll('[data-testid="automation-settings-row"]')]
+                .filter((row) => row instanceof HTMLElement);
+              const automationActionButtons = automationsSection instanceof HTMLElement
+                ? [...automationsSection.querySelectorAll('.settings-action-button')]
+                : [];
+              var settingsAutomationsPageWorks =
+                automationsSection instanceof HTMLElement &&
+                automationsSection.classList.contains('settings-page-section') &&
+                automationsSection.closest('[data-settings-page-module="automations"]') instanceof HTMLElement &&
+                currentAutomationSurface instanceof HTMLElement &&
+                pausedAutomationSurface instanceof HTMLElement &&
+                automationsSection.innerText.includes('Current') &&
+                automationsSection.innerText.includes('Paused') &&
+                automationsSection.innerText.includes('Run history') &&
+                automationsSection.innerText.includes('Settings automation smoke') &&
+                automationRows.length >= 1 &&
+                automationRows.some((row) => row.getAttribute('data-automation-status') === 'ACTIVE') &&
+                automationActionButtons.some((button) => button.textContent?.trim() === 'Run now') &&
+                automationActionButtons.some((button) => button.textContent?.trim() === 'Pause') &&
+                automationActionButtons.some((button) => button.textContent?.trim() === 'Delete') &&
+                automationsSection.querySelector('.settings-panel') === null &&
+                automationsSection.querySelector('.compact-setting') === null;
+              const worktreesButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Worktrees'));
+              worktreesButton?.click();
+              await sleep(320);
+              const worktreesSection = document.querySelector('[data-testid="worktrees-settings-section"]');
+              settingsContentLayoutWorks = settingsContentLayoutWorks &&
+                settingsContentLayoutMatches('settings-content-layout-worktrees', 'Worktrees', 'app-managed worktrees');
+              const createProjectSelect = document.querySelector('[data-testid="worktrees-create-project"]');
+              const createBaseInput = document.querySelector('[data-testid="worktrees-create-base"]');
+              const createBranchInput = document.querySelector('[data-testid="worktrees-create-branch"]');
+              const createSubmitButton = document.querySelector('[data-testid="worktrees-create-submit"]');
+              const worktreesInventorySurface = document.querySelector('[data-testid="worktrees-inventory-surface"]');
+              const worktreeRowsBeforeDelete = [...document.querySelectorAll('[data-testid="worktree-settings-row"]')]
+                .filter((row) => row instanceof HTMLElement);
+              const worktreeConversationRows = [...document.querySelectorAll('[data-testid="worktree-conversation-row"]')]
+                .filter((row) => row instanceof HTMLElement);
+              const managedWorktreeRow = worktreeRowsBeforeDelete.find((row) =>
+                row instanceof HTMLElement &&
+                row.getAttribute('data-worktree-managed') === 'true' &&
+                row.textContent?.includes('Settings worktree smoke')
+              );
+              var settingsWorktreesPageWorks =
+                worktreesSection instanceof HTMLElement &&
+                worktreesSection.classList.contains('settings-page-section') &&
+                worktreesSection.closest('[data-settings-page-module="worktrees"]') instanceof HTMLElement &&
+                worktreesInventorySurface instanceof HTMLElement &&
+                worktreesSection.innerText.includes('Inventory') &&
+                worktreesSection.innerText.includes('Create') &&
+                worktreesSection.innerText.includes('Settings worktree smoke') &&
+                worktreesSection.innerText.includes('Conversations') &&
+                worktreesSection.innerText.includes('Delete') &&
+                createProjectSelect instanceof HTMLSelectElement &&
+                createBaseInput instanceof HTMLInputElement &&
+                createBranchInput instanceof HTMLInputElement &&
+                createSubmitButton instanceof HTMLButtonElement &&
+                worktreeRowsBeforeDelete.length >= 1 &&
+                worktreeConversationRows.length >= 1 &&
+                managedWorktreeRow instanceof HTMLElement &&
+                worktreesSection.querySelector('.settings-panel') === null &&
+                worktreesSection.querySelector('.compact-setting') === null;
+              var settingsWorktreesCreateWorks = false;
+              const smokeWorktreeBranch = 'orchestrator/settings-smoke-created-' + Date.now();
+              const smokeWorktreeName = 'Worktree: ' + smokeWorktreeBranch;
+              if (
+                createBaseInput instanceof HTMLInputElement &&
+                createBranchInput instanceof HTMLInputElement &&
+                createSubmitButton instanceof HTMLButtonElement
+              ) {
+                const baseSetter = Object.getOwnPropertyDescriptor(createBaseInput.constructor.prototype, 'value')?.set;
+                const branchSetter = Object.getOwnPropertyDescriptor(createBranchInput.constructor.prototype, 'value')?.set;
+                baseSetter?.call(createBaseInput, 'HEAD');
+                createBaseInput.dispatchEvent(new Event('input', { bubbles: true }));
+                branchSetter?.call(createBranchInput, smokeWorktreeBranch);
+                createBranchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                createSubmitButton.click();
+                for (let index = 0; index < 160; index += 1) {
+                  const inventory = await window.api.worktrees.list();
+                  const createdRow = [...document.querySelectorAll('[data-testid="worktree-settings-row"]')]
+                    .find((row) => row.textContent?.includes(smokeWorktreeName));
+                  if (
+                    createdRow instanceof HTMLElement &&
+                    createdRow.getAttribute('data-worktree-managed') === 'true' &&
+                    inventory.some((item) =>
+                      item.managed &&
+                      item.conversations.some((conversation) => conversation.name === smokeWorktreeName)
+                    )
+                  ) {
+                    settingsWorktreesCreateWorks = true;
+                    break;
+                  }
+                  await sleep(50);
+                }
+              }
+              var settingsWorktreesDeleteWorks = false;
+              const createdManagedRow = [...document.querySelectorAll('[data-testid="worktree-settings-row"]')]
+                .find((row) => row.textContent?.includes(smokeWorktreeName));
+              if (createdManagedRow instanceof HTMLElement) {
+                const deleteWorktreeButton = [...createdManagedRow.querySelectorAll('button')]
+                  .find((button) => button.textContent?.includes('Delete'));
+                if (deleteWorktreeButton instanceof HTMLButtonElement) {
+                  deleteWorktreeButton.click();
+                  for (let index = 0; index < 20; index += 1) {
+                    if (document.querySelector('[data-testid="worktrees-delete-confirm-dialog"]') instanceof HTMLElement) break;
+                    await sleep(50);
+                  }
+                  const deleteDialog = document.querySelector('[data-testid="worktrees-delete-confirm-dialog"]');
+                  const deleteDialogFooter = deleteDialog?.querySelector('[data-dialog-footer="true"]');
+                  const deleteDialogConfirm = deleteDialogFooter instanceof HTMLElement
+                    ? [...deleteDialogFooter.querySelectorAll('button')].find((button) => button.textContent?.includes('Delete'))
+                    : null;
+                  const deleteDialogShared =
+                    deleteDialog instanceof HTMLElement &&
+                    deleteDialog.getAttribute('data-dialog-content') === 'true' &&
+                    deleteDialog.querySelector('[data-dialog-header="true"]') instanceof HTMLElement &&
+                    deleteDialogFooter instanceof HTMLElement &&
+                    deleteDialog.textContent?.includes('Delete worktree?') === true &&
+                    deleteDialog.textContent?.includes('Linked chats will be archived') === true &&
+                    deleteDialog.scrollWidth <= deleteDialog.clientWidth + 2;
+                  if (deleteDialogConfirm instanceof HTMLButtonElement) {
+                    deleteDialogConfirm.click();
+                    for (let index = 0; index < 120; index += 1) {
+                      const remainingRows = [...document.querySelectorAll('[data-testid="worktree-settings-row"]')];
+                      const inventory = await window.api.worktrees.list();
+                      if (
+                        !document.body.innerText.includes(smokeWorktreeName) &&
+                        !remainingRows.some((row) => row.textContent?.includes(smokeWorktreeName)) &&
+                        inventory.every((item) => !item.conversations.some((conversation) => conversation.name === smokeWorktreeName))
+                      ) {
+                        settingsWorktreesDeleteWorks = deleteDialogShared;
+                        break;
+                      }
+                      await sleep(50);
+                    }
+                  }
+                }
+              }
               const shortcutsButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Shortcuts'));
               shortcutsButton?.click();
               await sleep(220);
               const shortcutsSection = document.querySelector('[data-testid="shortcuts-settings-section"]');
+              settingsContentLayoutWorks = settingsContentLayoutWorks &&
+                settingsContentLayoutMatches('settings-content-layout-shortcuts', 'Shortcuts', 'Customize keyboard shortcuts');
               const shortcutKeys = [...document.querySelectorAll('[data-testid="settings-shortcut-key"]')];
               const shortcutSequences = [...document.querySelectorAll('[data-testid="settings-shortcut-sequence"]')];
               const shortcutSearch = document.querySelector('#settings-shortcut-search');
@@ -799,7 +1393,46 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 editFileSearchShortcut.click();
                 await sleep(80);
                 const recorder = document.querySelector('[data-testid="settings-shortcut-recorder"]');
-                if (recorder instanceof HTMLButtonElement) {
+                if (recorder instanceof HTMLInputElement) {
+                  const recorderRect = recorder.getBoundingClientRect();
+                  const recorderStyle = getComputedStyle(recorder);
+                  var settingsShortcutCaptureFieldSharedWorks =
+                    recorder.readOnly === true &&
+                    recorder.value === 'Press shortcut' &&
+                    recorder.getAttribute('data-shortcut-capture-field') === 'true' &&
+                    recorder.getAttribute('aria-label')?.includes('Shortcut capture for Open File Search') &&
+                    recorder.getAttribute('spellcheck') === 'false' &&
+                    recorder.getAttribute('inputmode') === 'none' &&
+                    recorderRect.width >= 120 &&
+                    recorderRect.width <= 160 &&
+                    recorderRect.height <= 34 &&
+                    recorderStyle.borderRadius !== '0px' &&
+                    recorderStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                    recorder.scrollWidth <= recorder.clientWidth + 2;
+                  recorder.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'k',
+                    metaKey: true,
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(120);
+                  const conflictError = document.querySelector('[data-testid="settings-shortcut-recording-error"]');
+                  var settingsShortcutsConflictWorks =
+                    conflictError instanceof HTMLElement &&
+                    conflictError.textContent?.includes('Conflicts with Command Palette');
+                  recorder.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: '?',
+                    code: 'Slash',
+                    metaKey: true,
+                    shiftKey: true,
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(120);
+                  const punctuationConflictError = document.querySelector('[data-testid="settings-shortcut-recording-error"]');
+                  var settingsShortcutsPunctuationCaptureWorks =
+                    punctuationConflictError instanceof HTMLElement &&
+                    punctuationConflictError.textContent?.includes('Conflicts with Keyboard Shortcuts');
                   recorder.dispatchEvent(new KeyboardEvent('keydown', {
                     key: 'O',
                     metaKey: true,
@@ -814,24 +1447,102 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const shortcutHeader = shortcutsSection instanceof HTMLElement
                 ? shortcutsSection.querySelector('.settings-shortcuts-head')
                 : null;
+              const shortcutSurface = shortcutsSection instanceof HTMLElement
+                ? shortcutsSection.querySelector('.settings-surface.settings-shortcuts-table')
+                : null;
+              const shortcutGroupContent = shortcutsSection instanceof HTMLElement
+                ? shortcutsSection.querySelector('.settings-group-content')
+                : null;
               const shortcutRows = [...document.querySelectorAll('[data-testid="shortcuts-settings-section"] .settings-shortcut-row')]
                 .filter((row) => row instanceof HTMLElement);
+              const shortcutActions = [...document.querySelectorAll('[data-testid="shortcuts-settings-section"] .settings-shortcut-action')]
+                .filter((button) => button instanceof HTMLElement);
+              const shortcutIconActions = [...document.querySelectorAll('[data-testid="shortcuts-settings-section"] .settings-shortcut-action, [data-testid="shortcuts-settings-section"] .settings-shortcut-binding-clear')]
+                .filter((button) => button instanceof HTMLElement);
               const shortcutRowRects = shortcutRows.map((row) => row.getBoundingClientRect());
               const shortcutKeyRects = shortcutKeys
                 .filter((key) => key instanceof HTMLElement)
                 .map((key) => key.getBoundingClientRect());
+              const shortcutActionRects = shortcutActions.map((button) => button.getBoundingClientRect());
               const settingsNavItems = [...document.querySelectorAll('[data-testid="sidebar-nav-item"]')]
                 .filter((row) => row instanceof HTMLElement);
               const settingsNavItemRects = settingsNavItems.map((row) => row.getBoundingClientRect());
+              const appSettingsNavGroup = document.querySelector('[data-settings-nav-group="app"]');
+              const hostSettingsNavGroup = document.querySelector('[data-settings-nav-group="host"]');
+              const settingsNavGroupHeadings = [...document.querySelectorAll('[data-testid="settings-nav-group-heading"]')]
+                .filter((heading) => heading instanceof HTMLElement);
+              const settingsNavGroupHeadingText = settingsNavGroupHeadings
+                .map((heading) => heading.textContent?.replace(/\\s+/g, ' ').trim() ?? '');
+              const appSettingsNavLabels = appSettingsNavGroup instanceof HTMLElement
+                ? [...appSettingsNavGroup.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                  .map((row) => row.textContent?.replace(/\\s+/g, ' ').trim() ?? '')
+                : [];
+              const hostSettingsNavLabels = hostSettingsNavGroup instanceof HTMLElement
+                ? [...hostSettingsNavGroup.querySelectorAll('[data-testid="sidebar-nav-item"]')]
+                  .map((row) => row.textContent?.replace(/\\s+/g, ' ').trim() ?? '')
+                : [];
               const settingsFooterAction = document.querySelector('[data-testid="sidebar-footer-action"]');
               const settingsFooterRect = settingsFooterAction instanceof HTMLElement
                 ? settingsFooterAction.getBoundingClientRect()
                 : null;
               const overriddenShortcut = [...document.querySelectorAll('[data-testid="settings-shortcut-key"]')]
                 .find((key) => key instanceof HTMLElement && key.dataset.overridden === 'true' && key.textContent?.trim() === '⌘⇧O');
+              const openFileSearchShortcutRow = shortcutRows
+                .find((row) => row.textContent?.includes('Open File Search'));
+              const openFileSearchDefaultClear = openFileSearchShortcutRow instanceof HTMLElement
+                ? [...openFileSearchShortcutRow.querySelectorAll('[data-testid="settings-shortcut-clear-binding"]')]
+                  .find((button) => button instanceof HTMLButtonElement && button.getAttribute('aria-label')?.includes('⌘P'))
+                : null;
+              if (openFileSearchDefaultClear instanceof HTMLButtonElement) {
+                openFileSearchDefaultClear.click();
+                await sleep(140);
+              }
+              const openFileSearchShortcutRowAfterClear = [...document.querySelectorAll('[data-testid="shortcuts-settings-section"] .settings-shortcut-row')]
+                .find((row) => row instanceof HTMLElement && row.textContent?.includes('Open File Search'));
+              const openFileSearchBindingsAfterClear = openFileSearchShortcutRowAfterClear instanceof HTMLElement
+                ? [...openFileSearchShortcutRowAfterClear.querySelectorAll('[data-testid="settings-shortcut-binding"]')]
+                  .filter((binding) => binding instanceof HTMLElement)
+                : [];
+              const openFileSearchKeysAfterClear = openFileSearchBindingsAfterClear
+                .map((binding) => binding.textContent?.replace(/\\s+/g, '').trim() ?? '');
+              var settingsShortcutsPerBindingClearWorks =
+                openFileSearchDefaultClear instanceof HTMLButtonElement &&
+                openFileSearchKeysAfterClear.includes('⌘⇧O') &&
+                !openFileSearchKeysAfterClear.includes('⌘P') &&
+                openFileSearchBindingsAfterClear.some((binding) => binding.getAttribute('data-shortcut-binding-source') === 'custom') &&
+                !openFileSearchBindingsAfterClear.some((binding) => binding.getAttribute('data-shortcut-binding-source') === 'default' && binding.textContent?.includes('⌘P')) &&
+                Boolean(document.querySelector('[aria-label="Reset Open File Search shortcut"]'));
               var settingsShortcutsEditableWorks =
                 overriddenShortcut instanceof HTMLElement &&
-                Boolean(document.querySelector('[aria-label="Reset Open File Search shortcut"]'));
+                Boolean(document.querySelector('[aria-label="Reset Open File Search shortcut"]')) &&
+                settingsShortcutsConflictWorks === true &&
+                settingsShortcutsPunctuationCaptureWorks === true &&
+                settingsShortcutCaptureFieldSharedWorks === true;
+              var settingsShortcutActionsSharedWorks =
+                shortcutIconActions.length >= 2 &&
+                shortcutIconActions.every((button) =>
+                  button instanceof HTMLElement &&
+                  button.classList.contains('motion-icon-button') &&
+                  button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  (button.getAttribute('data-icon-button-size') === 'sm' || button.getAttribute('data-icon-button-size') === 'xs') &&
+                  (button.getAttribute('data-icon') === 'pencil' || button.getAttribute('data-icon') === 'eraser' || button.getAttribute('data-icon') === 'trash') &&
+                  button.getAttribute('data-native-title-free') === 'true' &&
+                  button.scrollWidth <= button.clientWidth + 2
+                );
+              var settingsShortcutsSurfaceWorks =
+                shortcutsSection instanceof HTMLElement &&
+                shortcutsSection.classList.contains('settings-page-section') &&
+                shortcutSurface instanceof HTMLElement &&
+                shortcutGroupContent instanceof HTMLElement &&
+                getComputedStyle(shortcutSurface).borderRadius !== '0px' &&
+                shortcutActions.length >= 1 &&
+                shortcutActions.every((button) => button.textContent?.trim() === '') &&
+                shortcutActionRects.every((rect) => rect.height <= 26 && rect.width <= 26) &&
+                settingsShortcutActionsSharedWorks &&
+                settingsShortcutCaptureFieldSharedWorks;
+              var settingsShortcutsModuleWorks =
+                shortcutsSection instanceof HTMLElement &&
+                shortcutsSection.closest('[data-settings-page-module="shortcuts"]') instanceof HTMLElement;
               var settingsSidebarNavCompactWorks =
                 settingsNavItems.length >= 6 &&
                 settingsNavItemRects.every((rect) => rect.height <= 34) &&
@@ -840,6 +1551,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 settingsFooterRect.height <= 36 &&
                 settingsFooterAction instanceof HTMLElement &&
                 settingsFooterAction.scrollWidth <= settingsFooterAction.clientWidth + 2;
+              var settingsSidebarNavPrimitiveWorks =
+                settingsNavItems.length >= 6 &&
+                settingsNavItems.every((row) => row.classList.contains('sidebar-list-row')) &&
+                settingsFooterAction instanceof HTMLElement &&
+                settingsFooterAction.classList.contains('sidebar-list-row') &&
+                settingsNavItems.every((row) => row.querySelector('.sidebar-list-row-content') instanceof HTMLElement) &&
+                settingsNavItems.every((row) => row.querySelector('.sidebar-list-row-label') instanceof HTMLElement);
+              var settingsSidebarGroupedNavWorks =
+                appSettingsNavGroup instanceof HTMLElement &&
+                hostSettingsNavGroup instanceof HTMLElement &&
+                settingsNavGroupHeadingText.some((text) => text === 'App') &&
+                settingsNavGroupHeadingText.some((text) => text.startsWith('Host')) &&
+                ['General', 'Appearance', 'Providers', 'Pet overlay'].every((label) => appSettingsNavLabels.includes(label)) &&
+                ['Automations', 'Worktrees', 'Shortcuts', 'Personalization', 'Data controls'].every((label) => hostSettingsNavLabels.includes(label)) &&
+                appSettingsNavLabels.indexOf('General') < appSettingsNavLabels.indexOf('Appearance') &&
+                appSettingsNavLabels.indexOf('Appearance') < appSettingsNavLabels.indexOf('Providers') &&
+                appSettingsNavLabels.indexOf('Providers') < appSettingsNavLabels.indexOf('Pet overlay') &&
+                hostSettingsNavLabels.indexOf('Automations') < hostSettingsNavLabels.indexOf('Worktrees') &&
+                hostSettingsNavLabels.indexOf('Worktrees') < hostSettingsNavLabels.indexOf('Shortcuts') &&
+                hostSettingsNavLabels.indexOf('Shortcuts') < hostSettingsNavLabels.indexOf('Personalization') &&
+                hostSettingsNavLabels.indexOf('Personalization') < hostSettingsNavLabels.indexOf('Data controls') &&
+                settingsNavItems.every((row) => row.closest('[data-settings-nav-group]') instanceof HTMLElement);
               var settingsShortcutsCompactWorks =
                 shortcutsSection instanceof HTMLElement &&
                 shortcutsSection.innerText.includes('Command Palette') &&
@@ -862,11 +1595,37 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 !shortcutText.includes('Toggle Terminal') &&
                 !shortcutText.includes('Pin or Unpin Chat') &&
                 !shortcutText.includes('Search Transcript') &&
+                settingsShortcutsSurfaceWorks &&
                 settingsShortcutsEditableWorks &&
                 shortcutKeys.every((key) => {
                   const text = key.textContent?.trim() ?? '';
                   return text.length > 0 && !text.includes(' ');
                 });
+              var settingsWorktreesOpenWorks = false;
+              const worktreesSwitchButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Worktrees'));
+              worktreesSwitchButton?.click();
+              await sleep(220);
+              const switchInventory = await window.api.worktrees.list();
+              const switchConversation = switchInventory
+                .flatMap((item) => item.conversations)
+                .find((conversation) => conversation.name === 'Settings worktree smoke');
+              const switchWorktreeRow = [...document.querySelectorAll('[data-testid="worktree-settings-row"]')]
+                .find((row) => row.textContent?.includes('Settings worktree smoke'));
+              const openConversationButton = switchWorktreeRow instanceof HTMLElement
+                ? [...switchWorktreeRow.querySelectorAll('[data-testid="worktree-open-conversation"]')]
+                  .find((button) => button.textContent?.includes('Open'))
+                : null;
+              if (switchConversation && openConversationButton instanceof HTMLButtonElement) {
+                openConversationButton.click();
+                await sleep(320);
+                const activeSessionTitle = document.querySelector('[data-testid="active-session-title"]');
+                settingsWorktreesOpenWorks =
+                  window.__orchestratorLastOpenedWorktreeConversationId === switchConversation.id &&
+                  activeSessionTitle instanceof HTMLElement &&
+                  activeSessionTitle.textContent?.includes('Settings worktree smoke') === true &&
+                  document.querySelector('[data-testid="settings-topbar"]') === null;
+              }
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
@@ -922,6 +1681,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const planGoalToggleCompactWorks =
               goalToggle instanceof HTMLButtonElement &&
               goalToggle.dataset.icon === 'chevronRight' &&
+              goalToggle.getAttribute('data-icon-button-variant') === 'toolbar' &&
+              goalToggle.getAttribute('data-icon-button-size') === 'xs' &&
+              goalToggle.getBoundingClientRect().width === 18 &&
+              goalToggle.getBoundingClientRect().height === 18 &&
               goalToggle.getAttribute('aria-label') === 'Show full objective' &&
               !compactPanelText.includes('Details') &&
               !compactPanelText.includes('Hide');
@@ -938,6 +1701,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.body.innerText.includes(hiddenSentence) &&
               Boolean(document.querySelector('[data-testid="plan-goal-full-objective"]'));
             const agentsTab = document.querySelector('[data-tab-id="agents"]')?.closest('[role="tab"]');
+            var planAgentTabShimmerWorks =
+              agentsTab instanceof HTMLElement &&
+              agentsTab.getAttribute('data-shimmering') === 'true';
             var planAgentStatLabelsCalm = false;
             if (agentsTab instanceof HTMLElement) {
               agentsTab.click();
@@ -957,9 +1723,46 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'pets') {
             const petsButton = [...document.querySelectorAll('button')]
-              .find((button) => button.textContent?.includes('Personalization'));
+              .find((button) => button.textContent?.includes('Pet overlay'));
             petsButton?.click();
             await sleep(450);
+            const petsSection = document.querySelector('[data-testid="pets-settings-section"]');
+            const petsSurfaces = petsSection instanceof HTMLElement
+              ? [...petsSection.querySelectorAll('.settings-surface')]
+              : [];
+            const petCards = petsSection instanceof HTMLElement
+              ? [...petsSection.querySelectorAll('.pet-choice-card')]
+              : [];
+            const petSwitch = petsSection instanceof HTMLElement
+              ? petsSection.querySelector('[role="switch"]')
+              : null;
+            const petsContentLayout = document.querySelector('[data-testid="settings-content-layout-pets"]');
+            const petsContentLayoutTitle = petsContentLayout?.querySelector('.settings-content-layout-title');
+            const petsContentLayoutSubtitle = petsContentLayout?.querySelector('.settings-content-layout-subtitle');
+            var petsSettingsContentLayoutWorks =
+              petsContentLayout instanceof HTMLElement &&
+              petsContentLayout.getAttribute('data-settings-content-layout') === 'codex' &&
+              petsContentLayoutTitle instanceof HTMLElement &&
+              petsContentLayoutTitle.textContent?.trim() === 'Pet overlay' &&
+              petsContentLayoutSubtitle instanceof HTMLElement &&
+              petsContentLayoutSubtitle.textContent?.includes('Floating companion') === true;
+            var petsSettingsSurfaceWorks =
+              petsSection instanceof HTMLElement &&
+              petsSection.classList.contains('settings-page-section') &&
+              petsSection.innerText.includes('Pet overlay') &&
+              petsSection.innerText.includes('Choose your pet') &&
+              petsSection.innerText.includes('Import pets') &&
+              petsSurfaces.length >= 3 &&
+              petSwitch instanceof HTMLButtonElement &&
+              petCards.length >= 1 &&
+              petCards.every((card) => card instanceof HTMLElement && card.getBoundingClientRect().height <= 180) &&
+              petsSection.querySelector('.settings-group') === null &&
+              petsSection.querySelector('.settings-panel') === null &&
+              petsSection.innerText.includes('Import from Codex') &&
+              petsSection.innerText.includes('Import from .zip');
+            var petsSettingsModuleWorks =
+              petsSection instanceof HTMLElement &&
+              petsSection.closest('[data-settings-page-module="pets"]') instanceof HTMLElement;
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'terminal') {
             const terminalButton = findButton('Toggle terminal');
@@ -983,6 +1786,63 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalButton?.click();
             await sleep(260);
             const bottomPanelRestored = document.querySelector('[data-testid="session-bottom-panel"]');
+            const bottomPanelShell = document.querySelector('[data-motion-panel="bottom"][data-app-shell-panel="bottom"][data-app-shell-panel-surface="terminal"]');
+            var terminalShellOwnershipWorks =
+              bottomPanelShell instanceof HTMLElement &&
+              bottomPanelRestored instanceof HTMLElement &&
+              bottomPanelShell.contains(bottomPanelRestored) &&
+              bottomPanelShell.getAttribute('data-app-shell-focus-area') === 'bottom-panel';
+            const bottomPanelAnimationProgress = Number(bottomPanelShell?.getAttribute('data-app-shell-panel-animation-progress') ?? '0');
+            const bottomPanelAnimatedSize = Number(bottomPanelShell?.getAttribute('data-app-shell-panel-animated-size') ?? '0');
+            const bottomPanelTargetSize = Number(bottomPanelShell?.getAttribute('data-app-shell-panel-target-size') ?? '0');
+            var terminalSharedAnimationControllerWorks =
+              bottomPanelShell instanceof HTMLElement &&
+              bottomPanelShell.getAttribute('data-app-shell-panel-animation') === 'shared' &&
+              bottomPanelShell.getAttribute('data-app-shell-panel-mounted') === 'true' &&
+              ['opening', 'open'].includes(bottomPanelShell.getAttribute('data-app-shell-panel-animation-state') ?? '') &&
+              bottomPanelAnimationProgress > 0 &&
+              bottomPanelAnimationProgress <= 1 &&
+              bottomPanelAnimatedSize > 0 &&
+              bottomPanelAnimatedSize <= bottomPanelTargetSize + 2 &&
+              bottomPanelTargetSize >= 170;
+            const bottomPanelContentHeight = Number(bottomPanelRestored?.getAttribute('data-bottom-panel-content-height') ?? '0');
+            const bottomPanelChromeHeight = Number(bottomPanelRestored?.getAttribute('data-bottom-panel-chrome-height') ?? '0');
+            const bottomPanelTotalHeight = Number(bottomPanelRestored?.getAttribute('data-bottom-panel-total-height') ?? '0');
+            const bottomPanelDefaultHeight = Number(bottomPanelRestored?.getAttribute('data-bottom-panel-default-height') ?? '0');
+            const bottomPanelMinHeight = Number(bottomPanelRestored?.getAttribute('data-bottom-panel-min-height') ?? '0');
+            const terminalTabPanelForSizing = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
+            const terminalTabPanelContentHeight = Number(terminalTabPanelForSizing?.getAttribute('data-bottom-panel-content-height') ?? '0');
+            const terminalTabPanelChromeHeight = Number(terminalTabPanelForSizing?.getAttribute('data-bottom-panel-chrome-height') ?? '0');
+            const terminalTabPanelTotalHeight = Number(terminalTabPanelForSizing?.getAttribute('data-bottom-panel-total-height') ?? '0');
+            var terminalBottomPanelSizeDecompositionWorks =
+              bottomPanelShell instanceof HTMLElement &&
+              bottomPanelRestored instanceof HTMLElement &&
+              terminalTabPanelForSizing instanceof HTMLElement &&
+              bottomPanelContentHeight >= 120 &&
+              bottomPanelChromeHeight === 50 &&
+              bottomPanelDefaultHeight === 260 &&
+              bottomPanelMinHeight === 120 &&
+              bottomPanelTotalHeight === bottomPanelContentHeight + bottomPanelChromeHeight &&
+              bottomPanelTargetSize === bottomPanelTotalHeight &&
+              Number(bottomPanelShell.getAttribute('data-bottom-panel-content-height') ?? '0') === bottomPanelContentHeight &&
+              Number(bottomPanelShell.getAttribute('data-bottom-panel-chrome-height') ?? '0') === bottomPanelChromeHeight &&
+              Number(bottomPanelShell.getAttribute('data-bottom-panel-total-height') ?? '0') === bottomPanelTotalHeight &&
+              terminalTabPanelContentHeight === bottomPanelContentHeight &&
+              terminalTabPanelChromeHeight === bottomPanelChromeHeight &&
+              terminalTabPanelTotalHeight === bottomPanelTotalHeight &&
+              Math.abs(terminalTabPanelForSizing.getBoundingClientRect().height - bottomPanelContentHeight) <= 2;
+            const bottomPanelShellLayoutMode = bottomPanelShell instanceof HTMLElement
+              ? bottomPanelShell.getAttribute('data-app-shell-panel-layout')
+              : null;
+            var terminalSharedLayoutControllerWorks =
+              bottomPanelShell instanceof HTMLElement &&
+              bottomPanelRestored instanceof HTMLElement &&
+              bottomPanelShell.getAttribute('data-app-shell-panel-size-controller') === 'shared' &&
+              ['docked', 'compressed'].includes(bottomPanelShellLayoutMode ?? '') &&
+              Number(bottomPanelShell.getAttribute('data-app-shell-panel-container-size') ?? '0') > 0 &&
+              Number(bottomPanelShell.getAttribute('data-app-shell-panel-resolved-size') ?? '0') >= 120 &&
+              Number(bottomPanelShell.getAttribute('data-app-shell-panel-max-size') ?? '0') >= 120 &&
+              bottomPanelRestored.dataset.bottomPanelLayout === bottomPanelShellLayoutMode;
             var terminalRestoreWorks =
               bottomPanelRestored instanceof HTMLElement &&
               bottomPanelRestored.dataset.bottomPanelTabs?.includes(',') === true &&
@@ -990,9 +1850,342 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Number(bottomPanelRestored.dataset.bottomPanelHeight ?? '0') >= 120;
             const terminalTabs = [...document.querySelectorAll('[data-testid="session-bottom-panel"] [role="tab"]')];
             var terminalTabMenuWorks = false;
+            var terminalTabMenuSharedSectionsWorks = false;
             var terminalTabReorderWorks = false;
             var terminalTabDragReorderWorks = false;
+            var terminalTabDragMarkerWorks = false;
+            var terminalToolbarSharedWorks = false;
+            var terminalHeaderSharedChromeWorks = false;
+            var terminalContentSpacingWorks = false;
+            var terminalResizeResetWorks = false;
+            var terminalResizeHandleOverlayWorks = false;
+            var terminalResizeKeyboardWorks = false;
+            var terminalResizeResetDebug = null;
             var terminalCloseActiveShortcutWorks = false;
+            var terminalNewTabShortcutWorks = false;
+            var terminalTabPanelA11yWorks = false;
+            var terminalFullscreenCleanupWorks = false;
+            var terminalTabTelemetryWorks = false;
+            var terminalTabLifecycleTelemetryWorks = false;
+            var terminalLinkRoutingWorks = false;
+            var terminalThemeFontSyncWorks = false;
+            var terminalThemeTokenMatrixWorks = false;
+            var terminalMoveToRightPanelWorks = false;
+            var terminalSharedTransferModelWorks = false;
+            var terminalServiceSnapshotWorks = false;
+            var terminalRightPanelNewTabShortcutWorks = false;
+            var terminalMoveBackToBottomWorks = false;
+            const activeTerminalTabForA11y = document.querySelector('[data-testid="session-bottom-panel"] [role="tab"][data-active="true"]');
+            const terminalPanelForA11y = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
+            const terminalBottomHeader = document.querySelector('[data-testid="session-bottom-panel"]');
+            const terminalTabbarForToolbar = document.querySelector('[data-testid="session-bottom-panel"] [data-testid="terminal-panel-tabstrip"]');
+            const terminalResizeHandle = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="top"]');
+            const terminalToolbarButtons = terminalTabbarForToolbar instanceof HTMLElement
+              ? [...terminalTabbarForToolbar.querySelectorAll('.panel-tab-actions .motion-icon-button')]
+                .filter((button) => button instanceof HTMLElement)
+              : [];
+            const terminalToolbarActions = terminalTabbarForToolbar instanceof HTMLElement
+              ? terminalTabbarForToolbar.querySelector('.panel-tab-actions')
+              : null;
+            const terminalToolbarTabRow = terminalTabbarForToolbar instanceof HTMLElement
+              ? terminalTabbarForToolbar.querySelector('.panel-tab-row')
+              : null;
+            const terminalToolbarActionsWidth = Number(terminalTabbarForToolbar?.getAttribute('data-panel-tab-actions-width') ?? '0');
+            const terminalToolbarScrollPaddingEnd = terminalToolbarTabRow instanceof HTMLElement
+              ? Number.parseFloat(getComputedStyle(terminalToolbarTabRow).scrollPaddingRight || '0')
+              : 0;
+            let terminalServiceSnapshotBeforeMove = null;
+            terminalHeaderSharedChromeWorks =
+              terminalBottomHeader instanceof HTMLElement &&
+              terminalBottomHeader.getAttribute('data-app-shell-panel-chrome') === 'true' &&
+              terminalBottomHeader.getAttribute('data-app-shell-panel-chrome-surface') === 'terminal' &&
+              terminalBottomHeader.classList.contains('app-shell-panel-chrome') &&
+              !terminalBottomHeader.classList.contains('terminal-panel-header') &&
+              terminalTabbarForToolbar instanceof HTMLElement &&
+              terminalTabbarForToolbar.classList.contains('panel-tab-strip') &&
+              !terminalTabbarForToolbar.classList.contains('terminal-panel-tabstrip') &&
+              !(document.querySelector('.terminal-panel-tab-row') instanceof HTMLElement);
+            terminalToolbarSharedWorks =
+              terminalTabbarForToolbar instanceof HTMLElement &&
+              terminalTabbarForToolbar.getAttribute('data-panel-toolbar') === 'true' &&
+              terminalToolbarActions instanceof HTMLElement &&
+              terminalToolbarActionsWidth >= terminalToolbarActions.getBoundingClientRect().width &&
+              terminalToolbarScrollPaddingEnd >= terminalToolbarActionsWidth &&
+              terminalTabbarForToolbar.querySelector('[role="tablist"]') instanceof HTMLElement &&
+              terminalToolbarButtons.length >= 3 &&
+              terminalToolbarButtons.every((button) =>
+                button instanceof HTMLElement &&
+                button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                button.getBoundingClientRect().width === 24 &&
+                button.getBoundingClientRect().height === 24
+              );
+            if (terminalResizeHandle instanceof HTMLElement && bottomPanelRestored instanceof HTMLElement) {
+              const resizeRect = terminalResizeHandle.getBoundingClientRect();
+              const terminalMotionPanel = terminalResizeHandle.closest('[data-motion-panel="bottom"]');
+              const terminalMotionPanelRect = terminalMotionPanel instanceof HTMLElement ? terminalMotionPanel.getBoundingClientRect() : null;
+              const terminalHeaderRectBeforeResize = bottomPanelRestored.getBoundingClientRect();
+              const startX = resizeRect.left + resizeRect.width / 2;
+              const startY = resizeRect.top + resizeRect.height / 2;
+              const heightBeforeResize = Number(bottomPanelRestored.getAttribute('data-bottom-panel-height') ?? '0');
+              terminalResizeHandleOverlayWorks =
+                terminalMotionPanelRect !== null &&
+                terminalResizeHandle.getAttribute('role') === 'separator' &&
+                resizeRect.height >= 14 &&
+                resizeRect.height <= 18 &&
+                resizeRect.top < terminalMotionPanelRect.top &&
+                Math.abs(terminalHeaderRectBeforeResize.top - terminalMotionPanelRect.top) <= 3;
+              terminalResizeHandle.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true,
+                cancelable: true,
+                pointerId: 41,
+                pointerType: 'mouse',
+                clientX: startX,
+                clientY: startY
+              }));
+              window.dispatchEvent(new PointerEvent('pointermove', {
+                bubbles: true,
+                cancelable: true,
+                pointerId: 41,
+                pointerType: 'mouse',
+                clientX: startX,
+                clientY: startY - 80
+              }));
+              window.dispatchEvent(new PointerEvent('pointerup', {
+                bubbles: true,
+                cancelable: true,
+                pointerId: 41,
+                pointerType: 'mouse',
+                clientX: startX,
+                clientY: startY - 80
+              }));
+              await sleep(220);
+              const terminalBottomHeaderAfterResize = document.querySelector('[data-testid="session-bottom-panel"]');
+              const heightAfterResize = Number(terminalBottomHeaderAfterResize?.getAttribute('data-bottom-panel-height') ?? '0');
+              const terminalResizeHandleForReset = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="top"]');
+              if (terminalResizeHandleForReset instanceof HTMLElement) {
+                terminalResizeHandleForReset.dispatchEvent(new MouseEvent('dblclick', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: startX,
+                  clientY: startY
+                }));
+              }
+              await sleep(220);
+              const terminalBottomHeaderAfterReset = document.querySelector('[data-testid="session-bottom-panel"]');
+              const heightAfterReset = Number(terminalBottomHeaderAfterReset?.getAttribute('data-bottom-panel-height') ?? '0');
+              const terminalResizeHandleForKeyboard = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="top"]');
+              let heightAfterKeyboard = 0;
+              let heightAfterKeyboardReset = 0;
+              if (terminalResizeHandleForKeyboard instanceof HTMLElement) {
+                terminalResizeHandleForKeyboard.focus();
+                terminalResizeHandleForKeyboard.dispatchEvent(new KeyboardEvent('keydown', {
+                  bubbles: true,
+                  cancelable: true,
+                  key: 'ArrowUp'
+                }));
+                await sleep(160);
+                const terminalBottomHeaderAfterKeyboard = document.querySelector('[data-testid="session-bottom-panel"]');
+                heightAfterKeyboard = Number(terminalBottomHeaderAfterKeyboard?.getAttribute('data-bottom-panel-height') ?? '0');
+                const terminalResizeHandleForKeyboardReset = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="top"]');
+                if (terminalResizeHandleForKeyboardReset instanceof HTMLElement) {
+                  terminalResizeHandleForKeyboardReset.dispatchEvent(new KeyboardEvent('keydown', {
+                    bubbles: true,
+                    cancelable: true,
+                    key: 'Enter'
+                  }));
+                }
+                await sleep(160);
+                const terminalBottomHeaderAfterKeyboardReset = document.querySelector('[data-testid="session-bottom-panel"]');
+                heightAfterKeyboardReset = Number(terminalBottomHeaderAfterKeyboardReset?.getAttribute('data-bottom-panel-height') ?? '0');
+                terminalResizeKeyboardWorks =
+                  terminalResizeHandleForKeyboard.getAttribute('tabindex') === '0' &&
+                  terminalResizeHandleForKeyboard.getAttribute('aria-valuemin') === '120' &&
+                  Number(terminalResizeHandleForKeyboard.getAttribute('aria-valuemax') ?? '0') >= 260 &&
+                  Math.abs(heightAfterKeyboard - heightAfterReset) >= 8 &&
+                  Math.abs(heightAfterKeyboardReset - 260) <= 4;
+              }
+              terminalResizeResetDebug = {
+                resizeHandleFound: true,
+                resetHandleFound: terminalResizeHandleForReset instanceof HTMLElement,
+                keyboardHandleFound: terminalResizeHandleForKeyboard instanceof HTMLElement,
+                role: terminalResizeHandle.getAttribute('role'),
+                ariaOrientation: terminalResizeHandle.getAttribute('aria-orientation'),
+                resizeEdge: terminalResizeHandle.getAttribute('data-app-shell-resize-edge'),
+                tabIndex: terminalResizeHandleForKeyboard instanceof HTMLElement ? terminalResizeHandleForKeyboard.getAttribute('tabindex') : null,
+                ariaValueNow: terminalResizeHandleForKeyboard instanceof HTMLElement ? terminalResizeHandleForKeyboard.getAttribute('aria-valuenow') : null,
+                ariaValueMin: terminalResizeHandleForKeyboard instanceof HTMLElement ? terminalResizeHandleForKeyboard.getAttribute('aria-valuemin') : null,
+                ariaValueMax: terminalResizeHandleForKeyboard instanceof HTMLElement ? terminalResizeHandleForKeyboard.getAttribute('aria-valuemax') : null,
+                heightBeforeResize,
+                heightAfterResize,
+                heightAfterReset,
+                heightAfterKeyboard,
+                heightAfterKeyboardReset,
+                bottomPanelContentHeight,
+                bottomPanelChromeHeight,
+                bottomPanelTotalHeight,
+                bottomPanelTargetSize,
+                resizeDelta: heightAfterResize - heightBeforeResize,
+                resetDelta: heightAfterReset - 260,
+                handleRect: {
+                  width: resizeRect.width,
+                  height: resizeRect.height,
+                  top: resizeRect.top,
+                  left: resizeRect.left
+                },
+                motionPanelRect: terminalMotionPanelRect === null ? null : {
+                  top: terminalMotionPanelRect.top,
+                  height: terminalMotionPanelRect.height
+                },
+                headerRectBeforeResize: {
+                  top: terminalHeaderRectBeforeResize.top,
+                  height: terminalHeaderRectBeforeResize.height
+                }
+              };
+              terminalResizeResetWorks =
+                terminalResizeHandle.getAttribute('role') === 'separator' &&
+                terminalResizeHandle.getAttribute('aria-orientation') === 'horizontal' &&
+                terminalResizeHandle.getAttribute('data-app-shell-resize-handle') === 'true' &&
+                terminalResizeHandle.getAttribute('data-app-shell-resize-edge') === 'top' &&
+                Math.abs(heightAfterResize - heightBeforeResize) >= 24 &&
+                Math.abs(heightAfterReset - 260) <= 4;
+            } else {
+              terminalResizeResetDebug = {
+                resizeHandleFound: terminalResizeHandle instanceof HTMLElement,
+                bottomPanelFound: bottomPanelRestored instanceof HTMLElement
+              };
+            }
+            if (activeTerminalTabForA11y instanceof HTMLElement && terminalPanelForA11y instanceof HTMLElement) {
+              const controls = activeTerminalTabForA11y.getAttribute('aria-controls') ?? '';
+              terminalTabPanelA11yWorks =
+                controls.length > 0 &&
+                controls === terminalPanelForA11y.id &&
+                terminalPanelForA11y.getAttribute('aria-labelledby') === activeTerminalTabForA11y.id &&
+                terminalPanelForA11y.getAttribute('data-tab-id') === bottomPanelRestored?.getAttribute('data-bottom-panel-active-tab');
+            }
+            const terminalView = document.querySelector('[data-testid="terminal-view"]');
+            if (terminalView instanceof HTMLElement) {
+              const terminalXtermContainer = terminalView.querySelector(':scope > div');
+              const terminalViewStyle = getComputedStyle(terminalView);
+              const terminalXtermContainerStyle = terminalXtermContainer instanceof HTMLElement
+                ? getComputedStyle(terminalXtermContainer)
+                : null;
+              const terminalColorProbe = document.createElement('div');
+              document.body.appendChild(terminalColorProbe);
+              const resolveTerminalSmokeColor = (value) => {
+                terminalColorProbe.style.color = value;
+                return getComputedStyle(terminalColorProbe).color;
+              };
+              const terminalThemeBackground = resolveTerminalSmokeColor(terminalView.getAttribute('data-terminal-theme-background') ?? '');
+              const terminalThemeForeground = resolveTerminalSmokeColor(terminalView.getAttribute('data-terminal-theme-foreground') ?? '');
+              terminalColorProbe.remove();
+              terminalContentSpacingWorks =
+                terminalView.getAttribute('data-terminal-line-height') === '1.2' &&
+                terminalView.getAttribute('data-terminal-content-padding') === '0 16px 12px' &&
+                terminalView.getAttribute('data-terminal-surface-background') === 'vscode-terminal-token' &&
+                terminalViewStyle.backgroundColor === terminalThemeBackground &&
+                terminalViewStyle.color === terminalThemeForeground &&
+                terminalXtermContainerStyle?.paddingTop === '0px' &&
+                terminalXtermContainerStyle?.paddingRight === '16px' &&
+                terminalXtermContainerStyle?.paddingBottom === '12px' &&
+                terminalXtermContainerStyle?.paddingLeft === '16px';
+              const visibleTerminalId = terminalView.getAttribute('data-terminal-id') ?? '';
+              const terminalServiceSnapshot = await window.api.terminal.getServiceSnapshot();
+              terminalServiceSnapshotBeforeMove = terminalServiceSnapshot;
+              const visibleTerminalSessionSnapshot = terminalServiceSnapshot.sessions.find((session) => session.terminalId === visibleTerminalId);
+              const expectedTerminalWorkDir = sessions[0]?.workDir ?? projects[0]?.rootPath ?? '';
+              terminalServiceSnapshotWorks =
+                visibleTerminalId.length > 0 &&
+                terminalServiceSnapshot.sessionCount >= 1 &&
+                terminalServiceSnapshot.runningCount >= 1 &&
+                terminalServiceSnapshot.totalBufferLength > 0 &&
+                visibleTerminalSessionSnapshot?.status === 'running' &&
+                visibleTerminalSessionSnapshot.hasBuffer === true &&
+                visibleTerminalSessionSnapshot.bufferLength > 0 &&
+                visibleTerminalSessionSnapshot.workDir === expectedTerminalWorkDir;
+              const rootStyle = document.documentElement.style;
+              const previousTerminalFont = rootStyle.getPropertyValue('--font-mono-custom');
+              const previousTerminalFontSize = rootStyle.getPropertyValue('--font-code-size');
+              const previousTerminalBackground = rootStyle.getPropertyValue('--surface-bg');
+              const previousTerminalForeground = rootStyle.getPropertyValue('--text-primary');
+              rootStyle.setProperty('--font-mono-custom', 'Menlo, monospace');
+              rootStyle.setProperty('--font-code-size', '16px');
+              rootStyle.setProperty('--surface-bg', '#101820');
+              rootStyle.setProperty('--text-primary', '#f1f5f9');
+              await sleep(260);
+              const terminalViewAfterAppearanceChange = document.querySelector('[data-testid="terminal-view"]');
+              terminalThemeFontSyncWorks =
+                terminalViewAfterAppearanceChange instanceof HTMLElement &&
+                terminalViewAfterAppearanceChange.getAttribute('data-terminal-appearance-sync') === 'theme-font' &&
+                terminalViewAfterAppearanceChange.getAttribute('data-terminal-font-family')?.includes('Menlo') === true &&
+                terminalViewAfterAppearanceChange.getAttribute('data-terminal-font-size') === '16' &&
+                terminalViewAfterAppearanceChange.getAttribute('data-terminal-theme-background') === '#101820' &&
+                terminalViewAfterAppearanceChange.getAttribute('data-terminal-theme-foreground') === '#f1f5f9';
+              const terminalThemeTokens = [
+                ['--vscode-terminal-background', 'rgb(11, 12, 13)', 'background'],
+                ['--vscode-terminal-foreground', 'rgb(244, 245, 246)', 'foreground'],
+                ['--vscode-terminal-selectionBackground', 'rgb(31, 80, 120)', 'selectionBackground'],
+                ['--vscode-terminal-inactiveSelectionBackground', 'rgb(26, 52, 78)', 'selectionInactiveBackground'],
+                ['--vscode-terminal-ansiBlack', 'rgb(1, 2, 3)', 'black'],
+                ['--vscode-terminal-ansiRed', 'rgb(101, 2, 3)', 'red'],
+                ['--vscode-terminal-ansiGreen', 'rgb(2, 102, 3)', 'green'],
+                ['--vscode-terminal-ansiYellow', 'rgb(122, 92, 4)', 'yellow'],
+                ['--vscode-terminal-ansiBlue', 'rgb(4, 52, 122)', 'blue'],
+                ['--vscode-terminal-ansiMagenta', 'rgb(92, 4, 122)', 'magenta'],
+                ['--vscode-terminal-ansiCyan', 'rgb(4, 112, 122)', 'cyan'],
+                ['--vscode-terminal-ansiWhite', 'rgb(210, 211, 212)', 'white'],
+                ['--vscode-terminal-ansiBrightBlack', 'rgb(91, 92, 93)', 'brightBlack'],
+                ['--vscode-terminal-ansiBrightRed', 'rgb(211, 72, 73)', 'brightRed'],
+                ['--vscode-terminal-ansiBrightGreen', 'rgb(72, 212, 73)', 'brightGreen'],
+                ['--vscode-terminal-ansiBrightYellow', 'rgb(222, 192, 74)', 'brightYellow'],
+                ['--vscode-terminal-ansiBrightBlue', 'rgb(74, 132, 222)', 'brightBlue'],
+                ['--vscode-terminal-ansiBrightMagenta', 'rgb(192, 74, 222)', 'brightMagenta'],
+                ['--vscode-terminal-ansiBrightCyan', 'rgb(74, 212, 222)', 'brightCyan'],
+                ['--vscode-terminal-ansiBrightWhite', 'rgb(250, 251, 252)', 'brightWhite']
+              ];
+              const previousTerminalThemeTokens = terminalThemeTokens.map(([token]) => [token, rootStyle.getPropertyValue(token)]);
+              for (const [token, value] of terminalThemeTokens) rootStyle.setProperty(token, value);
+              await sleep(260);
+              const terminalViewAfterTokenMatrixChange = document.querySelector('[data-testid="terminal-view"]');
+              let terminalThemeMatrix = null;
+              try {
+                terminalThemeMatrix = JSON.parse(terminalViewAfterTokenMatrixChange?.getAttribute('data-terminal-theme-token-matrix') ?? 'null');
+              } catch {
+                terminalThemeMatrix = null;
+              }
+              terminalThemeTokenMatrixWorks =
+                terminalViewAfterTokenMatrixChange instanceof HTMLElement &&
+                terminalThemeMatrix !== null &&
+                terminalThemeTokens.every(([, value, key]) => terminalThemeMatrix[key] === value) &&
+                terminalThemeMatrix.cursor === 'rgb(244, 245, 246)';
+              for (const [token, value] of previousTerminalThemeTokens) {
+                if (value) rootStyle.setProperty(token, value);
+                else rootStyle.removeProperty(token);
+              }
+              if (previousTerminalFont) rootStyle.setProperty('--font-mono-custom', previousTerminalFont);
+              else rootStyle.removeProperty('--font-mono-custom');
+              if (previousTerminalFontSize) rootStyle.setProperty('--font-code-size', previousTerminalFontSize);
+              else rootStyle.removeProperty('--font-code-size');
+              if (previousTerminalBackground) rootStyle.setProperty('--surface-bg', previousTerminalBackground);
+              else rootStyle.removeProperty('--surface-bg');
+              if (previousTerminalForeground) rootStyle.setProperty('--text-primary', previousTerminalForeground);
+              else rootStyle.removeProperty('--text-primary');
+              await sleep(120);
+              const beforeShortcutTabs = (document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '')
+                .split(',')
+                .filter(Boolean).length;
+              terminalView.dispatchEvent(new KeyboardEvent('keydown', {
+                key: 't',
+                code: 'KeyT',
+                metaKey: true,
+                bubbles: true,
+                cancelable: true
+              }));
+              await sleep(220);
+              const afterShortcutTabs = (document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '')
+                .split(',')
+                .filter(Boolean).length;
+              terminalNewTabShortcutWorks = afterShortcutTabs > beforeShortcutTabs;
+            }
             if (terminalTabs.length >= 2) {
               const beforeOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
               const secondTab = terminalTabs[1];
@@ -1003,10 +2196,39 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 clientY: secondTab.getBoundingClientRect().bottom + 4
               }));
               await sleep(140);
+              const terminalTabMenu = document.querySelector('.terminal-tab-context-menu');
+              const terminalTabMenuSections = terminalTabMenu instanceof HTMLElement
+                ? [...terminalTabMenu.querySelectorAll('[data-menu-section="true"]')]
+                : [];
+              const terminalTabMenuLabels = terminalTabMenu instanceof HTMLElement
+                ? [...terminalTabMenu.querySelectorAll('[data-menu-section-label="true"]')]
+                : [];
               terminalTabMenuWorks =
                 document.body.innerText.includes('Move tab left') &&
                 document.body.innerText.includes('Move tab right') &&
                 document.body.innerText.includes('Close terminal tab');
+              terminalTabMenuSharedSectionsWorks =
+                terminalTabMenu instanceof HTMLElement &&
+                terminalTabMenuSections.length >= 3 &&
+                terminalTabMenuSections.every((section) =>
+                  section instanceof HTMLElement &&
+                  section.classList.contains('orchestrator-menu-section') &&
+                  section.scrollWidth <= section.clientWidth + 2
+                ) &&
+                terminalTabMenuLabels.length >= 3 &&
+                terminalTabMenuLabels.every((label) =>
+                  label instanceof HTMLElement &&
+                  label.classList.contains('orchestrator-menu-section-label') &&
+                  getComputedStyle(label).textTransform !== 'uppercase'
+                );
+              const bottomTransferSection = terminalTabMenu instanceof HTMLElement
+                ? terminalTabMenu.querySelector('[data-testid="terminal-tab-context-menu-terminal-section"]')
+                : null;
+              terminalSharedTransferModelWorks =
+                bottomTransferSection instanceof HTMLElement &&
+                bottomTransferSection.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
+                bottomTransferSection.getAttribute('data-panel-tab-transfer-source') === 'bottom' &&
+                bottomTransferSection.getAttribute('data-panel-tab-transfer-target') === 'right';
               const moveLeft = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Move tab left'));
               if (moveLeft instanceof HTMLButtonElement) {
@@ -1021,9 +2243,29 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               if (terminalDragSource instanceof HTMLElement && terminalDragTarget instanceof HTMLElement) {
                 const beforeDragOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
                 const dataTransfer = new DataTransfer();
+                const terminalDragTargetRect = terminalDragTarget.getBoundingClientRect();
                 terminalDragSource.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
-                terminalDragTarget.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
-                terminalDragTarget.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+                terminalDragTarget.dispatchEvent(new DragEvent('dragover', {
+                  bubbles: true,
+                  cancelable: true,
+                  dataTransfer,
+                  clientX: terminalDragTargetRect.right - 1,
+                  clientY: terminalDragTargetRect.top + Math.max(1, terminalDragTargetRect.height / 2)
+                }));
+                await sleep(80);
+                const terminalDropMarkerStyle = getComputedStyle(terminalDragTarget, '::after');
+                terminalTabDragMarkerWorks =
+                  terminalDragTarget.getAttribute('data-drag-over') === 'true' &&
+                  terminalDragTarget.getAttribute('data-drop-position') === 'after' &&
+                  terminalDropMarkerStyle.content !== 'none' &&
+                  terminalDropMarkerStyle.backgroundColor !== 'rgba(0, 0, 0, 0)';
+                terminalDragTarget.dispatchEvent(new DragEvent('drop', {
+                  bubbles: true,
+                  cancelable: true,
+                  dataTransfer,
+                  clientX: terminalDragTargetRect.right - 1,
+                  clientY: terminalDragTargetRect.top + Math.max(1, terminalDragTargetRect.height / 2)
+                }));
                 terminalDragSource.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
                 await sleep(180);
                 const afterDragOrder = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
@@ -1032,9 +2274,36 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const bottomPanelBeforeClose = document.querySelector('[data-testid="session-bottom-panel"]');
               const activeTerminalTab = document.querySelector('[data-testid="session-bottom-panel"] .motion-tab-button[data-active="true"]');
               const tabsBeforeClose = bottomPanelBeforeClose?.getAttribute('data-bottom-panel-tabs') ?? '';
+              const tabCountBeforeClose = tabsBeforeClose.split(',').filter(Boolean).length;
               if (activeTerminalTab instanceof HTMLElement) {
                 activeTerminalTab.focus({ preventScroll: true });
                 await sleep(80);
+                const terminalPanelForFullscreen = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
+                const fullscreenProbe = document.createElement('div');
+                let fullscreenPatched = false;
+                const originalFullscreenDescriptor = Object.getOwnPropertyDescriptor(document, 'fullscreenElement') ??
+                  Object.getOwnPropertyDescriptor(Document.prototype, 'fullscreenElement');
+                const originalExitFullscreenDescriptor = Object.getOwnPropertyDescriptor(document, 'exitFullscreen') ??
+                  Object.getOwnPropertyDescriptor(Document.prototype, 'exitFullscreen');
+                if (terminalPanelForFullscreen instanceof HTMLElement) {
+                  terminalPanelForFullscreen.appendChild(fullscreenProbe);
+                  try {
+                    Object.defineProperty(document, 'fullscreenElement', {
+                      configurable: true,
+                      get: () => fullscreenProbe
+                    });
+                    Object.defineProperty(document, 'exitFullscreen', {
+                      configurable: true,
+                      value: () => {
+                        terminalFullscreenCleanupWorks = true;
+                        return Promise.resolve();
+                      }
+                    });
+                    fullscreenPatched = true;
+                  } catch {
+                    fullscreenPatched = false;
+                  }
+                }
                 activeTerminalTab.dispatchEvent(new KeyboardEvent('keydown', {
                   key: 'w',
                   code: 'KeyW',
@@ -1043,14 +2312,244 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   cancelable: true
                 }));
                 await sleep(220);
+                if (fullscreenPatched) {
+                  try {
+                    if (originalFullscreenDescriptor) {
+                      Object.defineProperty(document, 'fullscreenElement', originalFullscreenDescriptor);
+                    } else {
+                      delete document.fullscreenElement;
+                    }
+                    if (originalExitFullscreenDescriptor) {
+                      Object.defineProperty(document, 'exitFullscreen', originalExitFullscreenDescriptor);
+                    } else {
+                      delete document.exitFullscreen;
+                    }
+                  } catch {
+                    // Keep smoke cleanup best-effort; a failed restore should not block tab assertions.
+                  }
+                }
+                fullscreenProbe.remove();
                 const bottomPanelAfterClose = document.querySelector('[data-testid="session-bottom-panel"]');
                 const tabsAfterClose = bottomPanelAfterClose?.getAttribute('data-bottom-panel-tabs') ?? '';
+                const tabCountAfterClose = tabsAfterClose.split(',').filter(Boolean).length;
                 terminalCloseActiveShortcutWorks =
                   tabsBeforeClose.includes(',') &&
-                  !tabsAfterClose.includes(',') &&
+                  tabCountAfterClose === tabCountBeforeClose - 1 &&
                   bottomPanelAfterClose instanceof HTMLElement;
               }
             }
+            const bottomPanelForMove = document.querySelector('[data-testid="session-bottom-panel"]');
+            const moveSourceTab = document.querySelector('[data-testid="session-bottom-panel"] [role="tab"][data-tab-id]');
+            const movedTerminalId = moveSourceTab instanceof HTMLElement ? moveSourceTab.getAttribute('data-tab-id') ?? '' : '';
+            if (bottomPanelForMove instanceof HTMLElement && moveSourceTab instanceof HTMLElement && movedTerminalId.length > 0) {
+              moveSourceTab.dispatchEvent(new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: moveSourceTab.getBoundingClientRect().left + 12,
+                clientY: moveSourceTab.getBoundingClientRect().bottom + 4
+              }));
+              await sleep(140);
+              const moveToRight = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Move tab to right panel'));
+              if (moveToRight instanceof HTMLButtonElement) {
+                moveToRight.click();
+                await sleep(260);
+                const rightTerminalTabId = 'terminal:' + movedTerminalId;
+                const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+                const rightTerminalTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + rightTerminalTabId + '"]');
+                const movedRightTerminalView = document.querySelector('[data-testid="session-right-panel"] [data-testid="terminal-view"][data-terminal-id$="-' + movedTerminalId + '"]');
+                const bottomTabsAfterMove = document.querySelector('[data-testid="session-bottom-panel"]')?.getAttribute('data-bottom-panel-tabs') ?? '';
+                const terminalServiceSnapshotAfterRightMove = await window.api.terminal.getServiceSnapshot();
+                const movedTerminalServiceSnapshot = terminalServiceSnapshotAfterRightMove.sessions.find((session) => session.terminalId.endsWith('-' + movedTerminalId));
+                terminalServiceSnapshotWorks =
+                  terminalServiceSnapshotWorks &&
+                  terminalServiceSnapshotAfterRightMove.sessionCount >= 1 &&
+                  terminalServiceSnapshotAfterRightMove.runningCount >= 1 &&
+                  terminalServiceSnapshotAfterRightMove.totalBufferLength >= (terminalServiceSnapshotBeforeMove?.totalBufferLength ?? 0) &&
+                  movedTerminalServiceSnapshot?.status === 'running' &&
+                  movedTerminalServiceSnapshot.hasBuffer === true &&
+                  movedTerminalServiceSnapshot.workDir === sessions[0]?.workDir;
+                terminalMoveToRightPanelWorks =
+                  rightPanel instanceof HTMLElement &&
+                  rightTerminalTab instanceof HTMLElement &&
+                  movedRightTerminalView instanceof HTMLElement &&
+                  rightPanel.dataset.rightPanelActiveTab === rightTerminalTabId &&
+                  !bottomTabsAfterMove.split(',').filter(Boolean).includes(movedTerminalId);
+                if (rightTerminalTab instanceof HTMLElement) {
+                  const rightTerminalTabsBeforeShortcut = [...document.querySelectorAll('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id^="terminal:"]')]
+                    .map((tab) => tab instanceof HTMLElement ? tab.getAttribute('data-tab-id') ?? '' : '')
+                    .filter(Boolean);
+                  rightTerminalTab.focus({ preventScroll: true });
+                  await sleep(80);
+                  rightTerminalTab.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 't',
+                    code: 'KeyT',
+                    metaKey: true,
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(260);
+                  const rightPanelAfterShortcut = document.querySelector('[data-testid="session-right-panel"]');
+                  const rightTerminalTabsAfterShortcut = [...document.querySelectorAll('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id^="terminal:"]')]
+                    .map((tab) => tab instanceof HTMLElement ? tab.getAttribute('data-tab-id') ?? '' : '')
+                    .filter(Boolean);
+                  const shortcutCreatedRightTerminalId = rightTerminalTabsAfterShortcut.find((tabId) => !rightTerminalTabsBeforeShortcut.includes(tabId)) ?? '';
+                  terminalRightPanelNewTabShortcutWorks =
+                    rightPanelAfterShortcut instanceof HTMLElement &&
+                    shortcutCreatedRightTerminalId.startsWith('terminal:') &&
+                    rightPanelAfterShortcut.dataset.rightPanelActiveTab === shortcutCreatedRightTerminalId;
+                  const shortcutCreatedTab = shortcutCreatedRightTerminalId
+                    ? document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + shortcutCreatedRightTerminalId + '"]')
+                    : null;
+                  if (shortcutCreatedTab instanceof HTMLElement) {
+                    shortcutCreatedTab.dispatchEvent(new MouseEvent('contextmenu', {
+                      bubbles: true,
+                      cancelable: true,
+                      clientX: shortcutCreatedTab.getBoundingClientRect().left + 12,
+                      clientY: shortcutCreatedTab.getBoundingClientRect().bottom + 4
+                    }));
+                    await sleep(140);
+                    const rightTransferSection = document.querySelector('[data-testid="workbench-tab-context-menu-terminal-section"]');
+                    terminalSharedTransferModelWorks =
+                      terminalSharedTransferModelWorks &&
+                      rightTransferSection instanceof HTMLElement &&
+                      rightTransferSection.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
+                      rightTransferSection.getAttribute('data-panel-tab-transfer-source') === 'right' &&
+                      rightTransferSection.getAttribute('data-panel-tab-transfer-target') === 'bottom';
+                    const moveShortcutToBottom = [...document.querySelectorAll('[role="menuitem"]')]
+                      .find((item) => item.textContent?.includes('Move terminal to bottom'));
+                    if (moveShortcutToBottom instanceof HTMLButtonElement) {
+                      moveShortcutToBottom.click();
+                      await sleep(260);
+                    }
+                  }
+                }
+                const originalRightTerminalTab = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + rightTerminalTabId + '"]');
+                if (originalRightTerminalTab instanceof HTMLElement) {
+                  originalRightTerminalTab.dispatchEvent(new MouseEvent('contextmenu', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: originalRightTerminalTab.getBoundingClientRect().left + 12,
+                    clientY: originalRightTerminalTab.getBoundingClientRect().bottom + 4
+                  }));
+                  await sleep(140);
+                  const moveToBottom = [...document.querySelectorAll('[role="menuitem"]')]
+                    .find((item) => item.textContent?.includes('Move terminal to bottom'));
+                  if (moveToBottom instanceof HTMLButtonElement) {
+                    moveToBottom.click();
+                    await sleep(260);
+                    const bottomPanelAfterMoveBack = document.querySelector('[data-testid="session-bottom-panel"]');
+                    const rightTerminalTabAfterMoveBack = document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + rightTerminalTabId + '"]');
+                    terminalMoveBackToBottomWorks =
+                      bottomPanelAfterMoveBack instanceof HTMLElement &&
+                      bottomPanelAfterMoveBack.getAttribute('data-bottom-panel-tabs')?.split(',').filter(Boolean).includes(movedTerminalId) === true &&
+                      bottomPanelAfterMoveBack.getAttribute('data-bottom-panel-active-tab') === movedTerminalId &&
+                      !(rightTerminalTabAfterMoveBack instanceof HTMLElement);
+                  }
+                }
+              }
+            }
+            const terminalTelemetry = await window.api.performance.snapshot();
+            terminalTabTelemetryWorks = terminalTelemetry.metrics.some((metric) =>
+              metric.name === 'panel.tab.viewed' &&
+              metric.metadata?.panelId === 'bottom' &&
+              typeof metric.metadata?.tabId === 'string'
+            );
+            terminalTabLifecycleTelemetryWorks =
+              terminalTelemetry.metrics.some((metric) =>
+                metric.name === 'panel.tab.opened' &&
+                metric.metadata?.panelId === 'bottom' &&
+                typeof metric.metadata?.tabId === 'string'
+              ) &&
+              terminalTelemetry.metrics.some((metric) =>
+                metric.name === 'panel.tab.closed' &&
+                metric.metadata?.panelId === 'bottom' &&
+                typeof metric.metadata?.tabId === 'string'
+              );
+            const terminalLinkUrl = 'http://127.0.0.1:9/terminal-link-smoke';
+            let terminalLinkView = null;
+            for (let index = 0; index < 20; index += 1) {
+              terminalLinkView = document.querySelector('[data-testid="terminal-view"]');
+              if (
+                terminalLinkView instanceof HTMLElement &&
+                terminalLinkView.getAttribute('data-terminal-link-routing') === 'app-browser' &&
+                typeof window.__orchestratorOpenTerminalUrlForSmoke === 'function'
+              ) {
+                break;
+              }
+              await sleep(100);
+            }
+            if (terminalLinkView instanceof HTMLElement && typeof window.__orchestratorOpenTerminalUrlForSmoke === 'function') {
+              window.__orchestratorOpenTerminalUrlForSmoke(terminalLinkUrl);
+              for (let index = 0; index < 30; index += 1) {
+                const route = window.__orchestratorLastTerminalBrowserRoute;
+                if (
+                  route?.url === terminalLinkUrl &&
+                  route?.rightPanelActiveTab === 'browser' &&
+                  route?.browserUrl === terminalLinkUrl &&
+                  window.__orchestratorLastTerminalUrlOpened === terminalLinkUrl
+                ) {
+                  terminalLinkRoutingWorks = true;
+                  break;
+                }
+                await sleep(120);
+              }
+            }
+          }
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'terminal-visual') {
+            const terminalButton = findButton('Toggle terminal');
+            const initialBottomPanel = document.querySelector('[data-testid="session-bottom-panel"]');
+            if (!(initialBottomPanel instanceof HTMLElement)) {
+              terminalButton?.click();
+              await sleep(700);
+            }
+            const newTerminalButton = findButton('New terminal');
+            const bottomPanelBeforeNewTab = document.querySelector('[data-testid="session-bottom-panel"]');
+            const terminalTabsBeforeNewTab = bottomPanelBeforeNewTab instanceof HTMLElement
+              ? bottomPanelBeforeNewTab.getAttribute('data-bottom-panel-tabs')?.split(',').filter(Boolean).length ?? 0
+              : 0;
+            if (newTerminalButton instanceof HTMLButtonElement && terminalTabsBeforeNewTab < 2) {
+              newTerminalButton.click();
+              await sleep(280);
+            }
+            const bottomPanelForTerminalVisual = document.querySelector('[data-testid="session-bottom-panel"]');
+            const terminalTabbarForVisual = bottomPanelForTerminalVisual instanceof HTMLElement
+              ? bottomPanelForTerminalVisual.querySelector('[data-testid="terminal-panel-tabstrip"]')
+              : null;
+            const terminalToolbarForVisual = terminalTabbarForVisual instanceof HTMLElement
+              ? terminalTabbarForVisual.querySelector('.panel-tab-actions')
+              : null;
+            const terminalTabsForVisual = bottomPanelForTerminalVisual instanceof HTMLElement
+              ? [...bottomPanelForTerminalVisual.querySelectorAll('[role="tab"]')]
+              : [];
+            const terminalViewForVisual = document.querySelector('[data-testid="terminal-view"]');
+            const terminalFailureForVisual = document.querySelector('[data-testid="terminal-failure-state"]');
+            const terminalPlainOutputForVisual = document.querySelector('[data-testid="terminal-plain-output"]');
+            var terminalVisualPanelWorks =
+              bottomPanelForTerminalVisual instanceof HTMLElement &&
+              terminalViewForVisual instanceof HTMLElement &&
+              Number(bottomPanelForTerminalVisual.getAttribute('data-bottom-panel-height') ?? '0') >= 120;
+            var terminalVisualTabsWork =
+              bottomPanelForTerminalVisual instanceof HTMLElement &&
+              terminalTabsForVisual.length >= 2 &&
+              (bottomPanelForTerminalVisual.getAttribute('data-bottom-panel-tabs') ?? '').includes(',');
+            var terminalVisualToolbarWorks =
+              terminalTabbarForVisual instanceof HTMLElement &&
+              terminalToolbarForVisual instanceof HTMLElement &&
+              terminalTabbarForVisual.getAttribute('data-panel-toolbar') === 'true' &&
+              [...terminalToolbarForVisual.querySelectorAll('.motion-icon-button')]
+                .filter((button) => button instanceof HTMLElement)
+                .length >= 3;
+            var terminalVisualHealthyContentWorks =
+              terminalFailureForVisual === null &&
+              terminalPlainOutputForVisual instanceof HTMLElement &&
+              terminalPlainOutputForVisual.textContent?.includes('Shell ready in ');
+            const activeBottomPanelForTerminalVisual = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
+            if (activeBottomPanelForTerminalVisual instanceof HTMLElement) {
+              activeBottomPanelForTerminalVisual.focus({ preventScroll: true });
+            }
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            await sleep(420);
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'inspector') {
             const sidebarButton = findButton('Toggle sidebar');
@@ -1170,7 +2669,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               rightPanelOverlay instanceof HTMLElement &&
               rightPanelOverlay.dataset.rightPanelLayout === 'overlay' &&
               rightPanelOverlayContainer instanceof HTMLElement &&
-              rightPanelOverlayContainer.classList.contains('right-sidebar-overlay') &&
+              rightPanelOverlayContainer.classList.contains('workbench-panel-overlay') &&
               primaryOverlayRect.width >= mainRowOverlayRect.width - 40 &&
               rightPanelOverlayRect.width <= mainRowOverlayRect.width - 12 &&
               rightPanelOverlayRect.right <= mainRowOverlayRect.right + 2 &&
@@ -1194,6 +2693,38 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               document.body.innerText.includes('review-base.txt') &&
               document.body.innerText.includes('after review') &&
               document.body.innerText.includes('No diff available') === false;
+            const reviewBaseSearchRow = [...document.querySelectorAll('.diff-panel-list .diff-file-row')]
+              .find((row) => row instanceof HTMLElement && row.textContent?.includes('review-base.txt'));
+            if (reviewBaseSearchRow instanceof HTMLButtonElement) {
+              reviewBaseSearchRow.click();
+              await sleep(160);
+            }
+            if (diffSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
+              setter?.call(diffSearch, 'nested note');
+              diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(180);
+            }
+            const reviewSearchRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+            const reviewSearchTreeRows = [...document.querySelectorAll('.diff-panel-list [data-workbench-tree-row="true"]')]
+              .filter((row) => row instanceof HTMLElement);
+            const reviewSearchFileRows = [...document.querySelectorAll('.diff-panel-list .diff-file-row')]
+              .filter((row) => row instanceof HTMLElement);
+            const reviewSearchSections = [...document.querySelectorAll('[data-testid="review-file-section"]')]
+              .filter((section) => section instanceof HTMLElement);
+            var reviewSearchProjectionWorks =
+              reviewBaseSearchRow instanceof HTMLButtonElement &&
+              reviewSearchRoot instanceof HTMLElement &&
+              reviewSearchRoot.getAttribute('data-review-selected-file') === 'review-base.txt' &&
+              reviewSearchRoot.getAttribute('data-review-tree-query') === 'nested note' &&
+              reviewSearchRoot.getAttribute('data-review-tree-file-count') === '1' &&
+              Number(reviewSearchRoot.getAttribute('data-review-main-file-count') ?? '0') > 1 &&
+              reviewSearchFileRows.length === 1 &&
+              reviewSearchFileRows.some((row) => row.textContent?.includes('nested note.md')) &&
+              reviewSearchTreeRows.some((row) => row.textContent?.includes('Nested Folder')) &&
+              reviewSearchSections.length > reviewSearchFileRows.length &&
+              document.querySelector('[data-testid="review-file-section"][data-review-path="review-base.txt"][data-active="true"]') instanceof HTMLElement &&
+              document.querySelector('[data-testid="review-file-section"][data-review-path="Nested Folder/nested note.md"]') instanceof HTMLElement;
             if (diffSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(diffSearch.constructor.prototype, 'value')?.set;
               setter?.call(diffSearch, 'data-preview-smoke');
@@ -1207,7 +2738,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(220);
             }
             const jsonPreviewToggle = [...document.querySelectorAll('button')]
-              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Enable rich preview');
             var reviewDiffFirstWorks =
               jsonPreviewToggle instanceof HTMLButtonElement &&
               !(document.querySelector('[data-testid="review-json-state"]') instanceof HTMLElement);
@@ -1235,7 +2766,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(220);
             }
             const csvPreviewToggle = [...document.querySelectorAll('button')]
-              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Enable rich preview');
             if (csvPreviewToggle instanceof HTMLButtonElement) {
               csvPreviewToggle.click();
               await sleep(160);
@@ -1261,7 +2792,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(220);
             }
             const documentPreviewToggle = [...document.querySelectorAll('button')]
-              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Enable rich preview');
             if (documentPreviewToggle instanceof HTMLButtonElement) {
               documentPreviewToggle.click();
               await sleep(160);
@@ -1287,7 +2818,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(220);
             }
             const notebookPreviewToggle = [...document.querySelectorAll('button')]
-              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+              .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Enable rich preview');
             if (notebookPreviewToggle instanceof HTMLButtonElement) {
               notebookPreviewToggle.click();
               await sleep(160);
@@ -1319,6 +2850,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               : [];
             const reviewPreview = document.querySelector('[data-testid="review-preview"]');
             const reviewBinaryStateRect = reviewBinaryStateElement instanceof HTMLElement ? reviewBinaryStateElement.getBoundingClientRect() : null;
+            const reviewBinaryStateStyle = reviewBinaryStateElement instanceof HTMLElement ? getComputedStyle(reviewBinaryStateElement) : null;
             const reviewPreviewRect = reviewPreview instanceof HTMLElement ? reviewPreview.getBoundingClientRect() : null;
             const reviewBinaryStateCompact = reviewBinaryStateRect !== null && reviewPreviewRect !== null &&
               reviewBinaryStateRect.top <= reviewPreviewRect.top + 24 &&
@@ -1326,8 +2858,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var reviewBinaryStateWorks =
               reviewBinaryStateElement instanceof HTMLElement &&
               reviewBinaryStateRect !== null &&
+              reviewBinaryStateStyle !== null &&
               reviewPreviewRect !== null &&
               reviewBinaryStateCompact &&
+              reviewBinaryStateElement.getAttribute('data-review-empty-state') === 'true' &&
+              (reviewBinaryStateStyle.justifyContent === 'flex-start' || reviewBinaryStateStyle.justifyContent === 'start') &&
+              (reviewBinaryStateStyle.alignItems === 'flex-start' || reviewBinaryStateStyle.alignItems === 'start') &&
               reviewBinaryStateElement.innerText.includes('Binary') &&
               document.body.innerText.includes('Binary file not shown.');
             var reviewBinaryActionsWork =
@@ -1352,9 +2888,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);
-                const filesMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
-                  .find((item) => item.textContent?.includes('Files'));
-                if (filesMenuItem instanceof HTMLElement) filesMenuItem.click();
+                const filesAction = document.querySelector('[data-testid="workbench-new-tab-action-files"]');
+                if (filesAction instanceof HTMLElement && filesAction.getAttribute('aria-disabled') !== 'true') {
+                  filesAction.click();
+                } else {
+                  const filesMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                    .find((item) => item.textContent?.includes('Files'));
+                  if (filesMenuItem instanceof HTMLElement) filesMenuItem.click();
+                }
               }
             }
             {
@@ -1369,6 +2910,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const filesEntryCount = document.querySelector('[data-testid="files-panel-toolbar"] .files-entry-count');
             var filesToolbarCompactWorks =
               filesToolbar instanceof HTMLElement &&
+              filesToolbar.getAttribute('data-panel-toolbar') === 'true' &&
               fileSearch instanceof HTMLInputElement &&
               filesToolbarActions instanceof HTMLElement &&
               filesEntryCount instanceof HTMLElement &&
@@ -1377,6 +2919,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               fileSearch.getBoundingClientRect().height <= 28 &&
               filesToolbarActions.getBoundingClientRect().height <= 26 &&
               filesToolbarActionButtons.length === 1 &&
+              filesToolbarActionButtons.every((button) =>
+                button instanceof HTMLElement &&
+                button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                button.getBoundingClientRect().width === 24 &&
+                button.getBoundingClientRect().height === 24
+              ) &&
               !findButton('Add file to chat') &&
               filesEntryCount.textContent?.trim().length > 0;
             const filesPanelBody = document.querySelector('[data-testid="files-panel-body"]');
@@ -1384,18 +2932,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const filesPanelPreview = document.querySelector('[data-testid="files-panel-preview"]');
             const filesPanelBodyRect = filesPanelBody instanceof HTMLElement ? filesPanelBody.getBoundingClientRect() : null;
             const filesPanelListRect = filesPanelList instanceof HTMLElement ? filesPanelList.getBoundingClientRect() : null;
-            const filesPanelPreviewRect = filesPanelPreview instanceof HTMLElement ? filesPanelPreview.getBoundingClientRect() : null;
-            var filesPanelStackedWorks =
+            var filesFileTabFirstLayoutWorks =
               filesPanelBody instanceof HTMLElement &&
+              filesPanelBody.getAttribute('data-files-layout') === 'file-tabs' &&
               filesPanelList instanceof HTMLElement &&
-              filesPanelPreview instanceof HTMLElement &&
+              !(filesPanelPreview instanceof HTMLElement) &&
               filesPanelBodyRect !== null &&
               filesPanelListRect !== null &&
-              filesPanelPreviewRect !== null &&
               filesPanelListRect.top >= filesPanelBodyRect.top - 2 &&
-              filesPanelPreviewRect.top >= filesPanelListRect.bottom - 2 &&
-              filesPanelPreviewRect.width >= filesPanelListRect.width - 2 &&
-              filesPanelPreviewRect.width >= 300 &&
+              filesPanelListRect.left >= filesPanelBodyRect.left - 2 &&
+              filesPanelListRect.width >= filesPanelBodyRect.width - 2 &&
               filesPanelBody.scrollWidth <= filesPanelBody.clientWidth + 2;
             if (fileSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
@@ -1416,6 +2962,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               fileSearch instanceof HTMLInputElement &&
               fileSearch.value === 'nested note';
             var filesActionMenuCompactWorks = false;
+            var workbenchFileTabWorks = false;
+            var workbenchFileTabPinWorks = false;
             const fileActionMenuButton = findButton('File actions');
             if (fileActionMenuButton instanceof HTMLButtonElement) {
               fileActionMenuButton.click();
@@ -1426,6 +2974,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               const menuItems = [...document.querySelectorAll('[role="menuitem"]')];
               const menuItemLabels = menuItems.map((item) => item.textContent?.trim() ?? '');
               const addToChatMenuItem = menuItems.find((item) => item.textContent?.includes('Add to chat'));
+              const openWorkbenchMenuItem = menuItems.find((item) => item.textContent?.includes('Open in Workbench'));
               filesActionMenuCompactWorks =
                 menuSurface instanceof HTMLElement &&
                 menuSurface.getBoundingClientRect().width <= 230 &&
@@ -1438,6 +2987,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   getComputedStyle(row).transform === 'none'
                 ) &&
                 menuItemLabels.includes('Add to chat') &&
+                menuItemLabels.includes('Open in Workbench') &&
                 menuItemLabels.includes('Copy path') &&
                 menuItemLabels.includes('Reveal file') &&
                 menuItemLabels.includes('Open file');
@@ -1464,6 +3014,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var filesHtmlPreviewWorks =
               Boolean(document.querySelector('[data-testid="workspace-html-preview"]')) &&
               !document.querySelector('[data-testid="workspace-text-preview"]');
+            var filesPreviewHeaderSharedWorks = false;
             if (fileSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'data-preview-smoke');
@@ -1477,6 +3028,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(180);
             }
             const workspaceJsonPreview = document.querySelector('[data-testid="workspace-json-preview"]');
+            const workspaceJsonPreviewHeader = document.querySelector('[data-testid="workspace-json-preview-header"]');
+            const jsonPreviewHeaderShared =
+              workspaceJsonPreviewHeader instanceof HTMLElement &&
+              workspaceJsonPreviewHeader.getAttribute('data-panel-toolbar') === 'true' &&
+              workspaceJsonPreviewHeader.getBoundingClientRect().height <= 34;
             var filesJsonPreviewWorks =
               workspaceJsonPreview instanceof HTMLElement &&
               workspaceJsonPreview.innerText.includes('JSON') &&
@@ -1496,6 +3052,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(180);
             }
             const workspaceCsvPreview = document.querySelector('[data-testid="workspace-csv-preview"]');
+            const workspaceCsvPreviewHeader = document.querySelector('[data-testid="workspace-csv-preview-header"]');
+            const csvPreviewHeaderShared =
+              workspaceCsvPreviewHeader instanceof HTMLElement &&
+              workspaceCsvPreviewHeader.getAttribute('data-panel-toolbar') === 'true' &&
+              workspaceCsvPreviewHeader.getBoundingClientRect().height <= 34;
             var filesCsvPreviewWorks =
               workspaceCsvPreview instanceof HTMLElement &&
               workspaceCsvPreview.innerText.includes('CSV') &&
@@ -1515,6 +3076,11 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(180);
             }
             const workspaceDocumentPreview = document.querySelector('[data-testid="workspace-document-preview"]');
+            const workspaceDocumentPreviewHeader = document.querySelector('[data-testid="workspace-document-preview-header"]');
+            const documentPreviewHeaderShared =
+              workspaceDocumentPreviewHeader instanceof HTMLElement &&
+              workspaceDocumentPreviewHeader.getAttribute('data-panel-toolbar') === 'true' &&
+              workspaceDocumentPreviewHeader.getBoundingClientRect().height <= 34;
             var filesDocumentPreviewWorks =
               workspaceDocumentPreview instanceof HTMLElement &&
               workspaceDocumentPreview.innerText.includes('DOCX') &&
@@ -1534,6 +3100,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(180);
             }
             const workspaceNotebookPreview = document.querySelector('[data-testid="workspace-notebook-preview"]');
+            const workspaceNotebookPreviewHeader = document.querySelector('[data-testid="workspace-notebook-preview-header"]');
+            const notebookPreviewHeaderShared =
+              workspaceNotebookPreviewHeader instanceof HTMLElement &&
+              workspaceNotebookPreviewHeader.getAttribute('data-panel-toolbar') === 'true' &&
+              workspaceNotebookPreviewHeader.getBoundingClientRect().height <= 34;
+            filesPreviewHeaderSharedWorks =
+              jsonPreviewHeaderShared &&
+              csvPreviewHeaderShared &&
+              documentPreviewHeaderShared &&
+              notebookPreviewHeaderShared;
             var filesNotebookPreviewWorks =
               workspaceNotebookPreview instanceof HTMLElement &&
               workspaceNotebookPreview.innerText.includes('Notebook') &&
@@ -1557,6 +3133,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const binaryStateButtons = binaryState instanceof HTMLElement
               ? [...binaryState.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
               : [];
+            const binaryStateSharedActionButtons = binaryState instanceof HTMLElement
+              ? [...binaryState.querySelectorAll('.orchestrator-panel-notice-actions .motion-button')]
+              : [];
             const binaryStateRect = binaryState instanceof HTMLElement ? binaryState.getBoundingClientRect() : null;
             const binaryPreviewRect = filesPanelPreview instanceof HTMLElement ? filesPanelPreview.getBoundingClientRect() : null;
             const filesBinaryStateCompact = binaryStateRect !== null && binaryPreviewRect !== null &&
@@ -1572,6 +3151,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               binaryStateButtons.includes('Open') &&
               binaryStateButtons.includes('Reveal') &&
               !document.querySelector('[data-testid="workspace-text-preview"]');
+            var filesFallbackNoticeSharedWorks =
+              binaryState instanceof HTMLElement &&
+              binaryState.getAttribute('data-panel-notice') === 'true' &&
+              binaryState.getAttribute('data-file-state') === 'default' &&
+              binaryState.classList.contains('orchestrator-panel-notice') &&
+              binaryState.querySelector('.orchestrator-panel-notice-icon') instanceof HTMLElement &&
+              binaryState.querySelector('.orchestrator-panel-notice-copy') instanceof HTMLElement &&
+              binaryState.querySelector('.orchestrator-panel-notice-code') instanceof HTMLElement &&
+              binaryState.querySelector('.orchestrator-panel-notice-actions') instanceof HTMLElement &&
+              binaryStateSharedActionButtons.length === 2 &&
+              binaryStateSharedActionButtons.every((button) => button.classList.contains('file-fallback-action'));
             if (fileSearch instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
               setter?.call(fileSearch, 'does-not-exist-smoke');
@@ -1583,14 +3173,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 const fileActionButtonAfterNoResults = findButton('File actions');
                 const emptyListState = document.querySelector('[data-testid="workspace-file-empty-list"]');
                 const emptyListStateRect = emptyListState instanceof HTMLElement ? emptyListState.getBoundingClientRect() : null;
-                return emptyListState instanceof HTMLElement &&
-                  emptyListStateRect !== null &&
-                  emptyListState.innerText.includes('No matching files') &&
-                  emptyListState.querySelector('svg') !== null &&
-                  emptyListStateRect.height <= 48 &&
-                  emptyListState.scrollWidth <= emptyListState.clientWidth + 2 &&
-                  !document.querySelector('[data-testid="workspace-text-preview"]') &&
-                  (fileActionButtonAfterNoResults instanceof HTMLButtonElement ? fileActionButtonAfterNoResults.disabled : true);
+	                return emptyListState instanceof HTMLElement &&
+	                  emptyListStateRect !== null &&
+	                  emptyListState.innerText.includes('No matching files') &&
+	                  emptyListState.getAttribute('data-workbench-tree-message') === 'true' &&
+	                  emptyListState.getAttribute('data-workbench-tree-message-state') === 'no-matches' &&
+	                  emptyListState.querySelector('svg') === null &&
+	                  emptyListStateRect.height <= 36 &&
+	                  emptyListState.scrollWidth <= emptyListState.clientWidth + 2 &&
+	                  !document.querySelector('[data-testid="workspace-text-preview"]') &&
+	                  (fileActionButtonAfterNoResults instanceof HTMLButtonElement ? fileActionButtonAfterNoResults.disabled : true);
               })();
             const fileSearchClear = document.querySelector('[data-testid="workspace-file-search-clear"]');
             if (fileSearchClear instanceof HTMLButtonElement) {
@@ -1604,6 +3196,63 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               !document.querySelector('[data-testid="workspace-file-empty-list"]') &&
               Boolean([...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('nested note.md')));
+            if (fileSearch instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(fileSearch.constructor.prototype, 'value')?.set;
+              setter?.call(fileSearch, 'nested note');
+              fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await sleep(300);
+            }
+            const workbenchFileButton = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('nested note.md'));
+            if (workbenchFileButton instanceof HTMLButtonElement) {
+              workbenchFileButton.click();
+              await sleep(160);
+            }
+            const workbenchFileActionButton = findButton('File actions');
+            if (workbenchFileActionButton instanceof HTMLButtonElement) {
+              workbenchFileActionButton.click();
+              await sleep(120);
+              const openWorkbenchMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Open in Workbench'));
+              if (openWorkbenchMenuItem instanceof HTMLElement) {
+                openWorkbenchMenuItem.click();
+                await sleep(420);
+                const fileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+                const fileTabToolbar = document.querySelector('[data-testid="workbench-file-tab-toolbar"]');
+                const fileTabToolbarActions = fileTabToolbar instanceof HTMLElement
+                  ? [...fileTabToolbar.querySelectorAll('.motion-icon-button')]
+                    .filter((button) => button instanceof HTMLElement)
+                  : [];
+                const fileTabButton = document.querySelector('[data-tab-id^="file:"]')?.closest('[role="tab"]');
+                const pinFileTabButton = findButton('Pin file tab');
+                workbenchFileTabWorks =
+                  fileTab instanceof HTMLElement &&
+                  fileTab.getAttribute('data-file-tab-host')?.endsWith('/orchestrator-automated-ui-workspace') === true &&
+                  fileTab.getAttribute('data-file-tab-path') === 'Nested Folder/nested note.md' &&
+                  fileTab.getAttribute('data-file-tab-preview') === 'true' &&
+                  fileTabToolbar instanceof HTMLElement &&
+                  fileTabToolbar.getAttribute('data-panel-toolbar') === 'true' &&
+                  fileTabToolbarActions.length >= 8 &&
+                  fileTabToolbarActions.every((button) =>
+                    button instanceof HTMLElement &&
+                    button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                    button.getBoundingClientRect().width === 24 &&
+                    button.getBoundingClientRect().height === 24
+                  ) &&
+                  fileTabButton instanceof HTMLElement &&
+                  /^file:[^:]+:.+/.test(fileTabButton.getAttribute('data-tab-id') ?? '') &&
+                  fileTabButton.getAttribute('data-preview') === 'true' &&
+                  pinFileTabButton instanceof HTMLButtonElement;
+                if (pinFileTabButton instanceof HTMLButtonElement) {
+                  pinFileTabButton.click();
+                  await sleep(140);
+                }
+                workbenchFileTabPinWorks =
+                  fileTabButton instanceof HTMLElement &&
+                  fileTabButton.getAttribute('data-preview') === 'false' &&
+                  !findButton('Pin file tab');
+              }
+            }
             const browserPanelTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
             if (browserPanelTabButton instanceof HTMLElement) {
               browserPanelTabButton.click();
@@ -1612,9 +3261,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);
-                const browserMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
-                  .find((item) => item.textContent?.includes('Browser'));
-                if (browserMenuItem instanceof HTMLElement) browserMenuItem.click();
+                const browserAction = document.querySelector('[data-testid="workbench-new-tab-action-browser"]');
+                if (browserAction instanceof HTMLElement && browserAction.getAttribute('aria-disabled') !== 'true') {
+                  browserAction.click();
+                } else {
+                  const browserMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                    .find((item) => item.textContent?.includes('Browser'));
+                  if (browserMenuItem instanceof HTMLElement) browserMenuItem.click();
+                }
               }
             }
             for (let index = 0; index < 20; index += 1) {
@@ -1668,6 +3322,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               await sleep(120);
               const findInput = document.querySelector('[data-testid="browser-find-input"]');
               if (findInput instanceof HTMLInputElement) {
+                const findToolbar = findInput.closest('.browser-find-toolbar');
                 const setter = Object.getOwnPropertyDescriptor(findInput.constructor.prototype, 'value')?.set;
                 setter?.call(findInput, 'Browser');
                 findInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1678,6 +3333,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 }
                 browserFindWorks =
                   document.activeElement === findInput &&
+                  findToolbar instanceof HTMLElement &&
+                  findToolbar.getAttribute('data-panel-toolbar') === 'true' &&
                   findInput.value === 'Browser' &&
                   Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-matches') ?? '0') > 0;
                 const nextFindButton = findButton('Next result');
@@ -1730,6 +3387,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var browserDeviceModeWorks =
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-device-mode') === 'mobile' &&
               browserViewportFrame instanceof HTMLElement &&
+              document.querySelector('[data-testid="browser-status-row"]')?.getAttribute('data-panel-toolbar') === 'true' &&
               viewportWidthBeforeRotate <= 410 &&
               browserViewportRotateWorks;
             const noCacheButton = findButton('Reload without cache');
@@ -1749,12 +3407,26 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             var browserMultiTabWorks =
               Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-tab-count') ?? '0') >= 2;
-            const browserTabs = [...document.querySelectorAll('[data-testid="browser-tab"]')];
-            const browserTabCloseButtons = [...document.querySelectorAll('[data-testid="browser-tab-close"]')];
+            const browserTabControllerId = document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-tab-controller-id') ?? '';
+            const browserTabs = browserTabControllerId
+              ? [...document.querySelectorAll(\`[role="tab"][data-app-shell-tab-controller="\${CSS.escape(browserTabControllerId)}"]\`)]
+              : [];
+            const browserTabCloseButtons = [...document.querySelectorAll('[data-testid="browser-tab-strip"] .motion-tab-close')];
+            const browserTabStrip = document.querySelector('[data-testid="browser-tab-strip"]');
+            var browserTabShellControllerWorks =
+              document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-tab-controller') === 'app-shell' &&
+              browserTabStrip instanceof HTMLElement &&
+              browserTabStrip.getAttribute('data-panel-toolbar') === 'true' &&
+              browserTabs.length >= 2 &&
+              browserTabs.every((tab) =>
+                tab instanceof HTMLElement &&
+                tab.getAttribute('data-app-shell-tab-controller') === browserTabControllerId &&
+                (tab.getAttribute('aria-controls') ?? '').startsWith('orchestrator-')
+              );
             const browserTabClosesHiddenAtRest =
               browserTabCloseButtons.length >= 1 &&
               browserTabCloseButtons.every((button) => Number.parseFloat(getComputedStyle(button).opacity || '0') < 0.25);
-            const firstBrowserClose = browserTabs[0]?.querySelector('[data-testid="browser-tab-close"]');
+            const firstBrowserClose = browserTabs[0]?.querySelector('.motion-tab-close');
             if (firstBrowserClose instanceof HTMLElement) {
               firstBrowserClose.focus({ preventScroll: true });
               await sleep(100);
@@ -1763,7 +3435,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               browserTabClosesHiddenAtRest &&
               firstBrowserClose instanceof HTMLElement &&
               Number.parseFloat(getComputedStyle(firstBrowserClose).opacity || '0') > 0.75;
-            if (browserTabs[0] instanceof HTMLButtonElement) {
+            var browserTabChromeCalmWorks =
+              browserTabStrip instanceof HTMLElement &&
+              browserTabStrip.getBoundingClientRect().height <= 34 &&
+              browserTabs.length >= 2 &&
+              browserTabs.every((tab) =>
+                tab instanceof HTMLElement &&
+                tab.getBoundingClientRect().height <= 26 &&
+                Number.parseFloat(getComputedStyle(tab).fontWeight || '0') <= 520
+              );
+            if (browserTabs[0] instanceof HTMLElement) {
               browserTabs[0].click();
               await sleep(240);
             }
@@ -1812,6 +3493,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               targetPointerPanel.open === false &&
               targetClipboardPanel instanceof HTMLDetailsElement &&
               targetClipboardPanel.open === false;
+            const browserTargetsSharedContainersWorks =
+              targetsPane instanceof HTMLElement &&
+              targetsPane.querySelectorAll('[data-inspector-section="true"]').length >= 3 &&
+              targetsPane.querySelectorAll('[data-inspector-section-title="true"]').length >= 1 &&
+              targetPointerPanel instanceof HTMLDetailsElement &&
+              targetPointerPanel.classList.contains('orchestrator-inspector-disclosure') &&
+              targetClipboardPanel instanceof HTMLDetailsElement &&
+              targetClipboardPanel.classList.contains('orchestrator-inspector-disclosure');
             const setBrowserTargetAction = async (action) => {
               const actionSelect = document.querySelector('[data-testid="browser-target-action-select"]');
               if (!(actionSelect instanceof HTMLSelectElement)) return false;
@@ -2020,6 +3709,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               browserInlineSvgRows.length > 0 &&
               browserInlineSvgRows.every((row) => row instanceof HTMLElement && row.scrollWidth <= row.clientWidth + 2) &&
               browserInlineSvgRows.some((row) => row.textContent?.includes('Inline smoke icon'));
+            const browserAssetsSharedContainersWorks =
+              browserAssetsPane instanceof HTMLElement &&
+              browserAssetsPane.querySelector('[data-testid="browser-assets-header"][data-inspector-row="true"]') instanceof HTMLElement &&
+              browserAssetsPane.querySelectorAll('[data-inspector-row="true"]').length >= browserAssetRows.length + 1 &&
+              browserAssetRows.every((row) =>
+                row instanceof HTMLElement &&
+                row.getAttribute('data-inspector-row') === 'true' &&
+                row.classList.contains('orchestrator-inspector-row')
+              ) &&
+              (!(browserInlineSvgList instanceof HTMLElement) || (
+                browserInlineSvgList.getAttribute('data-inspector-section') === 'true' &&
+                browserInlineSvgRows.every((row) => row instanceof HTMLElement && row.getAttribute('data-inspector-row') === 'true')
+              ));
             const securityInspectorButton = document.querySelector('[data-testid="browser-inspector-security"]');
             if (securityInspectorButton instanceof HTMLButtonElement) {
               securityInspectorButton.click();
@@ -2057,15 +3759,31 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 output.scrollWidth <= output.clientWidth + 2 &&
                 securityPane.scrollWidth <= securityPane.clientWidth + 2;
             })();
+            const browserSecuritySharedContainersWorks =
+              browserSecurityPane instanceof HTMLElement &&
+              browserSecurityPane.querySelectorAll('[data-inspector-section="true"]').length >= 3 &&
+              browserSecurityPane.querySelectorAll('[data-inspector-section-variant="raised"]').length >= 3 &&
+              browserSecurityRows.length === 4 &&
+              browserSecurityRows.every((row) =>
+                row instanceof HTMLElement &&
+                row.getAttribute('data-inspector-row') === 'true' &&
+                row.classList.contains('orchestrator-inspector-row')
+              );
+            var browserInspectorContainersSharedWorks =
+              browserTargetsSharedContainersWorks &&
+              browserAssetsSharedContainersWorks &&
+              browserSecuritySharedContainersWorks;
             var browserInspectorChromeCompactWorks = (() => {
               const toolbar = document.querySelector('[data-testid="browser-inspector-toolbar"]');
               const refresh = document.querySelector('[data-testid="browser-refresh-inspection"]');
               const hide = document.querySelector('[data-testid="browser-hide-inspection"]');
+              const toolbarActions = [refresh, hide].filter((button) => button instanceof HTMLElement);
               const activeTabs = document.querySelectorAll('.browser-inspector-tab[data-active="true"]');
               const activeLabel = document.querySelector('.browser-inspector-tab[data-active="true"] span');
               const inactiveLabels = [...document.querySelectorAll('.browser-inspector-tab:not([data-active="true"]) span')]
                 .filter((label) => label instanceof HTMLElement);
               return toolbar instanceof HTMLElement &&
+                toolbar.getAttribute('data-panel-toolbar') === 'true' &&
                 refresh instanceof HTMLButtonElement &&
                 hide instanceof HTMLButtonElement &&
                 activeLabel instanceof HTMLElement &&
@@ -2073,6 +3791,13 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 hide.getAttribute('aria-label') === 'Hide browser inspector' &&
                 refresh.textContent?.trim() === '' &&
                 hide.textContent?.trim() === '' &&
+                toolbarActions.length === 2 &&
+                toolbarActions.every((button) =>
+                  button instanceof HTMLElement &&
+                  button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  button.getBoundingClientRect().width === 24 &&
+                  button.getBoundingClientRect().height === 24
+                ) &&
                 activeTabs.length === 1 &&
                 getComputedStyle(activeLabel).display !== 'none' &&
                 inactiveLabels.length >= 3 &&
@@ -2087,6 +3812,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             var browserVisibilityControlWorks =
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-visible') === 'false';
+            const browserPanelAfterHide = document.querySelector('[data-testid="browser-panel"]');
+            const browserHiddenWebview = document.querySelector('[data-testid="browser-webview-hidden"]');
+            var browserHiddenWebviewPersistenceWorks =
+              browserPanelAfterHide?.getAttribute('data-browser-visible') === 'false' &&
+              Number(browserPanelAfterHide?.getAttribute('data-browser-webview-count') ?? '0') > 0 &&
+              (browserPanelAfterHide?.getAttribute('data-browser-active-webview-tab') ?? '').length > 0 &&
+              browserHiddenWebview instanceof HTMLElement &&
+              browserHiddenWebview.getAttribute('data-browser-webview-active') === 'false';
             const browserHiddenStateWorks =
               document.querySelector('[data-testid="browser-hidden-state"]') instanceof HTMLElement &&
               document.querySelector('[data-testid="browser-hidden-show"]') instanceof HTMLButtonElement;
@@ -2170,11 +3903,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             };
             await openSideChat();
             await openSideChat();
-            const sideChatTabsBeforeClose = document.querySelectorAll('[data-tab-id^="sidechat:"]').length;
+            const sideChatTabsBeforeClose = document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length;
             var sideChatTabsWork = sideChatTabsBeforeClose >= 2;
-            const sideChatTabs = [...document.querySelectorAll('[data-tab-id^="sidechat:"]')]
-              .map((label) => label.closest('[role="tab"]'))
-              .filter(Boolean);
+            const sideChatTabs = [...document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]')];
             const setNativeValue = (element, value) => {
               const setter = Object.getOwnPropertyDescriptor(element.constructor.prototype, 'value')?.set;
               setter?.call(element, value);
@@ -2243,10 +3974,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   text !== text.toUpperCase() &&
                   getComputedStyle(label).textTransform !== 'uppercase';
               });
-            const sideChatTabsBeforeCloseForClose = document.querySelectorAll('[data-tab-id^="sidechat:"]').length;
-            const closeSideChatButton = [...document.querySelectorAll('[data-tab-id^="sidechat:"]')]
+            const sideChatTabsBeforeCloseForClose = document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length;
+            const closeSideChatButton = [...document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]')]
               .at(-1)
-              ?.closest('[role="tab"]')
               ?.querySelector('[aria-label^="Close "]');
             if (closeSideChatButton instanceof HTMLElement) {
               closeSideChatButton.click();
@@ -2254,7 +3984,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
             var sideChatCloseWorks =
               sideChatTabsWork &&
-              document.querySelectorAll('[data-tab-id^="sidechat:"]').length === sideChatTabsBeforeCloseForClose - 1;
+              document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length === sideChatTabsBeforeCloseForClose - 1;
             const changesTabButton = document.querySelector('[data-tab-id="diff"]')?.closest('[role="tab"]');
             if (changesTabButton instanceof HTMLElement) {
               changesTabButton.click();
@@ -2511,7 +4241,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             permissionButton?.click();
             await sleep(140);
             const permissionMenu = document.querySelector('.motion-popover-surface');
+            const permissionDropdownSurface = document.querySelector('[data-testid="composer-dropdown-surface"]');
             var composerPermissionMenuOpened = Boolean(permissionMenu);
+            var composerDropdownMaterialWorks =
+              permissionDropdownSurface instanceof HTMLElement &&
+              permissionDropdownSurface.dataset.composerDropdownSurface === 'true' &&
+              permissionMenu instanceof HTMLElement &&
+              getComputedStyle(permissionMenu).borderRadius === '12px' &&
+              getComputedStyle(permissionMenu).boxShadow !== 'none' &&
+              getComputedStyle(permissionMenu).maxWidth !== 'none' &&
+              getComputedStyle(permissionMenu).maxHeight !== 'none';
             var composerPermissionNativeTooltipsWork = permissionMenu instanceof HTMLElement &&
               [...permissionMenu.querySelectorAll('button')]
                 .filter((button) => button.getAttribute('data-tooltip-label'))
@@ -2599,79 +4338,110 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           }
           const bodyText = document.body.innerText;
           const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
-          const rightSidebarTabbar = document.querySelector('[data-testid="right-sidebar-tabbar"]');
-          const rightSidebarTabRow = document.querySelector('[data-testid="right-sidebar-tab-row"]');
-          const rightSidebarTabActions = document.querySelector('[data-testid="right-sidebar-tab-actions"]');
-          const rightSidebarAddTabButton = document.querySelector('[data-testid="right-panel-add-tab"]');
-          const rightSidebarActiveTab = document.querySelector('[data-testid="right-sidebar-tabbar"] .motion-tab-button[data-active="true"]');
-          const rightSidebarActiveTabStyle = rightSidebarActiveTab instanceof HTMLElement
-            ? getComputedStyle(rightSidebarActiveTab)
+          const rightPanelShell = rightPanel instanceof HTMLElement
+            ? rightPanel.closest('[data-motion-panel="right"]')
             : null;
-          const rightSidebarInactiveTabs = [...document.querySelectorAll('[data-testid="right-sidebar-tabbar"] .motion-tab-button:not([data-active="true"])')]
+          const rightPanelShellOwnershipWorks =
+            rightPanel instanceof HTMLElement &&
+            rightPanelShell instanceof HTMLElement &&
+            rightPanelShell.classList.contains('app-shell-panel') &&
+            rightPanelShell.classList.contains('app-shell-panel-right') &&
+            rightPanelShell.getAttribute('data-app-shell-panel') === 'right' &&
+            rightPanelShell.getAttribute('data-app-shell-panel-surface') === 'workbench' &&
+            rightPanelShell.getAttribute('data-app-shell-focus-area') === 'right-panel' &&
+            rightPanelShell.contains(rightPanel);
+          const workbenchPanelTabbar = document.querySelector('[data-testid="workbench-panel-tabbar"]');
+          const workbenchPanelTabRow = document.querySelector('[data-testid="workbench-panel-tab-row"]');
+          const workbenchPanelTabActions = document.querySelector('[data-testid="workbench-panel-tab-actions"]');
+          const workbenchPanelAddTabButton = document.querySelector('[data-testid="right-panel-add-tab"]');
+          const workbenchPanelActiveTab = document.querySelector('[data-testid="workbench-panel-tabbar"] .motion-tab-button[data-active="true"]');
+          const workbenchPanelActiveTabStyle = workbenchPanelActiveTab instanceof HTMLElement
+            ? getComputedStyle(workbenchPanelActiveTab)
+            : null;
+          const workbenchPanelInactiveTabs = [...document.querySelectorAll('[data-testid="workbench-panel-tabbar"] .motion-tab-button:not([data-active="true"])')]
             .filter((tab) => tab instanceof HTMLElement);
-          const rightSidebarActiveLabel = rightSidebarActiveTab instanceof HTMLElement
-            ? rightSidebarActiveTab.querySelector('.right-sidebar-tab-label')
+          const workbenchPanelActiveLabel = workbenchPanelActiveTab instanceof HTMLElement
+            ? workbenchPanelActiveTab.querySelector('.panel-tab-label')
             : null;
-          const rightSidebarInactiveLabels = rightSidebarInactiveTabs
-            .map((tab) => tab.querySelector('.right-sidebar-tab-label'))
+          const workbenchPanelInactiveLabels = workbenchPanelInactiveTabs
+            .map((tab) => tab.querySelector('.panel-tab-label'))
             .filter((label) => label instanceof HTMLElement);
-          const rightSidebarChromeCompactWorks =
-            rightSidebarTabbar instanceof HTMLElement &&
-            rightSidebarTabRow instanceof HTMLElement &&
-            rightSidebarTabActions instanceof HTMLElement &&
-            rightSidebarActiveTab instanceof HTMLElement &&
-            rightSidebarActiveTabStyle !== null &&
-            rightSidebarTabbar.getBoundingClientRect().height <= 42 &&
-            rightSidebarTabRow.scrollWidth <= rightSidebarTabRow.clientWidth + 64 &&
-            rightSidebarTabActions.getBoundingClientRect().height <= 30;
-          const rightSidebarChromeCompactDebug = {
-            tabbarHeight: rightSidebarTabbar instanceof HTMLElement ? rightSidebarTabbar.getBoundingClientRect().height : null,
-            tabbarScrollWidth: rightSidebarTabbar instanceof HTMLElement ? rightSidebarTabbar.scrollWidth : null,
-            tabbarClientWidth: rightSidebarTabbar instanceof HTMLElement ? rightSidebarTabbar.clientWidth : null,
-            tabRowScrollWidth: rightSidebarTabRow instanceof HTMLElement ? rightSidebarTabRow.scrollWidth : null,
-            tabRowClientWidth: rightSidebarTabRow instanceof HTMLElement ? rightSidebarTabRow.clientWidth : null,
-            tabActionsHeight: rightSidebarTabActions instanceof HTMLElement ? rightSidebarTabActions.getBoundingClientRect().height : null,
-            hasActiveTab: rightSidebarActiveTab instanceof HTMLElement,
-            hasActiveTabStyle: rightSidebarActiveTabStyle !== null
+          var rightPanelMenuCommandStateWorks = false;
+          var rightPanelMenuCommandStateDebug = null;
+          const workbenchPanelChromeCompactWorks =
+            workbenchPanelTabbar instanceof HTMLElement &&
+            workbenchPanelTabRow instanceof HTMLElement &&
+            workbenchPanelTabActions instanceof HTMLElement &&
+            workbenchPanelActiveTab instanceof HTMLElement &&
+            workbenchPanelActiveTabStyle !== null &&
+            workbenchPanelTabbar.getBoundingClientRect().height <= 42 &&
+            workbenchPanelTabRow.scrollWidth <= workbenchPanelTabRow.clientWidth + 64 &&
+            workbenchPanelTabActions.getBoundingClientRect().height <= 30;
+          const workbenchPanelChromeCompactDebug = {
+            tabbarHeight: workbenchPanelTabbar instanceof HTMLElement ? workbenchPanelTabbar.getBoundingClientRect().height : null,
+            tabbarScrollWidth: workbenchPanelTabbar instanceof HTMLElement ? workbenchPanelTabbar.scrollWidth : null,
+            tabbarClientWidth: workbenchPanelTabbar instanceof HTMLElement ? workbenchPanelTabbar.clientWidth : null,
+            tabRowScrollWidth: workbenchPanelTabRow instanceof HTMLElement ? workbenchPanelTabRow.scrollWidth : null,
+            tabRowClientWidth: workbenchPanelTabRow instanceof HTMLElement ? workbenchPanelTabRow.clientWidth : null,
+            tabActionsHeight: workbenchPanelTabActions instanceof HTMLElement ? workbenchPanelTabActions.getBoundingClientRect().height : null,
+            hasActiveTab: workbenchPanelActiveTab instanceof HTMLElement,
+            hasActiveTabStyle: workbenchPanelActiveTabStyle !== null
           };
-          const rightSidebarTrailingFadeStyle = rightSidebarTabActions instanceof HTMLElement
-            ? getComputedStyle(rightSidebarTabActions, '::before')
+          const workbenchPanelTrailingFadeStyle = workbenchPanelTabActions instanceof HTMLElement
+            ? getComputedStyle(workbenchPanelTabActions, '::before')
             : null;
-          const rightSidebarTrailingFadeWorks =
-            rightSidebarTrailingFadeStyle !== null &&
-            rightSidebarTrailingFadeStyle.content !== 'none' &&
-            rightSidebarTrailingFadeStyle.backgroundImage.includes('linear-gradient') &&
-            Number.parseFloat(rightSidebarTrailingFadeStyle.width || '0') >= 16 &&
-            rightSidebarTrailingFadeStyle.pointerEvents === 'none';
-          const rightSidebarAddControlStableWorks =
-            rightSidebarAddTabButton instanceof HTMLButtonElement &&
-            rightSidebarAddTabButton.getAttribute('aria-label') === 'Add Workbench tab' &&
-            rightSidebarAddTabButton.getAttribute('data-icon') === 'plus' &&
-            rightSidebarTabActions instanceof HTMLElement &&
-            rightSidebarTabActions.querySelectorAll('.motion-icon-button').length === 2;
-          let rightSidebarAddMenuStableWorks = false;
-          if (rightSidebarAddTabButton instanceof HTMLButtonElement) {
-            rightSidebarAddTabButton.click();
+          const workbenchPanelTrailingFadeWorks =
+            workbenchPanelTrailingFadeStyle !== null &&
+            workbenchPanelTrailingFadeStyle.content !== 'none' &&
+            workbenchPanelTrailingFadeStyle.backgroundImage.includes('linear-gradient') &&
+            Number.parseFloat(workbenchPanelTrailingFadeStyle.width || '0') >= 16 &&
+            workbenchPanelTrailingFadeStyle.pointerEvents === 'none';
+          const workbenchPanelAddControlStableWorks =
+            workbenchPanelAddTabButton instanceof HTMLButtonElement &&
+            workbenchPanelAddTabButton.getAttribute('aria-label') === 'Add Workbench tab' &&
+            workbenchPanelAddTabButton.getAttribute('data-icon') === 'plus' &&
+            workbenchPanelTabActions instanceof HTMLElement &&
+            workbenchPanelTabActions.querySelectorAll('.motion-icon-button').length === 2;
+          let workbenchPanelNewTabPageWorks = false;
+          if (workbenchPanelAddTabButton instanceof HTMLButtonElement) {
+            const previousRightPanelActiveTabId = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+            workbenchPanelAddTabButton.click();
             await sleep(120);
-            const toolMenuItems = [...document.querySelectorAll('[role="menuitem"]')]
-              .filter((item) => item.textContent?.includes('Browser') || item.textContent?.includes('Files'));
-            rightSidebarAddMenuStableWorks =
-              toolMenuItems.length === 2 &&
-              toolMenuItems.every((item) => item instanceof HTMLButtonElement && item.disabled);
-            rightSidebarAddTabButton.click();
-            await sleep(80);
+            const newTabPanel = document.querySelector('[data-testid="workbench-new-tab-panel"]');
+            const newTabGrid = document.querySelector('[data-testid="workbench-new-tab-action-grid"]');
+            const newTabActions = [...document.querySelectorAll('[data-workbench-new-tab-action]')]
+              .map((action) => action.getAttribute('data-workbench-new-tab-action'))
+              .filter(Boolean);
+            const newTabActive = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'new-tab';
+            workbenchPanelNewTabPageWorks =
+              newTabActive &&
+              newTabPanel instanceof HTMLElement &&
+              newTabGrid instanceof HTMLElement &&
+              newTabActions.includes('files') &&
+              newTabActions.includes('side-chat') &&
+              newTabActions.includes('browser') &&
+              newTabActions.includes('review') &&
+              newTabActions.includes('terminal');
+            const restoreTabId = previousRightPanelActiveTabId && previousRightPanelActiveTabId !== 'new-tab'
+              ? previousRightPanelActiveTabId
+              : 'browser';
+            const restoreTabButton = document.querySelector('[data-tab-id="' + restoreTabId + '"]')?.closest('[role="tab"]');
+            if (restoreTabButton instanceof HTMLElement) {
+              restoreTabButton.click();
+              await sleep(100);
+            }
           }
-          const rightSidebarInactiveTabsCompactWorks =
-            rightSidebarActiveTab instanceof HTMLElement &&
-            rightSidebarActiveLabel instanceof HTMLElement &&
-            getComputedStyle(rightSidebarActiveLabel).display !== 'none' &&
-            rightSidebarInactiveTabs.length >= 2 &&
-            rightSidebarInactiveLabels.length === rightSidebarInactiveTabs.length &&
-            rightSidebarInactiveLabels.every((label) => getComputedStyle(label).display !== 'none') &&
-            rightSidebarInactiveTabs.every((tab) => (tab.getAttribute('aria-label') ?? '').trim().length > 0) &&
-            rightSidebarInactiveTabs.every((tab) => tab.getBoundingClientRect().width >= 44);
-          let rightSidebarInactiveTabTooltipWorks = false;
-          const inactiveBrowserTab = rightSidebarInactiveTabs.find((tab) => tab.getAttribute('aria-label') === 'Browser') ?? rightSidebarInactiveTabs[0];
+          const workbenchPanelInactiveTabsCompactWorks =
+            workbenchPanelActiveTab instanceof HTMLElement &&
+            workbenchPanelActiveLabel instanceof HTMLElement &&
+            getComputedStyle(workbenchPanelActiveLabel).display !== 'none' &&
+            workbenchPanelInactiveTabs.length >= 2 &&
+            workbenchPanelInactiveLabels.length === workbenchPanelInactiveTabs.length &&
+            workbenchPanelInactiveLabels.every((label) => getComputedStyle(label).display !== 'none') &&
+            workbenchPanelInactiveTabs.every((tab) => (tab.getAttribute('aria-label') ?? '').trim().length > 0) &&
+            workbenchPanelInactiveTabs.every((tab) => tab.getBoundingClientRect().width >= 44);
+          let workbenchPanelInactiveTabTooltipWorks = false;
+          const inactiveBrowserTab = workbenchPanelInactiveTabs.find((tab) => tab.getAttribute('aria-label') === 'Browser') ?? workbenchPanelInactiveTabs[0];
           if (inactiveBrowserTab instanceof HTMLElement) {
             const expectedTooltip = inactiveBrowserTab.getAttribute('aria-label') ?? '';
             const inactiveTabRect = inactiveBrowserTab.getBoundingClientRect();
@@ -2702,7 +4472,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               tooltipColorAlpha(tooltipStyle.color) >= 0.98 &&
               Number.parseFloat(tooltipStyle.opacity || '1') >= 0.95 &&
               tooltipStyle.visibility !== 'hidden';
-            rightSidebarInactiveTabTooltipWorks =
+            workbenchPanelInactiveTabTooltipWorks =
               expectedTooltip.length > 0 &&
               visibleTooltips.length === 1 &&
               visibleTooltip instanceof HTMLElement &&
@@ -2713,53 +4483,387 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             await sleep(80);
           }
           const diffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
-          const diffToolbarSearch = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-panel-search');
+          const reviewHeaderTabbar = document.querySelector('[data-testid="workbench-panel-tabbar"]');
+          const reviewSourceSummary = document.querySelector('[data-testid="review-source-summary"]');
+          const diffPanelSearchRow = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-file-search-row');
+          const diffPanelSearch = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-search');
           const diffToolbarSearchInput = document.querySelector('[data-testid="diff-file-search"]');
           const diffToolbarActions = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-panel-actions');
           const diffToolbarActionButtons = diffToolbarActions instanceof HTMLElement
             ? [...diffToolbarActions.querySelectorAll('.motion-icon-button')]
             : [];
-          const diffFileCount = document.querySelector('[data-testid="diff-panel-toolbar"] .diff-file-count');
-          const diffSearchClearForCapture = document.querySelector('[data-testid="diff-file-search-clear"]');
+          const reviewToolbarActionStrip = document.querySelector('[data-testid="review-toolbar-action-strip"]');
+          const diffToolbarVisibleButtons = reviewToolbarActionStrip instanceof HTMLElement
+            ? [...reviewToolbarActionStrip.querySelectorAll('button')].filter((button) => {
+                if (!(button instanceof HTMLElement)) return false;
+                const rect = button.getBoundingClientRect();
+                const style = getComputedStyle(button);
+                return rect.width >= 18 &&
+                  rect.height >= 18 &&
+                  style.display !== 'none' &&
+                  style.visibility !== 'hidden' &&
+                  Number.parseFloat(style.opacity || '1') >= 0.95;
+              })
+            : [];
+          const reviewToolbarExpectedLabels = ['Review options', 'Jump to file', 'Refresh'];
+          const reviewToolbarVisibleLabels = diffToolbarVisibleButtons.map((button) => button.getAttribute('aria-label') ?? '');
+          const reviewToolbarPrimaryOrderWorks =
+            reviewToolbarActionStrip instanceof HTMLElement &&
+            reviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
+            reviewToolbarExpectedLabels.every((label, index) => reviewToolbarVisibleLabels[index] === label) &&
+            reviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
+            reviewToolbarVisibleLabels.some((label) => label.includes('diffs')) &&
+            reviewToolbarVisibleLabels.some((label) => label.includes('diff')) &&
+            !reviewToolbarVisibleLabels.includes('Change actions');
+          const diffToolbarDivider = document.querySelector('[data-testid="diff-panel-toolbar"] .review-toolbar-divider');
+          const diffToolbarLegacyChangeActions = document.querySelector('[data-testid="diff-panel-toolbar"] button[aria-label="Change actions"]');
           const diffPanelList = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list');
+          const diffPanelBody = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-body');
+          const diffChangedFilesPane = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-changed-files-pane');
+          const diffPreviewPane = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-preview-pane');
+          const primaryTextDiffRow =
+            document.querySelector('.diff-panel-root[data-embedded="true"] [data-review-path="data-preview-smoke.json"]') ??
+            [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-row, .diff-panel-root[data-embedded="true"] button')]
+              .find((candidate) => candidate.textContent?.includes('data-preview-smoke.json'));
+          if (primaryTextDiffRow instanceof HTMLElement) {
+            primaryTextDiffRow.click();
+            await sleep(220);
+          }
+          const reviewFilesStack = document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-files-stack"]');
+          const reviewFileSections = [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] [data-testid="review-file-section"]')]
+            .filter((section) => section instanceof HTMLElement);
+          const activeReviewFileSection = document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-file-section"][data-active="true"]');
+          const diffPanelSearchRowRect = diffPanelSearchRow instanceof HTMLElement ? diffPanelSearchRow.getBoundingClientRect() : null;
+          const diffPanelListRect = diffPanelList instanceof HTMLElement ? diffPanelList.getBoundingClientRect() : null;
+          const diffChangedFilesPaneRect = diffChangedFilesPane instanceof HTMLElement ? diffChangedFilesPane.getBoundingClientRect() : null;
+          const diffPreviewPaneRect = diffPreviewPane instanceof HTMLElement ? diffPreviewPane.getBoundingClientRect() : null;
           const diffPanelRows = [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-row')]
             .filter((row) => row instanceof HTMLElement);
           const diffPanelDirLabels = [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-dir')]
             .filter((label) => label instanceof HTMLElement);
           const diffPanelStats = [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-stats')]
             .filter((label) => label instanceof HTMLElement);
+          const reviewFileTreeGitLaneRows = diffPanelRows.filter((row) =>
+            row instanceof HTMLElement &&
+            row.getAttribute('data-workbench-has-git-lane') === 'true'
+          );
           const diffToolbarRect = diffToolbar instanceof HTMLElement ? diffToolbar.getBoundingClientRect() : null;
-          const diffSearchRect = diffToolbarSearch instanceof HTMLElement ? diffToolbarSearch.getBoundingClientRect() : null;
-          const diffToolbarSearchDominant =
-            diffToolbarRect !== null &&
+          const workbenchPanelTabbarRect = reviewHeaderTabbar instanceof HTMLElement ? reviewHeaderTabbar.getBoundingClientRect() : null;
+          const reviewSourceSummaryRect = reviewSourceSummary instanceof HTMLElement ? reviewSourceSummary.getBoundingClientRect() : null;
+          const diffSearchRect = diffPanelSearch instanceof HTMLElement ? diffPanelSearch.getBoundingClientRect() : null;
+          const reviewSourceSummaryHeaderWorks =
+            reviewSourceSummary instanceof HTMLElement &&
+            reviewSourceSummaryRect !== null &&
+            reviewSourceSummary.getAttribute('data-review-source-active') === 'all' &&
+            Number(reviewSourceSummary.getAttribute('data-review-source-summary-count') ?? '0') >= 1 &&
+            (reviewSourceSummary.textContent ?? '').includes('All changes') &&
+            reviewSourceSummaryRect.height <= 28;
+          const diffPaneSearchWorks =
+            diffPanelSearchRow instanceof HTMLElement &&
             diffSearchRect !== null &&
-            diffSearchRect.width >= Math.min(180, diffToolbarRect.width * 0.52);
+            diffToolbarSearchInput instanceof HTMLInputElement &&
+            diffToolbarSearchInput.placeholder === 'Filter files…' &&
+            Number.parseFloat(getComputedStyle(diffPanelSearchRow).paddingBottom) <= 1.5 &&
+            diffSearchRect.width >= Math.min(120, diffPanelSearchRow.getBoundingClientRect().width * 0.78);
           const diffToolbarCompactWorks =
             diffToolbar instanceof HTMLElement &&
-            diffToolbarSearch instanceof HTMLElement &&
+            diffToolbar.getAttribute('data-panel-toolbar') === 'true' &&
+            diffPanelSearch instanceof HTMLElement &&
             diffToolbarSearchInput instanceof HTMLInputElement &&
             diffToolbarActions instanceof HTMLElement &&
-            diffFileCount instanceof HTMLElement &&
-            diffSearchClearForCapture instanceof HTMLButtonElement &&
             diffToolbar.getBoundingClientRect().height <= 38 &&
             diffToolbar.scrollWidth <= diffToolbar.clientWidth + 2 &&
-            diffToolbarSearch.getBoundingClientRect().height <= 28 &&
+            !(diffToolbarDivider instanceof HTMLElement) &&
+            !(diffToolbarLegacyChangeActions instanceof HTMLElement) &&
+            diffPanelSearch.getBoundingClientRect().height <= 30 &&
+            diffPanelSearchRow instanceof HTMLElement &&
+            !diffPanelSearchRow.querySelector('.diff-file-count') &&
             diffToolbarActions.getBoundingClientRect().height <= 26 &&
-            diffToolbarActionButtons.length === 1 &&
+            diffToolbarActionButtons.length >= 1 &&
+            diffToolbarActionButtons.length <= 2 &&
+            diffToolbarActionButtons.every((button) =>
+              button instanceof HTMLElement &&
+              button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+              button.getBoundingClientRect().width === 24 &&
+              button.getBoundingClientRect().height === 24
+            ) &&
             !diffToolbar.querySelector('.toolbar-button') &&
-            diffToolbarSearchDominant &&
-            diffFileCount.textContent?.includes('file') === true;
+            diffPaneSearchWorks &&
+            !diffToolbar.querySelector('[data-testid="diff-file-search"]');
+          const reviewToolbarHeaderRowWorks =
+            diffToolbarRect !== null &&
+            workbenchPanelTabbarRect !== null &&
+            reviewSourceSummaryHeaderWorks &&
+            reviewToolbarPrimaryOrderWorks &&
+            diffToolbarVisibleButtons.length >= 6 &&
+            diffToolbarRect.top >= workbenchPanelTabbarRect.bottom - 1 &&
+            diffToolbarRect.top <= workbenchPanelTabbarRect.bottom + 6 &&
+            diffToolbarRect.height <= 40;
           const diffListCompactWorks =
             diffPanelList instanceof HTMLElement &&
-            diffPanelList.getBoundingClientRect().height <= 136 &&
+            diffPanelBody instanceof HTMLElement &&
+            diffChangedFilesPane instanceof HTMLElement &&
+            diffPreviewPane instanceof HTMLElement &&
+            diffPanelSearchRowRect !== null &&
+            diffPanelListRect !== null &&
+            diffChangedFilesPaneRect !== null &&
+            diffPreviewPaneRect !== null &&
+            diffPanelBody.getBoundingClientRect().height >= 180 &&
+            diffChangedFilesPaneRect.width >= 198 &&
+            diffChangedFilesPaneRect.width <= 244 &&
+            diffChangedFilesPaneRect.left >= diffPreviewPaneRect.right - 1 &&
+            diffPanelListRect.height >= Math.min(180, diffChangedFilesPaneRect.height - diffPanelSearchRowRect.height - 12) &&
             diffPanelList.scrollWidth <= diffPanelList.clientWidth + 2 &&
             diffPanelRows.length > 0 &&
             diffPanelRows.every((row) => row.getBoundingClientRect().height <= 30) &&
             diffPanelDirLabels.every((label) => getComputedStyle(label).display === 'none') &&
             diffPanelStats.every((label) => getComputedStyle(label).display === 'none');
+          const reviewFileTreeGitLaneWorks =
+            reviewFileTreeGitLaneRows.length >= 3 &&
+            reviewFileTreeGitLaneRows.every((row) => {
+              if (!(row instanceof HTMLElement)) return false;
+              const icon = row.querySelector('.workbench-tree-icon');
+              const label = row.querySelector('.workbench-tree-label');
+              const gitLane = row.querySelector('.workbench-tree-git-lane');
+              const legacyStatus = row.querySelector('.workbench-tree-status');
+              const labelRect = label instanceof HTMLElement ? label.getBoundingClientRect() : null;
+              const laneRect = gitLane instanceof HTMLElement ? gitLane.getBoundingClientRect() : null;
+              const laneWidth = laneRect?.width ?? 0;
+              const labelColor = label instanceof HTMLElement ? getComputedStyle(label).color : '';
+              const laneColor = gitLane instanceof HTMLElement ? getComputedStyle(gitLane).color : '';
+              const gitStatus = row.getAttribute('data-workbench-git-status') ?? '';
+              const shouldSeparateGitColor = ['modified', 'added', 'deleted', 'renamed'].includes(gitStatus);
+              return icon instanceof HTMLElement &&
+                label instanceof HTMLElement &&
+                gitLane instanceof HTMLElement &&
+                !(legacyStatus instanceof HTMLElement) &&
+                gitStatus.length > 0 &&
+                labelRect !== null &&
+                laneRect !== null &&
+                (!shouldSeparateGitColor || labelColor !== laneColor) &&
+                laneWidth >= 10 &&
+                laneWidth <= 13 &&
+                laneRect.left >= labelRect.right - 1;
+            });
+          const reviewFileSectionStructureWorks =
+            reviewFilesStack instanceof HTMLElement &&
+            diffPreviewPane instanceof HTMLElement &&
+            reviewFileSections.length === 1 &&
+            reviewFilesStack.getAttribute('data-review-main-render-mode') === 'selected-file' &&
+            reviewFilesStack.getAttribute('data-review-visible-file-section-count') === '1' &&
+            Number(reviewFilesStack.getAttribute('data-review-file-section-count') ?? '0') >= 3 &&
+            reviewFileSections.every((section) => {
+              if (!(section instanceof HTMLElement)) return false;
+              const header = section.querySelector('.review-file-section-header[data-review-file-header="true"]');
+              const headerContent = header?.querySelector('[data-header-content]');
+              const metadata = header?.querySelector('[data-metadata]');
+              const changeIcon = header?.querySelector('[data-change-icon]');
+              const codexChangeGlyph = changeIcon?.querySelector('[data-codex-review-change-icon]');
+              const statusPill = header?.querySelector('.rounded-full');
+              return section.parentElement === reviewFilesStack &&
+                section.getAttribute('data-review-file-section') === 'true' &&
+                section.getAttribute('data-review-file-section-shell') === 'codex-flat' &&
+                (section.getAttribute('data-review-path') ?? '').length > 0 &&
+                header instanceof HTMLButtonElement &&
+                header.getAttribute('data-diffs-header') === 'default' &&
+                (header.getAttribute('data-change-type') ?? '').length > 0 &&
+                headerContent instanceof HTMLElement &&
+                metadata instanceof HTMLElement &&
+                changeIcon instanceof HTMLElement &&
+                codexChangeGlyph instanceof SVGElement &&
+                codexChangeGlyph.getAttribute('data-codex-review-change-icon') === header.getAttribute('data-change-type') &&
+                !(statusPill instanceof HTMLElement);
+            }) &&
+            activeReviewFileSection instanceof HTMLElement &&
+            activeReviewFileSection.getAttribute('data-review-path') ===
+              document.querySelector('.diff-panel-root[data-embedded="true"]')?.getAttribute('data-review-selected-file');
+          const reviewFileHeaders = reviewFileSections
+            .map((section) => section instanceof HTMLElement ? section.querySelector('.review-file-section-header[data-review-file-header="true"]') : null)
+            .filter((header) => header instanceof HTMLElement);
+          const reviewFileHeaderMetricsWork =
+            reviewFileHeaders.length === 1 &&
+            reviewFileHeaders.every((header) => {
+              if (!(header instanceof HTMLElement)) return false;
+              const section = header.closest('[data-testid="review-file-section"]');
+              if (!(section instanceof HTMLElement)) return false;
+              const rect = header.getBoundingClientRect();
+              const sectionRect = section.getBoundingClientRect();
+              const styles = getComputedStyle(header);
+              return rect.height >= 30 &&
+                rect.height <= 36 &&
+                rect.width >= sectionRect.width - 1 &&
+                rect.width <= sectionRect.width + 1 &&
+                Number.parseFloat(styles.fontSize) >= 12.5 &&
+                Number.parseFloat(styles.fontSize) <= 13.5 &&
+                Number.parseFloat(styles.lineHeight) >= 19 &&
+                Number.parseFloat(styles.lineHeight) <= 21 &&
+                Number.parseFloat(styles.fontWeight) <= 550 &&
+                Number.parseFloat(styles.marginLeft) <= 1 &&
+                Number.parseFloat(styles.marginRight) <= 1 &&
+                Number.parseFloat(styles.borderRadius) <= 1 &&
+                Number.parseFloat(styles.paddingLeft) >= 15 &&
+                Number.parseFloat(styles.paddingLeft) <= 17 &&
+                Number.parseFloat(styles.paddingRight) >= 15 &&
+                Number.parseFloat(styles.paddingRight) <= 17 &&
+                styles.backgroundColor !== 'rgba(0, 0, 0, 0)';
+            });
+          const reviewDiffMetricCells = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
+            .filter((cell) => cell instanceof HTMLElement)
+            .slice(0, 12);
+          const reviewDiffHunkHeaders = [...document.querySelectorAll('[data-testid="review-hunk-toggle"]')]
+            .filter((header) => header instanceof HTMLElement)
+            .slice(0, 6);
+          const reviewDiffRowMetricsWork =
+            reviewDiffMetricCells.length > 0 &&
+            reviewDiffMetricCells.every((cell) => {
+              if (!(cell instanceof HTMLElement)) return false;
+              const styles = getComputedStyle(cell);
+              return Number.parseFloat(styles.fontSize) >= 12.5 &&
+                Number.parseFloat(styles.fontSize) <= 13.5 &&
+                Number.parseFloat(styles.lineHeight) >= 19 &&
+                Number.parseFloat(styles.lineHeight) <= 21 &&
+                styles.fontFamily.toLowerCase().includes('mono');
+            }) &&
+            reviewDiffHunkHeaders.length > 0 &&
+            reviewDiffHunkHeaders.every((header) => {
+              if (!(header instanceof HTMLElement)) return false;
+              const rect = header.getBoundingClientRect();
+              const styles = getComputedStyle(header);
+              return rect.height >= 30 &&
+                rect.height <= 34 &&
+                Number.parseFloat(styles.fontSize) >= 11.5 &&
+                Number.parseFloat(styles.fontSize) <= 12.5 &&
+                Number.parseFloat(styles.lineHeight) >= 30 &&
+                Number.parseFloat(styles.lineHeight) <= 34;
+            });
+          const reviewHunkSeparatorStructureWorks =
+            reviewDiffHunkHeaders.length > 0 &&
+            reviewDiffHunkHeaders.every((header) => {
+              if (!(header instanceof HTMLElement)) return false;
+              const wrapper = header.querySelector('[data-separator-wrapper]');
+              const expand = header.querySelector('[data-expand-button]');
+              const content = header.querySelector('[data-separator-content]');
+              if (!(wrapper instanceof HTMLElement) || !(expand instanceof HTMLElement) || !(content instanceof HTMLElement)) return false;
+              const headerRect = header.getBoundingClientRect();
+              const wrapperRect = wrapper.getBoundingClientRect();
+              const expandRect = expand.getBoundingClientRect();
+              return header.getAttribute('data-separator') === 'line-info-basic' &&
+                header.hasAttribute('data-expand-index') &&
+                Math.abs(wrapperRect.height - headerRect.height) <= 1 &&
+                expandRect.width >= 30 &&
+                expandRect.width <= 34 &&
+                getComputedStyle(wrapper).position === 'absolute' &&
+                getComputedStyle(content).backgroundColor !== 'rgba(0, 0, 0, 0)';
+            });
+          const reviewDiffIndicatorCells = ['addition', 'deletion']
+            .map((lineType) => document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell[data-line-type="' + lineType + '"]'));
+          const reviewDiffIndicatorStructureWork =
+            reviewDiffIndicatorCells.every((cell, index) => {
+              if (!(cell instanceof HTMLElement)) return false;
+              const expectedGutterType = index === 0 ? 'change-addition' : 'change-deletion';
+              const bar = cell.querySelector('[data-review-diff-gutter-bar]');
+              const number = cell.querySelector('.review-diff-line-number');
+              const content = cell.querySelector('.review-diff-line-content');
+              if (!(bar instanceof HTMLElement) || !(number instanceof HTMLElement) || !(content instanceof HTMLElement)) return false;
+              const barRect = bar.getBoundingClientRect();
+              const numberRect = number.getBoundingClientRect();
+              const contentRect = content.getBoundingClientRect();
+              const contentText = content.textContent ?? '';
+              return cell.getAttribute('data-review-diff-indicators') === 'bars' &&
+                cell.getAttribute('data-review-diff-gutter-line-type') === expectedGutterType &&
+                !contentText.startsWith(index === 0 ? '+' : '-') &&
+                getComputedStyle(bar).userSelect === 'none' &&
+                getComputedStyle(number).position === 'relative' &&
+                getComputedStyle(cell).gridTemplateColumns.trim().split(/\\s+/).length === 2 &&
+                barRect.width >= 3 &&
+                barRect.width <= 5 &&
+                Math.abs(barRect.left - numberRect.left) <= 1 &&
+                numberRect.right <= contentRect.left + 1;
+            });
+          const reviewDiffNativeColorCalmWorks =
+            reviewDiffIndicatorCells.every((cell, index) => {
+              if (!(cell instanceof HTMLElement)) return false;
+              const number = cell.querySelector('.review-diff-line-number');
+              if (!(number instanceof HTMLElement)) return false;
+              const styles = getComputedStyle(cell);
+              const numberStyles = getComputedStyle(number);
+              const oldLineColor = index === 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)';
+              return styles.color !== oldLineColor &&
+                styles.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                styles.backgroundColor !== 'transparent' &&
+                numberStyles.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                numberStyles.backgroundColor !== 'transparent';
+            });
+          let reviewDiffLineNumberContentDebug = {};
+          const reviewDiffLineNumberContentWorks = (() => {
+            const lineNumbers = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-number')]
+              .filter((number) => number instanceof HTMLElement)
+              .slice(0, 12);
+            const indicatorNumbersWork = reviewDiffIndicatorCells.every((cell, index) => {
+              if (!(cell instanceof HTMLElement)) return false;
+              const number = cell.querySelector('.review-diff-line-number');
+              if (!(number instanceof HTMLElement)) return false;
+              const numberColor = getComputedStyle(number).color;
+              const lineColor = getComputedStyle(cell).color;
+              return numberColor !== lineColor &&
+                numberColor !== 'rgba(0, 0, 0, 0)' &&
+                numberColor !== 'transparent';
+            });
+            const lineNumberDetails = lineNumbers.slice(0, 4).map((number) => {
+              if (!(number instanceof HTMLElement)) return null;
+              const content = number.querySelector('[data-line-number-content]');
+              const numberStyles = getComputedStyle(number);
+              return {
+                text: content?.textContent ?? null,
+                contentDisplay: content instanceof HTMLElement ? getComputedStyle(content).display : null,
+                contentWidth: content instanceof HTMLElement ? content.getBoundingClientRect().width : null,
+                paddingLeft: numberStyles.paddingLeft,
+                paddingRight: numberStyles.paddingRight,
+                numberColor: numberStyles.color,
+                cellColor: number.parentElement instanceof HTMLElement ? getComputedStyle(number.parentElement).color : null
+              };
+            });
+            reviewDiffLineNumberContentDebug = {
+              lineNumberCount: lineNumbers.length,
+              indicatorNumbersWork,
+              lineNumberDetails
+            };
+            return lineNumbers.length > 0 &&
+              indicatorNumbersWork &&
+              lineNumbers.every((number) => {
+                if (!(number instanceof HTMLElement)) return false;
+                const content = number.querySelector('[data-line-number-content]');
+                if (!(content instanceof HTMLElement)) return false;
+                const numberStyles = getComputedStyle(number);
+                const contentRect = content.getBoundingClientRect();
+                return getComputedStyle(content).display === 'inline-block' &&
+                  contentRect.width >= 18 &&
+                  Number.parseFloat(numberStyles.paddingLeft) > Number.parseFloat(numberStyles.paddingRight);
+              });
+          })();
+          const reviewDiffGutterUtilityButton = document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell [data-gutter-utility-slot] [data-utility-button]');
+          const reviewDiffGutterUtilitySlot = reviewDiffGutterUtilityButton instanceof HTMLElement
+            ? reviewDiffGutterUtilityButton.closest('[data-gutter-utility-slot]')
+            : null;
+          const reviewDiffGutterUtilityNumber = reviewDiffGutterUtilityButton instanceof HTMLElement
+            ? reviewDiffGutterUtilityButton.closest('.review-diff-line-number')
+            : null;
+          const reviewDiffGutterUtilityWorks =
+            reviewDiffGutterUtilityButton instanceof HTMLButtonElement &&
+            reviewDiffGutterUtilitySlot instanceof HTMLElement &&
+            reviewDiffGutterUtilityNumber instanceof HTMLElement &&
+            reviewDiffGutterUtilityButton.getAttribute('aria-label') === 'Add review comment' &&
+            reviewDiffGutterUtilityButton.getBoundingClientRect().width === 20 &&
+            reviewDiffGutterUtilityButton.getBoundingClientRect().height === 20 &&
+            reviewDiffGutterUtilitySlot.getBoundingClientRect().left >= reviewDiffGutterUtilityNumber.getBoundingClientRect().left &&
+            reviewDiffGutterUtilitySlot.getBoundingClientRect().right <= reviewDiffGutterUtilityNumber.getBoundingClientRect().right + 1;
+          const reviewTabPanel = document.querySelector('[data-app-shell-tab-panel-controller="right"][data-tab-id="diff"]');
+          const reviewTabPanelFocusRingCalmWorks =
+            reviewTabPanel instanceof HTMLElement &&
+            getComputedStyle(reviewTabPanel).outlineStyle === 'none';
           let diffActionMenuCompactWorks = false;
           const diffActionMenuButton = [...document.querySelectorAll('button')]
-            .find((button) => button.getAttribute('aria-label') === 'Change actions');
+            .find((button) => button.getAttribute('aria-label') === 'Review options');
           if (diffActionMenuButton instanceof HTMLButtonElement) {
             diffActionMenuButton.click();
             await sleep(100);
@@ -2770,17 +4874,17 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               .map((item) => item.textContent?.trim() ?? '');
             diffActionMenuCompactWorks =
               menuSurface instanceof HTMLElement &&
-              menuSurface.getBoundingClientRect().width <= 230 &&
+              menuSurface.getBoundingClientRect().width <= 280 &&
               menuSurface.getBoundingClientRect().height <= 320 &&
-              menuRows.length >= 5 &&
+              menuRows.length >= 8 &&
               menuRows.every((row) =>
                 row instanceof HTMLElement &&
                 row.getBoundingClientRect().height <= 30 &&
                 getComputedStyle(row).fontWeight === '400' &&
                 getComputedStyle(row).transform === 'none'
               ) &&
-              menuItems.includes('Refresh changes') &&
-              menuItems.some((label) => label.includes('line wrap')) &&
+              menuItems.includes('Refresh') &&
+              menuItems.some((label) => label.includes('word wrap')) &&
               menuItems.includes('Open file') &&
               menuItems.includes('Reveal file') &&
               menuItems.includes('Copy path');
@@ -2858,6 +4962,34 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 button.getAttribute('data-tooltip-label') === label &&
                 button.getAttribute('data-native-title-free') === 'true';
             });
+          if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'settings') {
+            const settingsButtonForCapture = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.trim() === 'Settings' || buttonLabel(button) === 'Settings');
+            if (settingsButtonForCapture instanceof HTMLElement) {
+              settingsButtonForCapture.click();
+              await sleep(240);
+            }
+            const appearanceButtonForCapture = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('Appearance'));
+            if (appearanceButtonForCapture instanceof HTMLElement) {
+              appearanceButtonForCapture.click();
+              await sleep(160);
+            }
+            const graphitePresetForCapture = document.querySelector('[data-testid="appearance-preset-graphite"]');
+            if (graphitePresetForCapture instanceof HTMLElement) {
+              graphitePresetForCapture.click();
+              await sleep(180);
+            }
+            const generalButtonForCapture = [...document.querySelectorAll('button')]
+              .find((button) => button.textContent?.includes('General'));
+            if (generalButtonForCapture instanceof HTMLElement) {
+              generalButtonForCapture.click();
+              await sleep(220);
+            }
+            const settingsScrollForCapture = document.querySelector('[data-testid="settings-scroll"]');
+            if (settingsScrollForCapture instanceof HTMLElement) settingsScrollForCapture.scrollTop = 0;
+            await sleep(80);
+          }
           return {
             profile,
             title: document.title,
@@ -2890,26 +5022,56 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             chatEmptyStateProjectLabelClean: typeof chatEmptyStateProjectLabelClean === 'boolean' ? chatEmptyStateProjectLabelClean : null,
             hasInspectorTabs: rightPanel instanceof HTMLElement &&
               ['review', 'files', 'browser'].every((label) => bodyText.toLowerCase().includes(label)) &&
-              rightSidebarTabbar instanceof HTMLElement,
+              workbenchPanelTabbar instanceof HTMLElement,
             hasRightPanelState: rightPanel instanceof HTMLElement &&
               rightPanel.dataset.rightPanelActiveTab === 'diff' &&
               rightPanel.dataset.rightPanelTabs?.includes('diff') === true &&
               Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
-            rightSidebarChromeCompactWorks,
-            rightSidebarChromeCompactDebug,
-            rightSidebarTrailingFadeWorks,
-            rightSidebarInactiveTabsCompactWorks,
-            rightSidebarInactiveTabTooltipWorks,
+            rightPanelShellOwnershipWorks,
+            workbenchPanelChromeCompactWorks,
+            workbenchPanelChromeCompactDebug,
+            workbenchPanelTrailingFadeWorks,
+            workbenchPanelInactiveTabsCompactWorks,
+            workbenchPanelInactiveTabTooltipWorks,
             diffToolbarCompactWorks,
+            reviewToolbarHeaderRowWorks,
+            reviewToolbarPrimaryOrderWorks,
+            reviewSourceSummaryHeaderWorks,
             diffListCompactWorks,
+            reviewFileSectionStructureWorks,
+            reviewFileHeaderMetricsWork,
+            reviewDiffRowMetricsWork,
+            reviewHunkSeparatorStructureWorks,
+            reviewDiffIndicatorStructureWork,
+            reviewDiffNativeColorCalmWorks,
+            reviewDiffLineNumberContentWorks,
+            reviewDiffLineNumberContentDebug,
+            reviewDiffGutterUtilityWorks,
+            reviewFileTreeGitLaneWorks,
+            reviewTabPanelFocusRingCalmWorks,
+            diffWorkbenchTreeWorks: typeof diffWorkbenchTreeWorks === 'boolean' ? diffWorkbenchTreeWorks : null,
+            diffRevealSelectedPathWorks: typeof diffRevealSelectedPathWorks === 'boolean' ? diffRevealSelectedPathWorks : null,
             diffActionMenuCompactWorks,
             rightPanelExpandWorks: typeof rightPanelExpandWorks === 'boolean' ? rightPanelExpandWorks : null,
             rightPanelExpandDebug: typeof rightPanelExpandDebug === 'object' ? rightPanelExpandDebug : null,
             rightPanelNarrowOverlayWorks: typeof rightPanelNarrowOverlayWorks === 'boolean' ? rightPanelNarrowOverlayWorks : null,
-            rightSidebarAddControlStableWorks,
-            rightSidebarAddMenuStableWorks,
+            workbenchPanelAddControlStableWorks,
+            workbenchPanelNewTabPageWorks,
             reviewSearchWorks: typeof reviewSearchWorks === 'boolean' ? reviewSearchWorks : null,
+            reviewSearchProjectionWorks: typeof reviewSearchProjectionWorks === 'boolean' ? reviewSearchProjectionWorks : null,
+            reviewSearchContentWorks: typeof reviewSearchContentWorks === 'boolean' ? reviewSearchContentWorks : null,
             reviewSearchClearWorks: typeof reviewSearchClearWorks === 'boolean' ? reviewSearchClearWorks : null,
+            reviewLineCommentsWork: typeof reviewLineCommentsWork === 'boolean' ? reviewLineCommentsWork : null,
+            reviewAnnotatedSelectionCalmWork: typeof reviewAnnotatedSelectionCalmWork === 'boolean' ? reviewAnnotatedSelectionCalmWork : null,
+            reviewSidePaneCommentCountWork: typeof reviewSidePaneCommentCountWork === 'boolean' ? reviewSidePaneCommentCountWork : null,
+            reviewLineBlameWork: typeof reviewLineBlameWork === 'boolean' ? reviewLineBlameWork : null,
+            reviewGutterBlameSummaryWork: typeof reviewGutterBlameSummaryWork === 'boolean' ? reviewGutterBlameSummaryWork : null,
+            reviewGutterActionPopoverWork: typeof reviewGutterActionPopoverWork === 'boolean' ? reviewGutterActionPopoverWork : null,
+            reviewLineOpensFileSourceTabWork: typeof reviewLineOpensFileSourceTabWork === 'boolean' ? reviewLineOpensFileSourceTabWork : null,
+            reviewHiddenContextSeparatorStructureWork: typeof reviewHiddenContextSeparatorStructureWork === 'boolean' ? reviewHiddenContextSeparatorStructureWork : null,
+            reviewHiddenContextExpansionWork: typeof reviewHiddenContextExpansionWork === 'boolean' ? reviewHiddenContextExpansionWork : null,
+            reviewHiddenContextExpandAllWork: typeof reviewHiddenContextExpandAllWork === 'boolean' ? reviewHiddenContextExpandAllWork : null,
+            reviewLargeDiffWindowWorks: typeof reviewLargeDiffWindowWorks === 'boolean' ? reviewLargeDiffWindowWorks : null,
             reviewDiffFirstWorks: typeof reviewDiffFirstWorks === 'boolean' ? reviewDiffFirstWorks : null,
             reviewJsonPreviewWorks: typeof reviewJsonPreviewWorks === 'boolean' ? reviewJsonPreviewWorks : null,
             reviewCsvPreviewWorks: typeof reviewCsvPreviewWorks === 'boolean' ? reviewCsvPreviewWorks : null,
@@ -2920,14 +5082,24 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             filesTabSearchWorks: typeof filesTabSearchWorks === 'boolean' ? filesTabSearchWorks : null,
             filesToolbarCompactWorks: typeof filesToolbarCompactWorks === 'boolean' ? filesToolbarCompactWorks : null,
             filesActionMenuCompactWorks: typeof filesActionMenuCompactWorks === 'boolean' ? filesActionMenuCompactWorks : null,
-            filesPanelStackedWorks: typeof filesPanelStackedWorks === 'boolean' ? filesPanelStackedWorks : null,
+            workbenchFileTabWorks: typeof workbenchFileTabWorks === 'boolean' ? workbenchFileTabWorks : null,
+            workbenchFileTabPinWorks: typeof workbenchFileTabPinWorks === 'boolean' ? workbenchFileTabPinWorks : null,
+            fileSourceVirtualizationWorks: typeof fileSourceVirtualizationWorks === 'boolean' ? fileSourceVirtualizationWorks : null,
+            fileSourceRevealSelectedLineWorks: typeof fileSourceRevealSelectedLineWorks === 'boolean' ? fileSourceRevealSelectedLineWorks : null,
+            fileSourceLoadingStateWorks: typeof fileSourceLoadingStateWorks === 'boolean' ? fileSourceLoadingStateWorks : null,
+            filesFileTabFirstLayoutWorks: typeof filesFileTabFirstLayoutWorks === 'boolean' ? filesFileTabFirstLayoutWorks : null,
+            filesWorkbenchTreeWorks: typeof filesWorkbenchTreeWorks === 'boolean' ? filesWorkbenchTreeWorks : null,
+            filesRevealSelectedPathWorks: typeof filesRevealSelectedPathWorks === 'boolean' ? filesRevealSelectedPathWorks : null,
             filesTabAttachWorks: typeof filesTabAttachWorks === 'boolean' ? filesTabAttachWorks : null,
             filesHtmlPreviewWorks: typeof filesHtmlPreviewWorks === 'boolean' ? filesHtmlPreviewWorks : null,
+            filesPreviewHeaderSharedWorks: typeof filesPreviewHeaderSharedWorks === 'boolean' ? filesPreviewHeaderSharedWorks : null,
+            filesArtifactPreviewControlsWorks: typeof filesArtifactPreviewControlsWorks === 'boolean' ? filesArtifactPreviewControlsWorks : null,
             filesJsonPreviewWorks: typeof filesJsonPreviewWorks === 'boolean' ? filesJsonPreviewWorks : null,
             filesCsvPreviewWorks: typeof filesCsvPreviewWorks === 'boolean' ? filesCsvPreviewWorks : null,
             filesDocumentPreviewWorks: typeof filesDocumentPreviewWorks === 'boolean' ? filesDocumentPreviewWorks : null,
             filesNotebookPreviewWorks: typeof filesNotebookPreviewWorks === 'boolean' ? filesNotebookPreviewWorks : null,
             filesBinaryPreviewWorks: typeof filesBinaryPreviewWorks === 'boolean' ? filesBinaryPreviewWorks : null,
+            filesFallbackNoticeSharedWorks: typeof filesFallbackNoticeSharedWorks === 'boolean' ? filesFallbackNoticeSharedWorks : null,
             filesNoResultsWorks: typeof filesNoResultsWorks === 'boolean' ? filesNoResultsWorks : null,
             filesSearchClearWorks: typeof filesSearchClearWorks === 'boolean' ? filesSearchClearWorks : null,
             browserTabWorks: typeof browserTabWorks === 'boolean' ? browserTabWorks : null,
@@ -2939,7 +5111,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserDeviceModeWorks: typeof browserDeviceModeWorks === 'boolean' ? browserDeviceModeWorks : null,
             browserCacheReloadWorks: typeof browserCacheReloadWorks === 'boolean' ? browserCacheReloadWorks : null,
             browserMultiTabWorks: typeof browserMultiTabWorks === 'boolean' ? browserMultiTabWorks : null,
+            browserTabShellControllerWorks: typeof browserTabShellControllerWorks === 'boolean' ? browserTabShellControllerWorks : null,
             browserTabCloseChromeWorks: typeof browserTabCloseChromeWorks === 'boolean' ? browserTabCloseChromeWorks : null,
+            browserTabChromeCalmWorks: typeof browserTabChromeCalmWorks === 'boolean' ? browserTabChromeCalmWorks : null,
             browserActionsNativeTitlesAbsent: typeof browserActionsNativeTitlesAbsent === 'boolean' ? browserActionsNativeTitlesAbsent : null,
             browserInspectionWorks: typeof browserInspectionWorks === 'boolean' ? browserInspectionWorks : null,
             browserDomPaneCompactWorks: typeof browserDomPaneCompactWorks === 'boolean' ? browserDomPaneCompactWorks : null,
@@ -2955,6 +5129,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserInlineSvgInventoryWorks: typeof browserInlineSvgInventoryWorks === 'boolean' ? browserInlineSvgInventoryWorks : null,
             browserSecurityPaneWorks: typeof browserSecurityPaneWorks === 'boolean' ? browserSecurityPaneWorks : null,
             browserSecurityPaneNoHorizontalOverflowWorks: typeof browserSecurityPaneNoHorizontalOverflowWorks === 'boolean' ? browserSecurityPaneNoHorizontalOverflowWorks : null,
+            browserInspectorContainersSharedWorks: typeof browserInspectorContainersSharedWorks === 'boolean' ? browserInspectorContainersSharedWorks : null,
             browserInspectorChromeCompactWorks: typeof browserInspectorChromeCompactWorks === 'boolean' ? browserInspectorChromeCompactWorks : null,
             browserVisibilityControlWorks: typeof browserVisibilityControlWorks === 'boolean' ? browserVisibilityControlWorks : null,
             browserHiddenStateWorks: typeof browserHiddenStateWorks === 'boolean' ? browserHiddenStateWorks : null,
@@ -2963,6 +5138,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             rightPanelTabReorderWorks: typeof rightPanelTabReorderWorks === 'boolean' ? rightPanelTabReorderWorks : null,
             planPanelWorks: typeof planPanelWorks === 'boolean' ? planPanelWorks : null,
             compactTaskRowsWork: typeof compactTaskRowsWork === 'boolean' ? compactTaskRowsWork : null,
+            planAgentTabShimmerWorks: typeof planAgentTabShimmerWorks === 'boolean' ? planAgentTabShimmerWorks : null,
             planAgentStatLabelsCalm: typeof planAgentStatLabelsCalm === 'boolean' ? planAgentStatLabelsCalm : null,
             sideChatTabsWork: typeof sideChatTabsWork === 'boolean' ? sideChatTabsWork : null,
             sideChatComposerCompactWorks: typeof sideChatComposerCompactWorks === 'boolean' ? sideChatComposerCompactWorks : null,
@@ -2970,28 +5146,92 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sideChatMessageLabelsCalm: typeof sideChatMessageLabelsCalm === 'boolean' ? sideChatMessageLabelsCalm : null,
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,
+            terminalShellOwnershipWorks: typeof terminalShellOwnershipWorks === 'boolean' ? terminalShellOwnershipWorks : null,
+            terminalSharedAnimationControllerWorks: typeof terminalSharedAnimationControllerWorks === 'boolean' ? terminalSharedAnimationControllerWorks : null,
+            terminalSharedLayoutControllerWorks: typeof terminalSharedLayoutControllerWorks === 'boolean' ? terminalSharedLayoutControllerWorks : null,
+            terminalBottomPanelSizeDecompositionWorks: typeof terminalBottomPanelSizeDecompositionWorks === 'boolean' ? terminalBottomPanelSizeDecompositionWorks : null,
             terminalRestoreWorks: typeof terminalRestoreWorks === 'boolean' ? terminalRestoreWorks : null,
             terminalTabMenuWorks: typeof terminalTabMenuWorks === 'boolean' ? terminalTabMenuWorks : null,
+            terminalTabMenuSharedSectionsWorks: typeof terminalTabMenuSharedSectionsWorks === 'boolean' ? terminalTabMenuSharedSectionsWorks : null,
             terminalTabReorderWorks: typeof terminalTabReorderWorks === 'boolean' ? terminalTabReorderWorks : null,
             terminalTabDragReorderWorks: typeof terminalTabDragReorderWorks === 'boolean' ? terminalTabDragReorderWorks : null,
+            terminalTabDragMarkerWorks: typeof terminalTabDragMarkerWorks === 'boolean' ? terminalTabDragMarkerWorks : null,
+            terminalToolbarSharedWorks: typeof terminalToolbarSharedWorks === 'boolean' ? terminalToolbarSharedWorks : null,
+            terminalHeaderSharedChromeWorks: typeof terminalHeaderSharedChromeWorks === 'boolean' ? terminalHeaderSharedChromeWorks : null,
+            terminalContentSpacingWorks: typeof terminalContentSpacingWorks === 'boolean' ? terminalContentSpacingWorks : null,
+            terminalResizeResetWorks: typeof terminalResizeResetWorks === 'boolean' ? terminalResizeResetWorks : null,
+            terminalResizeHandleOverlayWorks: typeof terminalResizeHandleOverlayWorks === 'boolean' ? terminalResizeHandleOverlayWorks : null,
+            terminalResizeKeyboardWorks: typeof terminalResizeKeyboardWorks === 'boolean' ? terminalResizeKeyboardWorks : null,
+            terminalResizeResetDebug: typeof terminalResizeResetDebug === 'object' ? terminalResizeResetDebug : null,
             terminalCloseActiveShortcutWorks: typeof terminalCloseActiveShortcutWorks === 'boolean' ? terminalCloseActiveShortcutWorks : null,
+            terminalNewTabShortcutWorks: typeof terminalNewTabShortcutWorks === 'boolean' ? terminalNewTabShortcutWorks : null,
+            terminalTabPanelA11yWorks: typeof terminalTabPanelA11yWorks === 'boolean' ? terminalTabPanelA11yWorks : null,
+            terminalFullscreenCleanupWorks: typeof terminalFullscreenCleanupWorks === 'boolean' ? terminalFullscreenCleanupWorks : null,
+            terminalTabTelemetryWorks: typeof terminalTabTelemetryWorks === 'boolean' ? terminalTabTelemetryWorks : null,
+            terminalTabLifecycleTelemetryWorks: typeof terminalTabLifecycleTelemetryWorks === 'boolean' ? terminalTabLifecycleTelemetryWorks : null,
+            terminalMoveToRightPanelWorks: typeof terminalMoveToRightPanelWorks === 'boolean' ? terminalMoveToRightPanelWorks : null,
+            terminalSharedTransferModelWorks: typeof terminalSharedTransferModelWorks === 'boolean' ? terminalSharedTransferModelWorks : null,
+            terminalServiceSnapshotWorks: typeof terminalServiceSnapshotWorks === 'boolean' ? terminalServiceSnapshotWorks : null,
+            terminalRightPanelNewTabShortcutWorks: typeof terminalRightPanelNewTabShortcutWorks === 'boolean' ? terminalRightPanelNewTabShortcutWorks : null,
+            terminalMoveBackToBottomWorks: typeof terminalMoveBackToBottomWorks === 'boolean' ? terminalMoveBackToBottomWorks : null,
+            terminalLinkRoutingWorks: typeof terminalLinkRoutingWorks === 'boolean' ? terminalLinkRoutingWorks : null,
+            terminalThemeFontSyncWorks: typeof terminalThemeFontSyncWorks === 'boolean' ? terminalThemeFontSyncWorks : null,
+            terminalThemeTokenMatrixWorks: typeof terminalThemeTokenMatrixWorks === 'boolean' ? terminalThemeTokenMatrixWorks : null,
+            terminalVisualPanelWorks: typeof terminalVisualPanelWorks === 'boolean' ? terminalVisualPanelWorks : null,
+            terminalVisualTabsWork: typeof terminalVisualTabsWork === 'boolean' ? terminalVisualTabsWork : null,
+            terminalVisualToolbarWorks: typeof terminalVisualToolbarWorks === 'boolean' ? terminalVisualToolbarWorks : null,
+            terminalVisualHealthyContentWorks: typeof terminalVisualHealthyContentWorks === 'boolean' ? terminalVisualHealthyContentWorks : null,
             themeImportWorks: typeof themeImportWorks === 'boolean' ? themeImportWorks : null,
             themeSharingControls: typeof themeSharingControls === 'boolean' ? themeSharingControls : null,
             themePresetPreviewWorks: typeof themePresetPreviewWorks === 'boolean' ? themePresetPreviewWorks : null,
             settingsTaxonomyWorks: typeof settingsTaxonomyWorks === 'boolean' ? settingsTaxonomyWorks : null,
             settingsRowsCalmWorks: typeof settingsRowsCalmWorks === 'boolean' ? settingsRowsCalmWorks : null,
+            settingsAppearanceSurfaceWorks: typeof settingsAppearanceSurfaceWorks === 'boolean' ? settingsAppearanceSurfaceWorks : null,
+            settingsAppearanceModuleWorks: typeof settingsAppearanceModuleWorks === 'boolean' ? settingsAppearanceModuleWorks : null,
+            settingsGeneralSurfaceWorks: typeof settingsGeneralSurfaceWorks === 'boolean' ? settingsGeneralSurfaceWorks : null,
+            settingsGeneralModuleWorks: typeof settingsGeneralModuleWorks === 'boolean' ? settingsGeneralModuleWorks : null,
+            settingsTopbarSharedWorks: typeof settingsTopbarSharedWorks === 'boolean' ? settingsTopbarSharedWorks : null,
+            settingsContentLayoutWorks: typeof settingsContentLayoutWorks === 'boolean' ? settingsContentLayoutWorks : null,
+            settingsRouteOwnedWorks: typeof settingsRouteOwnedWorks === 'boolean' ? settingsRouteOwnedWorks : null,
+            settingsDeepLinkRouteWorks: typeof settingsDeepLinkRouteWorks === 'boolean' ? settingsDeepLinkRouteWorks : null,
+            settingsDeepLinkRouteDebug: typeof settingsDeepLinkRouteDebug === 'object' ? settingsDeepLinkRouteDebug : null,
+            settingsHostContextWorks: typeof settingsHostContextWorks === 'boolean' ? settingsHostContextWorks : null,
+            settingsHostSectionFilteringWorks: typeof settingsHostSectionFilteringWorks === 'boolean' ? settingsHostSectionFilteringWorks : null,
+            settingsHostAdapterBoundaryWorks: typeof settingsHostAdapterBoundaryWorks === 'boolean' ? settingsHostAdapterBoundaryWorks : null,
+            settingsPersonalizationHostBoundaryWorks: typeof settingsPersonalizationHostBoundaryWorks === 'boolean' ? settingsPersonalizationHostBoundaryWorks : null,
             settingsSidebarNavCompactWorks: typeof settingsSidebarNavCompactWorks === 'boolean' ? settingsSidebarNavCompactWorks : null,
+            settingsSidebarNavPrimitiveWorks: typeof settingsSidebarNavPrimitiveWorks === 'boolean' ? settingsSidebarNavPrimitiveWorks : null,
+            settingsSidebarGroupedNavWorks: typeof settingsSidebarGroupedNavWorks === 'boolean' ? settingsSidebarGroupedNavWorks : null,
             settingsProviderDropdownWorks: typeof settingsProviderDropdownWorks === 'boolean' ? settingsProviderDropdownWorks : null,
             settingsDiagnosticsSectionWorks: typeof settingsDiagnosticsSectionWorks === 'boolean' ? settingsDiagnosticsSectionWorks : null,
             settingsProviderStatusUnifiedWorks: typeof settingsProviderStatusUnifiedWorks === 'boolean' ? settingsProviderStatusUnifiedWorks : null,
             settingsUsageDiagnosticsWorks: typeof settingsUsageDiagnosticsWorks === 'boolean' ? settingsUsageDiagnosticsWorks : null,
             settingsProviderModelsCollapsedWorks: typeof settingsProviderModelsCollapsedWorks === 'boolean' ? settingsProviderModelsCollapsedWorks : null,
             settingsProviderControlSurfaceUnifiedWorks: typeof settingsProviderControlSurfaceUnifiedWorks === 'boolean' ? settingsProviderControlSurfaceUnifiedWorks : null,
+            settingsProvidersModuleWorks: typeof settingsProvidersModuleWorks === 'boolean' ? settingsProvidersModuleWorks : null,
             settingsProviderCatalogLabelCalm: typeof settingsProviderCatalogLabelCalm === 'boolean' ? settingsProviderCatalogLabelCalm : null,
             settingsDiagnosticsDisclosureCompactWorks: typeof settingsDiagnosticsDisclosureCompactWorks === 'boolean' ? settingsDiagnosticsDisclosureCompactWorks : null,
+            settingsProviderSidebarRefreshWorks: typeof settingsProviderSidebarRefreshWorks === 'boolean' ? settingsProviderSidebarRefreshWorks : null,
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
+            settingsDataControlsSurfaceWorks: typeof settingsDataControlsSurfaceWorks === 'boolean' ? settingsDataControlsSurfaceWorks : null,
+            settingsDataControlsModuleWorks: typeof settingsDataControlsModuleWorks === 'boolean' ? settingsDataControlsModuleWorks : null,
+            settingsAutomationsPageWorks: typeof settingsAutomationsPageWorks === 'boolean' ? settingsAutomationsPageWorks : null,
+            settingsWorktreesPageWorks: typeof settingsWorktreesPageWorks === 'boolean' ? settingsWorktreesPageWorks : null,
+            settingsWorktreesCreateWorks: typeof settingsWorktreesCreateWorks === 'boolean' ? settingsWorktreesCreateWorks : null,
+            settingsWorktreesDeleteWorks: typeof settingsWorktreesDeleteWorks === 'boolean' ? settingsWorktreesDeleteWorks : null,
+            settingsWorktreesOpenWorks: typeof settingsWorktreesOpenWorks === 'boolean' ? settingsWorktreesOpenWorks : null,
+            settingsShortcutsSurfaceWorks: typeof settingsShortcutsSurfaceWorks === 'boolean' ? settingsShortcutsSurfaceWorks : null,
             settingsShortcutsCompactWorks: typeof settingsShortcutsCompactWorks === 'boolean' ? settingsShortcutsCompactWorks : null,
             settingsShortcutsEditableWorks: typeof settingsShortcutsEditableWorks === 'boolean' ? settingsShortcutsEditableWorks : null,
+            settingsShortcutsConflictWorks: typeof settingsShortcutsConflictWorks === 'boolean' ? settingsShortcutsConflictWorks : null,
+            settingsShortcutsPunctuationCaptureWorks: typeof settingsShortcutsPunctuationCaptureWorks === 'boolean' ? settingsShortcutsPunctuationCaptureWorks : null,
+            settingsShortcutActionsSharedWorks: typeof settingsShortcutActionsSharedWorks === 'boolean' ? settingsShortcutActionsSharedWorks : null,
+            settingsShortcutCaptureFieldSharedWorks: typeof settingsShortcutCaptureFieldSharedWorks === 'boolean' ? settingsShortcutCaptureFieldSharedWorks : null,
+            settingsShortcutsPerBindingClearWorks: typeof settingsShortcutsPerBindingClearWorks === 'boolean' ? settingsShortcutsPerBindingClearWorks : null,
+            settingsShortcutsModuleWorks: typeof settingsShortcutsModuleWorks === 'boolean' ? settingsShortcutsModuleWorks : null,
+            petsSettingsSurfaceWorks: typeof petsSettingsSurfaceWorks === 'boolean' ? petsSettingsSurfaceWorks : null,
+            petsSettingsContentLayoutWorks: typeof petsSettingsContentLayoutWorks === 'boolean' ? petsSettingsContentLayoutWorks : null,
+            petsSettingsModuleWorks: typeof petsSettingsModuleWorks === 'boolean' ? petsSettingsModuleWorks : null,
             hasExtensionsPanel: bodyText.includes('Extensions') && bodyText.includes('Instructions'),
             hasExtensionsPanelTabs: bodyText.includes('Claude Code Extensions') || bodyText.includes('Codex CLI Extensions') || bodyText.includes('Extensions'),
             extensionsEmbeddedCopyCompact: ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} !== 'extensions' ||
@@ -3031,6 +5271,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             capabilitySyncActionClicked: typeof capabilitySyncActionClicked === 'boolean' ? capabilitySyncActionClicked : null,
             capabilitySyncSheetOpened: typeof capabilitySyncSheetOpened === 'boolean' ? capabilitySyncSheetOpened : null,
             composerPermissionMenuOpened: typeof composerPermissionMenuOpened === 'boolean' ? composerPermissionMenuOpened : null,
+            composerDropdownMaterialWorks: typeof composerDropdownMaterialWorks === 'boolean' ? composerDropdownMaterialWorks : null,
             composerPermissionNativeTooltipsWork: typeof composerPermissionNativeTooltipsWork === 'boolean' ? composerPermissionNativeTooltipsWork : null,
             composerPermissionLabelsCalm: typeof composerPermissionLabelsCalm === 'boolean' ? composerPermissionLabelsCalm : null,
             composerPermissionMenuClosedWithEscape: typeof composerPermissionMenuClosedWithEscape === 'boolean' ? composerPermissionMenuClosedWithEscape : null,
@@ -3087,6 +5328,7 @@ function runAutomatedFocusedSurfaceSmoke(
         const result = await win.webContents.executeJavaScript(`
           (async () => {
             const surface = ${JSON.stringify(surface)};
+            const smokeView = ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW ?? '')};
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const buttonLabel = (button) =>
               button.getAttribute('aria-label') ??
@@ -3120,21 +5362,52 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(120);
               }
             };
-            const openPanelTab = async (tabId, label) => {
-              await openRightPanel();
-              const existing = document.querySelector('[data-tab-id="' + tabId + '"]')?.closest('[role="tab"]');
-              if (existing instanceof HTMLElement) {
-                existing.click();
-                await sleep(180);
-                return;
-              }
+	            const openPanelTab = async (tabId, label) => {
+	              await openRightPanel();
+	              const waitForRightPanelTab = async () => {
+	                for (let attempt = 0; attempt < 12; attempt += 1) {
+	                  await sleep(80);
+	                  const activePanel = document.querySelector('[data-testid="session-right-panel"]');
+	                  if (activePanel?.getAttribute('data-right-panel-active-tab') === tabId) return true;
+	                  const activeTabPanel = document.querySelector('[data-app-shell-tab-panel-controller="right"][data-tab-id="' + tabId + '"]');
+	                  if (activeTabPanel instanceof HTMLElement && activeTabPanel.getBoundingClientRect().width > 0) return true;
+	                }
+	                return false;
+	              };
+	              const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+	              const existingById = rightPanel?.querySelector('[role="tab"][data-tab-id="' + tabId + '"]') ??
+	                document.querySelector('[data-app-shell-tab-controller="right"][role="tab"][data-tab-id="' + tabId + '"]');
+	              const existingByLabel = [...(rightPanel?.querySelectorAll('[role="tab"]') ?? document.querySelectorAll('[data-app-shell-tab-controller="right"][role="tab"]'))]
+	                .find((tab) => tab.textContent?.trim().includes(label));
+	              const existing = existingById ?? existingByLabel;
+	              if (existing instanceof HTMLElement) {
+	                existing.click();
+	                if (await waitForRightPanelTab()) return;
+	              }
+	              if (tabId === 'diff') {
+	                const transcriptReviewButton = [...document.querySelectorAll('button')]
+	                  .find((button) =>
+	                    button.textContent?.trim() === 'Review' &&
+	                    !button.closest('[data-testid="session-right-panel"]')
+	                  );
+	                if (transcriptReviewButton instanceof HTMLButtonElement) {
+	                  transcriptReviewButton.click();
+	                  if (await waitForRightPanelTab()) return;
+	                }
+	              }
               const addButton = findButton('Add Workbench tab');
               if (addButton instanceof HTMLElement) {
                 addButton.click();
                 await sleep(120);
-                const menuItem = [...document.querySelectorAll('[role="menuitem"]')]
-                  .find((item) => item.textContent?.includes(label));
-                if (menuItem instanceof HTMLElement) menuItem.click();
+                const actionId = tabId === 'diff' ? 'review' : tabId;
+                const newTabAction = document.querySelector('[data-testid="workbench-new-tab-action-' + actionId + '"]');
+                if (newTabAction instanceof HTMLElement && !newTabAction.hasAttribute('disabled')) {
+                  newTabAction.click();
+                } else {
+                  const menuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                    .find((item) => item.textContent?.includes(label));
+                  if (menuItem instanceof HTMLElement) menuItem.click();
+                }
                 await sleep(260);
               }
             };
@@ -3194,18 +5467,302 @@ function runAutomatedFocusedSurfaceSmoke(
               await openPanelTab('files', 'Files');
               await openPanelTab('browser', 'Browser');
               const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
-              const tabbar = document.querySelector('[data-testid="right-sidebar-tabbar"]');
-              const tabRow = document.querySelector('[data-testid="right-sidebar-tab-row"]');
-              const tabActions = document.querySelector('[data-testid="right-sidebar-tab-actions"]');
+              const rightPanelShell = rightPanel instanceof HTMLElement
+                ? rightPanel.closest('[data-motion-panel="right"]')
+                : null;
+              const rightPanelShellOwnershipWorks =
+                rightPanel instanceof HTMLElement &&
+                rightPanelShell instanceof HTMLElement &&
+                rightPanelShell.classList.contains('app-shell-panel') &&
+                rightPanelShell.classList.contains('app-shell-panel-right') &&
+                rightPanelShell.getAttribute('data-app-shell-panel') === 'right' &&
+                rightPanelShell.getAttribute('data-app-shell-panel-surface') === 'workbench' &&
+                rightPanelShell.getAttribute('data-app-shell-focus-area') === 'right-panel' &&
+                rightPanelShell.contains(rightPanel);
+              if (smokeView === 'workbench-new-tab') {
+                const addButton = document.querySelector('[data-testid="right-panel-add-tab"]');
+                if (addButton instanceof HTMLElement) {
+                  addButton.click();
+                  await sleep(180);
+                }
+                const newTabPanel = document.querySelector('[data-testid="workbench-new-tab-panel"]');
+                const newTabGrid = document.querySelector('[data-testid="workbench-new-tab-action-grid"]');
+                const newTabCards = [...document.querySelectorAll('[data-workbench-new-tab-action]')]
+                  .filter((card) => card instanceof HTMLElement);
+                const newTabCardIds = newTabCards
+                  .map((card) => card.getAttribute('data-workbench-new-tab-action'))
+                  .filter(Boolean);
+                const panelRect = newTabPanel instanceof HTMLElement ? newTabPanel.getBoundingClientRect() : null;
+                const gridRect = newTabGrid instanceof HTMLElement ? newTabGrid.getBoundingClientRect() : null;
+                const rightPanelRect = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
+                const workbenchPanelNewTabPageWorks =
+                  rightPanel instanceof HTMLElement &&
+                  rightPanel.getAttribute('data-right-panel-active-tab') === 'new-tab' &&
+                  newTabPanel instanceof HTMLElement &&
+                  newTabGrid instanceof HTMLElement &&
+                  newTabCardIds.includes('files') &&
+                  newTabCardIds.includes('side-chat') &&
+                  newTabCardIds.includes('browser') &&
+                  newTabCardIds.includes('review') &&
+                  newTabCardIds.includes('terminal');
+                return {
+                  profile,
+                  hasRightPanelState: rightPanel instanceof HTMLElement &&
+                    rightPanel.dataset.rightPanelTabs?.includes('new-tab') === true &&
+                    Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
+                  rightPanelShellOwnershipWorks,
+                  workbenchPanelNewTabPageWorks,
+                  workbenchNewTabVisualWorks:
+                    workbenchPanelNewTabPageWorks &&
+                    panelRect !== null &&
+                    gridRect !== null &&
+                    panelRect.width >= 280 &&
+                    panelRect.height >= 240 &&
+                    gridRect.width >= 240 &&
+                    gridRect.height >= 120,
+                  workbenchNewTabActionCount: newTabCards.length,
+                  workbenchNewTabNoHorizontalOverflow:
+                    rightPanelRect !== null &&
+                    newTabPanel instanceof HTMLElement &&
+                    newTabPanel.scrollWidth <= Math.ceil(rightPanelRect.width) + 2
+                };
+              }
+              if (smokeView === 'environment') {
+                await openPanelTab('diff', 'Review');
+                await sleep(160);
+                await openPanelTab('environment', 'Environment');
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                  const candidate = document.querySelector('[data-testid="codex-environment-panel"]');
+                  if (
+                    candidate instanceof HTMLElement &&
+                    document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'environment' &&
+                    Number(candidate.getAttribute('data-environment-change-count') ?? '0') >= 3
+                  ) {
+                    break;
+                  }
+                  await sleep(100);
+                }
+                const environmentPanel = document.querySelector('[data-testid="codex-environment-panel"]');
+                const environmentCard = document.querySelector('[data-testid="codex-environment-card"]');
+                const environmentCommitRow = document.querySelector('[data-testid="codex-environment-commit"]');
+                const environmentCreatePrRow = document.querySelector('[data-testid="codex-environment-create-pr"]');
+                const environmentSourcesCard = document.querySelector('[data-testid="codex-environment-sources-card"]');
+                const environmentRect = environmentPanel instanceof HTMLElement ? environmentPanel.getBoundingClientRect() : null;
+                const environmentScroll = environmentPanel instanceof HTMLElement
+                  ? environmentPanel.querySelector('.environment-panel-scroll')
+                  : null;
+                return {
+                  profile,
+                  hasRightPanelState: rightPanel instanceof HTMLElement &&
+                    rightPanel.dataset.rightPanelTabs?.includes('environment') === true &&
+                    Number(rightPanel.dataset.rightPanelWidth ?? '0') >= 360,
+                  rightPanelShellOwnershipWorks,
+                  environmentPanelVisualWorks:
+                    environmentPanel instanceof HTMLElement &&
+                    environmentCard instanceof HTMLElement &&
+                    environmentSourcesCard instanceof HTMLElement &&
+                    environmentRect !== null &&
+                    environmentRect.width >= 280 &&
+                    environmentRect.height >= 220 &&
+                    environmentScroll instanceof HTMLElement &&
+                    environmentScroll.scrollWidth <= environmentScroll.clientWidth + 2,
+                  environmentActionRowsWork:
+                    environmentPanel instanceof HTMLElement &&
+                    Number(environmentPanel.getAttribute('data-environment-staged-count') ?? '0') >= 1 &&
+                    Number(environmentPanel.getAttribute('data-environment-unstaged-count') ?? '0') >= 1 &&
+                    environmentCommitRow instanceof HTMLButtonElement &&
+                    environmentCommitRow.getAttribute('data-environment-row-action') === 'open-review' &&
+                    environmentCreatePrRow instanceof HTMLButtonElement &&
+                    environmentCreatePrRow.getAttribute('data-environment-row-action') === 'open-pull-request' &&
+                    environmentCreatePrRow.textContent?.includes('View pull request') === true &&
+                    environmentCreatePrRow.textContent?.includes('PR 42') === true &&
+                    environmentPanel.getAttribute('data-environment-pull-request') === 'true',
+                  environmentSourcesWork:
+                    environmentSourcesCard instanceof HTMLElement &&
+                    environmentSourcesCard.textContent?.includes('Sources') === true &&
+                    environmentSourcesCard.textContent?.includes('Web search') === true
+                };
+              }
+              const rightPanelShellLayoutMode = rightPanelShell instanceof HTMLElement
+                ? rightPanelShell.getAttribute('data-app-shell-panel-layout')
+                : null;
+              const rightPanelSharedLayoutControllerWorks =
+                rightPanel instanceof HTMLElement &&
+                rightPanelShell instanceof HTMLElement &&
+                rightPanelShell.getAttribute('data-app-shell-panel-size-controller') === 'shared' &&
+                ['docked', 'overlay', 'full'].includes(rightPanelShellLayoutMode ?? '') &&
+                Number(rightPanelShell.getAttribute('data-app-shell-panel-container-size') ?? '0') > 0 &&
+                Number(rightPanelShell.getAttribute('data-app-shell-panel-resolved-size') ?? '0') >= 280 &&
+                Number(rightPanelShell.getAttribute('data-app-shell-panel-max-size') ?? '0') >= 320 &&
+                rightPanel.dataset.rightPanelLayout === rightPanelShellLayoutMode;
+              const rightPanelAnimationProgress = Number(rightPanelShell?.getAttribute('data-app-shell-panel-animation-progress') ?? '0');
+              const rightPanelAnimatedSize = Number(rightPanelShell?.getAttribute('data-app-shell-panel-animated-size') ?? '0');
+              const rightPanelTargetSize = Number(rightPanelShell?.getAttribute('data-app-shell-panel-target-size') ?? '0');
+              const rightPanelSharedAnimationControllerWorks =
+                rightPanelShell instanceof HTMLElement &&
+                rightPanelShell.getAttribute('data-app-shell-panel-animation') === 'shared' &&
+                rightPanelShell.getAttribute('data-app-shell-panel-mounted') === 'true' &&
+                ['opening', 'open'].includes(rightPanelShell.getAttribute('data-app-shell-panel-animation-state') ?? '') &&
+                rightPanelAnimationProgress > 0 &&
+                rightPanelAnimationProgress <= 1 &&
+                rightPanelAnimatedSize > 0 &&
+                rightPanelAnimatedSize <= rightPanelTargetSize + 2 &&
+                rightPanelTargetSize >= 320;
+              const tabbar = document.querySelector('[data-testid="workbench-panel-tabbar"]');
+              const tabRow = document.querySelector('[data-testid="workbench-panel-tab-row"]');
+              const tabActions = document.querySelector('[data-testid="workbench-panel-tab-actions"]');
               const addButton = document.querySelector('[data-testid="right-panel-add-tab"]');
               const expandButton = findButton('Expand Workbench');
               const widthBefore = Number(rightPanel?.getAttribute('data-right-panel-width') ?? '0');
               let rightPanelContextMenuWorks = false;
+              let rightPanelContextMenuSharedSectionsWorks = false;
               let rightPanelTabReorderWorks = false;
               let rightPanelTabDragReorderWorks = false;
+              let rightPanelTabDragMarkerWorks = false;
               let rightPanelCloseActiveShortcutWorks = false;
-              const browserTab = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
-              if (browserTab instanceof HTMLElement) {
+              let rightPanelInactiveCloseWorks = false;
+              let rightPanelMiddleClickCloseWorks = false;
+              let rightPanelCloseFallbackFromMainWorks = false;
+              let rightPanelTabPanelA11yWorks = false;
+              let rightPanelTabWheelScrollWorks = false;
+              let rightPanelFullscreenCleanupWorks = false;
+              let rightPanelTabTelemetryWorks = false;
+              let rightPanelTabLifecycleTelemetryWorks = false;
+              let rightPanelTabWeightCalmWorks = false;
+              let rightPanelTabActionsSharedVariantWorks = false;
+              let workbenchPanelNewTabPageWorks = false;
+              let rightPanelFindShortcutRoutingWorks = false;
+              let rightPanelFindShortcutRoutingDebug = {};
+              let rightPanelBrowserCommandRoutingWorks = false;
+              let rightPanelBrowserVisualResetWorks = false;
+              let rightPanelTransferUnsupportedBoundaryWorks = false;
+              const activeWorkbenchTabForA11y = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-active="true"]');
+              const workbenchPanelForA11y = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="right"]');
+              if (activeWorkbenchTabForA11y instanceof HTMLElement && workbenchPanelForA11y instanceof HTMLElement && rightPanel instanceof HTMLElement) {
+                const controls = activeWorkbenchTabForA11y.getAttribute('aria-controls') ?? '';
+                rightPanelTabPanelA11yWorks =
+                  activeWorkbenchTabForA11y.getAttribute('data-app-shell-tab-controller') === 'right' &&
+                  controls.length > 0 &&
+                  controls === workbenchPanelForA11y.id &&
+                  workbenchPanelForA11y.getAttribute('aria-labelledby') === activeWorkbenchTabForA11y.id &&
+                  workbenchPanelForA11y.getAttribute('data-tab-id') === rightPanel.dataset.rightPanelActiveTab &&
+                  (document.activeElement === workbenchPanelForA11y || workbenchPanelForA11y.contains(document.activeElement));
+              }
+              if (activeWorkbenchTabForA11y instanceof HTMLElement && tabbar instanceof HTMLElement) {
+                const activeFontWeight = Number.parseFloat(getComputedStyle(activeWorkbenchTabForA11y).fontWeight || '0');
+                const tabCountWeights = [...tabbar.querySelectorAll('.panel-tab-count')]
+                  .map((count) => count instanceof HTMLElement ? Number.parseFloat(getComputedStyle(count).fontWeight || '0') : 0)
+                  .filter((weight) => Number.isFinite(weight) && weight > 0);
+                rightPanelTabWeightCalmWorks =
+                  activeFontWeight > 0 &&
+                  activeFontWeight <= 520 &&
+                  tabCountWeights.every((weight) => weight <= 500);
+              }
+              if (tabActions instanceof HTMLElement) {
+                const actionButtons = [...tabActions.querySelectorAll('.motion-icon-button')]
+                  .filter((button) => button instanceof HTMLElement);
+                const measuredActionsWidth = Number(tabbar?.getAttribute('data-panel-tab-actions-width') ?? '0');
+                const tabRowScrollPaddingEnd = tabRow instanceof HTMLElement
+                  ? Number.parseFloat(getComputedStyle(tabRow).scrollPaddingRight || '0')
+                  : 0;
+                rightPanelTabActionsSharedVariantWorks =
+                  actionButtons.length >= 2 &&
+                  measuredActionsWidth >= tabActions.getBoundingClientRect().width &&
+                  tabRowScrollPaddingEnd >= measuredActionsWidth &&
+                  actionButtons.every((button) =>
+                    button instanceof HTMLElement &&
+                    button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                    button.getBoundingClientRect().width === 24 &&
+                    button.getBoundingClientRect().height === 24
+                  );
+              }
+              if (addButton instanceof HTMLButtonElement) {
+                addButton.click();
+                await sleep(120);
+                const newTabPanel = document.querySelector('[data-testid="workbench-new-tab-panel"]');
+                const newTabGrid = document.querySelector('[data-testid="workbench-new-tab-action-grid"]');
+                const newTabActions = [...document.querySelectorAll('[data-workbench-new-tab-action]')]
+                  .map((action) => action.getAttribute('data-workbench-new-tab-action'))
+                  .filter(Boolean);
+                const newTabActive = rightPanel?.getAttribute('data-right-panel-active-tab') === 'new-tab';
+                workbenchPanelNewTabPageWorks =
+                  newTabActive &&
+                  newTabPanel instanceof HTMLElement &&
+                  newTabGrid instanceof HTMLElement &&
+                  newTabActions.includes('files') &&
+                  newTabActions.includes('side-chat') &&
+                  newTabActions.includes('browser') &&
+                  newTabActions.includes('review') &&
+                  newTabActions.includes('terminal');
+                const browserTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+                if (browserTabButton instanceof HTMLElement) {
+                  browserTabButton.click();
+                  await sleep(100);
+                }
+              }
+              if (tabRow instanceof HTMLElement) {
+                const previous = {
+                  width: tabRow.style.width,
+                  maxWidth: tabRow.style.maxWidth,
+                  flex: tabRow.style.flex
+                };
+                tabRow.style.width = '64px';
+                tabRow.style.maxWidth = '64px';
+                tabRow.style.flex = '0 0 64px';
+                tabRow.scrollLeft = 0;
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+                const canOverflow = tabRow.scrollWidth > tabRow.clientWidth;
+                tabRow.dispatchEvent(new WheelEvent('wheel', {
+                  bubbles: true,
+                  cancelable: true,
+                  deltaY: 90
+                }));
+                await sleep(80);
+                rightPanelTabWheelScrollWorks = canOverflow && tabRow.scrollLeft > 0;
+                tabRow.style.width = previous.width;
+                tabRow.style.maxWidth = previous.maxWidth;
+                tabRow.style.flex = previous.flex;
+              }
+              const inactiveFilesTab = document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]');
+              if (inactiveFilesTab instanceof HTMLElement && rightPanel instanceof HTMLElement) {
+                const closeButton = inactiveFilesTab.querySelector('.motion-tab-close');
+                const beforeInactiveCloseTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                if (closeButton instanceof HTMLButtonElement) {
+                  closeButton.click();
+                  await sleep(180);
+                  const afterInactiveCloseTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                  rightPanelInactiveCloseWorks =
+                    beforeInactiveCloseTabs.includes('files') &&
+                    !afterInactiveCloseTabs.includes('files') &&
+                    afterInactiveCloseTabs.includes('browser');
+                  await openPanelTab('files', 'Files');
+                  await openPanelTab('browser', 'Browser');
+                }
+              }
+              const middleClickFilesTab = document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]');
+              if (middleClickFilesTab instanceof HTMLElement && rightPanel instanceof HTMLElement) {
+                const beforeMiddleClickTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                middleClickFilesTab.dispatchEvent(new MouseEvent('auxclick', {
+                  bubbles: true,
+                  cancelable: true,
+                  button: 1
+                }));
+                await sleep(180);
+                const afterMiddleClickTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                rightPanelMiddleClickCloseWorks =
+                  beforeMiddleClickTabs.includes('files') &&
+                  !afterMiddleClickTabs.includes('files') &&
+                  afterMiddleClickTabs.includes('browser');
+                await openPanelTab('files', 'Files');
+                await openPanelTab('browser', 'Browser');
+              }
+              const movableTabOrder = (rightPanel?.getAttribute('data-right-panel-tabs') ?? '')
+                .split(',')
+                .map((tab) => tab.trim())
+                .filter(Boolean);
+              const movableTabId = movableTabOrder[1] ?? movableTabOrder[0] ?? 'browser';
+              const browserTab = document.querySelector('[data-tab-id="' + movableTabId + '"]')?.closest('[role="tab"]');
+              if (browserTab instanceof HTMLElement && rightPanel instanceof HTMLElement) {
                 const beforeOrder = rightPanel?.getAttribute('data-right-panel-tabs') ?? '';
                 browserTab.dispatchEvent(new MouseEvent('contextmenu', {
                   bubbles: true,
@@ -3214,37 +5771,120 @@ function runAutomatedFocusedSurfaceSmoke(
                   clientY: browserTab.getBoundingClientRect().bottom + 4
                 }));
                 await sleep(140);
+                const rightPanelTabMenu = document.querySelector('.workbench-tab-context-menu');
+                const rightPanelTabMenuSections = rightPanelTabMenu instanceof HTMLElement
+                  ? [...rightPanelTabMenu.querySelectorAll('[data-menu-section="true"]')]
+                  : [];
+                const rightPanelTabMenuLabels = rightPanelTabMenu instanceof HTMLElement
+                  ? [...rightPanelTabMenu.querySelectorAll('[data-menu-section-label="true"]')]
+                  : [];
                 rightPanelContextMenuWorks =
                   document.body.innerText.includes('Move tab left') &&
                   document.body.innerText.includes('Move tab right') &&
                   document.body.innerText.includes('Close tab');
+                rightPanelContextMenuSharedSectionsWorks =
+                  rightPanelTabMenu instanceof HTMLElement &&
+                  rightPanelTabMenuSections.length >= 2 &&
+                  rightPanelTabMenuSections.every((section) =>
+                    section instanceof HTMLElement &&
+                    section.classList.contains('orchestrator-menu-section') &&
+                    section.scrollWidth <= section.clientWidth + 2
+                  ) &&
+                  rightPanelTabMenuLabels.length >= 2 &&
+                  rightPanelTabMenuLabels.every((label) =>
+                    label instanceof HTMLElement &&
+                    label.classList.contains('orchestrator-menu-section-label') &&
+                    getComputedStyle(label).textTransform !== 'uppercase'
+                  );
                 const moveLeft = [...document.querySelectorAll('[role="menuitem"]')]
                   .find((item) => item.textContent?.includes('Move tab left'));
                 if (moveLeft instanceof HTMLElement) {
                   moveLeft.click();
                   await sleep(160);
                   const afterOrder = rightPanel?.getAttribute('data-right-panel-tabs') ?? '';
-                  rightPanelTabReorderWorks = beforeOrder !== afterOrder && afterOrder.includes('browser,files');
+                  rightPanelTabReorderWorks =
+                    beforeOrder !== afterOrder &&
+                    afterOrder.includes('browser') &&
+                    afterOrder.includes('files');
                 }
               }
-              const browserDragTab = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
-              const filesDragTab = document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]');
+              const dragOrder = (rightPanel?.getAttribute('data-right-panel-tabs') ?? '')
+                .split(',')
+                .map((tab) => tab.trim())
+                .filter(Boolean);
+              const dragSourceId = dragOrder[1] ?? null;
+              const dragTargetId = dragOrder[0] ?? null;
+              const browserDragTab = dragSourceId
+                ? document.querySelector('[data-tab-id="' + dragSourceId + '"]')?.closest('[role="tab"]')
+                : null;
+              const filesDragTab = dragTargetId
+                ? document.querySelector('[data-tab-id="' + dragTargetId + '"]')?.closest('[role="tab"]')
+                : null;
               if (browserDragTab instanceof HTMLElement && filesDragTab instanceof HTMLElement && rightPanel instanceof HTMLElement) {
                 const beforeDragOrder = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
                 const dataTransfer = new DataTransfer();
+                const filesDragTargetRect = filesDragTab.getBoundingClientRect();
                 browserDragTab.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
-                filesDragTab.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
-                filesDragTab.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+                filesDragTab.dispatchEvent(new DragEvent('dragover', {
+                  bubbles: true,
+                  cancelable: true,
+                  dataTransfer,
+                  clientX: filesDragTargetRect.left + 1,
+                  clientY: filesDragTargetRect.top + Math.max(1, filesDragTargetRect.height / 2)
+                }));
+                await sleep(80);
+                const rightPanelDropMarkerStyle = getComputedStyle(filesDragTab, '::before');
+                rightPanelTabDragMarkerWorks =
+                  filesDragTab.getAttribute('data-drag-over') === 'true' &&
+                  filesDragTab.getAttribute('data-drop-position') === 'before' &&
+                  rightPanelDropMarkerStyle.content !== 'none' &&
+                  rightPanelDropMarkerStyle.backgroundColor !== 'rgba(0, 0, 0, 0)';
+                filesDragTab.dispatchEvent(new DragEvent('drop', {
+                  bubbles: true,
+                  cancelable: true,
+                  dataTransfer,
+                  clientX: filesDragTargetRect.left + 1,
+                  clientY: filesDragTargetRect.top + Math.max(1, filesDragTargetRect.height / 2)
+                }));
                 browserDragTab.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
                 await sleep(180);
                 const afterDragOrder = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
-                rightPanelTabDragReorderWorks = beforeDragOrder.includes('browser,files') && afterDragOrder.includes('files,browser');
+                rightPanelTabDragReorderWorks =
+                  beforeDragOrder !== afterDragOrder &&
+                  afterDragOrder.includes('browser') &&
+                  afterDragOrder.includes('files');
               }
-              const activeWorkbenchTab = document.querySelector('[data-testid="right-sidebar-tabbar"] .motion-tab-button[data-active="true"]');
+              const activeWorkbenchTab = document.querySelector('[data-testid="workbench-panel-tabbar"] .motion-tab-button[data-active="true"]');
               if (activeWorkbenchTab instanceof HTMLElement && rightPanel instanceof HTMLElement) {
                 const beforeCloseTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
                 activeWorkbenchTab.focus({ preventScroll: true });
                 await sleep(80);
+                const workbenchPanelForFullscreen = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="right"]');
+                const fullscreenProbe = document.createElement('div');
+                let fullscreenPatched = false;
+                const originalFullscreenDescriptor = Object.getOwnPropertyDescriptor(document, 'fullscreenElement') ??
+                  Object.getOwnPropertyDescriptor(Document.prototype, 'fullscreenElement');
+                const originalExitFullscreenDescriptor = Object.getOwnPropertyDescriptor(document, 'exitFullscreen') ??
+                  Object.getOwnPropertyDescriptor(Document.prototype, 'exitFullscreen');
+                if (workbenchPanelForFullscreen instanceof HTMLElement) {
+                  workbenchPanelForFullscreen.appendChild(fullscreenProbe);
+                  try {
+                    Object.defineProperty(document, 'fullscreenElement', {
+                      configurable: true,
+                      get: () => fullscreenProbe
+                    });
+                    Object.defineProperty(document, 'exitFullscreen', {
+                      configurable: true,
+                      value: () => {
+                        rightPanelFullscreenCleanupWorks = true;
+                        return Promise.resolve();
+                      }
+                    });
+                    fullscreenPatched = true;
+                  } catch {
+                    fullscreenPatched = false;
+                  }
+                }
                 activeWorkbenchTab.dispatchEvent(new KeyboardEvent('keydown', {
                   key: 'w',
                   code: 'KeyW',
@@ -3253,16 +5893,397 @@ function runAutomatedFocusedSurfaceSmoke(
                   cancelable: true
                 }));
                 await sleep(180);
+                if (fullscreenPatched) {
+                  if (originalFullscreenDescriptor) Object.defineProperty(document, 'fullscreenElement', originalFullscreenDescriptor);
+                  if (originalExitFullscreenDescriptor) Object.defineProperty(document, 'exitFullscreen', originalExitFullscreenDescriptor);
+                }
+                fullscreenProbe.remove();
                 const afterCloseTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
                 rightPanelCloseActiveShortcutWorks =
                   beforeCloseTabs.includes('browser') &&
                   !afterCloseTabs.includes('browser') &&
                   document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]') instanceof HTMLElement;
                 await openPanelTab('browser', 'Browser');
+                const composerForFallback = document.querySelector('textarea');
+                if (composerForFallback instanceof HTMLElement) {
+                  const beforeFallbackTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                  composerForFallback.focus({ preventScroll: true });
+                  await sleep(80);
+                  composerForFallback.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'w',
+                    code: 'KeyW',
+                    metaKey: true,
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  await sleep(180);
+                  const afterFallbackTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                  rightPanelCloseFallbackFromMainWorks =
+                    beforeFallbackTabs.includes('browser') &&
+                    !afterFallbackTabs.includes('browser') &&
+                    document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') === 'main';
+                  await openPanelTab('browser', 'Browser');
+                }
+              }
+              if (rightPanel instanceof HTMLElement) {
+                const focusActiveRightPanel = () => {
+                  const activePanel = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="right"]');
+                  if (activePanel instanceof HTMLElement) activePanel.focus({ preventScroll: true });
+                  return activePanel;
+                };
+                const waitForMenuEnabledState = async (command, enabled) => {
+                  for (let index = 0; index < 20; index += 1) {
+                    const state = await window.api.app.getMenuCommandState(command);
+                    if (state?.enabled === enabled) return state;
+                    await sleep(80);
+                  }
+                  return window.api.app.getMenuCommandState(command);
+                };
+                const sendShortcut = (target, key, code, shiftKey = false) => {
+                  const receiver = target instanceof HTMLElement ? target : window;
+                  receiver.dispatchEvent(new KeyboardEvent('keydown', {
+                    key,
+                    code,
+                    metaKey: true,
+                    shiftKey,
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                };
+                await openPanelTab('diff', 'Review');
+                await sleep(180);
+                const reviewPanel = focusActiveRightPanel();
+                const reviewBrowserAddressMenuState = await waitForMenuEnabledState('focus-browser-address-bar', false);
+                const reviewFindMenuState = await waitForMenuEnabledState('search-transcript', true);
+                sendShortcut(reviewPanel, 'f', 'KeyF');
+                await sleep(180);
+                const reviewFindFocused = document.activeElement?.getAttribute('data-testid') === 'diff-file-search';
+                await openPanelTab('files', 'Files');
+                await sleep(180);
+                const filesPanel = focusActiveRightPanel();
+                sendShortcut(filesPanel, 'f', 'KeyF');
+                await sleep(180);
+                const fileFindFocused = document.activeElement?.getAttribute('data-testid') === 'workspace-file-search';
+                await openPanelTab('browser', 'Browser');
+                await sleep(180);
+                const browserPanel = focusActiveRightPanel();
+                const browserAddressMenuState = await waitForMenuEnabledState('focus-browser-address-bar', true);
+                sendShortcut(browserPanel, 'f', 'KeyF');
+                await sleep(180);
+                const browserFindFocused = document.activeElement?.getAttribute('data-testid') === 'browser-find-input';
+                rightPanelFindShortcutRoutingWorks = reviewFindFocused && fileFindFocused && browserFindFocused;
+                rightPanelFindShortcutRoutingDebug = {
+                  reviewFindFocused,
+                  fileFindFocused,
+                  browserFindFocused,
+                  activeElementTestId: document.activeElement?.getAttribute('data-testid') ?? null,
+                  activeElementClass: document.activeElement instanceof HTMLElement ? document.activeElement.className : null,
+                  activeRightPanelTab: rightPanel.getAttribute('data-right-panel-active-tab'),
+                  appShellFocusArea: document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') ?? null,
+                  diffSearchPresent: Boolean(document.querySelector('[data-testid="diff-file-search"]')),
+                  fileSearchPresent: Boolean(document.querySelector('[data-testid="workspace-file-search"]')),
+                  browserFindPresent: Boolean(document.querySelector('[data-testid="browser-find-input"]'))
+                };
+                const browserPanelRoot = document.querySelector('[data-testid="browser-panel"]');
+                const browserPanelCommandCountBefore = Number(browserPanelRoot?.getAttribute('data-browser-panel-command-count') ?? '0');
+                const activeBrowserPanel = focusActiveRightPanel();
+                sendShortcut(activeBrowserPanel, 'l', 'KeyL');
+                await sleep(180);
+                const browserAddressFocused = document.activeElement?.getAttribute('data-testid') === 'browser-url-input';
+                sendShortcut(document.activeElement, 'r', 'KeyR');
+                await sleep(120);
+                const browserReloadCommand = document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-panel-last-command') === 'browser-reload-page';
+                sendShortcut(document.activeElement, 'R', 'KeyR', true);
+                await sleep(120);
+                const browserHardReloadCommand = document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-panel-last-command') === 'browser-hard-reload-page';
+                sendShortcut(document.activeElement, '[', 'BracketLeft');
+                await sleep(120);
+                const browserBackCommand = document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-panel-last-command') === 'browser-navigate-back';
+                sendShortcut(document.activeElement, ']', 'BracketRight');
+                await sleep(120);
+                const browserForwardCommand = document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-panel-last-command') === 'browser-navigate-forward';
+                const browserTabCountBeforeOpen = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-tab-count') ?? '0');
+                sendShortcut(document.activeElement, 't', 'KeyT');
+                await sleep(180);
+                const browserPanelAfterOpenTab = document.querySelector('[data-testid="browser-panel"]');
+                const browserOpenTabCommand = browserPanelAfterOpenTab?.getAttribute('data-browser-panel-last-command') === 'open-browser-tab';
+                const browserTabCountAfterOpen = Number(browserPanelAfterOpenTab?.getAttribute('data-browser-tab-count') ?? '0');
+                const browserPanelCommandCountAfter = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-panel-command-count') ?? '0');
+                rightPanelBrowserCommandRoutingWorks =
+                  browserAddressFocused &&
+                  browserReloadCommand &&
+                  browserHardReloadCommand &&
+                  browserBackCommand &&
+                  browserForwardCommand &&
+                  browserOpenTabCommand &&
+                  browserTabCountAfterOpen === browserTabCountBeforeOpen + 1 &&
+                  browserPanelCommandCountAfter >= browserPanelCommandCountBefore + 6;
+                const readUnsupportedTransferBoundary = async (tabId, expectedKind) => {
+                  const tab = document.querySelector('[data-tab-id="' + tabId + '"]')?.closest('[role="tab"]');
+                  if (!(tab instanceof HTMLElement)) return false;
+                  tab.dispatchEvent(new MouseEvent('contextmenu', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: tab.getBoundingClientRect().left + 12,
+                    clientY: tab.getBoundingClientRect().bottom + 4
+                  }));
+                  for (let index = 0; index < 20; index += 1) {
+                    const menu = document.querySelector('.workbench-tab-context-menu');
+                    if (menu instanceof HTMLElement && menu.getAttribute('data-panel-tab-transfer-kind') === expectedKind) break;
+                    await sleep(50);
+                  }
+                  const menu = document.querySelector('.workbench-tab-context-menu');
+                  const works =
+                    menu instanceof HTMLElement &&
+                    menu.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
+                    menu.getAttribute('data-panel-tab-transfer-source') === 'right' &&
+                    menu.getAttribute('data-panel-tab-transfer-target') === 'bottom' &&
+                    menu.getAttribute('data-panel-tab-transfer-kind') === expectedKind &&
+                    menu.getAttribute('data-panel-tab-transfer-supported') === 'false' &&
+                    menu.getAttribute('data-panel-tab-transfer-reason') === 'unsupported-tab-kind';
+                  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                  await sleep(60);
+                  return works;
+                };
+                const reviewTransferBoundaryWorks = await readUnsupportedTransferBoundary('diff', 'diff');
+                const filesTransferBoundaryWorks = await readUnsupportedTransferBoundary('files', 'files');
+                const workbenchBrowserTab = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+                if (workbenchBrowserTab instanceof HTMLElement) {
+                  workbenchBrowserTab.dispatchEvent(new MouseEvent('contextmenu', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: workbenchBrowserTab.getBoundingClientRect().left + 12,
+                    clientY: workbenchBrowserTab.getBoundingClientRect().bottom + 4
+                  }));
+                  for (let index = 0; index < 20; index += 1) {
+                    if (document.body.innerText.includes('Reset tab')) break;
+                    await sleep(50);
+                  }
+                  const browserTabMenu = document.querySelector('.workbench-tab-context-menu');
+                  rightPanelTransferUnsupportedBoundaryWorks =
+                    browserTabMenu instanceof HTMLElement &&
+                    browserTabMenu.getAttribute('data-panel-tab-transfer-model') === 'shared' &&
+                    browserTabMenu.getAttribute('data-panel-tab-transfer-source') === 'right' &&
+                    browserTabMenu.getAttribute('data-panel-tab-transfer-target') === 'bottom' &&
+                    browserTabMenu.getAttribute('data-panel-tab-transfer-kind') === 'browser' &&
+                    browserTabMenu.getAttribute('data-panel-tab-transfer-supported') === 'false' &&
+                    browserTabMenu.getAttribute('data-panel-tab-transfer-reason') === 'unsupported-tab-kind' &&
+                    reviewTransferBoundaryWorks &&
+                    filesTransferBoundaryWorks;
+                  const resetTab = [...document.querySelectorAll('[role="menuitem"]')]
+                    .find((item) => item.textContent?.includes('Reset tab'));
+                  if (resetTab instanceof HTMLButtonElement) {
+                    resetTab.click();
+                    for (let index = 0; index < 25; index += 1) {
+                      const resetPanel = document.querySelector('[data-testid="browser-panel"]');
+                      rightPanelBrowserVisualResetWorks =
+                        resetPanel instanceof HTMLElement &&
+                        resetPanel.getAttribute('data-browser-current-url') === '' &&
+                        Number(resetPanel.getAttribute('data-browser-tab-count') ?? '0') === 1 &&
+                        !document.querySelector('[data-testid="browser-tab-strip"]');
+                      if (rightPanelBrowserVisualResetWorks) break;
+                      await sleep(80);
+                    }
+                  }
+                }
+                const composerForMenuState = document.querySelector('textarea');
+                if (composerForMenuState instanceof HTMLElement) {
+                  composerForMenuState.focus({ preventScroll: true });
+                  composerForMenuState.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: null }));
+                  await sleep(120);
+                  const mainBrowserAddressMenuState = await waitForMenuEnabledState('focus-browser-address-bar', false);
+                  const mainOpenPanelTabMenuState = await waitForMenuEnabledState('open-browser-tab', true);
+                  rightPanelMenuCommandStateWorks =
+                    reviewBrowserAddressMenuState?.enabled === false &&
+                    reviewFindMenuState?.enabled === true &&
+                    browserAddressMenuState?.enabled === true &&
+                    mainBrowserAddressMenuState?.enabled === false &&
+                    mainOpenPanelTabMenuState?.enabled === true;
+                  rightPanelMenuCommandStateDebug = {
+                    reviewBrowserAddressMenuState,
+                    reviewFindMenuState,
+                    browserAddressMenuState,
+                    mainBrowserAddressMenuState,
+                    mainOpenPanelTabMenuState,
+                    activeFocusArea: document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') ?? null,
+                    activeRightPanelTab: rightPanel.getAttribute('data-right-panel-active-tab') ?? null
+                  };
+                }
               }
               let rightPanelExpandWorks = false;
               let rightPanelNarrowOverlayWorks = false;
+              let rightPanelResizeResetWorks = false;
+              let rightPanelResizeKeyboardWorks = false;
+              let rightPanelCloseBelowMinWorks = false;
+              let rightPanelResizeResetDebug = {};
+              let rightPanelCloseBelowMinDebug = {};
               let rightPanelNarrowOverlayDebug = {};
+              const resizeHandle = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="left"]');
+              if (resizeHandle instanceof HTMLElement && rightPanel instanceof HTMLElement) {
+                const resizeRect = resizeHandle.getBoundingClientRect();
+                const startX = resizeRect.left + resizeRect.width / 2;
+                const startY = resizeRect.top + resizeRect.height / 2;
+                const widthBeforeResize = Number(rightPanel.getAttribute('data-right-panel-width') ?? '0');
+                resizeHandle.dispatchEvent(new PointerEvent('pointerdown', {
+                  bubbles: true,
+                  cancelable: true,
+                  pointerId: 23,
+                  pointerType: 'mouse',
+                  clientX: startX,
+                  clientY: startY
+                }));
+                window.dispatchEvent(new PointerEvent('pointermove', {
+                  bubbles: true,
+                  cancelable: true,
+                  pointerId: 23,
+                  pointerType: 'mouse',
+                  clientX: startX - 84,
+                  clientY: startY
+                }));
+                window.dispatchEvent(new PointerEvent('pointerup', {
+                  bubbles: true,
+                  cancelable: true,
+                  pointerId: 23,
+                  pointerType: 'mouse',
+                  clientX: startX - 84,
+                  clientY: startY
+                }));
+                await sleep(220);
+                const widthAfterResize = Number(rightPanel.getAttribute('data-right-panel-width') ?? '0');
+                resizeHandle.dispatchEvent(new MouseEvent('dblclick', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: startX,
+                  clientY: startY
+                }));
+                await sleep(220);
+                const widthAfterReset = Number(rightPanel.getAttribute('data-right-panel-width') ?? '0');
+                const keyboardResizeHandle = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="left"]');
+                let widthAfterKeyboard = 0;
+                let widthAfterKeyboardReset = 0;
+                if (keyboardResizeHandle instanceof HTMLElement) {
+                  keyboardResizeHandle.focus();
+                  keyboardResizeHandle.dispatchEvent(new KeyboardEvent('keydown', {
+                    bubbles: true,
+                    cancelable: true,
+                    key: 'ArrowLeft'
+                  }));
+                  await sleep(160);
+                  widthAfterKeyboard = Number(rightPanel.getAttribute('data-right-panel-width') ?? '0');
+                  const keyboardResetHandle = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="left"]');
+                  if (keyboardResetHandle instanceof HTMLElement) {
+                    keyboardResetHandle.dispatchEvent(new KeyboardEvent('keydown', {
+                      bubbles: true,
+                      cancelable: true,
+                      key: 'Enter'
+                    }));
+                  }
+                  await sleep(160);
+                  widthAfterKeyboardReset = Number(rightPanel.getAttribute('data-right-panel-width') ?? '0');
+                  rightPanelResizeKeyboardWorks =
+                    keyboardResizeHandle.getAttribute('tabindex') === '0' &&
+                    keyboardResizeHandle.getAttribute('aria-valuemin') === '320' &&
+                    Number(keyboardResizeHandle.getAttribute('aria-valuemax') ?? '0') >= 320 &&
+                    Math.abs(widthAfterKeyboard - widthAfterReset) >= 8 &&
+                    Math.abs(widthAfterKeyboardReset - 600) <= 4;
+                }
+                rightPanelResizeResetDebug = {
+                  role: resizeHandle.getAttribute('role'),
+                  ariaOrientation: resizeHandle.getAttribute('aria-orientation'),
+                  resizeEdge: resizeHandle.getAttribute('data-app-shell-resize-edge'),
+                  keyboardHandleFound: keyboardResizeHandle instanceof HTMLElement,
+                  tabIndex: keyboardResizeHandle instanceof HTMLElement ? keyboardResizeHandle.getAttribute('tabindex') : null,
+                  ariaValueNow: keyboardResizeHandle instanceof HTMLElement ? keyboardResizeHandle.getAttribute('aria-valuenow') : null,
+                  ariaValueMin: keyboardResizeHandle instanceof HTMLElement ? keyboardResizeHandle.getAttribute('aria-valuemin') : null,
+                  ariaValueMax: keyboardResizeHandle instanceof HTMLElement ? keyboardResizeHandle.getAttribute('aria-valuemax') : null,
+                  widthBeforeResize,
+                  widthAfterResize,
+                  widthAfterReset,
+                  widthAfterKeyboard,
+                  widthAfterKeyboardReset
+                };
+                rightPanelResizeResetWorks =
+                  resizeHandle.getAttribute('role') === 'separator' &&
+                  resizeHandle.getAttribute('aria-orientation') === 'vertical' &&
+                  resizeHandle.getAttribute('data-app-shell-resize-edge') === 'left' &&
+                  Math.abs(widthAfterResize - widthBeforeResize) >= 24 &&
+                  Math.abs(widthAfterReset - widthBeforeResize) <= 4 &&
+                  Math.abs(widthAfterReset - 600) <= 4;
+                const tabsBeforeCloseBelowMin = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                const motionPanelBeforeCloseBelowMin = rightPanel.closest('[data-motion-panel="right"]');
+                const closeBelowMinHandle = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="left"]');
+                if (closeBelowMinHandle instanceof HTMLElement) {
+                  const closeRect = closeBelowMinHandle.getBoundingClientRect();
+                  const closeStartX = closeRect.left + closeRect.width / 2;
+                  const closeStartY = closeRect.top + closeRect.height / 2;
+                  closeBelowMinHandle.dispatchEvent(new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 29,
+                    pointerType: 'mouse',
+                    clientX: closeStartX,
+                    clientY: closeStartY
+                  }));
+                  const closeTargetX = closeStartX + Math.max(1000, widthAfterReset + 480);
+                  window.dispatchEvent(new PointerEvent('pointermove', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 29,
+                    pointerType: 'mouse',
+                    clientX: closeTargetX,
+                    clientY: closeStartY
+                  }));
+                  window.dispatchEvent(new PointerEvent('pointerup', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 29,
+                    pointerType: 'mouse',
+                    clientX: closeTargetX,
+                    clientY: closeStartY
+                  }));
+                  await sleep(440);
+                  const motionPanelHidden = rightPanel.closest('[data-motion-panel="right"]');
+                  const motionPanelHiddenOpen = motionPanelHidden instanceof HTMLElement ? motionPanelHidden.getAttribute('data-open') : null;
+                  const hiddenRect = motionPanelHidden instanceof HTMLElement ? motionPanelHidden.getBoundingClientRect() : null;
+                  const panelOpenHidden = rightPanel.getAttribute('data-right-panel-open');
+                  const titlebarToggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
+                  if (titlebarToggle instanceof HTMLButtonElement) {
+                    titlebarToggle.click();
+                    await sleep(320);
+                  }
+                  const motionPanelRestored = rightPanel.closest('[data-motion-panel="right"]');
+                  const restoredRect = motionPanelRestored instanceof HTMLElement ? motionPanelRestored.getBoundingClientRect() : null;
+                  const panelOpenRestored = rightPanel.getAttribute('data-right-panel-open');
+                  const tabsAfterRestore = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
+                  rightPanelCloseBelowMinDebug = {
+                    closeTargetX,
+                    openBefore: motionPanelBeforeCloseBelowMin instanceof HTMLElement ? motionPanelBeforeCloseBelowMin.getAttribute('data-open') : null,
+                    openHidden: motionPanelHiddenOpen,
+                    panelOpenHidden,
+                    hiddenWidth: hiddenRect?.width ?? null,
+                    openRestored: motionPanelRestored instanceof HTMLElement ? motionPanelRestored.getAttribute('data-open') : null,
+                    panelOpenRestored,
+                    restoredWidth: restoredRect?.width ?? null,
+                    tabsBeforeCloseBelowMin,
+                    tabsAfterRestore
+                  };
+                  rightPanelCloseBelowMinWorks =
+                    motionPanelHidden instanceof HTMLElement &&
+                    motionPanelHiddenOpen === 'false' &&
+                    panelOpenHidden === 'false' &&
+                    hiddenRect !== null &&
+                    hiddenRect.width <= 4 &&
+                    titlebarToggle instanceof HTMLButtonElement &&
+                    motionPanelRestored instanceof HTMLElement &&
+                    panelOpenRestored === 'true' &&
+                    restoredRect !== null &&
+                    restoredRect.width >= 320 &&
+                    tabsBeforeCloseBelowMin.includes('files') &&
+                    tabsBeforeCloseBelowMin.includes('browser') &&
+                    tabsAfterRestore.includes('files') &&
+                    tabsAfterRestore.includes('browser');
+                }
+              }
               if (expandButton instanceof HTMLButtonElement) {
                 const mainRow = document.querySelector('[data-testid="session-main-row"]');
                 const primaryBefore = document.querySelector('[data-testid="session-primary-content"]');
@@ -3295,7 +6316,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     minWidth: mainRow.style.minWidth,
                     maxWidth: mainRow.style.maxWidth
                   };
-                  const overlayNarrowWidth = '680px';
+                  const overlayNarrowWidth = '640px';
                   mainRow.style.flex = '0 0 ' + overlayNarrowWidth;
                   mainRow.style.width = overlayNarrowWidth;
                   mainRow.style.minWidth = overlayNarrowWidth;
@@ -3321,7 +6342,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     overlayPanel instanceof HTMLElement &&
                     overlayPanel.dataset.rightPanelLayout === 'overlay' &&
                     overlayContainer instanceof HTMLElement &&
-                    overlayContainer.classList.contains('right-sidebar-overlay') &&
+                    overlayContainer.classList.contains('workbench-panel-overlay') &&
                     overlayRect !== null &&
                     overlayRect.width <= rowRect.width - 12 &&
                     overlayRect.right <= rowRect.right + 2;
@@ -3332,13 +6353,33 @@ function runAutomatedFocusedSurfaceSmoke(
                   window.dispatchEvent(new Event('resize'));
                 }
               }
+              const rightPanelTelemetry = await window.api.performance.snapshot();
+              rightPanelTabTelemetryWorks = rightPanelTelemetry.metrics.some((metric) =>
+                metric.name === 'panel.tab.viewed' &&
+                metric.metadata?.panelId === 'right' &&
+                typeof metric.metadata?.tabId === 'string'
+              );
+              rightPanelTabLifecycleTelemetryWorks =
+                rightPanelTelemetry.metrics.some((metric) =>
+                  metric.name === 'panel.tab.opened' &&
+                  metric.metadata?.panelId === 'right' &&
+                  typeof metric.metadata?.tabId === 'string'
+                ) &&
+                rightPanelTelemetry.metrics.some((metric) =>
+                  metric.name === 'panel.tab.closed' &&
+                  metric.metadata?.panelId === 'right' &&
+                  typeof metric.metadata?.tabId === 'string'
+                );
               return {
                 profile,
                 hasRightPanelState: rightPanel instanceof HTMLElement &&
                   rightPanel.dataset.rightPanelTabs?.includes('files') === true &&
                   rightPanel.dataset.rightPanelTabs?.includes('browser') === true &&
                   Number(rightPanel.dataset.rightPanelWidth ?? '0') >= (rightPanel.dataset.rightPanelLayout === 'overlay' ? 280 : 360),
-                rightSidebarChromeCompactWorks:
+                rightPanelShellOwnershipWorks,
+                rightPanelSharedAnimationControllerWorks,
+                rightPanelSharedLayoutControllerWorks,
+                workbenchPanelChromeCompactWorks:
                   rightPanel instanceof HTMLElement &&
                   tabbar instanceof HTMLElement &&
                   tabRow instanceof HTMLElement &&
@@ -3346,41 +6387,391 @@ function runAutomatedFocusedSurfaceSmoke(
                   tabbar.getBoundingClientRect().height <= 42 &&
                   tabRow.scrollWidth <= tabRow.clientWidth + 64 &&
                   tabActions.getBoundingClientRect().height <= 30,
-                rightSidebarAddControlStableWorks:
+                workbenchPanelAddControlStableWorks:
                   addButton instanceof HTMLButtonElement &&
                   addButton.dataset.icon === 'plus' &&
                   addButton.getAttribute('aria-label') === 'Add Workbench tab',
+                workbenchPanelNewTabPageWorks,
                 rightPanelExpandWorks,
+                rightPanelResizeResetWorks,
+                rightPanelResizeKeyboardWorks,
+                rightPanelResizeResetDebug,
+                rightPanelCloseBelowMinWorks,
+                rightPanelCloseBelowMinDebug,
                 rightPanelNarrowOverlayWorks,
                 rightPanelNarrowOverlayDebug,
                 rightPanelContextMenuWorks,
+                rightPanelContextMenuSharedSectionsWorks,
                 rightPanelTabReorderWorks,
                 rightPanelTabDragReorderWorks,
+                rightPanelTabDragMarkerWorks,
                 rightPanelCloseActiveShortcutWorks,
+                rightPanelInactiveCloseWorks,
+                rightPanelMiddleClickCloseWorks,
+                rightPanelCloseFallbackFromMainWorks,
+                rightPanelTabPanelA11yWorks,
+                rightPanelTabWheelScrollWorks,
+                rightPanelFullscreenCleanupWorks,
+                rightPanelTabTelemetryWorks,
+                rightPanelTabLifecycleTelemetryWorks,
+                rightPanelTabWeightCalmWorks,
+                rightPanelTabActionsSharedVariantWorks,
+                rightPanelMenuCommandStateWorks,
+                rightPanelMenuCommandStateDebug,
+                rightPanelFindShortcutRoutingWorks,
+                rightPanelFindShortcutRoutingDebug,
+                rightPanelBrowserCommandRoutingWorks,
+                rightPanelBrowserVisualResetWorks,
+                rightPanelTransferUnsupportedBoundaryWorks,
                 widthBefore
               };
             }
 
             if (surface === 'diff') {
+              if (smokeView === 'diff-loading') {
+                const pendingReviewDiffForLoadingSmoke = new Promise(() => {});
+                window.api.sessions.getDiffForFile = () => pendingReviewDiffForLoadingSmoke;
+              }
               await openPanelTab('diff', 'Review');
+              if (smokeView === 'diff-empty') {
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                  const reviewRoot = document.querySelector('.diff-panel-root');
+                  const reviewEmptyState = document.querySelector('[data-testid="review-empty-state"]');
+                  if (
+                    reviewRoot instanceof HTMLElement &&
+                    reviewRoot.getAttribute('data-review-main-file-count') === '0' &&
+                    reviewEmptyState instanceof HTMLElement
+                  ) {
+                    break;
+                  }
+                  await sleep(140);
+                }
+                const reviewRoot = document.querySelector('.diff-panel-root');
+                const reviewEmptyState = document.querySelector('[data-testid="review-empty-state"]');
+                const reviewEmptyIcon = reviewEmptyState instanceof HTMLElement
+                  ? reviewEmptyState.querySelector('.orchestrator-panel-notice-icon')
+                  : null;
+                const reviewEmptyRect = reviewEmptyState instanceof HTMLElement
+                  ? reviewEmptyState.getBoundingClientRect()
+                  : null;
+                const reviewEmptyStyle = reviewEmptyState instanceof HTMLElement
+                  ? getComputedStyle(reviewEmptyState)
+                  : null;
+                const reviewEmptyShell = reviewEmptyState instanceof HTMLElement
+                  ? reviewEmptyState.closest('.diff-panel-empty-shell')
+                  : null;
+                const reviewEmptyShellRect = reviewEmptyShell instanceof HTMLElement
+                  ? reviewEmptyShell.getBoundingClientRect()
+                  : null;
+                const reviewEmptyTitle = reviewEmptyState instanceof HTMLElement
+                  ? reviewEmptyState.querySelector('.orchestrator-panel-notice-title')
+                  : null;
+                return {
+                  profile: await window.api.app.getProfile(),
+                  reviewEmptyStateWorks:
+                    reviewRoot instanceof HTMLElement &&
+                    reviewRoot.getAttribute('data-review-main-file-count') === '0' &&
+                    reviewRoot.getAttribute('data-review-tree-file-count') === '0' &&
+                    reviewEmptyState instanceof HTMLElement &&
+                    reviewEmptyState.getAttribute('data-review-empty-state') === 'true' &&
+                    reviewEmptyState.textContent?.includes('No changes') === true &&
+                    reviewEmptyState.textContent?.includes('There are no local changes to review.') === true,
+                  reviewEmptyStateCalmWorks:
+                    reviewEmptyState instanceof HTMLElement &&
+                    reviewEmptyRect !== null &&
+                    reviewEmptyStyle !== null &&
+                    reviewEmptyShellRect !== null &&
+                    reviewEmptyIcon instanceof HTMLElement &&
+                    reviewEmptyTitle instanceof HTMLElement &&
+                    reviewEmptyStyle.display === 'flex' &&
+                    reviewEmptyStyle.flexDirection === 'column' &&
+                    reviewEmptyStyle.textAlign === 'center' &&
+                    Math.abs((reviewEmptyRect.left + reviewEmptyRect.width / 2) - (reviewEmptyShellRect.left + reviewEmptyShellRect.width / 2)) <= 3 &&
+                    Math.abs((reviewEmptyRect.top + reviewEmptyRect.height / 2) - (reviewEmptyShellRect.top + reviewEmptyShellRect.height / 2)) <= 3 &&
+                    reviewEmptyRect.width <= 360 &&
+                    reviewEmptyRect.height <= 170 &&
+                    reviewEmptyIcon.getBoundingClientRect().width === 40 &&
+                    Number.parseFloat(reviewEmptyStyle.fontSize || '0') <= 13 &&
+                    Number.parseFloat(getComputedStyle(reviewEmptyTitle).fontWeight || '0') < 700
+                };
+              }
+              if (smokeView === 'diff-loading') {
+                for (let attempt = 0; attempt < 16; attempt += 1) {
+                  if (
+                    document.querySelector('.diff-panel-root[data-embedded="true"]') instanceof HTMLElement &&
+                    document.querySelector('[data-testid="review-diff-loading-state"]') instanceof HTMLElement &&
+                    document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-changed-files-pane') instanceof HTMLElement
+                  ) {
+                    break;
+                  }
+                  await sleep(100);
+                }
+                const reviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+                const reviewLoadingState = document.querySelector('[data-testid="review-diff-loading-state"]');
+                const reviewLoadingStates = [...document.querySelectorAll('[data-testid="review-diff-loading-state"]')]
+                  .filter((state) => state instanceof HTMLElement);
+                const reviewSidePane = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-changed-files-pane');
+                const reviewList = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list');
+                const reviewPreview = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-preview-pane');
+                const reviewFirstSection = document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-file-section"]');
+                const loadingRect = reviewLoadingState instanceof HTMLElement
+                  ? reviewLoadingState.getBoundingClientRect()
+                  : null;
+                const previewRect = reviewPreview instanceof HTMLElement
+                  ? reviewPreview.getBoundingClientRect()
+                  : null;
+                const sidePaneRect = reviewSidePane instanceof HTMLElement
+                  ? reviewSidePane.getBoundingClientRect()
+                  : null;
+                const loadingTitle = reviewLoadingState instanceof HTMLElement
+                  ? reviewLoadingState.querySelector('.orchestrator-panel-notice-title')
+                  : null;
+                return {
+                  profile: await window.api.app.getProfile(),
+                  reviewLoadingStateWorks:
+                    reviewRoot instanceof HTMLElement &&
+                    Number(reviewRoot.getAttribute('data-review-main-file-count') ?? '0') > 0 &&
+                    reviewFirstSection instanceof HTMLElement &&
+                    reviewLoadingStates.length > 0 &&
+                    reviewLoadingState instanceof HTMLElement &&
+                    reviewLoadingState.getAttribute('data-review-empty-state') === 'true' &&
+                    reviewLoadingState.textContent?.includes('Loading...') === true &&
+                    !(document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-unified-diff"]') instanceof HTMLElement),
+                  reviewLoadingStateCalmWorks:
+                    reviewLoadingState instanceof HTMLElement &&
+                    loadingRect !== null &&
+                    previewRect !== null &&
+                    loadingTitle instanceof HTMLElement &&
+                    loadingRect.width <= Math.max(360, previewRect.width - 32) &&
+                    loadingRect.height <= 150 &&
+                    Number.parseFloat(getComputedStyle(reviewLoadingState).fontSize || '0') <= 13 &&
+                    Number.parseFloat(getComputedStyle(loadingTitle).fontWeight || '0') < 700,
+                  reviewLoadingKeepsSidePaneWorks:
+                    reviewSidePane instanceof HTMLElement &&
+                    reviewList instanceof HTMLElement &&
+                    reviewPreview instanceof HTMLElement &&
+                    sidePaneRect !== null &&
+                    previewRect !== null &&
+                    sidePaneRect.width >= 198 &&
+                    reviewList.querySelector('[data-workbench-tree-row="true"][data-review-path]') instanceof HTMLElement &&
+                    document.documentElement.scrollWidth <= window.innerWidth + 2 &&
+                    reviewRoot instanceof HTMLElement &&
+                    reviewRoot.scrollWidth <= reviewRoot.clientWidth + 2
+                };
+              }
+              if (smokeView === 'diff-narrow') {
+                for (let attempt = 0; attempt < 16; attempt += 1) {
+                  if (
+                    document.querySelector('[data-testid="session-main-row"]') instanceof HTMLElement &&
+                    document.querySelector('[data-testid="session-right-panel"]') instanceof HTMLElement &&
+                    document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-file-section"]') instanceof HTMLElement &&
+                    document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-unified-diff"]') instanceof HTMLElement
+                  ) {
+                    break;
+                  }
+                  await sleep(140);
+                }
+                const mainRow = document.querySelector('[data-testid="session-main-row"]');
+                if (mainRow instanceof HTMLElement) {
+                  const overlayNarrowWidth = '640px';
+                  mainRow.style.flex = '0 0 ' + overlayNarrowWidth;
+                  mainRow.style.width = overlayNarrowWidth;
+                  mainRow.style.minWidth = overlayNarrowWidth;
+                  mainRow.style.maxWidth = overlayNarrowWidth;
+                  window.dispatchEvent(new Event('resize'));
+                  await sleep(260);
+                }
+                const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+                const rightPanelContainer = rightPanel instanceof HTMLElement ? rightPanel.closest('[data-motion-panel="right"]') : null;
+                const reviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+                const reviewToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
+                const reviewToolbarActions = document.querySelector('[data-testid="review-toolbar-action-strip"]');
+                const reviewSidePane = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-changed-files-pane');
+                const reviewSearch = document.querySelector('[data-testid="diff-file-search"]');
+                const reviewList = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list');
+                const reviewPreview = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-preview-pane');
+                const reviewDiff = document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-unified-diff"]');
+                const reviewLine = document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-unified-diff"] [data-line-number]');
+                const rowRect = mainRow instanceof HTMLElement ? mainRow.getBoundingClientRect() : null;
+                const panelRect = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
+                const toolbarRect = reviewToolbar instanceof HTMLElement ? reviewToolbar.getBoundingClientRect() : null;
+                const sidePaneRect = reviewSidePane instanceof HTMLElement ? reviewSidePane.getBoundingClientRect() : null;
+                const searchRect = reviewSearch instanceof HTMLElement ? reviewSearch.getBoundingClientRect() : null;
+                const listRect = reviewList instanceof HTMLElement ? reviewList.getBoundingClientRect() : null;
+                const previewRect = reviewPreview instanceof HTMLElement ? reviewPreview.getBoundingClientRect() : null;
+                const diffRect = reviewDiff instanceof HTMLElement ? reviewDiff.getBoundingClientRect() : null;
+                const lineRect = reviewLine instanceof HTMLElement ? reviewLine.getBoundingClientRect() : null;
+                const toolbarActionsScrollWidth = reviewToolbarActions instanceof HTMLElement ? reviewToolbarActions.scrollWidth : 0;
+                const toolbarActionsClientWidth = reviewToolbarActions instanceof HTMLElement ? reviewToolbarActions.clientWidth : 0;
+                const reviewNarrowOverlayDebug = {
+                  rightPanelLayout: rightPanel instanceof HTMLElement ? rightPanel.dataset.rightPanelLayout ?? null : null,
+                  containerClassName: rightPanelContainer instanceof HTMLElement ? rightPanelContainer.className : null,
+                  rowWidth: rowRect?.width ?? null,
+                  panelWidth: panelRect?.width ?? null,
+                  panelRight: panelRect?.right ?? null,
+                  toolbarWidth: toolbarRect?.width ?? null,
+                  toolbarActionsScrollWidth,
+                  toolbarActionsClientWidth,
+                  sidePaneWidth: sidePaneRect?.width ?? null,
+                  searchWidth: searchRect?.width ?? null,
+                  listWidth: listRect?.width ?? null,
+                  previewWidth: previewRect?.width ?? null,
+                  diffWidth: diffRect?.width ?? null,
+                  lineWidth: lineRect?.width ?? null,
+                  documentScrollWidth: document.documentElement.scrollWidth,
+                  viewportWidth: window.innerWidth
+                };
+                return {
+                  profile: await window.api.app.getProfile(),
+                  reviewNarrowOverlayWorks:
+                    rightPanel instanceof HTMLElement &&
+                    rightPanel.dataset.rightPanelLayout === 'overlay' &&
+                    rightPanelContainer instanceof HTMLElement &&
+                    rightPanelContainer.classList.contains('workbench-panel-overlay') &&
+                    rowRect !== null &&
+                    panelRect !== null &&
+                    panelRect.width <= rowRect.width - 12 &&
+                    panelRect.right <= rowRect.right + 2,
+                  reviewNarrowNoHorizontalOverflowWorks:
+                    document.documentElement.scrollWidth <= window.innerWidth + 2 &&
+                    rightPanel instanceof HTMLElement &&
+                    rightPanel.scrollWidth <= rightPanel.clientWidth + 2 &&
+                    reviewRoot instanceof HTMLElement &&
+                    reviewRoot.scrollWidth <= reviewRoot.clientWidth + 2,
+                  reviewNarrowToolbarContainedWorks:
+                    toolbarRect !== null &&
+                    panelRect !== null &&
+                    toolbarActionsClientWidth > 0 &&
+                    toolbarRect.left >= panelRect.left - 1 &&
+                    toolbarRect.right <= panelRect.right + 1 &&
+                    toolbarActionsScrollWidth <= toolbarActionsClientWidth + 48,
+                  reviewNarrowSidePaneContainedWorks:
+                    sidePaneRect !== null &&
+                    searchRect !== null &&
+                    listRect !== null &&
+                    panelRect !== null &&
+                    sidePaneRect.width >= 198 &&
+                    sidePaneRect.width <= Math.max(220, panelRect.width * 0.6 + 2) &&
+                    searchRect.left >= sidePaneRect.left + 4 &&
+                    searchRect.right <= sidePaneRect.right - 4 &&
+                    listRect.right <= sidePaneRect.right + 1,
+                  reviewNarrowDiffReadableWorks:
+                    previewRect !== null &&
+                    diffRect !== null &&
+                    lineRect !== null &&
+                    panelRect !== null &&
+                    previewRect.width >= 280 &&
+                    diffRect.right <= previewRect.right + 1 &&
+                    lineRect.width >= 220,
+                  reviewNarrowOverlayDebug
+                };
+              }
               const diffSearch = document.querySelector('[data-testid="diff-file-search"]');
+              const currentDiffSearch = () => document.querySelector('[data-testid="diff-file-search"]');
               const diffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
-              const diffPanelList = document.querySelector('.diff-panel-list');
-              const diffRows = [...document.querySelectorAll('.diff-file-row')].filter((row) => row instanceof HTMLElement);
+              const currentDiffPanelList = () => document.querySelector('.diff-panel-list');
+              const diffRows = () => [...document.querySelectorAll('.diff-panel-list .diff-file-row')]
+                .filter((row) => row instanceof HTMLElement);
+              const diffWorkbenchRows = () => [...document.querySelectorAll('.diff-panel-list [data-workbench-tree-row="true"]')]
+                .filter((row) => row instanceof HTMLElement);
+              for (let attempt = 0; attempt < 12; attempt += 1) {
+                if (
+                  currentDiffPanelList() instanceof HTMLElement &&
+                  document.querySelector('[data-testid="review-file-section"]') instanceof HTMLElement &&
+                  document.querySelector('[data-testid="review-unified-diff"]') instanceof HTMLElement
+                ) {
+                  break;
+                }
+                await sleep(140);
+              }
+              if (smokeView === 'diff-conflict') {
+                const conflictSearch = currentDiffSearch();
+                if (conflictSearch instanceof HTMLInputElement) {
+                  setNativeValue(conflictSearch, 'conflict-smoke');
+                  conflictSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                  await sleep(180);
+                }
+                const conflictRow = document.querySelector('.diff-panel-list [data-review-path="conflict-smoke.txt"]');
+                if (conflictRow instanceof HTMLElement) {
+                  conflictRow.click();
+                  await sleep(260);
+                }
+                for (let attempt = 0; attempt < 20; attempt += 1) {
+                  if (document.querySelector('[data-testid="review-merge-conflict-helper"]') instanceof HTMLElement) break;
+                  await sleep(100);
+                }
+                const sessions = await window.api.sessions.list();
+                const session = sessions[0] ?? null;
+                const conflictSection = document.querySelector('[data-testid="review-file-section"][data-review-path="conflict-smoke.txt"]');
+                const conflictUnifiedDiff = conflictSection?.querySelector('[data-testid="review-unified-diff"]');
+                const conflictHelper = conflictSection?.querySelector('[data-testid="review-merge-conflict-helper"]');
+                const conflictIncoming = conflictSection?.querySelector('[data-testid="review-merge-conflict-incoming"]');
+                const conflictCurrent = conflictSection?.querySelector('[data-testid="review-merge-conflict-current"]');
+                const conflictBoth = conflictSection?.querySelector('[data-testid="review-merge-conflict-both"]');
+                const helperSlot = conflictHelper instanceof HTMLElement
+                  ? conflictHelper.getAttribute('data-review-merge-conflict-action-slot') ?? ''
+                  : '';
+                const conflictCountBefore = conflictUnifiedDiff instanceof HTMLElement
+                  ? conflictUnifiedDiff.getAttribute('data-review-merge-conflict-count')
+                  : null;
+                const sectionConflictedBefore = conflictSection instanceof HTMLElement
+                  ? conflictSection.getAttribute('data-review-file-conflicted')
+                  : null;
+                const helperRect = conflictHelper instanceof HTMLElement ? conflictHelper.getBoundingClientRect() : null;
+                const diffRect = conflictUnifiedDiff instanceof HTMLElement ? conflictUnifiedDiff.getBoundingClientRect() : null;
+                if (conflictIncoming instanceof HTMLButtonElement) {
+                  conflictIncoming.click();
+                  await sleep(500);
+                }
+                const conflictPath = session?.workDir ? session.workDir + '/conflict-smoke.txt' : '';
+                const resolvedText = conflictPath ? await window.api.fs.readFile(conflictPath) : null;
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                  const helperAfter = conflictSection?.querySelector('[data-testid="review-merge-conflict-helper"]');
+                  if (!(helperAfter instanceof HTMLElement)) break;
+                  await sleep(100);
+                }
+                const helperAfter = conflictSection?.querySelector('[data-testid="review-merge-conflict-helper"]');
+                return {
+                  profile: await window.api.app.getProfile(),
+                  reviewMergeConflictHelpersWorks:
+                    conflictSection instanceof HTMLElement &&
+                    sectionConflictedBefore === 'true' &&
+                    conflictUnifiedDiff instanceof HTMLElement &&
+                    conflictCountBefore === '1' &&
+                    conflictHelper instanceof HTMLElement &&
+                    helperRect !== null &&
+                    diffRect !== null &&
+                    helperSlot.startsWith('merge-conflict-action-') &&
+                    conflictCurrent instanceof HTMLButtonElement &&
+                    conflictIncoming instanceof HTMLButtonElement &&
+                    conflictBoth instanceof HTMLButtonElement &&
+                    conflictCurrent.getAttribute('data-review-merge-conflict-resolution') === 'current' &&
+                    conflictIncoming.getAttribute('data-review-merge-conflict-resolution') === 'incoming' &&
+                    conflictBoth.getAttribute('data-review-merge-conflict-resolution') === 'both' &&
+                    helperRect.width <= diffRect.width - 24 &&
+                    resolvedText === 'incoming conflict choice\\n' &&
+                    !(helperAfter instanceof HTMLElement)
+                };
+              }
               let diffActionMenuCompactWorks = false;
+              let diffActionMenuMaterialWorks = false;
+              let reviewGitApplyCommandCoversAllWorks = false;
+              let reviewFloatingGitActionsWork = false;
+              let reviewRevertAllConfirmationWorks = false;
               const actionMenuButton = [...document.querySelectorAll('button')]
-                .find((button) => button.getAttribute('aria-label') === 'Change actions');
+                .find((button) => button.getAttribute('aria-label') === 'Review options');
               if (actionMenuButton instanceof HTMLButtonElement) {
                 actionMenuButton.click();
                 await sleep(100);
                 const menuSurface = document.querySelector('.orchestrator-menu-surface');
+                const menuSurfaceStyle = menuSurface instanceof HTMLElement ? getComputedStyle(menuSurface) : null;
                 const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
                   .filter((item) => item instanceof HTMLElement);
                 const menuLabels = [...document.querySelectorAll('[role="menuitem"]')]
                   .map((item) => item.textContent?.trim() ?? '');
                 diffActionMenuCompactWorks =
                   menuSurface instanceof HTMLElement &&
-                  menuSurface.getBoundingClientRect().width <= 230 &&
+                  menuSurface.getBoundingClientRect().width <= 280 &&
                   menuSurface.getBoundingClientRect().height <= 320 &&
                   menuRows.length >= 6 &&
                   menuRows.every((row) =>
@@ -3389,31 +6780,2032 @@ function runAutomatedFocusedSurfaceSmoke(
                     getComputedStyle(row).fontWeight === '400' &&
                     getComputedStyle(row).transform === 'none'
                   ) &&
-                  menuLabels.includes('Refresh changes') &&
-                  menuLabels.some((label) => label.includes('line wrap')) &&
+                  menuLabels.includes('Refresh') &&
+                  menuLabels.some((label) => label.includes('word wrap')) &&
+                  menuLabels.some((label) => label.includes('white space')) &&
+                  menuLabels.some((label) => label.includes('word diffs')) &&
+                  menuLabels.includes('Load full files') &&
                   menuLabels.includes('Copy git apply command') &&
                   menuLabels.includes('Open file') &&
                   menuLabels.includes('Reveal file') &&
                   menuLabels.includes('Copy path');
+                diffActionMenuMaterialWorks =
+                  menuSurface instanceof HTMLElement &&
+                  menuSurfaceStyle !== null &&
+                  Number.parseFloat(menuSurfaceStyle.borderRadius || '0') >= 12 &&
+                  ((menuSurfaceStyle.backdropFilter || menuSurfaceStyle.webkitBackdropFilter || '').includes('blur')) &&
+                  menuSurfaceStyle.boxShadow !== 'none' &&
+                  Number.parseFloat(menuSurfaceStyle.borderTopWidth || '0') <= 1;
+                const copyGitApplyMenuItem = document.querySelector('[data-testid="review-copy-git-apply-command"]');
+                const reviewRootForGitApply = document.querySelector('.diff-panel-root');
+                const expectedGitApplyFileCount = Number(reviewRootForGitApply?.getAttribute('data-review-git-apply-file-count') ?? '0');
+                if (copyGitApplyMenuItem instanceof HTMLButtonElement && !copyGitApplyMenuItem.disabled) {
+                  copyGitApplyMenuItem.click();
+                  await sleep(120);
+                  const copiedGitApplyCommand =
+                    window.__orchestratorLastReviewGitApplyCommandForSmoke ??
+                    await navigator.clipboard?.readText().catch(() => '') ??
+                    '';
+                  const copiedPatchFileCount = (copiedGitApplyCommand.match(/^diff --git /gm) ?? []).length;
+                  reviewGitApplyCommandCoversAllWorks =
+                    copiedGitApplyCommand.startsWith("git apply <<'PATCH'") &&
+                    copiedGitApplyCommand.endsWith('PATCH') &&
+                    expectedGitApplyFileCount >= 2 &&
+                    copiedPatchFileCount === expectedGitApplyFileCount &&
+                    copiedGitApplyCommand.includes('Nested Folder/nested note.md') &&
+                    copiedGitApplyCommand.includes('data-preview-smoke.json');
+                }
                 window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                 await sleep(80);
               }
-              if (diffSearch instanceof HTMLInputElement) {
-                setNativeValue(diffSearch, 'review-base');
-                diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
-                await sleep(160);
+              if (smokeView === 'diff-core') {
+                const activeReviewPath = () => {
+                  const activeRow = document.querySelector('.diff-file-row[data-active="true"]');
+                  return activeRow instanceof HTMLElement ? activeRow.getAttribute('data-review-path') : null;
+                };
+                const diffDirectoryRows = [...document.querySelectorAll('.diff-directory-row')]
+                  .filter((row) => row instanceof HTMLElement);
+                const diffTreeGroupingWorks =
+                  diffDirectoryRows.some((row) => row.textContent?.includes('Nested Folder')) &&
+                  [...document.querySelectorAll('.diff-file-row')]
+                    .some((row) => row instanceof HTMLElement && row.textContent?.includes('nested note.md'));
+                const keyboardPathBefore = activeReviewPath();
+                const keyboardDiffPanelList = currentDiffPanelList();
+                if (keyboardDiffPanelList instanceof HTMLElement) {
+                  keyboardDiffPanelList.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+                  await sleep(100);
+                }
+                const keyboardPathAfter = activeReviewPath();
+                const finalDiffPanelList = currentDiffPanelList();
+                const diffKeyboardNavigationWorks =
+                  typeof keyboardPathBefore === 'string' &&
+                  typeof keyboardPathAfter === 'string' &&
+                  keyboardPathBefore.length > 0 &&
+                  keyboardPathAfter.length > 0 &&
+                  keyboardPathBefore !== keyboardPathAfter;
+                const diffRevealSelectedPathWorks =
+                  finalDiffPanelList instanceof HTMLElement &&
+                  finalDiffPanelList.getAttribute('data-reveal-active-row') === 'true' &&
+                  finalDiffPanelList.getAttribute('data-active-row-id') === 'file:' + keyboardPathAfter &&
+                  finalDiffPanelList.getAttribute('data-active-row-visible') === 'true';
+                const diffListCompactWorks =
+                  finalDiffPanelList instanceof HTMLElement &&
+                  finalDiffPanelList.scrollWidth <= finalDiffPanelList.clientWidth + 2 &&
+                  diffRows().length > 0 &&
+                  diffRows().every((row) => row.getBoundingClientRect().height <= 42);
+                const primaryTextDiffRowAfterKeyboard =
+                  document.querySelector('.diff-panel-root[data-embedded="true"] [data-review-path="data-preview-smoke.json"]') ??
+                  [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-row, .diff-panel-root[data-embedded="true"] button')]
+                    .find((candidate) => candidate.textContent?.includes('data-preview-smoke.json'));
+                if (primaryTextDiffRowAfterKeyboard instanceof HTMLElement) {
+                  primaryTextDiffRowAfterKeyboard.click();
+                  await sleep(220);
+                }
+                const reviewFilesStack = document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-files-stack"]');
+                const reviewFileSections = [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] [data-testid="review-file-section"]')]
+                  .filter((section) => section instanceof HTMLElement);
+                const activeReviewFileSection = document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-file-section"][data-active="true"]');
+                const reviewFileSectionStructureWorks =
+                  reviewFilesStack instanceof HTMLElement &&
+                  reviewFileSections.length === 1 &&
+                  reviewFilesStack.getAttribute('data-review-main-render-mode') === 'selected-file' &&
+                  reviewFilesStack.getAttribute('data-review-visible-file-section-count') === '1' &&
+                  Number(reviewFilesStack.getAttribute('data-review-file-section-count') ?? '0') >= 3 &&
+                  reviewFileSections.every((section) => {
+                    if (!(section instanceof HTMLElement)) return false;
+                    const header = section.querySelector('.review-file-section-header[data-review-file-header="true"]');
+                    const headerContent = header?.querySelector('[data-header-content]');
+                    const metadata = header?.querySelector('[data-metadata]');
+                    const changeIcon = header?.querySelector('[data-change-icon]');
+                    const codexChangeGlyph = changeIcon?.querySelector('[data-codex-review-change-icon]');
+                    const statusPill = header?.querySelector('.rounded-full');
+                    return section.parentElement === reviewFilesStack &&
+                      section.getAttribute('data-review-file-section') === 'true' &&
+                      section.getAttribute('data-review-file-section-shell') === 'codex-flat' &&
+                      (section.getAttribute('data-review-path') ?? '').length > 0 &&
+                      header instanceof HTMLButtonElement &&
+                      header.getAttribute('data-diffs-header') === 'default' &&
+                      (header.getAttribute('data-change-type') ?? '').length > 0 &&
+                      headerContent instanceof HTMLElement &&
+                      metadata instanceof HTMLElement &&
+                      changeIcon instanceof HTMLElement &&
+                      codexChangeGlyph instanceof SVGElement &&
+                      codexChangeGlyph.getAttribute('data-codex-review-change-icon') === header.getAttribute('data-change-type') &&
+                      !(statusPill instanceof HTMLElement);
+                  }) &&
+                  activeReviewFileSection instanceof HTMLElement &&
+                  activeReviewFileSection.getAttribute('data-review-path') === activeReviewPath();
+                const reviewFileHeaders = reviewFileSections
+                  .map((section) => section instanceof HTMLElement ? section.querySelector('.review-file-section-header[data-review-file-header="true"]') : null)
+                  .filter((header) => header instanceof HTMLElement);
+                const reviewFileHeaderMetricsWork =
+                  reviewFileHeaders.length === 1 &&
+                  reviewFileHeaders.every((header) => {
+                    if (!(header instanceof HTMLElement)) return false;
+                    const section = header.closest('[data-testid="review-file-section"]');
+                    if (!(section instanceof HTMLElement)) return false;
+                    const rect = header.getBoundingClientRect();
+                    const sectionRect = section.getBoundingClientRect();
+                    const styles = getComputedStyle(header);
+                    return rect.height >= 30 &&
+                      rect.height <= 36 &&
+                      rect.width >= sectionRect.width - 1 &&
+                      rect.width <= sectionRect.width + 1 &&
+                      Number.parseFloat(styles.fontSize) >= 12.5 &&
+                      Number.parseFloat(styles.fontSize) <= 13.5 &&
+                      Number.parseFloat(styles.lineHeight) >= 19 &&
+                      Number.parseFloat(styles.lineHeight) <= 21 &&
+                      Number.parseFloat(styles.fontWeight) <= 550 &&
+                      Number.parseFloat(styles.marginLeft) <= 1 &&
+                      Number.parseFloat(styles.marginRight) <= 1 &&
+                      Number.parseFloat(styles.borderRadius) <= 1 &&
+                      Number.parseFloat(styles.paddingLeft) >= 15 &&
+                      Number.parseFloat(styles.paddingLeft) <= 17 &&
+                      Number.parseFloat(styles.paddingRight) >= 15 &&
+                      Number.parseFloat(styles.paddingRight) <= 17 &&
+                      styles.backgroundColor !== 'rgba(0, 0, 0, 0)';
+                  });
+                const reviewFloatingActionPill = document.querySelector('[data-testid="review-floating-action-pill"]');
+                const reviewFloatingRevertButton = document.querySelector('[data-testid="review-revert-all"]');
+                const reviewFloatingStageButton = document.querySelector('[data-testid="review-stage-all"]');
+                const reviewFloatingUnstageButton = document.querySelector('[data-testid="review-unstage-all"]');
+                const reviewRootForFloatingActions = document.querySelector('.diff-panel-root');
+                const floatingActionPillRect = reviewFloatingActionPill instanceof HTMLElement
+                  ? reviewFloatingActionPill.getBoundingClientRect()
+                  : null;
+                const reviewRootRect = reviewRootForFloatingActions instanceof HTMLElement
+                  ? reviewRootForFloatingActions.getBoundingClientRect()
+                  : null;
+                const reviewFloatingActionStyle = reviewFloatingActionPill instanceof HTMLElement
+                  ? getComputedStyle(reviewFloatingActionPill)
+                  : null;
+                const floatingPillCenterDelta = floatingActionPillRect !== null && reviewRootRect !== null
+                  ? Math.abs((floatingActionPillRect.left + floatingActionPillRect.width / 2) - (reviewRootRect.left + reviewRootRect.width / 2))
+                  : Number.POSITIVE_INFINITY;
+                const floatingActionButtonRects = [reviewFloatingRevertButton, reviewFloatingStageButton, reviewFloatingUnstageButton]
+                  .map((button) => button instanceof HTMLElement ? button.getBoundingClientRect() : null);
+                reviewFloatingGitActionsWork =
+                  reviewFloatingActionPill instanceof HTMLElement &&
+                  reviewFloatingActionPill.getAttribute('data-review-floating-action-pill') === 'local-git' &&
+                  reviewFloatingActionPill.getAttribute('data-review-floating-action-anchor') === 'panel-root' &&
+                  Number(reviewFloatingActionPill.getAttribute('data-review-revertable-count') ?? '0') > 0 &&
+                  reviewFloatingRevertButton instanceof HTMLButtonElement &&
+                  Number(reviewFloatingActionPill.getAttribute('data-review-stageable-count') ?? '0') > 0 &&
+                  Number(reviewFloatingActionPill.getAttribute('data-review-unstageable-count') ?? '0') > 0 &&
+                  reviewFloatingStageButton instanceof HTMLButtonElement &&
+                  reviewFloatingUnstageButton instanceof HTMLButtonElement &&
+                  reviewFloatingRevertButton.textContent?.includes('Revert all') === true &&
+                  reviewFloatingStageButton.textContent?.includes('Stage all') === true &&
+                  reviewFloatingUnstageButton.textContent?.includes('Unstage all') === true &&
+                  floatingActionPillRect !== null &&
+                  reviewRootRect !== null &&
+                  floatingActionPillRect.width <= reviewRootRect.width - 24 &&
+                  floatingActionPillRect.bottom <= reviewRootRect.bottom + 2 &&
+                  floatingActionPillRect.bottom >= reviewRootRect.bottom - 42 &&
+                  floatingPillCenterDelta <= 2 &&
+                  floatingActionPillRect.height <= 42 &&
+                  floatingActionButtonRects.every((rect) => rect !== null && rect.height <= 32) &&
+                  reviewFloatingActionStyle !== null &&
+                  reviewFloatingActionStyle.position === 'absolute' &&
+                  Number.parseFloat(reviewFloatingActionStyle.borderRadius || '0') >= 20 &&
+                  ((reviewFloatingActionStyle.backdropFilter || reviewFloatingActionStyle.webkitBackdropFilter || '').includes('blur'));
+                if (reviewFloatingRevertButton instanceof HTMLButtonElement) {
+                  reviewFloatingRevertButton.click();
+                  await sleep(120);
+                  const revertDialog = document.querySelector('[data-testid="review-revert-confirm-dialog"]');
+                  const revertSkip = document.querySelector('[data-testid="review-revert-confirm-skip"]');
+                  const revertCancel = document.querySelector('[data-testid="review-revert-confirm-cancel"]');
+                  const revertConfirm = document.querySelector('[data-testid="review-revert-confirm-submit"]');
+                  reviewRevertAllConfirmationWorks =
+                    revertDialog instanceof HTMLElement &&
+                    revertDialog.textContent?.includes('Revert changes?') === true &&
+                    revertDialog.textContent?.includes('This action removes all of these changes.') === true &&
+                    revertSkip instanceof HTMLInputElement &&
+                    revertSkip.checked === false &&
+                    revertDialog.textContent?.includes("Don't ask again") === true &&
+                    revertCancel instanceof HTMLButtonElement &&
+                    revertCancel.textContent?.includes('Cancel') === true &&
+                    revertConfirm instanceof HTMLButtonElement &&
+                    revertConfirm.textContent?.includes('Confirm') === true;
+                  if (revertCancel instanceof HTMLButtonElement) {
+                    revertCancel.click();
+                    await sleep(80);
+                    reviewRevertAllConfirmationWorks =
+                      reviewRevertAllConfirmationWorks &&
+                      document.querySelector('[data-testid="review-revert-confirm-dialog"]') === null &&
+                      document.querySelector('[data-testid="review-floating-action-pill"]') instanceof HTMLElement;
+                  }
+                }
+                const reviewDiffMetricCells = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
+                  .filter((cell) => cell instanceof HTMLElement)
+                  .slice(0, 12);
+                const reviewDiffHunkHeaders = [...document.querySelectorAll('[data-testid="review-hunk-toggle"]')]
+                  .filter((header) => header instanceof HTMLElement)
+                  .slice(0, 6);
+                const reviewDiffRowMetricsWork =
+                  reviewDiffMetricCells.length > 0 &&
+                  reviewDiffMetricCells.every((cell) => {
+                    if (!(cell instanceof HTMLElement)) return false;
+                    const styles = getComputedStyle(cell);
+                    return Number.parseFloat(styles.fontSize) >= 12.5 &&
+                      Number.parseFloat(styles.fontSize) <= 13.5 &&
+                      Number.parseFloat(styles.lineHeight) >= 19 &&
+                      Number.parseFloat(styles.lineHeight) <= 21 &&
+                      styles.fontFamily.toLowerCase().includes('mono');
+                  }) &&
+                  reviewDiffHunkHeaders.length > 0 &&
+                  reviewDiffHunkHeaders.every((header) => {
+                    if (!(header instanceof HTMLElement)) return false;
+                    const rect = header.getBoundingClientRect();
+                    const styles = getComputedStyle(header);
+                    return rect.height >= 30 &&
+                      rect.height <= 34 &&
+                      Number.parseFloat(styles.fontSize) >= 11.5 &&
+                      Number.parseFloat(styles.fontSize) <= 12.5 &&
+                      Number.parseFloat(styles.lineHeight) >= 30 &&
+                      Number.parseFloat(styles.lineHeight) <= 34;
+                  });
+                const reviewHunkSeparatorStructureWorks =
+                  reviewDiffHunkHeaders.length > 0 &&
+                  reviewDiffHunkHeaders.every((header) => {
+                    if (!(header instanceof HTMLElement)) return false;
+                    const wrapper = header.querySelector('[data-separator-wrapper]');
+                    const expand = header.querySelector('[data-expand-button]');
+                    const content = header.querySelector('[data-separator-content]');
+                    if (!(wrapper instanceof HTMLElement) || !(expand instanceof HTMLElement) || !(content instanceof HTMLElement)) return false;
+                    const headerRect = header.getBoundingClientRect();
+                    const wrapperRect = wrapper.getBoundingClientRect();
+                    const expandRect = expand.getBoundingClientRect();
+                    return header.getAttribute('data-separator') === 'line-info-basic' &&
+                      header.hasAttribute('data-expand-index') &&
+                      Math.abs(wrapperRect.height - headerRect.height) <= 1 &&
+                      expandRect.width >= 30 &&
+                      expandRect.width <= 34 &&
+                      getComputedStyle(wrapper).position === 'absolute' &&
+                      getComputedStyle(content).backgroundColor !== 'rgba(0, 0, 0, 0)';
+                  });
+                const reviewDiffIndicatorCells = ['addition', 'deletion']
+                  .map((lineType) => document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell[data-line-type="' + lineType + '"]'));
+                const reviewDiffIndicatorStructureWork =
+                  reviewDiffIndicatorCells.length === 2 &&
+                  reviewDiffIndicatorCells.every((cell, index) => {
+                    if (!(cell instanceof HTMLElement)) return false;
+                    const expectedGutterType = index === 0 ? 'change-addition' : 'change-deletion';
+                    const bar = cell.querySelector('[data-review-diff-gutter-bar]');
+                    const number = cell.querySelector('.review-diff-line-number');
+                    const content = cell.querySelector('.review-diff-line-content');
+                    if (!(bar instanceof HTMLElement) || !(number instanceof HTMLElement) || !(content instanceof HTMLElement)) return false;
+                    const barRect = bar.getBoundingClientRect();
+                    const numberRect = number.getBoundingClientRect();
+                    const contentRect = content.getBoundingClientRect();
+                    const contentText = content.textContent ?? '';
+                    return cell.getAttribute('data-review-diff-indicators') === 'bars' &&
+                      cell.getAttribute('data-review-diff-gutter-line-type') === expectedGutterType &&
+                      !contentText.startsWith(index === 0 ? '+' : '-') &&
+                      getComputedStyle(bar).userSelect === 'none' &&
+                      getComputedStyle(number).position === 'relative' &&
+                      getComputedStyle(cell).gridTemplateColumns.trim().split(/\\s+/).length === 2 &&
+                      barRect.width >= 3 &&
+                      barRect.width <= 5 &&
+                      Math.abs(barRect.left - numberRect.left) <= 1 &&
+                      numberRect.right <= contentRect.left + 1;
+                  });
+                const reviewDiffNativeColorCalmWorks =
+                  reviewDiffIndicatorCells.length === 2 &&
+                  reviewDiffIndicatorCells.every((cell, index) => {
+                    if (!(cell instanceof HTMLElement)) return false;
+                    const number = cell.querySelector('.review-diff-line-number');
+                    if (!(number instanceof HTMLElement)) return false;
+                    const styles = getComputedStyle(cell);
+                    const numberStyles = getComputedStyle(number);
+                    const oldLineColor = index === 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)';
+                    return styles.color !== oldLineColor &&
+                      styles.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                      styles.backgroundColor !== 'transparent' &&
+                      numberStyles.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                      numberStyles.backgroundColor !== 'transparent';
+                  });
+                let reviewDiffLineNumberContentDebug = {};
+                const reviewDiffLineNumberContentWorks = (() => {
+                  const lineNumbers = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-number')]
+                    .filter((number) => number instanceof HTMLElement)
+                    .slice(0, 12);
+                  const indicatorNumbersWork = reviewDiffIndicatorCells.every((cell) => {
+                    if (!(cell instanceof HTMLElement)) return false;
+                    const number = cell.querySelector('.review-diff-line-number');
+                    if (!(number instanceof HTMLElement)) return false;
+                    const numberColor = getComputedStyle(number).color;
+                    const lineColor = getComputedStyle(cell).color;
+                    return numberColor !== lineColor &&
+                      numberColor !== 'rgba(0, 0, 0, 0)' &&
+                      numberColor !== 'transparent';
+                  });
+                  const lineNumberDetails = lineNumbers.slice(0, 4).map((number) => {
+                    if (!(number instanceof HTMLElement)) return null;
+                    const content = number.querySelector('[data-line-number-content]');
+                    const numberStyles = getComputedStyle(number);
+                    return {
+                      text: content?.textContent ?? null,
+                      contentDisplay: content instanceof HTMLElement ? getComputedStyle(content).display : null,
+                      contentWidth: content instanceof HTMLElement ? content.getBoundingClientRect().width : null,
+                      paddingLeft: numberStyles.paddingLeft,
+                      paddingRight: numberStyles.paddingRight,
+                      numberColor: numberStyles.color,
+                      cellColor: number.parentElement instanceof HTMLElement ? getComputedStyle(number.parentElement).color : null
+                    };
+                  });
+                  reviewDiffLineNumberContentDebug = {
+                    lineNumberCount: lineNumbers.length,
+                    indicatorNumbersWork,
+                    lineNumberDetails
+                  };
+                  return lineNumbers.length > 0 &&
+                    indicatorNumbersWork &&
+                    lineNumbers.every((number) => {
+                      if (!(number instanceof HTMLElement)) return false;
+                      const content = number.querySelector('[data-line-number-content]');
+                      if (!(content instanceof HTMLElement)) return false;
+                      const numberStyles = getComputedStyle(number);
+                      const contentRect = content.getBoundingClientRect();
+                      return getComputedStyle(content).display === 'inline-block' &&
+                        contentRect.width >= 18 &&
+                        Number.parseFloat(numberStyles.paddingLeft) > Number.parseFloat(numberStyles.paddingRight);
+                    });
+                })();
+                const reviewSectionsForLine = [...document.querySelectorAll('[data-testid="review-file-section"]')]
+                  .filter((section) => section instanceof HTMLElement);
+                const multiAdditionReviewSection = reviewSectionsForLine.find((section) =>
+                  section.querySelectorAll('[data-testid="review-unified-diff"] [data-line-number-side="new"][data-line-type="addition"]').length >= 2
+                );
+                const activeReviewSectionForLine =
+                  multiAdditionReviewSection ??
+                  document.querySelector('[data-testid="review-file-section"][data-review-path="review-base.txt"]') ??
+                  document.querySelector('[data-testid="review-file-section"][data-active="true"]');
+                const unifiedDiffBefore = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"]');
+                const unifiedLineNumberCells = [...(activeReviewSectionForLine?.querySelectorAll('[data-testid="review-unified-diff"] [data-line-number]') ?? [])]
+                  .filter((cell) => cell instanceof HTMLElement && (cell.getAttribute('data-line-number') ?? '').length > 0);
+                const selectableUnifiedLine = unifiedLineNumberCells.find((cell) =>
+                  cell instanceof HTMLElement &&
+                  cell.getAttribute('data-line-number-side') === 'new' &&
+                  cell.getAttribute('data-line-type') === 'addition'
+                );
+                if (selectableUnifiedLine instanceof HTMLElement) {
+                  selectableUnifiedLine.click();
+                  await sleep(160);
+                }
+                const selectedUnifiedLine = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"] [data-review-selected-line="true"]');
+                const reviewDiffGutterUtilityButton = document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell [data-gutter-utility-slot] [data-utility-button]');
+                const reviewDiffGutterUtilitySlot = reviewDiffGutterUtilityButton instanceof HTMLElement
+                  ? reviewDiffGutterUtilityButton.closest('[data-gutter-utility-slot]')
+                  : null;
+                const reviewDiffGutterUtilityNumber = reviewDiffGutterUtilityButton instanceof HTMLElement
+                  ? reviewDiffGutterUtilityButton.closest('.review-diff-line-number')
+                  : null;
+                const reviewDiffGutterUtilityWorks =
+                  reviewDiffGutterUtilityButton instanceof HTMLButtonElement &&
+                  reviewDiffGutterUtilitySlot instanceof HTMLElement &&
+                  reviewDiffGutterUtilityNumber instanceof HTMLElement &&
+                  reviewDiffGutterUtilityButton.getAttribute('aria-label') === 'Add review comment' &&
+                  reviewDiffGutterUtilityButton.getBoundingClientRect().width === 20 &&
+                  reviewDiffGutterUtilityButton.getBoundingClientRect().height === 20 &&
+                  reviewDiffGutterUtilitySlot.getBoundingClientRect().left >= reviewDiffGutterUtilityNumber.getBoundingClientRect().left &&
+                  reviewDiffGutterUtilitySlot.getBoundingClientRect().right <= reviewDiffGutterUtilityNumber.getBoundingClientRect().right + 1;
+                const diffModeToggle = document.querySelector('[data-testid="review-diff-mode-toggle"]');
+                const hunkToggle = document.querySelector('[data-testid="review-hunk-toggle"]');
+                const unifiedLineCellsBeforeHunkCollapse = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
+                  .filter((cell) => cell instanceof HTMLElement);
+                if (hunkToggle instanceof HTMLButtonElement) {
+                  hunkToggle.click();
+                  await sleep(120);
+                }
+                const collapsedHunkToggle = document.querySelector('[data-testid="review-hunk-toggle"][data-review-hunk-collapsed="true"]');
+                const unifiedLineCellsAfterHunkCollapse = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
+                  .filter((cell) => cell instanceof HTMLElement);
+                const collapsedHunkSummaryVisible = collapsedHunkToggle instanceof HTMLElement &&
+                  (collapsedHunkToggle.textContent ?? '').includes('hidden');
+                if (collapsedHunkToggle instanceof HTMLButtonElement) {
+                  collapsedHunkToggle.click();
+                  await sleep(120);
+                }
+                const expandedHunkToggle = document.querySelector('[data-testid="review-hunk-toggle"][data-review-hunk-collapsed="false"]');
+                const unifiedLineCellsAfterHunkExpand = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
+                  .filter((cell) => cell instanceof HTMLElement);
+                const diffHunkCollapseWorks =
+                  hunkToggle instanceof HTMLButtonElement &&
+                  collapsedHunkToggle instanceof HTMLButtonElement &&
+                  expandedHunkToggle instanceof HTMLElement &&
+                  collapsedHunkSummaryVisible &&
+                  unifiedLineCellsBeforeHunkCollapse.length > 0 &&
+                  unifiedLineCellsAfterHunkCollapse.length < unifiedLineCellsBeforeHunkCollapse.length &&
+                  unifiedLineCellsAfterHunkExpand.length === unifiedLineCellsBeforeHunkCollapse.length;
+                const diffModeBefore = document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-mode') ?? '';
+                if (diffModeToggle instanceof HTMLButtonElement) {
+                  diffModeToggle.click();
+                  await sleep(160);
+                }
+                const splitModeToggle = document.querySelector('[data-testid="review-diff-mode-toggle"]');
+                const splitDiff = document.querySelector('[data-testid="review-split-diff"]');
+                const diffModeAfterSplit = document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-mode') ?? '';
+                const splitRows = [...document.querySelectorAll('[data-testid="review-split-diff"] .review-split-diff-row')]
+                  .filter((row) => row instanceof HTMLElement);
+                const splitCells = [...document.querySelectorAll('[data-testid="review-split-diff"] .review-split-diff-cell')]
+                  .filter((cell) => cell instanceof HTMLElement);
+                const splitLineNumberCells = splitCells.filter((cell) =>
+                  cell instanceof HTMLElement && (cell.getAttribute('data-line-number') ?? '').length > 0
+                );
+                if (splitModeToggle instanceof HTMLButtonElement) {
+                  splitModeToggle.click();
+                  await sleep(120);
+                }
+                const diffLineNumbersWork =
+                  unifiedLineNumberCells.length > 0 &&
+                  unifiedLineNumberCells.some((cell) => cell instanceof HTMLElement && cell.getAttribute('data-line-number-side') === 'new') &&
+                  splitLineNumberCells.length > 0 &&
+                  splitLineNumberCells.some((cell) => cell instanceof HTMLElement && cell.getAttribute('data-line-number-side') === 'old') &&
+                  splitLineNumberCells.some((cell) => cell instanceof HTMLElement && cell.getAttribute('data-line-number-side') === 'new');
+                const diffLineSelectionWorks =
+                  selectableUnifiedLine instanceof HTMLElement &&
+                  selectedUnifiedLine instanceof HTMLElement &&
+                  selectedUnifiedLine.getAttribute('aria-selected') === 'true' &&
+                  selectedUnifiedLine.getAttribute('data-line-number-side') === 'new';
+                const unifiedModeToggle = document.querySelector('[data-testid="review-diff-mode-toggle"]');
+                const diffModeToggleWorks =
+                  unifiedDiffBefore instanceof HTMLElement &&
+                  splitDiff instanceof HTMLElement &&
+                  diffModeBefore === 'unified' &&
+                  diffModeAfterSplit === 'split' &&
+                  splitModeToggle instanceof HTMLButtonElement &&
+                  unifiedModeToggle instanceof HTMLButtonElement &&
+                  splitRows.length > 0 &&
+                  splitCells.length >= splitRows.length &&
+                  splitRows.some((row) => {
+                    if (!(row instanceof HTMLElement)) return false;
+                    const type = row.getAttribute('data-line-type');
+                    return type === 'addition' || type === 'deletion';
+                  }) &&
+                  splitCells.some((cell) =>
+                    cell instanceof HTMLElement &&
+                    cell.getAttribute('data-line-type') === 'context'
+                  ) &&
+                  document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-mode') === 'unified';
+                const diffExpandToggle = document.querySelector('[data-testid="review-diff-expand-toggle"]');
+                const expandedBeforeCollapse = document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-expanded') ?? '';
+                if (diffExpandToggle instanceof HTMLButtonElement) {
+                  diffExpandToggle.click();
+                  await sleep(140);
+                }
+                const collapsedDiff = document.querySelector('[data-testid="review-collapsed-diff"]');
+                const collapsedRows = [...document.querySelectorAll('[data-testid="review-collapsed-diff"] .review-collapsed-diff-row')]
+                  .filter((row) => row instanceof HTMLElement);
+                const expandedAfterCollapse = document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-expanded') ?? '';
+                const collapsedChangedRowsHidden =
+                  document.querySelector('[data-testid="review-unified-diff"]') === null &&
+                  document.querySelector('[data-testid="review-split-diff"]') === null;
+                const collapsedModeToggle = document.querySelector('[data-testid="review-diff-expand-toggle"]');
+                if (collapsedModeToggle instanceof HTMLButtonElement) {
+                  collapsedModeToggle.click();
+                  await sleep(120);
+                }
+                const diffExpandCollapseWorks =
+                  diffExpandToggle instanceof HTMLButtonElement &&
+                  collapsedModeToggle instanceof HTMLButtonElement &&
+                  expandedBeforeCollapse === 'true' &&
+                  expandedAfterCollapse === 'false' &&
+                  collapsedDiff instanceof HTMLElement &&
+                  collapsedRows.length > 0 &&
+                  collapsedDiff.textContent?.includes('changed') === true &&
+                  collapsedChangedRowsHidden &&
+                  document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-expanded') === 'true' &&
+                  document.querySelector('[data-testid="review-unified-diff"]') instanceof HTMLElement;
+                const reviewFileTreeGitLaneRows = diffRows().filter((row) =>
+                  row instanceof HTMLElement &&
+                  row.getAttribute('data-workbench-has-git-lane') === 'true'
+                );
+                const reviewFileTreeGitLaneWorks =
+                  reviewFileTreeGitLaneRows.length >= 3 &&
+                  reviewFileTreeGitLaneRows.every((row) => {
+                    if (!(row instanceof HTMLElement)) return false;
+                    const icon = row.querySelector('.workbench-tree-icon');
+                    const label = row.querySelector('.workbench-tree-label');
+                    const gitLane = row.querySelector('.workbench-tree-git-lane');
+                    const legacyStatus = row.querySelector('.workbench-tree-status');
+                    const labelRect = label instanceof HTMLElement ? label.getBoundingClientRect() : null;
+                    const laneRect = gitLane instanceof HTMLElement ? gitLane.getBoundingClientRect() : null;
+                    const laneWidth = laneRect?.width ?? 0;
+                    const labelColor = label instanceof HTMLElement ? getComputedStyle(label).color : '';
+                    const laneColor = gitLane instanceof HTMLElement ? getComputedStyle(gitLane).color : '';
+                    const gitStatus = row.getAttribute('data-workbench-git-status') ?? '';
+                    const shouldSeparateGitColor = ['modified', 'added', 'deleted', 'renamed'].includes(gitStatus);
+                    return icon instanceof HTMLElement &&
+                      label instanceof HTMLElement &&
+                      gitLane instanceof HTMLElement &&
+                      !(legacyStatus instanceof HTMLElement) &&
+                      gitStatus.length > 0 &&
+                      labelRect !== null &&
+                      laneRect !== null &&
+                      (!shouldSeparateGitColor || labelColor !== laneColor) &&
+                      laneWidth >= 10 &&
+                      laneWidth <= 13 &&
+                      laneRect.left >= labelRect.right - 1;
+                  });
+                const diffWorkbenchTreeWorks =
+                  finalDiffPanelList instanceof HTMLElement &&
+                  finalDiffPanelList.getAttribute('data-workbench-tree') === 'true' &&
+                  diffWorkbenchRows().length > 0 &&
+                  diffWorkbenchRows().every((row) =>
+                    row instanceof HTMLElement &&
+                    row.getAttribute('role') === 'treeitem' &&
+                    row.getBoundingClientRect().height >= 26 &&
+                    row.getBoundingClientRect().height <= 30 &&
+                    Number.parseFloat(getComputedStyle(row).fontSize) >= 12.5 &&
+                    Number.parseFloat(getComputedStyle(row).fontSize) <= 13.5
+                  );
+                const diffWorkbenchTreeNativeTitleFreeWorks =
+                  diffWorkbenchRows().length > 0 &&
+                  diffWorkbenchRows().every((row) =>
+                    row instanceof HTMLElement &&
+                    row.getAttribute('data-native-title-free') === 'true' &&
+                    row.getAttribute('title') === null
+                  ) &&
+                  [...document.querySelectorAll('.diff-panel-list [data-native-title-free][title]')].length === 0;
+                const reviewTabPanel = document.querySelector('[data-app-shell-tab-panel-controller="right"][data-tab-id="diff"]');
+                const reviewTabPanelFocusRingCalmWorks =
+                  reviewTabPanel instanceof HTMLElement &&
+                  getComputedStyle(reviewTabPanel).outlineStyle === 'none';
+                const coreDiffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
+                const coreWorkbenchPanelTabbar = document.querySelector('[data-testid="workbench-panel-tabbar"]');
+                const coreRightPanelActiveTabActions = document.querySelector('[data-testid="right-panel-active-tab-actions"]');
+                const coreReviewSourceSummary = document.querySelector('[data-testid="review-source-summary"]');
+                const coreReviewToolbarActionStrip = document.querySelector('[data-testid="review-toolbar-action-strip"]');
+                const coreDiffToolbarRect = coreDiffToolbar instanceof HTMLElement ? coreDiffToolbar.getBoundingClientRect() : null;
+                const coreWorkbenchPanelTabbarRect = coreWorkbenchPanelTabbar instanceof HTMLElement ? coreWorkbenchPanelTabbar.getBoundingClientRect() : null;
+                const coreReviewSourceSummaryRect = coreReviewSourceSummary instanceof HTMLElement
+                  ? coreReviewSourceSummary.getBoundingClientRect()
+                  : null;
+                const coreReviewToolbarActionButtons = coreReviewToolbarActionStrip instanceof HTMLElement
+                  ? [...coreReviewToolbarActionStrip.querySelectorAll('button')].filter((button) => {
+                      if (!(button instanceof HTMLElement)) return false;
+                      const rect = button.getBoundingClientRect();
+                      const style = getComputedStyle(button);
+                      return rect.width >= 18 &&
+                        rect.height >= 18 &&
+                        style.display !== 'none' &&
+                        style.visibility !== 'hidden' &&
+                        Number.parseFloat(style.opacity || '1') >= 0.95;
+                    })
+                  : [];
+                const coreReviewToolbarVisibleLabels = coreReviewToolbarActionButtons.map((button) => button.getAttribute('aria-label') ?? '');
+                const reviewSourceSummaryHeaderWorks =
+                  coreReviewSourceSummary instanceof HTMLElement &&
+                  coreReviewSourceSummaryRect !== null &&
+                  coreReviewSourceSummary.getAttribute('data-review-source-active') === 'all' &&
+                  Number(coreReviewSourceSummary.getAttribute('data-review-source-summary-count') ?? '0') >= 1 &&
+                  (coreReviewSourceSummary.textContent ?? '').includes('All changes') &&
+                  coreReviewSourceSummaryRect.height <= 28;
+                const reviewToolbarPrimaryOrderWorks =
+                  coreReviewToolbarActionStrip instanceof HTMLElement &&
+                  coreReviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
+                  ['Review options', 'Jump to file', 'Refresh'].every((label, index) => coreReviewToolbarVisibleLabels[index] === label) &&
+                  coreReviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
+                  coreReviewToolbarVisibleLabels.some((label) => label.includes('diffs')) &&
+                  coreReviewToolbarVisibleLabels.some((label) => label.includes('diff')) &&
+                  !coreReviewToolbarVisibleLabels.includes('Change actions');
+                const reviewToolbarHeaderRowWorks =
+                  coreDiffToolbarRect !== null &&
+                  coreWorkbenchPanelTabbarRect !== null &&
+                  coreRightPanelActiveTabActions instanceof HTMLElement &&
+                  coreRightPanelActiveTabActions.getAttribute('data-panel-active-tab-actions') === 'true' &&
+                  coreRightPanelActiveTabActions.getAttribute('data-panel-id') === 'right' &&
+                  coreRightPanelActiveTabActions.getAttribute('data-active-tab') === 'diff' &&
+                  coreDiffToolbar instanceof HTMLElement &&
+                  !coreRightPanelActiveTabActions.contains(coreDiffToolbar) &&
+                  coreDiffToolbar.closest('.diff-panel-root[data-embedded="true"]') instanceof HTMLElement &&
+                  reviewSourceSummaryHeaderWorks &&
+                  reviewToolbarPrimaryOrderWorks &&
+                  coreReviewToolbarActionButtons.length >= 6 &&
+                  coreDiffToolbarRect.top >= coreWorkbenchPanelTabbarRect.bottom - 1 &&
+                  coreDiffToolbarRect.top <= coreWorkbenchPanelTabbarRect.bottom + 6 &&
+                  coreDiffToolbarRect.height <= 40;
+                return {
+                  profile,
+                  diffToolbarCompactWorks:
+                    coreDiffToolbar instanceof HTMLElement &&
+                    coreDiffToolbar.getAttribute('data-panel-toolbar') === 'true' &&
+                    currentDiffSearch() instanceof HTMLInputElement &&
+                    coreDiffToolbar.getBoundingClientRect().height <= 38 &&
+                    coreDiffToolbar.scrollWidth <= coreDiffToolbar.clientWidth + 2,
+                  reviewToolbarHeaderRowWorks,
+                  reviewToolbarPrimaryOrderWorks,
+                  reviewSourceSummaryHeaderWorks,
+                  diffListCompactWorks,
+                  reviewFileSectionStructureWorks,
+                  reviewFileHeaderMetricsWork,
+                  reviewDiffRowMetricsWork,
+                  reviewHunkSeparatorStructureWorks,
+                  reviewDiffIndicatorStructureWork,
+                  reviewDiffNativeColorCalmWorks,
+                  reviewDiffLineNumberContentWorks,
+                  reviewDiffLineNumberContentDebug,
+                  reviewDiffGutterUtilityWorks,
+                  reviewFileTreeGitLaneWorks,
+                  reviewTabPanelFocusRingCalmWorks,
+                  diffWorkbenchTreeWorks,
+                  diffWorkbenchTreeNativeTitleFreeWorks,
+                  diffRevealSelectedPathWorks,
+                  diffTreeGroupingWorks,
+                  diffKeyboardNavigationWorks,
+                  diffLineNumbersWork,
+                  diffLineSelectionWorks,
+                  diffHunkCollapseWorks,
+                  diffModeToggleWorks,
+                  diffExpandCollapseWorks,
+                  diffActionMenuCompactWorks,
+                  diffActionMenuMaterialWorks,
+                  reviewGitApplyCommandCoversAllWorks,
+                  reviewFloatingGitActionsWork,
+                  reviewRevertAllConfirmationWorks
+                };
+              }
+              if (smokeView === 'diff-preview') {
+                const clearReviewSearch = async () => {
+                  const searchInput = currentDiffSearch();
+                  if (searchInput instanceof HTMLInputElement && searchInput.value.length > 0) {
+                    setNativeValue(searchInput, '');
+                    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    searchInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    await sleep(140);
+                  }
+                };
+	                const selectReviewFile = async (query, fileName) => {
+	                  await clearReviewSearch();
+	                  const searchInput = currentDiffSearch();
+	                  if (!(searchInput instanceof HTMLInputElement)) return false;
+	                  setNativeValue(searchInput, query);
+	                  searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+	                  searchInput.dispatchEvent(new Event('change', { bubbles: true }));
+	                  for (let attempt = 0; attempt < 12; attempt += 1) {
+	                    await sleep(80);
+	                    const reviewRow = [...document.querySelectorAll('.diff-panel-list [data-workbench-tree-row="true"][data-review-path]')]
+	                      .find((candidate) => candidate instanceof HTMLElement && candidate.getAttribute('data-review-path') === fileName);
+	                    if (reviewRow instanceof HTMLElement) {
+	                      reviewRow.click();
+	                      break;
+	                    }
+	                    const reviewSectionHeader = [...document.querySelectorAll('[data-testid="review-file-section"]')]
+	                      .find((section) => section.getAttribute('data-review-path') === fileName)
+	                      ?.querySelector('.review-file-section-header');
+	                    if (reviewSectionHeader instanceof HTMLElement) {
+	                      reviewSectionHeader.click();
+	                      break;
+	                    }
+	                  }
+                  for (let attempt = 0; attempt < 12; attempt += 1) {
+                    await sleep(80);
+                    if (document.querySelector('.diff-panel-root')?.getAttribute('data-review-selected-file') === fileName) return true;
+	                  }
+	                  return document.querySelector('.diff-panel-root')?.getAttribute('data-review-selected-file') === fileName;
+	                };
+	                const reviewSectionForFile = (fileName) =>
+	                  [...document.querySelectorAll('[data-testid="review-file-section"]')]
+	                    .find((section) => section.getAttribute('data-review-path') === fileName) ?? null;
+	                const reviewPanelText = () =>
+	                  document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-preview-pane')?.innerText ??
+	                  document.querySelector('.diff-panel-root')?.innerText ??
+	                  document.body.innerText;
+	                const waitForReviewFileContent = async (fileName) => {
+	                  for (let attempt = 0; attempt < 20; attempt += 1) {
+	                    const section = reviewSectionForFile(fileName);
+	                    if (section instanceof HTMLElement) {
+	                      const loading = section.innerText.includes('Loading...');
+	                      const hasContent =
+	                        section.querySelector('[data-testid="review-unified-diff"]') instanceof HTMLElement ||
+	                        section.querySelector('[data-testid="review-split-diff"]') instanceof HTMLElement ||
+	                        section.querySelector('[data-testid="review-binary-state"]') instanceof HTMLElement ||
+	                        section.querySelector('[data-testid="review-json-state"]') instanceof HTMLElement ||
+	                        section.querySelector('[data-testid="review-csv-state"]') instanceof HTMLElement ||
+	                        section.querySelector('[data-testid="review-document-state"]') instanceof HTMLElement ||
+	                        section.querySelector('[data-testid="review-notebook-state"]') instanceof HTMLElement ||
+	                        section.querySelector('[data-testid="review-image-state"]') instanceof HTMLElement;
+	                      if (!loading && hasContent) return section;
+	                    }
+	                    await sleep(80);
+	                  }
+	                  return reviewSectionForFile(fileName);
+	                };
+	                const waitForReviewPreviewToggle = async (label) => {
+	                  for (let attempt = 0; attempt < 12; attempt += 1) {
+	                    const toggle = [...document.querySelectorAll('button')]
+	                      .find((button) =>
+	                        (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === label &&
+	                        !button.disabled
+	                      );
+	                    if (toggle instanceof HTMLButtonElement) return toggle;
+	                    await sleep(80);
+	                  }
+	                  return null;
+	                };
+                const setReviewPreviewMode = async (enabled) => {
+                  const root = document.querySelector('.diff-panel-root');
+                  const current = root?.getAttribute('data-review-rich-preview') === 'true';
+                  if (current === enabled) return true;
+                  const label = enabled ? 'Enable rich preview' : 'Disable rich preview';
+                  const toggle = await waitForReviewPreviewToggle(label);
+                  if (!(toggle instanceof HTMLButtonElement)) return false;
+                  toggle.click();
+                  for (let attempt = 0; attempt < 12; attempt += 1) {
+                    await sleep(80);
+                    if (document.querySelector('.diff-panel-root')?.getAttribute('data-review-rich-preview') === String(enabled)) return true;
+	                  }
+	                  return document.querySelector('.diff-panel-root')?.getAttribute('data-review-rich-preview') === String(enabled);
+	                };
+	                const waitForReviewSectionState = async (fileName, selector) => {
+	                  for (let attempt = 0; attempt < 16; attempt += 1) {
+	                    const section = reviewSectionForFile(fileName);
+	                    const state = section?.querySelector(selector);
+	                    if (state instanceof HTMLElement) return state;
+	                    await sleep(80);
+	                  }
+	                  const section = reviewSectionForFile(fileName);
+	                  const state = section?.querySelector(selector);
+	                  return state instanceof HTMLElement ? state : null;
+	                };
+	                const reviewSectionHasState = (fileName, selector) =>
+	                  reviewSectionForFile(fileName)?.querySelector(selector) instanceof HTMLElement;
+	                const whitespaceSelected = await selectReviewFile('whitespace-smoke', 'whitespace-smoke.txt');
+	                const whitespaceToggle = document.querySelector('[data-testid="review-whitespace-toggle"]');
+                const whitespaceSection = document.querySelector('[data-testid="review-file-section"][data-review-path="whitespace-smoke.txt"]');
+                const whitespaceUnifiedBefore = whitespaceSection?.querySelector('[data-testid="review-unified-diff"]');
+                const whitespaceHiddenBefore = whitespaceUnifiedBefore instanceof HTMLElement
+                  ? Number(whitespaceUnifiedBefore.getAttribute('data-review-hidden-whitespace-count') ?? '0')
+                  : 0;
+                if (whitespaceToggle instanceof HTMLButtonElement) {
+                  whitespaceToggle.click();
+                  await sleep(140);
+                }
+                const whitespaceSectionAfter = document.querySelector('[data-testid="review-file-section"][data-review-path="whitespace-smoke.txt"]');
+                const whitespaceUnifiedAfter = whitespaceSectionAfter?.querySelector('[data-testid="review-unified-diff"]');
+                const whitespaceNotice = whitespaceSectionAfter?.querySelector('[data-testid="review-whitespace-hidden-notice"]');
+                const whitespaceHiddenAfter = whitespaceUnifiedAfter instanceof HTMLElement
+                  ? Number(whitespaceUnifiedAfter.getAttribute('data-review-hidden-whitespace-count') ?? '0')
+                  : 0;
+                const whitespaceChangedRowsAfter = [...(whitespaceSectionAfter?.querySelectorAll('[data-testid="review-unified-diff"] [data-line-type="addition"], [data-testid="review-unified-diff"] [data-line-type="deletion"]') ?? [])]
+                  .filter((row) => row instanceof HTMLElement);
+                const whitespaceResetToggle = document.querySelector('[data-testid="review-whitespace-toggle"]');
+                if (whitespaceResetToggle instanceof HTMLButtonElement) {
+                  whitespaceResetToggle.click();
+                  await sleep(100);
+                }
+                const reviewWhitespaceToggleWorks =
+                  whitespaceSelected &&
+                  whitespaceToggle instanceof HTMLButtonElement &&
+                  whitespaceUnifiedBefore instanceof HTMLElement &&
+                  whitespaceUnifiedAfter instanceof HTMLElement &&
+                  whitespaceHiddenBefore === 0 &&
+                  whitespaceHiddenAfter > 0 &&
+                  whitespaceNotice instanceof HTMLElement &&
+                  whitespaceNotice.textContent?.includes('whitespace-only') === true &&
+                  whitespaceChangedRowsAfter.length === 0 &&
+                  document.querySelector('.diff-panel-root')?.getAttribute('data-review-hide-whitespace') === 'false';
+                const wordDiffSelected = await selectReviewFile('word-diff-smoke', 'word-diff-smoke.txt');
+                const wordDiffToggle = document.querySelector('[data-testid="review-word-diff-toggle"]');
+                const wordDiffBefore = document.querySelector('[data-testid="review-unified-diff"]');
+                const wordDiffCountBefore = wordDiffBefore instanceof HTMLElement
+                  ? Number(wordDiffBefore.getAttribute('data-review-word-diff-count') ?? '0')
+                  : 0;
+                if (wordDiffToggle instanceof HTMLButtonElement) {
+                  wordDiffToggle.click();
+                  await sleep(140);
+                }
+                const wordDiffAfter = document.querySelector('[data-testid="review-unified-diff"]');
+                const wordDiffTokens = [...document.querySelectorAll('[data-review-word-diff-token="true"]')]
+                  .filter((token) => token instanceof HTMLElement);
+                const wordDiffTokenText = wordDiffTokens.map((token) => token.textContent ?? '').join(' ');
+                const wordDiffCountAfter = wordDiffAfter instanceof HTMLElement
+                  ? Number(wordDiffAfter.getAttribute('data-review-word-diff-count') ?? '0')
+                  : 0;
+                const wordDiffResetToggle = document.querySelector('[data-testid="review-word-diff-toggle"]');
+                if (wordDiffResetToggle instanceof HTMLButtonElement) {
+                  wordDiffResetToggle.click();
+                  await sleep(100);
+                }
+                const reviewWordDiffToggleWorks =
+                  wordDiffSelected &&
+                  wordDiffToggle instanceof HTMLButtonElement &&
+                  wordDiffBefore instanceof HTMLElement &&
+                  wordDiffAfter instanceof HTMLElement &&
+                  wordDiffCountBefore === 0 &&
+                  wordDiffCountAfter > 0 &&
+                  wordDiffTokens.length >= 2 &&
+                  wordDiffTokenText.includes('baseline') &&
+                  wordDiffTokenText.includes('updated') &&
+                  document.querySelector('.diff-panel-root')?.getAttribute('data-review-word-diff') === 'false';
+	                await setReviewPreviewMode(false);
+	                const jsonSelected = await selectReviewFile('data-preview-smoke', 'data-preview-smoke.json');
+	                await waitForReviewFileContent('data-preview-smoke.json');
+	                const jsonDiffFirst = jsonSelected && !reviewSectionHasState('data-preview-smoke.json', '[data-testid="review-json-state"]');
+	                const jsonToggleClicked = await setReviewPreviewMode(true);
+	                const reviewJsonState = await waitForReviewSectionState('data-preview-smoke.json', '[data-testid="review-json-state"]');
+	                const reviewJsonPreviewWorks =
+	                  jsonSelected &&
+	                  jsonToggleClicked &&
+	                  reviewJsonState instanceof HTMLElement &&
+	                  reviewJsonState.innerText.includes('JSON') &&
+	                  reviewJsonState.innerText.includes('updated');
+	                await setReviewPreviewMode(false);
+	                const csvSelected = await selectReviewFile('table-preview-smoke', 'table-preview-smoke.csv');
+	                await waitForReviewFileContent('table-preview-smoke.csv');
+	                const csvDiffFirst = csvSelected && !reviewSectionHasState('table-preview-smoke.csv', '[data-testid="review-csv-state"]');
+	                const csvToggleClicked = await setReviewPreviewMode(true);
+	                const reviewCsvState = await waitForReviewSectionState('table-preview-smoke.csv', '[data-testid="review-csv-state"]');
+	                const reviewCsvPreviewWorks =
+	                  csvSelected &&
+	                  csvToggleClicked &&
+	                  reviewCsvState instanceof HTMLElement &&
+	                  reviewCsvState.innerText.includes('CSV') &&
+	                  reviewCsvState.innerText.includes('2 rows');
+	                await setReviewPreviewMode(false);
+	                const documentSelected = await selectReviewFile('document-preview-smoke', 'document-preview-smoke.docx');
+	                await waitForReviewFileContent('document-preview-smoke.docx');
+	                const documentDiffFirst = documentSelected && !reviewSectionHasState('document-preview-smoke.docx', '[data-testid="review-document-state"]');
+	                const documentToggleClicked = await setReviewPreviewMode(true);
+	                const reviewDocumentState = await waitForReviewSectionState('document-preview-smoke.docx', '[data-testid="review-document-state"]');
+	                const reviewDocumentPreviewWorks =
+	                  documentSelected &&
+	                  documentToggleClicked &&
+	                  reviewDocumentState instanceof HTMLElement &&
+	                  reviewDocumentState.innerText.includes('DOCX') &&
+	                  reviewDocumentState.innerText.includes('Document smoke updated');
+	                await setReviewPreviewMode(false);
+	                const notebookSelected = await selectReviewFile('notebook-preview-smoke', 'notebook-preview-smoke.ipynb');
+	                await waitForReviewFileContent('notebook-preview-smoke.ipynb');
+	                const notebookDiffFirst = notebookSelected && !reviewSectionHasState('notebook-preview-smoke.ipynb', '[data-testid="review-notebook-state"]');
+	                const notebookToggleClicked = await setReviewPreviewMode(true);
+	                const reviewNotebookState = await waitForReviewSectionState('notebook-preview-smoke.ipynb', '[data-testid="review-notebook-state"]');
+	                const reviewNotebookPreviewWorks =
+	                  notebookSelected &&
+	                  notebookToggleClicked &&
+	                  reviewNotebookState instanceof HTMLElement &&
+                  reviewNotebookState.innerText.includes('Notebook') &&
+                  reviewNotebookState.innerText.includes('3 cells') &&
+                  reviewNotebookState.innerText.includes('Updated');
+	                const reviewDiffFirstWorks = jsonDiffFirst && csvDiffFirst && documentDiffFirst && notebookDiffFirst;
+	                await setReviewPreviewMode(false);
+	                const imageSelected = await selectReviewFile('image-preview-smoke', 'image-preview-smoke.png');
+	                await waitForReviewFileContent('image-preview-smoke.png');
+	                const imageBinaryState = reviewSectionForFile('image-preview-smoke.png')?.querySelector('[data-testid="review-binary-state"]');
+	                const imageToggleClicked = await setReviewPreviewMode(true);
+	                const reviewImageState = await waitForReviewSectionState('image-preview-smoke.png', '[data-testid="review-image-state"]');
+	                const reviewImageBinaryDiffFirstWorks =
+	                  imageSelected &&
+	                  imageBinaryState instanceof HTMLElement &&
+	                  imageBinaryState.innerText.includes('Binary') &&
+	                  imageToggleClicked;
+	                const reviewImagePreviewWorks =
+	                  reviewImageState instanceof HTMLElement;
+	                await setReviewPreviewMode(false);
+	                const binarySelected = await selectReviewFile('binary-preview-smoke', 'binary-preview-smoke.bin');
+	                const binaryState = await waitForReviewSectionState('binary-preview-smoke.bin', '[data-testid="review-binary-state"]');
+	                const binaryActions = binaryState instanceof HTMLElement
+	                  ? [...binaryState.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
+	                  : [];
+	                const binarySharedActionButtons = binaryState instanceof HTMLElement
+	                  ? [...binaryState.querySelectorAll('.orchestrator-panel-notice-actions .motion-button')]
+	                  : [];
+	                const binaryStateStyle = binaryState instanceof HTMLElement ? getComputedStyle(binaryState) : null;
+                const reviewBinaryStateWorks =
+                  binarySelected &&
+                  binaryState instanceof HTMLElement &&
+                  binaryState.getAttribute('data-review-empty-state') === 'true' &&
+                  (binaryStateStyle?.justifyContent === 'flex-start' || binaryStateStyle?.justifyContent === 'start') &&
+                  (binaryStateStyle?.alignItems === 'flex-start' || binaryStateStyle?.alignItems === 'start') &&
+                  binaryState.innerText.includes('Binary') &&
+                  binaryState.innerText.includes('Binary file not shown.');
+	                const reviewFallbackNoticeSharedWorks =
+	                  binaryState instanceof HTMLElement &&
+	                  binaryState.getAttribute('data-panel-notice') === 'true' &&
+	                  binaryState.getAttribute('data-review-empty-state') === 'true' &&
+	                  binaryState.classList.contains('orchestrator-panel-notice') &&
+	                  binaryState.querySelector('.orchestrator-panel-notice-icon') instanceof HTMLElement &&
+	                  binaryState.querySelector('.orchestrator-panel-notice-copy') instanceof HTMLElement &&
+	                  binaryState.querySelector('.orchestrator-panel-notice-code') instanceof HTMLElement &&
+	                  binaryState.querySelector('.orchestrator-panel-notice-actions') instanceof HTMLElement &&
+	                  binarySharedActionButtons.length === 2 &&
+	                  binarySharedActionButtons.every((button) => button.classList.contains('file-fallback-action'));
+	                const reviewGitActionsWork =
+	                  !document.body.innerText.includes('Stage selected') &&
+	                  !document.body.innerText.includes('Unstage selected');
+	                return {
+	                  profile,
+	                  reviewWhitespaceToggleWorks,
+	                  reviewWordDiffToggleWorks,
+                  reviewDiffFirstWorks,
+                  reviewJsonPreviewWorks,
+                  reviewCsvPreviewWorks,
+                  reviewDocumentPreviewWorks,
+                  reviewNotebookPreviewWorks,
+                  reviewImageBinaryDiffFirstWorks,
+                  reviewImagePreviewWorks,
+                  reviewBinaryStateWorks,
+	                  reviewFallbackNoticeSharedWorks,
+	                  reviewBinaryActionsWork:
+	                    binaryActions.includes('Open') &&
+	                    binaryActions.includes('Reveal'),
+	                  reviewGitActionsWork
+	                };
+              }
+              const openReviewOptions = async () => {
+                const reviewOptionsButton = document.querySelector('[data-testid="review-options-menu"]');
+                if (!(reviewOptionsButton instanceof HTMLButtonElement)) return false;
+                if (!document.querySelector('[data-testid="review-source-mode"]')) {
+                  reviewOptionsButton.click();
+                  await sleep(120);
+                }
+                return document.querySelector('[data-testid="review-source-mode"]') instanceof HTMLElement;
+              };
+              const clickReviewSource = async (source) => {
+                if (!(await openReviewOptions())) return false;
+                const sourceButton = document.querySelector('[data-testid="review-source-' + source + '"]');
+                if (!(sourceButton instanceof HTMLButtonElement)) return false;
+                sourceButton.click();
+                return true;
+              };
+              const activeReviewPanelText = () =>
+                document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-preview-pane')?.innerText ??
+                document.querySelector('.diff-panel-root')?.innerText ??
+                document.body.innerText;
+              const reviewSourcePaneText = () =>
+                document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-changed-files-pane')?.textContent ?? '';
+              const selectReviewSourceFile = async (path) => {
+                const row =
+                  document.querySelector('.diff-panel-root[data-embedded="true"] [data-review-path="' + path + '"]') ??
+                  [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-row, .diff-panel-root[data-embedded="true"] button')]
+                    .find((candidate) => candidate.textContent?.includes(path));
+                if (!(row instanceof HTMLElement)) return false;
+                row.click();
+                await sleep(260);
+                return document.querySelector('.diff-panel-root')?.getAttribute('data-review-selected-file') === path;
+              };
+              const sourceButtonsAvailable = await openReviewOptions() &&
+                document.querySelector('[data-testid="review-source-all"]') instanceof HTMLButtonElement &&
+                document.querySelector('[data-testid="review-source-unstaged"]') instanceof HTMLButtonElement &&
+                document.querySelector('[data-testid="review-source-staged"]') instanceof HTMLButtonElement &&
+                document.querySelector('[data-testid="review-source-branch"]') instanceof HTMLButtonElement &&
+                document.querySelector('[data-testid="review-source-commit"]') instanceof HTMLButtonElement;
+	              const providerNativeSourceButtons = Object.fromEntries(['last-turn', 'cloud', 'local', 'worktree']
+	                .map((source) => [source, document.querySelector('[data-testid="review-source-' + source + '"]')]));
+	              const providerNativeUnavailable = (source) => {
+	                const button = providerNativeSourceButtons[source];
+	                return button instanceof HTMLButtonElement &&
+	                  button.disabled &&
+	                  button.getAttribute('aria-disabled') === 'true' &&
+	                  button.getAttribute('data-review-source-unsupported') === 'true' &&
+	                  button.textContent?.includes('Unavailable');
+	              };
+	              const localProviderSourceAvailable =
+	                providerNativeSourceButtons.local instanceof HTMLButtonElement &&
+	                !providerNativeSourceButtons.local.disabled &&
+	                providerNativeSourceButtons.local.getAttribute('aria-disabled') !== 'true' &&
+	                providerNativeSourceButtons.local.getAttribute('data-review-source-unsupported') !== 'true';
+	              const reviewLocalSourceCountsWork = ['all', 'unstaged', 'staged'].every((source) => {
+	                const count = document.querySelector('[data-testid="review-source-' + source + '"] .review-source-menu-count');
+	                return count instanceof HTMLElement &&
+	                  Number(count.getAttribute('data-review-source-count') ?? '-1') >= 1 &&
+	                  count.getBoundingClientRect().height <= 19 &&
+	                  getComputedStyle(count).fontWeight === '500';
+	              });
+	              if (localProviderSourceAvailable && providerNativeSourceButtons.local instanceof HTMLButtonElement) {
+	                providerNativeSourceButtons.local.click();
+	                await sleep(260);
+	              }
+	              const localProviderSourceText = document.body.innerText;
+	              const localProviderSourceActive = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
+	              const localProviderSourceWorks =
+	                localProviderSourceAvailable &&
+	                localProviderSourceActive === 'local' &&
+	                localProviderSourceText.includes('review-base.txt') &&
+	                localProviderSourceText.includes('staged-source-smoke.txt');
+	              const providerNativeSourceRowsWork =
+	                providerNativeUnavailable('last-turn') &&
+	                providerNativeUnavailable('cloud') &&
+	                providerNativeUnavailable('worktree') &&
+	                localProviderSourceWorks;
+	              const sourceBeforeUnsupportedClick = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
+	              if (providerNativeSourceButtons['last-turn'] instanceof HTMLButtonElement) {
+	                providerNativeSourceButtons['last-turn'].click();
+	                await sleep(80);
+	              }
+	              const unsupportedClickKeepsSource =
+	                sourceBeforeUnsupportedClick.length > 0 &&
+	                document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') === sourceBeforeUnsupportedClick;
+	              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+	              let lastTurnInjected = false;
+	              let lastTurnSourceAvailable = false;
+	              let lastTurnSourceActive = '';
+	              let lastTurnSourceWorks = false;
+	              let reviewLastTurnGitApplyCommandWorks = false;
+	              let reviewLastTurnGitApplyCommandDebug = {};
+	              let reviewTranscriptCardLastTurnWorks = false;
+	              if (smokeView === 'diff-source') {
+	                const smokeSessionsForLastTurn = await window.api.sessions.list();
+	                const lastTurnSmokeDiff = [
+	                  'diff --git a/review-base.txt b/review-base.txt',
+	                  'index 1111111..2222222 100644',
+	                  '--- a/review-base.txt',
+	                  '+++ b/review-base.txt',
+	                  '@@ -1 +1,2 @@',
+	                  ' before review',
+	                  '+last turn smoke'
+	                ].join('\\n');
+	                lastTurnInjected =
+	                  smokeSessionsForLastTurn.length > 0 &&
+	                  typeof window.__orchestratorAppendSessionEventsForSmoke === 'function' &&
+	                  smokeSessionsForLastTurn.every((smokeSession) =>
+	                    window.__orchestratorAppendSessionEventsForSmoke(smokeSession.id, [{
+	                      id: 'last-turn-review-source-smoke',
+	                      timestamp: Date.now(),
+	                      event: { type: 'diff.updated', content: lastTurnSmokeDiff }
+	                    }])
+	                  );
+	                await sleep(180);
+	                const lastTurnOptionsOpened = await openReviewOptions();
+	                const lastTurnSourceButton = document.querySelector('[data-testid="review-source-last-turn"]');
+	                lastTurnSourceAvailable =
+	                  lastTurnInjected &&
+	                  lastTurnOptionsOpened &&
+	                  lastTurnSourceButton instanceof HTMLButtonElement &&
+	                  !lastTurnSourceButton.disabled &&
+	                  lastTurnSourceButton.getAttribute('aria-disabled') !== 'true' &&
+	                  lastTurnSourceButton.getAttribute('data-review-source-unsupported') !== 'true' &&
+	                  lastTurnSourceButton.textContent?.includes('Unavailable') !== true;
+	                if (lastTurnSourceButton instanceof HTMLButtonElement) {
+	                  lastTurnSourceButton.click();
+	                  await sleep(260);
+	                }
+	                const lastTurnSourceText = activeReviewPanelText();
+	                lastTurnSourceActive = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
+	                lastTurnSourceWorks =
+	                  lastTurnSourceAvailable &&
+	                  lastTurnSourceActive === 'last-turn' &&
+	                  lastTurnSourceText.includes('review-base.txt') &&
+	                  lastTurnSourceText.includes('last turn smoke');
+	                if (lastTurnSourceWorks) {
+	                  const lastTurnGitApplyOptionsOpened = await openReviewOptions();
+	                  const lastTurnGitApplyMenuItem = document.querySelector('[data-testid="review-copy-git-apply-command"]');
+	                  const lastTurnGitApplyRoot = document.querySelector('.diff-panel-root');
+	                  const lastTurnExpectedGitApplyFileCount = Number(lastTurnGitApplyRoot?.getAttribute('data-review-git-apply-file-count') ?? '0');
+	                  window.__orchestratorLastReviewGitApplyCommandForSmoke = undefined;
+	                  let lastTurnGitApplyCommand = '';
+	                  let lastTurnGitApplyPatchFileCount = 0;
+	                  if (lastTurnGitApplyMenuItem instanceof HTMLButtonElement && !lastTurnGitApplyMenuItem.disabled) {
+	                    lastTurnGitApplyMenuItem.click();
+	                    await sleep(120);
+	                    lastTurnGitApplyCommand =
+	                      window.__orchestratorLastReviewGitApplyCommandForSmoke ??
+	                      await navigator.clipboard?.readText().catch(() => '') ??
+	                      '';
+	                    lastTurnGitApplyPatchFileCount = (lastTurnGitApplyCommand.match(/^diff --git /gm) ?? []).length;
+	                    reviewLastTurnGitApplyCommandWorks =
+	                      lastTurnGitApplyOptionsOpened &&
+	                      lastTurnGitApplyRoot?.getAttribute('data-review-source') === 'last-turn' &&
+	                      lastTurnExpectedGitApplyFileCount === 1 &&
+	                      lastTurnGitApplyCommand.startsWith("git apply <<'PATCH'") &&
+	                      lastTurnGitApplyCommand.endsWith('PATCH') &&
+	                      lastTurnGitApplyPatchFileCount === lastTurnExpectedGitApplyFileCount &&
+	                      lastTurnGitApplyCommand.includes('review-base.txt') &&
+	                      lastTurnGitApplyCommand.includes('last turn smoke');
+	                  }
+	                  reviewLastTurnGitApplyCommandDebug = {
+	                    lastTurnGitApplyOptionsOpened,
+	                    menuItemFound: lastTurnGitApplyMenuItem instanceof HTMLButtonElement,
+	                    menuItemDisabled: lastTurnGitApplyMenuItem instanceof HTMLButtonElement ? lastTurnGitApplyMenuItem.disabled : null,
+	                    reviewSource: lastTurnGitApplyRoot?.getAttribute('data-review-source') ?? null,
+	                    expectedFileCount: lastTurnExpectedGitApplyFileCount,
+	                    patchFileCount: lastTurnGitApplyPatchFileCount,
+	                    commandStarts: lastTurnGitApplyCommand.slice(0, 80),
+	                    hasReviewBase: lastTurnGitApplyCommand.includes('review-base.txt'),
+	                    hasLastTurnText: lastTurnGitApplyCommand.includes('last turn smoke')
+	                  };
+	                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+	                  await sleep(80);
+	                }
+	                const lastTurnReviewCard = [...document.querySelectorAll('[data-testid="codex-review-card"]')]
+	                  .find((card) =>
+	                    card instanceof HTMLElement &&
+	                    card.getAttribute('data-review-card-source') === 'last-turn'
+	                  );
+	                const lastTurnReviewCardUndo = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-undo"]');
+	                const lastTurnReviewCardFile = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-file"]');
+	                if (lastTurnReviewCardFile instanceof HTMLButtonElement) {
+	                  lastTurnReviewCardFile.click();
+	                  await sleep(180);
+	                }
+	                const lastTurnReviewCardInlineDiff = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-inline-diff"]');
+	                reviewTranscriptCardLastTurnWorks =
+	                  lastTurnInjected &&
+	                  lastTurnReviewCard instanceof HTMLElement &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-source') === 'last-turn' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-undo-kind') === 'provider-checkpoint-unsupported' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-undo') === 'unsupported' &&
+	                  lastTurnReviewCardUndo instanceof HTMLButtonElement &&
+	                  lastTurnReviewCardUndo.disabled === true &&
+	                  (lastTurnReviewCardUndo.getAttribute('title') ?? '') === 'Provider checkpoint undo is not supported by this adapter yet' &&
+	                  Number(lastTurnReviewCard.getAttribute('data-review-card-file-count') ?? '0') === 1 &&
+	                  (lastTurnReviewCard.textContent ?? '').includes('review-base.txt') &&
+	                  lastTurnReviewCardInlineDiff instanceof HTMLElement &&
+	                  (lastTurnReviewCardInlineDiff.textContent ?? '').includes('last turn smoke');
+	              }
+              if (await clickReviewSource('staged')) {
+                await sleep(260);
+              }
+              const stagedFileSelected = await selectReviewSourceFile('staged-source-smoke.txt');
+              const stagedSourceText = activeReviewPanelText();
+              const stagedSourceActive = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
+              const stagedPaneText = reviewSourcePaneText();
+              const stagedSourcePersisted = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+                .filter((key) => typeof key === 'string' && key.startsWith('orchestrator.review.source:'))
+                .some((key) => key !== null && localStorage.getItem(key) === 'staged');
+              if (await clickReviewSource('unstaged')) {
+                await sleep(260);
+              }
+              const unstagedFileSelected = await selectReviewSourceFile('review-base.txt');
+              const unstagedSourceText = activeReviewPanelText();
+              const unstagedSourceActive = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
+              const unstagedPaneText = reviewSourcePaneText();
+              if (await clickReviewSource('all')) {
+                await sleep(220);
+              }
+              const allPaneText = reviewSourcePaneText();
+              const allUnstagedFileSelected = await selectReviewSourceFile('review-base.txt');
+              const allUnstagedSourceText = activeReviewPanelText();
+              const allStagedFileSelected = await selectReviewSourceFile('staged-source-smoke.txt');
+              const allStagedSourceText = activeReviewPanelText();
+              const allSourceText = allPaneText + ' ' + allUnstagedSourceText + ' ' + allStagedSourceText;
+              const allSourceActive = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
+              if (await clickReviewSource('branch')) {
+                await sleep(120);
+                const branchPickerButton = document.querySelector('[data-testid="review-source-branch-picker"]');
+                if (branchPickerButton instanceof HTMLButtonElement) {
+                  branchPickerButton.click();
+                  await sleep(140);
+                  const branchPickerSearch = document.querySelector('[data-testid="review-source-branch-picker-search"]');
+                  if (branchPickerSearch instanceof HTMLInputElement) {
+                    setNativeValue(branchPickerSearch, 'review-base-branch');
+                    branchPickerSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                    await sleep(120);
+                  }
+                  const branchPickerItem = [...document.querySelectorAll('[data-testid="review-source-branch-picker-item"]')]
+                    .find((item) => item.textContent?.includes('review-base-branch'));
+                  if (branchPickerItem instanceof HTMLButtonElement) {
+                    branchPickerItem.click();
+                    await sleep(260);
+                  }
+                }
+                const branchRefInput = document.querySelector('[data-testid="review-source-branch-ref"]');
+                if (branchRefInput instanceof HTMLInputElement && branchRefInput.value !== 'review-base-branch') {
+                  setNativeValue(branchRefInput, 'review-base-branch');
+                  branchRefInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  await sleep(320);
+                }
+              }
+              for (let attempt = 0; attempt < 8 && !document.body.innerText.includes('branch source committed'); attempt += 1) {
+                await sleep(140);
+              }
+              const branchFileSelected = await selectReviewSourceFile('branch-source-smoke.txt');
+              const branchSourceText = activeReviewPanelText();
+              const branchPaneText = reviewSourcePaneText();
+              const branchSourceActive = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
+              const branchPickerWorks =
+                document.querySelector('[data-testid="review-source-branch-picker"]') instanceof HTMLButtonElement &&
+                document.querySelector('[data-testid="review-source-branch-picker-search"]') === null &&
+                (document.querySelector('[data-testid="review-source-branch-ref"]') instanceof HTMLInputElement
+                  ? document.querySelector('[data-testid="review-source-branch-ref"]').value === 'review-base-branch'
+                  : false);
+              const branchSourcePersisted = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+                .filter((key) => typeof key === 'string' && key.startsWith('orchestrator.review.sourceRef:branch:'))
+                .some((key) => key !== null && localStorage.getItem(key) === 'review-base-branch');
+              if (await clickReviewSource('commit')) {
+                await sleep(120);
+                const commitPickerButton = document.querySelector('[data-testid="review-source-commit-picker"]');
+                if (commitPickerButton instanceof HTMLButtonElement) {
+                  commitPickerButton.click();
+                  await sleep(140);
+                  const commitPickerItem = document.querySelector('[data-testid="review-source-commit-picker-item"]');
+                  if (commitPickerItem instanceof HTMLButtonElement) {
+                    commitPickerItem.click();
+                    await sleep(300);
+                  }
+                }
+                const commitRefInput = document.querySelector('[data-testid="review-source-commit-ref"]');
+                if (commitRefInput instanceof HTMLInputElement && !commitRefInput.value.trim()) {
+                  setNativeValue(commitRefInput, 'HEAD');
+                  commitRefInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  await sleep(320);
+                }
+              }
+              for (let attempt = 0; attempt < 10 && !document.body.innerText.includes('branch source committed'); attempt += 1) {
+                await sleep(140);
+              }
+              const commitFileSelected = await selectReviewSourceFile('branch-source-smoke.txt');
+              const commitSourceText = activeReviewPanelText();
+              const commitPaneText = reviewSourcePaneText();
+              const commitSourceActive = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
+              const commitRefValue = document.querySelector('[data-testid="review-source-commit-ref"]') instanceof HTMLInputElement
+                ? document.querySelector('[data-testid="review-source-commit-ref"]').value
+                : '';
+              const commitPickerWorks =
+                document.querySelector('[data-testid="review-source-commit-picker"]') instanceof HTMLButtonElement &&
+                document.querySelector('[data-testid="review-source-commit-picker-item"]') === null &&
+                commitRefValue.trim().length >= 8;
+              if (await clickReviewSource('all')) {
+                await sleep(220);
+              }
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              await sleep(80);
+	              const reviewSourceModesWork =
+	                sourceButtonsAvailable &&
+	                providerNativeSourceRowsWork &&
+	                unsupportedClickKeepsSource &&
+	                lastTurnSourceWorks &&
+                reviewLocalSourceCountsWork &&
+                stagedSourceActive === 'staged' &&
+                stagedSourcePersisted &&
+                stagedFileSelected &&
+                stagedSourceText.includes('staged-source-smoke.txt') &&
+                stagedSourceText.includes('staged updated') &&
+                stagedPaneText.includes('staged-source-smoke.txt') &&
+                !stagedPaneText.includes('review-base.txt') &&
+                unstagedSourceActive === 'unstaged' &&
+                unstagedFileSelected &&
+                unstagedSourceText.includes('review-base.txt') &&
+                unstagedPaneText.includes('review-base.txt') &&
+                !unstagedPaneText.includes('staged-source-smoke.txt') &&
+                allSourceActive === 'all' &&
+                allUnstagedFileSelected &&
+                allStagedFileSelected &&
+                allPaneText.includes('review-base.txt') &&
+                allPaneText.includes('staged-source-smoke.txt') &&
+                allUnstagedSourceText.includes('review-base.txt') &&
+                allStagedSourceText.includes('staged-source-smoke.txt') &&
+                branchSourceActive === 'branch' &&
+                branchPickerWorks &&
+                branchSourcePersisted &&
+                branchFileSelected &&
+                branchSourceText.includes('branch-source-smoke.txt') &&
+                branchSourceText.includes('branch source committed') &&
+                !branchPaneText.includes('review-base.txt') &&
+	                commitSourceActive === 'commit' &&
+	                commitPickerWorks &&
+	                commitFileSelected &&
+	                commitSourceText.includes('branch-source-smoke.txt') &&
+	                commitSourceText.includes('branch source committed');
+	              const reviewSourceModesDebug = {
+	                sourceButtonsAvailable,
+	                providerNativeSourceRowsWork,
+	                localProviderSourceAvailable,
+	                localProviderSourceActive,
+	                localProviderSourceWorks,
+	                unsupportedClickKeepsSource,
+	                lastTurnInjected,
+	                lastTurnSourceAvailable,
+	                lastTurnSourceActive,
+	                lastTurnSourceWorks,
+	                reviewLocalSourceCountsWork,
+	                stagedSourceActive,
+	                stagedSourcePersisted,
+	                stagedFileSelected,
+	                stagedHasStagedFile: stagedSourceText.includes('staged-source-smoke.txt'),
+	                stagedHasStagedContent: stagedSourceText.includes('staged updated'),
+	                stagedLeaksUnstagedFile: stagedPaneText.includes('review-base.txt'),
+	                unstagedSourceActive,
+	                unstagedFileSelected,
+	                unstagedHasUnstagedFile: unstagedSourceText.includes('review-base.txt'),
+	                unstagedLeaksStagedFile: unstagedPaneText.includes('staged-source-smoke.txt'),
+	                allSourceActive,
+	                allUnstagedFileSelected,
+	                allStagedFileSelected,
+	                allHasUnstagedFile: allPaneText.includes('review-base.txt'),
+	                allHasStagedFile: allPaneText.includes('staged-source-smoke.txt'),
+	                branchSourceActive,
+	                branchPickerWorks,
+	                branchSourcePersisted,
+	                branchFileSelected,
+	                branchHasBranchFile: branchSourceText.includes('branch-source-smoke.txt'),
+	                branchHasBranchContent: branchSourceText.includes('branch source committed'),
+	                branchLeaksUnstagedFile: branchPaneText.includes('review-base.txt'),
+	                commitSourceActive,
+	                commitPickerWorks,
+	                commitFileSelected,
+	                commitHasBranchFile: commitSourceText.includes('branch-source-smoke.txt'),
+	                commitHasBranchContent: commitSourceText.includes('branch source committed'),
+	                commitLeaksUnstagedFile: commitPaneText.includes('review-base.txt')
+	              };
+              const reviewSearchInput = currentDiffSearch();
+              if (reviewSearchInput instanceof HTMLInputElement) {
+                setNativeValue(reviewSearchInput, 'review-base');
+                reviewSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(420);
+              }
+              const reviewBaseTreeRowForLine = document.querySelector('.diff-panel-list [data-review-path="review-base.txt"]');
+              if (reviewBaseTreeRowForLine instanceof HTMLElement) {
+                reviewBaseTreeRowForLine.click();
+                await sleep(220);
               }
               const reviewSearchWorks =
                 document.body.innerText.includes('review-base.txt') &&
                 document.body.innerText.includes('after review') &&
                 !document.body.innerText.includes('No diff available');
-              const reviewGitActionsWork =
-                !document.body.innerText.includes('Stage selected') &&
-                !document.body.innerText.includes('Unstage selected');
+              const reviewSearchProjectionInput = currentDiffSearch();
+              if (reviewSearchProjectionInput instanceof HTMLInputElement) {
+                setNativeValue(reviewSearchProjectionInput, 'nested note');
+                reviewSearchProjectionInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(220);
+              }
+              const reviewSearchRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+              const reviewSearchTreeRows = [...document.querySelectorAll('.diff-panel-list [data-workbench-tree-row="true"]')]
+                .filter((row) => row instanceof HTMLElement);
+              const reviewSearchFileRows = [...document.querySelectorAll('.diff-panel-list .diff-file-row')]
+                .filter((row) => row instanceof HTMLElement);
+              const reviewSearchSections = [...document.querySelectorAll('[data-testid="review-file-section"]')]
+                .filter((section) => section instanceof HTMLElement);
+              const reviewSearchProjectionWorks =
+                reviewBaseTreeRowForLine instanceof HTMLElement &&
+                reviewSearchRoot instanceof HTMLElement &&
+                reviewSearchRoot.getAttribute('data-review-selected-file') === 'review-base.txt' &&
+                reviewSearchRoot.getAttribute('data-review-tree-query') === 'nested note' &&
+                reviewSearchRoot.getAttribute('data-review-tree-file-count') === '1' &&
+                Number(reviewSearchRoot.getAttribute('data-review-main-file-count') ?? '0') > 1 &&
+                reviewSearchFileRows.length === 1 &&
+                reviewSearchFileRows.some((row) => row.textContent?.includes('nested note.md')) &&
+                reviewSearchTreeRows.some((row) => row.textContent?.includes('Nested Folder')) &&
+                reviewSearchSections.length === 1 &&
+                document.querySelector('[data-testid="review-file-section"][data-review-path="review-base.txt"][data-active="true"]') instanceof HTMLElement;
+              const reviewContentSearchInput = currentDiffSearch();
+              if (reviewContentSearchInput instanceof HTMLInputElement) {
+                setNativeValue(reviewContentSearchInput, 'review tree grouping');
+                reviewContentSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                reviewContentSearchInput.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(220);
+              }
+              const reviewContentSearchRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+              const reviewContentSearchFileRows = [...document.querySelectorAll('.diff-panel-list .diff-file-row')]
+                .filter((row) => row instanceof HTMLElement);
+              const reviewContentSearchBadge = document.querySelector('[data-review-path="' + CSS.escape('Nested Folder/nested note.md') + '"] [data-review-file-search-match-count]');
+              const reviewSearchNextMatch = document.querySelector('[data-testid="review-search-next-match"]');
+              if (reviewSearchNextMatch instanceof HTMLButtonElement) {
+                reviewSearchNextMatch.click();
+                await sleep(220);
+              }
+              const reviewContentSearchRootAfterNav = document.querySelector('.diff-panel-root[data-embedded="true"]');
+              const reviewContentSearchControls = document.querySelector('[data-testid="review-search-match-controls"]');
+              const reviewContentSearchActiveRow = document.querySelector('[data-review-path="' + CSS.escape('Nested Folder/nested note.md') + '"][data-review-search-active="true"]');
+              const reviewContentSearchActiveDiff = document.querySelector('[data-review-search-active-line="true"]');
+              const reviewContentSearchDiffRoot = document.querySelector('[data-testid="review-unified-diff"], [data-testid="review-split-diff"]');
+              const reviewSearchContentWorks =
+                reviewContentSearchRoot instanceof HTMLElement &&
+                reviewContentSearchRoot.getAttribute('data-review-tree-query') === 'review tree grouping' &&
+                Number(reviewContentSearchRoot.getAttribute('data-review-tree-search-match-count') ?? '0') >= 1 &&
+                reviewContentSearchFileRows.length === 1 &&
+                reviewContentSearchFileRows.some((row) => row.textContent?.includes('nested note.md')) &&
+                reviewContentSearchBadge instanceof HTMLElement &&
+                Number(reviewContentSearchBadge.getAttribute('data-review-file-search-match-count') ?? '0') >= 1 &&
+                reviewContentSearchControls instanceof HTMLElement &&
+                reviewContentSearchControls.getAttribute('data-review-search-active-path') === 'Nested Folder/nested note.md' &&
+                reviewContentSearchRootAfterNav instanceof HTMLElement &&
+                reviewContentSearchRootAfterNav.getAttribute('data-review-tree-search-active-path') === 'Nested Folder/nested note.md' &&
+                reviewContentSearchRootAfterNav.getAttribute('data-review-selected-file') === 'Nested Folder/nested note.md' &&
+                reviewContentSearchActiveRow instanceof HTMLElement &&
+                reviewContentSearchDiffRoot instanceof HTMLElement &&
+                reviewContentSearchDiffRoot.getAttribute('data-review-diff-search-active-visible') === 'true' &&
+                reviewContentSearchActiveDiff instanceof HTMLElement &&
+                reviewContentSearchActiveDiff.textContent?.includes('review tree grouping') === true &&
+                reviewContentSearchActiveDiff.getAttribute('data-review-search-line-match-count') !== null;
+              const reviewFullSourceSearchInput = currentDiffSearch();
+              if (reviewFullSourceSearchInput instanceof HTMLInputElement) {
+                setNativeValue(reviewFullSourceSearchInput, 'review-base');
+                reviewFullSourceSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                reviewFullSourceSearchInput.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(220);
+              }
+              const reviewFullSourceTreeRow = document.querySelector('.diff-panel-list [data-review-path="review-base.txt"]');
+              if (reviewFullSourceTreeRow instanceof HTMLElement) {
+                reviewFullSourceTreeRow.click();
+                await sleep(220);
+              }
+              const loadFullButton = document.querySelector('[data-testid="review-load-full-file"]');
+              if (loadFullButton instanceof HTMLButtonElement) {
+                loadFullButton.click();
+                await sleep(420);
+              }
+              const fullSourceState = document.querySelector('[data-testid="review-full-source"]');
+              const fullSourceText = fullSourceState instanceof HTMLElement ? fullSourceState.innerText : '';
+              const fullSourceSharedPreview = fullSourceState instanceof HTMLElement
+                ? fullSourceState.querySelector('[data-testid="workspace-text-preview"]')
+                : null;
+              const fullSourceLineRows = fullSourceState instanceof HTMLElement
+                ? [...fullSourceState.querySelectorAll('[data-testid="workspace-text-preview"] [data-source-line-number]')].filter((row) => row instanceof HTMLElement)
+                : [];
+              const firstFullSourceLine = fullSourceLineRows[0];
+              const secondFullSourceLine = fullSourceLineRows[1];
+              if (secondFullSourceLine instanceof HTMLElement) {
+                secondFullSourceLine.click();
+                await sleep(160);
+              }
+              const reviewFullSourceBlameToggle = document.querySelector('[data-testid="review-source-toggle-blame"]');
+              if (reviewFullSourceBlameToggle instanceof HTMLButtonElement) {
+                reviewFullSourceBlameToggle.click();
+                await sleep(760);
+              }
+              const fullSourceSelectedLine = fullSourceState instanceof HTMLElement
+                ? fullSourceState.querySelector('[data-testid="workspace-text-preview"] [data-source-line-selected="true"]')
+                : null;
+              const fullSourceBlameDetails = fullSourceState instanceof HTMLElement
+                ? fullSourceState.querySelector('[data-testid="review-source-blame-details"]')
+                : null;
+              const fullSourceBlameAction = fullSourceState instanceof HTMLElement
+                ? fullSourceState.querySelector('[data-testid="review-source-line-action-blame"]')
+                : null;
+              const fullSourceSelectedBlame = fullSourceState instanceof HTMLElement
+                ? fullSourceState.querySelector('[data-testid="review-source-selected-blame"]')
+                : null;
+              const fullSourceGutterBlames = fullSourceState instanceof HTMLElement
+                ? [...fullSourceState.querySelectorAll('[data-testid="review-source-gutter-blame"]')].filter((row) => row instanceof HTMLElement)
+                : [];
+              const fullSourceSecondLineGutterBlame = fullSourceState instanceof HTMLElement
+                ? fullSourceState.querySelector('[data-testid="review-source-gutter-blame"][data-review-source-gutter-blame-line="2"]')
+                : null;
+              const resetFullSourceButton = document.querySelector('[data-testid="review-load-full-file"]');
+              if (resetFullSourceButton instanceof HTMLButtonElement) {
+                resetFullSourceButton.click();
+                await sleep(140);
+              }
+              const reviewFullSourceRowsWork =
+                fullSourceState instanceof HTMLElement &&
+                fullSourceState.getAttribute('data-review-source-shared-preview') === 'true' &&
+                fullSourceState.getAttribute('data-review-source-line-count') !== null &&
+                Number(fullSourceState.getAttribute('data-review-source-line-count') ?? '0') >= 2 &&
+                fullSourceSharedPreview instanceof HTMLElement &&
+                fullSourceSharedPreview.getAttribute('data-source-virtualized') === 'false' &&
+                Number(fullSourceSharedPreview.getAttribute('data-source-total-lines') ?? '0') >= 2 &&
+                fullSourceState.querySelector('[data-testid="workspace-text-preview"] .workspace-source-lines[role="grid"]') instanceof HTMLElement &&
+                firstFullSourceLine instanceof HTMLElement &&
+                secondFullSourceLine instanceof HTMLElement &&
+                firstFullSourceLine.getAttribute('data-source-line-number') === '1' &&
+                firstFullSourceLine.querySelector('.workspace-source-gutter-number')?.textContent?.trim() === '1' &&
+                firstFullSourceLine.querySelector('.workspace-source-code')?.textContent?.includes('before review') === true &&
+                secondFullSourceLine.getAttribute('data-source-line-number') === '2' &&
+                secondFullSourceLine.querySelector('.workspace-source-gutter-number')?.textContent?.trim() === '2' &&
+                secondFullSourceLine.querySelector('.workspace-source-code')?.textContent?.includes('after review') === true &&
+                fullSourceSelectedLine instanceof HTMLElement &&
+                fullSourceSelectedLine.getAttribute('data-source-line-number') === '2' &&
+                !(fullSourceState.querySelector('pre.workspace-source-code') instanceof HTMLElement);
+              const reviewFullSourceBlameWorks =
+                fullSourceState instanceof HTMLElement &&
+                reviewFullSourceBlameToggle instanceof HTMLButtonElement &&
+                fullSourceState.getAttribute('data-review-source-blame-visible') === 'true' &&
+                Number(fullSourceState.getAttribute('data-review-source-blame-loaded-count') ?? '0') >= 2 &&
+                Number(fullSourceState.getAttribute('data-review-source-blame-line-count') ?? '0') >= 2 &&
+                fullSourceSelectedLine instanceof HTMLElement &&
+                fullSourceBlameDetails instanceof HTMLElement &&
+                fullSourceBlameDetails.getAttribute('data-review-source-blame-line') === '2' &&
+                fullSourceBlameDetails.getAttribute('data-review-source-blame-ok') === 'true' &&
+                fullSourceBlameDetails.getAttribute('data-review-source-blame-source') === 'working-tree' &&
+                fullSourceBlameDetails.getAttribute('data-review-source-blame-author') === 'Not Committed Yet' &&
+                fullSourceBlameDetails.getAttribute('data-review-source-blame-commit') === 'Working tree' &&
+                fullSourceBlameAction instanceof HTMLElement &&
+                fullSourceBlameAction.getAttribute('data-review-source-line-action-blame-source') === 'working-tree' &&
+                fullSourceSelectedBlame instanceof HTMLElement &&
+                fullSourceSelectedBlame.getAttribute('data-review-source-selected-blame-source') === 'working-tree' &&
+                fullSourceGutterBlames.length >= 2 &&
+                fullSourceSecondLineGutterBlame instanceof HTMLElement &&
+                fullSourceSecondLineGutterBlame.getAttribute('data-review-source-gutter-blame-source') === 'working-tree';
+              const reviewLoadFullFileWorks =
+                loadFullButton instanceof HTMLButtonElement &&
+                fullSourceState instanceof HTMLElement &&
+                fullSourceState.getAttribute('data-review-source-truncated') === 'false' &&
+                reviewFullSourceRowsWork &&
+                fullSourceText.includes('before review') &&
+                fullSourceText.includes('after review') &&
+                document.querySelector('[data-testid="review-full-source"]') === null &&
+                document.querySelector('[data-testid="review-unified-diff"]') instanceof HTMLElement;
+              const reviewLineInteractionSearch = currentDiffSearch();
+              if (reviewLineInteractionSearch instanceof HTMLInputElement && reviewLineInteractionSearch.value.length > 0) {
+                setNativeValue(reviewLineInteractionSearch, '');
+                reviewLineInteractionSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                reviewLineInteractionSearch.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(180);
+              }
+              const diffModeToggle = document.querySelector('[data-testid="review-diff-mode-toggle"]');
+              const reviewSectionsForLine = [...document.querySelectorAll('[data-testid="review-file-section"]')]
+                .filter((section) => section instanceof HTMLElement);
+              const multiAdditionReviewSection = reviewSectionsForLine.find((section) =>
+                section.querySelectorAll('[data-testid="review-unified-diff"] [data-line-number-side="new"][data-line-type="addition"]').length >= 2
+              );
+              const activeReviewSectionForLine =
+                multiAdditionReviewSection ??
+                document.querySelector('[data-testid="review-file-section"][data-review-path="review-base.txt"]') ??
+                document.querySelector('[data-testid="review-file-section"][data-active="true"]');
+              const unifiedDiffBefore = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"]');
+              const unifiedLineNumberCells = [...(activeReviewSectionForLine?.querySelectorAll('[data-testid="review-unified-diff"] [data-line-number]') ?? [])]
+                .filter((cell) => cell instanceof HTMLElement && (cell.getAttribute('data-line-number') ?? '').length > 0);
+              const selectableUnifiedLine = unifiedLineNumberCells.find((cell) =>
+                cell instanceof HTMLElement &&
+                cell.getAttribute('data-line-number-side') === 'new' &&
+                cell.getAttribute('data-line-type') === 'addition'
+              );
+              if (selectableUnifiedLine instanceof HTMLElement) {
+                selectableUnifiedLine.click();
+                await sleep(160);
+              }
+              const selectedUnifiedLine = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"] [data-review-selected-line="true"]');
+              const reviewCommentButton = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-add-comment"]');
+              if (reviewCommentButton instanceof HTMLButtonElement) {
+                reviewCommentButton.click();
+                await sleep(140);
+              }
+              const reviewCommentInput = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-input"]');
+              if (reviewCommentInput instanceof HTMLTextAreaElement) {
+                setNativeValue(reviewCommentInput, 'review diff note from smoke');
+                reviewCommentInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+              }
+              const reviewCommentSave = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-save"]');
+              if (reviewCommentSave instanceof HTMLButtonElement) {
+                reviewCommentSave.click();
+                await sleep(160);
+              }
+              const reviewDiffAfterComment = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"]');
+              const reviewCommentCard = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-card"]');
+              const reviewCommentBody = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-body"]');
+              const commentedReviewLine = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"] [data-review-line-has-comment="true"]');
+              const commentedReviewPath = selectedUnifiedLine instanceof HTMLElement
+                ? selectedUnifiedLine.closest('[data-testid="review-file-section"]')?.getAttribute('data-review-path') ?? ''
+                : '';
+              const reviewLineCommentsWork =
+                selectedUnifiedLine instanceof HTMLElement &&
+                reviewCommentButton instanceof HTMLButtonElement &&
+                reviewCommentInput instanceof HTMLTextAreaElement &&
+                reviewCommentSave instanceof HTMLButtonElement &&
+                reviewDiffAfterComment instanceof HTMLElement &&
+                reviewDiffAfterComment.getAttribute('data-review-comment-count') === '1' &&
+                reviewCommentCard instanceof HTMLElement &&
+                reviewCommentCard.getAttribute('data-review-comment-side') === selectedUnifiedLine.getAttribute('data-line-number-side') &&
+                reviewCommentCard.getAttribute('data-review-comment-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
+                reviewCommentCard.getAttribute('data-review-comment-status') === 'saved' &&
+                reviewCommentBody instanceof HTMLElement &&
+                reviewCommentBody.textContent?.includes('review diff note from smoke') === true &&
+                commentedReviewLine instanceof HTMLElement &&
+                commentedReviewLine.getAttribute('data-review-line-comment-count') === '1';
+              const reviewSidePaneCommentCount = commentedReviewPath
+                ? document.querySelector('.diff-panel-list [data-review-path="' + CSS.escape(commentedReviewPath) + '"] [data-review-file-comment-count]')
+                : null;
+              const reviewSidePaneCommentCountWork =
+                reviewLineCommentsWork &&
+                commentedReviewPath.length > 0 &&
+                reviewSidePaneCommentCount instanceof HTMLElement &&
+                reviewSidePaneCommentCount.textContent?.trim() === '1' &&
+                reviewSidePaneCommentCount.getAttribute('aria-label') === '1 review comment' &&
+                !document.querySelector('.diff-panel-list .motion-badge');
+              const reviewBlameToggle = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-toggle-blame"]');
+              const reviewInlineActionPopover = selectedUnifiedLine instanceof HTMLElement
+                ? selectedUnifiedLine.querySelector('[data-review-gutter-action-popover]')
+                : null;
+              const reviewSelectedLineActions = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-selected-line-actions"]');
+              const selectedLineBounds = selectedUnifiedLine instanceof HTMLElement ? selectedUnifiedLine.getBoundingClientRect() : null;
+              const selectedActionsBounds = reviewSelectedLineActions instanceof HTMLElement ? reviewSelectedLineActions.getBoundingClientRect() : null;
+              const reviewLegacyLineActions = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-actions"], .review-diff-line-actions');
+              const reviewGutterActionPopoverWork =
+                selectedUnifiedLine instanceof HTMLElement &&
+                !(reviewInlineActionPopover instanceof HTMLElement) &&
+                reviewSelectedLineActions instanceof HTMLElement &&
+                selectedActionsBounds !== null &&
+                selectedLineBounds !== null &&
+                selectedActionsBounds.bottom <= selectedLineBounds.top &&
+                reviewCommentButton instanceof HTMLButtonElement &&
+                reviewCommentButton.closest('[data-gutter-utility-slot]') instanceof HTMLElement &&
+                reviewBlameToggle instanceof HTMLButtonElement &&
+                reviewBlameToggle.closest('[data-testid="review-diff-selected-line-actions"]') === reviewSelectedLineActions &&
+                !(reviewLegacyLineActions instanceof HTMLElement);
+              if (reviewBlameToggle instanceof HTMLButtonElement) {
+                reviewBlameToggle.click();
+                await sleep(520);
+              }
+              const reviewDiffAfterBlame = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"]');
+              const reviewBlameDetails = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-blame-details"]');
+              const reviewGutterBlame = selectedUnifiedLine instanceof HTMLElement
+                ? selectedUnifiedLine.querySelector('[data-testid="review-diff-gutter-blame"]')
+                : null;
+              const reviewVisibleGutterBlames = [...(activeReviewSectionForLine?.querySelectorAll('[data-testid="review-diff-gutter-blame"]') ?? [])]
+                .filter((node) => node instanceof HTMLElement);
+              const reviewWorkingTreeGutterBlames = reviewVisibleGutterBlames.filter((node) =>
+                node.getAttribute('data-review-gutter-blame-source') === 'working-tree'
+              );
+              const commentedReviewLineStyle = commentedReviewLine instanceof HTMLElement ? getComputedStyle(commentedReviewLine) : null;
+              const reviewAnnotatedSelectionCalmWork =
+                commentedReviewLine instanceof HTMLElement &&
+                commentedReviewLine.getAttribute('data-review-selected-line') === 'true' &&
+                commentedReviewLineStyle !== null &&
+                commentedReviewLineStyle.backgroundColor === 'rgba(34, 197, 94, 0.08)' &&
+                commentedReviewLineStyle.boxShadow.includes('inset');
+              const reviewLineBlameWork =
+                selectedUnifiedLine instanceof HTMLElement &&
+                reviewBlameToggle instanceof HTMLButtonElement &&
+                reviewBlameToggle.disabled === false &&
+                reviewDiffAfterBlame instanceof HTMLElement &&
+                reviewDiffAfterBlame.getAttribute('data-review-blame-visible') === 'true' &&
+                reviewDiffAfterBlame.getAttribute('data-review-blame-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
+                reviewBlameDetails instanceof HTMLElement &&
+                reviewBlameDetails.getAttribute('data-review-blame-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
+                reviewBlameDetails.getAttribute('data-review-blame-ok') === 'true' &&
+                reviewBlameDetails.getAttribute('data-review-blame-source') === 'working-tree' &&
+                reviewBlameDetails.getAttribute('data-review-blame-author') === 'Not Committed Yet' &&
+                reviewBlameDetails.getAttribute('data-review-blame-commit') === 'Working tree' &&
+                reviewBlameDetails.textContent?.includes('Author') === true &&
+                reviewBlameDetails.textContent?.includes('Commit') === true &&
+                reviewBlameDetails.textContent?.includes('Date') === true;
+              const reviewGutterBlameBox = reviewGutterBlame instanceof HTMLElement ? reviewGutterBlame.getBoundingClientRect() : null;
+              const reviewGutterBlameSummaryWork =
+                reviewLineBlameWork &&
+                reviewGutterBlame instanceof HTMLElement &&
+                reviewGutterBlame.closest('.review-diff-line-number') instanceof HTMLElement &&
+                reviewGutterBlame.getAttribute('data-review-gutter-blame-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
+                reviewGutterBlame.getAttribute('data-review-gutter-blame-source') === 'working-tree' &&
+                reviewGutterBlame.getAttribute('data-review-gutter-blame-author') === 'Not Committed Yet' &&
+                reviewGutterBlame.getAttribute('data-review-gutter-blame-commit') === 'Working tree' &&
+                reviewGutterBlame.textContent?.trim() === 'WT' &&
+                reviewWorkingTreeGutterBlames.length >= 1 &&
+                reviewWorkingTreeGutterBlames.every((node) => node.closest('.review-diff-line-number') instanceof HTMLElement) &&
+                reviewGutterBlameBox !== null &&
+                reviewGutterBlameBox.width <= 24 &&
+                reviewGutterBlameBox.height <= 14;
+              const hunkToggle = document.querySelector('[data-testid="review-hunk-toggle"]');
+              const unifiedLineCellsBeforeHunkCollapse = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
+                .filter((cell) => cell instanceof HTMLElement);
+              if (hunkToggle instanceof HTMLButtonElement) {
+                hunkToggle.click();
+                await sleep(120);
+              }
+              const collapsedHunkToggle = document.querySelector('[data-testid="review-hunk-toggle"][data-review-hunk-collapsed="true"]');
+              const unifiedLineCellsAfterHunkCollapse = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
+                .filter((cell) => cell instanceof HTMLElement);
+              const collapsedHunkSummaryVisible = collapsedHunkToggle instanceof HTMLElement &&
+                (collapsedHunkToggle.textContent ?? '').includes('hidden');
+              if (collapsedHunkToggle instanceof HTMLButtonElement) {
+                collapsedHunkToggle.click();
+                await sleep(120);
+              }
+              const expandedHunkToggle = document.querySelector('[data-testid="review-hunk-toggle"][data-review-hunk-collapsed="false"]');
+              const unifiedLineCellsAfterHunkExpand = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
+                .filter((cell) => cell instanceof HTMLElement);
+              const diffHunkCollapseWorks =
+                hunkToggle instanceof HTMLButtonElement &&
+                collapsedHunkToggle instanceof HTMLButtonElement &&
+                expandedHunkToggle instanceof HTMLElement &&
+                collapsedHunkSummaryVisible &&
+                unifiedLineCellsBeforeHunkCollapse.length > 0 &&
+                unifiedLineCellsAfterHunkCollapse.length < unifiedLineCellsBeforeHunkCollapse.length &&
+                unifiedLineCellsAfterHunkExpand.length === unifiedLineCellsBeforeHunkCollapse.length;
+              const diffModeBefore = document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-mode') ?? '';
+              if (diffModeToggle instanceof HTMLButtonElement) {
+                diffModeToggle.click();
+                await sleep(160);
+              }
+              const splitModeToggle = document.querySelector('[data-testid="review-diff-mode-toggle"]');
+              const splitDiff = document.querySelector('[data-testid="review-split-diff"]');
+              const diffModeAfterSplit = document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-mode') ?? '';
+              const splitRows = [...document.querySelectorAll('[data-testid="review-split-diff"] .review-split-diff-row')]
+                .filter((row) => row instanceof HTMLElement);
+              const splitCells = [...document.querySelectorAll('[data-testid="review-split-diff"] .review-split-diff-cell')]
+                .filter((cell) => cell instanceof HTMLElement);
+              const splitLineNumberCells = splitCells.filter((cell) =>
+                cell instanceof HTMLElement && (cell.getAttribute('data-line-number') ?? '').length > 0
+              );
+              if (splitModeToggle instanceof HTMLButtonElement) {
+                splitModeToggle.click();
+                await sleep(120);
+              }
+              const diffLineNumbersWork =
+                unifiedLineNumberCells.length > 0 &&
+                unifiedLineNumberCells.some((cell) => cell instanceof HTMLElement && cell.getAttribute('data-line-number-side') === 'new') &&
+                splitLineNumberCells.length > 0 &&
+                splitLineNumberCells.some((cell) => cell instanceof HTMLElement && cell.getAttribute('data-line-number-side') === 'old') &&
+                splitLineNumberCells.some((cell) => cell instanceof HTMLElement && cell.getAttribute('data-line-number-side') === 'new');
+              const diffLineSelectionWorks =
+                selectableUnifiedLine instanceof HTMLElement &&
+                selectedUnifiedLine instanceof HTMLElement &&
+                selectedUnifiedLine.getAttribute('aria-selected') === 'true' &&
+                selectedUnifiedLine.getAttribute('data-line-number-side') === 'new';
+              const unifiedModeToggle = document.querySelector('[data-testid="review-diff-mode-toggle"]');
+              const diffModeToggleWorks =
+                unifiedDiffBefore instanceof HTMLElement &&
+                splitDiff instanceof HTMLElement &&
+                diffModeBefore === 'unified' &&
+                diffModeAfterSplit === 'split' &&
+                splitModeToggle instanceof HTMLButtonElement &&
+                unifiedModeToggle instanceof HTMLButtonElement &&
+                splitRows.length > 0 &&
+                splitCells.length >= splitRows.length &&
+                splitRows.some((row) => {
+                  if (!(row instanceof HTMLElement)) return false;
+                  const type = row.getAttribute('data-line-type');
+                  return type === 'addition' || type === 'deletion';
+                }) &&
+                splitCells.some((cell) =>
+                  cell instanceof HTMLElement &&
+                  cell.getAttribute('data-line-type') === 'context'
+                ) &&
+                document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-mode') === 'unified';
+              const diffExpandToggle = document.querySelector('[data-testid="review-diff-expand-toggle"]');
+              const expandedBeforeCollapse = document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-expanded') ?? '';
+              if (diffExpandToggle instanceof HTMLButtonElement) {
+                diffExpandToggle.click();
+                await sleep(140);
+              }
+              const collapsedDiff = document.querySelector('[data-testid="review-collapsed-diff"]');
+              const collapsedRows = [...document.querySelectorAll('[data-testid="review-collapsed-diff"] .review-collapsed-diff-row')]
+                .filter((row) => row instanceof HTMLElement);
+              const expandedAfterCollapse = document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-expanded') ?? '';
+              const collapsedChangedRowsHidden =
+                document.querySelector('[data-testid="review-unified-diff"]') === null &&
+                document.querySelector('[data-testid="review-split-diff"]') === null;
+              const collapsedModeToggle = document.querySelector('[data-testid="review-diff-expand-toggle"]');
+              if (collapsedModeToggle instanceof HTMLButtonElement) {
+                collapsedModeToggle.click();
+                await sleep(120);
+              }
+              const diffExpandCollapseWorks =
+                diffExpandToggle instanceof HTMLButtonElement &&
+                collapsedModeToggle instanceof HTMLButtonElement &&
+                expandedBeforeCollapse === 'true' &&
+                expandedAfterCollapse === 'false' &&
+                collapsedDiff instanceof HTMLElement &&
+                collapsedRows.length > 0 &&
+                collapsedDiff.textContent?.includes('changed') === true &&
+                collapsedChangedRowsHidden &&
+                document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-expanded') === 'true' &&
+                document.querySelector('[data-testid="review-unified-diff"]') instanceof HTMLElement;
+              const hiddenContextSearchInput = currentDiffSearch();
+              if (hiddenContextSearchInput instanceof HTMLInputElement) {
+                setNativeValue(hiddenContextSearchInput, 'hidden-context-smoke');
+                hiddenContextSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(160);
+              }
+              const hiddenContextButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('hidden-context-smoke.txt'));
+              if (hiddenContextButton instanceof HTMLButtonElement) {
+                hiddenContextButton.click();
+                await sleep(220);
+              }
+              const hiddenContextSection = document.querySelector('[data-testid="review-file-section"][data-review-path="hidden-context-smoke.txt"]');
+              const hiddenContextUnifiedBefore = hiddenContextSection?.querySelector('[data-testid="review-unified-diff"]');
+              const hiddenContextExpandAll = hiddenContextSection?.querySelector('[data-testid="review-hidden-context-expand-all"]');
+              const hiddenContextTotalCount = hiddenContextExpandAll instanceof HTMLElement
+                ? Number(hiddenContextExpandAll.getAttribute('data-review-hidden-context-total-count') ?? '0')
+                : 0;
+              const hiddenContextSegmentCount = hiddenContextExpandAll instanceof HTMLElement
+                ? Number(hiddenContextExpandAll.getAttribute('data-review-hidden-context-segments') ?? '0')
+                : 0;
+              const hiddenContextToggle = [...(hiddenContextSection?.querySelectorAll('[data-testid="review-hidden-context-toggle"]') ?? [])]
+                .find((button) => button instanceof HTMLButtonElement &&
+                  Number(button.getAttribute('data-review-hidden-context-count') ?? '0') > 20);
+              const hiddenContextCount = hiddenContextToggle instanceof HTMLElement
+                ? Number(hiddenContextToggle.getAttribute('data-review-hidden-context-count') ?? '0')
+                : 0;
+              const hiddenContextSeparatorButtons = [hiddenContextExpandAll, hiddenContextToggle]
+                .filter((button) => button instanceof HTMLElement);
+              const reviewHiddenContextSeparatorStructureWork =
+                hiddenContextSeparatorButtons.length >= 2 &&
+                hiddenContextSeparatorButtons.every((button) => {
+                  if (!(button instanceof HTMLElement)) return false;
+                  const wrapper = button.querySelector('[data-separator-wrapper]');
+                  const expand = button.querySelector('[data-expand-button]');
+                  const content = button.querySelector('[data-separator-content]');
+                  if (!(wrapper instanceof HTMLElement) || !(expand instanceof HTMLElement) || !(content instanceof HTMLElement)) return false;
+                  const buttonRect = button.getBoundingClientRect();
+                  const wrapperRect = wrapper.getBoundingClientRect();
+                  const expandRect = expand.getBoundingClientRect();
+                  return button.getAttribute('data-separator') === 'line-info-basic' &&
+                    button.hasAttribute('data-expand-index') &&
+                    buttonRect.height >= 30 &&
+                    buttonRect.height <= 34 &&
+                    Math.abs(wrapperRect.height - buttonRect.height) <= 1 &&
+                    expandRect.width >= 30 &&
+                    expandRect.width <= 34 &&
+                    getComputedStyle(wrapper).position === 'absolute' &&
+                    getComputedStyle(content).backgroundColor !== 'rgba(0, 0, 0, 0)';
+                });
+              const hiddenContextExpandedBefore = hiddenContextUnifiedBefore instanceof HTMLElement
+                ? Number(hiddenContextUnifiedBefore.getAttribute('data-review-expanded-context-count') ?? '0')
+                : 0;
+              if (hiddenContextExpandAll instanceof HTMLButtonElement) {
+                hiddenContextExpandAll.click();
+                await sleep(360);
+              }
+              const hiddenContextSectionAfterExpand = document.querySelector('[data-testid="review-file-section"][data-review-path="hidden-context-smoke.txt"]');
+              const hiddenContextUnifiedAfter = hiddenContextSectionAfterExpand?.querySelector('[data-testid="review-unified-diff"]');
+              const hiddenContextExpandAllAfter = hiddenContextSectionAfterExpand?.querySelector('[data-testid="review-hidden-context-expand-all"]');
+              const expandedHiddenContextLines = [...(hiddenContextSectionAfterExpand?.querySelectorAll('[data-review-expanded-context-line="true"], [data-testid="review-unified-diff"] [data-line-number="40"]') ?? [])]
+                .filter((row) => row instanceof HTMLElement);
+              const hiddenContextExpandedAfter = hiddenContextUnifiedAfter instanceof HTMLElement
+                ? Number(hiddenContextUnifiedAfter.getAttribute('data-review-expanded-context-count') ?? '0')
+                : 0;
+              const hiddenContextExpandedText = hiddenContextUnifiedAfter instanceof HTMLElement ? hiddenContextUnifiedAfter.innerText : '';
+              const hiddenContextSplitToggle = document.querySelector('[data-testid="review-diff-mode-toggle"]');
+              if (hiddenContextSplitToggle instanceof HTMLButtonElement) {
+                hiddenContextSplitToggle.click();
+                await sleep(160);
+              }
+              const hiddenContextSectionAfterSplit = document.querySelector('[data-testid="review-file-section"][data-review-path="hidden-context-smoke.txt"]');
+              const hiddenContextSplit = hiddenContextSectionAfterSplit?.querySelector('[data-testid="review-split-diff"]');
+              const hiddenContextSplitRows = [...(hiddenContextSectionAfterSplit?.querySelectorAll('[data-testid="review-split-diff"] [data-review-expanded-context-line="true"]') ?? [])]
+                .filter((row) => row instanceof HTMLElement);
+              const hiddenContextUnifiedToggle = document.querySelector('[data-testid="review-diff-mode-toggle"]');
+              if (hiddenContextUnifiedToggle instanceof HTMLButtonElement) {
+                hiddenContextUnifiedToggle.click();
+                await sleep(120);
+              }
+              const reviewHiddenContextExpansionWork =
+                hiddenContextButton instanceof HTMLButtonElement &&
+                hiddenContextUnifiedBefore instanceof HTMLElement &&
+                reviewHiddenContextSeparatorStructureWork &&
+                hiddenContextToggle instanceof HTMLButtonElement &&
+                hiddenContextCount > 20 &&
+                hiddenContextExpandedBefore === 0 &&
+                hiddenContextUnifiedAfter instanceof HTMLElement &&
+                hiddenContextExpandedAfter >= hiddenContextCount &&
+                expandedHiddenContextLines.length > 0 &&
+                hiddenContextExpandedText.includes('hidden context unchanged line 40') &&
+                hiddenContextSplit instanceof HTMLElement &&
+                hiddenContextSplitRows.length >= hiddenContextCount &&
+                document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-mode') === 'unified';
+              const reviewHiddenContextExpandAllWork =
+                hiddenContextExpandAll instanceof HTMLButtonElement &&
+                hiddenContextSegmentCount >= 2 &&
+                hiddenContextTotalCount > hiddenContextCount &&
+                hiddenContextExpandAllAfter instanceof HTMLButtonElement &&
+                hiddenContextExpandAllAfter.getAttribute('data-review-context-expanded') === 'true' &&
+                Number(hiddenContextExpandAllAfter.getAttribute('data-review-expanded-context-count') ?? '0') >= hiddenContextTotalCount &&
+                hiddenContextExpandedAfter >= hiddenContextTotalCount;
+              const largeDiffSearchInput = currentDiffSearch();
+              if (largeDiffSearchInput instanceof HTMLInputElement) {
+                setNativeValue(largeDiffSearchInput, 'large-diff-smoke');
+                largeDiffSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(180);
+              }
+              const largeDiffButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('large-diff-smoke.txt'));
+              if (largeDiffButton instanceof HTMLButtonElement) {
+                largeDiffButton.click();
+                await sleep(300);
+              }
+              const largeDiffSection = document.querySelector('[data-testid="review-file-section"][data-review-path="large-diff-smoke.txt"]');
+              const largeDiffUnifiedBefore = largeDiffSection?.querySelector('[data-testid="review-unified-diff"]');
+              const largeDiffNotice = largeDiffSection?.querySelector('[data-testid="review-large-diff-notice"]');
+              const largeDiffShowFull = largeDiffSection?.querySelector('[data-testid="review-large-diff-show-full"]');
+              const largeDiffTotalLines = largeDiffUnifiedBefore instanceof HTMLElement
+                ? Number(largeDiffUnifiedBefore.getAttribute('data-review-large-diff-total-lines') ?? '0')
+                : 0;
+              const largeDiffRenderedLines = largeDiffUnifiedBefore instanceof HTMLElement
+                ? Number(largeDiffUnifiedBefore.getAttribute('data-review-large-diff-rendered-lines') ?? '0')
+                : 0;
+              const largeDiffChangedLines = largeDiffUnifiedBefore instanceof HTMLElement
+                ? Number(largeDiffUnifiedBefore.getAttribute('data-review-large-diff-changed-lines') ?? '0')
+                : 0;
+              const largeDiffFlagBefore = largeDiffUnifiedBefore instanceof HTMLElement
+                ? largeDiffUnifiedBefore.getAttribute('data-review-large-diff') ?? ''
+                : '';
+              const largeDiffExpandedBefore = largeDiffUnifiedBefore instanceof HTMLElement
+                ? largeDiffUnifiedBefore.getAttribute('data-review-large-diff-expanded') ?? ''
+                : '';
+              const largeDiffMountedRows = largeDiffSection instanceof HTMLElement
+                ? largeDiffSection.querySelectorAll('.review-diff-line-cell').length
+                : 0;
+              const largeDiffDebug = {
+                activeSource: document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '',
+                activeMode: document.querySelector('.diff-panel-root')?.getAttribute('data-review-diff-mode') ?? '',
+                searchValue: largeDiffSearchInput instanceof HTMLInputElement ? largeDiffSearchInput.value : '',
+                buttonFound: largeDiffButton instanceof HTMLButtonElement,
+                sectionFound: largeDiffSection instanceof HTMLElement,
+                unifiedBeforeFound: largeDiffUnifiedBefore instanceof HTMLElement,
+                largeDiffFlag: largeDiffFlagBefore,
+                expandedBefore: largeDiffExpandedBefore,
+                totalLines: largeDiffTotalLines,
+                changedLines: largeDiffChangedLines,
+                renderedLines: largeDiffRenderedLines,
+                mountedRows: largeDiffMountedRows,
+                noticeFound: largeDiffNotice instanceof HTMLElement,
+                noticeText: largeDiffNotice instanceof HTMLElement ? largeDiffNotice.textContent ?? '' : '',
+                showFullFound: largeDiffShowFull instanceof HTMLButtonElement
+              };
+              const reviewLargeDiffWindowWorks =
+                largeDiffButton instanceof HTMLButtonElement &&
+                largeDiffUnifiedBefore instanceof HTMLElement &&
+                largeDiffFlagBefore === 'true' &&
+                largeDiffExpandedBefore === 'false' &&
+                largeDiffChangedLines > 15000 &&
+                largeDiffRenderedLines > 0 &&
+                largeDiffRenderedLines < largeDiffTotalLines &&
+                largeDiffMountedRows > 0 &&
+                largeDiffMountedRows <= largeDiffRenderedLines + 2 &&
+                largeDiffNotice instanceof HTMLElement &&
+                largeDiffNotice.textContent?.includes('keep Review responsive') === true &&
+                largeDiffShowFull instanceof HTMLButtonElement &&
+                largeDiffShowFull.textContent?.includes('Show full diff') === true;
+              const whitespaceSearchInput = currentDiffSearch();
+              if (whitespaceSearchInput instanceof HTMLInputElement) {
+                setNativeValue(whitespaceSearchInput, 'whitespace-smoke');
+                whitespaceSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(160);
+              }
+              const whitespaceButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('whitespace-smoke.txt'));
+              if (whitespaceButton instanceof HTMLButtonElement) {
+                whitespaceButton.click();
+                await sleep(180);
+              }
+              const whitespaceToggle = document.querySelector('[data-testid="review-whitespace-toggle"]');
+              const whitespaceSection = document.querySelector('[data-testid="review-file-section"][data-review-path="whitespace-smoke.txt"]');
+              const whitespaceUnifiedBefore = whitespaceSection?.querySelector('[data-testid="review-unified-diff"]');
+              const whitespaceHiddenBefore = whitespaceUnifiedBefore instanceof HTMLElement
+                ? Number(whitespaceUnifiedBefore.getAttribute('data-review-hidden-whitespace-count') ?? '0')
+                : 0;
+              if (whitespaceToggle instanceof HTMLButtonElement) {
+                whitespaceToggle.click();
+                await sleep(140);
+              }
+              const whitespaceSectionAfter = document.querySelector('[data-testid="review-file-section"][data-review-path="whitespace-smoke.txt"]');
+              const whitespaceUnifiedAfter = whitespaceSectionAfter?.querySelector('[data-testid="review-unified-diff"]');
+              const whitespaceNotice = whitespaceSectionAfter?.querySelector('[data-testid="review-whitespace-hidden-notice"]');
+              const whitespaceHiddenAfter = whitespaceUnifiedAfter instanceof HTMLElement
+                ? Number(whitespaceUnifiedAfter.getAttribute('data-review-hidden-whitespace-count') ?? '0')
+                : 0;
+              const whitespaceChangedRowsAfter = [...(whitespaceSectionAfter?.querySelectorAll('[data-testid="review-unified-diff"] [data-line-type="addition"], [data-testid="review-unified-diff"] [data-line-type="deletion"]') ?? [])]
+                .filter((row) => row instanceof HTMLElement);
+              const whitespaceResetToggle = document.querySelector('[data-testid="review-whitespace-toggle"]');
+              if (whitespaceResetToggle instanceof HTMLButtonElement) {
+                whitespaceResetToggle.click();
+                await sleep(100);
+              }
+              const reviewWhitespaceToggleWorks =
+                whitespaceToggle instanceof HTMLButtonElement &&
+                whitespaceUnifiedBefore instanceof HTMLElement &&
+                whitespaceUnifiedAfter instanceof HTMLElement &&
+                whitespaceHiddenBefore === 0 &&
+                whitespaceHiddenAfter > 0 &&
+                whitespaceNotice instanceof HTMLElement &&
+                whitespaceNotice.textContent?.includes('whitespace-only') === true &&
+                whitespaceChangedRowsAfter.length === 0 &&
+                document.querySelector('.diff-panel-root')?.getAttribute('data-review-hide-whitespace') === 'false';
+              const wordDiffSearchInput = currentDiffSearch();
+              if (wordDiffSearchInput instanceof HTMLInputElement) {
+                setNativeValue(wordDiffSearchInput, 'word-diff-smoke');
+                wordDiffSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(160);
+              }
+              const wordDiffButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('word-diff-smoke.txt'));
+              if (wordDiffButton instanceof HTMLButtonElement) {
+                wordDiffButton.click();
+                await sleep(180);
+              }
+              const wordDiffToggle = document.querySelector('[data-testid="review-word-diff-toggle"]');
+              const wordDiffBefore = document.querySelector('[data-testid="review-unified-diff"]');
+              const wordDiffCountBefore = wordDiffBefore instanceof HTMLElement
+                ? Number(wordDiffBefore.getAttribute('data-review-word-diff-count') ?? '0')
+                : 0;
+              if (wordDiffToggle instanceof HTMLButtonElement) {
+                wordDiffToggle.click();
+                await sleep(140);
+              }
+              const wordDiffAfter = document.querySelector('[data-testid="review-unified-diff"]');
+              const wordDiffTokens = [...document.querySelectorAll('[data-review-word-diff-token="true"]')]
+                .filter((token) => token instanceof HTMLElement);
+              const wordDiffTokenText = wordDiffTokens.map((token) => token.textContent ?? '').join(' ');
+              const wordDiffCountAfter = wordDiffAfter instanceof HTMLElement
+                ? Number(wordDiffAfter.getAttribute('data-review-word-diff-count') ?? '0')
+                : 0;
+              const wordDiffResetToggle = document.querySelector('[data-testid="review-word-diff-toggle"]');
+              if (wordDiffResetToggle instanceof HTMLButtonElement) {
+                wordDiffResetToggle.click();
+                await sleep(100);
+              }
+              const reviewWordDiffToggleWorks =
+                wordDiffToggle instanceof HTMLButtonElement &&
+                wordDiffBefore instanceof HTMLElement &&
+                wordDiffAfter instanceof HTMLElement &&
+                wordDiffCountBefore === 0 &&
+                wordDiffCountAfter > 0 &&
+                wordDiffTokens.length >= 2 &&
+                wordDiffTokenText.includes('baseline') &&
+                wordDiffTokenText.includes('updated') &&
+                document.querySelector('.diff-panel-root')?.getAttribute('data-review-word-diff') === 'false';
+            const reviewGitActionsWork =
+              !document.body.innerText.includes('Stage selected') &&
+              !document.body.innerText.includes('Unstage selected');
               const selectReviewFile = async (query, fileName) => {
-                if (!(diffSearch instanceof HTMLInputElement)) return false;
-                setNativeValue(diffSearch, query);
-                diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                const searchInput = currentDiffSearch();
+                if (!(searchInput instanceof HTMLInputElement)) return false;
+                setNativeValue(searchInput, query);
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(160);
                 const button = [...document.querySelectorAll('button')]
                   .find((candidate) => candidate.textContent?.includes(fileName));
@@ -3424,42 +8816,65 @@ function runAutomatedFocusedSurfaceSmoke(
               };
               const clickReviewPreviewToggle = async () => {
                 const toggle = [...document.querySelectorAll('button')]
-                  .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Show preview');
+                  .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === 'Enable rich preview');
                 if (!(toggle instanceof HTMLButtonElement)) return false;
                 toggle.click();
                 await sleep(160);
                 return true;
               };
+              const setReviewPreviewMode = async (enabled) => {
+                const root = document.querySelector('.diff-panel-root');
+                const current = root?.getAttribute('data-review-rich-preview') === 'true';
+                if (current === enabled) return true;
+                const label = enabled ? 'Enable rich preview' : 'Disable rich preview';
+                const toggle = [...document.querySelectorAll('button')]
+                  .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? '') === label);
+                if (!(toggle instanceof HTMLButtonElement)) return false;
+                toggle.click();
+                for (let attempt = 0; attempt < 8; attempt += 1) {
+                  await sleep(80);
+                  if (document.querySelector('.diff-panel-root')?.getAttribute('data-review-rich-preview') === String(enabled)) return true;
+                }
+                return document.querySelector('.diff-panel-root')?.getAttribute('data-review-rich-preview') === String(enabled);
+              };
+              await setReviewPreviewMode(false);
               await selectReviewFile('data-preview-smoke', 'data-preview-smoke.json');
               const jsonDiffFirst = !(document.querySelector('[data-testid="review-json-state"]') instanceof HTMLElement);
-              const jsonToggleClicked = await clickReviewPreviewToggle();
+              const jsonToggleClicked = await setReviewPreviewMode(true);
+              await sleep(180);
               const reviewJsonState = document.querySelector('[data-testid="review-json-state"]');
               const reviewJsonPreviewWorks =
                 jsonToggleClicked &&
                 reviewJsonState instanceof HTMLElement &&
                 reviewJsonState.innerText.includes('JSON') &&
                 reviewJsonState.innerText.includes('updated');
+              await setReviewPreviewMode(false);
               await selectReviewFile('table-preview-smoke', 'table-preview-smoke.csv');
               const csvDiffFirst = !(document.querySelector('[data-testid="review-csv-state"]') instanceof HTMLElement);
-              const csvToggleClicked = await clickReviewPreviewToggle();
+              const csvToggleClicked = await setReviewPreviewMode(true);
+              await sleep(180);
               const reviewCsvState = document.querySelector('[data-testid="review-csv-state"]');
               const reviewCsvPreviewWorks =
                 csvToggleClicked &&
                 reviewCsvState instanceof HTMLElement &&
                 reviewCsvState.innerText.includes('CSV') &&
                 reviewCsvState.innerText.includes('2 rows');
+              await setReviewPreviewMode(false);
               await selectReviewFile('document-preview-smoke', 'document-preview-smoke.docx');
               const documentDiffFirst = !(document.querySelector('[data-testid="review-document-state"]') instanceof HTMLElement);
-              const documentToggleClicked = await clickReviewPreviewToggle();
+              const documentToggleClicked = await setReviewPreviewMode(true);
+              await sleep(180);
               const reviewDocumentState = document.querySelector('[data-testid="review-document-state"]');
               const reviewDocumentPreviewWorks =
                 documentToggleClicked &&
                 reviewDocumentState instanceof HTMLElement &&
                 reviewDocumentState.innerText.includes('DOCX') &&
                 reviewDocumentState.innerText.includes('Document smoke updated');
+              await setReviewPreviewMode(false);
               await selectReviewFile('notebook-preview-smoke', 'notebook-preview-smoke.ipynb');
               const notebookDiffFirst = !(document.querySelector('[data-testid="review-notebook-state"]') instanceof HTMLElement);
-              const notebookToggleClicked = await clickReviewPreviewToggle();
+              const notebookToggleClicked = await setReviewPreviewMode(true);
+              await sleep(180);
               const reviewNotebookState = document.querySelector('[data-testid="review-notebook-state"]');
               const reviewNotebookPreviewWorks =
                 notebookToggleClicked &&
@@ -3468,18 +8883,22 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewNotebookState.innerText.includes('3 cells') &&
                 reviewNotebookState.innerText.includes('Updated');
               const reviewDiffFirstWorks = jsonDiffFirst && csvDiffFirst && documentDiffFirst && notebookDiffFirst;
+              await setReviewPreviewMode(false);
               await selectReviewFile('image-preview-smoke', 'image-preview-smoke.png');
               const imageBinaryState = document.querySelector('[data-testid="review-binary-state"]');
-              const imageToggleClicked = await clickReviewPreviewToggle();
+              const imageToggleClicked = await setReviewPreviewMode(true);
+              await sleep(180);
               const reviewImageBinaryDiffFirstWorks =
                 imageBinaryState instanceof HTMLElement &&
                 imageBinaryState.innerText.includes('Binary') &&
                 imageToggleClicked;
               const reviewImagePreviewWorks =
                 document.querySelector('[data-testid="review-image-state"]') instanceof HTMLElement;
-              if (diffSearch instanceof HTMLInputElement) {
-                setNativeValue(diffSearch, 'binary-preview-smoke');
-                diffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              await setReviewPreviewMode(false);
+              const binarySearchInput = currentDiffSearch();
+              if (binarySearchInput instanceof HTMLInputElement) {
+                setNativeValue(binarySearchInput, 'binary-preview-smoke');
+                binarySearchInput.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(160);
               }
               const binaryButton = [...document.querySelectorAll('button')]
@@ -3492,14 +8911,26 @@ function runAutomatedFocusedSurfaceSmoke(
               const binaryActions = binaryState instanceof HTMLElement
                 ? [...binaryState.querySelectorAll('button')].map((button) => button.textContent?.trim() ?? '')
                 : [];
+              const binaryStateStyle = binaryState instanceof HTMLElement ? getComputedStyle(binaryState) : null;
+              const binaryStateRect = binaryState instanceof HTMLElement ? binaryState.getBoundingClientRect() : null;
               const reviewBinaryStateWorks =
                 binaryState instanceof HTMLElement &&
+                binaryState.getAttribute('data-review-empty-state') === 'true' &&
+                (binaryStateStyle?.justifyContent === 'flex-start' || binaryStateStyle?.justifyContent === 'start') &&
+                (binaryStateStyle?.alignItems === 'flex-start' || binaryStateStyle?.alignItems === 'start') &&
                 binaryState.innerText.includes('Binary') &&
                 binaryState.innerText.includes('Binary file not shown.');
               const clearButton = document.querySelector('[data-testid="diff-file-search-clear"]');
               if (clearButton instanceof HTMLButtonElement) {
                 clearButton.click();
                 await sleep(100);
+              }
+              const preTreeDiffSearch = currentDiffSearch();
+              if (preTreeDiffSearch instanceof HTMLInputElement && preTreeDiffSearch.value.length > 0) {
+                setNativeValue(preTreeDiffSearch, '');
+                preTreeDiffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                preTreeDiffSearch.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(260);
               }
               const diffDirectoryRows = [...document.querySelectorAll('.diff-directory-row')]
                 .filter((row) => row instanceof HTMLElement);
@@ -3512,33 +8943,1115 @@ function runAutomatedFocusedSurfaceSmoke(
                 return activeRow instanceof HTMLElement ? activeRow.getAttribute('data-review-path') : null;
               };
               const keyboardPathBefore = activeReviewPath();
-              if (diffPanelList instanceof HTMLElement) {
-                diffPanelList.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+              const keyboardDiffPanelList = currentDiffPanelList();
+              if (keyboardDiffPanelList instanceof HTMLElement) {
+                keyboardDiffPanelList.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
                 await sleep(100);
               }
               const keyboardPathAfter = activeReviewPath();
+              const finalDiffPanelList = currentDiffPanelList();
               const diffKeyboardNavigationWorks =
                 typeof keyboardPathBefore === 'string' &&
                 typeof keyboardPathAfter === 'string' &&
                 keyboardPathBefore.length > 0 &&
                 keyboardPathAfter.length > 0 &&
-                keyboardPathBefore !== keyboardPathAfter;
+                  keyboardPathBefore !== keyboardPathAfter;
+              const diffRevealSelectedPathWorks =
+                finalDiffPanelList instanceof HTMLElement &&
+                finalDiffPanelList.getAttribute('data-reveal-active-row') === 'true' &&
+                finalDiffPanelList.getAttribute('data-active-row-id') === 'file:' + keyboardPathAfter &&
+                finalDiffPanelList.getAttribute('data-active-row-visible') === 'true';
+              const diffListCompactWorks =
+                finalDiffPanelList instanceof HTMLElement &&
+                finalDiffPanelList.scrollWidth <= finalDiffPanelList.clientWidth + 2 &&
+                diffRows().length > 0 &&
+                diffRows().every((row) => row.getBoundingClientRect().height <= 42);
+              const primaryTextDiffRowAfterKeyboard =
+                document.querySelector('.diff-panel-root[data-embedded="true"] [data-review-path="data-preview-smoke.json"]') ??
+                [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-row, .diff-panel-root[data-embedded="true"] button')]
+                  .find((candidate) => candidate.textContent?.includes('data-preview-smoke.json'));
+              if (primaryTextDiffRowAfterKeyboard instanceof HTMLElement) {
+                primaryTextDiffRowAfterKeyboard.click();
+                await sleep(220);
+              }
+              const reviewFilesStack = document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-files-stack"]');
+              const reviewFileSections = [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] [data-testid="review-file-section"]')]
+                .filter((section) => section instanceof HTMLElement);
+              const activeReviewFileSection = document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-file-section"][data-active="true"]');
+              const reviewFileSectionStructureWorks =
+                reviewFilesStack instanceof HTMLElement &&
+                reviewFileSections.length === 1 &&
+                reviewFilesStack.getAttribute('data-review-main-render-mode') === 'selected-file' &&
+                reviewFilesStack.getAttribute('data-review-visible-file-section-count') === '1' &&
+                Number(reviewFilesStack.getAttribute('data-review-file-section-count') ?? '0') >= 3 &&
+                reviewFileSections.every((section) => {
+                  if (!(section instanceof HTMLElement)) return false;
+                  const header = section.querySelector('.review-file-section-header[data-review-file-header="true"]');
+                  const headerContent = header?.querySelector('[data-header-content]');
+                  const metadata = header?.querySelector('[data-metadata]');
+                  const changeIcon = header?.querySelector('[data-change-icon]');
+                  const codexChangeGlyph = changeIcon?.querySelector('[data-codex-review-change-icon]');
+                  const statusPill = header?.querySelector('.rounded-full');
+                  return section.parentElement === reviewFilesStack &&
+                    section.getAttribute('data-review-file-section') === 'true' &&
+                    section.getAttribute('data-review-file-section-shell') === 'codex-flat' &&
+                    (section.getAttribute('data-review-path') ?? '').length > 0 &&
+                    header instanceof HTMLButtonElement &&
+                    header.getAttribute('data-diffs-header') === 'default' &&
+                    (header.getAttribute('data-change-type') ?? '').length > 0 &&
+                    headerContent instanceof HTMLElement &&
+                    metadata instanceof HTMLElement &&
+                    changeIcon instanceof HTMLElement &&
+                    codexChangeGlyph instanceof SVGElement &&
+                    codexChangeGlyph.getAttribute('data-codex-review-change-icon') === header.getAttribute('data-change-type') &&
+                    !(statusPill instanceof HTMLElement);
+                }) &&
+                activeReviewFileSection instanceof HTMLElement &&
+                activeReviewFileSection.getAttribute('data-review-path') === activeReviewPath();
+              const reviewFileHeaders = reviewFileSections
+                .map((section) => section instanceof HTMLElement ? section.querySelector('.review-file-section-header[data-review-file-header="true"]') : null)
+                .filter((header) => header instanceof HTMLElement);
+              const reviewFileHeaderMetricsWork =
+                reviewFileHeaders.length === 1 &&
+                reviewFileHeaders.every((header) => {
+                  if (!(header instanceof HTMLElement)) return false;
+                  const section = header.closest('[data-testid="review-file-section"]');
+                  if (!(section instanceof HTMLElement)) return false;
+                  const rect = header.getBoundingClientRect();
+                  const sectionRect = section.getBoundingClientRect();
+                  const styles = getComputedStyle(header);
+                  return rect.height >= 30 &&
+                    rect.height <= 36 &&
+                    rect.width >= sectionRect.width - 1 &&
+                    rect.width <= sectionRect.width + 1 &&
+                    Number.parseFloat(styles.fontSize) >= 12.5 &&
+                    Number.parseFloat(styles.fontSize) <= 13.5 &&
+                    Number.parseFloat(styles.lineHeight) >= 19 &&
+                    Number.parseFloat(styles.lineHeight) <= 21 &&
+                    Number.parseFloat(styles.fontWeight) <= 550 &&
+                    Number.parseFloat(styles.marginLeft) <= 1 &&
+                    Number.parseFloat(styles.marginRight) <= 1 &&
+                    Number.parseFloat(styles.borderRadius) <= 1 &&
+                    Number.parseFloat(styles.paddingLeft) >= 15 &&
+                    Number.parseFloat(styles.paddingLeft) <= 17 &&
+                    Number.parseFloat(styles.paddingRight) >= 15 &&
+                    Number.parseFloat(styles.paddingRight) <= 17 &&
+                    styles.backgroundColor !== 'rgba(0, 0, 0, 0)';
+                });
+              const reviewDiffMetricCells = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-cell')]
+                .filter((cell) => cell instanceof HTMLElement)
+                .slice(0, 12);
+              const reviewDiffHunkHeaders = [...document.querySelectorAll('[data-testid="review-hunk-toggle"]')]
+                .filter((header) => header instanceof HTMLElement)
+                .slice(0, 6);
+              const reviewDiffRowMetricsWork =
+                reviewDiffMetricCells.length > 0 &&
+                reviewDiffMetricCells.every((cell) => {
+                  if (!(cell instanceof HTMLElement)) return false;
+                  const styles = getComputedStyle(cell);
+                  return Number.parseFloat(styles.fontSize) >= 12.5 &&
+                    Number.parseFloat(styles.fontSize) <= 13.5 &&
+                    Number.parseFloat(styles.lineHeight) >= 19 &&
+                    Number.parseFloat(styles.lineHeight) <= 21 &&
+                    styles.fontFamily.toLowerCase().includes('mono');
+                }) &&
+                reviewDiffHunkHeaders.length > 0 &&
+                reviewDiffHunkHeaders.every((header) => {
+                  if (!(header instanceof HTMLElement)) return false;
+                  const rect = header.getBoundingClientRect();
+                  const styles = getComputedStyle(header);
+                  return rect.height >= 30 &&
+                    rect.height <= 34 &&
+                    Number.parseFloat(styles.fontSize) >= 11.5 &&
+                    Number.parseFloat(styles.fontSize) <= 12.5 &&
+                    Number.parseFloat(styles.lineHeight) >= 30 &&
+                    Number.parseFloat(styles.lineHeight) <= 34;
+                });
+              const reviewHunkSeparatorStructureWorks =
+                reviewDiffHunkHeaders.length > 0 &&
+                reviewDiffHunkHeaders.every((header) => {
+                  if (!(header instanceof HTMLElement)) return false;
+                  const wrapper = header.querySelector('[data-separator-wrapper]');
+                  const expand = header.querySelector('[data-expand-button]');
+                  const content = header.querySelector('[data-separator-content]');
+                  if (!(wrapper instanceof HTMLElement) || !(expand instanceof HTMLElement) || !(content instanceof HTMLElement)) return false;
+                  const headerRect = header.getBoundingClientRect();
+                  const wrapperRect = wrapper.getBoundingClientRect();
+                  const expandRect = expand.getBoundingClientRect();
+                  return header.getAttribute('data-separator') === 'line-info-basic' &&
+                    header.hasAttribute('data-expand-index') &&
+                    Math.abs(wrapperRect.height - headerRect.height) <= 1 &&
+                    expandRect.width >= 30 &&
+                    expandRect.width <= 34 &&
+                    getComputedStyle(wrapper).position === 'absolute' &&
+                    getComputedStyle(content).backgroundColor !== 'rgba(0, 0, 0, 0)';
+                });
+              const reviewDiffIndicatorCells = ['addition', 'deletion']
+                .map((lineType) => document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell[data-line-type="' + lineType + '"]'));
+              const reviewDiffIndicatorStructureWork =
+                reviewDiffIndicatorCells.every((cell, index) => {
+                  if (!(cell instanceof HTMLElement)) return false;
+                  const expectedGutterType = index === 0 ? 'change-addition' : 'change-deletion';
+                  const bar = cell.querySelector('[data-review-diff-gutter-bar]');
+                  const number = cell.querySelector('.review-diff-line-number');
+                  const content = cell.querySelector('.review-diff-line-content');
+                  if (!(bar instanceof HTMLElement) || !(number instanceof HTMLElement) || !(content instanceof HTMLElement)) return false;
+                  const barRect = bar.getBoundingClientRect();
+                  const numberRect = number.getBoundingClientRect();
+                  const contentRect = content.getBoundingClientRect();
+                  const contentText = content.textContent ?? '';
+                  return cell.getAttribute('data-review-diff-indicators') === 'bars' &&
+                    cell.getAttribute('data-review-diff-gutter-line-type') === expectedGutterType &&
+                    !contentText.startsWith(index === 0 ? '+' : '-') &&
+                    getComputedStyle(bar).userSelect === 'none' &&
+                    getComputedStyle(number).position === 'relative' &&
+                    getComputedStyle(cell).gridTemplateColumns.trim().split(/\\s+/).length === 2 &&
+                    barRect.width >= 3 &&
+                    barRect.width <= 5 &&
+                    Math.abs(barRect.left - numberRect.left) <= 1 &&
+                    numberRect.right <= contentRect.left + 1;
+                });
+              const reviewDiffNativeColorCalmWorks =
+                reviewDiffIndicatorCells.every((cell, index) => {
+                  if (!(cell instanceof HTMLElement)) return false;
+                  const number = cell.querySelector('.review-diff-line-number');
+                  if (!(number instanceof HTMLElement)) return false;
+                  const styles = getComputedStyle(cell);
+                  const numberStyles = getComputedStyle(number);
+                  const oldLineColor = index === 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)';
+                  return styles.color !== oldLineColor &&
+                    styles.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                    styles.backgroundColor !== 'transparent' &&
+                    numberStyles.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                    numberStyles.backgroundColor !== 'transparent';
+                });
+              let reviewDiffLineNumberContentDebug = {};
+              const reviewDiffLineNumberContentWorks = (() => {
+                const lineNumbers = [...document.querySelectorAll('[data-testid="review-unified-diff"] .review-diff-line-number')]
+                  .filter((number) => number instanceof HTMLElement)
+                  .slice(0, 12);
+                const indicatorNumbersWork = reviewDiffIndicatorCells.every((cell, index) => {
+                  if (!(cell instanceof HTMLElement)) return false;
+                  const number = cell.querySelector('.review-diff-line-number');
+                  if (!(number instanceof HTMLElement)) return false;
+                  const numberColor = getComputedStyle(number).color;
+                  const lineColor = getComputedStyle(cell).color;
+                  return numberColor !== lineColor &&
+                    numberColor !== 'rgba(0, 0, 0, 0)' &&
+                    numberColor !== 'transparent';
+                });
+                const lineNumberDetails = lineNumbers.slice(0, 4).map((number) => {
+                  if (!(number instanceof HTMLElement)) return null;
+                  const content = number.querySelector('[data-line-number-content]');
+                  const numberStyles = getComputedStyle(number);
+                  return {
+                    text: content?.textContent ?? null,
+                    contentDisplay: content instanceof HTMLElement ? getComputedStyle(content).display : null,
+                    contentWidth: content instanceof HTMLElement ? content.getBoundingClientRect().width : null,
+                    paddingLeft: numberStyles.paddingLeft,
+                    paddingRight: numberStyles.paddingRight,
+                    numberColor: numberStyles.color,
+                    cellColor: number.parentElement instanceof HTMLElement ? getComputedStyle(number.parentElement).color : null
+                  };
+                });
+                reviewDiffLineNumberContentDebug = {
+                  lineNumberCount: lineNumbers.length,
+                  indicatorNumbersWork,
+                  lineNumberDetails
+                };
+                return lineNumbers.length > 0 &&
+                  indicatorNumbersWork &&
+                  lineNumbers.every((number) => {
+                    if (!(number instanceof HTMLElement)) return false;
+                    const content = number.querySelector('[data-line-number-content]');
+                    if (!(content instanceof HTMLElement)) return false;
+                    const numberStyles = getComputedStyle(number);
+                    const contentRect = content.getBoundingClientRect();
+                    return getComputedStyle(content).display === 'inline-block' &&
+                      contentRect.width >= 18 &&
+                      Number.parseFloat(numberStyles.paddingLeft) > Number.parseFloat(numberStyles.paddingRight);
+                  });
+              })();
+              const reviewDiffGutterUtilityButton = document.querySelector('[data-testid="review-unified-diff"] .review-diff-line-cell [data-gutter-utility-slot] [data-utility-button]');
+              const reviewDiffGutterUtilitySlot = reviewDiffGutterUtilityButton instanceof HTMLElement
+                ? reviewDiffGutterUtilityButton.closest('[data-gutter-utility-slot]')
+                : null;
+              const reviewDiffGutterUtilityNumber = reviewDiffGutterUtilityButton instanceof HTMLElement
+                ? reviewDiffGutterUtilityButton.closest('.review-diff-line-number')
+                : null;
+              const reviewDiffGutterUtilityWorks =
+                reviewDiffGutterUtilityButton instanceof HTMLButtonElement &&
+                reviewDiffGutterUtilitySlot instanceof HTMLElement &&
+                reviewDiffGutterUtilityNumber instanceof HTMLElement &&
+                reviewDiffGutterUtilityButton.getAttribute('aria-label') === 'Add review comment' &&
+                reviewDiffGutterUtilityButton.getBoundingClientRect().width === 20 &&
+                reviewDiffGutterUtilityButton.getBoundingClientRect().height === 20 &&
+                reviewDiffGutterUtilitySlot.getBoundingClientRect().left >= reviewDiffGutterUtilityNumber.getBoundingClientRect().left &&
+                reviewDiffGutterUtilitySlot.getBoundingClientRect().right <= reviewDiffGutterUtilityNumber.getBoundingClientRect().right + 1;
+              const diffWorkbenchTreeWorks =
+                finalDiffPanelList instanceof HTMLElement &&
+                finalDiffPanelList.getAttribute('data-workbench-tree') === 'true' &&
+                diffWorkbenchRows().length > 0 &&
+                diffWorkbenchRows().every((row) =>
+                  row instanceof HTMLElement &&
+                  row.getAttribute('role') === 'treeitem' &&
+                  row.getBoundingClientRect().height >= 26 &&
+                  row.getBoundingClientRect().height <= 30 &&
+                  Number.parseFloat(getComputedStyle(row).fontSize) >= 12.5 &&
+                  Number.parseFloat(getComputedStyle(row).fontSize) <= 13.5
+                );
+              const diffWorkbenchTreeNativeTitleFreeWorks =
+                diffWorkbenchRows().length > 0 &&
+                diffWorkbenchRows().every((row) =>
+                  row instanceof HTMLElement &&
+                  row.getAttribute('data-native-title-free') === 'true' &&
+                  row.getAttribute('title') === null
+                ) &&
+                [...document.querySelectorAll('.diff-panel-list [data-native-title-free][title]')].length === 0;
+              const reviewFileTreeGitLaneRows = diffRows().filter((row) =>
+                row instanceof HTMLElement &&
+                row.getAttribute('data-workbench-has-git-lane') === 'true'
+              );
+              const reviewFileTreeGitLaneWorks =
+                reviewFileTreeGitLaneRows.length >= 3 &&
+                reviewFileTreeGitLaneRows.every((row) => {
+                  if (!(row instanceof HTMLElement)) return false;
+                  const icon = row.querySelector('.workbench-tree-icon');
+                  const label = row.querySelector('.workbench-tree-label');
+                  const gitLane = row.querySelector('.workbench-tree-git-lane');
+                  const legacyStatus = row.querySelector('.workbench-tree-status');
+                  const labelRect = label instanceof HTMLElement ? label.getBoundingClientRect() : null;
+                  const laneRect = gitLane instanceof HTMLElement ? gitLane.getBoundingClientRect() : null;
+                  const laneWidth = laneRect?.width ?? 0;
+                  const labelColor = label instanceof HTMLElement ? getComputedStyle(label).color : '';
+                  const laneColor = gitLane instanceof HTMLElement ? getComputedStyle(gitLane).color : '';
+                  const gitStatus = row.getAttribute('data-workbench-git-status') ?? '';
+                  const shouldSeparateGitColor = ['modified', 'added', 'deleted', 'renamed'].includes(gitStatus);
+                  return icon instanceof HTMLElement &&
+                    label instanceof HTMLElement &&
+                    gitLane instanceof HTMLElement &&
+                    !(legacyStatus instanceof HTMLElement) &&
+                    gitStatus.length > 0 &&
+                    labelRect !== null &&
+                    laneRect !== null &&
+                    (!shouldSeparateGitColor || labelColor !== laneColor) &&
+                    laneWidth >= 10 &&
+                    laneWidth <= 13 &&
+                    laneRect.left >= labelRect.right - 1;
+                });
+              const reviewTabPanel = document.querySelector('[data-app-shell-tab-panel-controller="right"][data-tab-id="diff"]');
+              const reviewTabPanelFocusRingCalmWorks =
+                reviewTabPanel instanceof HTMLElement &&
+                getComputedStyle(reviewTabPanel).outlineStyle === 'none';
+              const clearedDiffSearch = currentDiffSearch();
+              const reviewSearchClearWorks =
+                clearedDiffSearch instanceof HTMLInputElement &&
+                clearedDiffSearch.value === '' &&
+                !document.querySelector('[data-testid="diff-file-search-clear"]');
+              await openPanelTab('diff', 'Review');
+              await sleep(160);
+              const reviewFileTabSearchInput = currentDiffSearch();
+              if (reviewFileTabSearchInput instanceof HTMLInputElement) {
+                setNativeValue(reviewFileTabSearchInput, 'review-base');
+                reviewFileTabSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(180);
+              }
+              const visibleReviewJumpButton = [...document.querySelectorAll('[data-testid="review-file-jump"]')]
+                .find((button) => button instanceof HTMLElement && button.getBoundingClientRect().width > 0);
+              const activeReviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+              const reviewJumpButton = visibleReviewJumpButton;
+              if (reviewJumpButton instanceof HTMLButtonElement) {
+                reviewJumpButton.click();
+                await sleep(120);
+              }
+              const reviewJumpSearch = document.querySelector('[data-testid="review-file-jump-search"]');
+              let reviewMenuMessageWorks = false;
+              if (reviewJumpSearch instanceof HTMLInputElement) {
+                setNativeValue(reviewJumpSearch, '__no_matching_review_file__');
+                reviewJumpSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+                const reviewJumpEmpty = document.querySelector('[data-testid="review-file-jump-empty"]');
+                const reviewJumpEmptyRect = reviewJumpEmpty instanceof HTMLElement
+                  ? reviewJumpEmpty.getBoundingClientRect()
+                  : null;
+                reviewMenuMessageWorks =
+                  reviewJumpEmpty instanceof HTMLElement &&
+                  reviewJumpEmpty.getAttribute('data-menu-message') === 'true' &&
+                  reviewJumpEmpty.getAttribute('data-menu-message-state') === 'no-matches' &&
+                  reviewJumpEmpty.textContent?.trim() === 'No matching files' &&
+                  !reviewJumpEmpty.querySelector('svg') &&
+                  reviewJumpEmptyRect !== null &&
+                  reviewJumpEmptyRect.height <= 34;
+                setNativeValue(reviewJumpSearch, 'document-preview-smoke');
+                reviewJumpSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+              }
+              const reviewJumpItem = [...document.querySelectorAll('[data-testid="review-file-jump-item"]')]
+                .find((button) => button.textContent?.includes('document-preview-smoke.docx'));
+              if (reviewJumpItem instanceof HTMLButtonElement) {
+                reviewJumpItem.click();
+                await sleep(180);
+              }
+              const reviewJumpActiveRow = currentDiffPanelList()?.getAttribute('data-active-row-id') ?? '';
+              const reviewJumpSelectedFile = activeReviewRoot?.getAttribute('data-review-selected-file') ?? '';
+              const reviewFileJumpWorks =
+                reviewJumpButton instanceof HTMLButtonElement &&
+                reviewJumpButton.getAttribute('aria-label') === 'Jump to file' &&
+                reviewJumpSearch instanceof HTMLInputElement &&
+                reviewMenuMessageWorks &&
+                reviewJumpItem instanceof HTMLButtonElement &&
+                reviewJumpSelectedFile === 'document-preview-smoke.docx' &&
+                reviewJumpActiveRow === 'file:document-preview-smoke.docx' &&
+                !activeReviewRoot?.querySelector('[data-testid="review-file-jump-search"]');
+              const reviewSidePane = activeReviewRoot?.querySelector('.diff-panel-changed-files-pane');
+              const reviewSidePaneHandle = reviewSidePane?.querySelector('[data-testid="review-changed-files-resize"]');
+              const reviewSidePaneSearchRow = reviewSidePane?.querySelector('.diff-panel-file-search-row');
+              const reviewSidePaneSearchInput = reviewSidePane?.querySelector('[data-testid="diff-file-search"]');
+              const reviewSidePaneList = reviewSidePane?.querySelector('.diff-panel-list');
+              const reviewSidePaneBefore = reviewSidePane instanceof HTMLElement
+                ? reviewSidePane.getBoundingClientRect()
+                : null;
+              const reviewSidePaneSearchRect = reviewSidePaneSearchInput instanceof HTMLElement
+                ? reviewSidePaneSearchInput.getBoundingClientRect()
+                : null;
+              const reviewSidePaneSearchRowRect = reviewSidePaneSearchRow instanceof HTMLElement
+                ? reviewSidePaneSearchRow.getBoundingClientRect()
+                : null;
+              const reviewSidePaneListRect = reviewSidePaneList instanceof HTMLElement
+                ? reviewSidePaneList.getBoundingClientRect()
+                : null;
+              const reviewSidePaneChromeWorks =
+                reviewSidePane instanceof HTMLElement &&
+                reviewSidePaneSearchRow instanceof HTMLElement &&
+                reviewSidePaneSearchInput instanceof HTMLInputElement &&
+                reviewSidePaneList instanceof HTMLElement &&
+                reviewSidePaneBefore !== null &&
+                reviewSidePaneSearchRect !== null &&
+                reviewSidePaneSearchRowRect !== null &&
+                reviewSidePaneListRect !== null &&
+                reviewSidePaneBefore.width >= 198 &&
+                reviewSidePaneBefore.width <= 244 &&
+                reviewSidePaneSearchRowRect.height <= 40 &&
+                reviewSidePaneSearchInput.placeholder === 'Filter files…' &&
+                Number.parseFloat(getComputedStyle(reviewSidePaneSearchRow).paddingBottom) <= 1.5 &&
+                reviewSidePaneSearchRect.width >= reviewSidePaneSearchRowRect.width * 0.72 &&
+                reviewSidePaneListRect.height >= Math.min(180, reviewSidePaneBefore.height - reviewSidePaneSearchRowRect.height - 12) &&
+                !reviewSidePaneSearchRow.querySelector('.diff-file-count');
+              const reviewSidePaneChromeDebug = {
+                paneWidth: reviewSidePaneBefore?.width ?? null,
+                paneHeight: reviewSidePaneBefore?.height ?? null,
+                listHeight: reviewSidePaneListRect?.height ?? null,
+                searchRowHeight: reviewSidePaneSearchRowRect?.height ?? null,
+                searchWidth: reviewSidePaneSearchRect?.width ?? null,
+                searchRowWidth: reviewSidePaneSearchRowRect?.width ?? null,
+                hasCountPill: reviewSidePaneSearchRow instanceof HTMLElement ? Boolean(reviewSidePaneSearchRow.querySelector('.diff-file-count')) : null,
+                searchTag: reviewSidePaneSearchInput instanceof HTMLElement ? reviewSidePaneSearchInput.tagName : null
+              };
+              if (
+                reviewSidePane instanceof HTMLElement &&
+                reviewSidePaneHandle instanceof HTMLElement &&
+                reviewSidePaneBefore !== null
+              ) {
+                reviewSidePaneHandle.dispatchEvent(new PointerEvent('pointerdown', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: reviewSidePaneBefore.left,
+                  pointerId: 1
+                }));
+                await sleep(40);
+                window.dispatchEvent(new PointerEvent('pointermove', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: reviewSidePaneBefore.left - 38,
+                  pointerId: 1
+                }));
+                await sleep(80);
+                window.dispatchEvent(new PointerEvent('pointerup', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: reviewSidePaneBefore.left - 38,
+                  pointerId: 1
+                }));
+                await sleep(140);
+              }
+              const reviewSidePaneAfter = reviewSidePane instanceof HTMLElement
+                ? reviewSidePane.getBoundingClientRect()
+                : null;
+              if (
+                reviewSidePane instanceof HTMLElement &&
+                reviewSidePaneHandle instanceof HTMLElement &&
+                reviewSidePaneAfter !== null
+              ) {
+                reviewSidePaneHandle.dispatchEvent(new PointerEvent('pointerdown', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: reviewSidePaneAfter.left,
+                  pointerId: 2
+                }));
+                await sleep(40);
+                window.dispatchEvent(new PointerEvent('pointermove', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: reviewSidePaneAfter.right - 170,
+                  pointerId: 2
+                }));
+                await sleep(80);
+                window.dispatchEvent(new PointerEvent('pointerup', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: reviewSidePaneAfter.right - 170,
+                  pointerId: 2
+                }));
+                await sleep(180);
+              }
+              const reviewSidePaneHiddenRect = reviewSidePane instanceof HTMLElement
+                ? reviewSidePane.getBoundingClientRect()
+                : null;
+              const reviewSidePaneHiddenStored = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+                .filter((key) => typeof key === 'string' && key.startsWith('orchestrator.review.sidePaneVisible:'))
+                .some((key) => key !== null && localStorage.getItem(key) === 'false');
+              const reviewSidePaneHidden =
+                reviewSidePane instanceof HTMLElement &&
+                reviewSidePaneHiddenRect !== null &&
+                activeReviewRoot?.getAttribute('data-review-side-pane-visible') === 'false' &&
+                reviewSidePane.getAttribute('data-review-side-pane-visible') === 'false' &&
+                reviewSidePaneHiddenRect.width <= 2 &&
+                reviewSidePaneHiddenStored;
+              const reviewSidePaneToggle = document.querySelector('[data-testid="review-changed-files-toggle"]');
+              if (reviewSidePaneToggle instanceof HTMLButtonElement) {
+                reviewSidePaneToggle.click();
+                await sleep(180);
+              }
+              const reviewSidePaneRestoredRect = reviewSidePane instanceof HTMLElement
+                ? reviewSidePane.getBoundingClientRect()
+                : null;
+              const reviewSidePaneRestored =
+                reviewSidePaneToggle instanceof HTMLButtonElement &&
+                reviewSidePane instanceof HTMLElement &&
+                reviewSidePaneRestoredRect !== null &&
+                activeReviewRoot?.getAttribute('data-review-side-pane-visible') === 'true' &&
+                reviewSidePane.getAttribute('data-review-side-pane-visible') === 'true' &&
+                reviewSidePaneRestoredRect.width >= 198;
+              const reviewSidePaneStoredWidth = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+                .filter((key) => typeof key === 'string' && key.startsWith('orchestrator.review.sidePaneWidth:'))
+                .map((key) => key !== null ? Number.parseInt(localStorage.getItem(key) ?? '', 10) : Number.NaN)
+                .find((value) => Number.isFinite(value));
+              const reviewSidePaneResizeWorks =
+                reviewSidePane instanceof HTMLElement &&
+                reviewSidePaneHandle instanceof HTMLElement &&
+                reviewSidePane.getAttribute('data-review-side-pane-resizable') === 'true' &&
+                reviewSidePaneHandle.tagName === 'DIV' &&
+                reviewSidePaneHandle.getAttribute('role') === 'separator' &&
+                reviewSidePaneHandle.getAttribute('aria-label') === 'Resize changed files pane' &&
+                reviewSidePaneHandle.getAttribute('aria-orientation') === 'vertical' &&
+                reviewSidePaneHandle.getAttribute('data-app-shell-resize-handle') === 'true' &&
+                reviewSidePaneHandle.getAttribute('data-app-shell-resize-edge') === 'left' &&
+                reviewSidePaneHandle.getAttribute('data-orientation') === 'vertical' &&
+                reviewSidePaneHandle.getAttribute('tabindex') === '0' &&
+                reviewSidePaneHandle.getAttribute('aria-valuemin') === '200' &&
+                Number(reviewSidePaneHandle.getAttribute('aria-valuemax') ?? '0') >= 200 &&
+                reviewSidePaneBefore !== null &&
+                reviewSidePaneAfter !== null &&
+                reviewSidePaneHidden &&
+                reviewSidePaneRestored &&
+                Math.abs(reviewSidePaneAfter.width - reviewSidePaneBefore.width) >= 12 &&
+                Number(reviewSidePane.getAttribute('data-review-side-pane-width') ?? '0') >= Math.round(reviewSidePaneAfter.width) - 2 &&
+                typeof reviewSidePaneStoredWidth === 'number' &&
+                reviewSidePaneStoredWidth >= Math.round(reviewSidePaneAfter.width) - 2;
+              const reviewFileTabSearchInputAfterJump = currentDiffSearch();
+              if (reviewFileTabSearchInputAfterJump instanceof HTMLInputElement) {
+                setNativeValue(reviewFileTabSearchInputAfterJump, 'review-base');
+                reviewFileTabSearchInputAfterJump.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(180);
+              }
+              const reviewBaseButtonForFileTab =
+                document.querySelector('.diff-panel-root[data-embedded="true"] [data-review-path="review-base.txt"]') ??
+                [...document.querySelectorAll('.diff-panel-root[data-embedded="true"] .diff-file-row, .diff-panel-root[data-embedded="true"] button')]
+                  .find((button) => button.textContent?.includes('review-base.txt'));
+              if (reviewBaseButtonForFileTab instanceof HTMLElement) {
+                reviewBaseButtonForFileTab.click();
+                await sleep(180);
+              }
+              const selectedReviewSection = document.querySelector('[data-testid="review-file-section"][data-review-path="review-base.txt"]');
+              const reviewLineForFileTab = [...(selectedReviewSection?.querySelectorAll('[data-testid="review-unified-diff"] [data-line-number]') ?? [])]
+                .find((cell) =>
+                  cell instanceof HTMLElement &&
+                  cell.getAttribute('data-line-number-side') === 'new' &&
+                  cell.getAttribute('data-line-type') === 'addition'
+                );
+              let selectedReviewFileTabLine = selectedReviewSection?.querySelector('[data-testid="review-unified-diff"] [data-review-selected-line="true"]');
+              if (!(selectedReviewFileTabLine instanceof HTMLElement) && reviewLineForFileTab instanceof HTMLElement) {
+                reviewLineForFileTab.click();
+                await sleep(160);
+                selectedReviewFileTabLine = selectedReviewSection?.querySelector('[data-testid="review-unified-diff"] [data-review-selected-line="true"]');
+              }
+              const selectedReviewFileTabLineNumber = selectedReviewFileTabLine instanceof HTMLElement
+                ? selectedReviewFileTabLine.getAttribute('data-line-number') ?? ''
+                : '';
+              const reviewOpenLineWorkbenchButton = selectedReviewSection?.querySelector('[data-testid="review-diff-line-open-workbench"]');
+              if (reviewOpenLineWorkbenchButton instanceof HTMLButtonElement) {
+                reviewOpenLineWorkbenchButton.click();
+                await sleep(420);
+              }
+              const reviewLineFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+              const reviewLineFilePreview = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const reviewLineFileSelectedLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-selected="true"]');
+              const reviewLineFileRevealedLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-revealed="true"]');
+              const reviewLineOpensFileSourceTabWork =
+                reviewBaseButtonForFileTab instanceof HTMLElement &&
+                selectedReviewFileTabLine instanceof HTMLElement &&
+                reviewOpenLineWorkbenchButton instanceof HTMLButtonElement &&
+                reviewOpenLineWorkbenchButton.disabled === false &&
+                selectedReviewFileTabLineNumber.length > 0 &&
+                reviewLineFileTab instanceof HTMLElement &&
+                reviewLineFileTab.getAttribute('data-file-tab-path') === 'review-base.txt' &&
+                reviewLineFileTab.getAttribute('data-file-tab-selected-source-line') === selectedReviewFileTabLineNumber &&
+                reviewLineFileTab.getAttribute('data-file-tab-source-reveal-line') === selectedReviewFileTabLineNumber &&
+                reviewLineFilePreview instanceof HTMLElement &&
+                reviewLineFilePreview.getAttribute('data-source-selected-line') === selectedReviewFileTabLineNumber &&
+                reviewLineFilePreview.getAttribute('data-source-revealed-line') === selectedReviewFileTabLineNumber &&
+                reviewLineFilePreview.getAttribute('data-source-reveal-visible') === 'true' &&
+                reviewLineFileSelectedLine instanceof HTMLElement &&
+                reviewLineFileSelectedLine.getAttribute('data-source-line-number') === selectedReviewFileTabLineNumber &&
+                reviewLineFileRevealedLine instanceof HTMLElement &&
+                reviewLineFileRevealedLine.getAttribute('data-source-line-number') === selectedReviewFileTabLineNumber;
+              const reviewFileTabForCleanup = document.querySelector('[role="tab"][data-tab-id^="file:"]');
+              const reviewFileTabCleanupButton = reviewFileTabForCleanup?.querySelector('.motion-tab-close');
+              if (reviewFileTabCleanupButton instanceof HTMLButtonElement) {
+                reviewFileTabCleanupButton.click();
+                await sleep(220);
+              }
+              await openPanelTab('diff', 'Review');
+              for (let attempt = 0; attempt < 16; attempt += 1) {
+                if (
+                  document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-unified-diff"]') instanceof HTMLElement &&
+                  document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-file-section"]') instanceof HTMLElement &&
+                  document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list .diff-file-row') instanceof HTMLElement
+                ) {
+                  break;
+                }
+                await sleep(140);
+              }
+              const preFinalDiffSearch = currentDiffSearch();
+              if (preFinalDiffSearch instanceof HTMLInputElement && preFinalDiffSearch.value.length > 0) {
+                setNativeValue(preFinalDiffSearch, '');
+                preFinalDiffSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                preFinalDiffSearch.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(260);
+              }
+	              const clearReviewSearchInputs = async () => {
+	                const reviewSearchInputs = [
+	                  ...document.querySelectorAll('[data-testid="diff-file-search"], [data-testid="review-file-jump-search"]')
+	                ].filter((input) => input instanceof HTMLInputElement);
+                for (const input of reviewSearchInputs) {
+                  if (input.value.length === 0) continue;
+                  setNativeValue(input, '');
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                  input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+	                await sleep(180);
+	              };
+	              await clearReviewSearchInputs();
+	              if (smokeView === 'diff-source') {
+	                const verifyWorktreeReviewSource = async () => {
+	                  const projects = await window.api.projects.list();
+	                  const project = projects[0] ?? null;
+	                  if (!project) return { works: false, debug: { reason: 'missing-project' } };
+	                  const session = await window.api.sessions.create({
+	                    projectId: project.id,
+	                    workDir: project.rootPath,
+	                    useWorktree: true,
+	                    repoRoot: project.rootPath,
+	                    worktreeBranchName: 'review-source-worktree-smoke'
+	                  });
+	                  await window.api.projects.addSession(project.id, session.id);
+	                  await window.api.sessions.updateName(session.id, 'Review worktree source smoke');
+	                  await window.api.fs.writeFile(session.workDir + '/review-worktree-source-smoke.txt', 'worktree source smoke\\n');
+	                  let activeSessionSet = false;
+	                  for (let attempt = 0; attempt < 24; attempt += 1) {
+	                    if (typeof window.__orchestratorSetActiveSessionForSmoke === 'function') {
+	                      activeSessionSet = window.__orchestratorSetActiveSessionForSmoke(session.id);
+	                      if (activeSessionSet) break;
+	                    }
+	                    await sleep(120);
+	                  }
+	                  await sleep(260);
+	                  const activeRow = document.querySelector('[data-session-id="' + CSS.escape(session.id) + '"][aria-current="page"]');
+	                  await openPanelTab('diff', 'Review');
+	                  for (let attempt = 0; attempt < 16; attempt += 1) {
+	                    if (document.querySelector('[data-testid="review-source-worktree"]') instanceof HTMLButtonElement) break;
+	                    await sleep(140);
+	                  }
+	                  const worktreeOptionsOpened = await openReviewOptions();
+	                  const worktreeSourceButton = document.querySelector('[data-testid="review-source-worktree"]');
+	                  const localSourceButton = document.querySelector('[data-testid="review-source-local"]');
+	                  const worktreeSourceAvailable =
+	                    worktreeOptionsOpened &&
+	                    worktreeSourceButton instanceof HTMLButtonElement &&
+	                    !worktreeSourceButton.disabled &&
+	                    worktreeSourceButton.getAttribute('aria-disabled') !== 'true' &&
+	                    worktreeSourceButton.getAttribute('data-review-source-unsupported') !== 'true';
+	                  const localSourceUnavailable =
+	                    localSourceButton instanceof HTMLButtonElement &&
+	                    localSourceButton.disabled &&
+	                    localSourceButton.getAttribute('aria-disabled') === 'true' &&
+	                    localSourceButton.getAttribute('data-review-source-unsupported') === 'true';
+	                  if (worktreeSourceButton instanceof HTMLButtonElement) {
+	                    worktreeSourceButton.click();
+	                    await sleep(360);
+	                  }
+	                  const worktreeSourceText = document.body.innerText;
+	                  const worktreeSourceActive = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
+	                  const activeSessionTitle = document.querySelector('[data-testid="active-session-title"]');
+	                  const debug = {
+	                    sessionId: session.id,
+	                    workDir: session.workDir,
+	                    activeSessionSet,
+	                    activeRow: activeRow instanceof HTMLElement,
+	                    activeSessionTitle: activeSessionTitle instanceof HTMLElement ? activeSessionTitle.textContent ?? '' : '',
+	                    worktreeSourceAvailable,
+	                    localSourceUnavailable,
+	                    worktreeSourceActive,
+	                    hasWorktreeFile: worktreeSourceText.includes('review-worktree-source-smoke.txt'),
+	                    hasWorktreeContent: worktreeSourceText.includes('worktree source smoke')
+	                  };
+	                  return { works: activeSessionSet &&
+	                    worktreeSourceAvailable &&
+	                    localSourceUnavailable &&
+	                    worktreeSourceActive === 'worktree' &&
+	                    worktreeSourceText.includes('review-worktree-source-smoke.txt') &&
+	                    worktreeSourceText.includes('worktree source smoke'), debug };
+	                };
+	                const reviewWorktreeProviderSourceResult = await verifyWorktreeReviewSource();
+	                const reviewWorktreeProviderSourceWorks = reviewWorktreeProviderSourceResult.works;
+	                const reviewWorktreeProviderSourceDebug = reviewWorktreeProviderSourceResult.debug;
+	                const sourceClearedDiffSearch = currentDiffSearch();
+	                const reviewSourceSearchClearWorks =
+	                  sourceClearedDiffSearch instanceof HTMLInputElement &&
+	                  sourceClearedDiffSearch.value === '' &&
+	                  !document.querySelector('[data-testid="diff-file-search-clear"]') &&
+                  !document.querySelector('[data-testid="review-file-jump-search"]');
+                return {
+                  profile,
+	                  reviewSearchWorks,
+	                  reviewSearchProjectionWorks,
+                    reviewSearchContentWorks,
+	                  reviewSourceModesWork,
+	                  reviewSourceModesDebug,
+	                  reviewTranscriptCardLastTurnWorks,
+	                  reviewLastTurnGitApplyCommandWorks,
+	                  reviewLastTurnGitApplyCommandDebug,
+	                  reviewWorktreeProviderSourceWorks,
+	                  reviewWorktreeProviderSourceDebug,
+	                  reviewFullSourceRowsWork,
+	                  reviewFullSourceBlameWorks,
+                  reviewLoadFullFileWorks,
+                  reviewSearchClearWorks: reviewSourceSearchClearWorks,
+                  reviewLineCommentsWork,
+                  reviewAnnotatedSelectionCalmWork,
+                  reviewSidePaneCommentCountWork,
+                  reviewLineBlameWork,
+                  reviewGutterBlameSummaryWork,
+                  reviewGutterActionPopoverWork,
+                  reviewMenuMessageWorks,
+                  reviewFileJumpWorks,
+                  reviewSidePaneChromeWorks,
+                  reviewSidePaneChromeDebug,
+                  reviewSidePaneResizeWorks,
+                  reviewLineOpensFileSourceTabWork,
+                  reviewHiddenContextSeparatorStructureWork,
+                  reviewHiddenContextExpansionWork,
+                  reviewHiddenContextExpandAllWork,
+                  reviewLargeDiffWindowWorks,
+                  largeDiffDebug
+                };
+              }
+              const finalReviewResizeHandle = document.querySelector('[data-testid="review-changed-files-resize"]');
+              if (finalReviewResizeHandle instanceof HTMLElement) {
+                finalReviewResizeHandle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+                await sleep(160);
+              }
+              await clearReviewSearchInputs();
+              const visualCheckpointFile = 'staged-source-smoke.txt';
+              const visualCheckpointSelector = '[data-review-path="' + visualCheckpointFile + '"]';
+              const finalReviewVisualRow = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-list ' + visualCheckpointSelector);
+              if (finalReviewVisualRow instanceof HTMLElement) {
+                finalReviewVisualRow.click();
+                await sleep(220);
+              }
+              const finalReviewVisualSection = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-preview-pane ' + visualCheckpointSelector);
+              if (finalReviewVisualSection instanceof HTMLElement) {
+                finalReviewVisualSection.scrollIntoView({ block: 'start' });
+              }
+              await sleep(180);
+              const finalDiffToolbar = document.querySelector('[data-testid="diff-panel-toolbar"]');
+              const finalWorkbenchPanelTabbar = document.querySelector('[data-testid="workbench-panel-tabbar"]');
+              const finalRightPanelActiveTabActions = document.querySelector('[data-testid="right-panel-active-tab-actions"]');
+              const finalRightPanelAddTab = document.querySelector('[data-testid="right-panel-add-tab"]');
+              const finalReviewSourceSummary = document.querySelector('[data-testid="review-source-summary"]');
+              const finalDiffSearch = currentDiffSearch();
+              const finalReviewPane = document.querySelector('.diff-panel-root[data-embedded="true"] .diff-panel-changed-files-pane');
+              const finalReviewSelectedFile = document.querySelector('.diff-panel-root[data-embedded="true"]')?.getAttribute('data-review-selected-file') ?? '';
+              const finalReviewFileTabs = document.querySelectorAll('[role="tab"][data-tab-id^="file:"]');
+              const reviewTranscriptCards = [...document.querySelectorAll('[data-testid="codex-review-card"]')]
+                .filter((card) => card instanceof HTMLElement);
+              const reviewTranscriptCard = reviewTranscriptCards.find((card) =>
+                card.getAttribute('data-review-card-source') === 'local'
+              ) ?? reviewTranscriptCards[0] ?? null;
+              const reviewTranscriptCardFiles = reviewTranscriptCard instanceof HTMLElement
+                ? [...reviewTranscriptCard.querySelectorAll('[data-testid="codex-review-card-file"]')]
+                  .filter((row) => row instanceof HTMLElement)
+                : [];
+              const reviewTranscriptCardReviewButton = reviewTranscriptCard?.querySelector('[data-testid="codex-review-card-review"]');
+              const reviewTranscriptCardUndoButton = reviewTranscriptCard?.querySelector('[data-testid="codex-review-card-undo"]');
+              const reviewTranscriptCardTotals = reviewTranscriptCard?.querySelector('[data-testid="codex-review-card-totals"]');
+              const reviewTranscriptCardLayout =
+                reviewTranscriptCard instanceof HTMLElement &&
+                reviewTranscriptCard.getAttribute('data-review-card-layout') === 'file-first' &&
+                reviewTranscriptCard.querySelector('[data-review-card-inline-diffs="true"]') instanceof HTMLElement;
+              const reviewTranscriptCardUndoWorks =
+                reviewTranscriptCard instanceof HTMLElement &&
+                reviewTranscriptCardUndoButton instanceof HTMLButtonElement &&
+                reviewTranscriptCard.getAttribute('data-review-card-undo-available') === 'true' &&
+                reviewTranscriptCard.getAttribute('data-review-card-undo-state') === 'idle' &&
+                reviewTranscriptCardUndoButton.disabled === false &&
+                (reviewTranscriptCardUndoButton.getAttribute('title') ?? '').startsWith('Undo ');
+              let reviewTranscriptInlineDiffWorks = false;
+              const reviewTranscriptFirstFile = reviewTranscriptCardFiles[0];
+              if (reviewTranscriptFirstFile instanceof HTMLButtonElement) {
+                reviewTranscriptFirstFile.click();
+                for (let attempt = 0; attempt < 10; attempt += 1) {
+                  await sleep(100);
+                  const inlineDiff = reviewTranscriptCard?.querySelector('[data-testid="codex-review-card-inline-diff"]');
+                  if (
+                    inlineDiff instanceof HTMLElement &&
+                    inlineDiff.getAttribute('data-review-card-inline-diff-loading') !== 'true' &&
+                    (inlineDiff.textContent ?? '').trim().length > 0
+                  ) {
+                    reviewTranscriptInlineDiffWorks = true;
+                    break;
+                  }
+                }
+              }
+              const reviewTranscriptCardWorks =
+                reviewTranscriptCard instanceof HTMLElement &&
+                reviewTranscriptCardReviewButton instanceof HTMLButtonElement &&
+                reviewTranscriptCardTotals instanceof HTMLElement &&
+                reviewTranscriptCardLayout &&
+                reviewTranscriptCardUndoWorks &&
+                reviewTranscriptInlineDiffWorks &&
+                Number(reviewTranscriptCard.getAttribute('data-review-card-file-count') ?? '0') >= 3 &&
+                Number(reviewTranscriptCard.getAttribute('data-review-card-additions') ?? '0') > 0 &&
+                Number(reviewTranscriptCard.getAttribute('data-review-card-deletions') ?? '0') > 0 &&
+                reviewTranscriptCard.textContent?.includes('Edited') === true &&
+                reviewTranscriptCard.textContent?.includes('Undo') === true &&
+                reviewTranscriptCard.textContent?.includes('Review') === true &&
+                reviewTranscriptCardFiles.length >= 3 &&
+                reviewTranscriptCardFiles.every((row) => (row.textContent ?? '').trim().length > 0);
+              const finalDiffToolbarRect = finalDiffToolbar instanceof HTMLElement ? finalDiffToolbar.getBoundingClientRect() : null;
+              const finalWorkbenchPanelTabbarRect = finalWorkbenchPanelTabbar instanceof HTMLElement ? finalWorkbenchPanelTabbar.getBoundingClientRect() : null;
+              const reviewToolbarHeaderRowDebug = {
+                activeTabActionsHost:
+                  finalRightPanelActiveTabActions instanceof HTMLElement
+                    ? {
+                        activeTab: finalRightPanelActiveTabActions.getAttribute('data-active-tab') ?? '',
+                        panelId: finalRightPanelActiveTabActions.getAttribute('data-panel-id') ?? '',
+                        shellOwned: finalRightPanelActiveTabActions.getAttribute('data-panel-active-tab-actions') ?? '',
+                        containsToolbar: finalDiffToolbar instanceof HTMLElement && finalRightPanelActiveTabActions.contains(finalDiffToolbar),
+                        childCount: finalRightPanelActiveTabActions.childElementCount
+                      }
+                    : null,
+                toolbar: finalDiffToolbarRect ? {
+                  left: Math.round(finalDiffToolbarRect.left),
+                  top: Math.round(finalDiffToolbarRect.top),
+                  width: Math.round(finalDiffToolbarRect.width),
+                  height: Math.round(finalDiffToolbarRect.height)
+                } : null,
+                tabbar: finalWorkbenchPanelTabbarRect ? {
+                  left: Math.round(finalWorkbenchPanelTabbarRect.left),
+                  top: Math.round(finalWorkbenchPanelTabbarRect.top),
+                  width: Math.round(finalWorkbenchPanelTabbarRect.width),
+                  height: Math.round(finalWorkbenchPanelTabbarRect.height)
+                } : null,
+                buttons: [...document.querySelectorAll('[data-testid="diff-panel-toolbar"] button')].map((button) => {
+                  const rect = button instanceof HTMLElement ? button.getBoundingClientRect() : null;
+                  const style = button instanceof HTMLElement ? getComputedStyle(button) : null;
+                  return {
+                    label: button.getAttribute('aria-label') ?? button.textContent?.trim() ?? '',
+                    left: rect ? Math.round(rect.left) : null,
+                    top: rect ? Math.round(rect.top) : null,
+                    width: rect ? Math.round(rect.width) : null,
+                    height: rect ? Math.round(rect.height) : null,
+                    color: style?.color ?? '',
+                    opacity: style?.opacity ?? '',
+                    visibility: style?.visibility ?? '',
+                    display: style?.display ?? ''
+                  };
+                })
+              };
+              const visibleReviewToolbarButtons = reviewToolbarHeaderRowDebug.buttons.filter((button) =>
+                (button.width ?? 0) >= 18 &&
+                (button.height ?? 0) >= 18 &&
+                button.display !== 'none' &&
+                button.visibility !== 'hidden' &&
+                Number.parseFloat(button.opacity || '1') >= 0.95
+              );
+              const finalReviewToolbarActionStrip = document.querySelector('[data-testid="review-toolbar-action-strip"]');
+              const finalReviewToolbarActionButtons = finalReviewToolbarActionStrip instanceof HTMLElement
+                ? [...finalReviewToolbarActionStrip.querySelectorAll('button')].filter((button) => {
+                    if (!(button instanceof HTMLElement)) return false;
+                    const rect = button.getBoundingClientRect();
+                    const style = getComputedStyle(button);
+                    return rect.width >= 18 &&
+                      rect.height >= 18 &&
+                      style.display !== 'none' &&
+                      style.visibility !== 'hidden' &&
+                      Number.parseFloat(style.opacity || '1') >= 0.95;
+                  })
+                : [];
+              const finalReviewToolbarVisibleLabels = finalReviewToolbarActionButtons.map((button) => button.getAttribute('aria-label') ?? '');
+              const finalReviewSourceSummaryRect = finalReviewSourceSummary instanceof HTMLElement
+                ? finalReviewSourceSummary.getBoundingClientRect()
+                : null;
+              const reviewSourceSummaryHeaderWorks =
+                finalReviewSourceSummary instanceof HTMLElement &&
+                finalReviewSourceSummaryRect !== null &&
+                finalReviewSourceSummary.getAttribute('data-review-source-active') === 'all' &&
+                Number(finalReviewSourceSummary.getAttribute('data-review-source-summary-count') ?? '0') >= 1 &&
+                (finalReviewSourceSummary.textContent ?? '').includes('All changes') &&
+                finalReviewSourceSummaryRect.height <= 28;
+              const reviewToolbarPrimaryOrderWorks =
+                finalReviewToolbarActionStrip instanceof HTMLElement &&
+                finalReviewToolbarActionStrip.getAttribute('data-review-toolbar-cluster') === 'primary' &&
+                ['Review options', 'Jump to file', 'Refresh'].every((label, index) => finalReviewToolbarVisibleLabels[index] === label) &&
+                finalReviewToolbarVisibleLabels.some((label) => label.includes('word wrap')) &&
+                finalReviewToolbarVisibleLabels.some((label) => label.includes('diffs')) &&
+                finalReviewToolbarVisibleLabels.some((label) => label.includes('diff')) &&
+                !finalReviewToolbarVisibleLabels.includes('Change actions');
+              const reviewToolbarHeaderRowWorks =
+                finalDiffToolbarRect !== null &&
+                finalWorkbenchPanelTabbarRect !== null &&
+                finalRightPanelActiveTabActions instanceof HTMLElement &&
+                finalRightPanelActiveTabActions.getAttribute('data-panel-active-tab-actions') === 'true' &&
+                finalRightPanelActiveTabActions.getAttribute('data-panel-id') === 'right' &&
+                finalRightPanelActiveTabActions.getAttribute('data-active-tab') === 'diff' &&
+                finalDiffToolbar instanceof HTMLElement &&
+                !finalRightPanelActiveTabActions.contains(finalDiffToolbar) &&
+                finalDiffToolbar.closest('.diff-panel-root[data-embedded="true"]') instanceof HTMLElement &&
+                reviewSourceSummaryHeaderWorks &&
+                reviewToolbarPrimaryOrderWorks &&
+                finalReviewToolbarActionButtons.length >= 6 &&
+                finalDiffToolbarRect.top >= finalWorkbenchPanelTabbarRect.bottom - 1 &&
+                finalDiffToolbarRect.top <= finalWorkbenchPanelTabbarRect.bottom + 6 &&
+                finalDiffToolbarRect.height <= 40 &&
+                (!(finalRightPanelAddTab instanceof HTMLElement) || finalDiffToolbarRect.right > finalRightPanelAddTab.getBoundingClientRect().left);
+              const reviewMetadataStrip = document.querySelector('[data-testid="review-metadata-strip"]');
+              const reviewMetadataMenuButton = document.querySelector('[data-testid="review-metadata-menu"]');
+              let reviewMetadataToolbarWorks = false;
+              let reviewMetadataFlyoutSharedWorks = false;
+              if (reviewMetadataMenuButton instanceof HTMLButtonElement) {
+                reviewMetadataMenuButton.click();
+                for (let attempt = 0; attempt < 10; attempt += 1) {
+                  await sleep(80);
+                  const reviewMetadataSection = document.querySelector('[data-testid="review-metadata-section"]');
+                  const reviewMetadataSectionLabel = reviewMetadataSection?.querySelector('[data-menu-section-label="true"]');
+                  const reviewMetadataPr = document.querySelector('[data-testid="review-metadata-pr"]');
+                  const reviewMetadataPrRow = document.querySelector('[data-testid="review-metadata-pr-row"]');
+                  const reviewMetadataChecks = document.querySelector('[data-testid="review-metadata-checks"]');
+                  const reviewMetadataChecksRow = document.querySelector('[data-testid="review-metadata-checks-row"]');
+                  const reviewMetadataReviewers = document.querySelector('[data-testid="review-metadata-reviewers"]');
+                  const reviewMetadataReviewersRow = document.querySelector('[data-testid="review-metadata-reviewers-row"]');
+                  if (
+                    reviewMetadataStrip instanceof HTMLElement &&
+                    reviewMetadataStrip.getAttribute('data-review-metadata-pr') === 'true' &&
+                    reviewMetadataStrip.getAttribute('data-review-metadata-checks') === 'failing' &&
+                    reviewMetadataStrip.getAttribute('data-review-metadata-reviewers') === '4' &&
+                    reviewMetadataPr instanceof HTMLElement &&
+                    reviewMetadataChecks instanceof HTMLElement &&
+                    reviewMetadataReviewers instanceof HTMLElement &&
+                    (reviewMetadataPr.textContent ?? '').includes('PR 42') &&
+                    (reviewMetadataChecks.textContent ?? '').includes('Checks failing') &&
+                    reviewMetadataChecks.getAttribute('data-review-check-status') === 'failing' &&
+                    (reviewMetadataReviewers.textContent ?? '').includes('4 reviewers')
+                  ) {
+                    reviewMetadataToolbarWorks = true;
+                    reviewMetadataFlyoutSharedWorks =
+                      reviewMetadataSection instanceof HTMLElement &&
+                      reviewMetadataSection.getAttribute('data-menu-section') === 'true' &&
+                      reviewMetadataSection.classList.contains('orchestrator-menu-section') &&
+                      reviewMetadataSectionLabel instanceof HTMLElement &&
+                      reviewMetadataSectionLabel.textContent?.trim() === 'Review' &&
+                      [reviewMetadataPrRow, reviewMetadataChecksRow, reviewMetadataReviewersRow].every((row) =>
+                        row instanceof HTMLButtonElement &&
+                        row.getAttribute('data-menu-row') === 'true' &&
+                        row.classList.contains('orchestrator-menu-row') &&
+                        row.classList.contains('review-metadata-row')
+                      );
+                    break;
+                  }
+                }
+                reviewMetadataMenuButton.click();
+                await sleep(80);
+              }
+              const reviewVisualCheckpointResetWorks =
+                finalDiffToolbar instanceof HTMLElement &&
+                finalDiffSearch instanceof HTMLInputElement &&
+                finalDiffSearch.value === '' &&
+                finalReviewPane instanceof HTMLElement &&
+                finalReviewPane.getAttribute('data-review-side-pane-width') === '220' &&
+                finalReviewSelectedFile === visualCheckpointFile &&
+                finalReviewFileTabs.length === 0;
+	              let reviewTranscriptCardActionWorks = false;
+	              let reviewEnvironmentPanelWorks = false;
+	              {
+	                await openPanelTab('environment', 'Environment');
+	                for (let attempt = 0; attempt < 10; attempt += 1) {
+	                  const candidate = document.querySelector('[data-testid="codex-environment-panel"]');
+	                  if (
+                    candidate instanceof HTMLElement &&
+                    Number(candidate.getAttribute('data-environment-change-count') ?? '0') >= 3 &&
+                    candidate.querySelector('[data-testid="codex-environment-changes"]') instanceof HTMLButtonElement
+                  ) {
+                    break;
+                  }
+                  await sleep(120);
+                }
+                const environmentPanel = document.querySelector('[data-testid="codex-environment-panel"]');
+                const environmentCard = document.querySelector('[data-testid="codex-environment-card"]');
+                const environmentSourcesCard = document.querySelector('[data-testid="codex-environment-sources-card"]');
+	                const environmentChangesRow = document.querySelector('[data-testid="codex-environment-changes"]');
+	                const environmentChangeTotals = document.querySelector('[data-testid="codex-environment-change-totals"]');
+	                const environmentBranchRow = document.querySelector('[data-testid="codex-environment-branch"]');
+	                const environmentCommitRow = document.querySelector('[data-testid="codex-environment-commit"]');
+	                const environmentCreatePrRow = document.querySelector('[data-testid="codex-environment-create-pr"]');
+	                const environmentActiveBeforeChanges = document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') ?? '';
+	                const environmentBasicsWork =
+	                  environmentPanel instanceof HTMLElement &&
+	                  environmentCard instanceof HTMLElement &&
+	                  environmentSourcesCard instanceof HTMLElement &&
+	                  environmentActiveBeforeChanges === 'environment' &&
+	                  Number(environmentPanel.getAttribute('data-environment-change-count') ?? '0') >= 3 &&
+	                  Number(environmentPanel.getAttribute('data-environment-additions') ?? '0') > 0 &&
+	                  Number(environmentPanel.getAttribute('data-environment-deletions') ?? '0') > 0 &&
+	                  environmentChangesRow instanceof HTMLButtonElement &&
+	                  environmentChangeTotals instanceof HTMLElement &&
+	                  environmentChangeTotals.textContent?.includes('+') === true &&
+	                  environmentChangeTotals.textContent?.includes('-') === true &&
+                    Number(environmentPanel.getAttribute('data-environment-staged-count') ?? '0') >= 1 &&
+                    Number(environmentPanel.getAttribute('data-environment-unstaged-count') ?? '0') >= 1 &&
+	                  environmentBranchRow instanceof HTMLElement &&
+	                  (environmentBranchRow.textContent ?? '').trim().length > 0 &&
+                    environmentCommitRow instanceof HTMLButtonElement &&
+                    environmentCommitRow.getAttribute('data-environment-row-action') === 'open-review' &&
+	                  environmentCreatePrRow instanceof HTMLButtonElement &&
+                    environmentCreatePrRow.getAttribute('data-environment-row-action') === 'open-pull-request' &&
+                    environmentCreatePrRow.textContent?.includes('View pull request') === true &&
+                    environmentCreatePrRow.textContent?.includes('PR 42') === true &&
+                    environmentPanel.getAttribute('data-environment-pull-request') === 'true' &&
+	                  environmentSourcesCard.textContent?.includes('Web search') === true;
+	                if (reviewTranscriptCardReviewButton instanceof HTMLButtonElement) {
+	                  reviewTranscriptCardReviewButton.click();
+	                  for (let attempt = 0; attempt < 10; attempt += 1) {
+	                    await sleep(100);
+	                    if (
+	                      document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
+	                      document.querySelector('.diff-panel-root[data-embedded="true"]') instanceof HTMLElement
+	                    ) {
+	                      reviewTranscriptCardActionWorks = true;
+	                      break;
+	                    }
+	                  }
+	                }
+	                await openPanelTab('environment', 'Environment');
+	                const environmentChangesRowForOpen = document.querySelector('[data-testid="codex-environment-changes"]');
+	                if (environmentChangesRowForOpen instanceof HTMLButtonElement) {
+	                  environmentChangesRowForOpen.click();
+	                  for (let attempt = 0; attempt < 20; attempt += 1) {
+	                    await sleep(100);
+	                    if (
+	                      document.querySelector('.diff-panel-root[data-embedded="true"] .review-diff-line-cell') instanceof HTMLElement ||
+	                      document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-binary-state"]') instanceof HTMLElement ||
+	                      document.querySelector('.diff-panel-root[data-embedded="true"] [data-testid="review-source-line"]') instanceof HTMLElement
+	                    ) {
+	                      break;
+	                    }
+	                  }
+	                }
+	                reviewEnvironmentPanelWorks =
+	                  environmentBasicsWork &&
+	                  environmentChangesRowForOpen instanceof HTMLButtonElement &&
+	                  document.querySelector('.diff-panel-root[data-embedded="true"]') instanceof HTMLElement &&
+	                  document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff';
+	              }
               return {
                 profile,
                 diffToolbarCompactWorks:
-                  diffToolbar instanceof HTMLElement &&
-                  diffSearch instanceof HTMLInputElement &&
-                  diffToolbar.getBoundingClientRect().height <= 38 &&
-                  diffToolbar.scrollWidth <= diffToolbar.clientWidth + 2,
+                  finalDiffToolbar instanceof HTMLElement &&
+                  finalDiffToolbar.getAttribute('data-panel-toolbar') === 'true' &&
+                  finalDiffSearch instanceof HTMLInputElement &&
+                  finalDiffToolbar.getBoundingClientRect().height <= 38 &&
+                  finalDiffToolbar.scrollWidth <= finalDiffToolbar.clientWidth + 2,
+                reviewToolbarHeaderRowWorks,
+                reviewToolbarPrimaryOrderWorks,
+                reviewSourceSummaryHeaderWorks,
+                reviewMetadataToolbarWorks,
+	                reviewMetadataFlyoutSharedWorks,
+	                reviewTranscriptCardLastTurnWorks,
+	                reviewLastTurnGitApplyCommandWorks,
+	                reviewTranscriptCardWorks: reviewTranscriptCardWorks && reviewTranscriptCardActionWorks,
+                reviewTranscriptCardUndoWorks,
+                reviewEnvironmentPanelWorks,
+                reviewToolbarHeaderRowDebug,
                 diffListCompactWorks:
-                  diffPanelList instanceof HTMLElement &&
-                  diffPanelList.scrollWidth <= diffPanelList.clientWidth + 2 &&
-                  diffRows.length > 0 &&
-                  diffRows.every((row) => row.getBoundingClientRect().height <= 42),
+                  diffListCompactWorks,
+                reviewFileSectionStructureWorks,
+                reviewFileHeaderMetricsWork,
+                reviewDiffRowMetricsWork,
+                reviewHunkSeparatorStructureWorks,
+                reviewDiffIndicatorStructureWork,
+                reviewDiffNativeColorCalmWorks,
+                reviewDiffLineNumberContentWorks,
+                reviewDiffLineNumberContentDebug,
+                reviewDiffGutterUtilityWorks,
+                diffWorkbenchTreeWorks,
+                diffWorkbenchTreeNativeTitleFreeWorks,
+                reviewFileTreeGitLaneWorks,
+                reviewVisualCheckpointResetWorks,
+                reviewTabPanelFocusRingCalmWorks,
                 diffTreeGroupingWorks,
                 diffKeyboardNavigationWorks,
+                diffRevealSelectedPathWorks,
                 diffActionMenuCompactWorks,
+                diffActionMenuMaterialWorks,
                 reviewSearchWorks,
+                reviewSearchProjectionWorks,
+                reviewSourceModesWork,
+                reviewFullSourceRowsWork,
+                reviewFullSourceBlameWorks,
+                reviewLoadFullFileWorks,
+                diffLineNumbersWork,
+                diffLineSelectionWorks,
+                reviewLineCommentsWork,
+                reviewAnnotatedSelectionCalmWork,
+                reviewSidePaneCommentCountWork,
+                reviewLineBlameWork,
+                reviewGutterBlameSummaryWork,
+                reviewGutterActionPopoverWork,
+                reviewMenuMessageWorks,
+                reviewFileJumpWorks,
+                reviewSidePaneChromeWorks,
+                reviewSidePaneChromeDebug,
+                reviewSidePaneResizeWorks,
+                reviewLineOpensFileSourceTabWork,
+                reviewHiddenContextSeparatorStructureWork,
+                reviewHiddenContextExpansionWork,
+                reviewHiddenContextExpandAllWork,
+                reviewLargeDiffWindowWorks,
+                diffHunkCollapseWorks,
+                diffModeToggleWorks,
+                diffExpandCollapseWorks,
+                reviewWhitespaceToggleWorks,
+                reviewWordDiffToggleWorks,
                 reviewDiffFirstWorks,
                 reviewJsonPreviewWorks,
                 reviewCsvPreviewWorks,
@@ -3551,20 +10064,20 @@ function runAutomatedFocusedSurfaceSmoke(
                   binaryActions.includes('Open') &&
                   binaryActions.includes('Reveal'),
                 reviewGitActionsWork,
-                reviewSearchClearWorks:
-                  diffSearch instanceof HTMLInputElement &&
-                  diffSearch.value === '' &&
-                  !document.querySelector('[data-testid="diff-file-search-clear"]')
+                reviewSearchClearWorks
               };
             }
 
             if (surface === 'files') {
+              await window.api.settings.set('preferredEditor', 'cursor');
               await openPanelTab('files', 'Files');
               const fileSearch = document.querySelector('[data-testid="workspace-file-search"]');
               const filesToolbar = document.querySelector('[data-testid="files-panel-toolbar"]');
               const filesBody = document.querySelector('[data-testid="files-panel-body"]');
               const filesList = document.querySelector('[data-testid="files-panel-list"]');
               const filesPreview = document.querySelector('[data-testid="files-panel-preview"]');
+              const filesWorkbenchRows = () => [...document.querySelectorAll('[data-testid="files-panel-list"] [data-workbench-tree-row="true"]')]
+                .filter((row) => row instanceof HTMLElement);
               if (fileSearch instanceof HTMLInputElement) {
                 setNativeValue(fileSearch, 'nested note');
                 fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
@@ -3582,7 +10095,71 @@ function runAutomatedFocusedSurfaceSmoke(
                 nestedFileNameVisible &&
                 fileSearch instanceof HTMLInputElement &&
                 fileSearch.value === 'nested note';
+              const nestedAncestorRow = filesWorkbenchRows()
+                .find((row) => row instanceof HTMLElement && row.textContent?.includes('Nested Folder') && row.getAttribute('data-kind') === 'directory');
+              const nestedFileRow = filesWorkbenchRows()
+                .find((row) => row instanceof HTMLElement && row.textContent?.includes('nested note.md') && row.getAttribute('data-kind') === 'file');
+              const filesSearchProjectionWorks =
+                nestedAncestorRow instanceof HTMLElement &&
+                nestedAncestorRow.getAttribute('data-open-target') === 'select' &&
+                nestedFileRow instanceof HTMLElement &&
+                Number(nestedAncestorRow.getAttribute('data-row-index') ?? '-1') <
+                  Number(nestedFileRow.getAttribute('data-row-index') ?? '-1');
+              const filesRevealSelectedPathWorks =
+                filesList instanceof HTMLElement &&
+                filesList.getAttribute('data-reveal-active-row') === 'true' &&
+                filesList.getAttribute('data-active-row-id') === 'Nested Folder/nested note.md' &&
+                filesList.getAttribute('data-active-row-visible') === 'true' &&
+                nestedFileRow instanceof HTMLElement &&
+                nestedFileRow.getAttribute('data-active') === 'true';
+              const filesWorkbenchTreeWorks =
+                filesList instanceof HTMLElement &&
+                filesList.getAttribute('data-workbench-tree') === 'true' &&
+                filesWorkbenchRows().length > 0 &&
+                filesWorkbenchRows().every((row) =>
+                  row instanceof HTMLElement &&
+                  row.getAttribute('role') === 'treeitem' &&
+                  row.getBoundingClientRect().height >= 26 &&
+                  row.getBoundingClientRect().height <= 30 &&
+                  Number.parseFloat(getComputedStyle(row).fontSize) >= 12.5 &&
+                  Number.parseFloat(getComputedStyle(row).fontSize) <= 13.5
+                );
+              const filesWorkbenchTreeNativeTitleFreeWorks =
+                filesWorkbenchRows().length > 0 &&
+                filesWorkbenchRows().every((row) =>
+                  row instanceof HTMLElement &&
+                  row.getAttribute('data-native-title-free') === 'true' &&
+                  row.getAttribute('title') === null
+                ) &&
+                [...document.querySelectorAll('[data-testid="files-panel-list"] [data-native-title-free][title]')].length === 0;
+              const initialFilesBodyRect = filesBody instanceof HTMLElement ? filesBody.getBoundingClientRect() : null;
+              const initialFilesListRect = filesList instanceof HTMLElement ? filesList.getBoundingClientRect() : null;
+              const filesFileTabFirstLayoutWorks =
+                filesBody instanceof HTMLElement &&
+                filesBody.getAttribute('data-files-layout') === 'file-tabs' &&
+                filesList instanceof HTMLElement &&
+                !(filesPreview instanceof HTMLElement) &&
+                initialFilesBodyRect !== null &&
+                initialFilesListRect !== null &&
+                initialFilesListRect.left >= initialFilesBodyRect.left - 2 &&
+                initialFilesListRect.right <= initialFilesBodyRect.right + 2 &&
+                initialFilesListRect.width >= initialFilesBodyRect.width - 2 &&
+                filesBody.scrollWidth <= filesBody.clientWidth + 2;
               let filesActionMenuCompactWorks = false;
+              let filesActionMenuMaterialWorks = false;
+              let filesActionMenuSharedSectionsWorks = false;
+              let filesRowContextMenuWorks = false;
+              let filesRowContextMenuSharedSectionsWorks = false;
+              let filesPreferredOpenTargetWorks = false;
+              let workbenchFileTabWorks = false;
+              let workbenchFileTabPinWorks = false;
+              let workbenchFileTabActionMenuSharedSectionsWorks = false;
+              let filesContentSearchWorks = false;
+              let fileSourceLineSelectionWorks = false;
+              let fileSourceWrapToggleWorks = false;
+              let fileSourceModeWorks = false;
+              let fileSourceLineUtilitiesWorks = false;
+              let fileSourceLineBlameWorks = false;
               const fileActionMenuButton = findButton('File actions');
               if (fileActionMenuButton instanceof HTMLButtonElement) {
                 fileActionMenuButton.click();
@@ -3593,6 +10170,25 @@ function runAutomatedFocusedSurfaceSmoke(
                 const menuItems = [...document.querySelectorAll('[role="menuitem"]')];
                 const labels = menuItems.map((item) => item.textContent?.trim() ?? '');
                 const addToChat = menuItems.find((item) => item.textContent?.includes('Add to chat'));
+                const openWorkbench = menuItems.find((item) => item.textContent?.includes('Open in Workbench'));
+                const menuSurfaceStyle = menuSurface instanceof HTMLElement ? getComputedStyle(menuSurface) : null;
+                const menuSections = [...document.querySelectorAll('.files-action-menu-surface [data-menu-section="true"]')]
+                  .filter((section) => section instanceof HTMLElement);
+                const menuLabels = [...document.querySelectorAll('.files-action-menu-surface [data-menu-section-label="true"]')]
+                  .filter((label) => label instanceof HTMLElement);
+                filesActionMenuSharedSectionsWorks =
+                  menuSections.length >= 2 &&
+                  menuSections.every((section) =>
+                    section instanceof HTMLElement &&
+                    section.classList.contains('orchestrator-menu-section') &&
+                    section.scrollWidth <= section.clientWidth + 2
+                  ) &&
+                  menuLabels.length >= 2 &&
+                  menuLabels.every((label) =>
+                    label instanceof HTMLElement &&
+                    label.classList.contains('orchestrator-menu-section-label') &&
+                    getComputedStyle(label).textTransform !== 'uppercase'
+                  );
                 filesActionMenuCompactWorks =
                   menuSurface instanceof HTMLElement &&
                   menuSurface.getBoundingClientRect().width <= 230 &&
@@ -3605,77 +10201,836 @@ function runAutomatedFocusedSurfaceSmoke(
                     getComputedStyle(row).transform === 'none'
                   ) &&
                   labels.includes('Add to chat') &&
+                  labels.includes('Open in Workbench') &&
                   labels.includes('Copy path') &&
                   labels.includes('Reveal file') &&
                   labels.includes('Open file');
+                filesActionMenuMaterialWorks =
+                  menuSurface instanceof HTMLElement &&
+                  menuSurfaceStyle !== null &&
+                  Number.parseFloat(menuSurfaceStyle.borderRadius || '0') >= 12 &&
+                  ((menuSurfaceStyle.backdropFilter || menuSurfaceStyle.webkitBackdropFilter || '').includes('blur')) &&
+                  menuSurfaceStyle.boxShadow !== 'none' &&
+                  Number.parseFloat(menuSurfaceStyle.borderTopWidth || '0') <= 1;
                 if (addToChat instanceof HTMLElement) addToChat.click();
                 await sleep(320);
+              }
+              const rowContextTarget = filesWorkbenchRows()
+                .find((row) => row instanceof HTMLElement && row.textContent?.includes('nested note.md'));
+              if (rowContextTarget instanceof HTMLElement) {
+                const targetRect = rowContextTarget.getBoundingClientRect();
+                rowContextTarget.dispatchEvent(new MouseEvent('contextmenu', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: targetRect.left + 24,
+                  clientY: targetRect.top + Math.min(14, Math.max(4, targetRect.height / 2))
+                }));
+                await sleep(140);
+                const rowContextMenu = document.querySelector('[data-testid="files-row-context-menu"]');
+                const rowContextSurface = rowContextMenu?.closest('.orchestrator-menu-surface');
+                const rowContextSections = rowContextMenu instanceof HTMLElement
+                  ? [...rowContextMenu.querySelectorAll('[data-menu-section="true"]')]
+                  : [];
+                const rowContextSectionLabels = rowContextMenu instanceof HTMLElement
+                  ? [...rowContextMenu.querySelectorAll('[data-menu-section-label="true"]')]
+                  : [];
+                const rowContextItems = [...document.querySelectorAll('[data-testid^="files-row-context-menu-"]')]
+                  .filter((item) => item instanceof HTMLElement);
+                const rowContextLabels = rowContextItems.map((item) => item.textContent?.trim() ?? '');
+                const contextSelectedRow = filesWorkbenchRows()
+                  .find((row) => row instanceof HTMLElement && row.getAttribute('aria-selected') === 'true');
+                filesRowContextMenuSharedSectionsWorks =
+                  rowContextSections.length >= 2 &&
+                  rowContextSections.every((section) =>
+                    section instanceof HTMLElement &&
+                    section.classList.contains('orchestrator-menu-section') &&
+                    section.scrollWidth <= section.clientWidth + 2
+                  ) &&
+                  rowContextSectionLabels.length >= 2 &&
+                  rowContextSectionLabels.every((label) =>
+                    label instanceof HTMLElement &&
+                    label.classList.contains('orchestrator-menu-section-label') &&
+                    getComputedStyle(label).textTransform !== 'uppercase'
+                  );
+                filesRowContextMenuWorks =
+                  rowContextMenu instanceof HTMLElement &&
+                  rowContextMenu.getAttribute('data-file-row-context-path') === 'Nested Folder/nested note.md' &&
+                  rowContextSurface instanceof HTMLElement &&
+                  rowContextItems.length >= 5 &&
+                  rowContextLabels.includes('Add to chat') &&
+                  rowContextLabels.includes('Open in Workbench') &&
+                  rowContextLabels.includes('Copy path') &&
+                  rowContextLabels.includes('Reveal file') &&
+                  rowContextLabels.includes('Open file') &&
+                  contextSelectedRow instanceof HTMLElement &&
+                  contextSelectedRow.textContent?.includes('nested note.md') === true;
+                filesPreferredOpenTargetWorks =
+                  rowContextTarget.getAttribute('data-open-target') === 'workbench-preview' &&
+                  rowContextTarget.getAttribute('data-kind') === 'file';
+                const copyPathMenuItem = document.querySelector('[data-testid="files-row-context-menu-copy-path"]');
+                if (copyPathMenuItem instanceof HTMLElement) {
+                  copyPathMenuItem.click();
+                  await sleep(120);
+                }
               }
               const filesTabAttachWorks =
                 [...document.querySelectorAll('.attachment-pill')]
                   .some((attachment) => attachment.textContent?.includes('nested note.md'));
               const previewChecks = {};
+              const previewHeaderChecks = {};
+              const previewControlChecks = {};
+              const previewArtifactTabChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
                 ['filesCsvPreviewWorks', 'table-preview-smoke', 'table-preview-smoke.csv', 'workspace-csv-preview'],
+                ['filesPdfPreviewWorks', 'pdf-preview-smoke', 'pdf-preview-smoke.pdf', 'workspace-pdf-preview'],
                 ['filesDocumentPreviewWorks', 'document-preview-smoke', 'document-preview-smoke.docx', 'workspace-document-preview'],
                 ['filesNotebookPreviewWorks', 'notebook-preview-smoke', 'notebook-preview-smoke.ipynb', 'workspace-notebook-preview'],
                 ['filesBinaryPreviewWorks', 'binary-preview-smoke', 'binary-preview-smoke.bin', 'workspace-binary-state']
               ];
-              for (const [key, query, fileName, testId] of previewTargets) {
-                if (fileSearch instanceof HTMLInputElement) {
-                  setNativeValue(fileSearch, query);
-                  fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              const openFilePreviewTab = async (query, fileName) => {
+                await openPanelTab('files', 'Files');
+                await sleep(160);
+                const searchInput = document.querySelector('[data-testid="workspace-file-search"]');
+                if (searchInput instanceof HTMLInputElement) {
+                  setNativeValue(searchInput, query);
+                  searchInput.dispatchEvent(new Event('input', { bubbles: true }));
                   await sleep(300);
                 }
-                const fileButton = [...document.querySelectorAll('button')]
+                const fileButton = [...document.querySelectorAll('[data-testid="files-panel-list"] [data-workbench-tree-row="true"][data-kind="file"]')]
                   .find((button) => button.textContent?.includes(fileName));
-              if (fileButton instanceof HTMLButtonElement) {
-                fileButton.click();
-                  await sleep(220);
+                if (fileButton instanceof HTMLButtonElement) {
+                  fileButton.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+                  await sleep(360);
+                }
+                return fileButton instanceof HTMLButtonElement;
+              };
+              for (const [key, query, fileName, testId] of previewTargets) {
+                const opened = await openFilePreviewTab(query, fileName);
+                for (let attempt = 0; attempt < 12 && !document.querySelector('[data-testid="' + testId + '"]'); attempt += 1) {
+                  await sleep(100);
+                }
+                previewChecks[key] = opened && Boolean(document.querySelector('[data-testid="' + testId + '"]'));
+                if (testId !== 'workspace-html-preview' && testId !== 'workspace-binary-state') {
+                  const header = document.querySelector('[data-testid="' + testId + '-header"]');
+                  const actions = document.querySelector('[data-testid="' + testId + '-actions"]');
+                  const actionButtons = [...document.querySelectorAll('[data-testid^="' + testId + '-action-"]')]
+                    .filter((button) => button instanceof HTMLElement);
+                  previewHeaderChecks[testId] =
+                    header instanceof HTMLElement &&
+                    header.getAttribute('data-panel-toolbar') === 'true' &&
+                    header.getBoundingClientRect().height <= 34;
+                  const requiresRawCopy = testId !== 'workspace-pdf-preview';
+                  previewControlChecks[testId] =
+                    actions instanceof HTMLElement &&
+                    actions.getAttribute('data-preview-controls')?.includes('copy-path') === true &&
+                    (requiresRawCopy
+                      ? actions.getAttribute('data-preview-controls')?.includes('copy-raw') === true
+                      : actions.getAttribute('data-preview-controls')?.includes('copy-raw') !== true) &&
+                    actions.getAttribute('data-preview-controls')?.includes('open-file') === true &&
+                    actions.getAttribute('data-preview-controls')?.includes('reveal-file') === true &&
+                    actionButtons.length >= (requiresRawCopy ? 4 : 3) &&
+                    actionButtons.every((button) =>
+                      button instanceof HTMLElement &&
+                      button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                      button.getBoundingClientRect().width === 24 &&
+                      button.getBoundingClientRect().height === 24
+                  );
+                  const artifactTab = document.querySelector('[data-testid="workbench-file-tab"]');
+                  const controls = actions instanceof HTMLElement
+                    ? actions.getAttribute('data-preview-controls') ?? ''
+                    : '';
+                  previewArtifactTabChecks[testId] =
+                    artifactTab instanceof HTMLElement &&
+                    artifactTab.getAttribute('data-file-tab-artifact-type') !== 'none' &&
+                    artifactTab.getAttribute('data-file-tab-artifact-import-kind') !== 'none' &&
+                    (testId === 'workspace-csv-preview'
+                      ? artifactTab.getAttribute('data-file-tab-artifact-type') === 'spreadsheet' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-import-kind') === 'csv' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'true' &&
+                        controls.includes('view-source') &&
+                        document.querySelector('[data-testid="workspace-csv-preview-action-view-source"]') instanceof HTMLElement
+                      : true) &&
+                    (testId === 'workspace-pdf-preview'
+                      ? artifactTab.getAttribute('data-file-tab-artifact-type') === 'pdf' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-import-kind') === 'pdf' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'false' &&
+                        !controls.includes('view-source') &&
+                        document.querySelector('[data-testid="workspace-pdf-preview-frame"]') instanceof HTMLElement
+                      : true) &&
+                    (testId === 'workspace-document-preview'
+                      ? artifactTab.getAttribute('data-file-tab-artifact-type') === 'document' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-import-kind') === 'docx' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'false' &&
+                        !controls.includes('view-source')
+                      : true) &&
+                    (testId === 'workspace-notebook-preview'
+                      ? artifactTab.getAttribute('data-file-tab-artifact-type') === 'notebook' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-import-kind') === 'ipynb' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'true' &&
+                        controls.includes('view-source')
+                      : true);
+                }
               }
-                previewChecks[key] = Boolean(document.querySelector('[data-testid="' + testId + '"]'));
+              const filesFallbackNotice = document.querySelector('[data-testid="workspace-binary-state"]');
+              const filesFallbackNoticeActions = filesFallbackNotice instanceof HTMLElement
+                ? [...filesFallbackNotice.querySelectorAll('.orchestrator-panel-notice-actions .motion-button')]
+                : [];
+              const filesFallbackNoticeSharedWorks =
+                filesFallbackNotice instanceof HTMLElement &&
+                filesFallbackNotice.getAttribute('data-panel-notice') === 'true' &&
+                filesFallbackNotice.getAttribute('data-file-state') === 'default' &&
+                filesFallbackNotice.classList.contains('orchestrator-panel-notice') &&
+                filesFallbackNotice.querySelector('.orchestrator-panel-notice-icon') instanceof HTMLElement &&
+                filesFallbackNotice.querySelector('.orchestrator-panel-notice-copy') instanceof HTMLElement &&
+                filesFallbackNotice.querySelector('.orchestrator-panel-notice-code') instanceof HTMLElement &&
+                filesFallbackNotice.querySelector('.orchestrator-panel-notice-actions') instanceof HTMLElement &&
+                filesFallbackNoticeActions.length === 2 &&
+                filesFallbackNoticeActions.every((button) => button.classList.contains('file-fallback-action'));
+              await openPanelTab('files', 'Files');
+              await sleep(160);
+              const contentSearch = document.querySelector('[data-testid="workspace-file-search"]');
+              if (contentSearch instanceof HTMLInputElement) {
+                setNativeValue(contentSearch, 'content-only sentinel phrase');
+                contentSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(420);
               }
-              if (fileSearch instanceof HTMLInputElement) {
-                setNativeValue(fileSearch, 'does-not-exist');
-                fileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+              const contentSearchRow = [...document.querySelectorAll('[data-testid="files-panel-list"] [data-workbench-tree-row="true"][data-kind="file"]')]
+                .find((row) => row instanceof HTMLElement && row.textContent?.includes('reference.md'));
+              filesContentSearchWorks =
+                contentSearchRow instanceof HTMLElement &&
+                contentSearchRow.getAttribute('data-search-match-kind') === 'content' &&
+                contentSearchRow.getAttribute('data-search-match-line') === '3' &&
+                contentSearchRow.textContent?.includes('L3') === true &&
+                contentSearch instanceof HTMLInputElement &&
+                contentSearch.value === 'content-only sentinel phrase';
+              await openPanelTab('files', 'Files');
+              await sleep(160);
+              const noResultsSearch = document.querySelector('[data-testid="workspace-file-search"]');
+              if (noResultsSearch instanceof HTMLInputElement) {
+                setNativeValue(noResultsSearch, 'does-not-exist');
+                noResultsSearch.dispatchEvent(new Event('input', { bubbles: true }));
                 await sleep(300);
               }
-              const filesNoResultsWorks = document.body.innerText.includes('No matching files');
+	              const filesNoResultsState = document.querySelector('[data-testid="workspace-file-empty-list"]');
+	              const filesNoResultsWorks =
+	                filesNoResultsState instanceof HTMLElement &&
+	                filesNoResultsState.innerText.includes('No matching files') &&
+	                filesNoResultsState.getAttribute('data-workbench-tree-message') === 'true' &&
+	                filesNoResultsState.getAttribute('data-workbench-tree-message-state') === 'no-matches' &&
+	                filesNoResultsState.querySelector('svg') === null;
               const clearButton = document.querySelector('[data-testid="workspace-file-search-clear"]');
               if (clearButton instanceof HTMLButtonElement) {
                 clearButton.click();
                 await sleep(100);
               }
-              const bodyRect = filesBody instanceof HTMLElement ? filesBody.getBoundingClientRect() : null;
-              const listRect = filesList instanceof HTMLElement ? filesList.getBoundingClientRect() : null;
-              const previewRect = filesPreview instanceof HTMLElement ? filesPreview.getBoundingClientRect() : null;
+              const clearedFileSearch = document.querySelector('[data-testid="workspace-file-search"]');
+              const filesSearchClearWorks =
+                clearedFileSearch instanceof HTMLInputElement &&
+                clearedFileSearch.value === '' &&
+                !document.querySelector('[data-testid="workspace-file-search-clear"]');
+              await sleep(260);
+              const lazyFilesList = document.querySelector('[data-testid="files-panel-list"]');
+              const collapsedStickyFolderRow = filesWorkbenchRows()
+                .find((row) => row instanceof HTMLElement && row.textContent?.includes('Sticky Folder') && row.getAttribute('data-kind') === 'directory');
+              const lazyNestedFilesHidden = !filesWorkbenchRows()
+                .some((row) =>
+                  row instanceof HTMLElement &&
+                  (row.textContent?.includes('nested note.md') === true ||
+                    row.textContent?.includes('sticky-file-01.txt') === true)
+                );
+              const stickyFolderInitiallyCollapsed =
+                collapsedStickyFolderRow instanceof HTMLElement &&
+                collapsedStickyFolderRow.getAttribute('aria-expanded') === 'false' &&
+                collapsedStickyFolderRow.getAttribute('data-expanded') === 'false';
+              if (collapsedStickyFolderRow instanceof HTMLElement) {
+                collapsedStickyFolderRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+                await sleep(420);
+              }
+              const expandedStickyFolderRow = filesWorkbenchRows()
+                .find((row) => row instanceof HTMLElement && row.textContent?.includes('Sticky Folder') && row.getAttribute('data-kind') === 'directory');
+              const stickyChildRow = filesWorkbenchRows()
+                .find((row) => row instanceof HTMLElement && row.textContent?.includes('sticky-file-01.txt') && row.getAttribute('data-kind') === 'file');
+              const filesLazyDirectoriesWorks =
+                lazyFilesList instanceof HTMLElement &&
+                lazyFilesList.getAttribute('data-lazy-directories') === 'true' &&
+                (lazyFilesList.getAttribute('data-workbench-tree-host') ?? '').endsWith('/orchestrator-automated-ui-workspace') &&
+                stickyFolderInitiallyCollapsed &&
+                lazyNestedFilesHidden &&
+                expandedStickyFolderRow instanceof HTMLElement &&
+                expandedStickyFolderRow.getAttribute('aria-expanded') === 'true' &&
+                expandedStickyFolderRow.getAttribute('data-expanded') === 'true' &&
+                stickyChildRow instanceof HTMLElement &&
+                Number(stickyChildRow.getAttribute('data-row-index') ?? '-1') >
+                  Number(expandedStickyFolderRow.getAttribute('data-row-index') ?? '-1');
+              const stickyFilesList = document.querySelector('[data-testid="files-panel-list"]');
+              if (stickyFilesList instanceof HTMLElement) {
+                stickyFilesList.scrollTop = 900;
+                stickyFilesList.dispatchEvent(new Event('scroll', { bubbles: true }));
+                await sleep(160);
+              }
+              const stickyFolderRow = document.querySelector('[data-testid="files-panel-list"] [data-sticky-row="true"]');
+              const stickyFolderRect = stickyFolderRow instanceof HTMLElement ? stickyFolderRow.getBoundingClientRect() : null;
+              const stickyListRect = stickyFilesList instanceof HTMLElement ? stickyFilesList.getBoundingClientRect() : null;
+              const filesStickyFoldersWorks =
+                stickyFilesList instanceof HTMLElement &&
+                stickyFilesList.getAttribute('data-sticky-directories') === 'true' &&
+                stickyFilesList.getAttribute('data-virtualized') === 'true' &&
+                stickyFolderRow instanceof HTMLElement &&
+                stickyFolderRow.textContent?.includes('Sticky Folder') === true &&
+                stickyFolderRow.getAttribute('data-kind') === 'directory' &&
+                stickyFolderRect !== null &&
+                stickyListRect !== null &&
+                Math.abs(stickyFolderRect.top - stickyListRect.top - 2) <= 6;
+              const workbenchSearch = document.querySelector('[data-testid="workspace-file-search"]');
+              if (workbenchSearch instanceof HTMLInputElement) {
+                setNativeValue(workbenchSearch, 'nested note');
+                workbenchSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(300);
+              }
+              const workbenchFileButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('nested note.md'));
+              if (workbenchFileButton instanceof HTMLButtonElement) {
+                workbenchFileButton.click();
+                await sleep(160);
+              }
+              const workbenchFileActionButton = findButton('File actions');
+              if (workbenchFileActionButton instanceof HTMLButtonElement) {
+                workbenchFileActionButton.click();
+                await sleep(120);
+                const openWorkbench = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Open in Workbench'));
+                if (openWorkbench instanceof HTMLElement) {
+                  openWorkbench.click();
+                  await sleep(420);
+                  const fileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+                  const fileTabToolbar = document.querySelector('[data-testid="workbench-file-tab-toolbar"]');
+                  const openTargetBadge = document.querySelector('[data-testid="workbench-file-tab-open-target"]');
+                  const fileTabToolbarActions = fileTabToolbar instanceof HTMLElement
+                    ? [...fileTabToolbar.querySelectorAll('.motion-icon-button')]
+                      .filter((button) => button instanceof HTMLElement)
+                    : [];
+                  const visibleFileTabToolbarActions = fileTabToolbarActions.filter((button) => {
+                    const rect = button.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 && getComputedStyle(button).display !== 'none';
+                  });
+                  const fileTabButton = document.querySelector('[data-tab-id^="file:"]')?.closest('[role="tab"]');
+                  const pinFileTabButton = findButton('Pin file tab');
+                  const fileTabActionMenuButton = document.querySelector('[data-testid="workbench-file-tab-actions-menu"]');
+                  workbenchFileTabWorks =
+                    fileTab instanceof HTMLElement &&
+                    fileTab.getAttribute('data-file-tab-host')?.endsWith('/orchestrator-automated-ui-workspace') === true &&
+                    fileTab.getAttribute('data-file-tab-path') === 'Nested Folder/nested note.md' &&
+                    fileTab.getAttribute('data-file-tab-preview') === 'true' &&
+                    fileTab.getAttribute('data-file-tab-open-target') === 'cursor' &&
+                    openTargetBadge instanceof HTMLElement &&
+                    openTargetBadge.getAttribute('data-open-target') === 'cursor' &&
+                    openTargetBadge.textContent?.includes('Open in Cursor') === true &&
+                    fileTabToolbar instanceof HTMLElement &&
+                    fileTabToolbar.getAttribute('data-panel-toolbar') === 'true' &&
+                    fileTabToolbarActions.length >= 8 &&
+                    visibleFileTabToolbarActions.length >= 3 &&
+                    visibleFileTabToolbarActions.every((button) =>
+                      button instanceof HTMLElement &&
+                      button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                      button.getBoundingClientRect().width === 24 &&
+                      button.getBoundingClientRect().height === 24
+                    ) &&
+                    fileTabButton instanceof HTMLElement &&
+                    /^file:[^:]+:.+/.test(fileTabButton.getAttribute('data-tab-id') ?? '') &&
+                    fileTabButton.getAttribute('data-preview') === 'true' &&
+                    pinFileTabButton instanceof HTMLButtonElement;
+                  if (fileTabActionMenuButton instanceof HTMLButtonElement) {
+                    fileTabActionMenuButton.click();
+                    await sleep(120);
+                    const fileTabActionSurface = document.querySelector('.file-tab-actions-menu-surface');
+                    const fileTabActionSections = fileTabActionSurface instanceof HTMLElement
+                      ? [...fileTabActionSurface.querySelectorAll('[data-menu-section="true"]')]
+                      : [];
+                    const fileTabActionLabels = fileTabActionSurface instanceof HTMLElement
+                      ? [...fileTabActionSurface.querySelectorAll('[data-menu-section-label="true"]')]
+                      : [];
+                    const fileTabActionItems = fileTabActionSurface instanceof HTMLElement
+                      ? [...fileTabActionSurface.querySelectorAll('[role="menuitem"]')]
+                      : [];
+                    const fileTabActionText = fileTabActionItems.map((item) => item.textContent?.trim() ?? '');
+                    workbenchFileTabActionMenuSharedSectionsWorks =
+                      fileTabActionSurface instanceof HTMLElement &&
+                      fileTabActionSections.length >= 4 &&
+                      fileTabActionSections.every((section) =>
+                        section instanceof HTMLElement &&
+                        section.classList.contains('orchestrator-menu-section') &&
+                        section.scrollWidth <= section.clientWidth + 2
+                      ) &&
+                      fileTabActionLabels.length >= 4 &&
+                      fileTabActionLabels.every((label) =>
+                        label instanceof HTMLElement &&
+                        label.classList.contains('orchestrator-menu-section-label') &&
+                        getComputedStyle(label).textTransform !== 'uppercase'
+                      ) &&
+                      fileTabActionText.includes('Pin file tab') &&
+                      fileTabActionText.includes('Add file to chat') &&
+                      fileTabActionText.includes('Show source') &&
+                      fileTabActionText.includes('Show git blame') &&
+                      fileTabActionText.includes('Reveal selected line') &&
+                      fileTabActionSurface.scrollWidth <= fileTabActionSurface.clientWidth + 2;
+                    fileTabActionMenuButton.click();
+                    await sleep(80);
+                  }
+                  const richPreviewBeforeSource = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-markdown-preview"]');
+                  const sourceModeButton = document.querySelector('[data-testid="workbench-file-tab-source-mode"]');
+                  if (sourceModeButton instanceof HTMLButtonElement) {
+                    sourceModeButton.click();
+                    await sleep(180);
+                  }
+                  const sourceModeFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+                  const sourcePreviewAfterToggle = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+                  fileSourceModeWorks =
+                    richPreviewBeforeSource instanceof HTMLElement &&
+                    sourceModeButton instanceof HTMLButtonElement &&
+                    sourceModeButton.disabled === false &&
+                    sourceModeFileTab instanceof HTMLElement &&
+                    sourceModeFileTab.getAttribute('data-file-tab-view-mode') === 'source' &&
+                    sourcePreviewAfterToggle instanceof HTMLElement &&
+                    sourcePreviewAfterToggle.innerText.includes('Nested file smoke preview');
+                  if (pinFileTabButton instanceof HTMLButtonElement) {
+                    pinFileTabButton.click();
+                    await sleep(140);
+                  }
+                  workbenchFileTabPinWorks =
+                    fileTabButton instanceof HTMLElement &&
+                    fileTabButton.getAttribute('data-preview') === 'false' &&
+                    !findButton('Pin file tab');
+                }
+              }
+              await openPanelTab('files', 'Files');
+              await sleep(160);
+              const sourceFileSearch = document.querySelector('[data-testid="workspace-file-search"]');
+              if (sourceFileSearch instanceof HTMLInputElement) {
+                setNativeValue(sourceFileSearch, 'review-base');
+                sourceFileSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(300);
+              }
+              const sourceFileButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('review-base.txt'));
+              if (sourceFileButton instanceof HTMLButtonElement) {
+                sourceFileButton.click();
+                await sleep(160);
+              }
+              const sourceFileActionButton = findButton('File actions');
+              if (sourceFileActionButton instanceof HTMLButtonElement) {
+                sourceFileActionButton.click();
+                await sleep(120);
+                const openWorkbench = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Open in Workbench'));
+                if (openWorkbench instanceof HTMLElement) {
+                  openWorkbench.click();
+                  await sleep(420);
+                }
+              }
+              const sourceLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-number="2"]');
+              if (sourceLine instanceof HTMLElement) {
+                sourceLine.click();
+                await sleep(120);
+              }
+              const sourcePreview = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const selectedSourceLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-selected="true"]');
+              fileSourceLineSelectionWorks =
+                sourcePreview instanceof HTMLElement &&
+                sourcePreview.getAttribute('data-source-selected-line') === '2' &&
+                selectedSourceLine instanceof HTMLElement &&
+                selectedSourceLine.getAttribute('data-source-line-number') === '2' &&
+                selectedSourceLine.getAttribute('aria-selected') === 'true';
+              await sleep(320);
+              const lineBlame = document.querySelector('[data-testid="workbench-file-tab-line-blame"]');
+              fileSourceLineBlameWorks =
+                lineBlame instanceof HTMLElement &&
+                lineBlame.getAttribute('data-line-blame-ok') === 'true' &&
+                lineBlame.getAttribute('data-line-blame-author') === 'Not Committed Yet' &&
+                lineBlame.getAttribute('data-line-blame-source') === 'working-tree' &&
+                lineBlame.textContent?.includes('L2') === true &&
+                lineBlame.textContent?.includes('Not Committed Yet') === true &&
+                lineBlame.textContent?.includes('Working tree') === true;
+              const blameToggle = document.querySelector('[data-testid="workbench-file-tab-toggle-blame"]');
+              const sourceFileTabBeforeBlameToggle = document.querySelector('[data-testid="workbench-file-tab"]');
+              if (
+                blameToggle instanceof HTMLButtonElement &&
+                sourceFileTabBeforeBlameToggle instanceof HTMLElement &&
+                sourceFileTabBeforeBlameToggle.getAttribute('data-file-tab-source-blame-visible') !== 'true'
+              ) {
+                blameToggle.click();
+                await sleep(420);
+              }
+              const sourceFileTabAfterBlameToggle = document.querySelector('[data-testid="workbench-file-tab"]');
+              const blameDetails = document.querySelector('[data-testid="workspace-source-blame-details"]');
+              const sourceGutterBlames = [...document.querySelectorAll('[data-testid="workbench-file-tab"] [data-testid="workspace-source-gutter-blame"]')]
+                .filter((node) => node instanceof HTMLElement);
+              const selectedSourceGutterBlame = document.querySelector('[data-testid="workbench-file-tab"] [data-source-gutter-blame-line="2"]');
+              const selectedSourceGutterBlameBox = selectedSourceGutterBlame instanceof HTMLElement
+                ? selectedSourceGutterBlame.getBoundingClientRect()
+                : null;
+              const fileSourceBlameDetailsWorks =
+                blameToggle instanceof HTMLButtonElement &&
+                sourceFileTabAfterBlameToggle instanceof HTMLElement &&
+                sourceFileTabAfterBlameToggle.getAttribute('data-file-tab-source-blame-visible') === 'true' &&
+                blameDetails instanceof HTMLElement &&
+                blameDetails.getAttribute('data-source-blame-line') === '2' &&
+                blameDetails.getAttribute('data-source-blame-ok') === 'true' &&
+                blameDetails.getAttribute('data-source-blame-author') === 'Not Committed Yet' &&
+                blameDetails.getAttribute('data-source-blame-source') === 'working-tree' &&
+                blameDetails.getAttribute('data-source-blame-commit') === 'Working tree' &&
+                blameDetails.textContent?.includes('Author') === true &&
+                blameDetails.textContent?.includes('Commit') === true &&
+                blameDetails.textContent?.includes('Date') === true;
+              const fileSourceGutterBlameWorks =
+                fileSourceBlameDetailsWorks &&
+                sourceFileTabAfterBlameToggle instanceof HTMLElement &&
+                Number(sourceFileTabAfterBlameToggle.getAttribute('data-file-tab-source-blame-loaded-count') ?? '0') >= 2 &&
+                Number(sourceFileTabAfterBlameToggle.getAttribute('data-file-tab-source-blame-line-count') ?? '0') >= 2 &&
+                selectedSourceGutterBlame instanceof HTMLElement &&
+                selectedSourceGutterBlame.closest('.workspace-source-gutter') instanceof HTMLElement &&
+                selectedSourceGutterBlame.getAttribute('data-source-gutter-blame-line') === '2' &&
+                selectedSourceGutterBlame.getAttribute('data-source-gutter-blame-source') === 'working-tree' &&
+                selectedSourceGutterBlame.getAttribute('data-source-gutter-blame-author') === 'Not Committed Yet' &&
+                selectedSourceGutterBlame.getAttribute('data-source-gutter-blame-commit') === 'Working tree' &&
+                selectedSourceGutterBlame.textContent?.trim() === 'WT' &&
+                sourceGutterBlames.length >= 2 &&
+                sourceGutterBlames.every((node) => node.closest('.workspace-source-gutter') instanceof HTMLElement) &&
+                selectedSourceGutterBlameBox !== null &&
+                selectedSourceGutterBlameBox.width <= 24 &&
+                selectedSourceGutterBlameBox.height <= 14;
+              const inlineLineActions = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-actions"]');
+              const inlineCopyLineButton = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-action-copy"]');
+              const inlineOpenLineButton = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-action-open"]');
+              const inlineBlame = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-action-blame"]');
+              if (inlineCopyLineButton instanceof HTMLButtonElement) {
+                inlineCopyLineButton.click();
+                await sleep(120);
+              }
+              const sourceFileTabAfterInlineCopy = document.querySelector('[data-testid="workbench-file-tab"]');
+              const fileSourceInlineGutterUtilitiesWorks =
+                inlineLineActions instanceof HTMLElement &&
+                inlineLineActions.getAttribute('data-source-line-actions-for') === '2' &&
+                inlineCopyLineButton instanceof HTMLButtonElement &&
+                inlineOpenLineButton instanceof HTMLButtonElement &&
+                inlineCopyLineButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                inlineOpenLineButton.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                inlineBlame instanceof HTMLElement &&
+                inlineBlame.getAttribute('data-source-line-action-blame-source') === 'working-tree' &&
+                inlineBlame.textContent?.includes('Working tree') === true &&
+                sourceFileTabAfterInlineCopy instanceof HTMLElement &&
+                sourceFileTabAfterInlineCopy.getAttribute('data-file-tab-copied-line-reference') === 'review-base.txt:2';
+              const sourceFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+              const copySelectedLineButton = document.querySelector('[data-testid="workbench-file-tab-copy-line"]');
+              const openSelectedLineButton = document.querySelector('[data-testid="workbench-file-tab-open-line"]');
+              if (copySelectedLineButton instanceof HTMLButtonElement) {
+                copySelectedLineButton.click();
+                await sleep(120);
+              }
+              const sourceFileTabAfterCopy = document.querySelector('[data-testid="workbench-file-tab"]');
+              fileSourceLineUtilitiesWorks =
+                sourceFileTab instanceof HTMLElement &&
+                sourceFileTab.getAttribute('data-file-tab-selected-source-line') === '2' &&
+                sourceFileTabAfterCopy instanceof HTMLElement &&
+                sourceFileTabAfterCopy.getAttribute('data-file-tab-copied-line-reference') === 'review-base.txt:2' &&
+                copySelectedLineButton instanceof HTMLButtonElement &&
+                openSelectedLineButton instanceof HTMLButtonElement &&
+                copySelectedLineButton.disabled === false &&
+                openSelectedLineButton.disabled === false;
+              const inlineCommentButton = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-source-line-action-comment"]');
+              if (inlineCommentButton instanceof HTMLButtonElement) {
+                inlineCommentButton.click();
+                await sleep(140);
+              }
+              const annotationInput = document.querySelector('[data-testid="workspace-source-annotation-input"]');
+              if (annotationInput instanceof HTMLTextAreaElement) {
+                setNativeValue(annotationInput, 'review note from smoke');
+                annotationInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(120);
+              }
+              const annotationSave = document.querySelector('[data-testid="workspace-source-annotation-save"]');
+              if (annotationSave instanceof HTMLButtonElement) {
+                annotationSave.click();
+                await sleep(160);
+              }
+              const sourceFileTabAfterAnnotation = document.querySelector('[data-testid="workbench-file-tab"]');
+              const sourcePreviewAfterAnnotation = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const annotatedSourceLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-number="2"]');
+              const annotationSlot = document.querySelector('[data-testid="workspace-source-line-annotation-slot"]');
+              const annotationCard = document.querySelector('[data-testid="workspace-source-annotation-card"]');
+              const annotationBody = document.querySelector('[data-testid="workspace-source-annotation-body"]');
+              const fileSourceAnnotationsWorks =
+                inlineCommentButton instanceof HTMLButtonElement &&
+                sourceFileTabAfterAnnotation instanceof HTMLElement &&
+                sourceFileTabAfterAnnotation.getAttribute('data-file-tab-source-annotation-count') === '1' &&
+                sourcePreviewAfterAnnotation instanceof HTMLElement &&
+                sourcePreviewAfterAnnotation.getAttribute('data-source-annotation-count') === '1' &&
+                annotatedSourceLine instanceof HTMLElement &&
+                annotatedSourceLine.getAttribute('data-source-line-number') === '2' &&
+                annotatedSourceLine.getAttribute('data-source-line-has-annotation') === 'true' &&
+                annotationSlot instanceof HTMLElement &&
+                annotationSlot.getAttribute('data-source-line-annotation-for') === '2' &&
+                annotationCard instanceof HTMLElement &&
+                annotationCard.getAttribute('data-source-annotation-line') === '2' &&
+                annotationCard.getAttribute('data-source-annotation-status') === 'saved' &&
+                annotationBody instanceof HTMLElement &&
+                annotationBody.textContent?.includes('review note from smoke') === true;
+              const sourceWrapToggle = document.querySelector('[data-testid="workbench-file-tab-wrap-source"]');
+              const sourceWrapBefore = sourcePreview instanceof HTMLElement
+                ? sourcePreview.getAttribute('data-source-wrap') ?? ''
+                : '';
+              if (sourceWrapToggle instanceof HTMLButtonElement) {
+                sourceWrapToggle.click();
+                await sleep(120);
+              }
+              const sourcePreviewAfterWrap = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              fileSourceWrapToggleWorks =
+                sourceWrapToggle instanceof HTMLButtonElement &&
+                sourceWrapBefore === 'true' &&
+                sourcePreviewAfterWrap instanceof HTMLElement &&
+                sourcePreviewAfterWrap.getAttribute('data-source-wrap') === 'false';
+              await openPanelTab('files', 'Files');
+              await sleep(160);
+              const reviewBaseFileTabButton = [...document.querySelectorAll('[role="tab"][data-tab-id^="file:"]')]
+                .find((button) => button instanceof HTMLElement && button.textContent?.includes('review-base.txt'));
+              if (reviewBaseFileTabButton instanceof HTMLElement) {
+                reviewBaseFileTabButton.click();
+                await sleep(180);
+              }
+              const persistedSourceFileTab = document.querySelector('[data-testid="workbench-file-tab"]');
+              const persistedSourcePreview = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const persistedSelectedLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-selected="true"]');
+              const fileSourceTabStateWorks =
+                reviewBaseFileTabButton instanceof HTMLElement &&
+                persistedSourceFileTab instanceof HTMLElement &&
+                persistedSourceFileTab.getAttribute('data-file-tab-path') === 'review-base.txt' &&
+                persistedSourceFileTab.getAttribute('data-file-tab-selected-source-line') === '2' &&
+                persistedSourcePreview instanceof HTMLElement &&
+                persistedSourcePreview.getAttribute('data-source-selected-line') === '2' &&
+                persistedSourcePreview.getAttribute('data-source-wrap') === 'false' &&
+                persistedSelectedLine instanceof HTMLElement &&
+                persistedSelectedLine.getAttribute('data-source-line-number') === '2';
+              const sourceSearchInput = document.querySelector('[data-testid="workbench-file-tab-source-search"]');
+              if (sourceSearchInput instanceof HTMLInputElement) {
+                setNativeValue(sourceSearchInput, 'review');
+                sourceSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(180);
+              }
+              const sourceSearchCount = document.querySelector('[data-testid="workbench-file-tab-source-search-count"]');
+              const sourceSearchNext = document.querySelector('[data-testid="workbench-file-tab-source-search-next"]');
+              const sourcePreviewAfterSearch = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const sourceSearchCountBeforeNext = sourceSearchCount instanceof HTMLElement ? sourceSearchCount.textContent ?? '' : '';
+              const sourceSearchActiveLineBeforeNext = sourcePreviewAfterSearch?.getAttribute('data-source-search-active-line') ?? '';
+              const firstSearchActiveRow = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-search-active="true"]');
+              const firstSearchActiveRowNumber = firstSearchActiveRow instanceof HTMLElement
+                ? firstSearchActiveRow.getAttribute('data-source-line-number') ?? ''
+                : '';
+              if (sourceSearchNext instanceof HTMLButtonElement) {
+                sourceSearchNext.click();
+                await sleep(180);
+              }
+              const sourceFileTabAfterSearchNext = document.querySelector('[data-testid="workbench-file-tab"]');
+              const sourcePreviewAfterSearchNext = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const secondSearchActiveRow = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-search-active="true"]');
+              const sourceSearchClear = document.querySelector('[data-testid="workbench-file-tab-source-search-clear"]');
+              const fileSourceSearchWorks =
+                sourceSearchInput instanceof HTMLInputElement &&
+                sourceSearchCount instanceof HTMLElement &&
+                sourceSearchCountBeforeNext === '1/2' &&
+                sourcePreviewAfterSearch instanceof HTMLElement &&
+                sourcePreviewAfterSearch.getAttribute('data-source-search-query') === 'review' &&
+                sourcePreviewAfterSearch.getAttribute('data-source-search-match-count') === '2' &&
+                sourceSearchActiveLineBeforeNext === '1' &&
+                firstSearchActiveRow instanceof HTMLElement &&
+                firstSearchActiveRowNumber === '1' &&
+                sourceSearchNext instanceof HTMLButtonElement &&
+                sourceSearchNext.disabled === false &&
+                sourceFileTabAfterSearchNext instanceof HTMLElement &&
+                sourceFileTabAfterSearchNext.getAttribute('data-file-tab-source-search-query') === 'review' &&
+                sourceFileTabAfterSearchNext.getAttribute('data-file-tab-source-search-count') === '2' &&
+                sourceFileTabAfterSearchNext.getAttribute('data-file-tab-source-search-index') === '2' &&
+                sourceFileTabAfterSearchNext.getAttribute('data-file-tab-source-search-active-line') === '2' &&
+                sourcePreviewAfterSearchNext instanceof HTMLElement &&
+                sourcePreviewAfterSearchNext.getAttribute('data-source-search-active-line') === '2' &&
+                secondSearchActiveRow instanceof HTMLElement &&
+                secondSearchActiveRow.getAttribute('data-source-line-number') === '2' &&
+                sourceSearchClear instanceof HTMLButtonElement;
+              await openPanelTab('files', 'Files');
+              await sleep(160);
+              const largeSourceSearch = document.querySelector('[data-testid="workspace-file-search"]');
+              if (largeSourceSearch instanceof HTMLInputElement) {
+                setNativeValue(largeSourceSearch, 'large-source');
+                largeSourceSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(300);
+              }
+              const largeSourceButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('large-source-smoke.txt'));
+              if (largeSourceButton instanceof HTMLButtonElement) {
+                largeSourceButton.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+                await sleep(420);
+              }
+              const largeSourcePreview = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const initialLargeRenderCount = Number(largeSourcePreview?.getAttribute('data-source-render-count') ?? '0');
+              if (largeSourcePreview instanceof HTMLElement) {
+                largeSourcePreview.scrollTop = 22000;
+                largeSourcePreview.dispatchEvent(new Event('scroll', { bubbles: true }));
+                await sleep(180);
+              }
+              const largeSourcePreviewAfterScroll = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const scrolledLargeRenderStart = Number(largeSourcePreviewAfterScroll?.getAttribute('data-source-render-start') ?? '0');
+              const scrolledLargeRenderEnd = Number(largeSourcePreviewAfterScroll?.getAttribute('data-source-render-end') ?? '0');
+              const renderedLargeLines = [...document.querySelectorAll('[data-testid="workbench-file-tab"] [data-source-line-number]')]
+                .filter((line) => line instanceof HTMLElement);
+              const fileSourceVirtualizationWorks =
+                largeSourceButton instanceof HTMLButtonElement &&
+                largeSourcePreview instanceof HTMLElement &&
+                largeSourcePreview.getAttribute('data-source-virtualized') === 'true' &&
+                largeSourcePreview.getAttribute('data-source-total-lines') === '1800' &&
+                initialLargeRenderCount > 0 &&
+                initialLargeRenderCount < 1800 &&
+                largeSourcePreviewAfterScroll instanceof HTMLElement &&
+                scrolledLargeRenderStart > 1 &&
+                scrolledLargeRenderEnd < 1801 &&
+                renderedLargeLines.length > 0 &&
+                renderedLargeLines.length < 1800;
+              const revealCandidateLine = renderedLargeLines[Math.min(8, Math.max(0, renderedLargeLines.length - 1))];
+              const revealLineNumber = revealCandidateLine instanceof HTMLElement
+                ? revealCandidateLine.getAttribute('data-source-line-number') ?? ''
+                : '';
+              if (revealCandidateLine instanceof HTMLElement) {
+                revealCandidateLine.click();
+                await sleep(120);
+              }
+              if (largeSourcePreviewAfterScroll instanceof HTMLElement) {
+                largeSourcePreviewAfterScroll.scrollTop = 0;
+                largeSourcePreviewAfterScroll.dispatchEvent(new Event('scroll', { bubbles: true }));
+                await sleep(180);
+              }
+              const largeRevealButton = document.querySelector('[data-testid="workbench-file-tab-reveal-line"]');
+              if (largeRevealButton instanceof HTMLButtonElement) {
+                largeRevealButton.click();
+                await sleep(220);
+              }
+              const largePreviewAfterReveal = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const revealedLargeLine = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-revealed="true"]');
+              const revealRenderStart = Number(largePreviewAfterReveal?.getAttribute('data-source-render-start') ?? '0');
+              const revealRenderEnd = Number(largePreviewAfterReveal?.getAttribute('data-source-render-end') ?? '0');
+              const revealLine = Number(revealLineNumber || '0');
+              const fileSourceRevealSelectedLineWorks =
+                largeRevealButton instanceof HTMLButtonElement &&
+                revealLine > 1 &&
+                largePreviewAfterReveal instanceof HTMLElement &&
+                largePreviewAfterReveal.getAttribute('data-source-revealed-line') === revealLineNumber &&
+                largePreviewAfterReveal.getAttribute('data-source-reveal-visible') === 'true' &&
+                revealRenderStart <= revealLine &&
+                revealRenderEnd >= revealLine &&
+                revealedLargeLine instanceof HTMLElement &&
+                revealedLargeLine.getAttribute('data-source-line-number') === revealLineNumber &&
+                revealedLargeLine.getAttribute('data-source-line-selected') === 'true';
+              await openPanelTab('files', 'Files');
+              await sleep(160);
+              const loadingSourceSearch = document.querySelector('[data-testid="workspace-file-search"]');
+              if (loadingSourceSearch instanceof HTMLInputElement) {
+                setNativeValue(loadingSourceSearch, 'loading-source');
+                loadingSourceSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(300);
+              }
+              const loadingSourceButton = [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('loading-source-smoke.txt'));
+              let observedLoadingState = false;
+              let observedLoadingText = '';
+              let observedTabLoading = '';
+              let observedPreviewLoading = '';
+              const loadingObserver = new MutationObserver(() => {
+                const tab = document.querySelector('[data-testid="workbench-file-tab"]');
+                const preview = document.querySelector('[data-testid="workbench-file-tab-preview"]');
+                const state = document.querySelector('[data-testid="workspace-file-loading-state"]');
+                if (state instanceof HTMLElement) {
+                  observedLoadingState = true;
+                  observedLoadingText = state.textContent ?? '';
+                  observedTabLoading = tab instanceof HTMLElement ? tab.getAttribute('data-file-tab-loading') ?? '' : '';
+                  observedPreviewLoading = preview instanceof HTMLElement ? preview.getAttribute('data-file-preview-loading') ?? '' : '';
+                }
+              });
+              loadingObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
+              if (loadingSourceButton instanceof HTMLButtonElement) {
+                loadingSourceButton.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+                await sleep(520);
+              }
+              loadingObserver.disconnect();
+              const loadedPreview = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
+              const fileSourceLoadingStateWorks =
+                loadingSourceButton instanceof HTMLButtonElement &&
+                observedLoadingState &&
+                observedTabLoading === 'true' &&
+                observedPreviewLoading === 'true' &&
+                observedLoadingText.includes('Loading file...') &&
+                loadedPreview instanceof HTMLElement &&
+                loadedPreview.textContent?.includes('loaded preview') === true;
               return {
                 profile,
                 filesToolbarCompactWorks:
                   filesToolbar instanceof HTMLElement &&
+                  filesToolbar.getAttribute('data-panel-toolbar') === 'true' &&
                   fileSearch instanceof HTMLInputElement &&
                   filesToolbar.getBoundingClientRect().height <= 38 &&
                   filesToolbar.scrollWidth <= filesToolbar.clientWidth + 2,
-                filesPanelStackedWorks:
-                  filesBody instanceof HTMLElement &&
-                  filesList instanceof HTMLElement &&
-                  filesPreview instanceof HTMLElement &&
-                  bodyRect !== null &&
-                  listRect !== null &&
-                  previewRect !== null &&
-                  previewRect.top >= listRect.bottom - 2 &&
-                  filesBody.scrollWidth <= filesBody.clientWidth + 2,
+                filesFileTabFirstLayoutWorks,
+                filesWorkbenchTreeWorks,
+                filesWorkbenchTreeNativeTitleFreeWorks,
+                filesSearchProjectionWorks,
+                filesRevealSelectedPathWorks,
+                filesLazyDirectoriesWorks,
+                filesStickyFoldersWorks,
                 filesActionMenuCompactWorks,
+                filesActionMenuMaterialWorks,
+                filesActionMenuSharedSectionsWorks,
+                filesRowContextMenuWorks,
+                filesRowContextMenuSharedSectionsWorks,
+                filesPreferredOpenTargetWorks,
+                workbenchFileTabWorks,
+                workbenchFileTabPinWorks,
+                workbenchFileTabActionMenuSharedSectionsWorks,
+                fileOpenTargetDiagnosticWorks: workbenchFileTabWorks,
+                fileSourceLineSelectionWorks,
+                fileSourceLineUtilitiesWorks,
+                fileSourceLineBlameWorks,
+                fileSourceBlameDetailsWorks,
+                fileSourceGutterBlameWorks,
+                fileSourceInlineGutterUtilitiesWorks,
+                fileSourceAnnotationsWorks,
+                fileSourceWrapToggleWorks,
+                fileSourceTabStateWorks,
+                fileSourceSearchWorks,
+                fileSourceVirtualizationWorks,
+                fileSourceRevealSelectedLineWorks,
+                fileSourceLoadingStateWorks,
+                fileSourceModeWorks,
                 filesTabSearchWorks,
+                filesContentSearchWorks,
                 filesTabAttachWorks,
                 ...previewChecks,
+                filesPreviewHeaderSharedWorks:
+                  Boolean(previewHeaderChecks['workspace-json-preview']) &&
+                  Boolean(previewHeaderChecks['workspace-csv-preview']) &&
+                  Boolean(previewHeaderChecks['workspace-pdf-preview']) &&
+                  Boolean(previewHeaderChecks['workspace-document-preview']) &&
+                  Boolean(previewHeaderChecks['workspace-notebook-preview']),
+                filesArtifactPreviewControlsWorks:
+                  Boolean(previewControlChecks['workspace-json-preview']) &&
+                  Boolean(previewControlChecks['workspace-csv-preview']) &&
+                  Boolean(previewControlChecks['workspace-pdf-preview']) &&
+                  Boolean(previewControlChecks['workspace-document-preview']) &&
+                  Boolean(previewControlChecks['workspace-notebook-preview']),
+                filesArtifactTabModelWorks:
+                  Boolean(previewArtifactTabChecks['workspace-csv-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-pdf-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-document-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
+                filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
-                filesSearchClearWorks:
-                  fileSearch instanceof HTMLInputElement &&
-                  fileSearch.value === '' &&
-                  !document.querySelector('[data-testid="workspace-file-search-clear"]')
+                filesSearchClearWorks
               };
             }
 
@@ -3692,10 +11047,19 @@ function runAutomatedFocusedSurfaceSmoke(
               };
               await openSideChat();
               await openSideChat();
-              const sideChatTabs = [...document.querySelectorAll('[data-tab-id^="sidechat:"]')]
-                .map((label) => label.closest('[role="tab"]'))
-                .filter(Boolean);
+              const sideChatTabs = [...document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]')];
               const sideChatTabsWork = sideChatTabs.length >= 2;
+              const fillSideChatInput = async (input, value) => {
+                input.focus();
+                setNativeValue(input, value);
+                try {
+                  input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
+                } catch {
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(120);
+              };
               let sideChatDraftPersistenceWorks = false;
               let sideChatComposerCompactWorks = false;
               if (sideChatTabs.length >= 2) {
@@ -3705,15 +11069,13 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(80);
                 let sideInput = document.querySelector('[data-testid="side-chat-input"]');
                 if (sideInput instanceof HTMLInputElement) {
-                  setNativeValue(sideInput, 'draft for second side chat');
-                  sideInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  await fillSideChatInput(sideInput, 'draft for second side chat');
                 }
                 firstTab.click();
                 await sleep(80);
                 sideInput = document.querySelector('[data-testid="side-chat-input"]');
                 if (sideInput instanceof HTMLInputElement) {
-                  setNativeValue(sideInput, 'draft for first side chat');
-                  sideInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  await fillSideChatInput(sideInput, 'draft for first side chat');
                 }
                 secondTab.click();
                 await sleep(80);
@@ -3753,14 +11115,21 @@ function runAutomatedFocusedSurfaceSmoke(
                     text !== text.toUpperCase() &&
                     getComputedStyle(label).textTransform !== 'uppercase';
                 });
-              const beforeClose = document.querySelectorAll('[data-tab-id^="sidechat:"]').length;
-              const closeButton = [...document.querySelectorAll('[data-tab-id^="sidechat:"]')]
-                .at(-1)
-                ?.closest('[role="tab"]')
-                ?.querySelector('[aria-label^="Close "]');
+              const beforeClose = document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length;
+              const lastSideChatTab = [...document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]')].at(-1);
+              const closeButton = lastSideChatTab?.querySelector('[aria-label^="Close "]');
               if (closeButton instanceof HTMLElement) {
                 closeButton.click();
-                await sleep(160);
+              } else if (lastSideChatTab instanceof HTMLElement) {
+                lastSideChatTab.dispatchEvent(new MouseEvent('auxclick', {
+                  bubbles: true,
+                  cancelable: true,
+                  button: 1
+                }));
+              }
+              for (let index = 0; index < 10; index += 1) {
+                if (document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length < beforeClose) break;
+                await sleep(80);
               }
               return {
                 profile,
@@ -3770,7 +11139,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 sideChatMessageLabelsCalm,
                 sideChatCloseWorks:
                   sideChatTabsWork &&
-                  document.querySelectorAll('[data-tab-id^="sidechat:"]').length === beforeClose - 1
+                  document.querySelectorAll('[role="tab"][data-tab-id^="sidechat:"]').length === beforeClose - 1
               };
             }
 
@@ -3784,7 +11153,11 @@ function runAutomatedFocusedSurfaceSmoke(
         writeFileSync(outputPath, JSON.stringify({ ok: true, result, screenshotPath }, null, 2))
         app.quit()
       } catch (error) {
-        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        writeFileSync(outputPath, JSON.stringify({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        }, null, 2))
         app.quit()
       }
     }, 700)
@@ -3834,9 +11207,14 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               if (inspectorToolsButton instanceof HTMLButtonElement) {
                 inspectorToolsButton.click();
                 await sleep(120);
-                const browserMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
-                  .find((item) => item.textContent?.includes('Browser'));
-                if (browserMenuItem instanceof HTMLElement) browserMenuItem.click();
+                const browserAction = document.querySelector('[data-testid="workbench-new-tab-action-browser"]');
+                if (browserAction instanceof HTMLElement && browserAction.getAttribute('aria-disabled') !== 'true') {
+                  browserAction.click();
+                } else {
+                  const browserMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                    .find((item) => item.textContent?.includes('Browser'));
+                  if (browserMenuItem instanceof HTMLElement) browserMenuItem.click();
+                }
               }
             }
             await sleep(260);
@@ -3879,10 +11257,138 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             var browserLocalTargetsCalm =
               browserLocalTargets.length > 0 &&
               browserLocalTargets.every((target) => target instanceof HTMLElement && getComputedStyle(target).fontWeight === '400');
-            var browserLocalTargetHideWorks = false;
+            var browserLocalTargetsListChromeWorks = (() => {
+              const targetShell = document.querySelector('[data-testid="browser-local-targets"]');
+              const targetRows = [...document.querySelectorAll('[data-testid="browser-local-target"]')];
+              const targetActions = [...document.querySelectorAll('[data-testid="browser-local-target-hide"]')];
+              return targetShell instanceof HTMLElement &&
+                getComputedStyle(targetShell).borderTopWidth === '0px' &&
+                getComputedStyle(targetShell).backgroundColor === 'rgba(0, 0, 0, 0)' &&
+                targetRows.length > 0 &&
+                targetRows.every((target) =>
+                  target instanceof HTMLElement &&
+                  target.getBoundingClientRect().height <= 28 &&
+                  getComputedStyle(target).borderTopWidth === '0px' &&
+                  getComputedStyle(target).boxShadow === 'none'
+                ) &&
+                targetActions.length > 0 &&
+                targetActions.every((action) =>
+                  action instanceof HTMLElement &&
+                  Number.parseFloat(getComputedStyle(action).opacity || '1') <= 0.05
+                );
+            })();
+            var browserLocalTargetsCompactChooserWorks = (() => {
+              const targetShell = document.querySelector('[data-testid="browser-local-targets"]');
+              const headerButtons = [...document.querySelectorAll('.browser-local-targets-actions button')];
+              const targetRows = [...document.querySelectorAll('[data-testid="browser-local-target"]')];
+              const targetMainButtons = [...document.querySelectorAll('.browser-local-target-main')];
+              const targetMeta = [...document.querySelectorAll('.browser-local-target-meta')];
+              return targetShell instanceof HTMLElement &&
+                targetShell.getBoundingClientRect().width <= 360 &&
+                headerButtons.length >= 2 &&
+                headerButtons.every((button) =>
+                  button instanceof HTMLElement &&
+                  button.getBoundingClientRect().width <= 24 &&
+                  button.getBoundingClientRect().height <= 24 &&
+                  button.querySelector('svg') instanceof SVGElement &&
+                  Boolean(button.getAttribute('aria-label')) &&
+                  !button.textContent?.includes('Refresh') &&
+                  !button.textContent?.includes('Recent') &&
+                  !button.textContent?.includes('Port')
+                ) &&
+                targetRows.length > 0 &&
+                targetMainButtons.length === targetRows.length &&
+                targetMainButtons.every((button) =>
+                  button instanceof HTMLElement &&
+                  getComputedStyle(button).textAlign === 'left'
+                ) &&
+                targetMeta.length === targetRows.length &&
+                targetMeta.every((meta) =>
+                  meta instanceof HTMLElement &&
+                  meta.getBoundingClientRect().width <= 60 &&
+                  !meta.textContent?.includes('127.0.0.1')
+                );
+            })();
             const firstLocalTarget = browserLocalTargets.find((target) =>
               target instanceof HTMLElement && target.textContent?.includes('127.0.0.1')
             ) ?? browserLocalTargets[0];
+            var browserLocalServerRoutesWork = false;
+            var browserLocalServerRouteNormalizationWorks = false;
+            if (firstLocalTarget instanceof HTMLElement && firstLocalTarget.dataset.localTargetUrl) {
+              const serverUrl = firstLocalTarget.dataset.localTargetUrl;
+              const routeUrl = new URL('/orchestrator-route-smoke?view=1', serverUrl).toString();
+              const targetServerUrl = new URL(serverUrl);
+              const bindAddressPort = targetServerUrl.port ? ':' + targetServerUrl.port : '';
+              const bindAddressOrigin = targetServerUrl.protocol + '//0.0.0.0' + bindAddressPort;
+              const normalizedBindAddressOrigin = targetServerUrl.protocol + '//127.0.0.1' + bindAddressPort;
+              const bindAddressServerUrl = bindAddressOrigin + '/';
+              const normalizedBindAddressServerUrl = normalizedBindAddressOrigin + '/';
+              const bindAddressRouteUrl = bindAddressOrigin + '/orchestrator-bound-route?view=1#smoke';
+              const normalizedBindAddressRouteUrl = normalizedBindAddressOrigin + '/orchestrator-bound-route?view=1';
+              const detail = {
+                localServerRoutes: [
+                  {
+                    serverUrl,
+                    url: routeUrl,
+                    title: 'Smoke route',
+                    source: 'provider'
+                  },
+                  {
+                    serverUrl: bindAddressServerUrl,
+                    url: bindAddressRouteUrl,
+                    title: 'Bound route',
+                    source: 'provider'
+                  }
+                ]
+              };
+              if (typeof window.__orchestratorSetBrowserManagerState === 'function') {
+                window.__orchestratorSetBrowserManagerState(detail);
+              }
+              window.dispatchEvent(new CustomEvent('orchestrator:browser-manager-state', { detail }));
+              document.dispatchEvent(new CustomEvent('orchestrator:browser-manager-state', { detail }));
+              for (let index = 0; index < 10; index += 1) {
+                const hasRouteRows = document.querySelector('[data-testid="browser-local-server-route"]') instanceof HTMLElement;
+                const hasNormalizedRoute = [...document.querySelectorAll('[data-testid="browser-local-server-route"]')]
+                  .some((route) =>
+                    route instanceof HTMLElement &&
+                    route.dataset.localRouteUrl === normalizedBindAddressRouteUrl &&
+                    route.dataset.localRouteServerUrl === normalizedBindAddressServerUrl
+                  );
+                if (hasRouteRows && hasNormalizedRoute) break;
+                await sleep(80);
+              }
+              const routeRows = [...document.querySelectorAll('[data-testid="browser-local-server-route"]')];
+              browserLocalServerRouteNormalizationWorks = routeRows.some((route) =>
+                route instanceof HTMLElement &&
+                route.dataset.localRouteUrl === normalizedBindAddressRouteUrl &&
+                route.dataset.localRouteServerUrl === normalizedBindAddressServerUrl &&
+                route.dataset.localRouteSource === 'provider'
+              );
+              const routeRemove = routeRows
+                .find((route) => route instanceof HTMLElement && route.dataset.localRouteUrl === routeUrl)
+                ?.querySelector('[data-testid="browser-local-server-route-remove"]');
+              const routeCountBeforeRemove = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-local-route-count') ?? '0');
+              if (routeRemove instanceof HTMLButtonElement) {
+                routeRemove.click();
+                for (let index = 0; index < 10; index += 1) {
+                  const routeStillVisible = [...document.querySelectorAll('[data-testid="browser-local-server-route"]')]
+                    .some((route) => route instanceof HTMLElement && route.dataset.localRouteUrl === routeUrl);
+                  if (!routeStillVisible) break;
+                  await sleep(80);
+                }
+              }
+              browserLocalServerRoutesWork =
+                routeCountBeforeRemove >= 1 &&
+                routeRows.some((route) =>
+                  route instanceof HTMLElement &&
+                  route.dataset.localRouteUrl === routeUrl &&
+                  route.dataset.localRouteServerUrl === serverUrl &&
+                  route.dataset.localRouteSource === 'provider'
+                ) &&
+                Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-local-route-count') ?? '0') === routeCountBeforeRemove - 1 &&
+                Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-hidden-local-route-count') ?? '0') >= 1;
+            }
+            var browserLocalTargetHideWorks = false;
             if (firstLocalTarget instanceof HTMLElement) {
               const hiddenUrl = firstLocalTarget.dataset.localTargetUrl;
               const hideButton = firstLocalTarget.querySelector('[data-testid="browser-local-target-hide"]');
@@ -3967,6 +11473,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(120);
               const findInput = document.querySelector('[data-testid="browser-find-input"]');
               if (findInput instanceof HTMLInputElement) {
+                const findToolbar = findInput.closest('.browser-find-toolbar');
                 const setter = Object.getOwnPropertyDescriptor(findInput.constructor.prototype, 'value')?.set;
                 setter?.call(findInput, 'Browser');
                 findInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -3976,6 +11483,8 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   await sleep(100);
                 }
                 browserFindWorks =
+                  findToolbar instanceof HTMLElement &&
+                  findToolbar.getAttribute('data-panel-toolbar') === 'true' &&
                   findInput.value === 'Browser' &&
                   Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-find-matches') ?? '0') > 1;
                 const nextFindButton = findButton('Next result');
@@ -4043,18 +11552,39 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserViewportRotateWorks;
             const browserViewportModeSelect = document.querySelector('[data-testid="browser-viewport-mode"]');
             let browserDevicePresetCatalogWorks = false;
+            let browserVisibleGeometryWorks = false;
             if (browserViewportModeSelect instanceof HTMLSelectElement) {
               const optionLabels = [...browserViewportModeSelect.options].map((option) => option.textContent?.trim() ?? '');
               browserViewportModeSelect.value = 'galaxyS24Ultra';
               browserViewportModeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-              await sleep(120);
+              for (let index = 0; index < 20; index += 1) {
+                const manager = document.querySelector('[data-testid="browser-webview-manager"]');
+                if (Number(manager?.getAttribute('data-browser-manager-webview-width') ?? '0') === 384) break;
+                await sleep(80);
+              }
               const browserPanelAfterPreset = document.querySelector('[data-testid="browser-panel"]');
+              const browserWebviewManagerAfterPreset = document.querySelector('[data-testid="browser-webview-manager"]');
+              const browserWebviewAfterPreset = document.querySelector('[data-testid="browser-webview"]');
+              const presetScale = Number(browserWebviewManagerAfterPreset?.getAttribute('data-browser-manager-visible-scale') ?? '0');
+              const presetStageHeight = Number(browserWebviewManagerAfterPreset?.getAttribute('data-browser-manager-visible-stage-height') ?? '0');
+              const presetVisualHeight = Number(browserWebviewManagerAfterPreset?.getAttribute('data-browser-manager-visible-height') ?? '0');
               browserDevicePresetCatalogWorks =
-                ['iPhone SE', 'iPhone 15 Pro Max', 'Galaxy S24 Ultra', 'iPad Mini', 'Surface Duo', 'Surface Pro 7', 'Laptop', 'Laptop L', '4K']
+                ['iPhone SE', 'iPhone 15 Pro', 'iPhone 15 Pro Max', 'Pixel 8', 'Galaxy S24 Ultra', 'iPad Mini', 'iPad Air', 'Surface Duo', 'Surface Pro 7', 'Laptop', 'Laptop L', '4K']
                   .every((label) => optionLabels.includes(label)) &&
                 browserPanelAfterPreset?.getAttribute('data-browser-device-mode') === 'galaxyS24Ultra' &&
                 Number(browserPanelAfterPreset?.getAttribute('data-browser-viewport-width') ?? '0') === 384 &&
-                Number(browserPanelAfterPreset?.getAttribute('data-browser-viewport-height') ?? '0') === 854;
+                Number(browserPanelAfterPreset?.getAttribute('data-browser-viewport-height') ?? '0') === 824;
+              browserVisibleGeometryWorks =
+                browserWebviewManagerAfterPreset instanceof HTMLElement &&
+                browserWebviewAfterPreset instanceof HTMLElement &&
+                Number(browserWebviewManagerAfterPreset.getAttribute('data-browser-manager-webview-width') ?? '0') === 384 &&
+                Number(browserWebviewManagerAfterPreset.getAttribute('data-browser-manager-webview-height') ?? '0') === 824 &&
+                Number(browserWebviewAfterPreset.getAttribute('data-browser-webview-logical-width') ?? '0') === 384 &&
+                Number(browserWebviewAfterPreset.getAttribute('data-browser-webview-logical-height') ?? '0') === 824 &&
+                presetScale > 0 &&
+                presetScale <= 1 &&
+                presetVisualHeight > 0 &&
+                presetVisualHeight <= presetStageHeight;
             }
             const resetViewportButton = findButton('Reset viewport');
             if (resetViewportButton instanceof HTMLButtonElement) {
@@ -4067,6 +11597,178 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserPanelAfterReset?.getAttribute('data-browser-device-mode') === 'desktop' &&
               Number(browserPanelAfterReset?.getAttribute('data-browser-viewport-width') ?? '0') === 1280 &&
               Number(browserPanelAfterReset?.getAttribute('data-browser-viewport-height') ?? '0') === 720;
+            const captureBrowserNoMutationSnapshot = () => {
+              const panel = document.querySelector('[data-testid="browser-panel"]');
+              const manager = document.querySelector('[data-testid="browser-webview-manager"]');
+              const webview = document.querySelector('[data-testid="browser-webview"]');
+              const bodyHost = webview instanceof HTMLElement ? webview.parentElement : null;
+              const addressInput = document.querySelector('[data-testid="browser-url-input"]');
+              const composerTextarea = document.querySelector('textarea');
+              return {
+                panel,
+                manager,
+                webview,
+                bodyHost,
+                currentUrl: panel?.getAttribute('data-browser-current-url') ?? '',
+                activeTab: panel?.getAttribute('data-browser-active-webview-tab') ?? '',
+                tabCount: panel?.getAttribute('data-browser-tab-count') ?? '',
+                webviewCount: panel?.getAttribute('data-browser-webview-count') ?? '',
+                partition: panel?.getAttribute('data-browser-webview-partition') ?? '',
+                webviewHostId: panel?.getAttribute('data-browser-webview-host-id') ?? '',
+                webviewSourceHostId: panel?.getAttribute('data-browser-webview-source-host-id') ?? '',
+                transferState: panel?.getAttribute('data-browser-webview-transfer-state') ?? '',
+                deviceMode: panel?.getAttribute('data-browser-device-mode') ?? '',
+                viewportWidth: panel?.getAttribute('data-browser-viewport-width') ?? '',
+                viewportHeight: panel?.getAttribute('data-browser-viewport-height') ?? '',
+                addressValue: addressInput instanceof HTMLInputElement ? addressInput.value : '',
+                composerValue: composerTextarea instanceof HTMLTextAreaElement ? composerTextarea.value : '',
+                webviewSrc: webview?.getAttribute('src') ?? '',
+                webviewTabId: webview?.getAttribute('data-browser-webview-tab-id') ?? '',
+                webviewPartition: webview?.getAttribute('data-browser-webview-partition') ?? '',
+                webviewLifecycle: webview?.getAttribute('data-browser-webview-lifecycle') ?? '',
+                webviewActive: webview?.getAttribute('data-browser-webview-active') ?? '',
+                webviewDomHost: webview?.getAttribute('data-browser-webview-dom-host') ?? '',
+                managerActiveTab: manager?.getAttribute('data-browser-manager-active-tab') ?? '',
+                managerPartition: manager?.getAttribute('data-browser-manager-partition') ?? '',
+                managerHostId: manager?.getAttribute('data-browser-manager-host-id') ?? '',
+                managerWebviewHostId: manager?.getAttribute('data-browser-manager-webview-host-id') ?? '',
+                hiddenWebviewCount: document.querySelectorAll('[data-testid="browser-webview-hidden"]').length,
+                bodyHostTabId: bodyHost?.getAttribute('data-browser-webview-tab-id') ?? ''
+              };
+            };
+            const sameBrowserNoMutationSnapshot = (before, after) =>
+              before.panel === after.panel &&
+              before.manager === after.manager &&
+              before.webview === after.webview &&
+              before.bodyHost === after.bodyHost &&
+              before.currentUrl === after.currentUrl &&
+              before.activeTab === after.activeTab &&
+              before.tabCount === after.tabCount &&
+              before.webviewCount === after.webviewCount &&
+              before.partition === after.partition &&
+              before.webviewHostId === after.webviewHostId &&
+              before.webviewSourceHostId === after.webviewSourceHostId &&
+              before.transferState === after.transferState &&
+              before.deviceMode === after.deviceMode &&
+              before.viewportWidth === after.viewportWidth &&
+              before.viewportHeight === after.viewportHeight &&
+              before.addressValue === after.addressValue &&
+              before.composerValue === after.composerValue &&
+              before.webviewSrc === after.webviewSrc &&
+              before.webviewTabId === after.webviewTabId &&
+              before.webviewPartition === after.webviewPartition &&
+              before.webviewLifecycle === after.webviewLifecycle &&
+              before.webviewActive === after.webviewActive &&
+              before.webviewDomHost === after.webviewDomHost &&
+              before.managerActiveTab === after.managerActiveTab &&
+              before.managerPartition === after.managerPartition &&
+              before.managerHostId === after.managerHostId &&
+              before.managerWebviewHostId === after.managerWebviewHostId &&
+              before.hiddenWebviewCount === after.hiddenWebviewCount &&
+              before.bodyHostTabId === after.bodyHostTabId;
+            const setBrowserManagerState = (detail) => {
+              if (typeof window.__orchestratorSetBrowserManagerState === 'function') {
+                window.__orchestratorSetBrowserManagerState(detail);
+              }
+              window.dispatchEvent(new CustomEvent('orchestrator:browser-manager-state', { detail }));
+              document.dispatchEvent(new CustomEvent('orchestrator:browser-manager-state', { detail }));
+            };
+            const browserNoMutationBeforeBrowserUse = captureBrowserNoMutationSnapshot();
+            setBrowserManagerState({
+              active: true,
+              turnId: 'smoke-browser-use',
+              viewportSize: { width: 390, height: 844 },
+              captureSurfaceSize: { width: 800, height: 600 },
+              captureBounds: { x: 12, y: 34, width: 800, height: 600, scale: 0.75 },
+              cursorState: { visible: true, x: 48, y: 64, animateMovement: true, moveSequence: 1 }
+            });
+            for (let index = 0; index < 20; index += 1) {
+              const manager = document.querySelector('[data-testid="browser-webview-manager"]');
+              if (manager?.getAttribute('data-browser-manager-browser-use-active') === 'true') break;
+              await sleep(80);
+            }
+            const browserPanelAfterManagerBridge = document.querySelector('[data-testid="browser-panel"]');
+            const browserWebviewManager = document.querySelector('[data-testid="browser-webview-manager"]');
+            const browserUseCursor = document.querySelector('[data-testid="browser-use-cursor"]');
+            const browserNoMutationAfterBrowserUseActive = captureBrowserNoMutationSnapshot();
+            var browserManagerStateBridgeWorks =
+              browserPanelAfterManagerBridge?.getAttribute('data-browser-use-active') === 'true' &&
+              browserPanelAfterManagerBridge?.getAttribute('data-browser-use-turn-id') === 'smoke-browser-use' &&
+              Number(browserPanelAfterManagerBridge?.getAttribute('data-browser-use-viewport-width') ?? '0') === 390 &&
+              Number(browserPanelAfterManagerBridge?.getAttribute('data-browser-use-viewport-height') ?? '0') === 844 &&
+              Number(browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-width') ?? '0') === 800 &&
+              Number(browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-height') ?? '0') === 600 &&
+              Number(browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-x') ?? '0') === 12 &&
+              Number(browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-y') ?? '0') === 34 &&
+              Number(browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-bounds-width') ?? '0') === 800 &&
+              Number(browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-bounds-height') ?? '0') === 600 &&
+              Number(browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-scale') ?? '0') === 0.75 &&
+              browserPanelAfterManagerBridge?.getAttribute('data-browser-use-cursor-visible') === 'true' &&
+              browserPanelAfterManagerBridge?.getAttribute('data-browser-use-cursor') === '48,64' &&
+              browserWebviewManager instanceof HTMLElement &&
+              browserWebviewManager.getAttribute('data-browser-manager-browser-use-active') === 'true' &&
+              browserWebviewManager.getAttribute('data-browser-manager-browser-use-turn-id') === 'smoke-browser-use' &&
+              browserWebviewManager.getAttribute('data-browser-manager-paint-host') === 'true' &&
+              Number(browserWebviewManager.getAttribute('data-browser-manager-capture-width') ?? '0') === 800 &&
+              Number(browserWebviewManager.getAttribute('data-browser-manager-capture-height') ?? '0') === 600 &&
+              Number(browserWebviewManager.getAttribute('data-browser-manager-capture-x') ?? '0') === 12 &&
+              Number(browserWebviewManager.getAttribute('data-browser-manager-capture-y') ?? '0') === 34 &&
+              Number(browserWebviewManager.getAttribute('data-browser-manager-capture-bounds-width') ?? '0') === 800 &&
+              Number(browserWebviewManager.getAttribute('data-browser-manager-capture-bounds-height') ?? '0') === 600 &&
+              Number(browserWebviewManager.getAttribute('data-browser-manager-capture-scale') ?? '0') === 0.75 &&
+              browserWebviewManager.getAttribute('data-browser-manager-visual-width') === '100%' &&
+              browserWebviewManager.getAttribute('data-browser-manager-visual-height') === '100%' &&
+              browserUseCursor instanceof HTMLElement &&
+              browserUseCursor.getAttribute('data-browser-use-cursor-x') === '48' &&
+              browserUseCursor.getAttribute('data-browser-use-cursor-y') === '64' &&
+              browserUseCursor.getAttribute('data-browser-use-cursor-animated') === 'true';
+            var browserCaptureGeometryWorks =
+              browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-x') === '12' &&
+              browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-y') === '34' &&
+              browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-bounds-width') === '800' &&
+              browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-bounds-height') === '600' &&
+              browserPanelAfterManagerBridge?.getAttribute('data-browser-use-capture-scale') === '0.75' &&
+              browserWebviewManager instanceof HTMLElement &&
+              browserWebviewManager.getAttribute('data-browser-manager-capture-x') === '12' &&
+              browserWebviewManager.getAttribute('data-browser-manager-capture-y') === '34' &&
+              browserWebviewManager.getAttribute('data-browser-manager-capture-bounds-width') === '800' &&
+              browserWebviewManager.getAttribute('data-browser-manager-capture-bounds-height') === '600' &&
+              browserWebviewManager.getAttribute('data-browser-manager-capture-scale') === '0.75';
+            var browserUseNoMutationWorks =
+              browserNoMutationBeforeBrowserUse.webview instanceof HTMLElement &&
+              browserNoMutationBeforeBrowserUse.bodyHost instanceof HTMLElement &&
+              sameBrowserNoMutationSnapshot(browserNoMutationBeforeBrowserUse, browserNoMutationAfterBrowserUseActive) &&
+              browserWebviewManager instanceof HTMLElement &&
+              browserWebviewManager.getAttribute('data-browser-manager-paint-host') === 'true' &&
+              browserWebviewManager.getAttribute('data-browser-manager-browser-use-active') === 'true';
+            setBrowserManagerState({
+              active: false,
+              turnId: null,
+              viewportSize: null,
+              captureSurfaceSize: null,
+              captureBounds: null,
+              cursorState: null
+            });
+            for (let index = 0; index < 20; index += 1) {
+              const panel = document.querySelector('[data-testid="browser-panel"]');
+              if (panel?.getAttribute('data-browser-use-active') === 'false') break;
+              await sleep(80);
+            }
+            const browserPanelAfterManagerReset = document.querySelector('[data-testid="browser-panel"]');
+            const browserWebviewManagerAfterReset = document.querySelector('[data-testid="browser-webview-manager"]');
+            const browserNoMutationAfterBrowserUseReset = captureBrowserNoMutationSnapshot();
+            browserUseNoMutationWorks =
+              browserUseNoMutationWorks &&
+              sameBrowserNoMutationSnapshot(browserNoMutationBeforeBrowserUse, browserNoMutationAfterBrowserUseReset) &&
+              browserPanelAfterManagerReset?.getAttribute('data-browser-use-active') === 'false' &&
+              browserPanelAfterManagerReset?.getAttribute('data-browser-use-turn-id') === '' &&
+              browserPanelAfterManagerReset?.getAttribute('data-browser-use-viewport-width') === '' &&
+              browserPanelAfterManagerReset?.getAttribute('data-browser-use-capture-width') === '' &&
+              browserPanelAfterManagerReset?.getAttribute('data-browser-use-cursor-visible') === 'false' &&
+              browserWebviewManagerAfterReset instanceof HTMLElement &&
+              browserWebviewManagerAfterReset.getAttribute('data-browser-manager-paint-host') === 'false' &&
+              browserWebviewManagerAfterReset.getAttribute('data-browser-manager-browser-use-active') === 'false' &&
+              !document.querySelector('[data-testid="browser-use-cursor"]');
             const noCacheButton = findButton('Reload without cache');
             if (noCacheButton instanceof HTMLButtonElement) {
               noCacheButton.click();
@@ -4078,6 +11780,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             var browserCacheReloadWorks =
               Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-cache-reloads') ?? '0') > 0;
             await openBrowserActionsMenu();
+            const lifecycleSyncBeforeHide = Number(document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-lifecycle-syncs') ?? '0');
             const hideBrowserButton = findButton('Hide browser surface');
             if (hideBrowserButton instanceof HTMLButtonElement) {
               hideBrowserButton.click();
@@ -4085,14 +11788,49 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             }
             var browserVisibilityControlWorks =
               document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-visible') === 'false';
+            const browserPanelAfterHide = document.querySelector('[data-testid="browser-panel"]');
+            const browserHiddenWebview = document.querySelector('[data-testid="browser-webview-hidden"]');
+            var browserHiddenWebviewPersistenceWorks =
+              browserPanelAfterHide?.getAttribute('data-browser-visible') === 'false' &&
+              Number(browserPanelAfterHide?.getAttribute('data-browser-webview-count') ?? '0') > 0 &&
+              (browserPanelAfterHide?.getAttribute('data-browser-active-webview-tab') ?? '').length > 0 &&
+              browserHiddenWebview instanceof HTMLElement &&
+              browserHiddenWebview.getAttribute('data-browser-webview-active') === 'false';
+            var browserHiddenWebviewContainmentWorks =
+              browserHiddenWebview instanceof HTMLElement &&
+              browserHiddenWebview.getAttribute('data-browser-webview-dom-host') === 'body' &&
+              browserHiddenWebview.getAttribute('data-browser-webview-lifecycle') === 'mounted-hidden' &&
+              browserHiddenWebview.getAttribute('data-browser-webview-containment') === 'layout paint size style' &&
+              browserHiddenWebview.classList.contains('browser-webview-surface-hidden') &&
+              browserHiddenWebview.parentElement?.getAttribute('data-browser-webview-dom-host') === 'body' &&
+              browserHiddenWebview.parentElement?.parentElement === document.body &&
+              getComputedStyle(browserHiddenWebview.parentElement).position === 'fixed' &&
+              getComputedStyle(browserHiddenWebview.parentElement).pointerEvents === 'none' &&
+              Number.parseFloat(getComputedStyle(browserHiddenWebview.parentElement).opacity || '1') <= 0.001 &&
+              (
+                browserHiddenWebview.getAttribute('data-browser-webview-paint-host') === 'true' ||
+                (
+                  browserHiddenWebview.parentElement.getBoundingClientRect().width <= 1 &&
+                  browserHiddenWebview.parentElement.getBoundingClientRect().height <= 1
+                )
+              );
             const browserHiddenStateWorks =
               document.querySelector('[data-testid="browser-hidden-state"]') instanceof HTMLElement &&
               document.querySelector('[data-testid="browser-hidden-show"]') instanceof HTMLButtonElement;
             const showBrowserButton = findButton('Show browser surface');
             if (showBrowserButton instanceof HTMLButtonElement) {
               showBrowserButton.click();
-              await sleep(120);
+              for (let index = 0; index < 20; index += 1) {
+                const panelAfterShow = document.querySelector('[data-testid="browser-panel"]');
+                if (Number(panelAfterShow?.getAttribute('data-browser-lifecycle-syncs') ?? '0') > lifecycleSyncBeforeHide) break;
+                await sleep(80);
+              }
             }
+            const browserPanelAfterShow = document.querySelector('[data-testid="browser-panel"]');
+            var browserLifecycleResyncWorks =
+              browserPanelAfterShow?.getAttribute('data-browser-visible') === 'true' &&
+              Number(browserPanelAfterShow?.getAttribute('data-browser-lifecycle-syncs') ?? '0') > lifecycleSyncBeforeHide &&
+              document.querySelector('[data-testid="browser-webview"]') instanceof HTMLElement;
             await closeBrowserActionsMenu();
             const toolbarScreenshotButton = document.querySelector('.browser-toolbar [data-testid="browser-capture-screenshot"]');
             const toolbarOpenExternalButton = document.querySelector('.browser-toolbar [data-testid="browser-open-external"]');
@@ -4105,6 +11843,9 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               menuOpenExternalButton.getAttribute('aria-label') === 'Open external browser' &&
               !menuOpenExternalButton.disabled;
             var browserToolbarScreenshotWorks = false;
+            var browserFallbackMessagesSharedWorks = false;
+            var browserAssetsBundleSharedWorks = false;
+            var browserAssetsSharedContainersWorks = false;
             if (menuScreenshotButton instanceof HTMLButtonElement) {
               for (let index = 0; index < 20; index += 1) {
                 if (!menuScreenshotButton.disabled) break;
@@ -4120,6 +11861,39 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 screenshotButtonEnabled &&
                 !(toolbarScreenshotButton instanceof HTMLButtonElement) &&
                 document.querySelector('[data-testid="browser-inspector-toolbar"]') instanceof HTMLElement;
+              const assetsInspectorButton = document.querySelector('[data-testid="browser-inspector-assets"]');
+              if (assetsInspectorButton instanceof HTMLButtonElement) {
+                assetsInspectorButton.click();
+                await sleep(120);
+                const assetsEmpty = document.querySelector('[data-testid="browser-assets-empty"]');
+                const assetsBundle = document.querySelector('[data-testid="browser-assets-bundle"]');
+                const assetsPane = document.querySelector('[data-testid="browser-assets-pane"]');
+                const assetsHeader = document.querySelector('[data-testid="browser-assets-header"]');
+                const localTargetsEmpty = document.querySelector('[data-testid="browser-local-targets-empty"]');
+                browserAssetsBundleSharedWorks =
+                  assetsBundle instanceof HTMLButtonElement &&
+                  assetsBundle.classList.contains('motion-button') &&
+                  assetsBundle.classList.contains('browser-assets-bundle') &&
+                  assetsBundle.getBoundingClientRect().height <= 30 &&
+                  assetsBundle.scrollWidth <= assetsBundle.clientWidth + 2;
+                browserAssetsSharedContainersWorks =
+                  assetsPane instanceof HTMLElement &&
+                  assetsHeader instanceof HTMLElement &&
+                  assetsHeader.getAttribute('data-inspector-row') === 'true' &&
+                  assetsHeader.classList.contains('orchestrator-inspector-row') &&
+                  assetsPane.querySelectorAll('[data-inspector-row="true"]').length >= 1;
+                browserFallbackMessagesSharedWorks =
+                  assetsEmpty instanceof HTMLElement &&
+                  assetsEmpty.getAttribute('data-panel-message') === 'true' &&
+                  assetsEmpty.classList.contains('orchestrator-panel-message') &&
+                  assetsEmpty.getAttribute('data-panel-message-framed') === 'true' &&
+                  assetsEmpty.scrollWidth <= assetsEmpty.clientWidth + 2 &&
+                  (!(localTargetsEmpty instanceof HTMLElement) || (
+                    localTargetsEmpty.getAttribute('data-panel-message') === 'true' &&
+                    localTargetsEmpty.classList.contains('orchestrator-panel-message') &&
+                    localTargetsEmpty.scrollWidth <= localTargetsEmpty.clientWidth + 2
+                  ));
+              }
             }
             const smokeBaseUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
             const slowUrl = smokeBaseUrl + '/slow';
@@ -4156,12 +11930,14 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserToolbarHistoryWorks = !(browserToolbarHistoryButton instanceof HTMLButtonElement);
             const browserActionsButton = findButton('Browser actions');
             let browserHistoryMenuWorks = false;
+            let browserActionsMenuMaterialWorks = false;
             if (browserActionsButton instanceof HTMLButtonElement) {
               browserActionsButton.click();
               await sleep(160);
               const historyMenu = document.querySelector('[data-testid="browser-history-menu"]');
               const historyItems = [...document.querySelectorAll('[data-testid="browser-history-item"]')];
               const browserActionsMenu = document.querySelector('.browser-actions-menu');
+              const browserActionsMenuStyle = browserActionsMenu instanceof HTMLElement ? getComputedStyle(browserActionsMenu) : null;
               const browserPageActions = document.querySelector('[data-testid="browser-page-actions"]');
               const browserDataActions = document.querySelector('[data-testid="browser-data-actions"]');
               const browserPageActionRows = browserPageActions instanceof HTMLElement
@@ -4183,8 +11959,40 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 browserActionLabels.every((label) => {
                   const text = label.textContent?.trim() ?? '';
                   return text.length === 0 ||
+                    label.getAttribute('data-menu-section-label') === 'true' &&
+                    label.classList.contains('orchestrator-menu-section-label') &&
                     (text !== text.toUpperCase() && getComputedStyle(label).textTransform !== 'uppercase');
                 });
+              const browserMenuSections = [...document.querySelectorAll('.browser-actions-menu [data-menu-section="true"]')]
+                .filter((section) => section instanceof HTMLElement);
+              var browserMenuSectionsSharedWorks =
+                browserMenuSections.length >= 4 &&
+                browserMenuSections.every((section) =>
+                  section instanceof HTMLElement &&
+                  section.classList.contains('orchestrator-menu-section') &&
+                  section.scrollWidth <= section.clientWidth + 2
+                ) &&
+                browserActionLabels.every((label) =>
+                  label instanceof HTMLElement &&
+                  label.getBoundingClientRect().height <= 24
+                );
+              const browserZoomRow = document.querySelector('[data-testid="browser-zoom-row"]');
+              var browserMenuRowsSharedWorks =
+                historyItems.length > 0 &&
+                historyItems.every((item) =>
+                  item instanceof HTMLElement &&
+                  item.getAttribute('data-menu-row') === 'true' &&
+                  item.classList.contains('orchestrator-menu-row') &&
+                  item.getBoundingClientRect().height <= 30 &&
+                  item.scrollWidth <= item.clientWidth + 2
+                ) &&
+                browserZoomRow instanceof HTMLElement &&
+                browserZoomRow.getAttribute('data-menu-row') === 'true' &&
+                browserZoomRow.getAttribute('data-menu-row-static') === 'true' &&
+                browserZoomRow.classList.contains('orchestrator-menu-row') &&
+                browserZoomRow.querySelector('[data-testid="browser-zoom-reset"]') instanceof HTMLElement &&
+                browserZoomRow.getBoundingClientRect().height <= 30 &&
+                browserZoomRow.scrollWidth <= browserZoomRow.clientWidth + 2;
               browserHistoryMenuWorks =
                 historyMenu instanceof HTMLElement &&
                 historyItems.length > 0 &&
@@ -4198,7 +12006,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 browserActionsMenu instanceof HTMLElement &&
                 browserPageActions instanceof HTMLElement &&
                 browserDataActions instanceof HTMLElement &&
-                browserPageActionRows.length === 4 &&
+                browserPageActionRows.length === 5 &&
                 browserDataActionRows.length === 4 &&
                 browserPageActions.scrollWidth <= browserPageActions.clientWidth + 2 &&
                 browserDataActions.scrollWidth <= browserDataActions.clientWidth + 2 &&
@@ -4223,6 +12031,13 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   return previous instanceof HTMLElement &&
                     row.getBoundingClientRect().top > previous.getBoundingClientRect().top;
                 });
+              browserActionsMenuMaterialWorks =
+                browserActionsMenu instanceof HTMLElement &&
+                browserActionsMenuStyle !== null &&
+                Number.parseFloat(browserActionsMenuStyle.borderRadius || '0') >= 12 &&
+                ((browserActionsMenuStyle.backdropFilter || browserActionsMenuStyle.webkitBackdropFilter || '').includes('blur')) &&
+                browserActionsMenuStyle.boxShadow !== 'none' &&
+                Number.parseFloat(browserActionsMenuStyle.borderTopWidth || '0') <= 1;
               var browserClearDataWorks = false;
               const clearDataTargets = [
                 { testId: 'browser-clear-cache', kind: 'cache' },
@@ -4262,7 +12077,14 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(80);
             }
             var browserContextMenuWorks = false;
+            var browserContextMenuMaterialWorks = false;
             var browserContextComposerWorks = false;
+            var browserCommentModeWorks = false;
+            var browserCommentCoachmarkWorks = false;
+            var browserCommentEditorWorks = false;
+            var browserCommentRegionWorks = false;
+            var browserCommentPreviewOriginalWorks = false;
+            var browserCommentDesignTweakWorks = false;
             const browserContextViewportFrame = document.querySelector('[data-testid="browser-viewport-frame"]');
             if (browserContextViewportFrame instanceof HTMLElement) {
               const frameBounds = browserContextViewportFrame.getBoundingClientRect();
@@ -4274,6 +12096,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               }));
               await sleep(160);
               const browserContextMenu = document.querySelector('.browser-page-context-menu');
+              const browserContextMenuStyle = browserContextMenu instanceof HTMLElement ? getComputedStyle(browserContextMenu) : null;
               const contextBack = document.querySelector('[data-testid="browser-context-back"]');
               const contextForward = document.querySelector('[data-testid="browser-context-forward"]');
               const contextReload = document.querySelector('[data-testid="browser-context-reload"]');
@@ -4299,6 +12122,13 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 ) &&
                 browserContextMenu.scrollWidth <= browserContextMenu.clientWidth + 2 &&
                 browserContextMenu.getBoundingClientRect().right <= window.innerWidth;
+              browserContextMenuMaterialWorks =
+                browserContextMenu instanceof HTMLElement &&
+                browserContextMenuStyle !== null &&
+                Number.parseFloat(browserContextMenuStyle.borderRadius || '0') >= 12 &&
+                ((browserContextMenuStyle.backdropFilter || browserContextMenuStyle.webkitBackdropFilter || '').includes('blur')) &&
+                browserContextMenuStyle.boxShadow !== 'none' &&
+                Number.parseFloat(browserContextMenuStyle.borderTopWidth || '0') <= 1;
               if (contextAddPage instanceof HTMLButtonElement) {
                 contextAddPage.click();
                 await sleep(220);
@@ -4311,6 +12141,223 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               }
               document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
               await sleep(80);
+            }
+            if (browserActionsButton instanceof HTMLButtonElement) {
+              browserActionsButton.click();
+              await sleep(120);
+              const commentModeButton = document.querySelector('[data-testid="browser-comment-mode"]');
+              if (commentModeButton instanceof HTMLButtonElement) {
+                commentModeButton.click();
+                await sleep(120);
+                let overlay = document.querySelector('[data-testid="browser-comment-overlay"]');
+                const panelWithCommentMode = document.querySelector('[data-testid="browser-panel"]');
+                if (overlay instanceof HTMLElement && panelWithCommentMode?.getAttribute('data-browser-comment-mode') === 'true') {
+                  const coachmark = document.querySelector('[data-testid="browser-comment-coachmark"]');
+                  const coachmarkDismiss = document.querySelector('[data-testid="browser-comment-coachmark-dismiss"]');
+                  if (coachmark instanceof HTMLElement && coachmarkDismiss instanceof HTMLButtonElement) {
+                    coachmarkDismiss.click();
+                    let panelAfterCoachmarkDismiss = document.querySelector('[data-testid="browser-panel"]');
+                    for (let index = 0; index < 20; index += 1) {
+                      panelAfterCoachmarkDismiss = document.querySelector('[data-testid="browser-panel"]');
+                      if (panelAfterCoachmarkDismiss?.getAttribute('data-browser-comment-coachmark') === 'false') break;
+                      await sleep(50);
+                    }
+                    browserCommentCoachmarkWorks =
+                      panelWithCommentMode?.getAttribute('data-browser-comment-unavailable') === 'false' &&
+                      coachmark.textContent?.includes('Try comment mode') &&
+                      panelAfterCoachmarkDismiss?.getAttribute('data-browser-comment-mode') === 'true' &&
+                      panelAfterCoachmarkDismiss?.getAttribute('data-browser-comment-coachmark') === 'false' &&
+                      !document.querySelector('[data-testid="browser-comment-coachmark"]');
+                  }
+                  const composerBeforePreview = document.querySelector('textarea')?.value ?? '';
+                  const previewButton = document.querySelector('[data-testid="browser-comment-preview-original"]');
+                  if (previewButton instanceof HTMLButtonElement) {
+                    previewButton.click();
+                    await sleep(160);
+                    const previewOverlay = document.querySelector('[data-testid="browser-comment-overlay"]');
+                    const previewPanel = document.querySelector('[data-testid="browser-panel"]');
+                    const previewTitle = document.querySelector('[data-testid="browser-comment-mode-title"]');
+                    const previewBackButton = document.querySelector('[data-testid="browser-comment-preview-original"]');
+                    const previewBounds = previewOverlay instanceof HTMLElement ? previewOverlay.getBoundingClientRect() : null;
+                    if (previewOverlay instanceof HTMLElement && previewBounds !== null) {
+                      previewOverlay.dispatchEvent(new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: previewBounds.left + Math.min(120, previewBounds.width / 2),
+                        clientY: previewBounds.top + Math.min(130, previewBounds.height / 2)
+                      }));
+                      await sleep(120);
+                    }
+                    browserCommentPreviewOriginalWorks =
+                      previewOverlay instanceof HTMLElement &&
+                      previewPanel?.getAttribute('data-browser-comment-preview-original') === 'true' &&
+                      previewOverlay.getAttribute('data-browser-comment-preview-original') === 'true' &&
+                      !previewOverlay.hasAttribute('role') &&
+                      previewOverlay.getAttribute('tabindex') === null &&
+                      previewTitle instanceof HTMLElement &&
+                      previewTitle.textContent?.includes('Original') === true &&
+                      previewBackButton instanceof HTMLButtonElement &&
+                      previewBackButton.textContent?.includes('Back to annotations') === true &&
+                      !(document.querySelector('[data-testid="browser-comment-editor"]') instanceof HTMLElement) &&
+                      (document.querySelector('textarea')?.value ?? '') === composerBeforePreview;
+                    if (previewBackButton instanceof HTMLButtonElement) {
+                      previewBackButton.click();
+                      await sleep(160);
+                    }
+                    const panelAfterPreview = document.querySelector('[data-testid="browser-panel"]');
+                    browserCommentPreviewOriginalWorks =
+                      browserCommentPreviewOriginalWorks &&
+                      panelAfterPreview?.getAttribute('data-browser-comment-preview-original') === 'false' &&
+                      document.querySelector('[data-testid="browser-comment-overlay"]') instanceof HTMLElement;
+                  }
+                  const bounds = overlay.getBoundingClientRect();
+                  overlay.dispatchEvent(new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 5,
+                    pointerType: 'mouse',
+                    button: 0,
+                    clientX: bounds.left + Math.min(72, bounds.width / 3),
+                    clientY: bounds.top + Math.min(86, bounds.height / 3)
+                  }));
+                  overlay.dispatchEvent(new PointerEvent('pointermove', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 5,
+                    pointerType: 'mouse',
+                    button: 0,
+                    clientX: bounds.left + Math.min(224, bounds.width - 24),
+                    clientY: bounds.top + Math.min(184, bounds.height - 24)
+                  }));
+                  await sleep(80);
+                  const regionSelection = document.querySelector('[data-testid="browser-comment-region-selection"]');
+                  const regionSelectionBounds = regionSelection instanceof HTMLElement ? regionSelection.getBoundingClientRect() : null;
+                  overlay.dispatchEvent(new PointerEvent('pointerup', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 5,
+                    pointerType: 'mouse',
+                    button: 0,
+                    clientX: bounds.left + Math.min(224, bounds.width - 24),
+                    clientY: bounds.top + Math.min(184, bounds.height - 24)
+                  }));
+                  await sleep(220);
+                  const regionEditor = document.querySelector('[data-testid="browser-comment-editor"]');
+                  const regionEditorInput = document.querySelector('[data-testid="browser-comment-editor-input"]');
+                  const regionEditorPoint = document.querySelector('[data-testid="browser-comment-editor-point"]');
+                  const regionMarker = document.querySelector('[data-testid="browser-comment-region-marker"]');
+                  const regionPanel = document.querySelector('[data-testid="browser-panel"]');
+                  const regionDesignIntent = document.querySelector('[data-testid="browser-comment-intent-design"]');
+                  const regionSend = document.querySelector('[data-testid="browser-comment-editor-send"]');
+                  browserCommentRegionWorks =
+                    regionSelection instanceof HTMLElement &&
+                    regionSelection.classList.contains('browser-comment-region-selection') &&
+                    regionSelectionBounds !== null &&
+                    regionSelectionBounds.width >= 18 &&
+                    regionSelectionBounds.height >= 18 &&
+                    regionEditor instanceof HTMLElement &&
+                    regionEditorPoint instanceof HTMLElement &&
+                    regionEditorPoint.textContent?.includes('Region') === true &&
+                    regionMarker instanceof HTMLElement &&
+                    (regionPanel?.getAttribute('data-browser-comment-pending-region') ?? '').split(',').length === 4 &&
+                    !document.querySelector('textarea')?.value.includes('Region:');
+                  if (regionDesignIntent instanceof HTMLButtonElement) {
+                    regionDesignIntent.click();
+                    await sleep(100);
+                  }
+                  const regionCommentIntent = document.querySelector('[data-testid="browser-comment-intent-comment"]');
+                  const regionDesignIntentAfterClick = document.querySelector('[data-testid="browser-comment-intent-design"]');
+                  const regionEditorAfterIntent = document.querySelector('[data-testid="browser-comment-editor"]');
+                  if (regionEditorInput instanceof HTMLTextAreaElement) {
+                    const designInputSetter = Object.getOwnPropertyDescriptor(regionEditorInput.constructor.prototype, 'value')?.set;
+                    designInputSetter?.call(regionEditorInput, 'make the hero CTA more prominent');
+                    regionEditorInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    await sleep(80);
+                  }
+                  if (regionSend instanceof HTMLButtonElement) {
+                    regionSend.click();
+                  }
+                  await sleep(260);
+                  const composerAfterDesignTweak = document.querySelector('textarea');
+                  const panelAfterDesignTweak = document.querySelector('[data-testid="browser-panel"]');
+                  browserCommentDesignTweakWorks =
+                    browserCommentRegionWorks &&
+                    regionDesignIntentAfterClick instanceof HTMLButtonElement &&
+                    regionDesignIntentAfterClick.getAttribute('data-browser-comment-intent-active') === 'true' &&
+                    regionCommentIntent instanceof HTMLButtonElement &&
+                    regionCommentIntent.getAttribute('data-browser-comment-intent-active') === 'false' &&
+                    regionEditorAfterIntent instanceof HTMLElement &&
+                    regionEditorAfterIntent.textContent?.includes('Design tweak') === true &&
+                    composerAfterDesignTweak instanceof HTMLTextAreaElement &&
+                    composerAfterDesignTweak.value.includes('Design tweak for this browser page:') &&
+                    composerAfterDesignTweak.value.includes('Region:') &&
+                    composerAfterDesignTweak.value.includes('Requested design change: make the hero CTA more prominent') &&
+                    panelAfterDesignTweak?.getAttribute('data-browser-comment-mode') === 'false' &&
+                    panelAfterDesignTweak?.getAttribute('data-browser-comment-editor-open') === 'false';
+                  if (browserCommentDesignTweakWorks && composerAfterDesignTweak instanceof HTMLTextAreaElement) {
+                    const composerSetter = Object.getOwnPropertyDescriptor(composerAfterDesignTweak.constructor.prototype, 'value')?.set;
+                    composerSetter?.call(composerAfterDesignTweak, composerBeforePreview);
+                    composerAfterDesignTweak.dispatchEvent(new Event('input', { bubbles: true }));
+                    await sleep(80);
+                  }
+                  if (browserActionsButton instanceof HTMLButtonElement) {
+                    browserActionsButton.click();
+                    await sleep(120);
+                    const pointCommentModeButton = document.querySelector('[data-testid="browser-comment-mode"]');
+                    if (pointCommentModeButton instanceof HTMLButtonElement) {
+                      pointCommentModeButton.click();
+                      await sleep(140);
+                    }
+                  }
+                  overlay = document.querySelector('[data-testid="browser-comment-overlay"]');
+                  const pointBounds = overlay instanceof HTMLElement ? overlay.getBoundingClientRect() : bounds;
+                  overlay?.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: pointBounds.left + Math.min(96, pointBounds.width / 2),
+                    clientY: pointBounds.top + Math.min(96, pointBounds.height / 2)
+                  }));
+                  await sleep(180);
+                  const commentEditor = document.querySelector('[data-testid="browser-comment-editor"]');
+                  const commentEditorInput = document.querySelector('[data-testid="browser-comment-editor-input"]');
+                  const commentEditorPoint = document.querySelector('[data-testid="browser-comment-editor-point"]');
+                  const commentEditorPin = document.querySelector('[data-testid="browser-comment-editor-pin"]');
+                  const panelWithCommentEditor = document.querySelector('[data-testid="browser-panel"]');
+                  browserCommentEditorWorks =
+                    commentEditor instanceof HTMLElement &&
+                    commentEditorInput instanceof HTMLTextAreaElement &&
+                    commentEditorPoint instanceof HTMLElement &&
+                    commentEditorPin instanceof HTMLElement &&
+                    panelWithCommentEditor?.getAttribute('data-browser-comment-mode') === 'true' &&
+                    panelWithCommentEditor?.getAttribute('data-browser-comment-editor-open') === 'true' &&
+                    (panelWithCommentEditor?.getAttribute('data-browser-comment-pending-point') ?? '').includes(',') &&
+                    commentEditorPoint.textContent?.includes('Point') === true &&
+                    !document.querySelector('textarea')?.value.includes('Comment on this browser page:');
+                  if (commentEditorInput instanceof HTMLTextAreaElement) {
+                    const commentInputSetter = Object.getOwnPropertyDescriptor(commentEditorInput.constructor.prototype, 'value')?.set;
+                    commentInputSetter?.call(commentEditorInput, 'check the responsive hero copy');
+                    commentEditorInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    await sleep(80);
+                  }
+                  const commentEditorSend = document.querySelector('[data-testid="browser-comment-editor-send"]');
+                  if (commentEditorSend instanceof HTMLButtonElement) {
+                    commentEditorSend.click();
+                  }
+                  await sleep(260);
+                  const composerTextarea = document.querySelector('textarea');
+                  const panelAfterComment = document.querySelector('[data-testid="browser-panel"]');
+                  browserCommentModeWorks =
+                    browserCommentEditorWorks &&
+                    composerTextarea instanceof HTMLTextAreaElement &&
+                    composerTextarea.value.includes('Comment on this browser page:') &&
+                    composerTextarea.value.includes(smokeBaseUrl) &&
+                    composerTextarea.value.includes('Point:') &&
+                    composerTextarea.value.includes('Comment: check the responsive hero copy') &&
+                    (panelAfterComment?.getAttribute('data-browser-comment-mode') ?? '') === 'false' &&
+                    (panelAfterComment?.getAttribute('data-browser-comment-editor-open') ?? '') === 'false' &&
+                    (panelAfterComment?.getAttribute('data-browser-last-comment') ?? '').includes(',');
+                }
+              }
             }
             const badBrowserUrl = 'http://127.0.0.1:1/orchestrator-error-smoke';
             if (browserInputForStop instanceof HTMLInputElement) {
@@ -4331,6 +12378,12 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             const browserLoadErrorHardReload = document.querySelector('[data-testid="browser-load-error-hard-reload"]');
             const browserLoadErrorCopyUrl = document.querySelector('[data-testid="browser-load-error-copy-url"]');
             const browserLoadErrorOpenExternal = document.querySelector('[data-testid="browser-load-error-open-external"]');
+            const browserLoadErrorActions = [
+              browserLoadErrorRetry,
+              browserLoadErrorHardReload,
+              browserLoadErrorCopyUrl,
+              browserLoadErrorOpenExternal,
+            ];
             var browserErrorRecoveryWorks =
               (document.querySelector('[data-testid="browser-panel"]')?.getAttribute('data-browser-error') ?? '').length > 0 &&
               !(browserErrorStatusRow instanceof HTMLElement) &&
@@ -4350,6 +12403,43 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserLoadErrorOpenExternal instanceof HTMLButtonElement &&
               browserLoadError.querySelectorAll('button').length === 4 &&
               browserLoadError.scrollWidth <= browserLoadError.clientWidth + 2;
+            var browserLoadErrorSharedStateWorks =
+              browserLoadError instanceof HTMLElement &&
+              browserLoadError.getAttribute('data-panel-notice') === 'true' &&
+              browserLoadError.getAttribute('data-panel-notice-tone') === 'danger' &&
+              browserLoadError.getAttribute('data-panel-notice-state') === 'load-error' &&
+              browserLoadError.classList.contains('orchestrator-panel-notice') &&
+              browserLoadError.querySelector('.orchestrator-panel-notice-icon') instanceof HTMLElement &&
+              browserLoadError.querySelector('.orchestrator-panel-notice-copy') instanceof HTMLElement &&
+              browserLoadError.querySelector('.orchestrator-panel-notice-code') instanceof HTMLElement &&
+              browserLoadError.querySelector('.orchestrator-panel-notice-actions') instanceof HTMLElement &&
+              browserLoadError.querySelector('.orchestrator-panel-notice-suggestions') instanceof HTMLElement &&
+              browserLoadErrorActions.every((action) =>
+                action instanceof HTMLButtonElement &&
+                action.classList.contains('motion-button') &&
+                action.classList.contains('browser-load-error-action')
+              );
+            var browserCommentUnavailableWorks = false;
+            if (browserActionsButton instanceof HTMLButtonElement) {
+              browserActionsButton.click();
+              await sleep(140);
+              const unavailablePanel = document.querySelector('[data-testid="browser-panel"]');
+              const unavailableCommentButton = document.querySelector('[data-testid="browser-comment-mode"]');
+              const unavailableCommentMessage = document.querySelector('[data-testid="browser-comment-unavailable-message"]');
+              browserCommentUnavailableWorks =
+                unavailablePanel?.getAttribute('data-browser-comment-unavailable') === 'true' &&
+                unavailablePanel?.getAttribute('data-browser-comment-unavailable-reason')?.includes('Resolve the page load error') === true &&
+                unavailableCommentButton instanceof HTMLButtonElement &&
+                unavailableCommentButton.disabled === true &&
+                unavailableCommentMessage instanceof HTMLElement &&
+                unavailableCommentMessage.getAttribute('data-menu-message') === 'true' &&
+                unavailableCommentMessage.getAttribute('data-menu-message-state') === 'comment-unavailable' &&
+                unavailableCommentMessage.getAttribute('data-menu-message-tone') === 'danger' &&
+                unavailableCommentMessage.textContent?.includes('Comment mode unavailable') === true &&
+                unavailableCommentMessage.scrollWidth <= unavailableCommentMessage.clientWidth + 2;
+              browserActionsButton.click();
+              await sleep(80);
+            }
             if (browserInputForStop instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(browserInputForStop.constructor.prototype, 'value')?.set;
               setter?.call(browserInputForStop, smokeBaseUrl);
@@ -4404,6 +12494,14 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserTargetPointerPanel.open === false &&
               browserTargetClipboardPanel instanceof HTMLDetailsElement &&
               browserTargetClipboardPanel.open === false;
+            const browserTargetsSharedContainersWorks =
+              browserTargetsPane instanceof HTMLElement &&
+              browserTargetsPane.querySelectorAll('[data-inspector-section="true"]').length >= 3 &&
+              browserTargetsPane.querySelectorAll('[data-inspector-section-title="true"]').length >= 1 &&
+              browserTargetPointerPanel instanceof HTMLDetailsElement &&
+              browserTargetPointerPanel.classList.contains('orchestrator-inspector-disclosure') &&
+              browserTargetClipboardPanel instanceof HTMLDetailsElement &&
+              browserTargetClipboardPanel.classList.contains('orchestrator-inspector-disclosure');
             const setBrowserTargetAction = async (action) => {
               const actionSelect = document.querySelector('[data-testid="browser-target-action-select"]');
               if (!(actionSelect instanceof HTMLSelectElement)) return false;
@@ -4578,29 +12676,165 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               return pane instanceof HTMLElement &&
                 pane.scrollWidth <= pane.clientWidth + 2;
             })();
+            const browserTargetRunAction = document.querySelector('[data-testid="browser-target-run-action"]');
+            const browserInspectorActionButtons = [
+              document.querySelector('[data-testid="browser-target-coordinate-click"]'),
+              document.querySelector('[data-testid="browser-target-coordinate-scroll"]'),
+              document.querySelector('[data-testid="browser-target-clipboard-read"]'),
+              document.querySelector('[data-testid="browser-target-clipboard-write"]')
+            ].filter((button) => button instanceof HTMLElement);
+            const browserTargetActionsSharedWorks =
+              browserTargetRunAction instanceof HTMLElement &&
+              browserTargetRunAction.classList.contains('motion-icon-button') &&
+              browserTargetRunAction.getAttribute('data-icon-button-size') === 'sm' &&
+              browserTargetRunAction.getAttribute('data-icon') === 'send' &&
+              browserTargetRunAction.getBoundingClientRect().width <= 26 &&
+              browserInspectorActionButtons.length === 4 &&
+              browserInspectorActionButtons.every((button) =>
+                button instanceof HTMLElement &&
+                button.classList.contains('motion-button') &&
+                button.classList.contains('browser-inspector-action-button') &&
+                button.getBoundingClientRect().height <= 34 &&
+                button.scrollWidth <= button.clientWidth + 2
+              );
+            let browserSecurityActionsSharedWorks = false;
+            let browserSecuritySharedContainersWorks = false;
+            const browserSecurityButton = document.querySelector('[data-testid="browser-inspector-security"]');
+            if (browserSecurityButton instanceof HTMLButtonElement) {
+              browserSecurityButton.click();
+              await sleep(120);
+              const securityPane = document.querySelector('[data-testid="browser-security-pane"]');
+              const securityPolicyRows = [...document.querySelectorAll('[data-testid="browser-security-policy-row"]')];
+              const securityPolicyButtons = [...document.querySelectorAll('[data-testid="browser-security-policy-row"] .browser-inspector-action-button')]
+                .filter((button) => button instanceof HTMLElement);
+              browserSecurityActionsSharedWorks =
+                securityPane instanceof HTMLElement &&
+                securityPolicyButtons.length >= 8 &&
+                securityPolicyButtons.every((button) =>
+                  button instanceof HTMLElement &&
+                  button.classList.contains('motion-button') &&
+                  button.getBoundingClientRect().height <= 34 &&
+                  button.scrollWidth <= button.clientWidth + 2
+                );
+              browserSecuritySharedContainersWorks =
+                securityPane instanceof HTMLElement &&
+                securityPane.querySelectorAll('[data-inspector-section="true"]').length >= 3 &&
+                securityPane.querySelectorAll('[data-inspector-section-variant="raised"]').length >= 3 &&
+                securityPolicyRows.length === 4 &&
+                securityPolicyRows.every((row) =>
+                  row instanceof HTMLElement &&
+                  row.getAttribute('data-inspector-row') === 'true' &&
+                  row.classList.contains('orchestrator-inspector-row')
+                );
+            }
+            var browserInspectorActionsSharedWorks =
+              browserAssetsBundleSharedWorks &&
+              browserTargetActionsSharedWorks &&
+              browserSecurityActionsSharedWorks;
+            var browserInspectorContainersSharedWorks =
+              browserAssetsSharedContainersWorks &&
+              browserTargetsSharedContainersWorks &&
+              browserSecuritySharedContainersWorks;
             const browserPanel = document.querySelector('[data-testid="browser-panel"]');
             const expectedUrl = ${JSON.stringify(process.env.ORCHESTRATOR_BROWSER_SMOKE_URL ?? 'http://127.0.0.1:9')};
             const browserCurrentUrl = browserPanel?.getAttribute('data-browser-current-url') ?? '';
             const browserLoadedWorks = Boolean(document.querySelector('[data-testid="browser-webview"]')) &&
               browserCurrentUrl.startsWith(expectedUrl);
+            const browserWebviewManagerBoundaryWorks =
+              (browserPanel?.getAttribute('data-browser-webview-host-id') ?? '').startsWith('right:') &&
+              (document.querySelector('[data-testid="browser-webview-manager"]')?.getAttribute('data-browser-manager-dom-host') ?? '') === 'body' &&
+              (browserPanel?.getAttribute('data-browser-webview-partition-scope') ?? '') === 'host' &&
+              (browserPanel?.getAttribute('data-browser-webview-partition') ?? '').startsWith('persist:orchestrator-side-browser:') &&
+              (document.querySelector('[data-testid="browser-webview-manager"]')?.getAttribute('data-browser-manager-partition') ?? '') ===
+                (browserPanel?.getAttribute('data-browser-webview-partition') ?? '') &&
+              (document.querySelector('[data-testid="browser-webview-manager"]')?.getAttribute('data-browser-manager-partition-scope') ?? '') === 'host' &&
+              (document.querySelector('[data-testid="browser-webview"]')?.getAttribute('data-browser-webview-host-id') ?? '') ===
+                (browserPanel?.getAttribute('data-browser-webview-host-id') ?? '') &&
+              (document.querySelector('[data-testid="browser-webview"]')?.getAttribute('data-browser-webview-partition') ?? '') ===
+                (browserPanel?.getAttribute('data-browser-webview-partition') ?? '') &&
+              (document.querySelector('[data-testid="browser-webview"]')?.getAttribute('data-browser-webview-partition-scope') ?? '') === 'host' &&
+              (document.querySelector('[data-testid="browser-webview"]')?.getAttribute('data-browser-webview-dom-host') ?? '') === 'body' &&
+              (document.querySelector('[data-testid="browser-webview"]')?.getAttribute('data-browser-webview-containment') ?? '') === 'body-fixed' &&
+              document.querySelector('[data-testid="browser-webview"]')?.parentElement?.getAttribute('data-browser-webview-dom-host') === 'body' &&
+              document.querySelector('[data-testid="browser-webview"]')?.parentElement?.parentElement === document.body;
             const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
             const browserSingleTabStripHidden =
               Number(browserPanel?.getAttribute('data-browser-tab-count') ?? '0') === 1 &&
               !document.querySelector('[data-testid="browser-tab-strip"]');
+            let browserTabShellControllerWorks = false;
+            let browserTabChromeCalmWorks = false;
+            let browserWebviewPersistenceWorks = false;
+            const browserNewTabButton = document.querySelector('[data-testid="browser-new-tab"]');
+            if (browserNewTabButton instanceof HTMLButtonElement) {
+              const activeWebviewTabBeforeNewTab = browserPanel?.getAttribute('data-browser-active-webview-tab') ?? '';
+              const webviewCountBeforeNewTab = Number(browserPanel?.getAttribute('data-browser-webview-count') ?? '0');
+              browserNewTabButton.click();
+              await sleep(160);
+              const browserPanelAfterNewTab = document.querySelector('[data-testid="browser-panel"]');
+              const browserTabStrip = document.querySelector('[data-testid="browser-tab-strip"]');
+              const browserTabControllerId = browserPanelAfterNewTab?.getAttribute('data-browser-tab-controller-id') ?? '';
+              const browserTabs = browserTabControllerId
+                ? [...document.querySelectorAll(\`[role="tab"][data-app-shell-tab-controller="\${CSS.escape(browserTabControllerId)}"]\`)]
+                : [];
+              const hiddenWebviews = [...document.querySelectorAll('[data-testid="browser-webview-hidden"]')];
+              browserTabShellControllerWorks =
+                browserPanelAfterNewTab?.getAttribute('data-browser-tab-controller') === 'app-shell' &&
+                browserTabStrip instanceof HTMLElement &&
+                browserTabStrip.getAttribute('data-panel-toolbar') === 'true' &&
+                browserTabs.length >= 2 &&
+                browserTabs.every((tab) =>
+                  tab instanceof HTMLElement &&
+                  tab.getAttribute('data-app-shell-tab-controller') === browserTabControllerId &&
+                  (tab.getAttribute('aria-controls') ?? '').startsWith('orchestrator-')
+                );
+              browserTabChromeCalmWorks =
+                browserTabStrip instanceof HTMLElement &&
+                browserTabStrip.getAttribute('data-panel-toolbar') === 'true' &&
+                browserPanelAfterNewTab?.getAttribute('data-browser-tab-controller') === 'app-shell' &&
+                browserTabStrip.getBoundingClientRect().height <= 34 &&
+                browserTabs.length >= 2 &&
+                browserTabs.every((tab) =>
+                  tab instanceof HTMLElement &&
+                  tab.getBoundingClientRect().height <= 26 &&
+                  Number.parseFloat(getComputedStyle(tab).fontWeight || '0') <= 520
+                );
+              browserWebviewPersistenceWorks =
+                webviewCountBeforeNewTab === 1 &&
+                activeWebviewTabBeforeNewTab.length > 0 &&
+                Number(browserPanelAfterNewTab?.getAttribute('data-browser-tab-count') ?? '0') >= 2 &&
+                Number(browserPanelAfterNewTab?.getAttribute('data-browser-webview-count') ?? '0') === 1 &&
+                hiddenWebviews.some((webview) =>
+                  webview instanceof HTMLElement &&
+                  webview.getAttribute('data-browser-webview-tab-id') === activeWebviewTabBeforeNewTab &&
+                  webview.getAttribute('data-browser-webview-active') === 'false' &&
+                  webview.getAttribute('data-browser-webview-dom-host') === 'body' &&
+                  webview.getAttribute('data-browser-webview-partition') ===
+                    (browserPanelAfterNewTab?.getAttribute('data-browser-webview-partition') ?? '') &&
+                  webview.getAttribute('data-browser-webview-partition-scope') === 'host'
+                );
+            }
             const browserNoHorizontalOverflow = browserPanel instanceof HTMLElement &&
               browserPanel.scrollWidth <= browserPanel.clientWidth + 2;
             const browserToolbar = document.querySelector('.browser-toolbar');
             const browserFindRow = document.querySelector('[data-testid="browser-find-input"]')?.closest('.browser-find-toolbar');
             const browserAddressInput = document.querySelector('[data-testid="browser-url-input"]');
+            const browserAddressField = browserAddressInput instanceof HTMLElement
+              ? browserAddressInput.closest('.workbench-search-field')
+              : null;
             const browserToolbarCompact =
               browserToolbar instanceof HTMLElement &&
+              browserToolbar.getAttribute('data-panel-toolbar') === 'true' &&
               browserAddressInput instanceof HTMLInputElement &&
+              browserAddressField instanceof HTMLElement &&
+              browserAddressField.getAttribute('data-field-kind') === 'url' &&
               !(document.querySelector('.browser-toolbar [data-testid="browser-capture-screenshot"]') instanceof HTMLButtonElement) &&
               !(document.querySelector('.browser-toolbar [data-testid="browser-open-external"]') instanceof HTMLButtonElement) &&
               !(findButton('Browser history') instanceof HTMLButtonElement) &&
               browserToolbar.getBoundingClientRect().height <= 38 &&
               getComputedStyle(browserAddressInput).fontSize === '13px' &&
+              browserAddressField.getBoundingClientRect().height <= 30 &&
               (!(browserFindRow instanceof HTMLElement) || (
+                browserFindRow.getAttribute('data-panel-toolbar') === 'true' &&
                 browserFindRow.getBoundingClientRect().height <= 38 &&
                 browserFindRow.querySelector('.workbench-search-field') instanceof HTMLElement
               ));
@@ -4609,10 +12843,21 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               !document.querySelector('[data-testid="browser-status-row"]');
             const browserInspectorChromeCompactWorks = (() => {
               const toolbar = document.querySelector('[data-testid="browser-inspector-toolbar"]');
+              const refresh = document.querySelector('[data-testid="browser-refresh-inspection"]');
+              const hide = document.querySelector('[data-testid="browser-hide-inspection"]');
+              const toolbarActions = [refresh, hide].filter((button) => button instanceof HTMLElement);
               const activeLabel = document.querySelector('.browser-inspector-tab[data-active="true"] span');
               const inactiveLabels = [...document.querySelectorAll('.browser-inspector-tab:not([data-active="true"]) span')]
                 .filter((label) => label instanceof HTMLElement);
               return toolbar instanceof HTMLElement &&
+                toolbar.getAttribute('data-panel-toolbar') === 'true' &&
+                toolbarActions.length === 2 &&
+                toolbarActions.every((button) =>
+                  button instanceof HTMLElement &&
+                  button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  button.getBoundingClientRect().width === 24 &&
+                  button.getBoundingClientRect().height === 24
+                ) &&
                 activeLabel instanceof HTMLElement &&
                 getComputedStyle(activeLabel).display !== 'none' &&
                 inactiveLabels.length >= 3 &&
@@ -4621,7 +12866,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 toolbar.scrollWidth <= toolbar.clientWidth + 2;
             })();
             const browserInspectorLabelsCalm = [
-              ...document.querySelectorAll('.browser-target-section-title'),
+              ...document.querySelectorAll('[data-inspector-section-title="true"]'),
               ...document.querySelectorAll('.browser-target-read-output span:nth-child(odd)')
             ].every((label) => {
               const text = label.textContent?.trim() ?? '';
@@ -4658,6 +12903,87 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 }
               }
             }
+            let browserForkTransferWorks = false;
+            let browserForkDomTransferWorks = false;
+            const browserInputForFork = document.querySelector('[data-testid="browser-url-input"]');
+            if (browserInputForFork instanceof HTMLInputElement) {
+              const setter = Object.getOwnPropertyDescriptor(browserInputForFork.constructor.prototype, 'value')?.set;
+              setter?.call(browserInputForFork, expectedUrl);
+              browserInputForFork.dispatchEvent(new Event('input', { bubbles: true }));
+              browserInputForFork.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+              for (let index = 0; index < 30; index += 1) {
+                const panel = document.querySelector('[data-testid="browser-panel"]');
+                const url = panel?.getAttribute('data-browser-current-url') ?? '';
+                const loading = panel?.getAttribute('data-browser-loading') === 'true';
+                if (url.startsWith(expectedUrl) && !loading) break;
+                await sleep(100);
+              }
+            }
+            const forkSourcePanel = document.querySelector('[data-testid="browser-panel"]');
+            const forkSourceManager = document.querySelector('[data-testid="browser-webview-manager"]');
+            const forkSourceWebview = document.querySelector('[data-testid="browser-webview"]');
+            const forkSourceUrl = forkSourcePanel?.getAttribute('data-browser-current-url') ?? '';
+            const forkSourceTabCount = Number(forkSourcePanel?.getAttribute('data-browser-tab-count') ?? '0');
+            const forkSourceHostId = forkSourcePanel?.getAttribute('data-browser-webview-host-id') ?? '';
+            const forkSourcePartition = forkSourcePanel?.getAttribute('data-browser-webview-partition') ?? '';
+            const titlebarActions = document.querySelector('[data-testid="titlebar-chat-actions"]');
+            if (titlebarActions instanceof HTMLElement && forkSourceUrl.startsWith(expectedUrl)) {
+              titlebarActions.click();
+              await sleep(140);
+              const forkLocalMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Fork into local'));
+              if (forkLocalMenuItem instanceof HTMLElement) {
+                forkLocalMenuItem.click();
+                for (let index = 0; index < 30; index += 1) {
+                  const panel = document.querySelector('[data-testid="browser-panel"]');
+                  const activeTitle = document.querySelector('[data-testid="active-session-title"]');
+                  const forked = window.__orchestratorLastForkedSession ?? null;
+                  if (
+                    forked?.mode === 'local' &&
+                    activeTitle instanceof HTMLElement &&
+                    activeTitle.textContent?.includes('Forked:') &&
+                    panel?.getAttribute('data-browser-current-url') === forkSourceUrl
+                  ) {
+                    break;
+                  }
+                  await sleep(100);
+                }
+                const forked = window.__orchestratorLastForkedSession ?? null;
+                const forkedPanel = document.querySelector('[data-testid="browser-panel"]');
+                const forkedManager = document.querySelector('[data-testid="browser-webview-manager"]');
+                const forkedWebview = document.querySelector('[data-testid="browser-webview"]');
+                const forkedRightPanel = document.querySelector('[data-testid="session-right-panel"]');
+                const forkedHostId = forkedPanel?.getAttribute('data-browser-webview-host-id') ?? '';
+                browserForkDomTransferWorks =
+                  forked?.mode === 'local' &&
+                  forkedPanel instanceof HTMLElement &&
+                  forkedPanel.getAttribute('data-browser-current-url') === forkSourceUrl &&
+                  Number(forkedPanel.getAttribute('data-browser-tab-count') ?? '0') === forkSourceTabCount &&
+                  Number(forkedPanel.getAttribute('data-browser-webview-count') ?? '0') > 0 &&
+                  forkedPanel.getAttribute('data-browser-webview-transfer-state') === 'transferred' &&
+                  forkedPanel.getAttribute('data-browser-webview-transfer-source-host-id') === forkSourceHostId &&
+                  forkedPanel.getAttribute('data-browser-webview-transfer-target-host-id') === forkedHostId &&
+                  forkedPanel.getAttribute('data-browser-webview-source-host-id') === forkSourceHostId &&
+                  forkedPanel.getAttribute('data-browser-webview-partition') === forkSourcePartition &&
+                  forkedManager instanceof HTMLElement &&
+                  forkedManager.getAttribute('data-browser-manager-transfer-state') === 'transferred' &&
+                  forkedManager.getAttribute('data-browser-manager-host-id') === forkedHostId &&
+                  forkedManager.getAttribute('data-browser-manager-webview-host-id') === forkSourceHostId &&
+                  forkedManager.getAttribute('data-browser-manager-transfer-source-host-id') === forkSourceHostId &&
+                  forkedManager.getAttribute('data-browser-manager-transfer-target-host-id') === forkedHostId &&
+                  forkedManager.getAttribute('data-browser-manager-partition') === forkSourcePartition &&
+                  forkedWebview === forkSourceWebview &&
+                  forkedWebview instanceof HTMLElement &&
+                  forkedWebview.getAttribute('data-browser-webview-host-id') === forkedHostId &&
+                  forkedWebview.getAttribute('data-browser-webview-source-host-id') === forkSourceHostId &&
+                  forkedWebview.getAttribute('data-browser-webview-transfer-state') === 'transferred' &&
+                  forkedWebview.getAttribute('data-browser-webview-partition') === forkSourcePartition &&
+                  forkSourceManager instanceof HTMLElement &&
+                  forkedRightPanel instanceof HTMLElement &&
+                  forkedRightPanel.dataset.rightPanelActiveTab === 'browser';
+                browserForkTransferWorks = browserForkDomTransferWorks;
+              }
+            }
             return {
               profile,
               browserActive: rightPanel instanceof HTMLElement &&
@@ -4665,26 +12991,47 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserEmptyStateWorks,
               browserLocalTargetsWorks,
               browserLocalTargetHideWorks,
+              browserLocalServerRoutesWork,
+              browserLocalServerRouteNormalizationWorks,
+              browserLocalTargetsListChromeWorks,
+              browserLocalTargetsCompactChooserWorks,
               browserAddressSearchWorks,
               browserAddressBadgeWorks,
               browserToolbarExternalWorks,
               browserToolbarScreenshotWorks,
               browserLoaded: browserLoadedWorks,
+              browserWebviewManagerBoundaryWorks,
               browserFindWorks,
               browserFindNavigationWorks,
               browserZoomWorks,
               browserDeviceModeWorks,
               browserDevicePresetCatalogWorks,
+              browserVisibleGeometryWorks,
               browserViewportResetWorks,
+              browserManagerStateBridgeWorks,
+              browserCaptureGeometryWorks,
+              browserUseNoMutationWorks,
               browserCacheReloadWorks,
               browserStopLoadingWorks,
               browserToolbarHistoryWorks,
               browserHistoryMenuWorks,
               browserActionsMenuCompactWorks: typeof browserActionsMenuCompactWorks === 'boolean' ? browserActionsMenuCompactWorks : null,
+              browserActionsMenuMaterialWorks,
+              browserMenuSectionsSharedWorks: typeof browserMenuSectionsSharedWorks === 'boolean' ? browserMenuSectionsSharedWorks : null,
+              browserMenuRowsSharedWorks: typeof browserMenuRowsSharedWorks === 'boolean' ? browserMenuRowsSharedWorks : null,
+              browserFallbackMessagesSharedWorks,
               browserActionLabelsCalm: typeof browserActionLabelsCalm === 'boolean' ? browserActionLabelsCalm : null,
               browserClearDataWorks: typeof browserClearDataWorks === 'boolean' ? browserClearDataWorks : null,
               browserContextMenuWorks,
+              browserContextMenuMaterialWorks,
               browserContextComposerWorks,
+              browserCommentModeWorks,
+              browserCommentCoachmarkWorks,
+              browserCommentEditorWorks,
+              browserCommentRegionWorks,
+              browserCommentPreviewOriginalWorks,
+              browserCommentDesignTweakWorks,
+              browserCommentUnavailableWorks,
               browserDomPaneCompactWorks,
               browserTargetsPaneWorks,
               browserTargetKeyWorks,
@@ -4696,15 +13043,29 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserTargetsPaneNoHorizontalOverflowWorks,
               browserErrorRecoveryWorks,
               browserLoadErrorPanelWorks,
+              browserLoadErrorSharedStateWorks,
               browserSingleTabStripHidden,
+              browserTabShellControllerWorks,
+              browserTabChromeCalmWorks,
+              browserWebviewPersistenceWorks,
               browserNoHorizontalOverflow,
               browserToolbarCompact,
               browserLocalTargetsCalm,
               browserInspectorChromeCompactWorks,
               browserInspectorLabelsCalm,
+              browserAssetsBundleSharedWorks,
+              browserInspectorContainersSharedWorks,
+              browserTargetActionsSharedWorks,
+              browserSecurityActionsSharedWorks,
+              browserInspectorActionsSharedWorks,
               browserVisibilityControlWorks,
               browserHiddenStateWorks,
+              browserHiddenWebviewPersistenceWorks,
+              browserLifecycleResyncWorks,
+              browserHiddenWebviewContainmentWorks,
               browserTabResetWorks,
+              browserForkTransferWorks,
+              browserForkDomTransferWorks,
               browserStatusRowQuiet
             };
           })()
@@ -4983,6 +13344,296 @@ function runAutomatedSessionSwitchSmoke(win: BrowserWindow, outputPath: string, 
   })
 }
 
+function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
+  const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+  const waitForWindowLoad = async (target: BrowserWindow): Promise<void> => {
+    if (target.isDestroyed()) return
+    if (!target.webContents.isLoading()) {
+      await sleep(120)
+      return
+    }
+    await new Promise<void>((resolve) => {
+      target.webContents.once('did-finish-load', () => resolve())
+    })
+    await sleep(240)
+  }
+  const waitForSecondWindow = async (): Promise<BrowserWindow | null> => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const second = BrowserWindow.getAllWindows()
+        .find((candidate) => candidate !== win && !candidate.isDestroyed()) ?? null
+      if (second) return second
+      await sleep(100)
+    }
+    return null
+  }
+
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(async () => {
+      try {
+        await waitForWindowLoad(win)
+        win.show()
+        win.focus()
+        const firstResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const buttonLabel = (button) =>
+              button.getAttribute('aria-label') ??
+              button.getAttribute('data-tooltip-label') ??
+              button.getAttribute('title') ??
+              button.textContent?.trim() ??
+              '';
+            const findButton = (label) =>
+              [...document.querySelectorAll('button')]
+                .find((button) => buttonLabel(button) === label);
+            const waitFor = async (predicate, attempts = 30, delay = 100) => {
+              for (let attempt = 0; attempt < attempts; attempt += 1) {
+                const value = predicate();
+                if (value) return value;
+                await sleep(delay);
+              }
+              return null;
+            };
+            const profile = await window.api.app.getProfile();
+            let projects = await window.api.projects.list();
+            if (projects.length === 0) {
+              const root = ${JSON.stringify(process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? process.cwd())};
+              const project = await window.api.projects.add('Automated UI Smoke', root);
+              projects = [project];
+            }
+            const project = projects[0];
+            let sessions = await window.api.sessions.list();
+            let session = sessions.find((candidate) => candidate.projectId === project.id) ?? sessions[0] ?? null;
+            if (!session) {
+              session = await window.api.sessions.create({
+                projectId: project.id,
+                workDir: project.rootPath,
+                useWorktree: false,
+                repoRoot: project.rootPath
+              });
+              await window.api.projects.addSession(project.id, session.id);
+              await sleep(300);
+            }
+            const row = document.querySelector('[data-session-id="' + CSS.escape(session.id) + '"]');
+            if (row instanceof HTMLElement) {
+              row.click();
+              await sleep(180);
+            }
+            await waitFor(() => document.querySelector('[data-testid="active-session-title"]'));
+            const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            if (!(rightPanel instanceof HTMLElement) || rightPanel.getBoundingClientRect().width <= 120) {
+              const toggle = document.querySelector('[data-testid="titlebar-toggle-sidebar"]') ?? findButton('Toggle sidebar');
+              if (toggle instanceof HTMLElement) {
+                toggle.click();
+                await sleep(260);
+              }
+            }
+            const browserTab = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+            if (browserTab instanceof HTMLElement) {
+              browserTab.click();
+              await sleep(140);
+            } else {
+              const addButton = findButton('Add Workbench tab');
+              if (addButton instanceof HTMLElement) {
+                addButton.click();
+                await sleep(140);
+                const browserAction = document.querySelector('[data-testid="workbench-new-tab-action-browser"]');
+                if (browserAction instanceof HTMLElement && browserAction.getAttribute('aria-disabled') !== 'true') {
+                  browserAction.click();
+                  await sleep(260);
+                }
+              }
+            }
+            const input = await waitFor(() => document.querySelector('[data-testid="browser-url-input"]'), 24, 100);
+            if (input instanceof HTMLElement) {
+              const rect = input.getBoundingClientRect();
+              const focusSurface = input.closest('[data-app-shell-focus-area="right-panel"]');
+              if (focusSurface instanceof HTMLElement) {
+                focusSurface.dispatchEvent(new PointerEvent('pointerover', {
+                  bubbles: true,
+                  clientX: rect.left + Math.min(12, rect.width / 2),
+                  clientY: rect.top + Math.min(12, rect.height / 2)
+                }));
+              }
+              input.dispatchEvent(new MouseEvent('mouseover', {
+                bubbles: true,
+                clientX: rect.left + Math.min(12, rect.width / 2),
+                clientY: rect.top + Math.min(12, rect.height / 2)
+              }));
+              input.focus({ preventScroll: true });
+              for (let attempt = 0; attempt < 12; attempt += 1) {
+                if (document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') === 'right-panel') break;
+                await sleep(80);
+              }
+            }
+            let firstBrowserMenu = await window.api.app.getMenuCommandState('focus-browser-address-bar');
+            for (let attempt = 0; attempt < 12 && firstBrowserMenu?.enabled !== true; attempt += 1) {
+              await sleep(100);
+              firstBrowserMenu = await window.api.app.getMenuCommandState('focus-browser-address-bar');
+            }
+            await window.api.app.openSessionWindow(session.id);
+            return {
+              profile,
+              sessionId: session.id,
+              firstActiveSessionTitle: document.querySelector('[data-testid="active-session-title"]')?.textContent?.trim() ?? '',
+              firstActiveFocusArea: document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') ?? '',
+              firstBrowserInputFocused: document.activeElement === input,
+              firstBrowserMenuEnabledBeforeOpen: firstBrowserMenu?.enabled === true
+            };
+          })()
+        `)
+
+        const second = await waitForSecondWindow()
+        if (!second) {
+          writeFileSync(outputPath, JSON.stringify({ ok: true, result: { ...firstResult, secondWindowCreated: false }, screenshotPath }, null, 2))
+          app.quit()
+          return
+        }
+        await waitForWindowLoad(second)
+        second.show()
+        second.focus()
+        await sleep(420)
+        const secondResult = await second.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            let activeSessionId = '';
+            let activeTitle = '';
+            for (let attempt = 0; attempt < 30; attempt += 1) {
+              activeTitle = document.querySelector('[data-testid="active-session-title"]')?.textContent?.trim() ?? '';
+              const activeRow = document.querySelector('[data-session-id][aria-current="page"]');
+              activeSessionId = activeRow?.getAttribute('data-session-id') ?? '';
+              if (activeSessionId) break;
+              await sleep(100);
+            }
+            const pendingAfterLoad = await window.api.app.consumePendingNavigation();
+            const browserMenu = await window.api.app.getMenuCommandState('focus-browser-address-bar');
+            return {
+              secondActiveSessionId: activeSessionId,
+              secondActiveSessionTitle: activeTitle,
+              pendingAfterLoad,
+              secondFocusArea: document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') ?? '',
+              secondBrowserMenuEnabled: browserMenu?.enabled === true
+            };
+          })()
+        `)
+        await win.webContents.executeJavaScript(`
+          window.api.app.setMenuCommandAvailability({
+            'focus-browser-address-bar': true,
+            'browser-reload-page': true,
+            'browser-hard-reload-page': true,
+            'browser-navigate-back': true,
+            'browser-navigate-forward': true
+          })
+        `)
+        const backgroundMenuResult = await second.webContents.executeJavaScript(`
+          (async () => {
+            const browserMenu = await window.api.app.getMenuCommandState('focus-browser-address-bar');
+            return {
+              secondBrowserMenuEnabledAfterBackgroundUpdate: browserMenu?.enabled === true
+            };
+          })()
+        `)
+
+        if (!second.isDestroyed()) {
+          second.blur()
+          second.hide()
+        }
+        app.focus({ steal: true })
+        win.show()
+        win.moveTop()
+        win.setAlwaysOnTop(true, 'screen-saver')
+        win.focus()
+        win.webContents.focus()
+        await sleep(180)
+        win.setAlwaysOnTop(false)
+        win.moveTop()
+        win.focus()
+        win.webContents.focus()
+        markAppWindowActive(win)
+        await sleep(520)
+        const firstBeforeMenuCommand = await win.webContents.executeJavaScript(`
+          (async () => {
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const fallbackTarget =
+              document.querySelector('[data-testid="browser-new-tab"]') ??
+              document.querySelector('[data-testid="browser-actions-menu"]') ??
+              document.querySelector('[data-testid="browser-url-input"]');
+            if (fallbackTarget instanceof HTMLElement) {
+              const rect = fallbackTarget.getBoundingClientRect();
+              const focusSurface = fallbackTarget.closest('[data-app-shell-focus-area="right-panel"]');
+              if (focusSurface instanceof HTMLElement) {
+                focusSurface.dispatchEvent(new PointerEvent('pointerover', {
+                  bubbles: true,
+                  clientX: rect.left + Math.min(12, rect.width / 2),
+                  clientY: rect.top + Math.min(12, rect.height / 2)
+                }));
+              }
+              fallbackTarget.focus({ preventScroll: true });
+            }
+            let browserMenu = await window.api.app.getMenuCommandState('focus-browser-address-bar');
+            for (let attempt = 0; attempt < 12 && browserMenu?.enabled !== true; attempt += 1) {
+              await sleep(100);
+              browserMenu = await window.api.app.getMenuCommandState('focus-browser-address-bar');
+            }
+            const input = document.querySelector('[data-testid="browser-url-input"]');
+            return {
+              firstBrowserMenuEnabledBeforeMenuCommand: browserMenu?.enabled === true,
+              firstBrowserInputFocusedBeforeMenuCommand: document.activeElement === input,
+              firstFocusAreaBeforeMenuCommand: document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') ?? ''
+            };
+          })()
+        `)
+        sendAppMenuCommand('focus-browser-address-bar')
+        await sleep(260)
+        const firstAfterFocus = await win.webContents.executeJavaScript(`
+          (async () => {
+            const browserMenu = await window.api.app.getMenuCommandState('focus-browser-address-bar');
+            const input = document.querySelector('[data-testid="browser-url-input"]');
+            return {
+              firstBrowserMenuEnabledAfterRefocus: browserMenu?.enabled === true,
+              firstBrowserInputFocusedAfterMenuCommand: document.activeElement === input,
+              firstFocusAreaAfterRefocus: document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') ?? ''
+            };
+          })()
+        `)
+
+        if (screenshotPath) {
+          const image = await win.webContents.capturePage()
+          writeFileSync(screenshotPath, image.toPNG())
+        }
+        if (!second.isDestroyed()) second.close()
+        writeFileSync(outputPath, JSON.stringify({
+          ok: true,
+          result: {
+            ...firstResult,
+            ...secondResult,
+            ...backgroundMenuResult,
+            ...firstBeforeMenuCommand,
+            ...firstAfterFocus,
+            focusedWindowAfterRefocus: BrowserWindow.getFocusedWindow() === win,
+            activeWindowAfterRefocus: activeAppWindow() === win,
+            windowCountAfterOpen: BrowserWindow.getAllWindows().filter((candidate) => !candidate.isDestroyed()).length,
+            secondWindowCreated: true,
+            secondWindowNavigated: secondResult.secondActiveSessionId === firstResult.sessionId,
+            pendingNavigationConsumedOnce: secondResult.pendingAfterLoad === null,
+            firstWindowBrowserFocusArea: firstResult.firstActiveFocusArea === 'right-panel' && firstResult.firstBrowserInputFocused === true,
+            firstWindowBrowserMenuEnabled: firstResult.firstBrowserMenuEnabledBeforeOpen === true,
+            secondWindowBrowserMenuDisabled: secondResult.secondBrowserMenuEnabled === false,
+            backgroundWindowMenuDoesNotClobberFocusedWindow: backgroundMenuResult.secondBrowserMenuEnabledAfterBackgroundUpdate === false,
+            focusSwitchRestoresFirstWindowMenu: firstBeforeMenuCommand.firstBrowserMenuEnabledBeforeMenuCommand === true,
+            menuCommandRoutedToFocusedWindow: firstBeforeMenuCommand.firstBrowserInputFocusedBeforeMenuCommand === false &&
+              firstAfterFocus.firstBrowserInputFocusedAfterMenuCommand === true
+          },
+          screenshotPath
+        }, null, 2))
+        app.quit()
+      } catch (error) {
+        writeFileSync(outputPath, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }, null, 2))
+        app.quit()
+      }
+    }, 700)
+  })
+}
+
 function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screenshotPath?: string): void {
   win.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
@@ -4997,6 +13648,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
         }
         const running = sessions.find((session) => session.name === 'Sidebar running')
         if (running) sessionManager.updateStatus(running.id, 'running')
+        const normalSession = sessions.find((session) => session.name === 'Sidebar normal idle')
         const pinnedLive = sessions.find((session) => session.name === 'Sidebar pinned older')
         if (pinnedLive) {
           setTimeout(() => sessionManager.updateStatus(pinnedLive.id, 'running'), 1800)
@@ -5009,7 +13661,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               timestamp: Date.now()
             }])
             sessionManager.updateStatus(pinnedLive.id, 'idle')
-          }, 4300)
+          }, 12000)
         }
         const result = await win.webContents.executeJavaScript(`
           (async () => {
@@ -5029,10 +13681,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const hoverSurfaceReadable = (element) => {
               const style = getComputedStyle(element);
               const rect = element.getBoundingClientRect();
+              const backgroundAlpha = colorAlpha(style.backgroundColor);
+              const hasBlurredMaterial = (style.backdropFilter || style.webkitBackdropFilter || '').includes('blur');
               return (
                 rect.width >= 20 &&
                 rect.height >= 10 &&
-                colorAlpha(style.backgroundColor) >= 0.98 &&
+                (backgroundAlpha >= 0.98 || (backgroundAlpha >= 0.88 && hasBlurredMaterial)) &&
                 colorAlpha(style.color) >= 0.98 &&
                 Number.parseFloat(style.opacity || '1') >= 0.95 &&
                 style.visibility !== 'hidden'
@@ -5052,6 +13706,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               return null;
             };
             await waitForRow('Sidebar pinned recent');
+            const initialShowMoreRow = [...document.querySelectorAll('[data-testid="project-show-more-row"]')]
+              .find((row) => row.textContent?.includes('Show'));
+            if (initialShowMoreRow instanceof HTMLElement) {
+              initialShowMoreRow.click();
+              await sleep(180);
+            }
             await sleep(250);
 
             const bodyText = document.body.innerText;
@@ -5059,22 +13719,179 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const projectsIndex = bodyText.indexOf('Projects');
             const olderIndex = bodyText.indexOf('Sidebar pinned older');
             const recentIndex = bodyText.indexOf('Sidebar pinned recent');
+            const providerPinnedIndex = bodyText.indexOf('Sidebar provider pinned codex');
             const pinnedAboveProjects = pinnedIndex >= 0 && projectsIndex >= 0 && pinnedIndex < projectsIndex;
-            const pinnedOrderStable = recentIndex >= 0 && olderIndex >= 0 && olderIndex < recentIndex && recentIndex < projectsIndex;
+            const pinnedOrderStable =
+              recentIndex >= 0 &&
+              olderIndex >= 0 &&
+              providerPinnedIndex >= 0 &&
+              olderIndex < recentIndex &&
+              recentIndex < providerPinnedIndex &&
+              providerPinnedIndex < projectsIndex;
             const projectBlock = projectsIndex >= 0 ? bodyText.slice(projectsIndex) : '';
             const pinnedRowsHiddenFromProjects =
               !projectBlock.includes('Sidebar pinned recent') &&
-              !projectBlock.includes('Sidebar pinned older');
+              !projectBlock.includes('Sidebar pinned older') &&
+              !projectBlock.includes('Sidebar provider pinned codex');
+            const providerPinnedRow = rowFor('Sidebar provider pinned codex');
+            const providerPinnedMetadataWorks =
+              providerPinnedRow instanceof HTMLElement &&
+              providerPinnedRow.closest('.session-row-shell')?.getAttribute('data-sidebar-provider-pinned') === 'true' &&
+              providerPinnedRow.closest('.session-row-shell')?.getAttribute('data-sidebar-pinned-thread-key') === 'remote:sidebar-provider-pinned-codex';
             const chatScrollContainer = document.querySelector('[data-testid="sidebar-chat-scroll"]');
             const pinnedSection = document.querySelector('[data-testid="sidebar-pinned-section"]');
-            const projectsHeader = document.querySelector('[data-testid="sidebar-projects-header"]');
+            const projectsSection = document.querySelector('[data-testid="sidebar-projects-section"]');
             const pinnedSharesProjectScroll =
               chatScrollContainer instanceof HTMLElement &&
               pinnedSection instanceof HTMLElement &&
-              projectsHeader instanceof HTMLElement &&
+              projectsSection instanceof HTMLElement &&
               pinnedSection.parentElement === chatScrollContainer &&
-              projectsHeader.parentElement === chatScrollContainer &&
+              projectsSection.parentElement === chatScrollContainer &&
               getComputedStyle(chatScrollContainer).overflowY !== 'visible';
+            let sidebarPinnedDragReorderWorks = false;
+            if (pinnedSection instanceof HTMLElement && typeof DataTransfer !== 'undefined') {
+              const pinnedRecentRow = rowFor('Sidebar pinned recent');
+              const pinnedOlderRow = rowFor('Sidebar pinned older');
+              const pinnedRecentDrag = pinnedRecentRow instanceof HTMLElement
+                ? pinnedRecentRow.closest('[data-testid="sidebar-pinned-draggable-session"]')
+                : null;
+              const pinnedOlderDrag = pinnedOlderRow instanceof HTMLElement
+                ? pinnedOlderRow.closest('[data-testid="sidebar-pinned-draggable-session"]')
+                : null;
+              if (pinnedRecentDrag instanceof HTMLElement && pinnedOlderDrag instanceof HTMLElement) {
+                const pinnedTransfer = new DataTransfer();
+                pinnedRecentDrag.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: pinnedTransfer }));
+                pinnedOlderDrag.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: pinnedTransfer }));
+                await sleep(40);
+                const pinnedDropMarker = pinnedOlderDrag.getAttribute('data-sidebar-pinned-drop-target') === 'before';
+                pinnedOlderDrag.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: pinnedTransfer }));
+                pinnedRecentDrag.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: pinnedTransfer }));
+                for (let index = 0; index < 80; index += 1) {
+                  const latestText = document.body.innerText;
+                  const latestProjectsIndex = latestText.indexOf('Projects');
+                  const latestPinnedBlock = latestProjectsIndex >= 0 ? latestText.slice(0, latestProjectsIndex) : latestText;
+                  const latestRecentIndex = latestPinnedBlock.indexOf('Sidebar pinned recent');
+                  const latestOlderIndex = latestPinnedBlock.indexOf('Sidebar pinned older');
+                  if (latestRecentIndex >= 0 && latestOlderIndex >= 0 && latestRecentIndex < latestOlderIndex) break;
+                  await sleep(25);
+                }
+                const reorderedPinnedText = document.body.innerText;
+                const reorderedProjectsIndex = reorderedPinnedText.indexOf('Projects');
+                const reorderedPinnedBlock = reorderedProjectsIndex >= 0 ? reorderedPinnedText.slice(0, reorderedProjectsIndex) : reorderedPinnedText;
+                const reorderedRecentIndex = reorderedPinnedBlock.indexOf('Sidebar pinned recent');
+                const reorderedOlderIndex = reorderedPinnedBlock.indexOf('Sidebar pinned older');
+                const pinnedList = document.querySelector('[data-testid="sidebar-pinned-session-list"]');
+                sidebarPinnedDragReorderWorks =
+                  pinnedDropMarker &&
+                  pinnedSection.getAttribute('data-sidebar-pinned-reorder') === 'local' &&
+                  pinnedList instanceof HTMLElement &&
+                  reorderedRecentIndex >= 0 &&
+                  reorderedOlderIndex >= 0 &&
+                  reorderedRecentIndex < reorderedOlderIndex;
+              }
+            }
+            let sidebarProjectlessChatsWorks = false;
+            let sidebarProjectlessChatsFirstPreferenceWorks = false;
+            let providerProjectlessMetadataWorks = false;
+            let providerWorktreeMetadataWorks = false;
+            const projectlessSection = document.querySelector('[data-testid="sidebar-projectless-chats-section"]');
+            const projectlessHeader = document.querySelector('[data-testid="sidebar-projectless-chats-header"]');
+            const projectlessRow = rowFor('Sidebar projectless chat');
+            const remoteProjectlessRow = rowFor('Sidebar remote projectless codex');
+            const remoteWorktreeRow = rowFor('Sidebar remote worktree codex');
+            const pendingRemoteWorktreeRow = rowFor('Sidebar pending remote worktree codex');
+            if (
+              remoteWorktreeRow instanceof HTMLElement &&
+              pendingRemoteWorktreeRow instanceof HTMLElement
+            ) {
+              const remoteWorktreeShell = remoteWorktreeRow.closest('.session-row-shell');
+              const pendingRemoteWorktreeShell = pendingRemoteWorktreeRow.closest('.session-row-shell');
+              providerWorktreeMetadataWorks =
+                remoteWorktreeShell?.getAttribute('data-sidebar-thread-kind') === 'worktree' &&
+                remoteWorktreeShell?.getAttribute('data-sidebar-worktree-source-root') === '/remote/src/orchestrator' &&
+                remoteWorktreeShell?.getAttribute('data-sidebar-worktree-root') === '/remote/src/orchestrator-worktree' &&
+                remoteWorktreeShell?.getAttribute('data-sidebar-worktree-host-id') === 'remote-mac' &&
+                pendingRemoteWorktreeShell?.getAttribute('data-sidebar-thread-kind') === 'pending-worktree' &&
+                pendingRemoteWorktreeShell?.getAttribute('data-sidebar-worktree-root') === '/remote/src/orchestrator-pending' &&
+                pendingRemoteWorktreeShell?.getAttribute('data-sidebar-worktree-host-id') === 'remote-mac';
+            }
+            if (
+              projectlessSection instanceof HTMLElement &&
+              projectlessHeader instanceof HTMLElement &&
+              projectlessRow instanceof HTMLElement &&
+              remoteProjectlessRow instanceof HTMLElement &&
+              projectsSection instanceof HTMLElement
+            ) {
+              const projectGroupList = document.querySelector('[data-testid="sidebar-project-group-list"]');
+              const firstProjectHeader = projectsSection.querySelector('[data-testid="project-section-header"]');
+              const projectlessChatsAfterProjects =
+                !(firstProjectHeader instanceof HTMLElement) ||
+                Boolean(firstProjectHeader.compareDocumentPosition(projectlessSection) & Node.DOCUMENT_POSITION_FOLLOWING);
+              const projectlessRowScoped =
+                projectlessRow.closest('[data-testid="sidebar-projectless-chats-section"]') === projectlessSection;
+              const remoteProjectlessRowScoped =
+                remoteProjectlessRow.closest('[data-testid="sidebar-projectless-chats-section"]') === projectlessSection;
+              providerProjectlessMetadataWorks =
+                remoteProjectlessRow.closest('.session-row-shell')?.getAttribute('data-sidebar-projectless') === 'true' &&
+                remoteProjectlessRow.closest('.session-row-shell')?.getAttribute('data-sidebar-projectless-thread-id') === 'sidebar-remote-projectless-codex';
+              const sharedProjectlessHeader =
+                projectlessHeader.classList.contains('sidebar-list-row') &&
+                projectlessHeader.classList.contains('sidebar-list-row-section');
+              const defaultProjectlessPreferenceStored =
+                window.localStorage.getItem('orchestrator.sidebar.projectlessChatsFirst') == null &&
+                projectGroupList instanceof HTMLElement &&
+                projectGroupList.getAttribute('data-sidebar-projectless-chats-first') === 'false';
+              const projectlessOrganizeButton = findButton('Organize sidebar');
+              if (projectlessOrganizeButton instanceof HTMLButtonElement) {
+                projectlessOrganizeButton.click();
+                await sleep(100);
+                const chatsBeforeProjects = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Chats before projects'));
+                if (chatsBeforeProjects instanceof HTMLButtonElement) {
+                  chatsBeforeProjects.click();
+                  await sleep(180);
+                  const reorderedProjectlessSection = document.querySelector('[data-testid="sidebar-projectless-chats-section"]');
+                  const reorderedProjectGroupList = document.querySelector('[data-testid="sidebar-project-group-list"]');
+                  const reorderedFirstProjectHeader = projectsSection.querySelector('[data-testid="project-section-header"]');
+                  const projectlessChatsFirst =
+                    !(reorderedFirstProjectHeader instanceof HTMLElement) ||
+                    (
+                      reorderedProjectlessSection instanceof HTMLElement &&
+                      Boolean(reorderedProjectlessSection.compareDocumentPosition(reorderedFirstProjectHeader) & Node.DOCUMENT_POSITION_FOLLOWING)
+                    );
+                  sidebarProjectlessChatsFirstPreferenceWorks =
+                    defaultProjectlessPreferenceStored &&
+                    projectlessChatsAfterProjects &&
+                    window.localStorage.getItem('orchestrator.sidebar.projectlessChatsFirst') === 'true' &&
+                    reorderedProjectGroupList instanceof HTMLElement &&
+                    reorderedProjectGroupList.getAttribute('data-sidebar-projectless-chats-first') === 'true' &&
+                    projectlessChatsFirst;
+                }
+              }
+              const activeProjectlessHeader = document.querySelector('[data-testid="sidebar-projectless-chats-header"]');
+              const collapseProjectlessHeader = activeProjectlessHeader instanceof HTMLElement ? activeProjectlessHeader : projectlessHeader;
+              collapseProjectlessHeader.click();
+              await sleep(140);
+              const projectlessCollapsedStored =
+                window.localStorage.getItem('orchestrator.sidebar.collapsedProjectlessChats') === 'true';
+              const projectlessCollapsedHidden =
+                !(rowFor('Sidebar projectless chat') instanceof HTMLElement) &&
+                !(rowFor('Sidebar remote projectless codex') instanceof HTMLElement);
+              if (activeProjectlessHeader instanceof HTMLElement) activeProjectlessHeader.click();
+              await sleep(140);
+              const projectlessExpandedVisible =
+                rowFor('Sidebar projectless chat') instanceof HTMLElement &&
+                rowFor('Sidebar remote projectless codex') instanceof HTMLElement;
+              sidebarProjectlessChatsWorks =
+                projectlessSection.getAttribute('data-sidebar-projectless-session-count') === '2' &&
+                projectlessRowScoped &&
+                remoteProjectlessRowScoped &&
+                providerProjectlessMetadataWorks &&
+                sharedProjectlessHeader &&
+                projectlessCollapsedStored &&
+                projectlessCollapsedHidden &&
+                projectlessExpandedVisible;
+            }
 
             const pinnedRecentRow = rowFor('Sidebar pinned recent');
             const pinnedRecentPin = pinnedRecentRow?.querySelector('[data-testid="session-pin-toggle"]');
@@ -5119,9 +13936,18 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               !hoverCardText.includes('Updated') &&
               !hoverCardText.includes('Environment');
             const hoverCardSurfaceReadable = hoverCard instanceof HTMLElement && hoverSurfaceReadable(hoverCard);
+            const hoverCardStyle = hoverCard instanceof HTMLElement ? getComputedStyle(hoverCard) : null;
+            const hoverCardMaterialWorks =
+              hoverCard instanceof HTMLElement &&
+              hoverCardStyle !== null &&
+              Number.parseFloat(hoverCardStyle.borderRadius || '0') >= 12 &&
+              ((hoverCardStyle.backdropFilter || hoverCardStyle.webkitBackdropFilter || '').includes('blur')) &&
+              hoverCardStyle.boxShadow !== 'none' &&
+              Number.parseFloat(hoverCardStyle.borderTopWidth || '0') <= 1;
             let doubleClickRenameWorks = false;
             let renameDialogCancelWorks = false;
             let renameDialogChromeQuiet = false;
+            let renameDialogSharedLayoutWorks = false;
             let renameDialogInputFocused = false;
             if (normalRow instanceof HTMLElement) {
               normalRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
@@ -5141,6 +13967,14 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 renameDialog.getBoundingClientRect().width <= 452 &&
                 !renameDialog.querySelector('.border-b, .border-t') &&
                 getComputedStyle(renameDialog.querySelector('.orchestrator-dialog-title') ?? renameDialog).fontWeight !== '700';
+              renameDialogSharedLayoutWorks =
+                renameDialog instanceof HTMLElement &&
+                renameDialog.querySelector('[data-dialog-content="true"]') instanceof HTMLElement &&
+                renameDialog.querySelector('[data-dialog-header="true"]') instanceof HTMLElement &&
+                renameDialog.querySelector('[data-dialog-footer="true"]') instanceof HTMLElement &&
+                [...renameDialog.querySelectorAll('[data-dialog-footer="true"] button')]
+                  .filter((button) => button instanceof HTMLElement)
+                  .every((button) => button.classList.contains('motion-button'));
               if (cancelButton instanceof HTMLButtonElement) {
                 cancelButton.click();
                 await sleep(140);
@@ -5192,6 +14026,15 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 getComputedStyle(element).overflowX === 'hidden' &&
                 element.scrollWidth <= element.clientWidth + 2
               ));
+            const sidebarWidthToken = getComputedStyle(document.documentElement)
+              .getPropertyValue('--orchestrator-sidebar-width')
+              .trim();
+            const sidebarWidth = sidebar instanceof HTMLElement ? sidebar.getBoundingClientRect().width : 0;
+            const sidebarWidthTokenWorks =
+              sidebar instanceof HTMLElement &&
+              sidebarWidthToken.includes('clamp') &&
+              sidebarWidth >= 239 &&
+              sidebarWidth <= 301;
             const sidebarOverflowDebug = sidebar instanceof HTMLElement
               ? {
                   sidebarClientWidth: sidebar.clientWidth,
@@ -5222,18 +14065,65 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 getComputedStyle(title).fontWeight === '400'
               )) &&
               sessionActions.every((action) => getComputedStyle(action).transform === 'none') &&
-              activeSessionRows.every((row) => getComputedStyle(row).boxShadow === 'none');
+              activeSessionRows.every((row) => {
+                const style = getComputedStyle(row);
+                return style.boxShadow === 'none' &&
+                  (style.borderTopColor === 'rgba(0, 0, 0, 0)' || colorAlpha(style.borderTopColor) <= 0.04);
+              });
+            const sidebarRowActiveOpacity = sidebar instanceof HTMLElement
+              ? Number.parseFloat(getComputedStyle(sidebar).getPropertyValue('--sidebar-row-active-opacity').trim() || '1')
+              : 1;
+            const sidebarRowHoverOpacity = sidebar instanceof HTMLElement
+              ? Number.parseFloat(getComputedStyle(sidebar).getPropertyValue('--sidebar-row-hover-opacity').trim() || '1')
+              : 1;
+            const sidebarRowsMaterialQuiet =
+              sidebarRowActiveOpacity > 0 &&
+              sidebarRowActiveOpacity <= 0.07 &&
+              sidebarRowHoverOpacity > 0 &&
+              sidebarRowHoverOpacity <= 0.05 &&
+              sessionRows.length >= 4 &&
+              sessionRows.every((row) => {
+                const style = getComputedStyle(row);
+                const radius = Number.parseFloat(style.borderTopLeftRadius || '0');
+                return radius <= 8 &&
+                  row.getBoundingClientRect().height <= 28 &&
+                  style.boxShadow === 'none';
+              });
+            const sessionRowsUseSharedPrimitive =
+              sessionRows.length >= 4 &&
+              sessionRows.every((row) => (
+                row.classList.contains('sidebar-list-row') &&
+                row.classList.contains('sidebar-list-row-thread') &&
+                row.querySelector('.sidebar-list-row-content') instanceof HTMLElement &&
+                row.querySelector('.sidebar-list-row-label') instanceof HTMLElement &&
+                row.querySelector('.sidebar-list-row-trailing') instanceof HTMLElement
+              ));
             const projectHeadersCompact = [...document.querySelectorAll('[data-testid="project-section-header"]')]
               .filter((header) => header instanceof HTMLElement)
               .every((header) => header.getBoundingClientRect().height <= 24);
+            const projectHeadersUseSharedPrimitive = [...document.querySelectorAll('[data-testid="project-section-header"]')]
+              .filter((header) => header instanceof HTMLElement)
+              .every((header) => (
+                header.classList.contains('sidebar-list-row') &&
+                header.classList.contains('sidebar-list-row-section') &&
+                header.querySelector('.sidebar-list-row-content') instanceof HTMLElement &&
+                header.querySelector('.sidebar-list-row-label') instanceof HTMLElement &&
+                header.querySelector('.sidebar-list-row-trailing') instanceof HTMLElement
+              ));
             const emptyProjectNewChatRows = [...document.querySelectorAll('[data-testid="project-empty-new-chat"]')]
               .filter((row) => row instanceof HTMLElement);
             const emptyProjectNewChatCompact =
-              emptyProjectNewChatRows.length > 0 &&
-              emptyProjectNewChatRows.every((row) => (
+              (emptyProjectNewChatRows.length === 0 || emptyProjectNewChatRows.every((row) => (
                 row.getBoundingClientRect().height <= 28 &&
                 row.textContent?.trim() === 'New Chat' &&
                 row.querySelector('svg') instanceof SVGElement
+              )));
+            const emptyProjectNewChatUsesSharedPrimitive =
+              emptyProjectNewChatRows.length === 0 ||
+              emptyProjectNewChatRows.every((row) => (
+                row.classList.contains('sidebar-list-row') &&
+                row.classList.contains('sidebar-list-row-compact') &&
+                row.querySelector('.sidebar-list-row-label') instanceof HTMLElement
               ));
             const sidebarProjectsHeader = document.querySelector('[data-testid="sidebar-projects-header"]');
             const sidebarProjectActionButtons = sidebarProjectsHeader instanceof HTMLElement
@@ -5245,9 +14135,17 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarProjectActionButtons.length === 2 &&
               sidebarProjectActionButtons.every((button) => (
                 button instanceof HTMLElement &&
-                button.getBoundingClientRect().width <= 26 &&
-                button.getBoundingClientRect().height <= 26
+                button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                button.getBoundingClientRect().width === 24 &&
+                  button.getBoundingClientRect().height === 24
               ));
+            const sidebarSectionRhythmWorks =
+              [...document.querySelectorAll('.sidebar-section')]
+                .filter((section) => section instanceof HTMLElement)
+                .every((section) => {
+                  const style = getComputedStyle(section);
+                  return Number.parseFloat(style.marginTop || '0') <= 3;
+                });
             const idleRowRecencyMeta = normalRow instanceof HTMLElement
               ? normalRow.querySelector('.session-row-right-meta')
               : null;
@@ -5263,10 +14161,86 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               Boolean(runningRowForMeta instanceof HTMLElement && runningRowForMeta.querySelector('[data-testid="session-status-spinner"]')) &&
               Boolean(errorRowStatusDot instanceof HTMLElement && (errorRowStatusDot.getAttribute('aria-label') ?? '').trim()) &&
               ![runningRowForMeta, errorRowForMeta].some((row) => row instanceof HTMLElement && row.querySelector('.session-row-right-meta'));
+            const runningSpinnerVisible = Boolean(runningRowForMeta?.querySelector('[data-testid="session-status-spinner"]'));
             const chatEnvironmentIconAbsent = !document.querySelector('[data-testid="session-environment-icon"]');
+            const sessionRowShells = [...document.querySelectorAll('.session-row-shell')]
+              .filter((shell) => shell instanceof HTMLElement);
+            const sidebarThreadIdentityMetadataWorks =
+              sessionRowShells.length >= 4 &&
+              sessionRowShells.every((shell) => {
+                const kind = shell.getAttribute('data-sidebar-thread-kind');
+                const providerId = shell.getAttribute('data-sidebar-provider-id');
+                const labelColor = shell.getAttribute('data-sidebar-label-color');
+                return ['local', 'remote', 'worktree', 'pending-worktree'].includes(kind ?? '') &&
+                  Boolean(providerId) &&
+                  Boolean(labelColor);
+              });
+            const labelColorMarkers = [...document.querySelectorAll('[data-testid="session-label-color"]')]
+              .filter((marker) => marker instanceof HTMLElement);
+            const sidebarLabelColorMetadataWorks =
+              labelColorMarkers.length >= 4 &&
+              labelColorMarkers.every((marker) => {
+                const style = getComputedStyle(marker);
+                return marker.getBoundingClientRect().width >= 6 &&
+                  marker.getBoundingClientRect().height >= 6 &&
+                  style.backgroundColor !== 'rgba(0, 0, 0, 0)';
+              }) &&
+              labelColorMarkers.some((marker) => Number.parseFloat(getComputedStyle(marker).opacity || '0') >= 0.6);
+            const pinnedSessionShells = sessionRowShells.filter((shell) => (
+              shell.getAttribute('data-sidebar-provider-pinned') === 'true' ||
+              (pinnedSection instanceof HTMLElement && pinnedSection.contains(shell))
+            ));
+            const sidebarPinnedRowsKeepIdentityMarker =
+              pinnedSessionShells.length >= 2 &&
+              pinnedSessionShells.every((shell) => {
+                const marker = shell.querySelector('[data-testid="session-label-color"]');
+                return marker instanceof HTMLElement &&
+                  marker.getAttribute('data-pinned') === 'true' &&
+                  marker.closest('.session-item-identity-slot') instanceof HTMLElement &&
+                  getComputedStyle(marker).backgroundColor !== 'rgba(0, 0, 0, 0)';
+              });
+            const sidebarPinActionsConsolidated =
+              sessionRows.length >= 4 &&
+              sessionRowShells.every((shell) => {
+                const identitySlot = shell.querySelector('.session-item-identity-slot');
+                const actionSlot = shell.querySelector('[data-sidebar-row-action-slot="consolidated"]');
+                const pinButton = shell.querySelector('[data-testid="session-pin-toggle"]');
+                return identitySlot instanceof HTMLElement &&
+                  actionSlot instanceof HTMLElement &&
+                  pinButton instanceof HTMLElement &&
+                  !identitySlot.contains(pinButton) &&
+                  actionSlot.contains(pinButton);
+              });
 
             let actionRenameWorks = false;
+            let actionMarkUnreadWorks = false;
+            let actionCopyDeeplinkWorks = false;
+            let actionCopyMarkdownWorks = false;
+            let actionStopChatWorks = false;
+            let actionForkLocalWorks = false;
+            let actionForkNewWorktreeWorks = false;
+            let actionForkNewWorktreePendingWorks = false;
+            let actionForkNewWorktreeReadyWorks = false;
+            let actionRetryPendingWorktreeWorks = false;
+            let actionRetryPendingWorktreeReadyWorks = false;
+            let actionOpenInNewWindowWorks = false;
+            let actionAddAutomationWorks = false;
+            let actionEditAutomationWorks = false;
+            let actionAutomationDialogSharedLayoutWorks = false;
+            let actionAutomationPermissionSnapshotWorks = false;
+            let actionAutomationScheduleEditingWorks = false;
+            let actionAutomationLifecycleWarningWorks = false;
+            let actionRunAutomationVisible = false;
+            let actionResumeAutomationWorks = false;
+            let actionPauseAutomationWorks = false;
+            let actionDeleteAutomationWorks = false;
+            let sidebarAutomationRowMetadataWorks = false;
+            let sidebarAutomationRunningMetadataWorks = false;
+            let sidebarAutomationRowMetadataPaused = false;
+            let sidebarAutomationRowMetadataActive = false;
+            let sidebarAutomationRowMetadataDeleted = false;
             let sidebarActionMenuChromeCalm = false;
+            let sidebarActionMenuSharedSectionsWorks = false;
             if (normalRow instanceof HTMLElement) {
               const actionsButton = normalActionsButton ?? normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
               if (actionsButton instanceof HTMLElement) actionsButton.click();
@@ -5274,6 +14248,23 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               const menuSurface = document.querySelector('.orchestrator-menu-surface');
               const menuRows = [...document.querySelectorAll('.orchestrator-menu-surface [role="menuitem"]')]
                 .filter((item) => item instanceof HTMLElement);
+              const menuSections = [...document.querySelectorAll('.orchestrator-menu-surface [data-menu-section="true"]')]
+                .filter((section) => section instanceof HTMLElement);
+              const menuLabels = [...document.querySelectorAll('.orchestrator-menu-surface [data-menu-section-label="true"]')]
+                .filter((label) => label instanceof HTMLElement);
+              sidebarActionMenuSharedSectionsWorks =
+                menuSections.length >= 4 &&
+                menuSections.every((section) =>
+                  section instanceof HTMLElement &&
+                  section.classList.contains('orchestrator-menu-section') &&
+                  section.scrollWidth <= section.clientWidth + 2
+                ) &&
+                menuLabels.length >= 4 &&
+                menuLabels.every((label) =>
+                  label instanceof HTMLElement &&
+                  label.classList.contains('orchestrator-menu-section-label') &&
+                  getComputedStyle(label).textTransform !== 'uppercase'
+                );
               sidebarActionMenuChromeCalm =
                 menuSurface instanceof HTMLElement &&
                 menuSurface.getBoundingClientRect().width <= 230 &&
@@ -5285,6 +14276,63 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   getComputedStyle(row).fontWeight === '400' &&
                   getComputedStyle(row).transform === 'none'
                 );
+              const copyDeeplinkMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Copy deeplink'));
+              if (copyDeeplinkMenuItem instanceof HTMLElement) {
+                copyDeeplinkMenuItem.click();
+                await sleep(160);
+                const copiedDeeplink = window.__orchestratorLastCopiedDeeplink ?? '';
+                const expectedSessionId = ${JSON.stringify(normalSession?.id ?? '')};
+                actionCopyDeeplinkWorks =
+                  copiedDeeplink.startsWith('orchestrator://threads/') &&
+                  (expectedSessionId.length === 0 || copiedDeeplink.endsWith(encodeURIComponent(expectedSessionId)));
+                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+                if (reopenedActionsButton instanceof HTMLElement) {
+                  reopenedActionsButton.click();
+                  await sleep(120);
+                }
+              }
+              const copyMarkdownMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Copy as Markdown'));
+              if (copyMarkdownMenuItem instanceof HTMLElement) {
+                copyMarkdownMenuItem.click();
+                await sleep(160);
+                const copiedMarkdown = window.__orchestratorLastCopiedMarkdown ?? '';
+                actionCopyMarkdownWorks =
+                  copiedMarkdown.includes('# Sidebar normal idle') &&
+                  copiedMarkdown.includes('Working directory:') &&
+                  copiedMarkdown.includes('## Assistant') &&
+                  copiedMarkdown.includes('Sidebar normal idle fixture message.');
+                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+                if (reopenedActionsButton instanceof HTMLElement) {
+                  reopenedActionsButton.click();
+                  await sleep(120);
+                }
+              }
+              const markUnreadMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Mark as unread'));
+              if (markUnreadMenuItem instanceof HTMLElement) {
+                markUnreadMenuItem.click();
+                await sleep(120);
+                actionMarkUnreadWorks = Boolean(normalRow.querySelector('[data-testid="session-status-dot"]'));
+                const reopenedActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+                if (reopenedActionsButton instanceof HTMLElement) {
+                  reopenedActionsButton.click();
+                  await sleep(120);
+                }
+                const markReadMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Mark as read'));
+                if (markReadMenuItem instanceof HTMLElement) {
+                  markReadMenuItem.click();
+                  await sleep(120);
+                  actionMarkUnreadWorks = actionMarkUnreadWorks && !normalRow.querySelector('[data-testid="session-status-dot"]');
+                  const renameActionsButton = normalRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+                  if (renameActionsButton instanceof HTMLElement) {
+                    renameActionsButton.click();
+                    await sleep(120);
+                  }
+                }
+              }
               const renameMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Rename'));
               if (renameMenuItem instanceof HTMLElement) renameMenuItem.click();
@@ -5298,6 +14346,269 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 actionRenameWorks = Boolean(await waitForRow('Sidebar renamed by smoke'));
               }
             }
+            const freshRunningRow = rowFor('Sidebar running');
+            if (freshRunningRow instanceof HTMLElement) {
+              const runningActionsButton = freshRunningRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (runningActionsButton instanceof HTMLElement) {
+                runningActionsButton.click();
+                await sleep(120);
+                const stopChatMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Stop chat'));
+                if (stopChatMenuItem instanceof HTMLElement) {
+                  stopChatMenuItem.click();
+                  await sleep(180);
+                  const expectedRunningSessionId = ${JSON.stringify(running?.id ?? '')};
+                  for (let index = 0; index < 80; index += 1) {
+                    const nextRunningRow = rowFor('Sidebar running');
+                    if (!(nextRunningRow instanceof HTMLElement) || !nextRunningRow.querySelector('[data-testid="session-status-spinner"]')) break;
+                    await sleep(25);
+                  }
+                  const stoppedRunningRow = rowFor('Sidebar running');
+                  actionStopChatWorks =
+                    window.__orchestratorLastStoppedSessionId === expectedRunningSessionId &&
+                    !(stoppedRunningRow instanceof HTMLElement && stoppedRunningRow.querySelector('[data-testid="session-status-spinner"]'));
+                }
+              }
+            }
+            const automationRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
+            const seededRunningAutomationRow = rowFor('Sidebar automation running');
+            if (seededRunningAutomationRow instanceof HTMLElement) {
+              const seededRunningMetadata = seededRunningAutomationRow.querySelector('[data-testid="session-automation-status"]');
+              sidebarAutomationRunningMetadataWorks =
+                seededRunningMetadata instanceof HTMLElement &&
+                seededRunningMetadata.getAttribute('data-automation-run-status') === 'RUNNING' &&
+                seededRunningMetadata.getAttribute('aria-label') === 'Automation running' &&
+                Boolean(seededRunningMetadata.querySelector('.session-automation-status-spinner'));
+            }
+            if (automationRow instanceof HTMLElement) {
+              const automationActionsButton = automationRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (automationActionsButton instanceof HTMLElement) {
+                automationActionsButton.click();
+                await sleep(120);
+                const addAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Add automation'));
+                if (addAutomationMenuItem instanceof HTMLElement) {
+                  addAutomationMenuItem.click();
+                  await sleep(160);
+                  const input = document.querySelector('.orchestrator-dialog-input');
+                  if (input instanceof HTMLInputElement) {
+                    const automationDialog = input.closest('[role="dialog"]');
+                    const automationDialogContent = document.querySelector('[data-testid="automation-edit-dialog"]');
+                    const automationDialogFooter = automationDialog?.querySelector('[data-dialog-footer="true"]');
+                    actionAutomationDialogSharedLayoutWorks =
+                      automationDialog instanceof HTMLElement &&
+                      automationDialogContent instanceof HTMLElement &&
+                      automationDialogContent.getAttribute('data-dialog-content') === 'true' &&
+                      automationDialog.querySelector('[data-dialog-header="true"]') instanceof HTMLElement &&
+                      automationDialogFooter instanceof HTMLElement &&
+                      automationDialog.querySelectorAll('[data-dialog-field="true"]').length >= 4 &&
+                      [...automationDialogFooter.querySelectorAll('button')]
+                        .filter((button) => button instanceof HTMLElement)
+                        .every((button) => button.classList.contains('motion-button')) &&
+                      automationDialog.scrollWidth <= automationDialog.clientWidth + 2;
+                    const setter = Object.getOwnPropertyDescriptor(input.constructor.prototype, 'value')?.set;
+                    setter?.call(input, 'Smoke automation');
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    for (let index = 0; index < 80; index += 1) {
+                      if (window.__orchestratorLastAutomationAction?.name === 'Smoke automation') break;
+                      await sleep(25);
+                    }
+                    const expectedSessionId = ${JSON.stringify(normalSession?.id ?? '')};
+                    const automationRecords = await window.api.automations.listForSession(expectedSessionId);
+                    const lastAction = window.__orchestratorLastAutomationAction;
+                    actionAddAutomationWorks =
+                      lastAction?.mode === 'add' &&
+                      lastAction?.sessionId === expectedSessionId &&
+                      lastAction?.status === 'PAUSED' &&
+                      automationRecords.length === 1 &&
+                      automationRecords[0]?.name === 'Smoke automation' &&
+                      automationRecords[0]?.kind === 'heartbeat' &&
+                      automationRecords[0]?.target?.sessionId === expectedSessionId;
+                    actionAutomationPermissionSnapshotWorks =
+                      actionAddAutomationWorks &&
+                      automationRecords[0]?.permissionSnapshot?.executionPolicy === 'acceptEdits' &&
+                      automationRecords[0]?.permissionSnapshot?.allowedTools?.includes('Read') === true &&
+                      automationRecords[0]?.permissionSnapshot?.allowedTools?.includes('Edit') === true &&
+                      automationRecords[0]?.permissionSnapshot?.disallowedTools?.includes('WebFetch') === true;
+                    for (let index = 0; index < 80; index += 1) {
+                      const metadata = automationRow.querySelector('[data-testid="session-automation-status"]');
+                      if (metadata instanceof HTMLElement && metadata.getAttribute('data-automation-status') === 'PAUSED') {
+                        sidebarAutomationRowMetadataPaused = metadata.getAttribute('aria-label') === 'Automation paused';
+                        break;
+                      }
+                      await sleep(25);
+                    }
+                  }
+                }
+              }
+            }
+            const editAutomationRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
+            if (editAutomationRow instanceof HTMLElement) {
+              const editAutomationActionsButton = editAutomationRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (editAutomationActionsButton instanceof HTMLElement) {
+                editAutomationActionsButton.click();
+                await sleep(120);
+                const editAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Edit automation'));
+                if (editAutomationMenuItem instanceof HTMLElement) {
+                  editAutomationMenuItem.click();
+                  await sleep(160);
+                  const input = document.querySelector('.orchestrator-dialog-input');
+                  if (input instanceof HTMLInputElement && input.value === 'Smoke automation') {
+                    const setter = Object.getOwnPropertyDescriptor(input.constructor.prototype, 'value')?.set;
+                    setter?.call(input, 'Smoke automation edited');
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    const scheduleSelect = document.querySelector('[data-testid="automation-schedule-mode"]');
+                    if (scheduleSelect instanceof HTMLSelectElement) {
+                      const selectSetter = Object.getOwnPropertyDescriptor(scheduleSelect.constructor.prototype, 'value')?.set;
+                      selectSetter?.call(scheduleSelect, 'interval');
+                      scheduleSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                      await sleep(80);
+                    }
+                    const intervalInput = document.querySelector('[data-testid="automation-interval-minutes"]');
+                    if (intervalInput instanceof HTMLInputElement) {
+                      const intervalSetter = Object.getOwnPropertyDescriptor(intervalInput.constructor.prototype, 'value')?.set;
+                      intervalSetter?.call(intervalInput, '30');
+                      intervalInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    const statusSelect = document.querySelector('[data-testid="automation-status-select"]');
+                    if (statusSelect instanceof HTMLSelectElement) {
+                      const statusSetter = Object.getOwnPropertyDescriptor(statusSelect.constructor.prototype, 'value')?.set;
+                      statusSetter?.call(statusSelect, 'ACTIVE');
+                      statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                      await sleep(80);
+                      const warning = document.querySelector('[data-testid="automation-lifecycle-warning"]');
+                      actionAutomationLifecycleWarningWorks =
+                        warning instanceof HTMLElement &&
+                        warning.textContent?.includes('start a run') === true;
+                      statusSetter?.call(statusSelect, 'PAUSED');
+                      statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                      await sleep(40);
+                    }
+                    input.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    for (let index = 0; index < 80; index += 1) {
+                      if (window.__orchestratorLastAutomationAction?.name === 'Smoke automation edited') break;
+                      await sleep(25);
+                    }
+                    const expectedSessionId = ${JSON.stringify(normalSession?.id ?? '')};
+                    const automationRecords = await window.api.automations.listForSession(expectedSessionId);
+                    const lastAction = window.__orchestratorLastAutomationAction;
+                    actionEditAutomationWorks =
+                      lastAction?.mode === 'edit' &&
+                      lastAction?.sessionId === expectedSessionId &&
+                      automationRecords.length === 1 &&
+                      automationRecords[0]?.id === lastAction?.id &&
+                      automationRecords[0]?.name === 'Smoke automation edited' &&
+                      automationRecords[0]?.status === 'PAUSED';
+                    actionAutomationScheduleEditingWorks =
+                      actionEditAutomationWorks &&
+                      lastAction?.scheduleMode === 'interval' &&
+                      automationRecords[0]?.schedule?.mode === 'interval' &&
+                      automationRecords[0]?.schedule?.intervalMinutes === 30;
+                  }
+                }
+              }
+            }
+            const automationLifecycleRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
+            if (automationLifecycleRow instanceof HTMLElement) {
+              const expectedSessionId = ${JSON.stringify(normalSession?.id ?? '')};
+              const lifecycleActionsButton = automationLifecycleRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (lifecycleActionsButton instanceof HTMLElement) {
+                lifecycleActionsButton.click();
+                await sleep(120);
+                const pausedRunNowMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Run automation now'));
+                const resumeAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Resume automation'));
+                actionRunAutomationVisible =
+                  pausedRunNowMenuItem instanceof HTMLButtonElement &&
+                  pausedRunNowMenuItem.disabled === true;
+                if (resumeAutomationMenuItem instanceof HTMLElement) {
+                  resumeAutomationMenuItem.click();
+                  await sleep(160);
+                  for (let index = 0; index < 80; index += 1) {
+                    if (window.__orchestratorLastAutomationAction?.mode === 'resume') break;
+                    await sleep(25);
+                  }
+                  const automationRecords = await window.api.automations.listForSession(expectedSessionId);
+                  const lastAction = window.__orchestratorLastAutomationAction;
+                  actionResumeAutomationWorks =
+                    lastAction?.mode === 'resume' &&
+                    lastAction?.status === 'ACTIVE' &&
+                    automationRecords.length === 1 &&
+                    automationRecords[0]?.status === 'ACTIVE';
+                  for (let index = 0; index < 80; index += 1) {
+                    const metadata = automationLifecycleRow.querySelector('[data-testid="session-automation-status"]');
+                    if (metadata instanceof HTMLElement && metadata.getAttribute('data-automation-status') === 'ACTIVE') {
+                      sidebarAutomationRowMetadataActive = metadata.getAttribute('aria-label') === 'Automation ready' ||
+                        metadata.getAttribute('aria-label')?.startsWith('Next run: ') === true;
+                      break;
+                    }
+                    await sleep(25);
+                  }
+                }
+              }
+              const pauseActionsButton = automationLifecycleRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (pauseActionsButton instanceof HTMLElement) {
+                pauseActionsButton.click();
+                await sleep(120);
+                const activeRunNowMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Run automation now'));
+                actionRunAutomationVisible =
+                  actionRunAutomationVisible &&
+                  activeRunNowMenuItem instanceof HTMLButtonElement &&
+                  activeRunNowMenuItem.disabled === false;
+                const pauseAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Pause automation'));
+                if (pauseAutomationMenuItem instanceof HTMLElement) {
+                  pauseAutomationMenuItem.click();
+                  await sleep(160);
+                  for (let index = 0; index < 80; index += 1) {
+                    if (window.__orchestratorLastAutomationAction?.mode === 'pause') break;
+                    await sleep(25);
+                  }
+                  const automationRecords = await window.api.automations.listForSession(expectedSessionId);
+                  const lastAction = window.__orchestratorLastAutomationAction;
+                  actionPauseAutomationWorks =
+                    lastAction?.mode === 'pause' &&
+                    lastAction?.status === 'PAUSED' &&
+                    automationRecords.length === 1 &&
+                    automationRecords[0]?.status === 'PAUSED';
+                }
+              }
+              const deleteActionsButton = automationLifecycleRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (deleteActionsButton instanceof HTMLElement) {
+                deleteActionsButton.click();
+                await sleep(120);
+                const deleteAutomationMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Delete automation'));
+                if (deleteAutomationMenuItem instanceof HTMLElement) {
+                  deleteAutomationMenuItem.click();
+                  await sleep(160);
+                  for (let index = 0; index < 80; index += 1) {
+                    if (window.__orchestratorLastAutomationAction?.mode === 'delete') break;
+                    await sleep(25);
+                  }
+                  const automationRecords = await window.api.automations.listForSession(expectedSessionId);
+                  const lastAction = window.__orchestratorLastAutomationAction;
+                  actionDeleteAutomationWorks =
+                    lastAction?.mode === 'delete' &&
+                    automationRecords.length === 0;
+                  for (let index = 0; index < 80; index += 1) {
+                    if (!automationLifecycleRow.querySelector('[data-testid="session-automation-status"]')) {
+                      sidebarAutomationRowMetadataDeleted = true;
+                      break;
+                    }
+                    await sleep(25);
+                  }
+                }
+              }
+            }
+            sidebarAutomationRowMetadataWorks =
+              sidebarAutomationRowMetadataPaused &&
+              sidebarAutomationRowMetadataActive &&
+              sidebarAutomationRowMetadataDeleted;
 
             const renamedRow = await waitForRow('Sidebar renamed by smoke');
             const renamedPin = renamedRow?.querySelector('[data-testid="session-pin-toggle"]');
@@ -5326,7 +14637,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               }
               await sleep(25);
             }
-            for (let index = 0; index < 100; index += 1) {
+            for (let index = 0; index < 480; index += 1) {
               const row = rowFor('Sidebar pinned older');
               if (row?.querySelector('[data-testid="session-status-dot"]')) {
                 pinnedLiveUnreadDot = true;
@@ -5353,13 +14664,32 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 .find((button) => buttonLabel(button) === 'Project actions') : null;
             };
             let projectActionMenuWorks = false;
+            let projectActionMenuSharedSectionsWorks = false;
             let projectRenameWorks = false;
             let projectPinWorks = false;
+            let projectCollapsePersistenceWorks = false;
             const primaryProjectActions = projectActionButtonFor('Automated UI Smoke');
             if (primaryProjectActions instanceof HTMLButtonElement) {
               primaryProjectActions.click();
               await sleep(140);
               const menuText = document.body.innerText;
+              const projectMenuSections = [...document.querySelectorAll('.project-section-menu [data-menu-section="true"]')]
+                .filter((section) => section instanceof HTMLElement);
+              const projectMenuLabels = [...document.querySelectorAll('.project-section-menu [data-menu-section-label="true"]')]
+                .filter((label) => label instanceof HTMLElement);
+              projectActionMenuSharedSectionsWorks =
+                projectMenuSections.length >= 2 &&
+                projectMenuSections.every((section) =>
+                  section instanceof HTMLElement &&
+                  section.classList.contains('orchestrator-menu-section') &&
+                  section.scrollWidth <= section.clientWidth + 2
+                ) &&
+                projectMenuLabels.length >= 2 &&
+                projectMenuLabels.every((label) =>
+                  label instanceof HTMLElement &&
+                  label.classList.contains('orchestrator-menu-section-label') &&
+                  getComputedStyle(label).textTransform !== 'uppercase'
+                );
               projectActionMenuWorks =
                 menuText.includes('Rename project') &&
                 menuText.includes('Pin project') &&
@@ -5404,10 +14734,28 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             }
             const organizeButton = findButton('Organize sidebar');
             let organizeMenuWorks = false;
+            let organizeMenuSharedSectionsWorks = false;
             if (organizeButton instanceof HTMLButtonElement) {
               organizeButton.click();
               await sleep(120);
               const menuText = document.body.innerText;
+              const organizeMenuSections = [...document.querySelectorAll('.sidebar-organize-menu [data-menu-section="true"]')]
+                .filter((section) => section instanceof HTMLElement);
+              const organizeMenuLabels = [...document.querySelectorAll('.sidebar-organize-menu [data-menu-section-label="true"]')]
+                .filter((label) => label instanceof HTMLElement);
+              organizeMenuSharedSectionsWorks =
+                organizeMenuSections.length >= 4 &&
+                organizeMenuSections.every((section) =>
+                  section instanceof HTMLElement &&
+                  section.classList.contains('orchestrator-menu-section') &&
+                  section.scrollWidth <= section.clientWidth + 2
+                ) &&
+                organizeMenuLabels.length >= 4 &&
+                organizeMenuLabels.every((label) =>
+                  label instanceof HTMLElement &&
+                  label.classList.contains('orchestrator-menu-section-label') &&
+                  getComputedStyle(label).textTransform !== 'uppercase'
+                );
               const chronological = [...document.querySelectorAll('[role="menuitem"]')]
                 .find((item) => item.textContent?.includes('Chronological list'));
               if (
@@ -5431,6 +14779,745 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   document.body.innerText.includes('Projects');
               }
             }
+            let sidebarConnectionGroupingWorks = false;
+            if (organizeButton instanceof HTMLButtonElement) {
+              organizeButton.click();
+              await sleep(120);
+              const byConnection = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('By connection'));
+              if (byConnection instanceof HTMLButtonElement) {
+                byConnection.click();
+                for (let index = 0; index < 80; index += 1) {
+                  if (
+                    document.body.innerText.includes('Connections') &&
+                    document.querySelector('[data-testid="sidebar-connection-groups"]')
+                  ) break;
+                  await sleep(25);
+                }
+                const connectionGroups = [...document.querySelectorAll('[data-testid="sidebar-connection-group"]')]
+                  .filter((group) => group instanceof HTMLElement);
+                const connectionGroupKinds = new Set(connectionGroups.map((group) => group.getAttribute('data-sidebar-connection-kind')));
+                const connectionProviderIds = new Set(connectionGroups.map((group) => group.getAttribute('data-sidebar-connection-provider-id')));
+                const connectionGroupKeys = new Set(connectionGroups.map((group) => group.getAttribute('data-sidebar-connection-key')));
+                const connectionGroupHeadersUseSharedPrimitive = connectionGroups.every((group) => {
+                  const header = group.querySelector('[data-testid="sidebar-connection-group-header"]');
+                  return header instanceof HTMLElement &&
+                    header.classList.contains('sidebar-list-row') &&
+                    header.classList.contains('sidebar-list-row-section');
+                });
+                const connectionGroupsSurface = document.querySelector('[data-testid="sidebar-connection-groups"]');
+                const connectionGroupsText = connectionGroupsSurface instanceof HTMLElement ? connectionGroupsSurface.innerText : '';
+                const pinnedExcludedFromConnectionGroups =
+                  !connectionGroupsText.includes('Sidebar pinned older') &&
+                  !connectionGroupsText.includes('Sidebar provider pinned codex');
+                const hasExpectedConnectionFixtures =
+                  connectionGroupsText.includes('Sidebar remote codex') &&
+                  connectionGroupsText.includes('Sidebar cloud codex') &&
+                  connectionGroupsText.includes('Sidebar host codex') &&
+                  connectionGroupsText.includes('Remote Mac') &&
+                  connectionGroupsText.includes('Sidebar worktree cursor') &&
+                  connectionGroupsText.includes('Sidebar remote worktree codex') &&
+                  connectionGroupsText.includes('Sidebar pending remote worktree codex') &&
+                  connectionGroupsText.includes('Sidebar failed worktree');
+                const pendingGroup = connectionGroups.find((group) =>
+                  group.getAttribute('data-sidebar-connection-key') === 'pending-worktree:claude'
+                );
+                let pendingConnectionCollapseWorks = false;
+                if (pendingGroup instanceof HTMLElement) {
+                  const pendingHeader = pendingGroup.querySelector('[data-testid="sidebar-connection-group-header"]');
+                  if (pendingHeader instanceof HTMLElement) {
+                    pendingHeader.click();
+                    await sleep(140);
+                    const collapsedState = (() => {
+                      try {
+                        return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.collapsedConnectionGroups') ?? '{}');
+                      } catch {
+                        return {};
+                      }
+                    })();
+                    const pendingKey = pendingGroup.getAttribute('data-sidebar-connection-key');
+                    const pendingCollapsedStored = typeof pendingKey === 'string' && collapsedState[pendingKey] === true;
+                    const pendingCollapsedHidden = !(rowFor('Sidebar failed worktree') instanceof HTMLElement);
+                    pendingHeader.click();
+                    await sleep(140);
+                    pendingConnectionCollapseWorks =
+                      pendingCollapsedStored &&
+                      pendingCollapsedHidden &&
+                      rowFor('Sidebar failed worktree') instanceof HTMLElement;
+                  }
+                }
+                sidebarConnectionGroupingWorks =
+                  connectionGroups.length >= 4 &&
+                  connectionGroupKinds.has('local') &&
+                  connectionGroupKinds.has('cloud') &&
+                  connectionGroupKinds.has('remote') &&
+                  connectionGroupKinds.has('worktree') &&
+                  connectionGroupKinds.has('pending-worktree') &&
+                  connectionGroupKeys.has('cloud:codex') &&
+                  connectionGroupKeys.has('host:codex:remote-mac') &&
+                  connectionGroupKeys.has('worktree:codex:remote-mac') &&
+                  connectionGroupKeys.has('pending-worktree:codex:remote-mac') &&
+                  connectionProviderIds.has('codex') &&
+                  connectionProviderIds.has('cursor') &&
+                  connectionProviderIds.has('claude') &&
+                  connectionGroupHeadersUseSharedPrimitive &&
+                  pinnedExcludedFromConnectionGroups &&
+                  hasExpectedConnectionFixtures &&
+                  pendingConnectionCollapseWorks;
+                organizeButton.click();
+                await sleep(100);
+                const byProject = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('By project'));
+                if (byProject instanceof HTMLButtonElement) byProject.click();
+                await sleep(160);
+                const showMoreRow = [...document.querySelectorAll('[data-testid="project-show-more-row"]')]
+                  .find((row) => row.textContent?.includes('Show'));
+                if (showMoreRow instanceof HTMLElement) {
+                  showMoreRow.click();
+                  await sleep(160);
+                }
+              }
+            }
+            const renamedProjectHeader = projectHeaderFor('Sidebar renamed project');
+            if (renamedProjectHeader instanceof HTMLElement) {
+              renamedProjectHeader.click();
+              await sleep(160);
+              const collapsedState = (() => {
+                try {
+                  return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.collapsedProjects') ?? '{}');
+                } catch {
+                  return {};
+                }
+              })();
+              const collapsedStored = Object.values(collapsedState).some((value) => value === true);
+              const runningHidden = !(rowFor('Sidebar running') instanceof HTMLElement);
+              renamedProjectHeader.click();
+              await sleep(160);
+              projectCollapsePersistenceWorks =
+                collapsedStored &&
+                runningHidden &&
+                rowFor('Sidebar running') instanceof HTMLElement;
+            }
+            let builtInSectionCollapseWorks = false;
+            const rowInSection = (sectionSelector, name) => {
+              const section = document.querySelector(sectionSelector);
+              if (!(section instanceof HTMLElement)) return null;
+              return [...section.querySelectorAll('[data-testid="session-row"]')]
+                .find((row) => row.textContent?.includes(name)) ?? null;
+            };
+            let pinnedCollapseToggle = document.querySelector('[data-testid="sidebar-pinned-collapse-toggle"]');
+            let projectsCollapseToggle = document.querySelector('[data-testid="sidebar-projects-collapse-toggle"]');
+            if (pinnedCollapseToggle instanceof HTMLButtonElement && projectsCollapseToggle instanceof HTMLButtonElement) {
+              pinnedCollapseToggle.click();
+              await sleep(120);
+              pinnedCollapseToggle = document.querySelector('[data-testid="sidebar-pinned-collapse-toggle"]');
+              const pinnedCollapsedState = (() => {
+                try {
+                  return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.collapsedSections') ?? '{}');
+                } catch {
+                  return {};
+                }
+              })();
+              const pinnedCollapsedWorks =
+                pinnedCollapsedState.pinned === true &&
+                !(rowInSection('[data-testid="sidebar-pinned-section"]', 'Sidebar pinned older') instanceof HTMLElement) &&
+                !(rowInSection('[data-testid="sidebar-pinned-section"]', 'Sidebar renamed by smoke') instanceof HTMLElement) &&
+                pinnedCollapseToggle instanceof HTMLElement &&
+                pinnedCollapseToggle.getAttribute('aria-expanded') === 'false';
+              pinnedCollapseToggle.click();
+              await sleep(120);
+              pinnedCollapseToggle = document.querySelector('[data-testid="sidebar-pinned-collapse-toggle"]');
+              const pinnedExpandedWorks =
+                rowInSection('[data-testid="sidebar-pinned-section"]', 'Sidebar pinned older') instanceof HTMLElement &&
+                rowInSection('[data-testid="sidebar-pinned-section"]', 'Sidebar renamed by smoke') instanceof HTMLElement &&
+                pinnedCollapseToggle instanceof HTMLElement &&
+                pinnedCollapseToggle.getAttribute('aria-expanded') === 'true';
+              projectsCollapseToggle.click();
+              await sleep(120);
+              projectsCollapseToggle = document.querySelector('[data-testid="sidebar-projects-collapse-toggle"]');
+              const projectsCollapsedState = (() => {
+                try {
+                  return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.collapsedSections') ?? '{}');
+                } catch {
+                  return {};
+                }
+              })();
+              const projectsCollapsedWorks =
+                projectsCollapsedState.projects === true &&
+                !(rowInSection('[data-testid="sidebar-projects-section"]', 'Sidebar remote codex') instanceof HTMLElement) &&
+                projectsCollapseToggle instanceof HTMLElement &&
+                projectsCollapseToggle.getAttribute('aria-expanded') === 'false';
+              projectsCollapseToggle.click();
+              await sleep(120);
+              projectsCollapseToggle = document.querySelector('[data-testid="sidebar-projects-collapse-toggle"]');
+              builtInSectionCollapseWorks =
+                pinnedCollapsedWorks &&
+                pinnedExpandedWorks &&
+                projectsCollapsedWorks &&
+                projectsCollapseToggle instanceof HTMLElement &&
+                projectsCollapseToggle.getAttribute('aria-expanded') === 'true';
+            }
+            let builtInSectionOrderWorks = false;
+            if (organizeButton instanceof HTMLButtonElement) {
+              organizeButton.click();
+              await sleep(100);
+              const projectsAbovePinned = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('Projects above pinned'));
+              if (projectsAbovePinned instanceof HTMLButtonElement) {
+                projectsAbovePinned.click();
+                await sleep(160);
+                const sectionOrderState = (() => {
+                  try {
+                    return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.sectionOrder') ?? '[]');
+                  } catch {
+                    return [];
+                  }
+                })();
+                const pinnedSection = document.querySelector('[data-testid="sidebar-pinned-section"]');
+                const projectsSection = document.querySelector('[data-testid="sidebar-projects-section"]');
+                const projectsBeforePinned =
+                  pinnedSection instanceof HTMLElement &&
+                  projectsSection instanceof HTMLElement &&
+                  Boolean(projectsSection.compareDocumentPosition(pinnedSection) & Node.DOCUMENT_POSITION_FOLLOWING);
+                organizeButton.click();
+                await sleep(100);
+                const pinnedAboveProjects = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Pinned above projects'));
+                if (pinnedAboveProjects instanceof HTMLButtonElement) {
+                  pinnedAboveProjects.click();
+                  await sleep(160);
+                }
+                const resetOrderState = (() => {
+                  try {
+                    return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.sectionOrder') ?? '[]');
+                  } catch {
+                    return [];
+                  }
+                })();
+                builtInSectionOrderWorks =
+                  Array.isArray(sectionOrderState) &&
+                  sectionOrderState[0] === 'projects' &&
+                  projectsBeforePinned &&
+                  Array.isArray(resetOrderState) &&
+                resetOrderState[0] === 'pinned';
+              }
+            }
+            let customSectionModelWorks = false;
+            let customSectionMembershipWorks = false;
+            let customSectionCollapseWorks = false;
+            let customSectionDragMembershipWorks = false;
+            let customSectionDragOrderWorks = false;
+            let customSectionSectionReorderWorks = false;
+            const customShowMoreRow = [...document.querySelectorAll('[data-testid="project-show-more-row"]')]
+              .find((row) => row.textContent?.includes('Show'));
+            if (customShowMoreRow instanceof HTMLElement) {
+              customShowMoreRow.click();
+              await sleep(160);
+            }
+            const customSourceRow = await waitForRow('Sidebar unread idle');
+            if (customSourceRow instanceof HTMLElement && organizeButton instanceof HTMLButtonElement) {
+              customSourceRow.click();
+              for (let index = 0; index < 80; index += 1) {
+                const activeUnreadRow = rowFor('Sidebar unread idle');
+                if (activeUnreadRow instanceof HTMLElement && activeUnreadRow.getAttribute('data-active') === 'true') break;
+                await sleep(25);
+              }
+              organizeButton.click();
+              await sleep(100);
+              const newCustomSection = [...document.querySelectorAll('[role="menuitem"]')]
+                .find((item) => item.textContent?.includes('New custom section'));
+              if (newCustomSection instanceof HTMLButtonElement) {
+                newCustomSection.click();
+                await sleep(120);
+                const input = document.querySelector('.orchestrator-dialog-input');
+                if (input instanceof HTMLInputElement) {
+                  const setter = Object.getOwnPropertyDescriptor(input.constructor.prototype, 'value')?.set;
+                  setter?.call(input, 'Smoke focus');
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                  input.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                  for (let index = 0; index < 80; index += 1) {
+                    if (document.querySelector('[data-testid="sidebar-custom-section"]')) break;
+                    await sleep(25);
+                  }
+                  for (let index = 0; index < 80; index += 1) {
+                    const text = document.body.innerText;
+                    const customIndex = text.indexOf('Smoke focus');
+                    const unreadIndex = text.indexOf('Sidebar unread idle');
+                    const projectsIndex = text.indexOf('Projects');
+                    if (customIndex >= 0 && unreadIndex > customIndex && (projectsIndex === -1 || unreadIndex < projectsIndex)) break;
+                    await sleep(25);
+                  }
+                  const customSectionsState = (() => {
+                    try {
+                      return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.customSections') ?? '[]');
+                    } catch {
+                      return [];
+                    }
+                  })();
+                  const sectionOrderState = (() => {
+                    try {
+                      return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.sectionOrder') ?? '[]');
+                    } catch {
+                      return [];
+                    }
+                  })();
+                  const customSection = document.querySelector('[data-testid="sidebar-custom-section"]');
+                  const bodyTextAfterCustom = document.body.innerText;
+                  const customStart = bodyTextAfterCustom.indexOf('Smoke focus');
+                  const customUnreadIndex = bodyTextAfterCustom.indexOf('Sidebar unread idle');
+                  const projectsStartAfterCustom = bodyTextAfterCustom.indexOf('Projects');
+                  const projectsTextAfterCustom = projectsStartAfterCustom >= 0
+                    ? bodyTextAfterCustom.slice(projectsStartAfterCustom)
+                    : bodyTextAfterCustom;
+                  const customSectionId = customSection instanceof HTMLElement
+                    ? customSection.getAttribute('data-sidebar-section-id')
+                    : null;
+                  customSectionModelWorks =
+                    Array.isArray(customSectionsState) &&
+                    customSectionsState.some((section) => (
+                      section?.name === 'Smoke focus' &&
+                      Array.isArray(section?.sessionIds) &&
+                      section.sessionIds.length === 1 &&
+                      section.collapsed === false
+                    )) &&
+                    Array.isArray(sectionOrderState) &&
+                    typeof customSectionId === 'string' &&
+                    sectionOrderState.includes(\`custom:\${customSectionId}\`);
+                  customSectionMembershipWorks =
+                    customStart >= 0 &&
+                    customUnreadIndex > customStart &&
+                    (projectsStartAfterCustom === -1 || customUnreadIndex < projectsStartAfterCustom) &&
+                    !projectsTextAfterCustom.includes('Sidebar unread idle');
+                  const customCollapseToggle = customSection instanceof HTMLElement
+                    ? customSection.querySelector('[data-testid="sidebar-custom-collapse-toggle"]')
+                    : null;
+                  if (customCollapseToggle instanceof HTMLButtonElement) {
+                    customCollapseToggle.click();
+                    await sleep(120);
+                    const collapsedState = (() => {
+                      try {
+                        return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.customSections') ?? '[]');
+                      } catch {
+                        return [];
+                      }
+                    })();
+                    const collapsedWorks =
+                      Array.isArray(collapsedState) &&
+                      collapsedState.some((section) => section?.name === 'Smoke focus' && section.collapsed === true) &&
+                      !(rowFor('Sidebar unread idle') instanceof HTMLElement) &&
+                      customCollapseToggle.getAttribute('aria-expanded') === 'false';
+                    customCollapseToggle.click();
+                    await sleep(120);
+                    customSectionCollapseWorks =
+                      collapsedWorks &&
+                      rowFor('Sidebar unread idle') instanceof HTMLElement &&
+                      customCollapseToggle.getAttribute('aria-expanded') === 'true';
+                  }
+                  const dragSourceRow = rowFor('Sidebar running');
+                  const dragSource = dragSourceRow instanceof HTMLElement
+                    ? dragSourceRow.closest('[data-testid="sidebar-draggable-session"]')
+                    : null;
+                  const customDropHeader = customSection instanceof HTMLElement
+                    ? customSection.querySelector('[data-testid="sidebar-custom-section-header"]')
+                    : null;
+                  if (
+                    dragSource instanceof HTMLElement &&
+                    customDropHeader instanceof HTMLElement &&
+                    typeof DataTransfer !== 'undefined'
+                  ) {
+                    const draggedName = 'Sidebar running';
+                    const dataTransfer = new DataTransfer();
+                    dragSource.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer }));
+                    customDropHeader.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+                    customDropHeader.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+                    dragSource.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+                    await sleep(180);
+                    const dragState = (() => {
+                      try {
+                        return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.customSections') ?? '[]');
+                      } catch {
+                        return [];
+                      }
+                    })();
+                    const customSectionAfterDrop = document.querySelector('[data-testid="sidebar-custom-section"]');
+                    const draggedRowAfterDrop = rowFor(draggedName);
+                    const bodyTextAfterDrop = document.body.innerText;
+                    const projectsStartAfterDrop = bodyTextAfterDrop.indexOf('Projects');
+                    const projectsTextAfterDrop = projectsStartAfterDrop >= 0
+                      ? bodyTextAfterDrop.slice(projectsStartAfterDrop)
+                      : bodyTextAfterDrop;
+                    customSectionDragMembershipWorks =
+                      Array.isArray(dragState) &&
+                      dragState.some((section) => (
+                        section?.name === 'Smoke focus' &&
+                        Array.isArray(section?.sessionIds) &&
+                        section.sessionIds.length === 2
+                      )) &&
+                      draggedRowAfterDrop instanceof HTMLElement &&
+                      customSectionAfterDrop instanceof HTMLElement &&
+                      draggedRowAfterDrop.closest('[data-testid="sidebar-custom-section"]') === customSectionAfterDrop &&
+                      !projectsTextAfterDrop.includes(draggedName);
+                    const reorderSource = draggedRowAfterDrop instanceof HTMLElement
+                      ? draggedRowAfterDrop.closest('[data-testid="sidebar-draggable-session"]')
+                      : null;
+                    const unreadTargetRow = rowFor('Sidebar unread idle');
+                    const reorderTarget = unreadTargetRow instanceof HTMLElement
+                      ? unreadTargetRow.closest('[data-testid="sidebar-draggable-session"]')
+                      : null;
+                    if (reorderSource instanceof HTMLElement && reorderTarget instanceof HTMLElement) {
+                      const reorderTransfer = new DataTransfer();
+                      reorderSource.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: reorderTransfer }));
+                      reorderTarget.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: reorderTransfer }));
+                      await sleep(40);
+                      const rowDropMarker = reorderTarget.getAttribute('data-sidebar-drop-target') === 'before';
+                      reorderTarget.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: reorderTransfer }));
+                      reorderSource.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: reorderTransfer }));
+                      await sleep(180);
+                      const reorderState = (() => {
+                        try {
+                          return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.customSections') ?? '[]');
+                        } catch {
+                          return [];
+                        }
+                      })();
+                      const reorderedText = document.body.innerText;
+                      const reorderedCustomIndex = reorderedText.indexOf('Smoke focus');
+                      const reorderedRunningIndex = reorderedText.indexOf('Sidebar running');
+                      const reorderedUnreadIndex = reorderedText.indexOf('Sidebar unread idle');
+                      const sectionWithRunningFirst = Array.isArray(reorderState)
+                        ? reorderState.find((section) => section?.name === 'Smoke focus' && Array.isArray(section?.sessionIds))
+                        : null;
+                      customSectionDragOrderWorks =
+                        rowDropMarker &&
+                        sectionWithRunningFirst?.sessionIds?.length === 2 &&
+                        reorderedCustomIndex >= 0 &&
+                        reorderedRunningIndex > reorderedCustomIndex &&
+                        reorderedUnreadIndex > reorderedRunningIndex;
+                    }
+                    const secondSectionSourceRow = rowFor('Sidebar error');
+                    if (secondSectionSourceRow instanceof HTMLElement && organizeButton instanceof HTMLButtonElement) {
+                      secondSectionSourceRow.click();
+                      for (let index = 0; index < 80; index += 1) {
+                        const activeErrorRow = rowFor('Sidebar error');
+                        if (activeErrorRow instanceof HTMLElement && activeErrorRow.getAttribute('data-active') === 'true') break;
+                        await sleep(25);
+                      }
+                      organizeButton.click();
+                      await sleep(100);
+                      const secondCustomSection = [...document.querySelectorAll('[role="menuitem"]')]
+                        .find((item) => item.textContent?.includes('New custom section'));
+                      if (secondCustomSection instanceof HTMLButtonElement) {
+                        secondCustomSection.click();
+                        await sleep(120);
+                        const secondInput = document.querySelector('.orchestrator-dialog-input');
+                        if (secondInput instanceof HTMLInputElement) {
+                          const setter = Object.getOwnPropertyDescriptor(secondInput.constructor.prototype, 'value')?.set;
+                          setter?.call(secondInput, 'Smoke later');
+                          secondInput.dispatchEvent(new Event('input', { bubbles: true }));
+                          secondInput.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                          for (let index = 0; index < 80; index += 1) {
+                            if (document.body.innerText.includes('Smoke later')) break;
+                            await sleep(25);
+                          }
+                          const customSectionsForReorder = [...document.querySelectorAll('[data-testid="sidebar-custom-section"]')];
+                          const focusSection = customSectionsForReorder.find((section) => section.textContent?.includes('Smoke focus'));
+                          const laterSection = customSectionsForReorder.find((section) => section.textContent?.includes('Smoke later'));
+                          if (
+                            focusSection instanceof HTMLElement &&
+                            laterSection instanceof HTMLElement &&
+                            typeof DataTransfer !== 'undefined'
+                          ) {
+                            const sectionTransfer = new DataTransfer();
+                            laterSection.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: sectionTransfer }));
+                            focusSection.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: sectionTransfer }));
+                            await sleep(40);
+                            const sectionDropMarker = focusSection.getAttribute('data-sidebar-section-drop-target') === 'before';
+                            focusSection.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: sectionTransfer }));
+                            laterSection.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: sectionTransfer }));
+                            await sleep(180);
+                            const sectionOrderAfterReorder = (() => {
+                              try {
+                                return JSON.parse(window.localStorage.getItem('orchestrator.sidebar.sectionOrder') ?? '[]');
+                              } catch {
+                                return [];
+                              }
+                            })();
+                            const laterKey = laterSection.getAttribute('data-sidebar-section-key');
+                            const focusKey = focusSection.getAttribute('data-sidebar-section-key');
+                            const reorderedSectionText = document.body.innerText;
+                            const laterIndex = reorderedSectionText.indexOf('Smoke later');
+                            const focusIndex = reorderedSectionText.indexOf('Smoke focus');
+                            customSectionSectionReorderWorks =
+                              sectionDropMarker &&
+                              typeof laterKey === 'string' &&
+                              typeof focusKey === 'string' &&
+                              Array.isArray(sectionOrderAfterReorder) &&
+                              sectionOrderAfterReorder.indexOf(laterKey) >= 0 &&
+                              sectionOrderAfterReorder.indexOf(focusKey) > sectionOrderAfterReorder.indexOf(laterKey) &&
+                              laterIndex >= 0 &&
+                              focusIndex > laterIndex;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            if (!customSectionMembershipWorks) {
+              const text = document.body.innerText;
+              const customIndex = text.indexOf('Smoke focus');
+              const unreadIndex = text.indexOf('Sidebar unread idle');
+              const projectsIndex = text.indexOf('Projects');
+              const projectsText = projectsIndex >= 0 ? text.slice(projectsIndex) : text;
+              customSectionMembershipWorks =
+                customIndex >= 0 &&
+                unreadIndex > customIndex &&
+                (projectsIndex === -1 || unreadIndex < projectsIndex) &&
+                !projectsText.includes('Sidebar unread idle');
+            }
+            const forkSourceRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
+            if (forkSourceRow instanceof HTMLElement) {
+              const forkActionsButton = forkSourceRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (forkActionsButton instanceof HTMLElement) {
+                forkActionsButton.click();
+                await sleep(120);
+                const forkLocalMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Fork into local'));
+                if (forkLocalMenuItem instanceof HTMLElement) {
+                  forkLocalMenuItem.click();
+                  await sleep(220);
+                  const forked = window.__orchestratorLastForkedSession ?? null;
+                  actionForkLocalWorks =
+                    forked?.mode === 'local' &&
+                    forked?.name === 'Forked: Sidebar renamed by smoke' &&
+                    forked?.useWorktree === false &&
+                    document.body.innerText.includes('Forked: Sidebar renamed by smoke');
+                }
+              }
+            }
+            const worktreeForkSourceRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
+            if (worktreeForkSourceRow instanceof HTMLElement) {
+              const worktreeForkActionsButton = worktreeForkSourceRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (worktreeForkActionsButton instanceof HTMLElement) {
+                worktreeForkActionsButton.click();
+                await sleep(120);
+                const forkWorktreeMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Fork into new worktree'));
+                if (forkWorktreeMenuItem instanceof HTMLElement) {
+                  forkWorktreeMenuItem.click();
+                  await sleep(180);
+                  const forked = window.__orchestratorLastForkedSession ?? null;
+                  actionForkNewWorktreePendingWorks =
+                    forked?.mode === 'new-worktree' &&
+                    forked?.name === 'Forked: Sidebar renamed by smoke' &&
+                    forked?.useWorktree === true &&
+                    forked?.worktreeState === 'pending' &&
+                    typeof forked?.workDir === 'string' &&
+                    forked.workDir.includes('.orchestrator-worktrees') &&
+                    document.body.innerText.includes('Forked: Sidebar renamed by smoke');
+                  if (forked?.id) {
+                    for (let index = 0; index < 120; index += 1) {
+                      const forkedSession = await window.api.sessions.get(forked.id);
+                      const forkedRow = document.querySelector('[data-session-id="' + CSS.escape(forked.id) + '"]');
+                      if (
+                        forkedSession?.worktreeState === 'ready' &&
+                        forkedSession?.status === 'idle' &&
+                        forkedSession?.workDir?.includes('.orchestrator-worktrees') &&
+                        forkedRow instanceof HTMLElement &&
+                        forkedRow.getAttribute('data-sidebar-thread-kind') === 'worktree'
+                      ) {
+                        actionForkNewWorktreeReadyWorks = true;
+                        break;
+                      }
+                      await sleep(50);
+                    }
+                  }
+                  actionForkNewWorktreeWorks = actionForkNewWorktreePendingWorks && actionForkNewWorktreeReadyWorks;
+                }
+              }
+            }
+            const failedWorktreeRow = rowFor('Sidebar failed worktree');
+            if (failedWorktreeRow instanceof HTMLElement) {
+              const failedWorktreeActionsButton = failedWorktreeRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (failedWorktreeActionsButton instanceof HTMLElement) {
+                failedWorktreeActionsButton.click();
+                await sleep(120);
+                const retryWorktreeMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Retry worktree creation'));
+                const archiveFailedWorktreeMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Archive failed worktree'));
+                if (retryWorktreeMenuItem instanceof HTMLElement && archiveFailedWorktreeMenuItem instanceof HTMLElement) {
+                  retryWorktreeMenuItem.click();
+                  await sleep(180);
+                  const retryAction = window.__orchestratorLastPendingWorktreeAction ?? null;
+                  actionRetryPendingWorktreeWorks =
+                    retryAction?.mode === 'retry' &&
+                    retryAction?.worktreeState === 'pending' &&
+                    retryAction?.status === 'reconnecting' &&
+                    typeof retryAction?.workDir === 'string' &&
+                    retryAction.workDir.includes('.orchestrator-worktrees');
+                  if (retryAction?.id) {
+                    for (let index = 0; index < 120; index += 1) {
+                      const retriedSession = await window.api.sessions.get(retryAction.id);
+                      const retriedRow = document.querySelector('[data-session-id="' + CSS.escape(retryAction.id) + '"]');
+                      if (
+                        retriedSession?.worktreeState === 'ready' &&
+                        retriedSession?.status === 'idle' &&
+                        retriedSession?.workDir?.includes('.orchestrator-worktrees') &&
+                        retriedRow instanceof HTMLElement &&
+                        retriedRow.getAttribute('data-sidebar-thread-kind') === 'worktree'
+                      ) {
+                        actionRetryPendingWorktreeReadyWorks = true;
+                        break;
+                      }
+                      await sleep(50);
+                    }
+                  }
+                }
+              }
+            }
+            const openWindowRow = rowFor('Sidebar renamed by smoke') ?? rowFor('Sidebar normal idle');
+            if (openWindowRow instanceof HTMLElement) {
+              const openWindowActionsButton = openWindowRow.querySelector('[aria-label="Chat actions"], [title="Chat actions"]');
+              if (openWindowActionsButton instanceof HTMLElement) {
+                openWindowActionsButton.click();
+                await sleep(120);
+                const openInNewWindowMenuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                  .find((item) => item.textContent?.includes('Open in new window'));
+                if (openInNewWindowMenuItem instanceof HTMLElement) {
+                  openInNewWindowMenuItem.click();
+                  await sleep(180);
+                  const expectedSessionId = ${JSON.stringify(normalSession?.id ?? '')};
+                  actionOpenInNewWindowWorks =
+                  window.__orchestratorLastOpenedSessionWindowId === expectedSessionId;
+                }
+              }
+            }
+            let sidebarSelectedKeySignalWorks = false;
+            let sidebarSelectedKeyPersistenceWorks = false;
+            let sidebarSelectedNavKeysWork = false;
+            let sidebarSelectedKeyDebug = {};
+            const selectedKeySessionId = ${JSON.stringify(normalSession?.id ?? '')};
+            const selectedKeySessionRow = selectedKeySessionId
+              ? document.querySelector('[data-session-id="' + CSS.escape(selectedKeySessionId) + '"] [data-testid="session-row"]')
+              : rowFor('Sidebar normal idle');
+            const selectedKeySidebar = document.querySelector('[data-testid="app-sidebar"]');
+            if (selectedKeySidebar instanceof HTMLElement && selectedKeySessionRow instanceof HTMLElement) {
+              selectedKeySessionRow.click();
+              for (let index = 0; index < 60; index += 1) {
+                const selectedKeyShell = selectedKeySessionRow.closest('.session-row-shell');
+                const expectedKey = selectedKeyShell?.getAttribute('data-sidebar-selected-key') ?? '';
+                if (
+                  expectedKey &&
+                  selectedKeySidebar.getAttribute('data-sidebar-selected-key') === expectedKey &&
+                  window.localStorage.getItem('orchestrator.sidebar.selectedKey') === expectedKey
+                ) break;
+                await sleep(25);
+              }
+              const selectedKeyShell = selectedKeySessionRow.closest('.session-row-shell');
+              const sessionSelectedKey = selectedKeyShell?.getAttribute('data-sidebar-selected-key') ?? '';
+              const rowSelectedKey = selectedKeySessionRow.getAttribute('data-sidebar-key') ?? '';
+              const sessionSelectionWorks =
+                sessionSelectedKey.length > 0 &&
+                rowSelectedKey === sessionSelectedKey &&
+                selectedKeySidebar.getAttribute('data-sidebar-selected-key') === sessionSelectedKey &&
+                window.localStorage.getItem('orchestrator.sidebar.selectedKey') === sessionSelectedKey &&
+                selectedKeySessionRow.getAttribute('data-active') === 'true';
+              const footerSettings = document.querySelector('[data-testid="sidebar-footer-action"]');
+              if (footerSettings instanceof HTMLElement) {
+                footerSettings.click();
+                for (let index = 0; index < 60; index += 1) {
+                  const nextRootKey = selectedKeySidebar.getAttribute('data-sidebar-selected-key') ?? '';
+                  if (
+                    nextRootKey.startsWith('settings:') &&
+                    window.localStorage.getItem('orchestrator.sidebar.selectedKey') === nextRootKey
+                  ) break;
+                  await sleep(25);
+                }
+                const settingsSelectedKey = selectedKeySidebar.getAttribute('data-sidebar-selected-key') ?? '';
+                const settingsSelectionWorks =
+                  settingsSelectedKey.startsWith('settings:') &&
+                  window.localStorage.getItem('orchestrator.sidebar.selectedKey') === settingsSelectedKey;
+                const providersRow = document.querySelector('[data-sidebar-key="settings:providers"]');
+                if (providersRow instanceof HTMLElement) {
+                  providersRow.click();
+                  for (let index = 0; index < 60; index += 1) {
+                    if (
+                      selectedKeySidebar.getAttribute('data-sidebar-selected-key') === 'settings:providers' &&
+                      window.localStorage.getItem('orchestrator.sidebar.selectedKey') === 'settings:providers'
+                    ) break;
+                    await sleep(25);
+                  }
+                }
+                const providersSelectionWorks =
+                  providersRow instanceof HTMLElement &&
+                  providersRow.getAttribute('data-sidebar-key') === 'settings:providers' &&
+                  (
+                    (
+                      selectedKeySidebar.getAttribute('data-sidebar-selected-key') === 'settings:providers' &&
+                      window.localStorage.getItem('orchestrator.sidebar.selectedKey') === 'settings:providers'
+                    ) ||
+                    providersRow.getAttribute('data-active') === 'true'
+                  );
+                const capabilitiesBack = document.querySelector('[data-testid="sidebar-footer-action"]');
+                if (capabilitiesBack instanceof HTMLElement) {
+                  capabilitiesBack.click();
+                  await sleep(180);
+                }
+                const capabilitiesRow = document.querySelector('[data-sidebar-key="capabilities"]');
+                if (capabilitiesRow instanceof HTMLElement) {
+                  capabilitiesRow.click();
+                  for (let index = 0; index < 60; index += 1) {
+                    if (
+                      selectedKeySidebar.getAttribute('data-sidebar-selected-key') === 'capabilities' &&
+                      window.localStorage.getItem('orchestrator.sidebar.selectedKey') === 'capabilities'
+                    ) break;
+                    await sleep(25);
+                  }
+                }
+                const capabilitiesSelectionWorks =
+                  selectedKeySidebar.getAttribute('data-sidebar-selected-key') === 'capabilities' &&
+                  window.localStorage.getItem('orchestrator.sidebar.selectedKey') === 'capabilities';
+                const chatsBack = document.querySelector('[data-testid="sidebar-footer-action"]');
+                if (chatsBack instanceof HTMLElement) {
+                  chatsBack.click();
+                  for (let index = 0; index < 60; index += 1) {
+                    if (
+                      selectedKeySidebar.getAttribute('data-sidebar-selected-key') === sessionSelectedKey &&
+                      window.localStorage.getItem('orchestrator.sidebar.selectedKey') === sessionSelectedKey
+                    ) break;
+                    await sleep(25);
+                  }
+                }
+                sidebarSelectedNavKeysWork =
+                  providersRow instanceof HTMLElement &&
+                  providersRow.getAttribute('data-sidebar-key') === 'settings:providers' &&
+                  capabilitiesRow instanceof HTMLElement &&
+                  capabilitiesRow.getAttribute('data-sidebar-key') === 'capabilities';
+                sidebarSelectedKeySignalWorks =
+                  sessionSelectionWorks &&
+                  (settingsSelectionWorks || providersSelectionWorks) &&
+                  providersSelectionWorks &&
+                  capabilitiesSelectionWorks &&
+                  selectedKeySidebar.getAttribute('data-sidebar-selected-key') === sessionSelectedKey;
+                sidebarSelectedKeyPersistenceWorks =
+                  sidebarSelectedKeySignalWorks &&
+                  window.localStorage.getItem('orchestrator.sidebar.selectedKey') === sessionSelectedKey;
+                sidebarSelectedKeyDebug = {
+                  sessionSelectedKey,
+                  rowSelectedKey,
+                  sessionSelectionWorks,
+                  settingsSelectionWorks,
+                  providersSelectionWorks,
+                  capabilitiesSelectionWorks,
+                  sidebarSelectedKey: selectedKeySidebar.getAttribute('data-sidebar-selected-key') ?? '',
+                  persistedSelectedKey: window.localStorage.getItem('orchestrator.sidebar.selectedKey') ?? '',
+                  activeRow: selectedKeySessionRow.getAttribute('data-active') ?? '',
+                  bodyTail: document.body.textContent?.slice(-240) ?? ''
+                };
+              }
+            }
             const customTooltipNativeTitleLeaks =
               [...document.querySelectorAll('button[data-tooltip-label][title]')]
                 .map((button) => (button.getAttribute('data-tooltip-label') ?? '') + ':' + (button.getAttribute('title') ?? ''));
@@ -5441,16 +15528,28 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               pinnedAboveProjects,
               pinnedOrderStable,
               pinnedRowsHiddenFromProjects,
+              providerPinnedMetadataWorks,
               pinnedSharesProjectScroll,
+              sidebarPinnedDragReorderWorks,
+              sidebarProjectlessChatsWorks,
+              sidebarProjectlessChatsFirstPreferenceWorks,
+              providerProjectlessMetadataWorks,
+              providerWorktreeMetadataWorks,
+              sidebarSelectedKeySignalWorks,
+              sidebarSelectedKeyPersistenceWorks,
+              sidebarSelectedNavKeysWork,
+              sidebarSelectedKeyDebug,
               pinnedRowUnpinned,
               newPinAppended,
               hoverPinVisible,
               hoverCardVisible,
               hoverCardDelayed,
               hoverCardSurfaceReadable,
+              hoverCardMaterialWorks,
               doubleClickRenameWorks,
               renameDialogCancelWorks,
               renameDialogChromeQuiet,
+              renameDialogSharedLayoutWorks,
               renameDialogInputFocused,
               tooltipSurfaceReadable,
               singleHoverSurfaceWorks,
@@ -5460,29 +15559,86 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               nativeTitleFreeControlsWork: nativeTitleFreeControlLeaks.length === 0,
               nativeTitleFreeControlLeaks,
               sidebarNoHorizontalOverflow,
+              sidebarWidthTokenWorks,
+              sidebarWidth,
               sidebarOverflowDebug,
               sessionRowsCompact,
               sessionRowsCalm,
+              sidebarRowsMaterialQuiet,
+              sessionRowsUseSharedPrimitive,
               projectHeadersCompact,
+              projectHeadersUseSharedPrimitive,
               emptyProjectNewChatCompact,
+              emptyProjectNewChatUsesSharedPrimitive,
               sidebarSectionChromeCompact,
+              sidebarSectionRhythmWorks,
               idleRowRecencyVisible,
               importantRowStatusIconOnly,
               chatEnvironmentIconAbsent,
+              sidebarThreadIdentityMetadataWorks,
+              sidebarLabelColorMetadataWorks,
+              sidebarPinnedRowsKeepIdentityMarker,
+              sidebarPinActionsConsolidated,
               sidebarActionMenuChromeCalm,
+              sidebarActionMenuSharedSectionsWorks,
               actionRenameWorks,
-              runningSpinnerVisible: Boolean(runningRow?.querySelector('[data-testid="session-status-spinner"]')),
+              actionMarkUnreadWorks,
+              actionCopyDeeplinkWorks,
+              actionCopyMarkdownWorks,
+              actionStopChatWorks,
+              actionForkLocalWorks,
+              actionForkNewWorktreeWorks,
+              actionForkNewWorktreePendingWorks,
+              actionForkNewWorktreeReadyWorks,
+              actionRetryPendingWorktreeWorks,
+              actionRetryPendingWorktreeReadyWorks,
+              actionOpenInNewWindowWorks,
+              actionAddAutomationWorks,
+              actionEditAutomationWorks,
+              actionAutomationDialogSharedLayoutWorks,
+              actionAutomationPermissionSnapshotWorks,
+              actionAutomationScheduleEditingWorks,
+              actionAutomationLifecycleWarningWorks,
+              actionRunAutomationVisible,
+              actionResumeAutomationWorks,
+              actionPauseAutomationWorks,
+              actionDeleteAutomationWorks,
+              sidebarAutomationRowMetadataWorks,
+              sidebarAutomationRunningMetadataWorks,
+              runningSpinnerVisible,
               normalIdleDotHidden: !normalRow?.querySelector('[data-testid="session-status-dot"]'),
               unreadIdleDotVisible: Boolean(unreadRow?.querySelector('[data-testid="session-status-dot"]')),
               errorDotVisible: Boolean(errorRow?.querySelector('[data-testid="session-status-dot"]')),
               pinnedLiveRunningSpinner,
               pinnedLiveUnreadDot,
               pinnedLiveOrderStable,
-              grayIdleDotsAbsent: allDots.length === 3,
+              grayIdleDotsAbsent: allDots.length >= 3,
               projectActionMenuWorks,
+              projectActionMenuSharedSectionsWorks,
               projectRenameWorks,
               projectPinWorks,
+              projectCollapsePersistenceWorks,
+              builtInSectionCollapseWorks,
+              builtInSectionOrderWorks,
+              customSectionModelWorks,
+              customSectionDragMembershipWorks,
+              customSectionDragOrderWorks,
+              customSectionSectionReorderWorks,
+              customSectionMembershipWorks: customSectionMembershipWorks || (() => {
+                const text = document.body.innerText;
+                const customIndex = text.indexOf('Smoke focus');
+                const unreadIndex = text.indexOf('Sidebar unread idle');
+                const projectsIndex = text.indexOf('Projects');
+                const projectsText = projectsIndex >= 0 ? text.slice(projectsIndex) : text;
+                return customIndex >= 0 &&
+                  unreadIndex > customIndex &&
+                  (projectsIndex === -1 || unreadIndex < projectsIndex) &&
+                  !projectsText.includes('Sidebar unread idle');
+              })(),
+              customSectionCollapseWorks,
               organizeMenuWorks,
+              organizeMenuSharedSectionsWorks,
+              sidebarConnectionGroupingWorks,
               dotCount: allDots.length,
               bodyText: document.body.innerText
             };
@@ -5580,6 +15736,10 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             await sleep(120);
             const commandInput = document.querySelector('#command-palette-search');
             const commandPaletteOpens = commandInput instanceof HTMLInputElement && document.activeElement === commandInput;
+            const commandPaletteSearchFieldWorks =
+              commandInput instanceof HTMLInputElement &&
+              commandInput.closest('.workbench-search-field')?.getAttribute('data-field-kind') === 'search' &&
+              commandInput.closest('.workbench-search-field')?.querySelector('svg') instanceof SVGElement;
             let commandPaletteSearchActionWorks = false;
             if (commandInput instanceof HTMLInputElement) {
               const setter = Object.getOwnPropertyDescriptor(commandInput.constructor.prototype, 'value')?.set;
@@ -5606,6 +15766,10 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               search = document.querySelector('[data-testid="transcript-search"]');
             }
             const searchShortcutOpens = search instanceof HTMLInputElement && document.activeElement === search;
+            const transcriptSearchFieldWorks =
+              search instanceof HTMLInputElement &&
+              search.closest('.workbench-search-field')?.getAttribute('data-field-kind') === 'search' &&
+              search.closest('.workbench-search-field')?.querySelector('[aria-label="Close transcript search"]') instanceof HTMLButtonElement;
 
             const scroller = document.querySelector('[data-testid="transcript-scroll"]');
             if (!scroller) {
@@ -5697,6 +15861,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               layoutFixtureVisible,
               searchHiddenInitially,
               commandPaletteOpens,
+              commandPaletteSearchFieldWorks,
               commandPaletteShiftPOpens,
               commandPaletteGrouped,
               commandPaletteRecentVisible,
@@ -5704,6 +15869,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               commandPaletteFuzzyFindsTerminal,
               commandPaletteSearchActionWorks,
               searchShortcutOpens,
+              transcriptSearchFieldWorks,
               hiddenMessageCopyQuiet: !document.body.innerText.includes('hidden for faster chat switching'),
               documentNoHorizontalOverflow,
               transcriptNoHorizontalOverflow,
@@ -6662,7 +16828,10 @@ function runAutomatedWorkbenchPerfSmoke(win: BrowserWindow, outputPath: string, 
             };
             const openPanelTab = async (tabId, label) => {
               await openRightPanel();
-              const existing = document.querySelector('[data-tab-id="' + tabId + '"]')?.closest('[role="tab"]');
+              const existingById = document.querySelector('[data-tab-id="' + tabId + '"]')?.closest('[role="tab"]');
+              const existingByLabel = [...document.querySelectorAll('[role="tab"]')]
+                .find((tab) => tab.textContent?.trim().includes(label));
+              const existing = existingById ?? existingByLabel;
               if (existing instanceof HTMLElement) {
                 existing.click();
                 await sleep(80);
@@ -6672,9 +16841,15 @@ function runAutomatedWorkbenchPerfSmoke(win: BrowserWindow, outputPath: string, 
               if (addButton instanceof HTMLElement) {
                 addButton.click();
                 await sleep(80);
-                const menuItem = [...document.querySelectorAll('[role="menuitem"]')]
-                  .find((item) => item.textContent?.includes(label));
-                if (menuItem instanceof HTMLElement) menuItem.click();
+                const actionId = tabId === 'files' ? 'files' : tabId === 'browser' ? 'browser' : null;
+                const newTabAction = actionId === null ? null : document.querySelector('[data-testid="workbench-new-tab-action-' + actionId + '"]');
+                if (newTabAction instanceof HTMLElement && newTabAction.getAttribute('aria-disabled') !== 'true') {
+                  newTabAction.click();
+                } else {
+                  const menuItem = [...document.querySelectorAll('[role="menuitem"]')]
+                    .find((item) => item.textContent?.includes(label));
+                  if (menuItem instanceof HTMLElement) menuItem.click();
+                }
                 await sleep(180);
               }
             };
@@ -6688,7 +16863,7 @@ function runAutomatedWorkbenchPerfSmoke(win: BrowserWindow, outputPath: string, 
               await sleep(120);
             }
             const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
-            const resizeHandle = findButton('Resize panel');
+            const resizeHandle = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="left"]');
             window.__orchestratorWorkbenchCommitCount = 0;
             window.__orchestratorWorkbenchFrameGaps = [];
             window.__orchestratorWorkbenchFrameStop = false;
@@ -6725,7 +16900,7 @@ function runAutomatedWorkbenchPerfSmoke(win: BrowserWindow, outputPath: string, 
               switchDurations.push(performance.now() - before);
             }
             const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
-            const tabRow = document.querySelector('[data-testid="right-sidebar-tab-row"]');
+            const tabRow = document.querySelector('[data-testid="workbench-panel-tab-row"]');
             return {
               tabSwitchCount: switchDurations.length,
               maxTabSwitchMs: switchDurations.length ? Math.max(...switchDurations) : null,
@@ -6749,14 +16924,7 @@ function runAutomatedWorkbenchPerfSmoke(win: BrowserWindow, outputPath: string, 
           (async () => {
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const afterFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            const buttonLabel = (button) =>
-              button.getAttribute('aria-label') ??
-              button.getAttribute('data-tooltip-label') ??
-              button.getAttribute('title') ??
-              button.textContent?.trim() ??
-              '';
-            const resizeHandle = [...document.querySelectorAll('button')]
-              .find((button) => buttonLabel(button) === 'Resize panel');
+            const resizeHandle = document.querySelector('[data-app-shell-resize-handle="true"][data-app-shell-resize-edge="left"]');
             const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
             const widthBeforeResize = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect().width : null;
             if (!(resizeHandle instanceof HTMLElement) || !(rightPanel instanceof HTMLElement)) {
@@ -7152,14 +17320,38 @@ app.whenReady().then(async () => {
   ;({ createPetOverlayWindow, destroyPetOverlayWindow, setCreateMainWindowCallback } = await import('./petOverlay'))
   ;({ projectStore } = await import('./projects'))
   ;({ sessionManager } = await import('./sessions'))
+  ;({ automationManager } = await import('./automations'))
+  ;({ automationScheduler } = await import('./automationSchedulerSingleton'))
 
   electronApp.setAppUserModelId('com.orchestrator.app')
+  app.setAsDefaultProtocolClient(APP_DEEPLINK_PROTOCOL)
+  installRendererRouteProtocol()
 
   registerIpcHandlers(ipcMain)
+  ipcMain.handle('app:consumePendingNavigation', () => consumePendingNavigation())
+  ipcMain.handle('app:openSessionWindow', (_, sessionId: string) => {
+    if (!sessionManager.get(sessionId)) throw new Error(`Session ${sessionId} not found`)
+    openSessionInNewWindow(sessionId)
+    return true
+  })
+  ipcMain.handle('app:setMenuCommandAvailability', (event, availability: AppCommandAvailability) => {
+    setMenuCommandAvailability(BrowserWindow.fromWebContents(event.sender), availability)
+    return true
+  })
+  ipcMain.handle('app:getMenuCommandState', (_, command: StableAppCommand) => {
+    if (!(command in APP_COMMANDS)) return null
+    return applicationMenuCommandState(command)
+  })
   installApplicationMenu()
+  settingsStore.onDidChange('shortcutOverrides', () => installApplicationMenu())
   setCreateMainWindowCallback(createWindow)
   await bootstrapAutomatedUiSmokeState()
   createWindow()
+  if (!process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+    void sessionManager.refreshCodexSidebarMetadata(process.cwd())
+    sessionManager.startCodexSidebarMetadataRecurringRefresh(process.cwd())
+  }
+  automationScheduler.start()
 
   app.on('activate', function () {
     const existing = [...appWindows].find((candidate) => !candidate.isDestroyed())
@@ -7170,6 +17362,11 @@ app.whenReady().then(async () => {
     if (existing.isMinimized()) existing.restore()
     existing.show()
     existing.focus()
+    sessionManager.refreshCodexSidebarMetadataIfIdle(process.cwd())
+  })
+  app.on('before-quit', () => {
+    sessionManager.stopCodexSidebarMetadataRecurringRefresh()
+    automationScheduler.stop()
   })
 })
 
@@ -7208,10 +17405,22 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     seedAutomatedStreamingDragSmokeSession(session.id)
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'streaming-typing') {
     seedAutomatedStreamingTypingSmokeSession(session.id)
-  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings') {
+  } else if (
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings' ||
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings-deeplink'
+  ) {
     await seedAutomatedSettingsSmokeSession(session.id)
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'settings-deeplink') {
+      pendingNavigation = { kind: 'settings', section: 'providers', hostId: 'codex:remote-mac' }
+    }
   } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'plan') {
     seedAutomatedPlanSmokeSession(session.id)
+  } else if (
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'diff' ||
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW?.startsWith('diff-') ||
+    process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'inspector'
+  ) {
+    seedAutomatedReviewCardSmokeSession(session.id)
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced'
@@ -7239,6 +17448,54 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
         ...session.messages.filter((message) => message.id !== fixtureMessage.id),
         fixtureMessage
       ]
+    })
+  }
+}
+
+function seedAutomatedReviewCardSmokeSession(sessionId: string): void {
+  const session = sessionManager.get(sessionId)
+  if (!session) return
+  const timestamp = Date.now()
+  const smokeSessions = sessionManager.list()
+  for (const candidate of smokeSessions) {
+    const reviewCardMessage: ChatMessage = {
+      id: 'review-card-status-smoke-message',
+      role: 'system',
+      type: 'result',
+      subtype: 'status',
+      content: 'Diff updated',
+      timestamp
+    }
+    sessionManager.save({
+      ...candidate,
+      messages: [
+        ...candidate.messages.filter((message) => message.id !== reviewCardMessage.id),
+        reviewCardMessage
+      ],
+      latestMessageAt: reviewCardMessage.timestamp,
+      reviewMetadata: {
+        pullRequest: {
+          number: 42,
+          title: 'Review metadata smoke',
+          url: 'https://github.com/openai/orchestrator/pull/42',
+          state: 'open',
+          branch: 'codex/review-metadata-smoke',
+          baseBranch: 'main'
+        },
+        checks: {
+          status: 'failing',
+          total: 3,
+          passed: 1,
+          failing: 1,
+          pending: 1
+        },
+        reviewers: {
+          requested: 2,
+          approved: 1,
+          changesRequested: 1,
+          names: ['Ada', 'Linus']
+        }
+      }
     })
   }
 }
@@ -7277,24 +17534,71 @@ async function seedAutomatedSettingsSmokeSession(sessionId: string): Promise<voi
 
   const hasArchivedFixture = sessionManager.listArchivedSummaries()
     .some((candidate) => candidate.name === 'Archived settings smoke')
-  if (hasArchivedFixture) return
+  if (!hasArchivedFixture) {
+    const archived = await sessionManager.create({
+      projectId: session.projectId,
+      workDir: session.workDir,
+      useWorktree: false,
+      repoRoot: session.repoRoot
+    })
+    projectStore.addSession(session.projectId, archived.id)
+    sessionManager.updateName(archived.id, 'Archived settings smoke')
+    sessionManager.appendMessage(archived.id, [{
+      id: 'settings-archived-smoke-message',
+      role: 'assistant',
+      type: 'text',
+      content: 'Archived chat inventory smoke fixture.',
+      timestamp: Date.now()
+    }])
+    await sessionManager.archive(archived.id)
+  }
 
-  const archived = await sessionManager.create({
-    projectId: session.projectId,
-    workDir: session.workDir,
-    useWorktree: false,
-    repoRoot: session.repoRoot
-  })
-  projectStore.addSession(session.projectId, archived.id)
-  sessionManager.updateName(archived.id, 'Archived settings smoke')
-  sessionManager.appendMessage(archived.id, [{
-    id: 'settings-archived-smoke-message',
-    role: 'assistant',
-    type: 'text',
-    content: 'Archived chat inventory smoke fixture.',
-    timestamp: Date.now()
-  }])
-  await sessionManager.archive(archived.id)
+  const hasWorktreeFixture = sessionManager.list()
+    .some((candidate) => candidate.name === 'Settings worktree smoke')
+  if (!hasWorktreeFixture) {
+    const worktreeSession = await sessionManager.create({
+      projectId: session.projectId,
+      workDir: session.workDir,
+      useWorktree: true,
+      repoRoot: session.repoRoot
+    })
+    projectStore.addSession(session.projectId, worktreeSession.id)
+    sessionManager.updateName(worktreeSession.id, 'Settings worktree smoke')
+    sessionManager.appendMessage(worktreeSession.id, [{
+      id: 'settings-worktree-smoke-message',
+      role: 'assistant',
+      type: 'text',
+      content: 'Worktree inventory smoke fixture.',
+      timestamp: Date.now()
+    }])
+  }
+
+  const hasRemoteHostFixture = sessionManager.list()
+    .some((candidate) => candidate.name === 'Settings host smoke')
+  if (!hasRemoteHostFixture) {
+    const remoteHostSession = await sessionManager.create({
+      projectId: session.projectId,
+      workDir: session.workDir,
+      useWorktree: false,
+      repoRoot: session.repoRoot
+    })
+    projectStore.addSession(session.projectId, remoteHostSession.id)
+    sessionManager.save({
+      ...remoteHostSession,
+      name: 'Settings host smoke',
+      provider: 'codex',
+      providerSessionId: 'settings-host-smoke',
+      providerHostId: 'remote-mac',
+      providerHostLabel: 'Remote Mac',
+      messages: [{
+        id: 'settings-host-smoke-message',
+        role: 'assistant',
+        type: 'text',
+        content: 'Remote host settings smoke fixture.',
+        timestamp: Date.now()
+      }]
+    })
+  }
 }
 
 function seedAutomatedPlanSmokeSession(sessionId: string): void {
@@ -7509,19 +17813,52 @@ async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: str
     status: ReturnType<typeof sessionManager.list>[number]['status']
     offset: number
     pinOrder?: number
+    provider?: string
+    providerSessionId?: string | null
+    providerThreadSource?: ReturnType<typeof sessionManager.list>[number]['providerThreadSource']
+    providerHostId?: string | null
+    providerHostLabel?: string | null
+    providerWorktreeSourceRoot?: string | null
+    providerWorktreeRoot?: string | null
+    providerWorktreeHostId?: string | null
+    providerWorktreeHostLabel?: string | null
+    providerPinned?: boolean
+    providerPinOrder?: number
+    providerPinnedThreadKey?: string | null
+    providerProjectless?: boolean
+    providerProjectlessThreadId?: string | null
+    permissionMode?: string
+    allowedTools?: string[]
+    disallowedTools?: string[]
+    useWorktree?: boolean
+    worktreeState?: ReturnType<typeof sessionManager.list>[number]['worktreeState']
+    projectId?: string
+    runningAutomation?: boolean
   }> = [
     { name: 'Sidebar pinned older', pinned: true, status: 'idle', offset: 1, pinOrder: 1 },
     { name: 'Sidebar pinned recent', pinned: true, status: 'idle', offset: 5, pinOrder: 2 },
-    { name: 'Sidebar normal idle', pinned: false, status: 'idle', offset: 3 },
+    { name: 'Sidebar provider pinned codex', pinned: false, status: 'idle', offset: 14, provider: 'codex', providerSessionId: 'sidebar-provider-pinned-codex', providerThreadSource: 'cloud', providerPinned: true, providerPinOrder: 3, providerPinnedThreadKey: 'remote:sidebar-provider-pinned-codex' },
+    { name: 'Sidebar normal idle', pinned: false, status: 'idle', offset: 3, permissionMode: 'acceptEdits', allowedTools: ['Read', 'Edit'], disallowedTools: ['WebFetch'] },
     { name: 'Sidebar unread idle', pinned: false, status: 'idle', offset: 4 },
     { name: 'Sidebar error', pinned: false, status: 'provider_error', offset: 2 },
     { name: 'Sidebar running', pinned: false, status: 'running', offset: 6 },
+    { name: 'Sidebar automation running', pinned: false, status: 'idle', offset: 11, runningAutomation: true },
+    { name: 'Sidebar remote codex', pinned: false, status: 'idle', offset: 7, provider: 'codex', providerSessionId: 'sidebar-remote-codex' },
+    { name: 'Sidebar remote projectless codex', pinned: false, status: 'idle', offset: 15, provider: 'codex', providerSessionId: 'sidebar-remote-projectless-codex', providerProjectless: true, providerProjectlessThreadId: 'sidebar-remote-projectless-codex' },
+    { name: 'Sidebar cloud codex', pinned: false, status: 'idle', offset: 12, provider: 'codex', providerSessionId: 'sidebar-cloud-codex', providerThreadSource: 'cloud' },
+    { name: 'Sidebar host codex', pinned: false, status: 'idle', offset: 13, provider: 'codex', providerSessionId: 'sidebar-host-codex', providerHostId: 'remote-mac', providerHostLabel: 'Remote Mac' },
+    { name: 'Sidebar worktree cursor', pinned: false, status: 'idle', offset: 8, provider: 'cursor', useWorktree: true },
+    { name: 'Sidebar remote worktree codex', pinned: false, status: 'idle', offset: 16, provider: 'codex', useWorktree: true, providerWorktreeSourceRoot: '/remote/src/orchestrator', providerWorktreeRoot: '/remote/src/orchestrator-worktree', providerWorktreeHostId: 'remote-mac', providerWorktreeHostLabel: 'Remote Mac' },
+    { name: 'Sidebar pending remote worktree codex', pinned: false, status: 'reconnecting', offset: 17, provider: 'codex', useWorktree: true, worktreeState: 'pending', providerWorktreeSourceRoot: '/remote/src/orchestrator', providerWorktreeRoot: '/remote/src/orchestrator-pending', providerWorktreeHostId: 'remote-mac', providerWorktreeHostLabel: 'Remote Mac' },
+    { name: 'Sidebar failed worktree', pinned: false, status: 'error', offset: 9, provider: 'claude', useWorktree: true, worktreeState: 'failed' },
+    { name: 'Sidebar projectless chat', pinned: false, status: 'idle', offset: 10, provider: 'claude', projectId: 'sidebar-projectless-smoke' },
   ]
 
   for (const fixture of fixtures) {
     const existing = sessionManager.list().find((session) => session.name === fixture.name)
+    const fixtureProjectId = fixture.projectId ?? projectId
     const session = existing ?? await sessionManager.create({
-      projectId,
+      projectId: fixtureProjectId,
       workDir,
       useWorktree: false,
       repoRoot: workDir
@@ -7530,9 +17867,29 @@ async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: str
     sessionManager.save({
       ...session,
       name: fixture.name,
+      projectId: fixtureProjectId,
       pinned: fixture.pinned,
       pinOrder: fixture.pinned ? fixture.pinOrder : undefined,
       status: fixture.status,
+      provider: fixture.provider ?? session.provider,
+      providerSessionId: fixture.providerSessionId === undefined ? session.providerSessionId : fixture.providerSessionId,
+      providerThreadSource: fixture.providerThreadSource ?? session.providerThreadSource,
+      providerHostId: fixture.providerHostId === undefined ? session.providerHostId : fixture.providerHostId,
+      providerHostLabel: fixture.providerHostLabel === undefined ? session.providerHostLabel : fixture.providerHostLabel,
+      providerWorktreeSourceRoot: fixture.providerWorktreeSourceRoot === undefined ? session.providerWorktreeSourceRoot : fixture.providerWorktreeSourceRoot,
+      providerWorktreeRoot: fixture.providerWorktreeRoot === undefined ? session.providerWorktreeRoot : fixture.providerWorktreeRoot,
+      providerWorktreeHostId: fixture.providerWorktreeHostId === undefined ? session.providerWorktreeHostId : fixture.providerWorktreeHostId,
+      providerWorktreeHostLabel: fixture.providerWorktreeHostLabel === undefined ? session.providerWorktreeHostLabel : fixture.providerWorktreeHostLabel,
+      providerPinned: fixture.providerPinned ?? false,
+      providerPinOrder: fixture.providerPinned ? fixture.providerPinOrder : undefined,
+      providerPinnedThreadKey: fixture.providerPinned ? fixture.providerPinnedThreadKey : undefined,
+      providerProjectless: fixture.providerProjectless ?? false,
+      providerProjectlessThreadId: fixture.providerProjectless ? fixture.providerProjectlessThreadId : undefined,
+      permissionMode: fixture.permissionMode ?? session.permissionMode,
+      allowedTools: fixture.allowedTools ?? session.allowedTools,
+      disallowedTools: fixture.disallowedTools ?? session.disallowedTools,
+      useWorktree: fixture.useWorktree ?? session.useWorktree,
+      worktreeState: fixture.worktreeState ?? session.worktreeState,
       messages: [{
         id: `sidebar-smoke-${fixture.name.toLowerCase().replace(/\s+/g, '-')}`,
         role: 'assistant',
@@ -7543,7 +17900,25 @@ async function seedAutomatedSidebarSmokeSessions(projectId: string, workDir: str
       createdAt: timestamp,
       latestMessageAt: timestamp
     })
-    projectStore.addSession(projectId, session.id)
+    if (fixtureProjectId === projectId) {
+      projectStore.addSession(projectId, session.id)
+    }
+    if (fixture.runningAutomation) {
+      const existingAutomation = automationManager.listForSession(session.id)
+        .find((automation) => automation.name === 'Sidebar running automation')
+      const automation = automationManager.upsert({
+        id: existingAutomation?.id ?? null,
+        kind: 'heartbeat',
+        name: 'Sidebar running automation',
+        prompt: 'Continue this smoke automation.',
+        status: 'ACTIVE',
+        target: { type: 'session', sessionId: session.id },
+        schedule: { mode: 'manual', rrule: null }
+      })
+      const hasRunningRun = automationManager.listRuns(automation.id)
+        .some((run) => run.status === 'RUNNING')
+      if (!hasRunningRun) automationManager.startRun(automation.id, 'manual', null)
+    }
   }
 }
 

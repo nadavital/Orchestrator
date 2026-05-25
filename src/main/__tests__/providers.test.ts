@@ -17,6 +17,7 @@ const ABSTRACT_CAPABILITY_KEYS = [
   'toolAllowlist',
   'workspaceSandbox',
   'fullAccess',
+  'checkpointUndo',
   'bypassAll'
 ]
 
@@ -385,6 +386,17 @@ test('interactive CLI capability is exposed separately from structured output', 
     runtimeInfo.copilot.abstractCapabilities.find((capability) => capability.key === 'interactiveCli')?.support,
     'supported'
   )
+})
+
+test('checkpoint undo is an explicit provider capability and remains disabled without adapter support', () => {
+  const runtimeInfo = getProviderRuntimeInfo()
+
+  for (const [providerId, runtime] of Object.entries(runtimeInfo)) {
+    const checkpointUndo = runtime.abstractCapabilities.find((capability) => capability.key === 'checkpointUndo')
+    assert.equal(runtime.capabilities.checkpointUndo, false, `${providerId} should not claim checkpoint undo support yet`)
+    assert.equal(checkpointUndo?.support, 'unsupported')
+    assert.match(checkpointUndo?.note ?? '', /checkpoint id/)
+  }
 })
 
 test('providers expose native interactive CLI launch commands without headless output flags', () => {
@@ -1294,6 +1306,101 @@ test('codex app-server protocol messages normalize lifecycle, review, diff, and 
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('Auto-review completed')))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('watch out')))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('Thread closed')))
+})
+
+test('codex app-server browser-use notifications normalize to Browser manager state events', () => {
+  const lines = [
+    {
+      jsonrpc: '2.0',
+      method: 'browser-sidebar-browser-use-state',
+      params: { conversationId: 'codex-thread-browser', isActive: true, turnId: 'turn-browser-1' }
+    },
+    {
+      jsonrpc: '2.0',
+      method: 'browser-sidebar-browser-use-viewport',
+      params: { conversationId: 'codex-thread-browser', viewportSize: { width: 390.4, height: 843.6 } }
+    },
+    {
+      jsonrpc: '2.0',
+      method: 'browser-sidebar-browser-use-capture-surface',
+      params: {
+        conversationId: 'codex-thread-browser',
+        surfaceSize: { width: 800, height: 600 },
+        bounds: { x: 12, y: 34, width: 800, height: 600, scale: 0.75 }
+      }
+    },
+    {
+      jsonrpc: '2.0',
+      method: 'browser-sidebar-browser-use-cursor-state',
+      params: { conversationId: 'codex-thread-browser', visible: true, x: 48, y: 64, animateMovement: true, moveSequence: 3 }
+    },
+    {
+      jsonrpc: '2.0',
+      method: 'browser-sidebar-local-servers',
+      params: {
+        conversationId: 'codex-thread-browser',
+        state: {
+          servers: [{
+            url: 'http://127.0.0.1:5173/',
+            routes: [
+              { url: 'http://127.0.0.1:5173/', title: 'Home' },
+              { url: 'http://127.0.0.1:5173/dashboard', title: 'Dashboard' }
+            ]
+          }],
+          hiddenServers: [{
+            url: 'http://127.0.0.1:5173/',
+            routes: [{ url: 'http://127.0.0.1:5173/hidden' }]
+          }]
+        }
+      }
+    },
+    {
+      jsonrpc: '2.0',
+      method: 'browser-sidebar-browser-use-state',
+      params: { conversationId: 'codex-thread-browser', isActive: false, turnId: 'turn-browser-1' }
+    }
+  ]
+  const events = lines.flatMap((line) => PROVIDERS.codex.parseOutputLine(JSON.stringify(line)))
+  const browserEvents = events.filter((event): event is Extract<RunEvent, { type: 'browser.manager_state' }> => event.type === 'browser.manager_state')
+
+  assert.equal(browserEvents.length, 6)
+  assert.deepEqual(browserEvents[0], {
+    type: 'browser.manager_state',
+    open: undefined,
+    active: true,
+    turnId: 'turn-browser-1'
+  })
+  assert.deepEqual(browserEvents[1], {
+    type: 'browser.manager_state',
+    open: undefined,
+    viewportSize: { width: 390.4, height: 843.6 }
+  })
+  assert.deepEqual(browserEvents[2], {
+    type: 'browser.manager_state',
+    open: undefined,
+    captureSurfaceSize: { width: 800, height: 600 },
+    captureBounds: { x: 12, y: 34, width: 800, height: 600, scale: 0.75 }
+  })
+  assert.deepEqual(browserEvents[3], {
+    type: 'browser.manager_state',
+    open: undefined,
+    cursorState: { visible: true, x: 48, y: 64, animateMovement: true, moveSequence: 3 }
+  })
+  assert.deepEqual(browserEvents[4], {
+    type: 'browser.manager_state',
+    open: undefined,
+    localServerRoutes: [
+      { serverUrl: 'http://127.0.0.1:5173/', url: 'http://127.0.0.1:5173/', title: 'Home', source: 'provider' },
+      { serverUrl: 'http://127.0.0.1:5173/', url: 'http://127.0.0.1:5173/dashboard', title: 'Dashboard', source: 'provider' }
+    ],
+    hiddenLocalServerRoutes: ['http://127.0.0.1:5173/hidden']
+  })
+  assert.deepEqual(browserEvents[5], {
+    type: 'browser.manager_state',
+    open: false,
+    active: false,
+    turnId: 'turn-browser-1'
+  })
 })
 
 test('codex app-server legacy approval requests normalize to Orchestrator permissions', () => {

@@ -7,6 +7,7 @@ export interface FileChangeSummary {
   deleted: number
   renamed: number
   untracked: number
+  conflicted: number
   additions: number
   deletions: number
   risk: 'low' | 'medium' | 'high'
@@ -41,6 +42,7 @@ export function summarizeFileChanges(files: FileChange[]): FileChangeSummary {
     deleted: 0,
     renamed: 0,
     untracked: 0,
+    conflicted: 0,
     additions: 0,
     deletions: 0,
     risk: 'low',
@@ -55,9 +57,10 @@ export function summarizeFileChanges(files: FileChange[]): FileChangeSummary {
     if (file.status === 'D') summary.deleted += 1
     if (file.status === 'R') summary.renamed += 1
     if (file.status === '?') summary.untracked += 1
+    if (file.status === 'U' || file.conflicted) summary.conflicted += 1
   }
 
-  summary.risk = summary.deleted > 0 ? 'high' : summary.additions + summary.deletions > 250 ? 'medium' : 'low'
+  summary.risk = summary.conflicted > 0 || summary.deleted > 0 ? 'high' : summary.additions + summary.deletions > 250 ? 'medium' : 'low'
   summary.label = fileChangeLabel(summary)
   return summary
 }
@@ -67,6 +70,7 @@ export function fileStatusLabel(status: FileChange['status']): string {
   if (status === 'M') return 'Modified'
   if (status === 'D') return 'Deleted'
   if (status === 'R') return 'Renamed'
+  if (status === 'U') return 'Conflict'
   return 'Untracked'
 }
 
@@ -137,6 +141,7 @@ function fileChangeLabel(summary: FileChangeSummary): string {
   if (summary.deleted > 0) parts.push(`${summary.deleted} deleted`)
   if (summary.renamed > 0) parts.push(`${summary.renamed} renamed`)
   if (summary.untracked > 0) parts.push(`${summary.untracked} untracked`)
+  if (summary.conflicted > 0) parts.push(`${summary.conflicted} conflicted`)
   return parts.join(' · ')
 }
 

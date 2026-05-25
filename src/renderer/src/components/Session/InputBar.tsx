@@ -1175,24 +1175,32 @@ function Chevron(): JSX.Element {
 }
 
 function DropdownPanel({
-  children, onClose, style
+  children, onClose, style, testId = 'composer-dropdown-surface'
 }: {
   children: React.ReactNode
   onClose: () => void
   style: React.CSSProperties
+  testId?: string
 }): JSX.Element {
   return (
     <DismissablePopoverSurface
-      className="absolute overflow-hidden z-50"
+      className="absolute z-50 composer-dropdown-surface"
       onClose={onClose}
       style={{
-        border: '1px solid var(--border-strong)',
-        borderRadius: 'var(--radius-xl)',
-        boxShadow: 'var(--shadow-popover)',
+        border: '0.5px solid var(--border-subtle)',
+        borderRadius: 12,
+        background: 'color-mix(in srgb, var(--surface-bg) 90%, transparent)',
+        boxShadow: 'var(--shadow-menu)',
+        backdropFilter: 'blur(12px)',
+        overflow: 'hidden',
+        maxWidth: 'min(420px, calc(100vw - 16px))',
+        maxHeight: 'min(360px, calc(100vh - 16px))',
         ...style
       }}
     >
-      {children}
+      <div data-testid={testId} data-composer-dropdown-surface="true">
+        {children}
+      </div>
     </DismissablePopoverSurface>
   )
 }
