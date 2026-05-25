@@ -4,6 +4,18 @@ Last updated: 2026-05-25
 
 This file is the current comparison ledger for the side-panel parity goal. It separates Codex-bundle evidence from Orchestrator fixture-smoke evidence so passing local smokes do not accidentally count as full Codex parity.
 
+## Runnable Comparison
+
+- Reuse the latest side-panel smoke manifest and compare it with the current Codex app bundle:
+  `npm run compare:codex-side-panels`
+- Regenerate the full side-panel visual inventory first, then compare:
+  `npm run compare:codex-side-panels -- --run-smoke --full`
+- Generate the same report without failing the shell on known mismatches:
+  `npm run compare:codex-side-panels -- --no-fail`
+- The generated report is written to `tmp/codex-side-panel-comparison/comparison-report.md` and `tmp/codex-side-panel-comparison/comparison-report.json`.
+
+Scope note: "side panel" in the comparison matrix means the right-side Workbench panel unless a row explicitly says Bottom panel, Left sidebar, or Settings.
+
 ## Evidence Used
 
 - Codex app bundle: `/Applications/Codex.app/Contents/Resources/app.asar`, `CFBundleShortVersionString=26.519.41501`.
