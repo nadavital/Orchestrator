@@ -4227,7 +4227,13 @@
     justify-content: flex-start;
     gap: 7px;
     padding: 12px 14px;
+    font-size: 12px;
     text-align: left;
+  }
+
+  .file-fallback-state.review-fallback-state .orchestrator-panel-notice-title {
+    font-size: 13px;
+    font-weight: 600;
   }
 
   .file-fallback-state.review-fallback-state .orchestrator-panel-notice-icon {

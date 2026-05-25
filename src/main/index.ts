@@ -5950,27 +5950,40 @@ function runAutomatedFocusedSurfaceSmoke(
                     cancelable: true
                   }));
                 };
+                const waitForElement = async (selector) => {
+                  for (let index = 0; index < 20; index += 1) {
+                    const element = document.querySelector(selector);
+                    if (element instanceof HTMLElement) return element;
+                    await sleep(80);
+                  }
+                  const element = document.querySelector(selector);
+                  return element instanceof HTMLElement ? element : null;
+                };
+                const waitForActiveTestId = async (testId) => {
+                  for (let index = 0; index < 20; index += 1) {
+                    if (document.activeElement?.getAttribute('data-testid') === testId) return true;
+                    await sleep(80);
+                  }
+                  return document.activeElement?.getAttribute('data-testid') === testId;
+                };
                 await openPanelTab('diff', 'Review');
-                await sleep(180);
+                await waitForElement('[data-testid="diff-file-search"]');
                 const reviewPanel = focusActiveRightPanel();
                 const reviewBrowserAddressMenuState = await waitForMenuEnabledState('focus-browser-address-bar', false);
                 const reviewFindMenuState = await waitForMenuEnabledState('search-transcript', true);
                 sendShortcut(reviewPanel, 'f', 'KeyF');
-                await sleep(180);
-                const reviewFindFocused = document.activeElement?.getAttribute('data-testid') === 'diff-file-search';
+                const reviewFindFocused = await waitForActiveTestId('diff-file-search');
                 await openPanelTab('files', 'Files');
-                await sleep(180);
+                await waitForElement('[data-testid="workspace-file-search"]');
                 const filesPanel = focusActiveRightPanel();
                 sendShortcut(filesPanel, 'f', 'KeyF');
-                await sleep(180);
-                const fileFindFocused = document.activeElement?.getAttribute('data-testid') === 'workspace-file-search';
+                const fileFindFocused = await waitForActiveTestId('workspace-file-search');
                 await openPanelTab('browser', 'Browser');
-                await sleep(180);
+                await waitForElement('[data-testid="browser-panel"]');
                 const browserPanel = focusActiveRightPanel();
                 const browserAddressMenuState = await waitForMenuEnabledState('focus-browser-address-bar', true);
                 sendShortcut(browserPanel, 'f', 'KeyF');
-                await sleep(180);
-                const browserFindFocused = document.activeElement?.getAttribute('data-testid') === 'browser-find-input';
+                const browserFindFocused = await waitForActiveTestId('browser-find-input');
                 rightPanelFindShortcutRoutingWorks = reviewFindFocused && fileFindFocused && browserFindFocused;
                 rightPanelFindShortcutRoutingDebug = {
                   reviewFindFocused,

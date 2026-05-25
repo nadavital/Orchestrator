@@ -633,12 +633,13 @@ let log = ''
 child.stdout.on('data', (chunk) => { log += chunk.toString() })
 child.stderr.on('data', (chunk) => { log += chunk.toString() })
 
+const timeoutMs = Number.parseInt(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_TIMEOUT_MS ?? '90000', 10)
 const timeout = setTimeout(() => {
   child.kill('SIGTERM')
   console.error('Automated UI smoke timed out.')
   console.error(log.slice(-4000))
   process.exit(1)
-}, 45_000)
+}, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 90_000)
 
 child.on('exit', (code) => {
   browserSmokeServer?.close()
