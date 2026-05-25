@@ -14,23 +14,34 @@ export interface CodexProjectImportResult {
 
 export interface WorkspaceSearchRequest {
   root: string
+  host?: string
   query?: string
   limit?: number
   includeDirectories?: boolean
   includeHidden?: boolean
+  includeContentMatches?: boolean
+  lazyDirectories?: boolean
+  expandedDirectories?: string[]
 }
 
 export interface WorkspaceSearchEntry {
+  host?: string
   path: string
   name: string
   kind: 'file' | 'directory'
   depth: number
   size?: number
   score?: number
+  matchKind?: 'path' | 'content'
+  matchLine?: number
+  matchText?: string
+  hasChildren?: boolean
+  loaded?: boolean
 }
 
 export interface WorkspaceSearchResult {
   root: string
+  host?: string
   query: string
   entries: WorkspaceSearchEntry[]
   visited: number
@@ -530,6 +541,7 @@ export interface ProviderCapabilities {
   allowedTools: boolean
   workspaceSandbox: boolean
   fullAccessMode: boolean
+  checkpointUndo: boolean
   forcedAllTools?: boolean
 }
 
@@ -542,6 +554,7 @@ export type ProviderCapabilityKey =
   | 'toolAllowlist'
   | 'workspaceSandbox'
   | 'fullAccess'
+  | 'checkpointUndo'
   | 'bypassAll'
 
 export interface ProviderCapability {
@@ -774,6 +787,14 @@ export interface ProviderCommandSurfaceResult {
   output: string
 }
 
+export interface ProviderSidebarSyncResult {
+  ok: boolean
+  providerId: string
+  changed: number
+  skipped?: 'no-provider-sessions' | 'unsupported-provider'
+  error?: string
+}
+
 export type ProviderResourceKind =
   | 'skill'
   | 'plugin'
@@ -929,6 +950,28 @@ export interface UsageSummary {
   }>
 }
 
+export type TerminalServiceSessionStatus = 'starting' | 'running' | 'exited' | 'buffered'
+
+export interface TerminalServiceSessionSnapshot {
+  terminalId: string
+  workDir: string | null
+  status: TerminalServiceSessionStatus
+  bufferLength: number
+  hasBuffer: boolean
+  exitCode?: number
+  signal?: number | null
+}
+
+export interface TerminalServiceSnapshot {
+  sessions: TerminalServiceSessionSnapshot[]
+  sessionCount: number
+  runningCount: number
+  startingCount: number
+  exitedCount: number
+  bufferedCount: number
+  totalBufferLength: number
+}
+
 export type Attachment =
   | {
       id: string
@@ -945,6 +988,44 @@ export type Attachment =
       relativePath: string
       name?: string
     }
+
+export interface BrowserUseSurfaceSize {
+  width: number
+  height: number
+}
+
+export interface BrowserUseSurfaceBounds extends BrowserUseSurfaceSize {
+  x: number
+  y: number
+  scale?: number
+}
+
+export interface BrowserUseCursorState {
+  visible: boolean
+  x: number
+  y: number
+  animateMovement?: boolean
+  moveSequence?: number
+}
+
+export interface BrowserLocalServerRoute {
+  serverUrl: string
+  url: string
+  title?: string | null
+  source?: 'provider' | 'history' | 'manual'
+}
+
+export interface BrowserManagerStatePatch {
+  browserUseActive?: boolean
+  browserUseTurnId?: string | null
+  browserUseViewportSize?: BrowserUseSurfaceSize | null
+  browserUseCaptureSurfaceSize?: BrowserUseSurfaceSize | null
+  browserUseCaptureBounds?: BrowserUseSurfaceBounds | null
+  browserUseCursorState?: BrowserUseCursorState | null
+  localServerRoutes?: BrowserLocalServerRoute[]
+  hiddenLocalServerRoutes?: string[]
+  shouldOpenBrowser?: boolean
+}
 
 export type RunEvent =
   | { type: 'session.started'; providerSessionId: string }
@@ -968,8 +1049,125 @@ export type RunEvent =
   | { type: 'user_input.requested'; content: string; questions?: UserInputQuestion[] }
   | { type: 'connection.reconnecting'; attempt?: number; content?: string }
   | { type: 'connection.retrying'; attempt?: number; content?: string }
+  | {
+      type: 'browser.manager_state'
+      active?: boolean
+      turnId?: string | null
+      viewportSize?: BrowserUseSurfaceSize | null
+      captureSurfaceSize?: BrowserUseSurfaceSize | null
+      captureBounds?: BrowserUseSurfaceBounds | null
+      cursorState?: BrowserUseCursorState | null
+      localServerRoutes?: BrowserLocalServerRoute[] | null
+      hiddenLocalServerRoutes?: string[] | null
+      open?: boolean
+    }
   | { type: 'run.completed'; content?: string; usage?: UsageSummary }
   | { type: 'run.failed'; content?: string; usage?: UsageSummary }
+
+export function browserManagerPatchFromEvents(events: readonly RunEvent[]): BrowserManagerStatePatch | null {
+  let patch: BrowserManagerStatePatch | null = null
+
+  for (const event of events) {
+    if (event.type !== 'browser.manager_state') continue
+    patch ??= {}
+
+    if (event.open !== false) patch.shouldOpenBrowser = true
+    if (typeof event.active === 'boolean') patch.browserUseActive = event.active
+    if ('turnId' in event) patch.browserUseTurnId = typeof event.turnId === 'string' ? event.turnId : null
+    if ('viewportSize' in event) patch.browserUseViewportSize = normalizeBrowserUseSurfaceSize(event.viewportSize)
+    if ('captureSurfaceSize' in event) patch.browserUseCaptureSurfaceSize = normalizeBrowserUseSurfaceSize(event.captureSurfaceSize)
+    if ('captureBounds' in event) patch.browserUseCaptureBounds = normalizeBrowserUseSurfaceBounds(event.captureBounds)
+    if ('cursorState' in event) patch.browserUseCursorState = normalizeBrowserUseCursorState(event.cursorState)
+    if ('localServerRoutes' in event) patch.localServerRoutes = normalizeBrowserLocalServerRoutes(event.localServerRoutes)
+    if ('hiddenLocalServerRoutes' in event) patch.hiddenLocalServerRoutes = normalizeBrowserHiddenLocalServerRoutes(event.hiddenLocalServerRoutes)
+  }
+
+  return patch
+}
+
+function normalizeBrowserUseSurfaceSize(size: BrowserUseSurfaceSize | null | undefined): BrowserUseSurfaceSize | null {
+  if (!size || typeof size !== 'object') return null
+  const width = Math.round(size.width)
+  const height = Math.round(size.height)
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null
+  return { width, height }
+}
+
+function normalizeBrowserUseSurfaceBounds(bounds: BrowserUseSurfaceBounds | null | undefined): BrowserUseSurfaceBounds | null {
+  if (!bounds || typeof bounds !== 'object') return null
+  const size = normalizeBrowserUseSurfaceSize(bounds)
+  if (!size) return null
+  const x = Math.round(Number(bounds.x))
+  const y = Math.round(Number(bounds.y))
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+  const scale = Number(bounds.scale)
+  return {
+    x,
+    y,
+    ...size,
+    ...(Number.isFinite(scale) && scale > 0 ? { scale: Math.round(scale * 1000) / 1000 } : {})
+  }
+}
+
+function normalizeBrowserUseCursorState(cursor: BrowserUseCursorState | null | undefined): BrowserUseCursorState | null {
+  if (!cursor || typeof cursor !== 'object') return null
+  const x = Number(cursor.x)
+  const y = Number(cursor.y)
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+  const normalized: BrowserUseCursorState = {
+    visible: cursor.visible === true,
+    x,
+    y
+  }
+  if (typeof cursor.animateMovement === 'boolean') normalized.animateMovement = cursor.animateMovement
+  if (typeof cursor.moveSequence === 'number' && Number.isFinite(cursor.moveSequence)) normalized.moveSequence = cursor.moveSequence
+  return normalized
+}
+
+function normalizeBrowserLocalServerRoutes(routes: BrowserLocalServerRoute[] | null | undefined): BrowserLocalServerRoute[] {
+  if (!Array.isArray(routes)) return []
+  const normalized = new Map<string, BrowserLocalServerRoute>()
+  for (const route of routes) {
+    if (!route || typeof route !== 'object') continue
+    const serverUrl = normalizeLocalBrowserUrl(route.serverUrl)
+    const url = normalizeLocalBrowserUrl(route.url)
+    if (!serverUrl || !url) continue
+    normalized.set(url, {
+      serverUrl,
+      url,
+      title: typeof route.title === 'string' ? route.title : null,
+      source: route.source === 'history' || route.source === 'manual' ? route.source : 'provider'
+    })
+  }
+  return [...normalized.values()]
+}
+
+function normalizeBrowserHiddenLocalServerRoutes(routes: string[] | null | undefined): string[] {
+  if (!Array.isArray(routes)) return []
+  return [...new Set(routes.map(normalizeLocalBrowserUrl).filter((url): url is string => Boolean(url)))].sort()
+}
+
+function normalizeLocalBrowserUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    const hostname = parsed.hostname
+    if (hostname === '0.0.0.0') parsed.hostname = '127.0.0.1'
+    else if (!isLoopbackBrowserHostname(hostname)) return null
+    parsed.hash = ''
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
+function isLoopbackBrowserHostname(hostname: string): boolean {
+  return hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+}
 
 export type SessionStatus =
   | 'idle'
@@ -984,6 +1182,44 @@ export type SessionStatus =
   | 'provider_error'
   | 'error'
 
+export type SessionWorktreeState = 'pending' | 'ready' | 'failed'
+
+export type ReviewCheckStatus = 'passing' | 'failing' | 'pending' | 'skipped' | 'unknown'
+
+export interface ReviewPullRequestMetadata {
+  number: number
+  title?: string
+  url?: string | null
+  state?: 'open' | 'draft' | 'merged' | 'closed'
+  branch?: string
+  baseBranch?: string
+}
+
+export interface ReviewCheckSummary {
+  status: ReviewCheckStatus
+  total: number
+  passed?: number
+  failing?: number
+  pending?: number
+  skipped?: number
+  url?: string | null
+}
+
+export interface ReviewReviewerSummary {
+  requested?: number
+  approved?: number
+  changesRequested?: number
+  commented?: number
+  names?: string[]
+  url?: string | null
+}
+
+export interface ReviewMetadata {
+  pullRequest?: ReviewPullRequestMetadata
+  checks?: ReviewCheckSummary
+  reviewers?: ReviewReviewerSummary
+}
+
 export interface Session {
   id: string
   name: string
@@ -992,6 +1228,7 @@ export interface Session {
   projectId: string
   workDir: string
   useWorktree: boolean
+  worktreeState?: SessionWorktreeState
   repoRoot?: string
   providerSessionId: string | null
   claudeSessionId?: string | null
@@ -1016,7 +1253,489 @@ export interface Session {
   useThinking?: boolean
   useFast?: boolean
   usageSummary?: UsageSummary
+  reviewMetadata?: ReviewMetadata
+  providerThreadSource?: SidebarProviderThreadSource
+  providerHostId?: string | null
+  providerHostLabel?: string | null
+  providerWorktreeSourceRoot?: string | null
+  providerWorktreeRoot?: string | null
+  providerWorktreeHostId?: string | null
+  providerWorktreeHostLabel?: string | null
+  providerPinned?: boolean
+  providerPinOrder?: number
+  providerPinnedThreadKey?: string | null
+  providerProjectless?: boolean
+  providerProjectlessThreadId?: string | null
 }
+
+export type SidebarThreadKind = 'local' | 'remote' | 'worktree' | 'pending-worktree'
+export type SidebarProviderThreadSource = 'local' | 'remote' | 'cloud' | 'remote-host' | 'worktree'
+export type SidebarConnectionGroupKind = 'local' | 'cloud' | 'remote' | 'worktree' | 'pending-worktree'
+export type SettingsSectionId =
+  | 'general'
+  | 'appearance'
+  | 'providers'
+  | 'automations'
+  | 'worktrees'
+  | 'shortcuts'
+  | 'personalization'
+  | 'pets'
+  | 'data'
+export type SettingsRouteMode = 'path' | 'hash'
+export type SettingsContentScope = 'app' | 'host'
+export type SettingsHostAdapterState = 'local' | 'app-global' | 'unavailable'
+
+export const SETTINGS_SECTION_IDS: SettingsSectionId[] = [
+  'general',
+  'appearance',
+  'providers',
+  'shortcuts',
+  'personalization',
+  'pets',
+  'automations',
+  'worktrees',
+  'data'
+]
+
+export interface SettingsRoute {
+  section: SettingsSectionId
+  hostId: string | null
+  mode: SettingsRouteMode
+}
+
+export interface SettingsRouteLocationLike {
+  protocol?: string
+  hostname?: string
+  pathname?: string
+  search?: string
+  hash?: string
+}
+
+export type OrchestratorDeepLinkNavigation =
+  | { kind: 'session'; sessionId: string }
+  | { kind: 'settings'; section: SettingsSectionId; hostId: string | null }
+export type SettingsNavigationGroupId = 'app' | 'host'
+
+export interface SettingsNavigationGroupDefinition {
+  id: SettingsNavigationGroupId
+  label: string
+  sections: SettingsSectionId[]
+}
+
+export const SETTINGS_NAVIGATION_GROUP_DEFINITIONS: SettingsNavigationGroupDefinition[] = [
+  {
+    id: 'app',
+    label: 'App',
+    sections: ['general', 'appearance', 'providers', 'pets']
+  },
+  {
+    id: 'host',
+    label: 'Host',
+    sections: ['automations', 'worktrees', 'shortcuts', 'personalization', 'data']
+  }
+]
+
+const REMOTE_HOST_VISIBLE_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
+  'general',
+  'appearance',
+  'providers',
+  'shortcuts',
+  'personalization',
+  'pets'
+])
+
+export interface SidebarConnectionGroupIdentity {
+  key: string
+  kind: SidebarConnectionGroupKind
+  providerId: string
+  label: string
+  threadKind: SidebarThreadKind
+  order: number
+}
+
+export interface SettingsHostOption {
+  id: string
+  kind: 'local' | 'remote'
+  providerId: string | null
+  label: string
+  hostId: string | null
+}
+
+export function settingsHostOptionsFromSessions(
+  sessions: ReadonlyArray<Pick<Session, 'provider' | 'providerHostId' | 'providerHostLabel' | 'providerWorktreeHostId' | 'providerWorktreeHostLabel'>>
+): SettingsHostOption[] {
+  const hosts = new Map<string, SettingsHostOption>()
+  for (const session of sessions) {
+    const providerId = session.provider || 'unknown'
+    const providerName = PROVIDER_DEFS[providerId]?.name ?? providerId
+    const addHost = (hostId: string | null | undefined, label: string | null | undefined): void => {
+      const normalizedHostId = hostId?.trim()
+      if (!normalizedHostId || normalizedHostId === 'local') return
+      const key = `${providerId}:${normalizedHostId}`
+      if (hosts.has(key)) return
+      hosts.set(key, {
+        id: key,
+        kind: 'remote',
+        providerId,
+        hostId: normalizedHostId,
+        label: label?.trim() || `${providerName} ${normalizedHostId}`
+      })
+    }
+    addHost(session.providerHostId, session.providerHostLabel)
+    addHost(session.providerWorktreeHostId, session.providerWorktreeHostLabel ?? session.providerHostLabel)
+  }
+  return [
+    { id: 'local', kind: 'local', providerId: null, hostId: 'local', label: 'Local' },
+    ...[...hosts.values()].sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id))
+  ]
+}
+
+export function normalizeSettingsHostId(hostId: string | null | undefined, hosts: readonly SettingsHostOption[]): string {
+  if (!hostId || hostId === 'local') return 'local'
+  return hosts.some((host) => host.id === hostId) ? hostId : 'local'
+}
+
+export function isSettingsSectionVisibleForHostKind(section: SettingsSectionId, hostKind: SettingsHostOption['kind']): boolean {
+  if (hostKind === 'local') return true
+  return REMOTE_HOST_VISIBLE_SETTINGS_SECTIONS.has(section)
+}
+
+export function normalizeSettingsSectionForHostKind(section: SettingsSectionId, hostKind: SettingsHostOption['kind']): SettingsSectionId {
+  return isSettingsSectionVisibleForHostKind(section, hostKind) ? section : 'general'
+}
+
+export function settingsNavigationGroupsForHostKind(hostKind: SettingsHostOption['kind']): SettingsNavigationGroupDefinition[] {
+  return SETTINGS_NAVIGATION_GROUP_DEFINITIONS
+    .map((group) => ({
+      ...group,
+      sections: group.sections.filter((section) => isSettingsSectionVisibleForHostKind(section, hostKind))
+    }))
+    .filter((group) => group.sections.length > 0)
+}
+
+export function settingsSectionScope(section: SettingsSectionId): SettingsContentScope {
+  return section === 'general' || section === 'appearance' || section === 'providers' || section === 'pets'
+    ? 'app'
+    : 'host'
+}
+
+export function settingsHostAdapterState(
+  section: SettingsSectionId,
+  hostKind: SettingsHostOption['kind']
+): SettingsHostAdapterState {
+  if (section === 'personalization') return 'unavailable'
+  if (settingsSectionScope(section) === 'app') return hostKind === 'remote' ? 'app-global' : 'local'
+  return hostKind === 'remote' ? 'unavailable' : 'local'
+}
+
+export function settingsRoutePath(section: SettingsSectionId, hostId?: string | null): string {
+  const query = settingsRouteQuery(hostId)
+  return `/settings/${section}${query}`
+}
+
+export function settingsRouteHash(section: SettingsSectionId, hostId?: string | null): string {
+  const query = settingsRouteQuery(hostId)
+  return `#/settings/${section}${query}`
+}
+
+export function settingsRouteUrlForLocation(section: SettingsSectionId, hostId: string | null | undefined, location: SettingsRouteLocationLike): string {
+  return supportsSettingsPathRoutes(location) ? settingsRoutePath(section, hostId) : settingsRouteHash(section, hostId)
+}
+
+export function settingsRouteExitUrl(mode: SettingsRouteMode): string {
+  return mode === 'path' ? '/' : '#/'
+}
+
+export function parseSettingsRouteLocation(location: SettingsRouteLocationLike): SettingsRoute | null {
+  const hashRoute = parseSettingsHashRoute(location.hash ?? '')
+  if (hashRoute) return hashRoute
+  return parseSettingsPathRoute(location.pathname ?? '', location.search ?? '')
+}
+
+export function settingsDeepLinkUrl(section: SettingsSectionId, hostId?: string | null): string {
+  const query = settingsRouteQuery(hostId)
+  return `orchestrator://settings/${section}${query}`
+}
+
+export function parseOrchestratorDeepLink(rawUrl: string, protocol = 'orchestrator'): OrchestratorDeepLinkNavigation | null {
+  try {
+    const parsed = new URL(rawUrl)
+    if (parsed.protocol !== `${protocol}:`) return null
+    const route = parsed.hostname
+    if (route === 'threads' || route === 'sessions') {
+      const id = decodeURIComponent(parsed.pathname.replace(/^\/+/, '')).trim()
+      return id.length > 0 ? { kind: 'session', sessionId: id } : null
+    }
+    if (route === 'settings') {
+      const sectionSlug = parsed.pathname.split('/').filter(Boolean)[0]
+      return {
+        kind: 'settings',
+        section: normalizeSettingsSectionId(sectionSlug),
+        hostId: parsed.searchParams.get('host')
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function settingsRouteQuery(hostId?: string | null): string {
+  if (!hostId || hostId === 'local') return ''
+  const params = new URLSearchParams()
+  params.set('host', hostId)
+  return `?${params.toString()}`
+}
+
+function supportsSettingsPathRoutes(location: SettingsRouteLocationLike): boolean {
+  return location.protocol === 'http:' || location.protocol === 'https:' || location.protocol === 'orchestrator-app:'
+}
+
+function parseSettingsHashRoute(hash: string): SettingsRoute | null {
+  if (!hash.startsWith('#/settings')) return null
+  const raw = hash.slice(1)
+  const [path, query = ''] = raw.split('?')
+  const [, root, sectionSlug] = path.split('/')
+  if (root !== 'settings') return null
+  return {
+    section: normalizeSettingsSectionId(sectionSlug),
+    hostId: new URLSearchParams(query).get('host'),
+    mode: 'hash'
+  }
+}
+
+function parseSettingsPathRoute(pathname: string, search: string): SettingsRoute | null {
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments[0] !== 'settings') return null
+  return {
+    section: normalizeSettingsSectionId(segments[1]),
+    hostId: new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('host'),
+    mode: 'path'
+  }
+}
+
+function normalizeSettingsSectionId(sectionSlug: string | undefined): SettingsSectionId {
+  return SETTINGS_SECTION_IDS.includes(sectionSlug as SettingsSectionId)
+    ? sectionSlug as SettingsSectionId
+    : 'general'
+}
+
+export function isSidebarProjectlessSession(
+  session: Pick<Session, 'projectId' | 'providerProjectless' | 'providerProjectlessThreadId'>,
+  knownProjectIds?: ReadonlySet<string> | string[]
+): boolean {
+  if (session.providerProjectless === true || Boolean(session.providerProjectlessThreadId)) return true
+  if (!session.projectId) return true
+  if (!knownProjectIds) return false
+  const projectIds = Array.isArray(knownProjectIds) ? new Set(knownProjectIds) : knownProjectIds
+  return !projectIds.has(session.projectId)
+}
+
+export function sidebarThreadKind(session: Pick<Session, 'providerSessionId' | 'status' | 'useWorktree' | 'worktreeState'>): SidebarThreadKind {
+  if (session.useWorktree && (session.worktreeState === 'pending' || session.worktreeState === 'failed' || session.status === 'reconnecting')) return 'pending-worktree'
+  if (session.useWorktree) return 'worktree'
+  if (session.providerSessionId) return 'remote'
+  return 'local'
+}
+
+export function sidebarConnectionGroupIdentity(session: Pick<Session, 'provider' | 'providerSessionId' | 'status' | 'useWorktree' | 'worktreeState' | 'providerThreadSource' | 'providerHostId' | 'providerHostLabel' | 'providerWorktreeHostId' | 'providerWorktreeHostLabel'>): SidebarConnectionGroupIdentity {
+  const threadKind = sidebarThreadKind(session)
+  const providerId = session.provider || 'unknown'
+  const providerName = PROVIDER_DEFS[providerId]?.name ?? providerId
+  const worktreeHostId = session.providerWorktreeHostId?.trim() || ''
+  const worktreeHostLabel = session.providerWorktreeHostLabel?.trim() || session.providerHostLabel?.trim() || ''
+  switch (threadKind) {
+    case 'pending-worktree':
+      if (worktreeHostId && worktreeHostId !== 'local') {
+        return {
+          key: `pending-worktree:${providerId}:${worktreeHostId}`,
+          kind: 'pending-worktree',
+          providerId,
+          label: `${worktreeHostLabel || worktreeHostId} pending worktrees`,
+          threadKind,
+          order: 40
+        }
+      }
+      return {
+        key: `pending-worktree:${providerId}`,
+        kind: 'pending-worktree',
+        providerId,
+        label: `${providerName} pending worktrees`,
+        threadKind,
+        order: 40
+      }
+    case 'worktree':
+      if (worktreeHostId && worktreeHostId !== 'local') {
+        return {
+          key: `worktree:${providerId}:${worktreeHostId}`,
+          kind: 'worktree',
+          providerId,
+          label: `${worktreeHostLabel || worktreeHostId} worktrees`,
+          threadKind,
+          order: 30
+        }
+      }
+      return {
+        key: `worktree:${providerId}`,
+        kind: 'worktree',
+        providerId,
+        label: `${providerName} worktrees`,
+        threadKind,
+        order: 30
+      }
+    case 'remote':
+      if (session.providerThreadSource === 'cloud') {
+        return {
+          key: `cloud:${providerId}`,
+          kind: 'cloud',
+          providerId,
+          label: `${providerName} cloud`,
+          threadKind,
+          order: 20
+        }
+      }
+      if (session.providerHostId && session.providerHostId !== 'local') {
+        return {
+          key: `host:${providerId}:${session.providerHostId}`,
+          kind: 'remote',
+          providerId,
+          label: session.providerHostLabel?.trim() || `${providerName} ${session.providerHostId}`,
+          threadKind,
+          order: 25
+        }
+      }
+      return {
+        key: `remote:${providerId}`,
+        kind: 'remote',
+        providerId,
+        label: `${providerName} remote`,
+        threadKind,
+        order: 20
+      }
+    case 'local':
+      return {
+        key: `local:${providerId}`,
+        kind: 'local',
+        providerId,
+        label: `${providerName} local`,
+        threadKind,
+        order: 10
+      }
+  }
+}
+
+export type AutomationKind = 'heartbeat' | 'cron'
+export type AutomationStatus = 'ACTIVE' | 'PAUSED' | 'DELETED'
+
+export interface AutomationTarget {
+  type: 'session'
+  sessionId: string
+}
+
+export interface AutomationSchedule {
+  mode: 'manual' | 'interval' | 'rrule'
+  intervalMinutes?: number
+  rrule?: string | null
+}
+
+export interface AutomationPermissionSnapshot {
+  executionPolicy?: string | null
+  approvalPolicy?: string | null
+  approvalsReviewer?: string | null
+  sandboxPolicy?: string | null
+  allowedTools?: string[]
+  disallowedTools?: string[]
+}
+
+export interface Automation {
+  id: string
+  kind: AutomationKind
+  name: string
+  prompt: string
+  status: AutomationStatus
+  target: AutomationTarget
+  schedule: AutomationSchedule
+  createdAt: number
+  updatedAt: number
+  lastRunAt?: number | null
+  nextRunAt?: number | null
+  permissionSnapshot?: AutomationPermissionSnapshot | null
+}
+
+export interface AutomationUpsertRequest {
+  id?: string | null
+  kind?: AutomationKind
+  name: string
+  prompt?: string
+  status?: AutomationStatus
+  target: AutomationTarget
+  schedule?: AutomationSchedule
+  permissionSnapshot?: AutomationPermissionSnapshot | null
+}
+
+export type AutomationRunStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'SKIPPED'
+export type AutomationRunTrigger = 'schedule' | 'manual'
+export type AutomationEligibilityReason =
+  | 'missing_session'
+  | 'unsupported_host'
+  | 'turn_in_progress'
+  | 'waiting_on_user_input'
+  | 'waiting_on_approval'
+  | 'pending_request'
+  | 'not_active'
+  | 'not_scheduled'
+
+export interface AutomationEligibilityResult {
+  isEligible: boolean
+  reason?: AutomationEligibilityReason | string | null
+}
+
+export interface AutomationRun {
+  id: string
+  automationId: string
+  status: AutomationRunStatus
+  trigger: AutomationRunTrigger
+  scheduledFor: number | null
+  startedAt: number
+  completedAt?: number | null
+  error?: string | null
+}
+
+export interface WorktreeConversationSummary {
+  id: string
+  name: string
+  status: SessionStatus
+  provider: string
+  worktreeState?: SessionWorktreeState
+  updatedAt: number
+}
+
+export interface WorktreeInventoryItem {
+  id: string
+  repoRoot: string | null
+  workDir: string
+  state: SessionWorktreeState
+  managed: boolean
+  ownerSessionId: string | null
+  conversationCount: number
+  conversations: WorktreeConversationSummary[]
+  updatedAt: number
+}
+
+export function applyAutomationPermissionSnapshot(
+  request: RunRequest,
+  snapshot?: AutomationPermissionSnapshot | null
+): RunRequest {
+  if (!snapshot) return request
+  return {
+    ...request,
+    executionPolicy: snapshot.executionPolicy ?? request.executionPolicy,
+    allowedTools: Array.isArray(snapshot.allowedTools) ? snapshot.allowedTools : request.allowedTools,
+    disallowedTools: Array.isArray(snapshot.disallowedTools) ? snapshot.disallowedTools : request.disallowedTools
+  }
+}
+
+export type SessionForkMode = 'local' | 'same-worktree' | 'new-worktree'
 
 export interface SessionListItem extends Session {
   messageCount: number
@@ -1104,20 +1823,43 @@ export interface SessionRunEventRecord {
 
 export interface FileChange {
   path: string
-  status: 'M' | 'A' | 'D' | 'R' | '?'
-  indexStatus?: 'M' | 'A' | 'D' | 'R' | 'C' | '?' | ' '
-  worktreeStatus?: 'M' | 'A' | 'D' | 'R' | 'C' | '?' | ' '
+  status: 'M' | 'A' | 'D' | 'R' | '?' | 'U'
+  indexStatus?: 'M' | 'A' | 'D' | 'R' | 'C' | '?' | 'U' | ' '
+  worktreeStatus?: 'M' | 'A' | 'D' | 'R' | 'C' | '?' | 'U' | ' '
   staged?: boolean
   unstaged?: boolean
+  conflicted?: boolean
+  conflictStatus?: string
   additions: number
   deletions: number
 }
+
+export type ReviewDiffSource = 'all' | 'unstaged' | 'staged' | 'branch' | 'commit' | 'last-turn' | 'cloud' | 'local' | 'worktree'
 
 export interface GitPathActionResult {
   ok: boolean
   paths: string[]
   changedFiles: FileChange[]
+  discarded?: boolean
   error?: string
+}
+
+export interface GitLineBlameResult {
+  ok: boolean
+  path: string
+  line: number
+  commit?: string
+  author?: string
+  authorTime?: number
+  summary?: string
+  error?: string
+}
+
+export interface GitRefOption {
+  name: string
+  label: string
+  description?: string
+  current?: boolean
 }
 
 export type ChatMessage =
@@ -1274,6 +2016,30 @@ export {
   isBinaryDiffText,
   shouldPreferTextDiff
 } from './reviewPreview'
+export {
+  diffForPathFromUnifiedDiff,
+  parseFileChangesFromUnifiedDiff,
+  resolveReviewDiffRenderWindow,
+  REVIEW_LARGE_DIFF_CHANGED_BYTE_THRESHOLD,
+  REVIEW_LARGE_DIFF_CHANGED_LINE_THRESHOLD,
+  REVIEW_LARGE_DIFF_INITIAL_LINE_COUNT,
+  REVIEW_LARGE_DIFF_LINE_THRESHOLD,
+  REVIEW_LARGE_DIFF_MAX_CHANGED_LINE_BYTES
+} from './reviewDiff'
+export {
+  ORCHESTRATOR_BROWSER_WEBVIEW_PARTITION_PREFIX,
+  browserWebviewPartitionForHost,
+  isOrchestratorBrowserWebviewPartition
+} from './browserPartition'
+export {
+  applyCodexThreadListMetadata,
+  codexThreadListItems
+} from './providerThreadMetadata'
+export type {
+  ProviderThreadMetadataApplyOptions,
+  ProviderThreadMetadataSession,
+  ProviderThreadSourceProjection
+} from './providerThreadMetadata'
 export type {
   FileReference
 } from './fileReferences'
@@ -1289,13 +2055,77 @@ export type {
   ComposerSendState
 } from './sessionControls'
 export {
+  closePanelTab,
+  filePanelTabId,
+  movePanelTabByDirection,
+  parseFilePanelTabId,
+  pinPanelTab,
+  reorderPanelTab,
+  resolvePanelBrowserCommandTarget,
+  resolvePanelCloseTarget,
+  resolvePanelFindTarget,
+  resolvePanelNewTabTarget,
+  resolvePanelTabTransferAvailability,
+  resetPanelTabSet,
+  transferPanelTab,
+  upsertPanelTab
+} from './panelTabs'
+export type {
+  PanelCloseAvailability,
+  PanelCloseFocusArea,
+  PanelCloseTarget,
+  PanelBrowserCommandAvailability,
+  PanelBrowserCommandTarget,
+  PanelFindAvailability,
+  PanelFindTarget,
+  PanelNewTabAvailability,
+  PanelNewTabTarget,
+  FilePanelTabIdentity,
+  PanelTabId,
+  PanelTabRecord,
+  PanelTabSet,
+  PanelTabTransferAvailability,
+  PanelTabTransferPanelId,
+  PanelTabTransferResult
+} from './panelTabs'
+export {
   compareSidebarSessions,
+  applyProviderPinnedThreadState,
   comparePinnedSessions,
   ensurePinnedSessionOrders,
-  nextPinOrder
+  isSidebarPinnedSession,
+  normalizeProviderPinnedThreadKey,
+  providerPinnedThreadKeyForSession,
+  nextPinOrder,
+  reorderPinnedSessions
 } from './sessionOrdering'
+export {
+  moveSidebarSectionKey,
+  orderProjectlessSidebarGroups
+} from './sidebarLayout'
+export {
+  moveSessionToSidebarCustomSection
+} from './sidebarCustomSections'
+export {
+  artifactImportKindForPath,
+  artifactImportKindSupportsSource,
+  artifactTabPresentationForPath
+} from './artifactTabs'
 export type {
   PinOrderedSession,
+  ProviderPinnedThreadKeyKind,
+  ProviderPinnedThreadState,
   SidebarSessionOrderOptions,
   SidebarSessionSortMode
 } from './sessionOrdering'
+export type {
+  ArtifactImportKind,
+  ArtifactTabPresentation,
+  ArtifactType
+} from './artifactTabs'
+export type {
+  OrderedSidebarProjectGroup
+} from './sidebarLayout'
+export type {
+  SidebarCustomSectionLike
+} from './sidebarCustomSections'

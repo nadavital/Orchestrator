@@ -1,30 +1,40 @@
 import type { FilePreviewResult } from '../../env'
-import { Badge } from '../shared/designSystem'
+import { Badge, IconButton, PanelToolbar } from '../shared/designSystem'
+import type { IconName } from '../shared/Icon'
+
+export interface PreviewHeaderAction {
+  id: string
+  icon: IconName
+  label: string
+  onClick: () => void
+}
 
 interface Props {
   name: string
   preview: FilePreviewResult
   testId: string
   statusLabel?: string
+  actions?: PreviewHeaderAction[]
 }
 
-export default function StructuredDataPreview({ name, preview, testId, statusLabel }: Props): JSX.Element {
+export default function StructuredDataPreview({ name, preview, testId, statusLabel, actions }: Props): JSX.Element {
   if (preview.kind === 'document') {
-    return <DocumentPreview name={name} preview={preview} testId={testId} statusLabel={statusLabel} />
+    return <DocumentPreview name={name} preview={preview} testId={testId} statusLabel={statusLabel} actions={actions} />
   }
 
   if (preview.kind === 'notebook') {
-    return <NotebookPreview name={name} preview={preview} testId={testId} statusLabel={statusLabel} />
+    return <NotebookPreview name={name} preview={preview} testId={testId} statusLabel={statusLabel} actions={actions} />
   }
 
   const label = preview.kind === 'csv' ? (name.toLowerCase().endsWith('.tsv') ? 'TSV' : 'CSV') : 'JSON'
   return (
     <div className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden" data-testid={testId}>
-      <div className="file-preview-header">
+      <PanelToolbar className="file-preview-header" dataTestId={`${testId}-header`}>
         {statusLabel && <Badge tone="neutral">{statusLabel}</Badge>}
         <Badge tone="neutral">{label}</Badge>
         <span className="min-w-0 flex-1 truncate">{name}</span>
-      </div>
+        <PreviewHeaderActions actions={actions} testId={testId} />
+      </PanelToolbar>
       {preview.truncated && (
         <div className="file-preview-note">
           Showing first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
@@ -41,21 +51,24 @@ function DocumentPreview({
   name,
   preview,
   testId,
-  statusLabel
+  statusLabel,
+  actions
 }: {
   name: string
   preview: FilePreviewResult
   testId: string
   statusLabel?: string
+  actions?: PreviewHeaderAction[]
 }): JSX.Element {
   const paragraphs = (preview.text ?? '').split(/\n{2,}/).filter((paragraph) => paragraph.trim())
   return (
     <div className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden" data-testid={testId}>
-      <div className="file-preview-header">
+      <PanelToolbar className="file-preview-header" dataTestId={`${testId}-header`}>
         {statusLabel && <Badge tone="neutral">{statusLabel}</Badge>}
         <Badge tone="neutral">DOCX</Badge>
         <span className="min-w-0 flex-1 truncate">{name}</span>
-      </div>
+        <PreviewHeaderActions actions={actions} testId={testId} />
+      </PanelToolbar>
       {preview.truncated && (
         <div className="file-preview-note">
           Showing first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
@@ -82,21 +95,24 @@ function NotebookPreview({
   name,
   preview,
   testId,
-  statusLabel
+  statusLabel,
+  actions
 }: {
   name: string
   preview: FilePreviewResult
   testId: string
   statusLabel?: string
+  actions?: PreviewHeaderAction[]
 }): JSX.Element {
   const notebook = parseNotebook(preview.text ?? '')
   return (
     <div className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden" data-testid={testId}>
-      <div className="file-preview-header">
+      <PanelToolbar className="file-preview-header" dataTestId={`${testId}-header`}>
         {statusLabel && <Badge tone="neutral">{statusLabel}</Badge>}
         <Badge tone="neutral">Notebook</Badge>
         <span className="min-w-0 flex-1 truncate">{name}</span>
-      </div>
+        <PreviewHeaderActions actions={actions} testId={testId} />
+      </PanelToolbar>
       {preview.truncated && (
         <div className="file-preview-note">
           Showing first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
@@ -128,6 +144,35 @@ function NotebookPreview({
         </pre>
       )}
     </div>
+  )
+}
+
+function PreviewHeaderActions({
+  actions,
+  testId
+}: {
+  actions?: PreviewHeaderAction[]
+  testId: string
+}): JSX.Element | null {
+  if (!actions?.length) return null
+  return (
+    <span
+      className="file-preview-header-actions"
+      data-testid={`${testId}-actions`}
+      data-preview-controls={actions.map((action) => action.id).join(' ')}
+    >
+      {actions.map((action) => (
+        <IconButton
+          key={action.id}
+          icon={action.icon}
+          label={action.label}
+          size="sm"
+          variant="toolbar"
+          dataTestId={`${testId}-action-${action.id}`}
+          onClick={action.onClick}
+        />
+      ))}
+    </span>
   )
 }
 

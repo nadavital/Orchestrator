@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Button, MotionOverlay } from './designSystem'
+import { Button, DialogContent, DialogFooter, DialogHeader, MotionOverlay } from './designSystem'
 
 interface Props {
   initialValue: string
@@ -50,16 +50,14 @@ export default function RenameChatDialog({ initialValue, onCancel, onConfirm }: 
         WebkitBackdropFilter: 'none'
       }}
     >
-      <form
-        className="orchestrator-dialog-content"
+      <DialogContent
+        as="form"
         onSubmit={(event) => {
           event.preventDefault()
           void submit()
         }}
       >
-        <div className="orchestrator-dialog-copy">
-          <div className="orchestrator-dialog-title">Rename chat</div>
-        </div>
+        <DialogHeader title="Rename chat" />
         <div className="min-w-0">
           <label className="sr-only" htmlFor="rename-chat-input">Chat name</label>
           <input
@@ -76,13 +74,13 @@ export default function RenameChatDialog({ initialValue, onCancel, onConfirm }: 
             className="orchestrator-dialog-input"
           />
         </div>
-        <div className="orchestrator-dialog-actions">
+        <DialogFooter>
           <Button variant="ghost" type="button" onClick={onCancel}>Cancel</Button>
           <Button variant="primary" type="submit" disabled={!canSubmit}>
             {saving ? 'Renaming...' : 'Rename'}
           </Button>
-        </div>
-      </form>
+        </DialogFooter>
+      </DialogContent>
     </MotionOverlay>
   )
 

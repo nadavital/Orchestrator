@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  ArrowDown,
   Archive,
   ArrowLeft,
   ArrowRight,
@@ -25,6 +26,7 @@ import {
   Globe,
   Keyboard,
   ListChecks,
+  LocateFixed,
   Maximize2,
   Menu,
   Minimize2,
@@ -43,8 +45,11 @@ import {
   Settings,
   Sparkles,
   Smartphone,
+  Square,
   Wrench,
   Terminal,
+  Trash2,
+  Undo2,
   Users,
   WrapText,
   X,
@@ -56,6 +61,7 @@ import {
 export type IconName =
   | 'agents'
   | 'archive'
+  | 'arrowDown'
   | 'arrowLeft'
   | 'arrowRight'
   | 'arrowUp'
@@ -81,6 +87,7 @@ export type IconName =
   | 'file'
   | 'folder'
   | 'keyboard'
+  | 'locate'
   | 'maximize'
   | 'menu'
   | 'minimize'
@@ -98,7 +105,10 @@ export type IconName =
   | 'settings'
   | 'smartphone'
   | 'sparkles'
+  | 'stop'
   | 'terminal'
+  | 'trash'
+  | 'undo'
   | 'usage'
   | 'wrench'
   | 'wrap'
@@ -109,6 +119,7 @@ export type IconName =
 const icons: Record<IconName, LucideIcon> = {
   agents: Users,
   archive: Archive,
+  arrowDown: ArrowDown,
   arrowLeft: ArrowLeft,
   arrowRight: ArrowRight,
   arrowUp: ArrowUp,
@@ -134,6 +145,7 @@ const icons: Record<IconName, LucideIcon> = {
   file: File,
   folder: Folder,
   keyboard: Keyboard,
+  locate: LocateFixed,
   maximize: Maximize2,
   menu: Menu,
   minimize: Minimize2,
@@ -151,7 +163,10 @@ const icons: Record<IconName, LucideIcon> = {
   settings: Settings,
   smartphone: Smartphone,
   sparkles: Sparkles,
+  stop: Square,
   terminal: Terminal,
+  trash: Trash2,
+  undo: Undo2,
   usage: BarChart3,
   wrench: Wrench,
   wrap: WrapText,

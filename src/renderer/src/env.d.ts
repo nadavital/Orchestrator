@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
-import type { Attachment, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionListItem, ChatMessage, FileChange, GitPathActionResult, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSlashCommand, SessionRunEventRecord, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
-import type { AppMenuCommand, ShortcutOverrides } from '../../types/appCommands'
+import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
+import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
 
 export interface AppSettings {
   defaultProvider: string
@@ -81,7 +81,7 @@ export type SessionEvent =
   | { type: 'raw'; id: string; data: string }
   | { type: 'renamed'; id: string; name: string }
   | { type: 'pinned'; id: string; pinned: boolean; pinOrder?: number }
-  | { type: 'updated'; id: string; workDir: string; useWorktree: boolean }
+  | { type: 'updated'; id: string; workDir?: string; useWorktree?: boolean; repoRoot?: string; worktreeState?: Session['worktreeState']; status?: Session['status']; reviewMetadata?: ReviewMetadata }
   | {
       type: 'settingsUpdated'
       id: string
@@ -107,6 +107,12 @@ declare global {
     api: {
       app: {
         getProfile: () => Promise<AppProfile>
+        consumePendingNavigation: () => Promise<OrchestratorDeepLinkNavigation | null>
+        openSessionWindow: (sessionId: string) => Promise<boolean>
+        setMenuCommandAvailability: (availability: AppCommandAvailability) => Promise<boolean>
+        getMenuCommandState: (command: StableAppCommand) => Promise<AppMenuCommandState | null>
+        onNavigateSession: (cb: (sessionId: string) => void) => () => void
+        onNavigateSettings: (cb: (navigation: Extract<OrchestratorDeepLinkNavigation, { kind: 'settings' }>) => void) => () => void
         onMenuCommand: (cb: (command: AppMenuCommand) => void) => () => void
       }
       projects: {
@@ -126,16 +132,23 @@ declare global {
         get: (id: string) => Promise<Session | undefined>
         getTranscriptPage: (id: string, request?: TranscriptPageRequest) => Promise<TranscriptPage | undefined>
         searchTranscript: (id: string, query: string, limit?: number) => Promise<TranscriptSearchResult[]>
+        copyDeeplink: (id: string) => Promise<string>
+        copyMarkdown: (id: string) => Promise<string>
         create: (opts: {
           projectId: string
           workDir: string
           useWorktree: boolean
           repoRoot?: string
+          worktreeBaseRef?: string
+          worktreeBranchName?: string
         }) => Promise<Session>
+        fork: (id: string, mode: SessionForkMode) => Promise<Session>
+        retryPendingWorktree: (id: string) => Promise<Session>
         sendMessage: (sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) => Promise<void>
         answerSideQuestion: (sessionId: string, question: string) => Promise<{ ok: boolean; answer: string; error?: string; usage?: UsageSummary }>
         updateName: (id: string, name: string) => Promise<void>
         updatePinned: (id: string, pinned: boolean) => Promise<void>
+        reorderPinned: (orderedPinnedSessionIds: string[]) => Promise<void>
         updateSettings: (id: string, patch: {
           provider?: string
           model?: string
@@ -157,23 +170,42 @@ declare global {
         restoreArchived: (sessionId: string) => Promise<Session | undefined>
         remove: (sessionId: string) => Promise<void>
         getDiff: (sessionId: string) => Promise<string>
-        getChangedFiles: (sessionId: string) => Promise<FileChange[]>
-        getDiffForFile: (sessionId: string, filePath: string) => Promise<string>
+        getReviewMetadata: (sessionId: string) => Promise<ReviewMetadata | undefined>
+        getChangedFiles: (sessionId: string, source?: ReviewDiffSource, ref?: string) => Promise<FileChange[]>
+        getDiffForFile: (sessionId: string, filePath: string, source?: ReviewDiffSource, ref?: string) => Promise<string>
+        undoChangedFiles: (sessionId: string, paths: string[]) => Promise<GitPathActionResult>
         writeToPty: (sessionId: string, data: string) => Promise<void>
         grantAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
         allowOnceAndResume: (sessionId: string, toolNames: string[]) => Promise<void>
         answerUserInput: (sessionId: string, answer: string) => Promise<void>
         denyPermission: (sessionId: string) => Promise<void>
       }
+      worktrees: {
+        list: () => Promise<WorktreeInventoryItem[]>
+        delete: (workDir: string) => Promise<WorktreeInventoryItem[]>
+      }
+      automations: {
+        list: () => Promise<Automation[]>
+        listForSession: (sessionId: string) => Promise<Automation[]>
+        listRuns: (automationId: string) => Promise<AutomationRun[]>
+        upsert: (request: AutomationUpsertRequest) => Promise<Automation>
+        runNow: (id: string) => Promise<AutomationRun>
+        pause: (id: string) => Promise<Automation | undefined>
+        resume: (id: string) => Promise<Automation | undefined>
+        delete: (id: string) => Promise<void>
+      }
       git: {
         isGitRepo: (dir: string) => Promise<boolean>
         getCurrentBranch: (dir: string) => Promise<string | null>
+        listBranches: (dir: string) => Promise<GitRefOption[]>
+        listRecentCommits: (dir: string) => Promise<GitRefOption[]>
         stagePaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
         unstagePaths: (dir: string, paths: string[]) => Promise<GitPathActionResult>
+        blameLine: (dir: string, filePath: string, line: number) => Promise<GitLineBlameResult>
       }
       browser: {
         openExternal: (url: string) => Promise<void>
-        clearData: (kind?: 'all' | 'cache' | 'cookies' | 'siteData') => Promise<void>
+        clearData: (kind?: 'all' | 'cache' | 'cookies' | 'siteData', partition?: string) => Promise<void>
         saveDataUrlArtifact: (dataUrl: string, suggestedName?: string) => Promise<{ path: string; size: number }>
         discoverLocalTargets: (recentUrls?: string[]) => Promise<Array<{ url: string; title: string | null; source: 'port-scan' | 'recent' }>>
         bundleAssets: (request: {
@@ -213,6 +245,7 @@ declare global {
         listRuntimeDebugEvents: (providerId?: string, includeNoisy?: boolean) => Promise<ProviderRuntimeDebugEvent[]>
         listRuntimeConnections: (providerId?: string) => Promise<ProviderRuntimeConnectionState[]>
         runCommandSurface: (providerId: string, surfaceId: string) => Promise<ProviderCommandSurfaceResult>
+        refreshSidebarMetadata: (providerId: string, cwd?: string) => Promise<ProviderSidebarSyncResult>
         getPermissionContext: (providerId: string, cwd?: string) => Promise<ProviderPermissionRuntimeContext>
         listResources: (providerId?: string, cwd?: string) => Promise<Record<string, ProviderResourceSnapshot>>
         createCapability: (request: CapabilityCreateRequest) => Promise<CapabilityCreateResult>
@@ -247,12 +280,15 @@ declare global {
       terminal: {
         spawn: (terminalId: string, workDir: string) => Promise<void>
         getBuffer: (terminalId: string) => Promise<string>
+        getServiceSnapshot: () => Promise<TerminalServiceSnapshot>
         write: (terminalId: string, data: string) => Promise<void>
         runCommand: (terminalId: string, command: string) => Promise<void>
         resize: (terminalId: string, cols: number, rows: number) => Promise<void>
         clear: (terminalId: string) => Promise<void>
         kill: (terminalId: string) => Promise<void>
         onData: (cb: (terminalId: string, data: string) => void) => () => void
+        onExit: (cb: (terminalId: string, code: number, signal: number | null) => void) => () => void
+        onError: (cb: (terminalId: string, message: string) => void) => () => void
       }
       dialog: {
         openDirectory: () => Promise<string | null>

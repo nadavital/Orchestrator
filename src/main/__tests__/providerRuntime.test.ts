@@ -51,7 +51,8 @@ const provider: ProviderAdapter = {
     interactivePermissions: true,
     allowedTools: true,
     workspaceSandbox: true,
-    fullAccessMode: true
+    fullAccessMode: true,
+    checkpointUndo: false
   },
   resolveExecutionPolicy(policy) {
     return {

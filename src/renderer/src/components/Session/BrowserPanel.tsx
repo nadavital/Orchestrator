@@ -1,34 +1,18 @@
-import { createElement, useEffect, useRef, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent } from 'react'
-import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserTabState, BrowserWorkbenchState } from '../../store/sessions'
-import { Badge, Button, IconButton, MenuItem, MenuSurface, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserLocalServerRoute, BrowserTabState, BrowserUseCursorState, BrowserUseSurfaceBounds, BrowserUseSurfaceSize, BrowserWorkbenchState } from '../../store/sessions'
+import { browserWebviewPartitionForHost } from '../../types'
+import { Badge, Button, IconButton, InspectorDisclosure, InspectorRow, InspectorSection, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelMessage, PanelNotice, PanelTabStrip, PanelToolbar, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
+import BrowserWebviewManager, { type BrowserVisibleGeometry, type WebviewElement } from './BrowserWebviewManager'
 
 interface Props {
   initialUrl?: string
   embedded?: boolean
+  hostId?: string
   onUrlChange?: (url: string) => void
   browserState?: BrowserWorkbenchState
   onBrowserStateChange?: (patch: Partial<BrowserWorkbenchState>) => void
-}
-
-type WebviewElement = HTMLElement & {
-  loadURL: (url: string) => Promise<void> | void
-  reload: () => void
-  reloadIgnoringCache: () => void
-  stop?: () => void
-  goBack: () => void
-  goForward: () => void
-  canGoBack: () => boolean
-  canGoForward: () => boolean
-  getURL: () => string
-  getTitle: () => string
-  findInPage: (text: string, options?: { forward?: boolean; findNext?: boolean }) => number
-  stopFindInPage: (action: 'clearSelection' | 'keepSelection' | 'activateSelection') => void
-  setZoomFactor: (factor: number) => void
-  getZoomFactor?: () => number
-  capturePage: () => Promise<{ toDataURL: () => string }>
-  executeJavaScript: <T = unknown>(code: string, userGesture?: boolean) => Promise<T>
 }
 
 interface BrowserLogEntry {
@@ -88,9 +72,44 @@ interface BrowserTargetReadResult {
   selector: string | null
 }
 
+interface BrowserPendingComment {
+  xPercent: number
+  yPercent: number
+  leftPercent: number
+  topPercent: number
+  region?: BrowserCommentRegion
+  visibleStructure: string
+}
+
+interface BrowserCommentRegion {
+  xPercent: number
+  yPercent: number
+  widthPercent: number
+  heightPercent: number
+  leftPercent: number
+  topPercent: number
+}
+
+type BrowserCommentIntent = 'comment' | 'design-tweak'
+
 type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'read' | 'scroll'
 type BrowserClearDataKind = 'all' | 'cache' | 'cookies' | 'siteData'
 type BrowserInspectorMode = BrowserWorkbenchState['inspectorMode']
+type BrowserManagerBridgeEvent = CustomEvent<{
+  hostId?: string
+  active?: boolean
+  turnId?: string | null
+  viewportSize?: BrowserUseSurfaceSize | null
+  captureSurfaceSize?: BrowserUseSurfaceSize | null
+  captureBounds?: BrowserUseSurfaceBounds | null
+  cursorState?: BrowserUseCursorState | null
+  localServerRoutes?: BrowserLocalServerRoute[] | null
+  hiddenLocalServerRoutes?: string[] | null
+}>
+type BrowserManagerBridgeDetail = BrowserManagerBridgeEvent['detail']
+type BrowserManagerBridgeWindow = typeof window & {
+  __orchestratorSetBrowserManagerState?: (detail: BrowserManagerBridgeDetail) => void
+}
 
 const VIEWPORT_PRESETS: Array<{ mode: BrowserDeviceMode; label: string; group: 'Responsive' | 'Phone' | 'Tablet' | 'Desktop' }> = [
   { mode: 'desktop', label: 'Responsive', group: 'Responsive' },
@@ -125,18 +144,27 @@ interface LocalBrowserTarget {
 
 const ZOOM_STEP = 0.1
 const DEFAULT_TAB: BrowserTabState = { id: 'tab-1', title: 'New tab', url: '', lastOpened: 0 }
+const MIN_VIEWPORT_SIZE = { width: 240, height: 160 }
+const MAX_VIEWPORT_SIZE = { width: 4096, height: 4096 }
+const BROWSER_STAGE_MARGIN_X = 20
+const BROWSER_STAGE_MARGIN_BOTTOM = 20
 
 export default function BrowserPanel({
   initialUrl = '',
   embedded = false,
+  hostId = 'right:browser',
   onUrlChange,
   browserState,
   onBrowserStateChange
 }: Props): JSX.Element {
   const workbench = normalizeWorkbench(browserState, initialUrl)
   const workbenchRef = useRef(workbench)
+  const webviewRefs = useRef<Record<string, WebviewElement | null>>({})
   const webviewRef = useRef<WebviewElement | null>(null)
+  const browserStageRef = useRef<HTMLDivElement | null>(null)
   const pendingCacheReloadRef = useRef(false)
+  const addressInputRef = useRef<HTMLInputElement | null>(null)
+  const findInputRef = useRef<HTMLInputElement | null>(null)
   const [address, setAddress] = useState(activeBrowserTab(workbench).url || initialUrl)
   const [currentUrl, setCurrentUrl] = useState(activeBrowserTab(workbench).url || initialUrl)
   const [title, setTitle] = useState(activeBrowserTab(workbench).title === 'New tab' ? '' : activeBrowserTab(workbench).title)
@@ -148,6 +176,9 @@ export default function BrowserPanel({
   const [artifactPath, setArtifactPath] = useState<string | null>(null)
   const [findMatches, setFindMatches] = useState(0)
   const [findActiveMatch, setFindActiveMatch] = useState(0)
+  const [browserPanelCommandCount, setBrowserPanelCommandCount] = useState(0)
+  const [lastBrowserPanelCommand, setLastBrowserPanelCommand] = useState('')
+  const [lifecycleSyncCount, setLifecycleSyncCount] = useState(0)
   const [cacheReloadCount, setCacheReloadCount] = useState(0)
   const [clearDataCount, setClearDataCount] = useState(0)
   const [lastClearDataKind, setLastClearDataKind] = useState<BrowserClearDataKind | ''>('')
@@ -165,30 +196,141 @@ export default function BrowserPanel({
   const [coordinateAction, setCoordinateAction] = useState({ x: 20, y: 20, scrollY: 360 })
   const [browserMenuOpen, setBrowserMenuOpen] = useState(false)
   const [pageContextMenu, setPageContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [lastCommentPoint, setLastCommentPoint] = useState('')
+  const [pendingComment, setPendingComment] = useState<BrowserPendingComment | null>(null)
+  const [commentDraft, setCommentDraft] = useState('')
+  const [commentIntent, setCommentIntent] = useState<BrowserCommentIntent>('comment')
+  const [commentDragRegion, setCommentDragRegion] = useState<BrowserCommentRegion | null>(null)
+  const [commentPreviewOriginalLocal, setCommentPreviewOriginalLocal] = useState(false)
+  const commentDragStartRef = useRef<{ clientX: number; clientY: number; bounds: DOMRect } | null>(null)
+  const suppressNextCommentClickRef = useRef(false)
   const [localTargetSort, setLocalTargetSort] = useState<'recent' | 'port'>('recent')
   const [localTargetView, setLocalTargetView] = useState<'online' | 'hidden'>('online')
+  const [visibleGeometry, setVisibleGeometry] = useState<BrowserVisibleGeometry | null>(null)
   const activeTab = activeBrowserTab(workbench)
   const visible = workbench.visible
   const viewport = browserViewport(workbench)
   const urlOrigin = safeOrigin(currentUrl)
   const blocked = Boolean(urlOrigin && workbench.blockedOrigins.includes(originKey(urlOrigin)))
   const devicePreviewActive = workbench.deviceMode !== 'desktop'
+  const commentModeUnavailable = !currentUrl || !visible || Boolean(error)
+  const commentModeUnavailableReason = commentUnavailableReason(currentUrl, visible, error)
+  const commentPreviewOriginal = Boolean(workbench.commentPreviewOriginal) || commentPreviewOriginalLocal
+  const commentCoachmarkVisible = workbench.commentMode && !workbench.commentCoachmarkDismissed && pendingComment === null && !commentPreviewOriginal
+  const pendingCommentScope = pendingComment?.region
+    ? `Region ${pendingComment.region.xPercent}%, ${pendingComment.region.yPercent}% - ${pendingComment.region.widthPercent}% x ${pendingComment.region.heightPercent}%`
+    : pendingComment
+      ? `Point ${pendingComment.xPercent}%, ${pendingComment.yPercent}%`
+      : ''
   const showStatusRow = isLoading || blocked || devicePreviewActive
+  const browserUseCursorText = workbench.browserUseCursorState?.visible
+    ? `${Math.round(workbench.browserUseCursorState.x)},${Math.round(workbench.browserUseCursorState.y)}`
+    : ''
   const sortedLocalTargets = sortLocalTargets(localTargets, localTargetSort)
   const hiddenLocalTargetUrls = new Set(workbench.hiddenLocalTargets)
   const visibleLocalTargets = sortedLocalTargets.filter((target) => !hiddenLocalTargetUrls.has(target.url))
   const hiddenLocalTargets = sortedLocalTargets.filter((target) => hiddenLocalTargetUrls.has(target.url))
   const shownLocalTargets = localTargetView === 'hidden' ? hiddenLocalTargets : visibleLocalTargets
+  const localServerRoutesByTarget = new Map(
+    sortedLocalTargets.map((target) => [target.url, localServerRoutesForTarget(target, workbench)])
+  )
+  const visibleLocalServerRouteCount = [...localServerRoutesByTarget.values()].reduce((count, routes) => count + routes.length, 0)
+  const hiddenLocalServerRouteCount = workbench.hiddenLocalServerRoutes.length
   const addressBadge = browserAddressBadge(currentUrl || address)
+  const browserWebviewTabs = browserTabsWithWebviews(workbench)
+  const browserTransferSourceHostId = workbench.webviewTransferSourceHostId
+  const browserTransferTargetHostId = workbench.webviewTransferTargetHostId
+  const browserWebviewHostId = browserTransferSourceHostId && browserTransferTargetHostId === hostId
+    ? browserTransferSourceHostId
+    : hostId
+  const browserWebviewTransferState = browserWebviewHostId !== hostId ? 'transferred' : 'local'
+  const browserPartition = browserWebviewPartitionForHost(browserWebviewHostId)
+  const browserTabControllerId = `browser:${hostId}:tabs`
+  const browserTabItems = workbench.tabs.map((tab) => ({
+    id: tab.id,
+    label: tab.title || shortUrl(tab.url) || 'New tab',
+    icon: 'browser' as const,
+    closable: true,
+    closeLabel: `Close ${tab.title || shortUrl(tab.url) || 'browser'} tab`,
+    ariaLabel: tab.title || shortUrl(tab.url) || 'New tab',
+    tooltipLabel: tab.title || tab.url || 'New tab'
+  }))
   useEffect(() => {
     workbenchRef.current = workbench
   }, [workbench])
+
+  useEffect(() => {
+    const focusBrowserFind = (): void => {
+      patchWorkbench({ findVisible: true })
+      window.requestAnimationFrame(() => {
+        findInputRef.current?.focus({ preventScroll: true })
+      })
+    }
+    window.addEventListener('orchestrator:focus-browser-find', focusBrowserFind)
+    return () => window.removeEventListener('orchestrator:focus-browser-find', focusBrowserFind)
+  }, [])
 
   useEffect(() => {
     if (localTargetView === 'hidden' && hiddenLocalTargets.length === 0) {
       setLocalTargetView('online')
     }
   }, [hiddenLocalTargets.length, localTargetView])
+
+  useEffect(() => {
+    const stage = browserStageRef.current
+    if (!stage || !currentUrl || !visible || error) {
+      setVisibleGeometry(null)
+      return
+    }
+    const updateGeometry = (): void => {
+      const rect = stage.getBoundingClientRect()
+      setVisibleGeometry((current) => {
+        const next = browserVisibleGeometryForStage(rect, viewport, devicePreviewActive)
+        return browserVisibleGeometryEqual(current, next) ? current : next
+      })
+    }
+    updateGeometry()
+    const resizeObserver = new ResizeObserver(updateGeometry)
+    resizeObserver.observe(stage)
+    window.addEventListener('resize', updateGeometry)
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', updateGeometry)
+    }
+  }, [currentUrl, devicePreviewActive, error, viewport.height, viewport.width, visible])
+
+  useEffect(() => {
+    const applyManagerBridge = (detail: BrowserManagerBridgeDetail): void => {
+      if (!detail || (detail.hostId && detail.hostId !== hostId)) return
+      const patch: Partial<BrowserWorkbenchState> = {}
+      if (typeof detail.active === 'boolean') patch.browserUseActive = detail.active
+      if ('turnId' in detail) patch.browserUseTurnId = detail.turnId ?? null
+      if ('viewportSize' in detail) patch.browserUseViewportSize = normalizeBrowserUseSurfaceSize(detail.viewportSize)
+      if ('captureSurfaceSize' in detail) patch.browserUseCaptureSurfaceSize = normalizeBrowserUseSurfaceSize(detail.captureSurfaceSize)
+      if ('captureBounds' in detail) patch.browserUseCaptureBounds = normalizeBrowserUseSurfaceBounds(detail.captureBounds)
+      if ('cursorState' in detail) patch.browserUseCursorState = normalizeBrowserUseCursorState(detail.cursorState)
+      if ('localServerRoutes' in detail) patch.localServerRoutes = normalizeLocalServerRoutes(detail.localServerRoutes)
+      if ('hiddenLocalServerRoutes' in detail) patch.hiddenLocalServerRoutes = normalizeHiddenLocalServerRoutes(detail.hiddenLocalServerRoutes)
+      if (Object.keys(patch).length > 0) patchWorkbench(patch)
+    }
+    const handleManagerBridge = (event: Event): void => {
+      applyManagerBridge((event as BrowserManagerBridgeEvent).detail)
+    }
+    const bridgeWindow = window as BrowserManagerBridgeWindow
+    const previousBridge = bridgeWindow.__orchestratorSetBrowserManagerState
+    bridgeWindow.__orchestratorSetBrowserManagerState = applyManagerBridge
+    window.addEventListener('orchestrator:browser-manager-state', handleManagerBridge)
+    document.addEventListener('orchestrator:browser-manager-state', handleManagerBridge)
+    return () => {
+      window.removeEventListener('orchestrator:browser-manager-state', handleManagerBridge)
+      document.removeEventListener('orchestrator:browser-manager-state', handleManagerBridge)
+      if (previousBridge) {
+        bridgeWindow.__orchestratorSetBrowserManagerState = previousBridge
+      } else {
+        delete bridgeWindow.__orchestratorSetBrowserManagerState
+      }
+    }
+  }, [hostId])
 
   const refreshLocalTargets = async (): Promise<void> => {
     setLocalTargetsLoading(true)
@@ -219,6 +361,7 @@ export default function BrowserPanel({
   useEffect(() => {
     const nextTab = activeBrowserTab(workbench)
     const nextUrl = nextTab.url || initialUrl
+    webviewRef.current = webviewRefs.current[nextTab.id] ?? null
     setAddress(nextUrl)
     setCurrentUrl(nextUrl)
     setTitle(nextTab.title === 'New tab' ? '' : nextTab.title)
@@ -232,7 +375,7 @@ export default function BrowserPanel({
     setAssetInventory(null)
     setAssetBundlePath(null)
     setSelectedTargetId('')
-  }, [workbench.activeTabId, initialUrl])
+  }, [activeTab.url, workbench.activeTabId, initialUrl])
 
   useEffect(() => {
     webviewRef.current?.setZoomFactor(workbench.zoomFactor)
@@ -255,6 +398,55 @@ export default function BrowserPanel({
     workbench.allowedUploadOrigins.join('\u0000'),
     workbench.blockedUploadOrigins.join('\u0000')
   ])
+
+  const syncActiveWebviewLifecycle = useCallback((source: 'active-tab' | 'visible' | 'focus' | 'visibility'): void => {
+    const nextTab = activeBrowserTab(workbenchRef.current)
+    const webview = webviewRefs.current[nextTab.id] ?? null
+    webviewRef.current = webview
+    if (source !== 'active-tab') {
+      setLifecycleSyncCount((count) => count + 1)
+    }
+    if (!webview) return
+
+    try {
+      webview.setZoomFactor?.(workbenchRef.current.zoomFactor)
+      if (workbenchRef.current.findQuery.trim()) {
+        webview.findInPage?.(workbenchRef.current.findQuery)
+      }
+      const nextUrl = webview.getURL?.() ?? nextTab.url
+      if (nextUrl && nextUrl !== 'about:blank') {
+        setCurrentUrl(nextUrl)
+        setAddress(nextUrl)
+      }
+      setTitle(webview.getTitle?.() || nextTab.title || '')
+      setCanGoBack(Boolean(webview.canGoBack?.()))
+      setCanGoForward(Boolean(webview.canGoForward?.()))
+    } catch {
+      // Hidden/offscreen Electron webviews can transiently reject lifecycle calls during attach.
+    }
+  }, [])
+
+  useEffect(() => {
+    syncActiveWebviewLifecycle('active-tab')
+  }, [activeTab.id, browserWebviewTabs.length, syncActiveWebviewLifecycle])
+
+  useEffect(() => {
+    if (!visible || error) return
+    syncActiveWebviewLifecycle('visible')
+  }, [error, syncActiveWebviewLifecycle, visible])
+
+  useEffect(() => {
+    const handleFocus = (): void => syncActiveWebviewLifecycle('focus')
+    const handleVisibility = (): void => {
+      if (document.visibilityState === 'visible') syncActiveWebviewLifecycle('visibility')
+    }
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [syncActiveWebviewLifecycle])
 
   useEffect(() => {
     const webview = webviewRef.current
@@ -350,6 +542,14 @@ export default function BrowserPanel({
     patchWorkbench({ hiddenLocalTargets: workbenchRef.current.hiddenLocalTargets.filter((targetUrl) => targetUrl !== url) })
   }
 
+  const removeLocalServerRoute = (routeUrl: string): void => {
+    const current = workbenchRef.current
+    patchWorkbench({
+      hiddenLocalServerRoutes: Array.from(new Set([...current.hiddenLocalServerRoutes, routeUrl])),
+      localServerRoutes: current.localServerRoutes.filter((route) => route.url !== routeUrl)
+    })
+  }
+
   const patchActiveTab = (patch: Partial<BrowserTabState>): void => {
     const current = workbenchRef.current
     const tabs = current.tabs.map((tab) => tab.id === current.activeTabId ? { ...tab, ...patch } : tab)
@@ -409,7 +609,19 @@ export default function BrowserPanel({
     const nextTabs = workbench.tabs.filter((tab) => tab.id !== tabId)
     const tabs = nextTabs.length > 0 ? nextTabs : [DEFAULT_TAB]
     const activeTabId = workbench.activeTabId === tabId ? tabs.at(-1)?.id ?? tabs[0].id : workbench.activeTabId
+    delete webviewRefs.current[tabId]
     patchWorkbench({ tabs, activeTabId })
+  }
+
+  const moveTab = (tabId: string, direction: 'left' | 'right'): void => {
+    const currentIndex = workbench.tabs.findIndex((tab) => tab.id === tabId)
+    if (currentIndex === -1) return
+    const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1
+    if (targetIndex < 0 || targetIndex >= workbench.tabs.length) return
+    const tabs = [...workbench.tabs]
+    const [tab] = tabs.splice(currentIndex, 1)
+    tabs.splice(targetIndex, 0, tab)
+    patchWorkbench({ tabs })
   }
 
   const captureScreenshot = async (): Promise<void> => {
@@ -459,10 +671,17 @@ export default function BrowserPanel({
   }
 
   const clearBrowserData = async (kind: BrowserClearDataKind): Promise<void> => {
-    await window.api.browser.clearData(kind)
+    await window.api.browser.clearData(kind, browserPartition)
     setLastClearDataKind(kind)
     setClearDataCount((count) => count + 1)
     setBrowserMenuOpen(false)
+  }
+
+  const setCommentPreviewOriginal = (previewOriginal: boolean): void => {
+    setPendingComment(null)
+    setCommentDraft('')
+    setCommentPreviewOriginalLocal(previewOriginal)
+    patchWorkbench({ commentPreviewOriginal: previewOriginal, commentCoachmarkDismissed: true })
   }
 
   const hardReloadCurrentPage = (): void => {
@@ -499,6 +718,43 @@ export default function BrowserPanel({
     navigate(target)
   }
 
+  useEffect(() => {
+    const handleBrowserPanelCommand = (event: Event): void => {
+      const command = (event as CustomEvent<{ command?: string }>).detail?.command
+      if (!command) return
+      setLastBrowserPanelCommand(command)
+      setBrowserPanelCommandCount((count) => count + 1)
+      if (command === 'open-browser-tab') {
+        newTab()
+        return
+      }
+      if (command === 'focus-browser-address-bar') {
+        window.requestAnimationFrame(() => {
+          addressInputRef.current?.focus({ preventScroll: true })
+          addressInputRef.current?.select()
+        })
+        return
+      }
+      if (command === 'browser-reload-page') {
+        if (currentUrl && visible) stopOrReload()
+        return
+      }
+      if (command === 'browser-hard-reload-page') {
+        if (visible) hardReloadCurrentPage()
+        return
+      }
+      if (command === 'browser-navigate-back') {
+        if (visible && canGoBack) webviewRef.current?.goBack()
+        return
+      }
+      if (command === 'browser-navigate-forward' && visible && canGoForward) {
+        webviewRef.current?.goForward()
+      }
+    }
+    window.addEventListener('orchestrator:browser-panel-command', handleBrowserPanelCommand)
+    return () => window.removeEventListener('orchestrator:browser-panel-command', handleBrowserPanelCommand)
+  })
+
   const copyCurrentUrl = (): void => {
     if (!currentUrl) return
     void navigator.clipboard.writeText(currentUrl)
@@ -526,6 +782,177 @@ export default function BrowserPanel({
     }))
     setPageContextMenu(null)
     setBrowserMenuOpen(false)
+  }
+
+  const commentRegionFromDrag = (
+    start: { clientX: number; clientY: number; bounds: DOMRect },
+    clientX: number,
+    clientY: number
+  ): BrowserCommentRegion => {
+    const bounds = start.bounds
+    const width = Math.max(bounds.width, 1)
+    const height = Math.max(bounds.height, 1)
+    const leftPx = Math.max(bounds.left, Math.min(start.clientX, clientX))
+    const rightPx = Math.min(bounds.right, Math.max(start.clientX, clientX))
+    const topPx = Math.max(bounds.top, Math.min(start.clientY, clientY))
+    const bottomPx = Math.min(bounds.bottom, Math.max(start.clientY, clientY))
+    const leftPercent = ((leftPx - bounds.left) / width) * 100
+    const topPercent = ((topPx - bounds.top) / height) * 100
+    const widthPercent = ((rightPx - leftPx) / width) * 100
+    const heightPercent = ((bottomPx - topPx) / height) * 100
+    return {
+      xPercent: Math.round(leftPercent),
+      yPercent: Math.round(topPercent),
+      widthPercent: Math.round(widthPercent),
+      heightPercent: Math.round(heightPercent),
+      leftPercent,
+      topPercent
+    }
+  }
+
+  const openCommentEditorAt = async (
+    bounds: DOMRect,
+    clientX: number,
+    clientY: number,
+    region?: BrowserCommentRegion
+  ): Promise<void> => {
+    if (!currentUrl) return
+    const resolvedClientX = Number.isFinite(clientX) && clientX > 0 ? clientX : bounds.left + (bounds.width / 2)
+    const resolvedClientY = Number.isFinite(clientY) && clientY > 0 ? clientY : bounds.top + (bounds.height / 2)
+    const x = Math.max(0, Math.min(1, (resolvedClientX - bounds.left) / Math.max(bounds.width, 1)))
+    const y = Math.max(0, Math.min(1, (resolvedClientY - bounds.top) / Math.max(bounds.height, 1)))
+    const xPercent = Math.round(x * 100)
+    const yPercent = Math.round(y * 100)
+    let snapshot = domSnapshot
+    if (!snapshot && webviewRef.current && visible && !error) {
+      try {
+        snapshot = await webviewRef.current.executeJavaScript<string>(DOM_SNAPSHOT_SCRIPT)
+      } catch {
+        snapshot = ''
+      }
+    }
+    const visibleStructure = snapshot.trim().split('\n').filter(Boolean).slice(0, 6).join('\n')
+    setPendingComment({
+      xPercent,
+      yPercent,
+      leftPercent: x * 100,
+      topPercent: y * 100,
+      region,
+      visibleStructure
+    })
+    setCommentDraft('')
+    setCommentIntent('comment')
+    patchWorkbench({ commentCoachmarkDismissed: true })
+  }
+
+  const openPointCommentEditor = async (event: ReactMouseEvent<HTMLElement>): Promise<void> => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    await openCommentEditorAt(bounds, event.clientX, event.clientY)
+  }
+
+  const openRegionCommentEditor = async (region: BrowserCommentRegion, bounds: DOMRect): Promise<void> => {
+    const centerX = bounds.left + ((region.leftPercent + (region.widthPercent / 2)) / 100) * bounds.width
+    const centerY = bounds.top + ((region.topPercent + (region.heightPercent / 2)) / 100) * bounds.height
+    await openCommentEditorAt(bounds, centerX, centerY, region)
+  }
+
+  const commentPointerHitsControl = (target: EventTarget | null): boolean => {
+    const element = target instanceof Element ? target : null
+    return Boolean(element?.closest('[data-testid="browser-comment-mode-banner"], [data-testid="browser-comment-editor"], [data-testid="browser-comment-coachmark"]'))
+  }
+
+  const startCommentRegionDrag = (event: ReactPointerEvent<HTMLElement>): void => {
+    if (event.button !== 0 || pendingComment !== null || commentPreviewOriginal || commentPointerHitsControl(event.target)) return
+    commentDragStartRef.current = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      bounds: event.currentTarget.getBoundingClientRect()
+    }
+    setCommentDragRegion(null)
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    } catch {
+      // Synthetic smoke events and some webview overlays do not own a native pointer.
+    }
+  }
+
+  const updateCommentRegionDrag = (event: ReactPointerEvent<HTMLElement>): void => {
+    const start = commentDragStartRef.current
+    if (start === null || pendingComment !== null || commentPreviewOriginal) return
+    const distance = Math.max(Math.abs(event.clientX - start.clientX), Math.abs(event.clientY - start.clientY))
+    if (distance < 12) {
+      setCommentDragRegion(null)
+      return
+    }
+    setCommentDragRegion(commentRegionFromDrag(start, event.clientX, event.clientY))
+  }
+
+  const finishCommentRegionDrag = (event: ReactPointerEvent<HTMLElement>): void => {
+    const start = commentDragStartRef.current
+    if (start === null) return
+    commentDragStartRef.current = null
+    try {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    } catch {
+      // Pointer capture may not exist for synthetic drag checks.
+    }
+    const distance = Math.max(Math.abs(event.clientX - start.clientX), Math.abs(event.clientY - start.clientY))
+    if (distance < 12 || pendingComment !== null || commentPreviewOriginal) {
+      setCommentDragRegion(null)
+      return
+    }
+    const region = commentRegionFromDrag(start, event.clientX, event.clientY)
+    setCommentDragRegion(null)
+    suppressNextCommentClickRef.current = true
+    window.setTimeout(() => {
+      suppressNextCommentClickRef.current = false
+    }, 250)
+    event.preventDefault()
+    event.stopPropagation()
+    void openRegionCommentEditor(region, start.bounds)
+  }
+
+  const cancelCommentRegionDrag = (): void => {
+    commentDragStartRef.current = null
+    setCommentDragRegion(null)
+  }
+
+  const submitPointComment = (): void => {
+    if (!currentUrl || pendingComment === null) return
+    const body = commentDraft.trim()
+    const lines = [
+      commentIntent === 'design-tweak' ? 'Design tweak for this browser page:' : 'Comment on this browser page:',
+      `URL: ${currentUrl}`,
+      title ? `Title: ${title}` : '',
+      pendingComment.region
+        ? `Region: ${pendingComment.region.xPercent}%, ${pendingComment.region.yPercent}% - ${pendingComment.region.widthPercent}% x ${pendingComment.region.heightPercent}%`
+        : `Point: ${pendingComment.xPercent}%, ${pendingComment.yPercent}%`,
+      body
+        ? commentIntent === 'design-tweak'
+          ? `Requested design change: ${body}`
+          : `Comment: ${body}`
+        : '',
+      pendingComment.visibleStructure ? `\nVisible page structure:\n${pendingComment.visibleStructure}` : ''
+    ].filter(Boolean)
+    window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+      detail: { text: lines.join('\n') }
+    }))
+    setLastCommentPoint(pendingComment.region
+      ? `${pendingComment.region.xPercent},${pendingComment.region.yPercent},${pendingComment.region.widthPercent},${pendingComment.region.heightPercent}`
+      : `${pendingComment.xPercent},${pendingComment.yPercent}`)
+    setPendingComment(null)
+    setCommentDraft('')
+    setCommentIntent('comment')
+    setCommentPreviewOriginalLocal(false)
+    patchWorkbench({ commentMode: false, commentCoachmarkDismissed: true, commentPreviewOriginal: false })
+  }
+
+  const cancelPointComment = (): void => {
+    setPendingComment(null)
+    setCommentDraft('')
+    setCommentIntent('comment')
+    setCommentPreviewOriginalLocal(false)
+    patchWorkbench({ commentMode: false, commentCoachmarkDismissed: true, commentPreviewOriginal: false })
   }
 
   const setViewportMode = (mode: BrowserWorkbenchState['deviceMode']): void => {
@@ -632,24 +1059,6 @@ export default function BrowserPanel({
     })
   }
 
-  const webview = currentUrl && visible
-    ? createElement('webview', {
-        ref: (node: WebviewElement | null) => {
-          webviewRef.current = node
-        },
-        src: currentUrl,
-        partition: 'persist:orchestrator-side-browser',
-        'data-testid': 'browser-webview',
-        onContextMenu: openPageContextMenu,
-        style: {
-          flex: 1,
-          minHeight: 0,
-          width: '100%',
-          background: 'white'
-        }
-      })
-    : null
-
   return (
     <div
       className="flex min-h-0 min-w-0 flex-col overflow-hidden"
@@ -658,11 +1067,51 @@ export default function BrowserPanel({
       data-browser-device-mode={workbench.deviceMode}
       data-browser-viewport-width={workbench.viewportWidth}
       data-browser-viewport-height={workbench.viewportHeight}
+      data-browser-use-active={workbench.browserUseActive ? 'true' : 'false'}
+      data-browser-use-turn-id={workbench.browserUseTurnId ?? ''}
+      data-browser-use-viewport-width={workbench.browserUseViewportSize?.width ?? ''}
+      data-browser-use-viewport-height={workbench.browserUseViewportSize?.height ?? ''}
+      data-browser-use-capture-width={workbench.browserUseCaptureSurfaceSize?.width ?? ''}
+      data-browser-use-capture-height={workbench.browserUseCaptureSurfaceSize?.height ?? ''}
+      data-browser-use-capture-x={workbench.browserUseCaptureBounds?.x ?? ''}
+      data-browser-use-capture-y={workbench.browserUseCaptureBounds?.y ?? ''}
+      data-browser-use-capture-bounds-width={workbench.browserUseCaptureBounds?.width ?? ''}
+      data-browser-use-capture-bounds-height={workbench.browserUseCaptureBounds?.height ?? ''}
+      data-browser-use-capture-scale={workbench.browserUseCaptureBounds?.scale ?? ''}
+      data-browser-use-cursor-visible={workbench.browserUseCursorState?.visible ? 'true' : 'false'}
+      data-browser-use-cursor={browserUseCursorText}
+      data-browser-local-route-count={visibleLocalServerRouteCount}
+      data-browser-hidden-local-route-count={hiddenLocalServerRouteCount}
+      data-browser-comment-mode={workbench.commentMode ? 'true' : 'false'}
+      data-browser-comment-unavailable={commentModeUnavailable ? 'true' : 'false'}
+      data-browser-comment-unavailable-reason={commentModeUnavailableReason}
+      data-browser-comment-coachmark={commentCoachmarkVisible ? 'true' : 'false'}
+      data-browser-comment-preview-original={commentPreviewOriginal ? 'true' : 'false'}
+      data-browser-comment-editor-open={pendingComment !== null ? 'true' : 'false'}
+      data-browser-comment-intent={pendingComment ? commentIntent : ''}
+      data-browser-comment-pending-point={pendingComment ? `${pendingComment.xPercent},${pendingComment.yPercent}` : ''}
+      data-browser-comment-pending-region={pendingComment?.region ? `${pendingComment.region.xPercent},${pendingComment.region.yPercent},${pendingComment.region.widthPercent},${pendingComment.region.heightPercent}` : ''}
+      data-browser-last-comment={lastCommentPoint}
+      data-browser-webview-host-id={hostId}
+      data-browser-webview-source-host-id={browserWebviewHostId}
+      data-browser-webview-partition={browserPartition}
+      data-browser-webview-partition-scope="host"
+      data-browser-webview-transfer-state={browserWebviewTransferState}
+      data-browser-webview-transfer-source-host-id={browserTransferSourceHostId ?? ''}
+      data-browser-webview-transfer-target-host-id={browserTransferTargetHostId ?? ''}
+      data-browser-webview-transfer-id={workbench.webviewTransferId ?? ''}
+      data-browser-tab-controller="app-shell"
+      data-browser-tab-controller-id={browserTabControllerId}
+      data-browser-webview-count={browserWebviewTabs.length}
+      data-browser-active-webview-tab={currentUrl ? activeTab.id : ''}
       data-browser-cache-reloads={cacheReloadCount}
+      data-browser-panel-command-count={browserPanelCommandCount}
+      data-browser-panel-last-command={lastBrowserPanelCommand}
       data-browser-clear-data={clearDataCount}
       data-browser-clear-data-kind={lastClearDataKind}
       data-browser-find-matches={findMatches}
       data-browser-find-active-match={findActiveMatch}
+      data-browser-lifecycle-syncs={lifecycleSyncCount}
       data-browser-tab-count={workbench.tabs.length}
       data-browser-visible={visible ? 'true' : 'false'}
       data-browser-loading={isLoading ? 'true' : 'false'}
@@ -681,48 +1130,23 @@ export default function BrowserPanel({
       }}
     >
       {workbench.tabs.length > 1 && (
-        <div className="browser-tab-strip" data-testid="browser-tab-strip">
-          {workbench.tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              data-testid="browser-tab"
-              data-active={tab.id === workbench.activeTabId ? 'true' : 'false'}
-              className="browser-tab"
-              style={{
-                background: tab.id === workbench.activeTabId ? 'var(--surface-bg)' : 'transparent',
-                borderColor: tab.id === workbench.activeTabId ? 'var(--border-subtle)' : 'transparent',
-                color: 'var(--text-primary)'
-              }}
-              onClick={() => selectTab(tab.id)}
-            >
-              <Icon name="browser" size={12} />
-              <span className="min-w-0 flex-1 truncate">{tab.title || shortUrl(tab.url) || 'New tab'}</span>
-              <span
-                role="button"
-                tabIndex={0}
-                aria-label={`Close ${tab.title || shortUrl(tab.url) || 'browser'} tab`}
-                data-testid="browser-tab-close"
-                className="browser-tab-close"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  closeTab(tab.id)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter' && event.key !== ' ') return
-                  event.preventDefault()
-                  event.stopPropagation()
-                  closeTab(tab.id)
-                }}
-              >
-                <Icon name="close" size={10} />
-              </span>
-            </button>
-          ))}
-        </div>
+        <PanelTabStrip
+          tabs={browserTabItems}
+          activeTabId={workbench.activeTabId}
+          panelId={browserTabControllerId}
+          className="browser-shell-tab-strip"
+          stripTestId="browser-tab-strip"
+          tabRowTestId="browser-tab-row"
+          actionsTestId="browser-tab-actions"
+          onActivate={selectTab}
+          onClose={closeTab}
+          onMove={moveTab}
+          actions={<IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />}
+        />
       )}
 
-      <form
+      <PanelToolbar
+        as="form"
         className="browser-toolbar"
         onSubmit={(event) => {
           event.preventDefault()
@@ -738,25 +1162,32 @@ export default function BrowserPanel({
           disabled={!currentUrl || !visible}
           onClick={stopOrReload}
         />
-        <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
-        <div className="browser-address-field">
-          <span
-            className="browser-address-badge"
-            data-testid="browser-address-badge"
-            data-browser-address-kind={addressBadge.kind}
-            aria-label={addressBadge.ariaLabel}
-          >
-            <Icon name={addressBadge.icon} size={12} />
-            <span>{addressBadge.label}</span>
-          </span>
-          <input
-            data-testid="browser-url-input"
-            value={address}
-            onChange={(event) => setAddress(event.target.value)}
-            placeholder="Search or enter URL"
-            className="browser-address-input"
-          />
-        </div>
+        {workbench.tabs.length <= 1 && (
+          <IconButton icon="plus" label="New browser tab" size="sm" onClick={newTab} dataTestId="browser-new-tab" />
+        )}
+        <WorkbenchSearchField
+          value={address}
+          onChange={setAddress}
+          placeholder="Search or enter URL"
+          type="url"
+          icon={null}
+          inputRef={addressInputRef}
+          ariaLabel="Browser address"
+          spellCheck={false}
+          dataTestId="browser-url-input"
+          className="browser-address-field flex-1"
+          leading={(
+            <span
+              className="browser-address-badge"
+              data-testid="browser-address-badge"
+              data-browser-address-kind={addressBadge.kind}
+              aria-label={addressBadge.ariaLabel}
+            >
+              <Icon name={addressBadge.icon} size={12} />
+              <span>{addressBadge.label}</span>
+            </span>
+          )}
+        />
         <ToolbarButton icon="search" label="Find in page" size="sm" disabled={!currentUrl || !visible} active={workbench.findVisible} onClick={() => patchWorkbench({ findVisible: !workbench.findVisible })} />
         <ToolbarButton
           icon="wrench"
@@ -782,8 +1213,8 @@ export default function BrowserPanel({
               className="browser-actions-menu"
               style={{ position: 'absolute', right: 0, top: 32, width: 236, zIndex: 100 }}
             >
-              <div className="browser-action-section" data-testid="browser-page-actions">
-                <div className="browser-action-label">Page</div>
+              <MenuSection className="browser-action-section" dataTestId="browser-page-actions">
+                <MenuSectionLabel className="browser-action-label">Page</MenuSectionLabel>
                 <MenuItem
                   icon="eraser"
                   label="Hard reload"
@@ -802,6 +1233,32 @@ export default function BrowserPanel({
                     void captureScreenshot()
                   }}
                 />
+                <MenuItem
+                  icon="chat"
+                  label={workbench.commentMode ? 'Disable comment mode' : 'Comment mode'}
+                  ariaLabel={workbench.commentMode ? 'Disable browser comment mode' : 'Enable browser comment mode'}
+                  dataTestId="browser-comment-mode"
+                  disabled={commentModeUnavailable}
+                  onClick={() => {
+                    setCommentPreviewOriginalLocal(false)
+                    patchWorkbench({
+                      commentMode: !workbench.commentMode,
+                      commentPreviewOriginal: false
+                    })
+                    setBrowserMenuOpen(false)
+                  }}
+                />
+                {commentModeUnavailable && (
+                  <MenuMessage
+                    className="browser-comment-unavailable-message"
+                    compact
+                    dataTestId="browser-comment-unavailable-message"
+                    state="comment-unavailable"
+                    tone={error ? 'danger' : 'muted'}
+                  >
+                    Comment mode unavailable. {commentModeUnavailableReason}
+                  </MenuMessage>
+                )}
                 <MenuItem
                   icon="copy"
                   label="Copy URL"
@@ -823,9 +1280,9 @@ export default function BrowserPanel({
                     openExternal()
                   }}
                 />
-              </div>
-              <div className="browser-action-section" data-testid="browser-data-actions">
-                <div className="browser-action-label">Data</div>
+              </MenuSection>
+              <MenuSection className="browser-action-section" dataTestId="browser-data-actions">
+                <MenuSectionLabel className="browser-action-label">Data</MenuSectionLabel>
                 <MenuItem
                   icon="eraser"
                   label="Clear cache"
@@ -858,33 +1315,30 @@ export default function BrowserPanel({
                   dataTestId="browser-clear-data"
                   onClick={() => void clearBrowserData('all')}
                 />
-              </div>
+              </MenuSection>
               {workbench.history.length > 0 && (
-                <div className="browser-action-section" data-testid="browser-history-menu">
-                  <div className="browser-action-label">History</div>
+                <MenuSection className="browser-action-section" dataTestId="browser-history-menu">
+                  <MenuSectionLabel className="browser-action-label">History</MenuSectionLabel>
                   {workbench.history.slice(0, 5).map((item) => (
-                    <button
+                    <MenuRow
                       key={`${item.url}-${item.visitedAt}`}
-                      type="button"
-                      role="menuitem"
-                      data-testid="browser-history-item"
-                      className="browser-action-row browser-history-row"
+                      dataTestId="browser-history-item"
+                      className="browser-history-row"
+                      icon="clock"
                       onClick={() => {
                         setBrowserMenuOpen(false)
                         navigate(item.url)
                       }}
                     >
-                      <Icon name="clock" size={13} />
                       <span className="min-w-0 flex-1 truncate">{item.title || shortUrl(item.url) || item.url}</span>
                       <span className="browser-history-url min-w-0 truncate">{shortUrl(item.url)}</span>
-                    </button>
+                    </MenuRow>
                   ))}
-                </div>
+                </MenuSection>
               )}
-              <div className="browser-action-section">
-                <div className="browser-action-label">View</div>
-                <div className="browser-action-row browser-action-row-static">
-                  <Icon name="zoomOut" size={13} />
+              <MenuSection className="browser-action-section">
+                <MenuSectionLabel className="browser-action-label">View</MenuSectionLabel>
+                <MenuRow className="browser-action-row-static" dataTestId="browser-zoom-row" icon="zoomOut">
                   <span className="min-w-0 flex-1">Zoom</span>
                   <button
                     type="button"
@@ -920,7 +1374,7 @@ export default function BrowserPanel({
                   >
                     +
                   </button>
-                </div>
+                </MenuRow>
                 <MenuItem
                   icon={devicePreviewActive ? 'monitor' : 'smartphone'}
                   label={devicePreviewActive ? 'Reset viewport' : 'Mobile preview'}
@@ -934,19 +1388,20 @@ export default function BrowserPanel({
                   ariaLabel={visible ? 'Hide browser surface' : 'Show browser surface'}
                   onClick={() => patchWorkbench({ visible: !visible })}
                 />
-              </div>
+              </MenuSection>
             </MenuSurface>
           )}
         </div>
-      </form>
+      </PanelToolbar>
 
       {workbench.findVisible && (
-        <div className="browser-find-toolbar">
+        <PanelToolbar className="browser-find-toolbar">
           <WorkbenchSearchField
             value={workbench.findQuery}
             onChange={searchInPage}
             placeholder="Find in page"
             clearLabel="Clear page search"
+            inputRef={findInputRef}
             dataTestId="browser-find-input"
             className="browser-find-search flex-1"
             autoFocus
@@ -971,11 +1426,11 @@ export default function BrowserPanel({
             onClick={() => stepFind('next')}
           />
           <ToolbarButton icon="close" label="Close find" size="sm" onClick={closeFind} />
-        </div>
+        </PanelToolbar>
       )}
 
       {showStatusRow && (
-        <div className="browser-status-row" data-testid="browser-status-row">
+        <PanelToolbar className="browser-status-row" dataTestId="browser-status-row">
           <div className="flex min-w-0 items-center gap-2">
             {isLoading && <Badge tone="neutral">Loading</Badge>}
             {error && <Badge tone="danger">Failed</Badge>}
@@ -1014,14 +1469,14 @@ export default function BrowserPanel({
                   <input
                     aria-label="Viewport width"
                     value={workbench.viewportWidth}
-                    onChange={(event) => patchWorkbench({ viewportWidth: Number(event.target.value) || 1280 })}
+                    onChange={(event) => patchWorkbench({ viewportWidth: clampViewportSize(Number(event.target.value) || 1280, 'width') })}
                     className="w-14 rounded-md px-1 py-0.5 text-xs outline-none"
                     style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
                   />
                   <input
                     aria-label="Viewport height"
                     value={workbench.viewportHeight}
-                    onChange={(event) => patchWorkbench({ viewportHeight: Number(event.target.value) || 720 })}
+                    onChange={(event) => patchWorkbench({ viewportHeight: clampViewportSize(Number(event.target.value) || 720, 'height') })}
                     className="w-14 rounded-md px-1 py-0.5 text-xs outline-none"
                     style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
                   />
@@ -1035,7 +1490,7 @@ export default function BrowserPanel({
               />
             </div>
           )}
-        </div>
+        </PanelToolbar>
       )}
 
       <div
@@ -1043,6 +1498,7 @@ export default function BrowserPanel({
         style={{ gridTemplateRows: workbench.inspectorOpen ? 'minmax(0, 1fr) 184px' : 'minmax(0, 1fr)' }}
       >
         <div
+          ref={browserStageRef}
           className="relative flex min-h-0 justify-center overflow-hidden"
           onContextMenu={openPageContextMenu}
           style={{ background: 'var(--canvas-bg)' }}
@@ -1061,21 +1517,255 @@ export default function BrowserPanel({
               ) : (
                 <div
                   data-testid="browser-viewport-frame"
-                  className="flex min-h-0 overflow-hidden"
+                  className="relative flex min-h-0 overflow-hidden"
                   style={{
-                    width: viewport.width,
+                    width: devicePreviewActive && visibleGeometry ? visibleGeometry.visualBounds.width : viewport.width,
                     maxWidth: '100%',
-                    height: viewport.height,
+                    height: devicePreviewActive && visibleGeometry ? visibleGeometry.visualBounds.height : viewport.height,
                     maxHeight: '100%',
                     borderLeft: workbench.deviceMode !== 'desktop' ? '1px solid var(--border-subtle)' : 'none',
                     borderRight: workbench.deviceMode !== 'desktop' ? '1px solid var(--border-subtle)' : 'none'
                   }}
                 >
-                  {webview}
+                  <BrowserWebviewManager
+                    hostId={hostId}
+                    webviewHostId={browserWebviewHostId}
+                    transferSourceHostId={browserTransferSourceHostId}
+                    transferTargetHostId={browserTransferTargetHostId}
+                    transferId={workbench.webviewTransferId}
+                    tabs={browserWebviewTabs}
+                    activeTabId={workbench.activeTabId}
+                    visible={visible}
+                    error={error}
+                    viewport={viewport}
+                    visibleGeometry={visibleGeometry}
+                    browserUseActive={workbench.browserUseActive}
+                    browserUseTurnId={workbench.browserUseTurnId}
+                    browserUseViewportSize={workbench.browserUseViewportSize}
+                    browserUseCaptureSurfaceSize={workbench.browserUseCaptureSurfaceSize}
+                    browserUseCaptureBounds={workbench.browserUseCaptureBounds}
+                    browserUseCursorState={workbench.browserUseCursorState}
+                    webviewRefs={webviewRefs}
+                    workbenchRef={workbenchRef}
+                    activeWebviewRef={webviewRef}
+                    onContextMenu={openPageContextMenu}
+                  />
+                  {workbench.commentMode && (
+                    <div
+                      className="browser-comment-overlay"
+                      data-testid="browser-comment-overlay"
+                      data-browser-comment-preview-original={commentPreviewOriginal ? 'true' : 'false'}
+                      role={pendingComment === null && !commentPreviewOriginal ? 'button' : undefined}
+                      tabIndex={pendingComment === null && !commentPreviewOriginal ? 0 : undefined}
+                      aria-label={pendingComment === null && !commentPreviewOriginal ? 'Place browser comment' : undefined}
+                      onClickCapture={(event) => {
+                        const previewButton = event.currentTarget.querySelector('[data-testid="browser-comment-preview-original"]')
+                        const previewButtonBounds = previewButton instanceof HTMLElement ? previewButton.getBoundingClientRect() : null
+                        const isInsidePreviewButton = previewButtonBounds !== null &&
+                          event.clientX >= previewButtonBounds.left &&
+                          event.clientX <= previewButtonBounds.right &&
+                          event.clientY >= previewButtonBounds.top &&
+                          event.clientY <= previewButtonBounds.bottom
+                        if (!isInsidePreviewButton) return
+                        event.preventDefault()
+                        event.stopPropagation()
+                        if (pendingComment === null) setCommentPreviewOriginal(!commentPreviewOriginal)
+                      }}
+                      onClick={(event) => {
+                        if (suppressNextCommentClickRef.current) {
+                          suppressNextCommentClickRef.current = false
+                          event.preventDefault()
+                          event.stopPropagation()
+                          return
+                        }
+                        const target = event.target as Element | null
+                        const closest = typeof target?.closest === 'function' ? target.closest.bind(target) : null
+                        const previewButton = event.currentTarget.querySelector('[data-testid="browser-comment-preview-original"]')
+                        const previewButtonBounds = previewButton instanceof HTMLElement ? previewButton.getBoundingClientRect() : null
+                        const isInsidePreviewButton = previewButtonBounds !== null &&
+                          event.clientX >= previewButtonBounds.left &&
+                          event.clientX <= previewButtonBounds.right &&
+                          event.clientY >= previewButtonBounds.top &&
+                          event.clientY <= previewButtonBounds.bottom
+                        if (closest?.('[data-testid="browser-comment-preview-original"]') || isInsidePreviewButton) {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          if (pendingComment === null) setCommentPreviewOriginal(!commentPreviewOriginal)
+                          return
+                        }
+                        if (closest?.('[data-testid="browser-comment-mode-banner"]')) {
+                          event.stopPropagation()
+                          return
+                        }
+                        if (pendingComment === null && !commentPreviewOriginal) void openPointCommentEditor(event)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return
+                        event.preventDefault()
+                        if (pendingComment === null && !commentPreviewOriginal) void openPointCommentEditor(event as unknown as ReactMouseEvent<HTMLElement>)
+                      }}
+                      onPointerDown={startCommentRegionDrag}
+                      onPointerMove={updateCommentRegionDrag}
+                      onPointerUp={finishCommentRegionDrag}
+                      onPointerCancel={cancelCommentRegionDrag}
+                    >
+                      <div
+                        className="browser-comment-mode-banner"
+                        data-testid="browser-comment-mode-banner"
+                        data-browser-comment-banner-mode={commentPreviewOriginal ? 'original' : 'annotating'}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <span data-testid="browser-comment-mode-title">
+                          {commentPreviewOriginal ? `Original • ${shortUrl(currentUrl)}` : `Annotating • ${shortUrl(currentUrl)}`}
+                        </span>
+                        <button
+                          type="button"
+                          className="browser-comment-preview-button"
+                          data-testid="browser-comment-preview-original"
+                          disabled={pendingComment !== null}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            if (pendingComment !== null) return
+                            setCommentPreviewOriginal(!commentPreviewOriginal)
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' && event.key !== ' ') return
+                            event.preventDefault()
+                            event.stopPropagation()
+                            if (pendingComment !== null) return
+                            setCommentPreviewOriginal(!commentPreviewOriginal)
+                          }}
+                        >
+                          {commentPreviewOriginal ? 'Back to annotations' : 'Preview original'}
+                        </button>
+                      </div>
+                      {pendingComment === null && !commentPreviewOriginal && <span>Click to comment</span>}
+                      {commentDragRegion !== null && (
+                        <div
+                          className="browser-comment-region-selection"
+                          data-testid="browser-comment-region-selection"
+                          aria-hidden="true"
+                          style={{
+                            left: `${commentDragRegion.leftPercent}%`,
+                            top: `${commentDragRegion.topPercent}%`,
+                            width: `${commentDragRegion.widthPercent}%`,
+                            height: `${commentDragRegion.heightPercent}%`
+                          }}
+                        />
+                      )}
+                      {pendingComment?.region && (
+                        <div
+                          className="browser-comment-region-marker"
+                          data-testid="browser-comment-region-marker"
+                          aria-hidden="true"
+                          style={{
+                            left: `${pendingComment.region.leftPercent}%`,
+                            top: `${pendingComment.region.topPercent}%`,
+                            width: `${pendingComment.region.widthPercent}%`,
+                            height: `${pendingComment.region.heightPercent}%`
+                          }}
+                        />
+                      )}
+                      {commentCoachmarkVisible && (
+                        <div className="browser-comment-coachmark" data-testid="browser-comment-coachmark">
+                          <div className="browser-comment-coachmark-title">Try comment mode</div>
+                          <div className="browser-comment-coachmark-body">Click the page to leave visual context for the chat.</div>
+                          <button
+                            type="button"
+                            data-testid="browser-comment-coachmark-dismiss"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              patchWorkbench({ commentCoachmarkDismissed: true })
+                            }}
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      )}
+                      {pendingComment !== null && (
+                        <form
+                          className="browser-comment-editor"
+                          data-testid="browser-comment-editor"
+                          style={{ left: `${pendingComment.leftPercent}%`, top: `${pendingComment.topPercent}%` }}
+                          onClick={(event) => event.stopPropagation()}
+                          onSubmit={(event) => {
+                            event.preventDefault()
+                            submitPointComment()
+                          }}
+                        >
+                          <div className="browser-comment-editor-pin" data-testid="browser-comment-editor-pin" aria-hidden="true" />
+                          <div className="browser-comment-editor-header">
+                            <span>{commentIntent === 'design-tweak' ? 'Design tweak' : 'Browser comment'}</span>
+                            <span data-testid="browser-comment-editor-point">{pendingCommentScope}</span>
+                          </div>
+                          <div className="browser-comment-intent-control" data-testid="browser-comment-intent-control" role="group" aria-label="Browser annotation type">
+                            <button
+                              type="button"
+                              data-testid="browser-comment-intent-comment"
+                              data-browser-comment-intent-active={commentIntent === 'comment' ? 'true' : 'false'}
+                              onClick={() => setCommentIntent('comment')}
+                            >
+                              Comment
+                            </button>
+                            <button
+                              type="button"
+                              data-testid="browser-comment-intent-design"
+                              data-browser-comment-intent-active={commentIntent === 'design-tweak' ? 'true' : 'false'}
+                              onClick={() => setCommentIntent('design-tweak')}
+                            >
+                              Tweak
+                            </button>
+                          </div>
+                          <textarea
+                            className="browser-comment-editor-input"
+                            data-testid="browser-comment-editor-input"
+                            aria-label="Browser comment"
+                            placeholder={commentIntent === 'design-tweak'
+                              ? 'Describe the design change'
+                              : pendingComment.region
+                                ? 'Add a note for this region'
+                                : 'Add a note for this point'}
+                            value={commentDraft}
+                            onChange={(event) => setCommentDraft(event.currentTarget.value)}
+                            autoFocus
+                          />
+                          <div className="browser-comment-editor-actions">
+                            <Button variant="secondary" dataTestId="browser-comment-editor-cancel" onClick={cancelPointComment}>Cancel</Button>
+                            <Button type="submit" dataTestId="browser-comment-editor-send">Send</Button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             ) : (
               <div className="browser-hidden-state" data-testid="browser-hidden-state">
+                <div className="browser-hidden-webview-host" aria-hidden="true">
+                  <BrowserWebviewManager
+                    hostId={hostId}
+                    webviewHostId={browserWebviewHostId}
+                    transferSourceHostId={browserTransferSourceHostId}
+                    transferTargetHostId={browserTransferTargetHostId}
+                    transferId={workbench.webviewTransferId}
+                    tabs={browserWebviewTabs}
+                    activeTabId={workbench.activeTabId}
+                    visible={false}
+                    error={error}
+                    viewport={viewport}
+                    visibleGeometry={visibleGeometry}
+                    browserUseActive={workbench.browserUseActive}
+                    browserUseTurnId={workbench.browserUseTurnId}
+                    browserUseViewportSize={workbench.browserUseViewportSize}
+                    browserUseCaptureSurfaceSize={workbench.browserUseCaptureSurfaceSize}
+                    browserUseCaptureBounds={workbench.browserUseCaptureBounds}
+                    browserUseCursorState={workbench.browserUseCursorState}
+                    webviewRefs={webviewRefs}
+                    workbenchRef={workbenchRef}
+                    activeWebviewRef={webviewRef}
+                    onContextMenu={openPageContextMenu}
+                  />
+                </div>
                 <Icon name="browser" size={26} />
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Hidden</div>
                 <div className="max-w-56 text-xs" style={{ color: 'var(--text-tertiary)' }}>
@@ -1111,69 +1801,129 @@ export default function BrowserPanel({
                     {hiddenLocalTargets.length > 0 && (
                       <button
                         type="button"
+                        aria-label={localTargetView === 'online'
+                          ? `Show ${hiddenLocalTargets.length} hidden local ${hiddenLocalTargets.length === 1 ? 'server' : 'servers'}`
+                          : 'Show online local servers'}
+                        title={localTargetView === 'online'
+                          ? `Hidden ${hiddenLocalTargets.length}`
+                          : 'Online local servers'}
                         data-testid="browser-local-target-view"
                         data-local-target-view={localTargetView}
                         onClick={() => setLocalTargetView((view) => view === 'online' ? 'hidden' : 'online')}
                       >
-                        {localTargetView === 'online' ? `Hidden ${hiddenLocalTargets.length}` : 'Online'}
+                        <Icon name={localTargetView === 'online' ? 'archive' : 'browser'} size={12} />
+                        {localTargetView === 'online' && (
+                          <span className="browser-local-target-action-count">{hiddenLocalTargets.length}</span>
+                        )}
                       </button>
                     )}
                     <button
                       type="button"
+                      aria-label={localTargetSort === 'recent' ? 'Sort local servers by port' : 'Sort local servers by recent use'}
+                      title={localTargetSort === 'recent' ? 'Recent first' : 'Port order'}
                       data-testid="browser-local-target-sort"
                       data-local-target-sort={localTargetSort}
                       onClick={() => setLocalTargetSort((sort) => sort === 'recent' ? 'port' : 'recent')}
                     >
-                      {localTargetSort === 'recent' ? 'Recent' : 'Port'}
+                      <Icon name={localTargetSort === 'recent' ? 'clock' : 'terminal'} size={12} />
                     </button>
-                    <button type="button" onClick={() => void refreshLocalTargets()}>Refresh</button>
+                    <button
+                      type="button"
+                      aria-label="Refresh local servers"
+                      title="Refresh local servers"
+                      onClick={() => void refreshLocalTargets()}
+                    >
+                      <Icon name="refresh" size={12} />
+                    </button>
                   </div>
                 </div>
                 <div className="browser-local-targets-list" aria-live="polite">
-                  {shownLocalTargets.length > 0 ? shownLocalTargets.map((target) => (
-                    <div
-                      key={target.url}
-                      className="browser-local-target-row"
-                      data-testid={localTargetView === 'hidden' ? 'browser-local-target-hidden' : 'browser-local-target'}
-                      data-local-target-url={target.url}
-                      data-local-target-source={target.source}
-                      data-local-target-status={localTargetView === 'hidden' ? 'hidden' : 'running'}
-                    >
-                      <button
-                        className="browser-local-target-main"
-                        type="button"
-                        onClick={() => navigate(target.url)}
-                      >
-                        <Icon name="browser" size={13} />
-                        <span className="min-w-0 flex-1 truncate">{target.title || shortUrl(target.url)}</span>
-                        <span
-                          className="browser-local-target-meta"
-                          aria-label={`${target.source === 'recent' ? 'Recent' : 'Port'} local server ${shortUrl(target.url)}`}
+                  {shownLocalTargets.length > 0 ? shownLocalTargets.map((target) => {
+                    const targetRoutes = localServerRoutesByTarget.get(target.url) ?? []
+                    return (
+                      <div key={target.url} className="browser-local-target-group">
+                        <div
+                          className="browser-local-target-row"
+                          data-testid={localTargetView === 'hidden' ? 'browser-local-target-hidden' : 'browser-local-target'}
+                          data-local-target-url={target.url}
+                          data-local-target-source={target.source}
+                          data-local-target-status={localTargetView === 'hidden' ? 'hidden' : 'running'}
+                          data-local-target-route-count={targetRoutes.length}
                         >
-                          <span className="browser-local-target-status-dot" aria-hidden="true" />
-                          <span>{shortUrl(target.url)}</span>
-                        </span>
-                      </button>
-                      <button
-                        className="browser-local-target-action"
-                        type="button"
-                        data-testid={localTargetView === 'hidden' ? 'browser-local-target-unhide' : 'browser-local-target-hide'}
-                        aria-label={localTargetView === 'hidden' ? `Unhide ${shortUrl(target.url)}` : `Hide ${shortUrl(target.url)}`}
-                        onClick={() => {
-                          if (localTargetView === 'hidden') {
-                            unhideLocalTarget(target.url)
-                          } else {
-                            hideLocalTarget(target.url)
-                          }
-                        }}
-                      >
-                        <Icon name={localTargetView === 'hidden' ? 'plus' : 'close'} size={11} />
-                      </button>
-                    </div>
-                  )) : (
-                    <div className="browser-local-targets-empty" data-testid="browser-local-targets-empty">
+                          <button
+                            className="browser-local-target-main"
+                            type="button"
+                            onClick={() => navigate(target.url)}
+                          >
+                            <Icon name="browser" size={13} />
+                            <span className="min-w-0 flex-1 truncate">{target.title || shortUrl(target.url)}</span>
+                            <span
+                              className="browser-local-target-meta"
+                              aria-label={`${target.source === 'recent' ? 'Recent' : 'Port'} local server ${shortUrl(target.url)}`}
+                            >
+                              <span className="browser-local-target-status-dot" aria-hidden="true" />
+                              <span>{target.source === 'recent' ? 'Recent' : 'Port'}</span>
+                            </span>
+                          </button>
+                          <button
+                            className="browser-local-target-action"
+                            type="button"
+                            data-testid={localTargetView === 'hidden' ? 'browser-local-target-unhide' : 'browser-local-target-hide'}
+                            aria-label={localTargetView === 'hidden' ? `Unhide ${shortUrl(target.url)}` : `Hide ${shortUrl(target.url)}`}
+                            onClick={() => {
+                              if (localTargetView === 'hidden') {
+                                unhideLocalTarget(target.url)
+                              } else {
+                                hideLocalTarget(target.url)
+                              }
+                            }}
+                          >
+                            <Icon name={localTargetView === 'hidden' ? 'plus' : 'close'} size={11} />
+                          </button>
+                        </div>
+                        {localTargetView === 'online' && targetRoutes.length > 0 && (
+                          <div className="browser-local-target-routes" data-testid="browser-local-target-routes">
+                            {targetRoutes.map((route) => (
+                              <div
+                                key={route.url}
+                                className="browser-local-target-route"
+                                data-testid="browser-local-server-route"
+                                data-local-route-url={route.url}
+                                data-local-route-server-url={target.url}
+                                data-local-route-source={route.source ?? 'provider'}
+                              >
+                                <button
+                                  type="button"
+                                  className="browser-local-target-route-main"
+                                  onClick={() => navigate(route.url)}
+                                >
+                                  <span>{routePathLabel(route.url)}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="browser-local-target-route-remove"
+                                  data-testid="browser-local-server-route-remove"
+                                  aria-label={`Remove route ${routePathLabel(route.url)}`}
+                                  onClick={() => removeLocalServerRoute(route.url)}
+                                >
+                                  <Icon name="close" size={10} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }) : (
+                    <PanelMessage
+                      centered
+                      compact
+                      className="browser-local-targets-empty"
+                      dataTestId="browser-local-targets-empty"
+                      state={localTargetsLoading ? 'loading' : localTargetView === 'hidden' ? 'hidden-empty' : 'empty'}
+                    >
                       {localTargetsLoading ? 'Looking for servers...' : localTargetView === 'hidden' ? 'No hidden servers' : 'No local servers'}
-                    </div>
+                    </PanelMessage>
                   )}
                 </div>
               </div>
@@ -1241,7 +1991,7 @@ export default function BrowserPanel({
 
         {workbench.inspectorOpen && (
           <div className="browser-inspector-drawer">
-            <div className="browser-inspector-toolbar" data-testid="browser-inspector-toolbar">
+            <PanelToolbar className="browser-inspector-toolbar" dataTestId="browser-inspector-toolbar">
               {BROWSER_INSPECTOR_TABS.map(({ mode, label, icon }) => (
                 <button
                   key={mode}
@@ -1261,6 +2011,7 @@ export default function BrowserPanel({
                   icon="refresh"
                   label="Refresh browser inspector"
                   size="sm"
+                  variant="toolbar"
                   dataTestId="browser-refresh-inspection"
                   disabled={!currentUrl || !visible}
                   onClick={runInspection}
@@ -1269,11 +2020,12 @@ export default function BrowserPanel({
                   icon="close"
                   label="Hide browser inspector"
                   size="sm"
+                  variant="toolbar"
                   dataTestId="browser-hide-inspection"
                   onClick={() => patchWorkbench({ inspectorOpen: false })}
                 />
               </div>
-            </div>
+            </PanelToolbar>
             <div className="browser-inspector-output" data-testid="browser-inspector-output">
               {workbench.inspectorMode === 'console' && (
                 <ConsolePane
@@ -1345,30 +2097,31 @@ function BrowserLoadErrorPane({
   const suggestions = loadErrorSuggestions(error)
 
   return (
-    <div className="browser-load-error" data-testid="browser-load-error">
-      <div className="browser-load-error-icon">
-        <Icon name="browser" size={22} />
-      </div>
-      <div className="browser-load-error-copy">
-        <div className="browser-load-error-title">Page unavailable</div>
-        <div className="browser-load-error-summary">
-          {loadErrorSummary(error, host)}
-        </div>
-        <div className="browser-load-error-code">{error}</div>
-      </div>
-      <div className="browser-load-error-actions">
-        <button type="button" data-testid="browser-load-error-retry" onClick={onRetry}>Retry</button>
-        <button type="button" data-testid="browser-load-error-hard-reload" onClick={onHardReload}>Hard reload</button>
-        <button type="button" data-testid="browser-load-error-copy-url" onClick={onCopyUrl}>Copy URL</button>
-        <button type="button" data-testid="browser-load-error-open-external" onClick={onOpenExternal}>Open in browser</button>
-      </div>
-      <div className="browser-load-error-suggestions">
+    <PanelNotice
+      actions={(
+        <>
+          <Button className="browser-load-error-action" dataTestId="browser-load-error-retry" onClick={onRetry} variant="primary">Retry</Button>
+          <Button className="browser-load-error-action" dataTestId="browser-load-error-hard-reload" onClick={onHardReload}>Hard reload</Button>
+          <Button className="browser-load-error-action" dataTestId="browser-load-error-copy-url" onClick={onCopyUrl}>Copy URL</Button>
+          <Button className="browser-load-error-action" dataTestId="browser-load-error-open-external" onClick={onOpenExternal}>Open in browser</Button>
+        </>
+      )}
+      className="browser-load-error"
+      code={error}
+      dataTestId="browser-load-error"
+      description={loadErrorSummary(error, host)}
+      icon={<Icon name="browser" size={22} />}
+      state="load-error"
+      title="Page unavailable"
+      tone="danger"
+    >
+      <div className="orchestrator-panel-notice-suggestions browser-load-error-suggestions">
         <span>Try</span>
         {suggestions.map((suggestion) => (
           <div key={suggestion}>{suggestion}</div>
         ))}
       </div>
-    </div>
+    </PanelNotice>
   )
 }
 
@@ -1414,7 +2167,9 @@ function ConsolePane({
       )}
       <div className="space-y-1">
         {logs.length === 0 ? (
-          <div style={{ color: 'var(--text-tertiary)' }}>No console messages captured.</div>
+          <PanelMessage compact dataTestId="browser-console-empty" state="empty">
+            No console messages captured.
+          </PanelMessage>
         ) : logs.slice(-8).map((entry, index) => (
           <div key={`${entry.timestamp}-${index}`} className="grid grid-cols-[52px_minmax(0,1fr)] gap-2 rounded-md px-2 py-1" style={{ background: 'var(--control-bg)' }}>
             <span style={{ color: logColor(entry.level) }}>{entry.level}</span>
@@ -1478,8 +2233,7 @@ function TargetsPane({
 
   return (
     <div className="browser-targets-pane">
-      <div className="browser-target-section">
-        <div className="browser-target-section-title">Element</div>
+      <InspectorSection title="Element" className="browser-target-section">
         <div className="browser-target-select-row">
           <select
             data-testid="browser-target-select"
@@ -1518,17 +2272,17 @@ function TargetsPane({
             className="w-full rounded-md px-2 py-1 text-xs outline-none"
             style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
           />
-          <button
-            type="button"
-            aria-label="Run target action"
-            data-testid="browser-target-run-action"
+          <IconButton
+            icon="send"
+            label="Run target action"
+            size="sm"
+            variant="toolbar"
+            tooltip={false}
             className="browser-target-run-button"
             onClick={() => onRunTargetAction(targetAction)}
             disabled={!canRunAction}
-          >
-            <Icon name="send" size={13} />
-            <span className="sr-only">Run</span>
-          </button>
+            dataTestId="browser-target-run-action"
+          />
         </div>
         {targetReadResult && (
           <div
@@ -1548,22 +2302,20 @@ function TargetsPane({
             <span className="truncate">{targetReadResult.selector || 'none'}</span>
           </div>
         )}
-      </div>
+      </InspectorSection>
       <div className="browser-target-side-stack">
-        <details className="browser-target-secondary-panel" data-testid="browser-target-pointer-panel">
-          <summary>Pointer</summary>
+        <InspectorDisclosure title="Pointer" className="browser-target-secondary-panel" dataTestId="browser-target-pointer-panel">
           <div className="grid grid-cols-3 gap-1">
             <SmallNumber label="X" value={coordinateAction.x} onChange={(x) => onCoordinateChange({ ...coordinateAction, x })} />
             <SmallNumber label="Y" value={coordinateAction.y} onChange={(y) => onCoordinateChange({ ...coordinateAction, y })} />
             <SmallNumber label="Scroll" value={coordinateAction.scrollY} onChange={(scrollY) => onCoordinateChange({ ...coordinateAction, scrollY })} />
           </div>
           <div className="browser-target-action-row">
-            <ActionButton label="Click x/y" onClick={() => onRunCoordinateAction('click')} />
-            <ActionButton label="Scroll x/y" onClick={() => onRunCoordinateAction('scroll')} />
+            <ActionButton label="Click x/y" dataTestId="browser-target-coordinate-click" onClick={() => onRunCoordinateAction('click')} />
+            <ActionButton label="Scroll x/y" dataTestId="browser-target-coordinate-scroll" onClick={() => onRunCoordinateAction('scroll')} />
           </div>
-        </details>
-        <details className="browser-target-secondary-panel" data-testid="browser-target-clipboard-panel">
-          <summary>Clipboard</summary>
+        </InspectorDisclosure>
+        <InspectorDisclosure title="Clipboard" className="browser-target-secondary-panel" dataTestId="browser-target-clipboard-panel">
           <div className="flex gap-1">
             <input
               value={clipboardText}
@@ -1572,10 +2324,10 @@ function TargetsPane({
               className="min-w-0 flex-1 rounded-md px-2 py-1 text-xs outline-none"
               style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
             />
-            <ActionButton label="Read" onClick={onReadClipboard} />
-            <ActionButton label="Write" onClick={onWriteClipboard} />
+            <ActionButton label="Read" dataTestId="browser-target-clipboard-read" onClick={onReadClipboard} />
+            <ActionButton label="Write" dataTestId="browser-target-clipboard-write" onClick={onWriteClipboard} />
           </div>
-        </details>
+        </InspectorDisclosure>
       </div>
     </div>
   )
@@ -1591,43 +2343,42 @@ function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetI
   const visibleInlineSvgs = (inventory?.inlineSvgs ?? []).slice(0, 4)
   return (
     <div className="browser-assets-pane" data-testid="browser-assets-pane">
-      <div className="browser-assets-header">
+      <InspectorRow className="browser-assets-header" dataTestId="browser-assets-header">
         <div className="min-w-0">
-          <div className="browser-target-section-title">Inventory</div>
+          <div className="orchestrator-inspector-section-title" data-inspector-section-title="true">Inventory</div>
           <div className="browser-assets-summary">
             <span>{inventory?.summary.totalCount ?? 0} files</span>
             <span>{inventory?.summary.inlineSvgCount ?? 0} inline svg</span>
           </div>
         </div>
-        <button
-          type="button"
-          data-testid="browser-assets-bundle"
+        <Button
+          dataTestId="browser-assets-bundle"
           className="browser-assets-bundle"
           disabled={!inventory}
           onClick={onBundle}
         >
           Bundle
-        </button>
-      </div>
+        </Button>
+      </InspectorRow>
       {bundlePath && (
-        <div className="browser-assets-bundle-path" data-testid="browser-assets-bundle-path">
+        <InspectorRow className="browser-assets-bundle-path" dataTestId="browser-assets-bundle-path">
           <span>manifest</span>
           <span>{bundlePath}</span>
-        </div>
+        </InspectorRow>
       )}
       {kindEntries.length > 0 && (
         <div className="browser-assets-kind-grid" data-testid="browser-assets-kind-grid">
           {kindEntries.map(([kind, count]) => (
-            <div key={kind} className="browser-assets-kind">
+            <InspectorRow key={kind} className="browser-assets-kind" variant="muted">
               <span>{kind}</span>
               <strong>{count}</strong>
-            </div>
+            </InspectorRow>
           ))}
         </div>
       )}
       <div className="browser-assets-list" data-testid="browser-assets-list">
         {visibleAssets.length > 0 ? visibleAssets.map((asset) => (
-          <div key={asset.id} className="browser-assets-row" data-testid="browser-assets-row">
+          <InspectorRow key={asset.id} className="browser-assets-row" dataTestId="browser-assets-row">
             <Badge tone="neutral">{asset.kind}</Badge>
             <div className="min-w-0">
               <div className="browser-assets-name">{asset.name}</div>
@@ -1636,19 +2387,18 @@ function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetI
                 <span>{asset.sources.length} source{asset.sources.length === 1 ? '' : 's'}</span>
               </div>
             </div>
-          </div>
+          </InspectorRow>
         )) : (
-          <div className="browser-assets-empty" data-testid="browser-assets-empty">
+          <PanelMessage centered className="browser-assets-empty" dataTestId="browser-assets-empty" framed state="empty">
             Inspect a loaded page to collect assets.
-          </div>
+          </PanelMessage>
         )}
       </div>
       {visibleInlineSvgs.length > 0 && (
-        <div className="browser-assets-inline" data-testid="browser-inline-svg-list">
-          <div className="browser-target-section-title">Inline SVGs</div>
+        <InspectorSection title="Inline SVGs" className="browser-assets-inline" dataTestId="browser-inline-svg-list">
           <div className="browser-assets-list">
             {visibleInlineSvgs.map((asset) => (
-              <div key={asset.id} className="browser-assets-row" data-testid="browser-inline-svg-row">
+              <InspectorRow key={asset.id} className="browser-assets-row" dataTestId="browser-inline-svg-row">
                 <Badge tone="neutral">svg</Badge>
                 <div className="min-w-0">
                   <div className="browser-assets-name">{asset.name}</div>
@@ -1657,10 +2407,10 @@ function AssetsPane({ inventory, bundlePath, onBundle }: { inventory: PageAssetI
                     <span>inline markup</span>
                   </div>
                 </div>
-              </div>
+              </InspectorRow>
             ))}
           </div>
-        </div>
+        </InspectorSection>
       )}
     </div>
   )
@@ -1694,12 +2444,10 @@ function SecurityPane({
 }): JSX.Element {
   return (
     <div className="browser-security-pane" data-testid="browser-security-pane">
-      <div className="browser-security-card" data-testid="browser-security-origin">
-        <div className="browser-target-section-title">Current origin</div>
+      <InspectorSection title="Current origin" className="browser-security-card" dataTestId="browser-security-origin" variant="raised">
         <div className="browser-security-origin">{currentOrigin || 'none'}</div>
-      </div>
-      <div className="browser-security-card">
-        <div className="browser-target-section-title">Defaults</div>
+      </InspectorSection>
+      <InspectorSection title="Defaults" className="browser-security-card" variant="raised">
         <PolicySelect
           label="Approval"
           value={workbench.approvalMode}
@@ -1720,14 +2468,13 @@ function SecurityPane({
           value={workbench.uploadApprovalMode}
           onChange={(uploadApprovalMode) => onPatch({ uploadApprovalMode })}
         />
-      </div>
-      <div className="browser-security-card browser-security-policies" data-testid="browser-security-policies">
-        <div className="browser-target-section-title">Origins</div>
+      </InspectorSection>
+      <InspectorSection title="Origins" className="browser-security-card browser-security-policies" dataTestId="browser-security-policies" variant="raised">
         <PolicyRow label="Allowed" values={workbench.allowedOrigins} onAdd={() => onAddOriginPolicy('allowedOrigins')} onClear={() => onClearOriginPolicy('allowedOrigins')} />
         <PolicyRow label="Blocked" values={workbench.blockedOrigins} onAdd={() => onAddOriginPolicy('blockedOrigins')} onClear={() => onClearOriginPolicy('blockedOrigins')} />
         <PolicyRow label="Downloads" values={workbench.allowedDownloadOrigins} blockedValues={workbench.blockedDownloadOrigins} onAdd={() => onAddOriginPolicy('allowedDownloadOrigins')} onClear={() => onClearOriginPolicy('allowedDownloadOrigins')} />
         <PolicyRow label="Uploads" values={workbench.allowedUploadOrigins} blockedValues={workbench.blockedUploadOrigins} onAdd={() => onAddOriginPolicy('allowedUploadOrigins')} onClear={() => onClearOriginPolicy('allowedUploadOrigins')} />
-      </div>
+      </InspectorSection>
     </div>
   )
 }
@@ -1768,7 +2515,7 @@ function PolicyRow({
       ? `blocked: ${blockedValues.join(', ')}`
       : 'none'
   return (
-    <div className="browser-policy-row" data-testid="browser-security-policy-row">
+    <InspectorRow className="browser-policy-row" dataTestId="browser-security-policy-row" variant="muted">
       <div className="min-w-0">
         <div className="browser-policy-name">{label}</div>
         <div className="browser-policy-value">{summary}</div>
@@ -1777,7 +2524,7 @@ function PolicyRow({
         <ActionButton label="Add" onClick={onAdd} />
         <ActionButton label="Clear" onClick={onClear} disabled={values.length === 0} />
       </div>
-    </div>
+    </InspectorRow>
   )
 }
 
@@ -1793,16 +2540,14 @@ function ActionButton({
   dataTestId?: string
 }): JSX.Element {
   return (
-    <button
-      type="button"
+    <Button
       disabled={disabled}
-      data-testid={dataTestId}
-      className="rounded-md px-2 py-1 text-[11px] font-semibold disabled:opacity-45"
-      style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
+      dataTestId={dataTestId}
+      className="browser-inspector-action-button"
       onClick={onClick}
     >
       {label}
-    </button>
+    </Button>
   )
 }
 
@@ -1831,6 +2576,18 @@ function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl
     deviceMode: state?.deviceMode ?? 'desktop',
     viewportWidth: state?.viewportWidth ?? 1280,
     viewportHeight: state?.viewportHeight ?? 720,
+    browserUseActive: state?.browserUseActive ?? false,
+    browserUseTurnId: state?.browserUseTurnId ?? null,
+    browserUseViewportSize: normalizeBrowserUseSurfaceSize(state?.browserUseViewportSize ?? null),
+    browserUseCaptureSurfaceSize: normalizeBrowserUseSurfaceSize(state?.browserUseCaptureSurfaceSize ?? null),
+    browserUseCaptureBounds: normalizeBrowserUseSurfaceBounds(state?.browserUseCaptureBounds ?? null),
+    browserUseCursorState: normalizeBrowserUseCursorState(state?.browserUseCursorState ?? null),
+    webviewTransferSourceHostId: normalizeBrowserTransferHostId(state?.webviewTransferSourceHostId ?? null),
+    webviewTransferTargetHostId: normalizeBrowserTransferHostId(state?.webviewTransferTargetHostId ?? null),
+    webviewTransferId: typeof state?.webviewTransferId === 'string' && state.webviewTransferId.trim() ? state.webviewTransferId : null,
+    commentMode: state?.commentMode ?? false,
+    commentCoachmarkDismissed: state?.commentCoachmarkDismissed ?? false,
+    commentPreviewOriginal: state?.commentPreviewOriginal ?? false,
     visible: state?.visible ?? true,
     activeTabId: tabs.some((tab) => tab.id === state?.activeTabId) ? state!.activeTabId : tabs[0].id,
     tabs,
@@ -1848,7 +2605,206 @@ function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl
     blockedDownloadOrigins: state?.blockedDownloadOrigins ?? [],
     allowedUploadOrigins: state?.allowedUploadOrigins ?? [],
     blockedUploadOrigins: state?.blockedUploadOrigins ?? [],
-    hiddenLocalTargets: state?.hiddenLocalTargets ?? []
+    hiddenLocalTargets: state?.hiddenLocalTargets ?? [],
+    localServerRoutes: normalizeLocalServerRoutes(state?.localServerRoutes ?? []),
+    hiddenLocalServerRoutes: normalizeHiddenLocalServerRoutes(state?.hiddenLocalServerRoutes ?? [])
+  }
+}
+
+function normalizeBrowserTransferHostId(hostId: string | null | undefined): string | null {
+  if (typeof hostId !== 'string') return null
+  const trimmed = hostId.trim()
+  return trimmed ? trimmed : null
+}
+
+function normalizeBrowserUseSurfaceSize(size: BrowserUseSurfaceSize | null | undefined): BrowserUseSurfaceSize | null {
+  if (size == null) return null
+  return {
+    width: clampViewportSize(size.width, 'width'),
+    height: clampViewportSize(size.height, 'height')
+  }
+}
+
+function normalizeBrowserUseSurfaceBounds(bounds: BrowserUseSurfaceBounds | null | undefined): BrowserUseSurfaceBounds | null {
+  if (bounds == null) return null
+  const x = Number.isFinite(bounds.x) ? Math.max(0, Math.round(bounds.x)) : 0
+  const y = Number.isFinite(bounds.y) ? Math.max(0, Math.round(bounds.y)) : 0
+  const scale = Number(bounds.scale)
+  return {
+    x,
+    y,
+    width: clampViewportSize(bounds.width, 'width'),
+    height: clampViewportSize(bounds.height, 'height'),
+    ...(Number.isFinite(scale) && scale > 0 ? { scale: Math.round(scale * 1000) / 1000 } : {})
+  }
+}
+
+function normalizeLocalServerRoutes(routes: BrowserLocalServerRoute[] | null | undefined): BrowserLocalServerRoute[] {
+  if (!Array.isArray(routes)) return []
+  const normalized = new Map<string, BrowserLocalServerRoute>()
+  for (const route of routes) {
+    if (!route || typeof route !== 'object') continue
+    const url = normalizeLocalRouteUrl(route.url)
+    const serverUrl = normalizeLocalRouteUrl(route.serverUrl)
+    if (!url || !serverUrl) continue
+    normalized.set(url, {
+      serverUrl,
+      url,
+      title: typeof route.title === 'string' ? route.title : null,
+      source: route.source === 'history' || route.source === 'manual' ? route.source : 'provider'
+    })
+  }
+  return [...normalized.values()].sort((left, right) => left.serverUrl.localeCompare(right.serverUrl) || left.url.localeCompare(right.url))
+}
+
+function normalizeHiddenLocalServerRoutes(routes: string[] | null | undefined): string[] {
+  if (!Array.isArray(routes)) return []
+  return [...new Set(routes.map(normalizeLocalRouteUrl).filter((url): url is string => Boolean(url)))].sort()
+}
+
+function localServerRoutesForTarget(target: LocalBrowserTarget, workbench: BrowserWorkbenchState): BrowserLocalServerRoute[] {
+  const hiddenRoutes = new Set(workbench.hiddenLocalServerRoutes)
+  const routes = new Map<string, BrowserLocalServerRoute>()
+  const addRoute = (route: BrowserLocalServerRoute): void => {
+    if (hiddenRoutes.has(route.url) || route.url === target.url || !sameLocalOrigin(route.url, target.url)) return
+    routes.set(route.url, route)
+  }
+  for (const route of workbench.localServerRoutes) addRoute(route)
+  for (const historyEntry of workbench.history) {
+    const routeUrl = normalizeLocalRouteUrl(historyEntry.url)
+    if (!routeUrl) continue
+    addRoute({
+      serverUrl: target.url,
+      url: routeUrl,
+      title: historyEntry.title,
+      source: 'history'
+    })
+  }
+  return [...routes.values()].sort((left, right) => left.url.localeCompare(right.url)).slice(0, 4)
+}
+
+function normalizeLocalRouteUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    const hostname = parsed.hostname
+    if (hostname === '0.0.0.0') parsed.hostname = '127.0.0.1'
+    else if (!isLoopbackRouteHostname(hostname)) return null
+    parsed.hash = ''
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
+function isLoopbackRouteHostname(hostname: string): boolean {
+  return hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+}
+
+function sameLocalOrigin(left: string, right: string): boolean {
+  try {
+    return new URL(left).origin === new URL(right).origin
+  } catch {
+    return false
+  }
+}
+
+function routePathLabel(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return `${parsed.pathname || '/'}${parsed.search}` || '/'
+  } catch {
+    return shortUrl(url)
+  }
+}
+
+function browserVisibleGeometryForStage(
+  rect: DOMRect,
+  viewport: { width: number | string; height: number | string },
+  devicePreviewActive: boolean
+): BrowserVisibleGeometry {
+  const stageBounds = roundSurfaceBounds({
+    x: rect.x,
+    y: rect.y,
+    width: Math.max(0, rect.width),
+    height: Math.max(0, rect.height),
+    scale: 1
+  })
+  const logicalWidth = typeof viewport.width === 'number' ? viewport.width : Math.max(1, Math.round(rect.width))
+  const logicalHeight = typeof viewport.height === 'number' ? viewport.height : Math.max(1, Math.round(rect.height))
+  const scale = devicePreviewActive
+    ? Math.min(
+        1,
+        Math.max(0, rect.width - BROWSER_STAGE_MARGIN_X * 2) / logicalWidth,
+        Math.max(0, rect.height - BROWSER_STAGE_MARGIN_BOTTOM) / logicalHeight
+      )
+    : 1
+  const safeScale = Number.isFinite(scale) && scale > 0 ? Math.round(scale * 1000) / 1000 : 1
+  const visualWidth = devicePreviewActive ? Math.round(logicalWidth * safeScale) : Math.round(rect.width)
+  const visualHeight = devicePreviewActive ? Math.round(logicalHeight * safeScale) : Math.round(rect.height)
+  const visualX = Math.round(rect.x + (devicePreviewActive ? Math.max(BROWSER_STAGE_MARGIN_X, (rect.width - visualWidth) / 2) : 0))
+  const visualY = Math.round(rect.y)
+  return {
+    stageBounds,
+    visualBounds: {
+      x: visualX,
+      y: visualY,
+      width: Math.max(1, visualWidth),
+      height: Math.max(1, visualHeight),
+      scale: safeScale
+    },
+    webviewBounds: {
+      x: visualX,
+      y: visualY,
+      width: Math.max(1, Math.round(logicalWidth)),
+      height: Math.max(1, Math.round(logicalHeight)),
+      scale: safeScale
+    },
+    scale: safeScale
+  }
+}
+
+function roundSurfaceBounds(bounds: BrowserUseSurfaceBounds): BrowserUseSurfaceBounds {
+  return {
+    x: Math.round(bounds.x),
+    y: Math.round(bounds.y),
+    width: Math.max(1, Math.round(bounds.width)),
+    height: Math.max(1, Math.round(bounds.height)),
+    ...(bounds.scale == null ? {} : { scale: Math.round(bounds.scale * 1000) / 1000 })
+  }
+}
+
+function browserVisibleGeometryEqual(left: BrowserVisibleGeometry | null, right: BrowserVisibleGeometry | null): boolean {
+  if (left === right) return true
+  if (!left || !right) return false
+  return left.scale === right.scale &&
+    browserSurfaceBoundsEqual(left.stageBounds, right.stageBounds) &&
+    browserSurfaceBoundsEqual(left.visualBounds, right.visualBounds) &&
+    browserSurfaceBoundsEqual(left.webviewBounds, right.webviewBounds)
+}
+
+function browserSurfaceBoundsEqual(left: BrowserUseSurfaceBounds, right: BrowserUseSurfaceBounds): boolean {
+  return left.x === right.x &&
+    left.y === right.y &&
+    left.width === right.width &&
+    left.height === right.height &&
+    (left.scale ?? 1) === (right.scale ?? 1)
+}
+
+function normalizeBrowserUseCursorState(state: BrowserUseCursorState | null | undefined): BrowserUseCursorState | null {
+  if (state == null) return null
+  const x = Number.isFinite(state.x) ? Math.max(0, Math.round(state.x)) : 0
+  const y = Number.isFinite(state.y) ? Math.max(0, Math.round(state.y)) : 0
+  return {
+    ...(state.animateMovement == null ? {} : { animateMovement: state.animateMovement }),
+    ...(state.moveSequence == null ? {} : { moveSequence: state.moveSequence }),
+    visible: state.visible,
+    x,
+    y
   }
 }
 
@@ -1891,11 +2847,15 @@ function activeBrowserTab(workbench: BrowserWorkbenchState): BrowserTabState {
   return workbench.tabs.find((tab) => tab.id === workbench.activeTabId) ?? workbench.tabs[0] ?? DEFAULT_TAB
 }
 
+function browserTabsWithWebviews(workbench: BrowserWorkbenchState): BrowserTabState[] {
+  return workbench.tabs.filter((tab) => tab.url)
+}
+
 function browserViewport(workbench: BrowserWorkbenchState): { width: number | string; height: number | string } {
   if (workbench.deviceMode === 'desktop') return { width: '100%', height: '100%' }
   return {
-    width: Math.max(280, workbench.viewportWidth),
-    height: Math.max(420, workbench.viewportHeight)
+    width: clampViewportSize(workbench.viewportWidth, 'width'),
+    height: clampViewportSize(workbench.viewportHeight, 'height')
   }
 }
 
@@ -1916,9 +2876,9 @@ function viewportPreset(
     case 'pixel':
       return { width: 412, height: 915 }
     case 'galaxyS24Ultra':
-      return { width: 384, height: 854 }
+      return { width: 384, height: 824 }
     case 'ipadMini':
-      return { width: 744, height: 1133 }
+      return { width: 768, height: 1024 }
     case 'ipad':
       return { width: 820, height: 1180 }
     case 'surfaceDuo':
@@ -1926,14 +2886,23 @@ function viewportPreset(
     case 'surfacePro7':
       return { width: 912, height: 1368 }
     case 'laptop':
-      return { width: 1366, height: 768 }
+      return { width: 1024, height: 768 }
     case 'laptopLarge':
       return { width: 1440, height: 900 }
     case 'desktop4k':
-      return { width: 3840, height: 2160 }
+      return { width: 2560, height: 1440 }
     case 'custom':
-      return { width: currentWidth, height: currentHeight }
+      return {
+        width: clampViewportSize(currentWidth, 'width'),
+        height: clampViewportSize(currentHeight, 'height')
+      }
   }
+}
+
+function clampViewportSize(value: number, axis: 'width' | 'height'): number {
+  const min = axis === 'width' ? MIN_VIEWPORT_SIZE.width : MIN_VIEWPORT_SIZE.height
+  const max = axis === 'width' ? MAX_VIEWPORT_SIZE.width : MAX_VIEWPORT_SIZE.height
+  return Math.min(max, Math.max(min, Math.round(value)))
 }
 
 function normalizeUrl(raw: string): string {
@@ -2015,6 +2984,13 @@ function urlHost(url: string): string {
   } catch {
     return url
   }
+}
+
+function commentUnavailableReason(url: string, visible: boolean, error: string | null): string {
+  if (!url) return 'Open a page before leaving visual comments.'
+  if (!visible) return 'Show the browser surface before leaving visual comments.'
+  if (error) return 'Resolve the page load error before leaving visual comments.'
+  return ''
 }
 
 function loadErrorSummary(error: string, host: string): string {

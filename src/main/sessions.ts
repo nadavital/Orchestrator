@@ -5,10 +5,10 @@ import { execFile } from 'child_process'
 import { readFileSync } from 'fs'
 import { performance } from 'perf_hooks'
 import { promisify } from 'util'
-import type { Attachment, Session, SessionListItem, ChatMessage, ProviderRuntimeKind, RunEvent, RunRequest, SessionStatus, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary } from '../types'
-import { PROVIDER_DEFS, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
+import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionListItem, ChatMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
+import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
-import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand } from './providers'
+import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw } from './providers'
 import type { ProviderAdapter } from './providers'
 import { providerRuntime } from './providerRuntime'
 import { eventsToMessages } from './runEvents'
@@ -19,7 +19,8 @@ import { approvalBroker } from './approvalBroker'
 import { safeWindowSend } from './safeWebContents'
 import { searchTranscriptMessages, transcriptPageForMessages } from './transcriptIndex'
 import { recordPerformanceMetric } from './performanceTelemetry'
-import { ensurePinnedSessionOrders, nextPinOrder } from '../types'
+import { applyCodexThreadListMetadata, applyProviderPinnedThreadState, ensurePinnedSessionOrders, nextPinOrder, reorderPinnedSessions } from '../types'
+import { shouldRefreshCodexSidebarMetadataAfterRun, shouldRefreshCodexSidebarMetadataOnIdle, syncCodexSidebarThreadMetadata } from './providerSidebarSync'
 
 interface SessionStore {
   sessions: Session[]
@@ -31,12 +32,24 @@ const store = new Store<SessionStore>({ defaults: { sessions: [] } })
 const execFileAsync = promisify(execFile)
 const MAX_ATTACHMENT_CHARS = 80_000
 const SESSION_LIST_TAIL_MESSAGES = 8
+const CODEX_SIDEBAR_REFRESH_AFTER_RUN_DELAY_MS = 750
+const CODEX_SIDEBAR_RECURRING_REFRESH_INTERVAL_MS = 10 * 60 * 1000
+
+let codexSidebarRefreshAfterRunTimer: ReturnType<typeof setTimeout> | null = null
+let codexSidebarRecurringRefreshTimer: ReturnType<typeof setInterval> | null = null
+let codexSidebarRecurringRefreshInFlight = false
+let codexSidebarLastRefreshAt: number | null = null
 
 interface PendingFollowUp {
   id: string
   prompt: string
   mode: 'queued' | 'steer_next'
   attachments?: Attachment[]
+}
+
+interface SendMessageOptions {
+  permissionSnapshot?: AutomationPermissionSnapshot | null
+  onProviderRunComplete?: (result: { ok: boolean; error?: string | null }) => void
 }
 
 const pendingFollowUps = new Map<string, PendingFollowUp[]>()
@@ -81,6 +94,34 @@ function normalizeSession(session: Session): Session {
     messages: hasRuntime ? session.messages : finalizeInterruptedMessages(session.messages),
     providerSessionId: session.providerSessionId ?? session.claudeSessionId ?? null,
     runtime: sessionRuntimeForProvider(providerId, session.runtime)
+  }
+}
+
+function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
+  const view = process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW
+  if (!process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT || !(view === 'diff' || view?.startsWith('diff-') || view === 'environment' || view === 'inspector')) return undefined
+  return {
+    pullRequest: {
+      number: 42,
+      title: 'Review metadata smoke',
+      url: 'https://github.com/openai/orchestrator/pull/42',
+      state: 'open',
+      branch: 'codex/review-metadata-smoke',
+      baseBranch: 'main'
+    },
+    checks: {
+      status: 'failing',
+      total: 3,
+      passed: 1,
+      failing: 1,
+      pending: 1
+    },
+    reviewers: {
+      requested: 2,
+      approved: 1,
+      changesRequested: 1,
+      names: ['Ada', 'Linus']
+    }
   }
 }
 
@@ -319,6 +360,88 @@ function clearRuntimeState(sessionId: string): void {
   providerRuntime.cleanupSession(sessionId)
 }
 
+function shouldRemoveManagedWorktree(session: Session): boolean {
+  return Boolean(
+    session.useWorktree &&
+    session.repoRoot &&
+    session.workDir &&
+    gitManager.isManagedWorktreePathForSession(session.repoRoot, session.workDir, session.id)
+  )
+}
+
+function worktreeStateRank(state: Session['worktreeState'] | undefined): number {
+  if (state === 'failed') return 3
+  if (state === 'pending') return 2
+  if (state === 'ready') return 1
+  return 0
+}
+
+function combinedWorktreeState(sessions: Session[]): Session['worktreeState'] {
+  return sessions.reduce<Session['worktreeState']>((current, session) => (
+    worktreeStateRank(session.worktreeState) > worktreeStateRank(current) ? session.worktreeState : current
+  ), 'ready') ?? 'ready'
+}
+
+function worktreeInventoryFromSessions(sessions: Session[]): WorktreeInventoryItem[] {
+  const groups = new Map<string, Session[]>()
+  for (const session of sessions) {
+    if (!session.useWorktree || !session.workDir) continue
+    const key = `${session.repoRoot ?? ''}\n${session.workDir}`
+    const current = groups.get(key) ?? []
+    current.push(session)
+    groups.set(key, current)
+  }
+
+  return Array.from(groups.values()).map((linkedSessions) => {
+    const sorted = [...linkedSessions].sort((a, b) => (b.latestMessageAt ?? b.createdAt) - (a.latestMessageAt ?? a.createdAt))
+    const first = sorted[0]
+    const owner = sorted.find((session) => (
+      Boolean(session.repoRoot) &&
+      gitManager.isManagedWorktreePathForSession(session.repoRoot!, session.workDir, session.id)
+    )) ?? null
+    const updatedAt = Math.max(...sorted.map((session) => session.latestMessageAt ?? session.createdAt))
+    return {
+      id: `${first.repoRoot ?? 'no-repo'}:${first.workDir}`,
+      repoRoot: first.repoRoot ?? null,
+      workDir: first.workDir,
+      state: combinedWorktreeState(sorted) ?? 'ready',
+      managed: owner !== null,
+      ownerSessionId: owner?.id ?? null,
+      conversationCount: sorted.length,
+      conversations: sorted.map((session) => ({
+        id: session.id,
+        name: session.name,
+        status: session.status,
+        provider: session.provider,
+        worktreeState: session.worktreeState,
+        updatedAt: session.latestMessageAt ?? session.createdAt
+      })),
+      updatedAt
+    }
+  }).sort((a, b) => {
+    const repoCompare = (a.repoRoot ?? '').localeCompare(b.repoRoot ?? '')
+    if (repoCompare !== 0) return repoCompare
+    return b.updatedAt - a.updatedAt
+  })
+}
+
+async function archiveSessionRecord(session: Session, options: { cleanupWorktree: boolean }): Promise<void> {
+  if (session.archivedAt) return
+  if (options.cleanupWorktree && shouldRemoveManagedWorktree(session)) {
+    try {
+      await gitManager.removeWorktree(session.repoRoot!, session.workDir)
+    } catch {
+      /* ignore cleanup errors */
+    }
+  }
+  clearRuntimeState(session.id)
+  session.archivedAt = Date.now()
+  session.pinned = false
+  session.pinOrder = undefined
+  session.status = 'idle'
+  send('session:archived', { id: session.id })
+}
+
 export const sessionManager = {
   list(): Session[] {
     return activeStoredSessions().map(normalizeSession)
@@ -357,22 +480,38 @@ export const sessionManager = {
     const sessions = ensurePinnedOrders(store.get('sessions', []))
     const session = sessions.find((s) => s.id === sessionId)
     if (!session) return
-    if (session.archivedAt) return
+    await archiveSessionRecord(session, { cleanupWorktree: true })
+    store.set('sessions', sessions)
+  },
 
-    if (session.useWorktree && session.repoRoot && session.workDir) {
-      try {
-        await gitManager.removeWorktree(session.repoRoot, session.workDir)
-      } catch {
-        /* ignore cleanup errors */
-      }
+  listWorktrees(): WorktreeInventoryItem[] {
+    return worktreeInventoryFromSessions(activeStoredSessions().map(normalizeSession))
+  },
+
+  async deleteWorktree(workDir: string): Promise<WorktreeInventoryItem[]> {
+    const sessions = ensurePinnedOrders(store.get('sessions', []))
+    const linkedSessions = sessions.filter((session) => !session.archivedAt && session.useWorktree && session.workDir === workDir)
+    if (linkedSessions.length === 0) return worktreeInventoryFromSessions(sessions.filter((session) => !session.archivedAt).map(normalizeSession))
+    const owner = linkedSessions.find((session) => (
+      Boolean(session.repoRoot) &&
+      gitManager.isManagedWorktreePathForSession(session.repoRoot!, session.workDir, session.id)
+    ))
+    if (!owner?.repoRoot) {
+      throw new Error('Only app-managed worktrees can be deleted from settings')
     }
 
-    session.archivedAt = Date.now()
-    session.pinned = false
-    session.pinOrder = undefined
-    session.status = 'idle'
+    for (const session of linkedSessions) {
+      this.stop(session.id)
+      await archiveSessionRecord(session, { cleanupWorktree: false })
+    }
+
+    try {
+      await gitManager.removeWorktree(owner.repoRoot, workDir)
+    } catch {
+      /* ignore cleanup errors for missing or already-removed worktrees */
+    }
     store.set('sessions', sessions)
-    send('session:archived', { id: sessionId })
+    return worktreeInventoryFromSessions(sessions.filter((session) => !session.archivedAt).map(normalizeSession))
   },
 
   restoreArchived(sessionId: string): Session | undefined {
@@ -503,12 +642,17 @@ export const sessionManager = {
     workDir: string
     useWorktree: boolean
     repoRoot?: string
+    worktreeBaseRef?: string
+    worktreeBranchName?: string
   }): Promise<Session> {
     const id = uuidv4()
     let workDir = opts.workDir
 
     if (opts.useWorktree && opts.repoRoot) {
-      workDir = await gitManager.createWorktree(opts.repoRoot, id)
+      workDir = await gitManager.createWorktree(opts.repoRoot, id, {
+        baseRef: opts.worktreeBaseRef,
+        branchName: opts.worktreeBranchName
+      })
     }
 
     const defaultProvider = settingsStore.get('defaultProvider', 'claude') as string
@@ -527,6 +671,7 @@ export const sessionManager = {
       projectId: opts.projectId,
       workDir,
       useWorktree: opts.useWorktree,
+      worktreeState: opts.useWorktree ? 'ready' : undefined,
       repoRoot: opts.repoRoot,
       providerSessionId: null,
       status: 'idle',
@@ -541,11 +686,159 @@ export const sessionManager = {
       disallowedTools: [],
       availableTools: [],
       additionalDirs: [],
-      runtime: defaultRuntimeForProvider(defaultProvider)
+      runtime: defaultRuntimeForProvider(defaultProvider),
+      reviewMetadata: automatedReviewSmokeMetadata()
     }
 
     this.save(session)
     send('session:created', session)
+    return session
+  },
+
+  async fork(sessionId: string, mode: SessionForkMode): Promise<Session> {
+    const source = this.get(sessionId)
+    if (!source) throw new Error(`Session ${sessionId} not found`)
+
+    const id = uuidv4()
+    const now = Date.now()
+    const localRoot = source.repoRoot ?? source.workDir
+    let workDir = mode === 'local' ? localRoot : source.workDir
+    let useWorktree = mode !== 'local' && source.useWorktree
+    let repoRoot = source.repoRoot
+    let worktreeState = mode !== 'local' ? source.worktreeState : undefined
+
+    if (mode === 'new-worktree') {
+      repoRoot = source.repoRoot ?? source.workDir
+      if (!repoRoot || !(await gitManager.isGitRepo(repoRoot))) {
+        throw new Error('Fork into new worktree requires a git repository')
+      }
+      workDir = gitManager.worktreePathForSession(repoRoot, id)
+      useWorktree = true
+      worktreeState = 'pending'
+    } else if (mode === 'same-worktree') {
+      useWorktree = source.useWorktree
+      workDir = source.workDir
+      repoRoot = source.repoRoot
+      worktreeState = source.worktreeState
+    }
+
+    const messages: ChatMessage[] = [
+      ...source.messages.map((message) => ({ ...message })),
+      {
+        id: `forked-from-${source.id}-${now}`,
+        role: 'system',
+        type: 'text',
+        content: `Forked from "${source.name}".`,
+        timestamp: now
+      }
+    ]
+
+    const forked: Session = {
+      ...source,
+      id,
+      name: `Forked: ${source.name}`,
+      pinned: false,
+      pinOrder: undefined,
+      projectId: source.projectId,
+      workDir,
+      useWorktree,
+      worktreeState,
+      repoRoot,
+      providerSessionId: null,
+      claudeSessionId: null,
+      status: worktreeState === 'pending' ? 'reconnecting' : 'idle',
+      messages,
+      messageCount: messages.length,
+      messagesLoaded: true,
+      previewText: undefined,
+      latestMessageAt: now,
+      archivedAt: undefined,
+      createdAt: now
+    }
+
+    this.save(forked)
+    send('session:created', forked)
+    if (mode === 'new-worktree' && repoRoot) void this.materializePendingWorktree(forked.id, repoRoot)
+    return forked
+  },
+
+  async materializePendingWorktree(sessionId: string, repoRoot: string): Promise<void> {
+    try {
+      const workDir = await gitManager.createWorktree(repoRoot, sessionId)
+      const sessions = store.get('sessions', [])
+      const session = sessions.find((s) => s.id === sessionId)
+      if (!session || session.archivedAt) {
+        try {
+          await gitManager.removeWorktree(repoRoot, workDir)
+        } catch {
+          /* ignore cleanup races */
+        }
+        return
+      }
+      session.workDir = workDir
+      session.useWorktree = true
+      session.repoRoot = repoRoot
+      session.worktreeState = 'ready'
+      session.status = 'idle'
+      store.set('sessions', sessions)
+      send('session:updated', {
+        id: sessionId,
+        workDir,
+        useWorktree: true,
+        repoRoot,
+        worktreeState: 'ready',
+        status: 'idle'
+      })
+    } catch (error) {
+      const sessions = store.get('sessions', [])
+      const session = sessions.find((s) => s.id === sessionId)
+      if (!session || session.archivedAt) return
+      session.worktreeState = 'failed'
+      session.status = 'error'
+      store.set('sessions', sessions)
+      send('session:updated', {
+        id: sessionId,
+        workDir: session.workDir,
+        useWorktree: true,
+        repoRoot,
+        worktreeState: 'failed',
+        status: 'error'
+      })
+      this.appendMessage(sessionId, [{
+        id: `worktree-create-failed-${Date.now()}`,
+        role: 'system',
+        type: 'result',
+        content: error instanceof Error ? error.message : String(error),
+        subtype: 'error_during_execution',
+        timestamp: Date.now()
+      }])
+    }
+  },
+
+  async retryPendingWorktree(sessionId: string): Promise<Session> {
+    const sessions = store.get('sessions', [])
+    const session = sessions.find((s) => s.id === sessionId)
+    if (!session) throw new Error(`Session ${sessionId} not found`)
+    if (!session.useWorktree || session.worktreeState !== 'failed') {
+      throw new Error('Only failed pending worktree sessions can be retried')
+    }
+    const repoRoot = session.repoRoot
+    if (!repoRoot || !(await gitManager.isGitRepo(repoRoot))) {
+      throw new Error('Retry worktree creation requires a git repository')
+    }
+    session.workDir = gitManager.worktreePathForSession(repoRoot, sessionId)
+    session.worktreeState = 'pending'
+    session.status = 'reconnecting'
+    store.set('sessions', sessions)
+    send('session:updated', {
+      id: sessionId,
+      workDir: session.workDir,
+      useWorktree: true,
+      repoRoot,
+      worktreeState: 'pending',
+      status: 'reconnecting'
+    })
+    void this.materializePendingWorktree(sessionId, repoRoot)
     return session
   },
 
@@ -567,9 +860,125 @@ export const sessionManager = {
     if (s) {
       s.pinned = pinned
       s.pinOrder = pinned ? nextPinOrder(sessions) : undefined
+      if (!pinned) {
+        s.providerPinned = false
+        s.providerPinOrder = undefined
+        s.providerPinnedThreadKey = undefined
+      }
       store.set('sessions', sessions)
       send('session:pinned', { id, pinned, pinOrder: s.pinOrder })
     }
+  },
+
+  reorderPinned(orderedPinnedSessionIds: string[]): void {
+    const sessions = ensurePinnedOrders(store.get('sessions', []))
+    const nextSessions = reorderPinnedSessions(sessions, orderedPinnedSessionIds)
+    const changed = nextSessions.filter((nextSession, index) => (
+      nextSession.pinned !== sessions[index]?.pinned ||
+      nextSession.pinOrder !== sessions[index]?.pinOrder
+    ))
+    if (changed.length === 0) return
+    store.set('sessions', nextSessions)
+    for (const session of changed) {
+      send('session:pinned', { id: session.id, pinned: session.pinned === true, pinOrder: session.pinOrder })
+    }
+  },
+
+  applyProviderPinnedThreads(providerId: string, threadKeys: string[]): void {
+    const sessions = ensurePinnedOrders(store.get('sessions', []))
+    const nextSessions = applyProviderPinnedThreadState(sessions, { providerId, threadKeys })
+    const changed = nextSessions.filter((nextSession, index) => nextSession !== sessions[index])
+    if (changed.length === 0) return
+
+    store.set('sessions', nextSessions)
+    for (const session of changed) {
+      send('session:updated', {
+        id: session.id,
+        providerPinned: session.providerPinned,
+        providerPinOrder: session.providerPinOrder,
+        providerPinnedThreadKey: session.providerPinnedThreadKey
+      })
+    }
+  },
+
+  applyCodexThreadListMetadata(threadListResult: unknown): number {
+    const sessions = ensurePinnedOrders(store.get('sessions', []))
+    const nextSessions = applyCodexThreadListMetadata(sessions, threadListResult)
+    const changed = nextSessions.filter((nextSession, index) => nextSession !== sessions[index])
+    if (changed.length === 0) return 0
+
+    store.set('sessions', nextSessions)
+    for (const session of changed) {
+      send('session:updated', {
+        id: session.id,
+        providerThreadSource: session.providerThreadSource,
+        providerHostId: session.providerHostId,
+        providerHostLabel: session.providerHostLabel,
+        providerWorktreeSourceRoot: session.providerWorktreeSourceRoot,
+        providerWorktreeRoot: session.providerWorktreeRoot,
+        providerWorktreeHostId: session.providerWorktreeHostId,
+        providerWorktreeHostLabel: session.providerWorktreeHostLabel,
+        providerProjectless: session.providerProjectless,
+        providerProjectlessThreadId: session.providerProjectlessThreadId,
+        previewText: session.previewText,
+        latestMessageAt: session.latestMessageAt
+      })
+    }
+    return changed.length
+  },
+
+  async refreshCodexSidebarMetadata(cwd = process.cwd()): Promise<ProviderSidebarSyncResult> {
+    const result = await syncCodexSidebarThreadMetadata({
+      cwd,
+      sessions: store.get('sessions', []),
+      fetchThreadList: (targetCwd) => runCodexAppServerCommandSurfaceRaw('appserver-threads', targetCwd),
+      applyThreadList: (threadListResult) => this.applyCodexThreadListMetadata(threadListResult)
+    })
+    if (result.skipped !== 'no-provider-sessions') {
+      codexSidebarLastRefreshAt = Date.now()
+    }
+    return result
+  },
+
+  scheduleCodexSidebarMetadataRefresh(cwd = process.cwd()): void {
+    if (codexSidebarRefreshAfterRunTimer) clearTimeout(codexSidebarRefreshAfterRunTimer)
+    codexSidebarRefreshAfterRunTimer = setTimeout(() => {
+      codexSidebarRefreshAfterRunTimer = null
+      void this.refreshCodexSidebarMetadata(cwd)
+    }, CODEX_SIDEBAR_REFRESH_AFTER_RUN_DELAY_MS)
+  },
+
+  refreshCodexSidebarMetadataIfIdle(cwd = process.cwd()): boolean {
+    if (!shouldRefreshCodexSidebarMetadataOnIdle({
+      now: Date.now(),
+      lastRefreshAt: codexSidebarLastRefreshAt,
+      minIntervalMs: CODEX_SIDEBAR_RECURRING_REFRESH_INTERVAL_MS,
+      inFlight: codexSidebarRecurringRefreshInFlight,
+      smokeOutput: process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT
+    })) {
+      return false
+    }
+
+    codexSidebarRecurringRefreshInFlight = true
+    void this.refreshCodexSidebarMetadata(cwd).finally(() => {
+      codexSidebarRecurringRefreshInFlight = false
+    })
+    return true
+  },
+
+  startCodexSidebarMetadataRecurringRefresh(cwd = process.cwd()): void {
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) return
+    if (codexSidebarRecurringRefreshTimer) return
+    codexSidebarRecurringRefreshTimer = setInterval(() => {
+      this.refreshCodexSidebarMetadataIfIdle(cwd)
+    }, CODEX_SIDEBAR_RECURRING_REFRESH_INTERVAL_MS)
+    codexSidebarRecurringRefreshTimer.unref?.()
+  },
+
+  stopCodexSidebarMetadataRecurringRefresh(): void {
+    if (!codexSidebarRecurringRefreshTimer) return
+    clearInterval(codexSidebarRecurringRefreshTimer)
+    codexSidebarRecurringRefreshTimer = null
   },
 
   async startProviderRun(
@@ -577,7 +986,8 @@ export const sessionManager = {
     session: Session,
     provider: ProviderAdapter,
     request: RunRequest,
-    mode: 'start' | 'resume' = 'start'
+    mode: 'start' | 'resume' = 'start',
+    onProviderRunComplete?: (result: { ok: boolean; error?: string | null }) => void
   ): Promise<boolean> {
     const startedAt = performance.now()
     const preparedRequest = await providerRuntime.prepareRunRequest(
@@ -619,7 +1029,19 @@ export const sessionManager = {
           void this.runQueuedFollowUp(sessionId, followUp)
           return
         }
-        if (!isPausedOrFailed(this.get(sessionId)?.status ?? 'idle')) {
+        const status = this.get(sessionId)?.status ?? 'idle'
+        const ok = !isPausedOrFailed(status)
+        onProviderRunComplete?.({ ok, error: ok ? null : status })
+        const currentSession = this.get(sessionId) ?? session
+        const runtime = request.runtime ?? currentSession.runtime ?? session.runtime ?? 'headless'
+        if (shouldRefreshCodexSidebarMetadataAfterRun({
+          providerId: currentSession.provider ?? provider.id,
+          runtime,
+          smokeOutput: process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT
+        })) {
+          this.scheduleCodexSidebarMetadataRefresh(request.cwd || currentSession.workDir || process.cwd())
+        }
+        if (ok) {
           this.updateStatus(sessionId, 'idle')
         }
       }
@@ -649,13 +1071,14 @@ export const sessionManager = {
         timestamp: Date.now()
       }])
       this.updateStatus(sessionId, 'error')
+      onProviderRunComplete?.({ ok: false, error: result.message ?? 'Provider runtime failed to start.' })
       return false
     }
 
     return true
   },
 
-  async sendMessage(sessionId: string, prompt: string, useWorktree?: boolean, attachments: Attachment[] = []): Promise<void> {
+  async sendMessage(sessionId: string, prompt: string, useWorktree?: boolean, attachments: Attachment[] = [], options: SendMessageOptions = {}): Promise<boolean> {
     const session = this.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
     const activeProviderId = session.provider ?? 'claude'
@@ -689,7 +1112,7 @@ export const sessionManager = {
         appendPendingFollowUp(sessionId, { id: messageId, prompt: effectivePrompt, mode: 'queued', attachments: runtimeAttachments })
         this.updateStatus(sessionId, 'running')
       }
-      return
+      return true
     }
 
     // Lazy worktree creation on first message if requested
@@ -701,11 +1124,13 @@ export const sessionManager = {
           const worktreePath = await gitManager.createWorktree(s.repoRoot, sessionId)
           s.workDir = worktreePath
           s.useWorktree = true
+          s.worktreeState = 'ready'
         } else {
           s.useWorktree = false
+          s.worktreeState = undefined
         }
         store.set('sessions', sessions)
-        send('session:updated', { id: sessionId, workDir: s.workDir, useWorktree: s.useWorktree })
+        send('session:updated', { id: sessionId, workDir: s.workDir, useWorktree: s.useWorktree, worktreeState: s.worktreeState })
       }
     }
 
@@ -731,11 +1156,11 @@ export const sessionManager = {
 
     const currentSession = this.get(sessionId)!
     const provider = getProvider(currentSession.provider ?? 'claude')
-    let runRequest: RunRequest = {
+    let runRequest: RunRequest = applyAutomationPermissionSnapshot({
       ...requestFromSession(currentSession, effectivePrompt),
       attachments: provider.id === 'codex' ? attachments : claudeResourceAttachmentSpecs(attachments)
-    }
-    await this.startProviderRun(sessionId, currentSession, provider, runRequest)
+    }, options.permissionSnapshot)
+    return this.startProviderRun(sessionId, currentSession, provider, runRequest, 'start', options.onProviderRunComplete)
   },
 
   applyRunEvents(sessionId: string, events: RunEvent[]): void {
@@ -852,14 +1277,23 @@ export const sessionManager = {
   },
 
   stop(sessionId: string): void {
+    const session = this.get(sessionId)
+    const shouldClearVisibleStatus =
+      session?.status === 'running' ||
+      session?.status === 'waiting_for_permission' ||
+      session?.status === 'waiting_for_user' ||
+      session?.status === 'reconnecting'
     if (providerRuntime.hasActiveRun(sessionId)) {
-      for (const message of this.get(sessionId)?.messages ?? []) {
+      for (const message of session?.messages ?? []) {
         if (message.type === 'text' && (message.queueState || message.isStreaming)) {
           this.upsertMessage(sessionId, { ...message, queueState: undefined, isStreaming: false })
         }
       }
       clearRuntimeState(sessionId)
       providerRuntime.stop(sessionId)
+      this.updateStatus(sessionId, 'idle')
+    } else if (shouldClearVisibleStatus) {
+      clearRuntimeState(sessionId)
       this.updateStatus(sessionId, 'idle')
     }
   },
@@ -1154,9 +1588,9 @@ export const sessionManager = {
   async remove(sessionId: string): Promise<void> {
     this.stop(sessionId)
     const session = this.get(sessionId)
-    if (session?.useWorktree && session.repoRoot && session.workDir) {
+    if (session && shouldRemoveManagedWorktree(session)) {
       try {
-        await gitManager.removeWorktree(session.repoRoot, session.workDir)
+        await gitManager.removeWorktree(session.repoRoot!, session.workDir)
       } catch {
         /* ignore cleanup errors */
       }
@@ -1169,5 +1603,21 @@ export const sessionManager = {
     const session = this.get(sessionId)
     if (!session) return ''
     return gitManager.getDiff(session.workDir)
+  },
+
+  async getReviewMetadata(sessionId: string): Promise<ReviewMetadata | undefined> {
+    const session = this.get(sessionId)
+    if (!session) return undefined
+    if (session.reviewMetadata) return session.reviewMetadata
+    const metadata = await gitManager.getReviewMetadata(session.workDir)
+    if (!metadata) return undefined
+    const sessions = store.get('sessions', [])
+    const stored = sessions.find((candidate) => candidate.id === sessionId)
+    if (stored) {
+      stored.reviewMetadata = metadata
+      store.set('sessions', sessions)
+      send('session:updated', { id: sessionId, reviewMetadata: metadata })
+    }
+    return metadata
   }
 }

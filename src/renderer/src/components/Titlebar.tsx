@@ -25,6 +25,7 @@ function Titlebar(): JSX.Element {
       providerSessionId: current.providerSessionId,
       provider: current.provider,
       model: current.model,
+      status: current.status,
       useWorktree: current.useWorktree
     }
   }))
@@ -35,10 +36,21 @@ function Titlebar(): JSX.Element {
   const showExtensions = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.showExtensions ?? false : false)
   const showSideQuestions = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.showSideQuestions ?? false : false)
   const rightPanelOpen = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.rightPanel?.open ?? false : false)
+  const rightPanelHasTabs = useSessionStore((state) => activeSessionId ? (state.uiState[activeSessionId]?.rightPanel?.tabs.length ?? 0) > 0 : false)
   const setShowTerminal = useSessionStore((state) => state.setShowTerminal)
   const setShowDiff = useSessionStore((state) => state.setShowDiff)
+  const setRightPanelOpen = useSessionStore((state) => state.setRightPanelOpen)
   const closeRightPanel = useSessionStore((state) => state.closeRightPanel)
+  const updateStatus = useSessionStore((state) => state.updateStatus)
+  const addSession = useSessionStore((state) => state.addSession)
+  const transferBrowserWorkbench = useSessionStore((state) => state.transferBrowserWorkbench)
+  const setActiveSession = useSessionStore((state) => state.setActiveSession)
+  const setShowSettings = useSessionStore((state) => state.setShowSettings)
+  const setShowCapabilities = useSessionStore((state) => state.setShowCapabilities)
+  const setHasUnread = useSessionStore((state) => state.setHasUnread)
+  const sessionUnread = useSessionStore((state) => activeSessionId ? state.uiState[activeSessionId]?.hasUnread ?? false : false)
   const projects = useProjectStore((state) => state.projects)
+  const addSessionToProject = useProjectStore((state) => state.addSessionToProject)
   const removeSessionFromProject = useProjectStore((state) => state.removeSessionFromProject)
   const project = session ? projects.find((candidate) => candidate.id === session.projectId) : null
   const [profile, setProfile] = useState<AppProfile | null>(null)
@@ -76,17 +88,22 @@ function Titlebar(): JSX.Element {
   }, [session?.workDir])
 
   const inspectorOpen = Boolean(
-    rightPanelOpen ||
-    showDiff ||
-    showPlan ||
-    showEvents ||
-    showExtensions ||
-    showSideQuestions
+    rightPanelOpen &&
+    (
+      rightPanelHasTabs ||
+      showDiff ||
+      showPlan ||
+      showEvents ||
+      showExtensions ||
+      showSideQuestions
+    )
   )
   const toggleInspector = (): void => {
     if (!activeSessionId) return
     if (inspectorOpen) {
       closeRightPanel(activeSessionId)
+    } else if (rightPanelHasTabs) {
+      setRightPanelOpen(activeSessionId, true)
     } else {
       setShowDiff(activeSessionId, true)
     }
@@ -142,6 +159,7 @@ function Titlebar(): JSX.Element {
                     data-tooltip-label={session.name}
                     data-native-title-free="true"
                     aria-label={session.name}
+                    tabIndex={0}
                     style={{ color: 'var(--text-primary)', maxWidth: 520, fontSize: 14, fontWeight: 540, lineHeight: '18px' }}
                   >
                     {session.name}
@@ -169,6 +187,7 @@ function Titlebar(): JSX.Element {
                   data-tooltip-label={metadataParts.join(' · ')}
                   data-native-title-free="true"
                   aria-label={metadataParts.join(' · ')}
+                  tabIndex={0}
                   style={{ color: 'var(--text-tertiary)', lineHeight: '14px', maxWidth: 680 }}
                 >
                   {metadataParts.map((part, index) => (
@@ -204,6 +223,7 @@ function Titlebar(): JSX.Element {
               data-testid="profile-badge"
               data-tooltip-label={`Profile: ${profile.displayName}`}
               data-native-title-free="true"
+              tabIndex={0}
               style={{
                 color: 'var(--text-secondary)',
                 border: '1px solid var(--border-subtle)',
@@ -260,6 +280,17 @@ function Titlebar(): JSX.Element {
           branch={branchLabel}
           onClose={() => setMenuPoint(null)}
           onRemove={removeActiveSession}
+          isUnread={sessionUnread}
+          onMarkUnread={(nextUnread) => setHasUnread(session.id, nextUnread)}
+          onStop={() => updateStatus(session.id, 'idle')}
+          onForked={(forked) => {
+            addSession(forked)
+            transferBrowserWorkbench(session.id, forked.id)
+            addSessionToProject(forked.projectId, forked.id)
+            setActiveSession(forked.id)
+            setShowSettings(false)
+            setShowCapabilities(false)
+          }}
         />
       )}
     </div>

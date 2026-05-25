@@ -26,6 +26,14 @@
         "zip"
       ]
     },
+    "protocols": [
+      {
+        "name": "Orchestrator Thread Links",
+        "schemes": [
+          "orchestrator"
+        ]
+      }
+    ],
     "extraResources": [
       {
         "from": "resources/pets",
@@ -49,6 +57,7 @@
     "smoke:app:packaged": "node scripts/launch-isolated-app.mjs --packaged",
     "smoke:ui:auto": "node scripts/run-automated-ui-smoke.mjs",
     "smoke:visual": "node scripts/run-visual-regression.mjs",
+    "smoke:visual:side-panels": "node scripts/run-side-panel-visual-inventory.mjs",
     "stress:workspace": "node scripts/create-stress-workspace.mjs",
     "replay:fixture": "node scripts/replay-provider-fixture.mjs",
     "verify:release": "node scripts/verify-release.mjs",

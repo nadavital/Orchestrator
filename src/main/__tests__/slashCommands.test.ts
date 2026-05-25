@@ -13,7 +13,8 @@ function runtimeInfo(): ProviderRuntimeInfo {
       interactivePermissions: true,
       allowedTools: true,
       workspaceSandbox: false,
-      fullAccessMode: true
+      fullAccessMode: true,
+      checkpointUndo: false
     },
     abstractCapabilities: [],
     policies: {},

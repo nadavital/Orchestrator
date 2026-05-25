@@ -8,7 +8,9 @@ import { fileURLToPath } from 'url'
 import { prepareMacSmokeBundle } from './lib/packaged-smoke-bundle.mjs'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const captureView = process.argv.includes('--settings-providers')
+const captureView = process.argv.includes('--settings-deeplink')
+  ? 'settings-deeplink'
+  : process.argv.includes('--settings-providers')
   ? 'settings-providers'
   : process.argv.includes('--settings')
   ? 'settings'
@@ -20,12 +22,36 @@ const captureView = process.argv.includes('--settings-providers')
         ? 'composer'
       : process.argv.includes('--pets')
         ? 'pets'
+      : process.argv.includes('--terminal-visual')
+        ? 'terminal-visual'
       : process.argv.includes('--header')
         ? 'header'
+      : process.argv.includes('--multi-window-focus')
+        ? 'multi-window-focus'
+      : process.argv.includes('--workbench-new-tab')
+        ? 'workbench-new-tab'
+      : process.argv.includes('--environment')
+        ? 'environment'
       : process.argv.includes('--right-panel')
         ? 'right-panel'
       : process.argv.includes('--workbench-perf')
         ? 'workbench-perf'
+      : process.argv.includes('--diff-entry')
+        ? 'diff-entry'
+      : process.argv.includes('--diff-empty')
+        ? 'diff-empty'
+      : process.argv.includes('--diff-loading')
+        ? 'diff-loading'
+      : process.argv.includes('--diff-conflict')
+        ? 'diff-conflict'
+      : process.argv.includes('--diff-narrow')
+        ? 'diff-narrow'
+      : process.argv.includes('--diff-core')
+        ? 'diff-core'
+      : process.argv.includes('--diff-source')
+        ? 'diff-source'
+      : process.argv.includes('--diff-preview')
+        ? 'diff-preview'
       : process.argv.includes('--diff')
         ? 'diff'
       : process.argv.includes('--files')
@@ -67,18 +93,230 @@ const captureView = process.argv.includes('--settings-providers')
                               : 'main'
 const runPackaged = process.argv.includes('--packaged')
 const foregroundSmoke = process.argv.includes('--foreground') ||
+  captureView === 'multi-window-focus' ||
   process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_FOREGROUND === '1'
 const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
-const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-perf', 'diff', 'files', 'side-chat', 'browser'])
+const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
+const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-new-tab', 'environment', 'workbench-perf', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
+const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
 let browserSmokeServer = null
 let browserSmokeUrl = ''
 
+function buildDiffChecks(result, view) {
+  const allChecks = {
+    isolatedProfile: result.profile?.isIsolated === true,
+    diffToolbarCompact: result.diffToolbarCompactWorks === true,
+    reviewToolbarHeaderRow: result.reviewToolbarHeaderRowWorks === true,
+    reviewToolbarPrimaryOrder: result.reviewToolbarPrimaryOrderWorks === true,
+    reviewSourceSummaryHeader: result.reviewSourceSummaryHeaderWorks === true,
+    reviewMetadataToolbar: result.reviewMetadataToolbarWorks === true,
+    reviewMetadataFlyoutShared: result.reviewMetadataFlyoutSharedWorks === true,
+    reviewTranscriptCard: result.reviewTranscriptCardWorks === true,
+    reviewTranscriptCardUndo: result.reviewTranscriptCardUndoWorks === true,
+    reviewTranscriptCardLastTurn: result.reviewTranscriptCardLastTurnWorks === true,
+    reviewEnvironmentPanel: result.reviewEnvironmentPanelWorks === true,
+    reviewEmptyState: result.reviewEmptyStateWorks === true,
+    reviewEmptyStateCalm: result.reviewEmptyStateCalmWorks === true,
+    reviewLoadingState: result.reviewLoadingStateWorks === true,
+    reviewLoadingStateCalm: result.reviewLoadingStateCalmWorks === true,
+    reviewLoadingKeepsSidePane: result.reviewLoadingKeepsSidePaneWorks === true,
+    reviewMergeConflictHelpers: result.reviewMergeConflictHelpersWorks === true,
+    reviewNarrowOverlay: result.reviewNarrowOverlayWorks === true,
+    reviewNarrowNoHorizontalOverflow: result.reviewNarrowNoHorizontalOverflowWorks === true,
+    reviewNarrowToolbarContained: result.reviewNarrowToolbarContainedWorks === true,
+    reviewNarrowSidePaneContained: result.reviewNarrowSidePaneContainedWorks === true,
+    reviewNarrowDiffReadable: result.reviewNarrowDiffReadableWorks === true,
+    diffListCompact: result.diffListCompactWorks === true,
+    reviewFileSections: result.reviewFileSectionStructureWorks === true,
+    reviewFileHeaderMetrics: result.reviewFileHeaderMetricsWork === true,
+    reviewDiffRowMetrics: result.reviewDiffRowMetricsWork === true,
+    reviewHunkSeparatorStructure: result.reviewHunkSeparatorStructureWorks === true,
+    reviewDiffIndicatorStructure: result.reviewDiffIndicatorStructureWork === true,
+    reviewDiffNativeColorCalm: result.reviewDiffNativeColorCalmWorks === true,
+    reviewDiffLineNumberContent: result.reviewDiffLineNumberContentWorks === true,
+    reviewDiffGutterUtility: result.reviewDiffGutterUtilityWorks === true,
+    reviewFileTreeGitLane: result.reviewFileTreeGitLaneWorks === true,
+    reviewVisualCheckpointReset: result.reviewVisualCheckpointResetWorks === true,
+    reviewTabPanelFocusRingCalm: result.reviewTabPanelFocusRingCalmWorks === true,
+    diffWorkbenchTree: result.diffWorkbenchTreeWorks === true,
+    diffWorkbenchTreeNativeTitleFree: result.diffWorkbenchTreeNativeTitleFreeWorks === true,
+    diffRevealSelectedPath: result.diffRevealSelectedPathWorks === true,
+    diffTreeGrouping: result.diffTreeGroupingWorks === true,
+    diffKeyboardNavigation: result.diffKeyboardNavigationWorks === true,
+    diffLineNumbers: result.diffLineNumbersWork === true,
+    diffLineSelection: result.diffLineSelectionWorks === true,
+    reviewLineComments: result.reviewLineCommentsWork === true,
+    reviewAnnotatedSelectionCalm: result.reviewAnnotatedSelectionCalmWork === true,
+    reviewSidePaneCommentCount: result.reviewSidePaneCommentCountWork === true,
+    reviewLineBlame: result.reviewLineBlameWork === true,
+    reviewGutterBlameSummary: result.reviewGutterBlameSummaryWork === true,
+    reviewGutterActionPopover: result.reviewGutterActionPopoverWork === true,
+    reviewMenuMessage: result.reviewMenuMessageWorks === true,
+    reviewFileJump: result.reviewFileJumpWorks === true,
+    reviewSidePaneChrome: result.reviewSidePaneChromeWorks === true,
+    reviewSidePaneResize: result.reviewSidePaneResizeWorks === true,
+    reviewLineOpensFileSourceTab: result.reviewLineOpensFileSourceTabWork === true,
+    reviewHiddenContextSeparatorStructure: result.reviewHiddenContextSeparatorStructureWork === true,
+    reviewHiddenContextExpansion: result.reviewHiddenContextExpansionWork === true,
+    reviewHiddenContextExpandAll: result.reviewHiddenContextExpandAllWork === true,
+    reviewLargeDiffWindow: result.reviewLargeDiffWindowWorks === true,
+    diffHunkCollapse: result.diffHunkCollapseWorks === true,
+    diffModeToggle: result.diffModeToggleWorks === true,
+    diffExpandCollapse: result.diffExpandCollapseWorks === true,
+    reviewWhitespaceToggle: result.reviewWhitespaceToggleWorks === true,
+    reviewWordDiffToggle: result.reviewWordDiffToggleWorks === true,
+    diffActionMenuCompact: result.diffActionMenuCompactWorks === true,
+    diffActionMenuMaterial: result.diffActionMenuMaterialWorks === true,
+    reviewGitApplyCommandCoversAll: result.reviewGitApplyCommandCoversAllWorks === true,
+    reviewFloatingGitActions: result.reviewFloatingGitActionsWork === true,
+    reviewRevertAllConfirmation: result.reviewRevertAllConfirmationWorks === true,
+    reviewLastTurnGitApplyCommand: result.reviewLastTurnGitApplyCommandWorks === true,
+    reviewSearch: result.reviewSearchWorks === true,
+    reviewSearchProjection: result.reviewSearchProjectionWorks === true,
+    reviewSearchContent: result.reviewSearchContentWorks === true,
+    reviewSourceModes: result.reviewSourceModesWork === true,
+    reviewWorktreeProviderSource: result.reviewWorktreeProviderSourceWorks === true,
+    reviewFullSourceRows: result.reviewFullSourceRowsWork === true,
+    reviewFullSourceBlame: result.reviewFullSourceBlameWorks === true,
+    reviewLoadFullFile: result.reviewLoadFullFileWorks === true,
+    reviewSearchClear: result.reviewSearchClearWorks === true,
+    reviewDiffFirst: result.reviewDiffFirstWorks === true,
+    reviewJsonPreview: result.reviewJsonPreviewWorks === true,
+    reviewCsvPreview: result.reviewCsvPreviewWorks === true,
+    reviewDocumentPreview: result.reviewDocumentPreviewWorks === true,
+    reviewNotebookPreview: result.reviewNotebookPreviewWorks === true,
+    reviewImageBinaryDiffFirst: result.reviewImageBinaryDiffFirstWorks === true,
+    reviewImagePreview: result.reviewImagePreviewWorks === true,
+    reviewBinaryState: result.reviewBinaryStateWorks === true,
+    reviewFallbackNoticeShared: result.reviewFallbackNoticeSharedWorks === true,
+    reviewBinaryActions: result.reviewBinaryActionsWork === true,
+    reviewGitActions: result.reviewGitActionsWork === true
+  }
+  const groups = {
+    'diff-entry': [
+      'isolatedProfile',
+      'diffToolbarCompact',
+      'reviewToolbarHeaderRow',
+      'reviewToolbarPrimaryOrder',
+      'reviewSourceSummaryHeader',
+      'reviewMetadataToolbar',
+      'reviewMetadataFlyoutShared',
+      'reviewTranscriptCard',
+      'reviewTranscriptCardUndo',
+      'reviewEnvironmentPanel'
+    ],
+    'diff-empty': [
+      'isolatedProfile',
+      'reviewEmptyState',
+      'reviewEmptyStateCalm'
+    ],
+    'diff-loading': [
+      'isolatedProfile',
+      'reviewLoadingState',
+      'reviewLoadingStateCalm',
+      'reviewLoadingKeepsSidePane'
+    ],
+    'diff-conflict': [
+      'isolatedProfile',
+      'reviewMergeConflictHelpers'
+    ],
+    'diff-narrow': [
+      'isolatedProfile',
+      'reviewNarrowOverlay',
+      'reviewNarrowNoHorizontalOverflow',
+      'reviewNarrowToolbarContained',
+      'reviewNarrowSidePaneContained',
+      'reviewNarrowDiffReadable'
+    ],
+    'diff-core': [
+      'isolatedProfile',
+      'diffToolbarCompact',
+      'reviewToolbarHeaderRow',
+      'reviewToolbarPrimaryOrder',
+      'reviewSourceSummaryHeader',
+      'diffListCompact',
+      'reviewFileSections',
+      'reviewFileHeaderMetrics',
+      'reviewDiffRowMetrics',
+      'reviewHunkSeparatorStructure',
+      'reviewDiffIndicatorStructure',
+      'reviewDiffNativeColorCalm',
+      'reviewDiffLineNumberContent',
+      'reviewDiffGutterUtility',
+      'reviewFileTreeGitLane',
+      'reviewTabPanelFocusRingCalm',
+      'diffWorkbenchTree',
+      'diffWorkbenchTreeNativeTitleFree',
+      'diffRevealSelectedPath',
+      'diffTreeGrouping',
+      'diffKeyboardNavigation',
+      'diffLineNumbers',
+      'diffLineSelection',
+      'diffHunkCollapse',
+      'diffModeToggle',
+      'diffExpandCollapse',
+      'diffActionMenuCompact',
+      'diffActionMenuMaterial',
+      'reviewGitApplyCommandCoversAll',
+      'reviewFloatingGitActions',
+      'reviewRevertAllConfirmation'
+    ],
+    'diff-source': [
+      'isolatedProfile',
+      'reviewSearch',
+      'reviewSearchProjection',
+      'reviewSearchContent',
+      'reviewSourceModes',
+      'reviewTranscriptCardLastTurn',
+      'reviewLastTurnGitApplyCommand',
+      'reviewWorktreeProviderSource',
+      'reviewFullSourceRows',
+      'reviewFullSourceBlame',
+      'reviewLoadFullFile',
+      'reviewSearchClear',
+      'reviewLineComments',
+      'reviewAnnotatedSelectionCalm',
+      'reviewSidePaneCommentCount',
+      'reviewLineBlame',
+      'reviewGutterBlameSummary',
+      'reviewGutterActionPopover',
+      'reviewMenuMessage',
+      'reviewFileJump',
+      'reviewSidePaneChrome',
+      'reviewSidePaneResize',
+      'reviewLineOpensFileSourceTab',
+      'reviewHiddenContextSeparatorStructure',
+      'reviewHiddenContextExpansion',
+      'reviewHiddenContextExpandAll',
+      'reviewLargeDiffWindow'
+    ],
+    'diff-preview': [
+      'isolatedProfile',
+      'reviewWhitespaceToggle',
+      'reviewWordDiffToggle',
+      'reviewDiffFirst',
+      'reviewJsonPreview',
+      'reviewCsvPreview',
+      'reviewDocumentPreview',
+      'reviewNotebookPreview',
+      'reviewImageBinaryDiffFirst',
+      'reviewImagePreview',
+      'reviewBinaryState',
+      'reviewFallbackNoticeShared',
+      'reviewBinaryActions',
+      'reviewGitActions'
+    ]
+  }
+  const keys = groups[view] ?? Object.keys(allChecks)
+  return Object.fromEntries(keys.map((key) => [key, allChecks[key]]))
+}
+
 rmSync(userDataDir, { recursive: true, force: true })
-if (fixtureWorkspaceViews.has(captureView)) {
+if (resetWorkspaceViews.has(captureView)) {
   rmSync(workspaceDir, { recursive: true, force: true })
 }
 mkdirSync(userDataDir, { recursive: true })
@@ -120,6 +358,31 @@ function createDocxFixture(paragraphs) {
     },
     { name: 'word/document.xml', data: documentXml }
   ])
+}
+
+function createPdfFixture(text) {
+  const content = `BT /F1 18 Tf 72 720 Td (${escapePdfText(text)}) Tj ET`
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`
+  ]
+  const parts = ['%PDF-1.4\n']
+  const offsets = [0]
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(parts.join('')))
+    parts.push(`${index + 1} 0 obj\n${object}\nendobj\n`)
+  }
+  const xrefOffset = Buffer.byteLength(parts.join(''))
+  parts.push(`xref\n0 ${objects.length + 1}\n`)
+  parts.push('0000000000 65535 f \n')
+  for (let index = 1; index < offsets.length; index += 1) {
+    parts.push(`${String(offsets[index]).padStart(10, '0')} 00000 n \n`)
+  }
+  parts.push(`trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`)
+  return Buffer.from(parts.join(''))
 }
 
 function createStoredZip(entries) {
@@ -188,14 +451,38 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;')
 }
 
+function escapePdfText(value) {
+  return value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
+}
+
 if (fixtureWorkspaceViews.has(captureView)) {
+  const largeDiffLineCount = captureView === 'diff-source' || captureView === 'diff' ? 7601 : 1600
   mkdirSync(join(workspaceDir, 'Nested Folder'), { recursive: true })
+  mkdirSync(join(workspaceDir, 'Sticky Folder'), { recursive: true })
   writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\n')
+  writeFileSync(join(workspaceDir, 'conflict-smoke.txt'), 'conflict base\n')
+  writeFileSync(join(workspaceDir, 'loading-source-smoke.txt'), 'loading source smoke\n')
+  writeFileSync(join(workspaceDir, 'large-source-smoke.txt'), Array.from({ length: 1800 }, (_, index) => `large source smoke line ${String(index + 1).padStart(4, '0')}`).join('\n'))
+  writeFileSync(join(workspaceDir, 'large-diff-smoke.txt'), Array.from({ length: largeDiffLineCount }, (_, index) => `large diff baseline line ${String(index + 1).padStart(4, '0')}`).join('\n'))
+  writeFileSync(join(workspaceDir, 'staged-source-smoke.txt'), 'staged baseline\n')
+  writeFileSync(join(workspaceDir, 'whitespace-smoke.txt'), 'name: alpha\nindent:\n  child: one\n')
+  writeFileSync(join(workspaceDir, 'word-diff-smoke.txt'), 'status: baseline ready\ncount: one\n')
+  writeFileSync(join(workspaceDir, 'hidden-context-smoke.txt'), Array.from({ length: 90 }, (_, index) => {
+    if (index === 4) return 'first hidden context baseline'
+    if (index === 69) return 'second hidden context baseline'
+    return `hidden context unchanged line ${String(index + 1).padStart(2, '0')}`
+  }).join('\n'))
   writeFileSync(join(workspaceDir, 'review-delete.txt'), 'delete me\n')
   writeFileSync(join(workspaceDir, 'Nested Folder', 'nested note.md'), '# Nested file smoke preview\n\nThis verifies spaces in paths.\n')
+  writeFileSync(join(workspaceDir, 'reference.md'), '# Reference\n\nThe workspace content-only sentinel phrase lives only inside this file.\n')
+  for (let index = 0; index < 96; index += 1) {
+    const suffix = String(index + 1).padStart(2, '0')
+    writeFileSync(join(workspaceDir, 'Sticky Folder', `sticky-file-${suffix}.txt`), `sticky fixture ${suffix}\n`)
+  }
   writeFileSync(join(workspaceDir, 'preview-page.html'), '<!doctype html><main><h1>HTML preview smoke</h1><p>Rendered in the file inspector.</p></main>\n')
   writeFileSync(join(workspaceDir, 'data-preview-smoke.json'), JSON.stringify({ status: 'baseline', items: [{ name: 'alpha', count: 1 }] }, null, 2))
   writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,1,baseline\n')
+  writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture('PDF preview smoke baseline'))
   writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
     'Document smoke baseline',
     'This verifies DOCX text preview in the inspector.'
@@ -219,31 +506,62 @@ if (fixtureWorkspaceViews.has(captureView)) {
   spawnSync('git', ['config', 'user.name', 'Orchestrator Smoke'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['add', '.'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['commit', '-m', 'baseline'], { cwd: workspaceDir, stdio: 'ignore' })
-  writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\nafter review\n')
-  writeFileSync(join(workspaceDir, 'review-new.txt'), 'new review file\n')
-  writeFileSync(join(workspaceDir, 'Nested Folder', 'nested note.md'), '# Nested file smoke preview\n\nThis verifies spaces in paths and review tree grouping.\n')
-  writeFileSync(join(workspaceDir, 'data-preview-smoke.json'), JSON.stringify({ status: 'updated', items: [{ name: 'alpha', count: 2 }, { name: 'beta', count: 3 }] }, null, 2))
-  writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,2,updated\nbeta,3,new\n')
-  writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
-    'Document smoke updated',
-    'This verifies DOCX text preview in the inspector.'
-  ]))
-  writeFileSync(
-    join(workspaceDir, 'image-preview-smoke.png'),
-    Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', 'base64')
-  )
-  writeFileSync(join(workspaceDir, 'notebook-preview-smoke.ipynb'), JSON.stringify({
-    cells: [
-      { cell_type: 'markdown', source: ['# Notebook smoke\n', 'Updated'] },
-      { cell_type: 'code', source: ['value = 2\n', 'value'] },
-      { cell_type: 'markdown', source: ['Summary cell'] }
-    ],
-    metadata: { kernelspec: { display_name: 'Python 3' } },
-    nbformat: 4,
-    nbformat_minor: 5
-  }, null, 2))
-  writeFileSync(join(workspaceDir, 'binary-preview-smoke.bin'), Buffer.from([0, 1, 2, 3, 4, 5, 6, 255]))
-  rmSync(join(workspaceDir, 'review-delete.txt'), { force: true })
+  spawnSync('git', ['branch', 'review-base-branch'], { cwd: workspaceDir, stdio: 'ignore' })
+  writeFileSync(join(workspaceDir, 'branch-source-smoke.txt'), 'branch source committed\n')
+  spawnSync('git', ['add', 'branch-source-smoke.txt'], { cwd: workspaceDir, stdio: 'ignore' })
+  spawnSync('git', ['commit', '-m', 'branch source smoke'], { cwd: workspaceDir, stdio: 'ignore' })
+  if (captureView === 'diff-conflict') {
+    const defaultBranch = spawnSync('git', ['branch', '--show-current'], { cwd: workspaceDir, encoding: 'utf8' }).stdout.trim()
+    spawnSync('git', ['checkout', '-b', 'review-conflict-topic'], { cwd: workspaceDir, stdio: 'ignore' })
+    writeFileSync(join(workspaceDir, 'conflict-smoke.txt'), 'incoming conflict choice\n')
+    spawnSync('git', ['add', 'conflict-smoke.txt'], { cwd: workspaceDir, stdio: 'ignore' })
+    spawnSync('git', ['commit', '-m', 'incoming conflict choice'], { cwd: workspaceDir, stdio: 'ignore' })
+    spawnSync('git', ['checkout', defaultBranch], { cwd: workspaceDir, stdio: 'ignore' })
+    writeFileSync(join(workspaceDir, 'conflict-smoke.txt'), 'current conflict choice\n')
+    spawnSync('git', ['add', 'conflict-smoke.txt'], { cwd: workspaceDir, stdio: 'ignore' })
+    spawnSync('git', ['commit', '-m', 'current conflict choice'], { cwd: workspaceDir, stdio: 'ignore' })
+    spawnSync('git', ['merge', 'review-conflict-topic'], { cwd: workspaceDir, stdio: 'ignore' })
+  }
+  if (captureView !== 'diff-empty') {
+    writeFileSync(join(workspaceDir, 'review-base.txt'), 'before review\nafter review\n')
+    writeFileSync(join(workspaceDir, 'loading-source-smoke.txt'), 'loading source smoke\nloaded preview\n')
+    writeFileSync(join(workspaceDir, 'large-source-smoke.txt'), Array.from({ length: 1800 }, (_, index) => `large source smoke line ${String(index + 1).padStart(4, '0')}`).join('\n'))
+    writeFileSync(join(workspaceDir, 'large-diff-smoke.txt'), Array.from({ length: largeDiffLineCount }, (_, index) => `large diff updated line ${String(index + 1).padStart(4, '0')}`).join('\n'))
+    writeFileSync(join(workspaceDir, 'staged-source-smoke.txt'), 'staged updated\n')
+    spawnSync('git', ['add', 'staged-source-smoke.txt'], { cwd: workspaceDir, stdio: 'ignore' })
+    writeFileSync(join(workspaceDir, 'whitespace-smoke.txt'), 'name: alpha  \nindent:\n    child: one\n')
+    writeFileSync(join(workspaceDir, 'word-diff-smoke.txt'), 'status: updated ready\ncount: two\n')
+    writeFileSync(join(workspaceDir, 'hidden-context-smoke.txt'), Array.from({ length: 90 }, (_, index) => {
+      if (index === 4) return 'first hidden context updated'
+      if (index === 69) return 'second hidden context updated'
+      return `hidden context unchanged line ${String(index + 1).padStart(2, '0')}`
+    }).join('\n'))
+    writeFileSync(join(workspaceDir, 'review-new.txt'), 'new review file\n')
+    writeFileSync(join(workspaceDir, 'Nested Folder', 'nested note.md'), '# Nested file smoke preview\n\nThis verifies spaces in paths and review tree grouping.\n')
+    writeFileSync(join(workspaceDir, 'data-preview-smoke.json'), JSON.stringify({ status: 'updated', items: [{ name: 'alpha', count: 2 }, { name: 'beta', count: 3 }] }, null, 2))
+    writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,2,updated\nbeta,3,new\n')
+    writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture('PDF preview smoke updated'))
+    writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
+      'Document smoke updated',
+      'This verifies DOCX text preview in the inspector.'
+    ]))
+    writeFileSync(
+      join(workspaceDir, 'image-preview-smoke.png'),
+      Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', 'base64')
+    )
+    writeFileSync(join(workspaceDir, 'notebook-preview-smoke.ipynb'), JSON.stringify({
+      cells: [
+        { cell_type: 'markdown', source: ['# Notebook smoke\n', 'Updated'] },
+        { cell_type: 'code', source: ['value = 2\n', 'value'] },
+        { cell_type: 'markdown', source: ['Summary cell'] }
+      ],
+      metadata: { kernelspec: { display_name: 'Python 3' } },
+      nbformat: 4,
+      nbformat_minor: 5
+    }, null, 2))
+    writeFileSync(join(workspaceDir, 'binary-preview-smoke.bin'), Buffer.from([0, 1, 2, 3, 4, 5, 6, 255]))
+    rmSync(join(workspaceDir, 'review-delete.txt'), { force: true })
+  }
   browserSmokeServer = createServer((request, response) => {
     if (request.url === '/smoke.css') {
       response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' })
@@ -279,6 +597,15 @@ if (fixtureWorkspaceViews.has(captureView)) {
   if (address && typeof address === 'object') browserSmokeUrl = `http://127.0.0.1:${address.port}`
 }
 
+if (captureView === 'sidebar') {
+  writeFileSync(join(workspaceDir, 'README.md'), '# Sidebar worktree smoke\n')
+  spawnSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' })
+  spawnSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: workspaceDir, stdio: 'ignore' })
+  spawnSync('git', ['config', 'user.name', 'Orchestrator Smoke'], { cwd: workspaceDir, stdio: 'ignore' })
+  spawnSync('git', ['add', '.'], { cwd: workspaceDir, stdio: 'ignore' })
+  spawnSync('git', ['commit', '-m', 'sidebar baseline'], { cwd: workspaceDir, stdio: 'ignore' })
+}
+
 const launch = runPackaged ? packagedLaunchCommand() : {
   bin: process.platform === 'win32' ? 'npm.cmd' : 'npm',
   args: ['run', 'dev']
@@ -306,12 +633,13 @@ let log = ''
 child.stdout.on('data', (chunk) => { log += chunk.toString() })
 child.stderr.on('data', (chunk) => { log += chunk.toString() })
 
+const timeoutMs = Number.parseInt(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_TIMEOUT_MS ?? '90000', 10)
 const timeout = setTimeout(() => {
   child.kill('SIGTERM')
   console.error('Automated UI smoke timed out.')
   console.error(log.slice(-4000))
   process.exit(1)
-}, 45_000)
+}, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 90_000)
 
 child.on('exit', (code) => {
   browserSmokeServer?.close()
@@ -343,6 +671,20 @@ child.on('exit', (code) => {
         sidebarEmptyStateVisible: result.sidebarEmptyStateVisible === true,
         sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
         noStaticSuggestionCards: result.noStaticSuggestionCards === true
+      }
+    : captureView === 'multi-window-focus'
+    ? {
+        isolatedProfile: result.profile?.isIsolated === true,
+        secondWindowCreated: result.secondWindowCreated === true,
+        secondWindowNavigated: result.secondWindowNavigated === true,
+        pendingNavigationConsumedOnce: result.pendingNavigationConsumedOnce === true,
+        firstWindowBrowserFocusArea: result.firstWindowBrowserFocusArea === true,
+        firstWindowBrowserMenuEnabled: result.firstWindowBrowserMenuEnabled === true,
+        secondWindowBrowserMenuDisabled: result.secondWindowBrowserMenuDisabled === true,
+        backgroundWindowMenuDoesNotClobberFocusedWindow: result.backgroundWindowMenuDoesNotClobberFocusedWindow === true,
+        activeWindowAfterRefocus: result.activeWindowAfterRefocus === true,
+        focusSwitchRestoresFirstWindowMenu: result.focusSwitchRestoresFirstWindowMenu === true,
+        menuCommandRoutedToFocusedWindow: result.menuCommandRoutedToFocusedWindow === true
       }
     : captureView === 'session-switch'
     ? {
@@ -477,16 +819,27 @@ child.on('exit', (code) => {
         pinnedAboveProjects: result.pinnedAboveProjects === true,
         pinnedOrderStable: result.pinnedOrderStable === true,
         pinnedRowsHiddenFromProjects: result.pinnedRowsHiddenFromProjects === true,
+        providerPinnedMetadata: result.providerPinnedMetadataWorks === true,
         pinnedSharesProjectScroll: result.pinnedSharesProjectScroll === true,
+        sidebarPinnedDragReorder: result.sidebarPinnedDragReorderWorks === true,
+        sidebarProjectlessChats: result.sidebarProjectlessChatsWorks === true,
+        sidebarProjectlessChatsFirstPreference: result.sidebarProjectlessChatsFirstPreferenceWorks === true,
+        providerProjectlessMetadata: result.providerProjectlessMetadataWorks === true,
+        providerWorktreeMetadata: result.providerWorktreeMetadataWorks === true,
+        sidebarSelectedKeySignal: result.sidebarSelectedKeySignalWorks === true,
+        sidebarSelectedKeyPersistence: result.sidebarSelectedKeyPersistenceWorks === true,
+        sidebarSelectedNavKeys: result.sidebarSelectedNavKeysWork === true,
         pinnedRowUnpinned: result.pinnedRowUnpinned === true,
         newPinAppended: result.newPinAppended === true,
         hoverPinVisible: result.hoverPinVisible === true,
         hoverCardDelayed: result.hoverCardDelayed === true,
         hoverCardVisible: result.hoverCardVisible === true,
         hoverCardSurfaceReadable: result.hoverCardSurfaceReadable === true,
+        hoverCardMaterial: result.hoverCardMaterialWorks === true,
         doubleClickRenameWorks: result.doubleClickRenameWorks === true,
         renameDialogCancelWorks: result.renameDialogCancelWorks === true,
         renameDialogChromeQuiet: result.renameDialogChromeQuiet === true,
+        renameDialogSharedLayout: result.renameDialogSharedLayoutWorks === true,
         renameDialogInputFocused: result.renameDialogInputFocused === true,
         tooltipSurfaceReadable: result.tooltipSurfaceReadable === true,
         singleHoverSurface: result.singleHoverSurfaceWorks === true,
@@ -494,16 +847,50 @@ child.on('exit', (code) => {
         customTooltipNativeTitlesAbsent: result.customTooltipNativeTitlesAbsent === true,
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
         sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
+        sidebarWidthToken: result.sidebarWidthTokenWorks === true,
         sessionRowsCompact: result.sessionRowsCompact === true,
         sessionRowsCalm: result.sessionRowsCalm === true,
+        sidebarRowsMaterialQuiet: result.sidebarRowsMaterialQuiet === true,
+        sessionRowsSharedPrimitive: result.sessionRowsUseSharedPrimitive === true,
         projectHeadersCompact: result.projectHeadersCompact === true,
+        projectHeadersSharedPrimitive: result.projectHeadersUseSharedPrimitive === true,
         emptyProjectNewChatCompact: result.emptyProjectNewChatCompact === true,
+        emptyProjectNewChatSharedPrimitive: result.emptyProjectNewChatUsesSharedPrimitive === true,
         sidebarSectionChromeCompact: result.sidebarSectionChromeCompact === true,
+        sidebarSectionRhythm: result.sidebarSectionRhythmWorks === true,
         idleRowRecencyVisible: result.idleRowRecencyVisible === true,
         importantRowStatusIconOnly: result.importantRowStatusIconOnly === true,
         chatEnvironmentIconAbsent: result.chatEnvironmentIconAbsent === true,
+        sidebarThreadIdentityMetadata: result.sidebarThreadIdentityMetadataWorks === true,
+        sidebarLabelColorMetadata: result.sidebarLabelColorMetadataWorks === true,
+        sidebarPinnedRowsKeepIdentityMarker: result.sidebarPinnedRowsKeepIdentityMarker === true,
+        sidebarPinActionsConsolidated: result.sidebarPinActionsConsolidated === true,
         sidebarActionMenuChromeCalm: result.sidebarActionMenuChromeCalm === true,
+        sidebarActionMenuSharedSections: result.sidebarActionMenuSharedSectionsWorks === true,
         actionRenameWorks: result.actionRenameWorks === true,
+        actionMarkUnreadWorks: result.actionMarkUnreadWorks === true,
+        actionCopyDeeplinkWorks: result.actionCopyDeeplinkWorks === true,
+        actionCopyMarkdownWorks: result.actionCopyMarkdownWorks === true,
+        actionStopChatWorks: result.actionStopChatWorks === true,
+        actionForkLocalWorks: result.actionForkLocalWorks === true,
+        actionForkNewWorktreeWorks: result.actionForkNewWorktreeWorks === true,
+        actionForkNewWorktreePendingWorks: result.actionForkNewWorktreePendingWorks === true,
+        actionForkNewWorktreeReadyWorks: result.actionForkNewWorktreeReadyWorks === true,
+        actionRetryPendingWorktreeWorks: result.actionRetryPendingWorktreeWorks === true,
+        actionRetryPendingWorktreeReadyWorks: result.actionRetryPendingWorktreeReadyWorks === true,
+        actionOpenInNewWindowWorks: result.actionOpenInNewWindowWorks === true,
+        actionAddAutomationWorks: result.actionAddAutomationWorks === true,
+        actionEditAutomationWorks: result.actionEditAutomationWorks === true,
+        actionAutomationDialogSharedLayout: result.actionAutomationDialogSharedLayoutWorks === true,
+        actionAutomationPermissionSnapshotWorks: result.actionAutomationPermissionSnapshotWorks === true,
+        actionAutomationScheduleEditingWorks: result.actionAutomationScheduleEditingWorks === true,
+        actionAutomationLifecycleWarningWorks: result.actionAutomationLifecycleWarningWorks === true,
+        actionRunAutomationVisible: result.actionRunAutomationVisible === true,
+        actionResumeAutomationWorks: result.actionResumeAutomationWorks === true,
+        actionPauseAutomationWorks: result.actionPauseAutomationWorks === true,
+        actionDeleteAutomationWorks: result.actionDeleteAutomationWorks === true,
+        sidebarAutomationRowMetadata: result.sidebarAutomationRowMetadataWorks === true,
+        sidebarAutomationRunningMetadata: result.sidebarAutomationRunningMetadataWorks === true,
         runningSpinnerVisible: result.runningSpinnerVisible === true,
         normalIdleDotHidden: result.normalIdleDotHidden === true,
         unreadIdleDotVisible: result.unreadIdleDotVisible === true,
@@ -513,9 +900,21 @@ child.on('exit', (code) => {
         pinnedLiveOrderStable: result.pinnedLiveOrderStable === true,
         grayIdleDotsAbsent: result.grayIdleDotsAbsent === true,
         projectActionMenuWorks: result.projectActionMenuWorks === true,
+        projectActionMenuSharedSections: result.projectActionMenuSharedSectionsWorks === true,
         projectRenameWorks: result.projectRenameWorks === true,
         projectPinWorks: result.projectPinWorks === true,
-        organizeMenuWorks: result.organizeMenuWorks === true
+        projectCollapsePersistenceWorks: result.projectCollapsePersistenceWorks === true,
+        builtInSectionCollapseWorks: result.builtInSectionCollapseWorks === true,
+        builtInSectionOrderWorks: result.builtInSectionOrderWorks === true,
+        customSectionModelWorks: result.customSectionModelWorks === true,
+        customSectionDragMembershipWorks: result.customSectionDragMembershipWorks === true,
+        customSectionDragOrderWorks: result.customSectionDragOrderWorks === true,
+        customSectionSectionReorderWorks: result.customSectionSectionReorderWorks === true,
+        customSectionMembershipWorks: result.customSectionMembershipWorks === true,
+        customSectionCollapseWorks: result.customSectionCollapseWorks === true,
+        organizeMenuWorks: result.organizeMenuWorks === true,
+        organizeMenuSharedSections: result.organizeMenuSharedSectionsWorks === true,
+        sidebarConnectionGrouping: result.sidebarConnectionGroupingWorks === true
       }
     : captureView === 'transcript-layout'
     ? {
@@ -524,6 +923,7 @@ child.on('exit', (code) => {
         layoutFixtureVisible: result.layoutFixtureVisible === true,
         searchHiddenInitially: result.searchHiddenInitially === true,
         commandPaletteOpens: result.commandPaletteOpens === true,
+        commandPaletteSearchField: result.commandPaletteSearchFieldWorks === true,
         commandPaletteShiftPOpens: result.commandPaletteShiftPOpens === true,
         commandPaletteGrouped: result.commandPaletteGrouped === true,
         commandPaletteRecentVisible: result.commandPaletteRecentVisible === true,
@@ -531,6 +931,7 @@ child.on('exit', (code) => {
         commandPaletteFuzzyFindsTerminal: result.commandPaletteFuzzyFindsTerminal === true,
         commandPaletteSearchActionWorks: result.commandPaletteSearchActionWorks === true,
         searchShortcutOpens: result.searchShortcutOpens === true,
+        transcriptSearchField: result.transcriptSearchFieldWorks === true,
         keyboardShortcutsShortcutOpens: result.keyboardShortcutsShortcutOpens === true,
         hiddenMessageCopyQuiet: result.hiddenMessageCopyQuiet === true,
         documentNoHorizontalOverflow: result.documentNoHorizontalOverflow === true,
@@ -572,27 +973,48 @@ child.on('exit', (code) => {
           browserEmptyState: result.browserEmptyStateWorks === true,
           browserLocalTargets: result.browserLocalTargetsWorks === true,
           browserLocalTargetsCalm: result.browserLocalTargetsCalm === true,
+          browserLocalTargetsListChrome: result.browserLocalTargetsListChromeWorks === true,
+          browserLocalTargetsCompactChooser: result.browserLocalTargetsCompactChooserWorks === true,
           browserLocalTargetHide: result.browserLocalTargetHideWorks === true,
+          browserLocalServerRoutes: result.browserLocalServerRoutesWork === true,
+          browserLocalServerRouteNormalization: result.browserLocalServerRouteNormalizationWorks === true,
           browserAddressSearch: result.browserAddressSearchWorks === true,
           browserAddressBadge: result.browserAddressBadgeWorks === true,
           browserToolbarExternal: result.browserToolbarExternalWorks === true,
           browserToolbarScreenshot: result.browserToolbarScreenshotWorks === true,
           browserLoaded: result.browserLoaded === true,
+          browserWebviewManagerBoundary: result.browserWebviewManagerBoundaryWorks === true,
           browserFind: result.browserFindWorks === true,
           browserFindNavigation: result.browserFindNavigationWorks === true,
           browserZoom: result.browserZoomWorks === true,
           browserDeviceMode: result.browserDeviceModeWorks === true,
           browserDevicePresetCatalog: result.browserDevicePresetCatalogWorks === true,
+          browserVisibleGeometry: result.browserVisibleGeometryWorks === true,
           browserViewportReset: result.browserViewportResetWorks === true,
+          browserManagerStateBridge: result.browserManagerStateBridgeWorks === true,
+          browserCaptureGeometry: result.browserCaptureGeometryWorks === true,
+          browserUseNoMutation: result.browserUseNoMutationWorks === true,
           browserCacheReload: result.browserCacheReloadWorks === true,
           browserStopLoading: result.browserStopLoadingWorks === true,
           browserToolbarHistory: result.browserToolbarHistoryWorks === true,
           browserHistoryMenu: result.browserHistoryMenuWorks === true,
           browserActionsMenuCompact: result.browserActionsMenuCompactWorks === true,
+          browserActionsMenuMaterial: result.browserActionsMenuMaterialWorks === true,
+          browserMenuSectionsShared: result.browserMenuSectionsSharedWorks === true,
+          browserMenuRowsShared: result.browserMenuRowsSharedWorks === true,
+          browserFallbackMessagesShared: result.browserFallbackMessagesSharedWorks === true,
           browserActionLabelsCalm: result.browserActionLabelsCalm === true,
           browserClearData: result.browserClearDataWorks === true,
           browserContextMenu: result.browserContextMenuWorks === true,
+          browserContextMenuMaterial: result.browserContextMenuMaterialWorks === true,
           browserContextComposer: result.browserContextComposerWorks === true,
+          browserCommentMode: result.browserCommentModeWorks === true,
+          browserCommentCoachmark: result.browserCommentCoachmarkWorks === true,
+          browserCommentEditor: result.browserCommentEditorWorks === true,
+          browserCommentRegion: result.browserCommentRegionWorks === true,
+          browserCommentPreviewOriginal: result.browserCommentPreviewOriginalWorks === true,
+          browserCommentDesignTweak: result.browserCommentDesignTweakWorks === true,
+          browserCommentUnavailable: result.browserCommentUnavailableWorks === true,
           browserDomPaneCompact: result.browserDomPaneCompactWorks === true,
           browserTargetsPane: result.browserTargetsPaneWorks === true,
           browserTargetKey: result.browserTargetKeyWorks === true,
@@ -604,13 +1026,24 @@ child.on('exit', (code) => {
           browserTargetsPaneNoHorizontalOverflow: result.browserTargetsPaneNoHorizontalOverflowWorks === true,
           browserErrorRecovery: result.browserErrorRecoveryWorks === true,
           browserLoadErrorPanel: result.browserLoadErrorPanelWorks === true,
+          browserLoadErrorSharedState: result.browserLoadErrorSharedStateWorks === true,
           browserSingleTabChrome: result.browserSingleTabStripHidden === true,
+          browserTabShellController: result.browserTabShellControllerWorks === true,
+          browserTabChromeCalm: result.browserTabChromeCalmWorks === true,
+          browserWebviewPersistence: result.browserWebviewPersistenceWorks === true,
           browserToolbarCompact: result.browserToolbarCompact === true,
           browserInspectorChromeCompact: result.browserInspectorChromeCompactWorks === true,
+          browserInspectorContainersShared: result.browserInspectorContainersSharedWorks === true,
           browserInspectorLabelsCalm: result.browserInspectorLabelsCalm === true,
+          browserInspectorActionsShared: result.browserInspectorActionsSharedWorks === true,
           browserVisibilityControl: result.browserVisibilityControlWorks === true,
           browserHiddenState: result.browserHiddenStateWorks === true,
+          browserHiddenWebviewPersistence: result.browserHiddenWebviewPersistenceWorks === true,
+          browserLifecycleResync: result.browserLifecycleResyncWorks === true,
+          browserHiddenWebviewContainment: result.browserHiddenWebviewContainmentWorks === true,
           browserTabReset: result.browserTabResetWorks === true,
+          browserForkTransfer: result.browserForkTransferWorks === true,
+          browserForkDomTransfer: result.browserForkDomTransferWorks === true,
           browserStatusRowQuiet: result.browserStatusRowQuiet === true,
           browserNoHorizontalOverflow: result.browserNoHorizontalOverflow === true,
           smokeWindowPolicy: foregroundSmoke
@@ -632,14 +1065,57 @@ child.on('exit', (code) => {
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
           rightPanelState: result.hasRightPanelState === true,
-          rightSidebarChromeCompact: result.rightSidebarChromeCompactWorks === true,
-          rightSidebarAddControlStable: result.rightSidebarAddControlStableWorks === true,
+          rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
+          rightPanelSharedAnimationController: result.rightPanelSharedAnimationControllerWorks === true,
+          rightPanelSharedLayoutController: result.rightPanelSharedLayoutControllerWorks === true,
+          workbenchPanelChromeCompact: result.workbenchPanelChromeCompactWorks === true,
+          workbenchPanelAddControlStable: result.workbenchPanelAddControlStableWorks === true,
+          workbenchPanelNewTabPage: result.workbenchPanelNewTabPageWorks === true,
           rightPanelExpand: result.rightPanelExpandWorks === true,
+          rightPanelResizeReset: result.rightPanelResizeResetWorks === true,
+          rightPanelResizeKeyboard: result.rightPanelResizeKeyboardWorks === true,
+          rightPanelCloseBelowMin: result.rightPanelCloseBelowMinWorks === true,
           rightPanelNarrowOverlay: result.rightPanelNarrowOverlayWorks === true,
           rightPanelContextMenuWorks: result.rightPanelContextMenuWorks === true,
+          rightPanelContextMenuSharedSections: result.rightPanelContextMenuSharedSectionsWorks === true,
           rightPanelTabReorderWorks: result.rightPanelTabReorderWorks === true,
           rightPanelTabDragReorderWorks: result.rightPanelTabDragReorderWorks === true,
-          rightPanelCloseActiveShortcut: result.rightPanelCloseActiveShortcutWorks === true
+          rightPanelTabDragMarker: result.rightPanelTabDragMarkerWorks === true,
+          rightPanelCloseActiveShortcut: result.rightPanelCloseActiveShortcutWorks === true,
+          rightPanelInactiveClose: result.rightPanelInactiveCloseWorks === true,
+          rightPanelMiddleClickClose: result.rightPanelMiddleClickCloseWorks === true,
+          rightPanelCloseFallbackFromMain: result.rightPanelCloseFallbackFromMainWorks === true,
+          rightPanelTabPanelA11y: result.rightPanelTabPanelA11yWorks === true,
+          rightPanelTabWheelScroll: result.rightPanelTabWheelScrollWorks === true,
+          rightPanelFullscreenCleanup: result.rightPanelFullscreenCleanupWorks === true,
+          rightPanelTabTelemetry: result.rightPanelTabTelemetryWorks === true,
+          rightPanelTabLifecycleTelemetry: result.rightPanelTabLifecycleTelemetryWorks === true,
+          rightPanelTabWeightCalm: result.rightPanelTabWeightCalmWorks === true,
+          rightPanelTabActionsSharedVariant: result.rightPanelTabActionsSharedVariantWorks === true,
+          rightPanelMenuCommandState: result.rightPanelMenuCommandStateWorks === true,
+          rightPanelFindShortcutRouting: result.rightPanelFindShortcutRoutingWorks === true,
+          rightPanelBrowserCommandRouting: result.rightPanelBrowserCommandRoutingWorks === true,
+          rightPanelBrowserVisualReset: result.rightPanelBrowserVisualResetWorks === true,
+          rightPanelTransferUnsupportedBoundary: result.rightPanelTransferUnsupportedBoundaryWorks === true
+        }
+    : captureView === 'workbench-new-tab'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          rightPanelState: result.hasRightPanelState === true,
+          rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
+          workbenchPanelNewTabPage: result.workbenchPanelNewTabPageWorks === true,
+          workbenchNewTabVisual: result.workbenchNewTabVisualWorks === true,
+          workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
+          workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
+        }
+    : captureView === 'environment'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          rightPanelState: result.hasRightPanelState === true,
+          rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
+          environmentPanelVisual: result.environmentPanelVisualWorks === true,
+          environmentActionRows: result.environmentActionRowsWork === true,
+          environmentSources: result.environmentSourcesWork === true
         }
     : captureView === 'workbench-perf'
       ? {
@@ -652,41 +1128,57 @@ child.on('exit', (code) => {
           workbenchNoHorizontalOverflow: result.workbenchNoHorizontalOverflow === true,
           workbenchCommitCountsBounded: result.workbenchCommitCount !== null && result.workbenchCommitCount <= 50
         }
-    : captureView === 'diff'
-      ? {
-          isolatedProfile: result.profile?.isIsolated === true,
-          diffToolbarCompact: result.diffToolbarCompactWorks === true,
-          diffListCompact: result.diffListCompactWorks === true,
-          diffTreeGrouping: result.diffTreeGroupingWorks === true,
-          diffKeyboardNavigation: result.diffKeyboardNavigationWorks === true,
-          diffActionMenuCompact: result.diffActionMenuCompactWorks === true,
-          reviewSearch: result.reviewSearchWorks === true,
-          reviewSearchClear: result.reviewSearchClearWorks === true,
-          reviewDiffFirst: result.reviewDiffFirstWorks === true,
-          reviewJsonPreview: result.reviewJsonPreviewWorks === true,
-          reviewCsvPreview: result.reviewCsvPreviewWorks === true,
-          reviewDocumentPreview: result.reviewDocumentPreviewWorks === true,
-          reviewNotebookPreview: result.reviewNotebookPreviewWorks === true,
-          reviewImageBinaryDiffFirst: result.reviewImageBinaryDiffFirstWorks === true,
-          reviewImagePreview: result.reviewImagePreviewWorks === true,
-          reviewBinaryState: result.reviewBinaryStateWorks === true,
-          reviewBinaryActions: result.reviewBinaryActionsWork === true,
-          reviewGitActions: result.reviewGitActionsWork === true
-        }
+    : isDiffCaptureView
+      ? buildDiffChecks(result, captureView)
     : captureView === 'files'
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
           filesToolbarCompact: result.filesToolbarCompactWorks === true,
           filesActionMenuCompact: result.filesActionMenuCompactWorks === true,
-          filesPanelStacked: result.filesPanelStackedWorks === true,
+          filesActionMenuMaterial: result.filesActionMenuMaterialWorks === true,
+          filesActionMenuSharedSections: result.filesActionMenuSharedSectionsWorks === true,
+          filesRowContextMenu: result.filesRowContextMenuWorks === true,
+          filesRowContextMenuSharedSections: result.filesRowContextMenuSharedSectionsWorks === true,
+          filesPreferredOpenTarget: result.filesPreferredOpenTargetWorks === true,
+          workbenchFileTab: result.workbenchFileTabWorks === true,
+          workbenchFileTabPin: result.workbenchFileTabPinWorks === true,
+          workbenchFileTabActionMenuSharedSections: result.workbenchFileTabActionMenuSharedSectionsWorks === true,
+          fileOpenTargetDiagnostic: result.fileOpenTargetDiagnosticWorks === true,
+          fileSourceLineSelection: result.fileSourceLineSelectionWorks === true,
+          fileSourceLineUtilities: result.fileSourceLineUtilitiesWorks === true,
+          fileSourceLineBlame: result.fileSourceLineBlameWorks === true,
+          fileSourceBlameDetails: result.fileSourceBlameDetailsWorks === true,
+          fileSourceGutterBlame: result.fileSourceGutterBlameWorks === true,
+          fileSourceInlineGutterUtilities: result.fileSourceInlineGutterUtilitiesWorks === true,
+          fileSourceAnnotations: result.fileSourceAnnotationsWorks === true,
+          fileSourceWrapToggle: result.fileSourceWrapToggleWorks === true,
+          fileSourceTabState: result.fileSourceTabStateWorks === true,
+          fileSourceSearch: result.fileSourceSearchWorks === true,
+          fileSourceVirtualization: result.fileSourceVirtualizationWorks === true,
+          fileSourceRevealSelectedLine: result.fileSourceRevealSelectedLineWorks === true,
+          fileSourceLoadingState: result.fileSourceLoadingStateWorks === true,
+          fileSourceMode: result.fileSourceModeWorks === true,
+          filesFileTabFirstLayout: result.filesFileTabFirstLayoutWorks === true,
+          filesWorkbenchTree: result.filesWorkbenchTreeWorks === true,
+          filesWorkbenchTreeNativeTitleFree: result.filesWorkbenchTreeNativeTitleFreeWorks === true,
+          filesRevealSelectedPath: result.filesRevealSelectedPathWorks === true,
+          filesSearchProjection: result.filesSearchProjectionWorks === true,
+          filesLazyDirectories: result.filesLazyDirectoriesWorks === true,
+          filesStickyFolders: result.filesStickyFoldersWorks === true,
           filesTabSearch: result.filesTabSearchWorks === true,
+          filesContentSearch: result.filesContentSearchWorks === true,
           filesTabAttach: result.filesTabAttachWorks === true,
           filesHtmlPreview: result.filesHtmlPreviewWorks === true,
+          filesPreviewHeaderShared: result.filesPreviewHeaderSharedWorks === true,
+          filesArtifactPreviewControls: result.filesArtifactPreviewControlsWorks === true,
+          filesArtifactTabModel: result.filesArtifactTabModelWorks === true,
           filesJsonPreview: result.filesJsonPreviewWorks === true,
           filesCsvPreview: result.filesCsvPreviewWorks === true,
+          filesPdfPreview: result.filesPdfPreviewWorks === true,
           filesDocumentPreview: result.filesDocumentPreviewWorks === true,
           filesNotebookPreview: result.filesNotebookPreviewWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
+          filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,
           filesSearchClear: result.filesSearchClearWorks === true
         }
@@ -699,36 +1191,118 @@ child.on('exit', (code) => {
           sideChatMessageLabelsCalm: result.sideChatMessageLabelsCalm === true,
           sideChatClose: result.sideChatCloseWorks === true
         }
+    : captureView === 'terminal-visual'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          terminalVisualPanel: result.terminalVisualPanelWorks === true,
+          terminalVisualTabs: result.terminalVisualTabsWork === true,
+          terminalVisualToolbar: result.terminalVisualToolbarWorks === true,
+          terminalVisualHealthyContent: result.terminalVisualHealthyContentWorks === true
+        }
+    : captureView === 'terminal'
+      ? {
+          isolatedProfile: result.profile?.isIsolated === true,
+          terminalTabsPersist: result.terminalTabsPersistState === true,
+          terminalShellOwnership: result.terminalShellOwnershipWorks === true,
+          terminalSharedAnimationController: result.terminalSharedAnimationControllerWorks === true,
+          terminalSharedLayoutController: result.terminalSharedLayoutControllerWorks === true,
+          terminalBottomPanelSizeDecomposition: result.terminalBottomPanelSizeDecompositionWorks === true,
+          terminalRestore: result.terminalRestoreWorks === true,
+          terminalTabMenu: result.terminalTabMenuWorks === true,
+          terminalTabMenuSharedSections: result.terminalTabMenuSharedSectionsWorks === true,
+          terminalTabReorder: result.terminalTabReorderWorks === true,
+          terminalTabDragReorder: result.terminalTabDragReorderWorks === true,
+          terminalTabDragMarker: result.terminalTabDragMarkerWorks === true,
+          terminalToolbarShared: result.terminalToolbarSharedWorks === true,
+          terminalHeaderSharedChrome: result.terminalHeaderSharedChromeWorks === true,
+          terminalContentSpacing: result.terminalContentSpacingWorks === true,
+          terminalResizeReset: result.terminalResizeResetWorks === true,
+          terminalResizeHandleOverlay: result.terminalResizeHandleOverlayWorks === true,
+          terminalResizeKeyboard: result.terminalResizeKeyboardWorks === true,
+          terminalCloseActiveShortcut: result.terminalCloseActiveShortcutWorks === true,
+          terminalNewTabShortcut: result.terminalNewTabShortcutWorks === true,
+          terminalTabPanelA11y: result.terminalTabPanelA11yWorks === true,
+          terminalFullscreenCleanup: result.terminalFullscreenCleanupWorks === true,
+          terminalTabTelemetry: result.terminalTabTelemetryWorks === true,
+          terminalTabLifecycleTelemetry: result.terminalTabLifecycleTelemetryWorks === true,
+          terminalMoveToRightPanel: result.terminalMoveToRightPanelWorks === true,
+          terminalSharedTransferModel: result.terminalSharedTransferModelWorks === true,
+          terminalServiceSnapshot: result.terminalServiceSnapshotWorks === true,
+          terminalRightPanelNewTabShortcut: result.terminalRightPanelNewTabShortcutWorks === true,
+          terminalMoveBackToBottom: result.terminalMoveBackToBottomWorks === true,
+          terminalLinkRouting: result.terminalLinkRoutingWorks === true,
+          terminalThemeFontSync: result.terminalThemeFontSyncWorks === true,
+          terminalThemeTokenMatrix: result.terminalThemeTokenMatrixWorks === true
+        }
     : {
         isolatedProfile: result.profile?.isIsolated === true,
-        profileBadge: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.hasProfileBadge === true,
-        composer: result.hasComposer === true,
-        sidebarNavigation: ['settings', 'settings-providers', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
-        headerIdentity: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerIdentityWorks === true,
-        headerNativeTooltips: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerNativeTooltipsWork === true,
-        headerLongTooltipBounded: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || ['inspector', 'terminal'].includes(captureView) || result.headerLongTooltipBoundedWorks === true,
+        profileBadge: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || result.hasProfileBadge === true,
+        composer: captureView === 'settings-deeplink' || result.hasComposer === true,
+        sidebarNavigation: ['settings', 'settings-providers', 'settings-deeplink', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
+        headerIdentity: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerIdentityWorks === true,
+        headerNativeTooltips: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerNativeTooltipsWork === true,
+        headerLongTooltipBounded: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || ['inspector', 'terminal'].includes(captureView) || result.headerLongTooltipBoundedWorks === true,
         titlebarSidebarToggle: captureView !== 'inspector' || result.titlebarSidebarToggleWorks === true,
         customTooltipNativeTitlesAbsent: result.customTooltipNativeTitlesAbsent === true,
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
-        composerNativeTooltips: ['settings', 'settings-providers', 'resources', 'capabilities', 'pets'].includes(captureView) || result.composerNativeTooltipsWork === true,
+        composerNativeTooltips: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || result.composerNativeTooltipsWork === true,
         headerActionMenu: captureView !== 'inspector' || result.headerActionMenuWorks === true,
         chatEmptyState: captureView !== 'inspector' || result.chatEmptyStateWorks === true,
         chatEmptyStateQuiet: captureView !== 'inspector' || result.chatEmptyStateWorks === true,
         chatEmptyStateProjectLabelClean: captureView !== 'inspector' || result.chatEmptyStateProjectLabelClean === true,
         inspectorTabs: captureView !== 'inspector' || result.hasInspectorTabs === true,
         rightPanelState: captureView !== 'inspector' || result.hasRightPanelState === true,
-        rightSidebarChromeCompact: captureView !== 'inspector' || result.rightSidebarChromeCompactWorks === true,
-        rightSidebarTrailingFade: captureView !== 'inspector' || result.rightSidebarTrailingFadeWorks === true,
-        rightSidebarInactiveTabsCompact: captureView !== 'inspector' || result.rightSidebarInactiveTabsCompactWorks === true,
-        rightSidebarInactiveTabTooltip: captureView !== 'inspector' || result.rightSidebarInactiveTabTooltipWorks === true,
-        rightSidebarAddControlStable: captureView !== 'inspector' || result.rightSidebarAddControlStableWorks === true,
+        rightPanelShellOwnership: captureView !== 'inspector' || result.rightPanelShellOwnershipWorks === true,
+        workbenchPanelChromeCompact: captureView !== 'inspector' || result.workbenchPanelChromeCompactWorks === true,
+        workbenchPanelTrailingFade: captureView !== 'inspector' || result.workbenchPanelTrailingFadeWorks === true,
+        workbenchPanelInactiveTabsCompact: captureView !== 'inspector' || result.workbenchPanelInactiveTabsCompactWorks === true,
+        workbenchPanelInactiveTabTooltip: captureView !== 'inspector' || result.workbenchPanelInactiveTabTooltipWorks === true,
+        workbenchPanelAddControlStable: captureView !== 'inspector' || result.workbenchPanelAddControlStableWorks === true,
+        workbenchPanelNewTabPage: captureView !== 'inspector' || result.workbenchPanelNewTabPageWorks === true,
         diffToolbarCompact: captureView !== 'inspector' || result.diffToolbarCompactWorks === true,
+        reviewToolbarHeaderRow: captureView !== 'inspector' || result.reviewToolbarHeaderRowWorks === true,
+        reviewToolbarPrimaryOrder: captureView !== 'inspector' || result.reviewToolbarPrimaryOrderWorks === true,
+        reviewSourceSummaryHeader: captureView !== 'inspector' || result.reviewSourceSummaryHeaderWorks === true,
+        reviewTranscriptCard: captureView !== 'inspector' || result.reviewTranscriptCardWorks === true,
+        reviewEnvironmentPanel: captureView !== 'inspector' || result.reviewEnvironmentPanelWorks === true,
         diffListCompact: captureView !== 'inspector' || result.diffToolbarCompactWorks === true,
+        reviewFileSections: captureView !== 'inspector' || result.reviewFileSectionStructureWorks === true,
+        reviewFileHeaderMetrics: captureView !== 'inspector' || result.reviewFileHeaderMetricsWork === true,
+        reviewDiffRowMetrics: captureView !== 'inspector' || result.reviewDiffRowMetricsWork === true,
+        reviewHunkSeparatorStructure: captureView !== 'inspector' || result.reviewHunkSeparatorStructureWorks === true,
+        reviewDiffIndicatorStructure: captureView !== 'inspector' || result.reviewDiffIndicatorStructureWork === true,
+        reviewDiffNativeColorCalm: captureView !== 'inspector' || result.reviewDiffNativeColorCalmWorks === true,
+        reviewDiffLineNumberContent: captureView !== 'inspector' || result.reviewDiffLineNumberContentWorks === true,
+        reviewDiffGutterUtility: captureView !== 'inspector' || result.reviewDiffGutterUtilityWorks === true,
+        reviewFileTreeGitLane: captureView !== 'inspector' || result.reviewFileTreeGitLaneWorks === true,
+        reviewVisualCheckpointReset: captureView !== 'inspector' || result.reviewVisualCheckpointResetWorks === true,
+        reviewTabPanelFocusRingCalm: captureView !== 'inspector' || result.reviewTabPanelFocusRingCalmWorks === true,
+        diffWorkbenchTree: captureView !== 'inspector' || result.diffWorkbenchTreeWorks === true,
+        diffRevealSelectedPath: captureView !== 'inspector' || result.diffRevealSelectedPathWorks === true,
         diffActionMenuCompact: captureView !== 'inspector' || result.diffActionMenuCompactWorks === true,
+        diffActionMenuMaterial: captureView !== 'inspector' || result.diffActionMenuMaterialWorks === true,
         rightPanelExpand: captureView !== 'inspector' || result.rightPanelExpandWorks === true,
+        rightPanelCloseBelowMin: captureView !== 'inspector' || result.rightPanelCloseBelowMinWorks === true,
         rightPanelNarrowOverlay: captureView !== 'inspector' || result.rightPanelNarrowOverlayWorks === true,
         reviewSearch: captureView !== 'inspector' || result.diffToolbarCompactWorks === true,
+        reviewSearchProjection: captureView !== 'inspector' || result.reviewSearchProjectionWorks === true,
+        reviewFullSourceRows: captureView !== 'inspector' || result.reviewFullSourceRowsWork === true,
         reviewSearchClear: captureView !== 'inspector' || result.diffToolbarCompactWorks === true,
+        reviewLineComments: captureView !== 'inspector' || result.reviewLineCommentsWork === true,
+        reviewAnnotatedSelectionCalm: captureView !== 'inspector' || result.reviewAnnotatedSelectionCalmWork === true,
+        reviewSidePaneCommentCount: captureView !== 'inspector' || result.reviewSidePaneCommentCountWork === true,
+        reviewLineBlame: captureView !== 'inspector' || result.reviewLineBlameWork === true,
+        reviewGutterBlameSummary: captureView !== 'inspector' || result.reviewGutterBlameSummaryWork === true,
+        reviewGutterActionPopover: captureView !== 'inspector' || result.reviewGutterActionPopoverWork === true,
+        reviewMenuMessage: captureView !== 'inspector' || result.reviewMenuMessageWorks === true,
+        reviewFileJump: captureView !== 'inspector' || result.reviewFileJumpWorks === true,
+        reviewSidePaneChrome: captureView !== 'inspector' || result.reviewSidePaneChromeWorks === true,
+        reviewSidePaneResize: captureView !== 'inspector' || result.reviewSidePaneResizeWorks === true,
+        reviewLineOpensFileSourceTab: captureView !== 'inspector' || result.reviewLineOpensFileSourceTabWork === true,
+        reviewHiddenContextSeparatorStructure: captureView !== 'inspector' || result.reviewHiddenContextSeparatorStructureWork === true,
+        reviewHiddenContextExpansion: captureView !== 'inspector' || result.reviewHiddenContextExpansionWork === true,
+        reviewHiddenContextExpandAll: captureView !== 'inspector' || result.reviewHiddenContextExpandAllWork === true,
+        reviewLargeDiffWindow: captureView !== 'inspector' || result.reviewLargeDiffWindowWorks === true,
         reviewJsonPreview: captureView !== 'inspector' || result.diffToolbarCompactWorks === true,
         reviewCsvPreview: captureView !== 'inspector' || result.diffToolbarCompactWorks === true,
         reviewDocumentPreview: captureView !== 'inspector' || result.diffToolbarCompactWorks === true,
@@ -738,11 +1312,32 @@ child.on('exit', (code) => {
         filesTabSearch: captureView !== 'inspector' || result.filesTabSearchWorks === true,
         filesToolbarCompact: captureView !== 'inspector' || result.filesToolbarCompactWorks === true,
         filesActionMenuCompact: captureView !== 'inspector' || result.filesActionMenuCompactWorks === true,
-        filesPanelStacked: captureView !== 'inspector' || result.filesPanelStackedWorks === true,
+        workbenchFileTab: captureView !== 'inspector' || result.workbenchFileTabWorks === true,
+        workbenchFileTabPin: captureView !== 'inspector' || result.workbenchFileTabPinWorks === true,
+        fileOpenTargetDiagnostic: captureView !== 'inspector' || result.fileOpenTargetDiagnosticWorks === true,
+        fileSourceTabState: captureView !== 'inspector' || result.fileSourceTabStateWorks === true,
+        fileSourceBlameDetails: captureView !== 'inspector' || result.fileSourceBlameDetailsWorks === true,
+        fileSourceGutterBlame: captureView !== 'inspector' || result.fileSourceGutterBlameWorks === true,
+        fileSourceInlineGutterUtilities: captureView !== 'inspector' || result.fileSourceInlineGutterUtilitiesWorks === true,
+        fileSourceAnnotations: captureView !== 'inspector' || result.fileSourceAnnotationsWorks === true,
+        fileSourceSearch: captureView !== 'inspector' || result.fileSourceSearchWorks === true,
+        fileSourceVirtualization: captureView !== 'inspector' || result.fileSourceVirtualizationWorks === true,
+        fileSourceRevealSelectedLine: captureView !== 'inspector' || result.fileSourceRevealSelectedLineWorks === true,
+        fileSourceLoadingState: captureView !== 'inspector' || result.fileSourceLoadingStateWorks === true,
+        filesFileTabFirstLayout: captureView !== 'inspector' || result.filesFileTabFirstLayoutWorks === true,
+        filesWorkbenchTree: captureView !== 'inspector' || result.filesWorkbenchTreeWorks === true,
+        filesRevealSelectedPath: captureView !== 'inspector' || result.filesRevealSelectedPathWorks === true,
+        filesSearchProjection: captureView !== 'inspector' || result.filesSearchProjectionWorks === true,
+        filesLazyDirectories: captureView !== 'inspector' || result.filesLazyDirectoriesWorks === true,
+        filesStickyFolders: captureView !== 'inspector' || result.filesStickyFoldersWorks === true,
         filesTabAttach: captureView !== 'inspector' || result.filesTabAttachWorks === true,
         filesHtmlPreview: captureView !== 'inspector' || result.filesHtmlPreviewWorks === true,
+        filesPreviewHeaderShared: captureView !== 'inspector' || result.filesPreviewHeaderSharedWorks === true,
+        filesArtifactPreviewControls: captureView !== 'inspector' || result.filesArtifactPreviewControlsWorks === true,
+        filesArtifactTabModel: captureView !== 'inspector' || result.filesArtifactTabModelWorks === true,
         filesJsonPreview: captureView !== 'inspector' || result.filesJsonPreviewWorks === true,
         filesCsvPreview: captureView !== 'inspector' || result.filesCsvPreviewWorks === true,
+        filesPdfPreview: captureView !== 'inspector' || result.filesPdfPreviewWorks === true,
         filesDocumentPreview: captureView !== 'inspector' || result.filesDocumentPreviewWorks === true,
         filesNotebookPreview: captureView !== 'inspector' || result.filesNotebookPreviewWorks === true,
         filesBinaryPreview: captureView !== 'inspector' || result.filesBinaryPreviewWorks === true,
@@ -757,7 +1352,9 @@ child.on('exit', (code) => {
         browserDeviceMode: captureView !== 'inspector' || browserDeepChecksCoveredByBrowserSmoke || result.browserDeviceModeWorks === true,
         browserCacheReload: captureView !== 'inspector' || browserDeepChecksCoveredByBrowserSmoke || result.browserCacheReloadWorks === true,
         browserMultiTab: captureView !== 'inspector' || result.browserMultiTabWorks === true,
+        browserTabShellController: captureView !== 'inspector' || result.browserTabShellControllerWorks === true,
         browserTabCloseChrome: captureView !== 'inspector' || result.browserTabCloseChromeWorks === true,
+        browserTabChromeCalm: captureView !== 'inspector' || result.browserTabChromeCalmWorks === true,
         browserActionsNativeTitlesAbsent: captureView !== 'inspector' || result.browserActionsNativeTitlesAbsent === true,
         browserInspection: captureView !== 'inspector' || result.browserInspectionWorks === true,
         browserDomPaneCompact: captureView !== 'inspector' || result.browserDomPaneCompactWorks === true,
@@ -774,13 +1371,17 @@ child.on('exit', (code) => {
         browserSecurityPane: captureView !== 'inspector' || result.browserSecurityPaneWorks === true,
         browserSecurityPaneNoHorizontalOverflow: captureView !== 'inspector' || result.browserSecurityPaneNoHorizontalOverflowWorks === true,
         browserInspectorChromeCompact: captureView !== 'inspector' || result.browserInspectorChromeCompactWorks === true,
+        browserInspectorContainersShared: captureView !== 'inspector' || result.browserInspectorContainersSharedWorks === true,
+        browserInspectorActionsShared: captureView !== 'inspector' || browserDeepChecksCoveredByBrowserSmoke || result.browserInspectorActionsSharedWorks === true,
         browserVisibilityControl: captureView !== 'inspector' || browserDeepChecksCoveredByBrowserSmoke || result.browserVisibilityControlWorks === true,
         browserHiddenState: captureView !== 'inspector' || browserDeepChecksCoveredByBrowserSmoke || result.browserHiddenStateWorks === true,
         browserTabReset: captureView !== 'inspector' || browserDeepChecksCoveredByBrowserSmoke || result.browserTabResetWorks === true,
         rightPanelContextMenuWorks: captureView !== 'inspector' || result.rightPanelContextMenuWorks === true,
+        rightPanelContextMenuSharedSections: captureView !== 'inspector' || result.rightPanelContextMenuSharedSectionsWorks === true,
         rightPanelTabReorderWorks: captureView !== 'inspector' || result.rightPanelTabReorderWorks === true,
         planPanel: captureView !== 'plan' || result.planPanelWorks === true,
         planCompactRows: captureView !== 'plan' || result.compactTaskRowsWork === true,
+        planAgentTabShimmer: captureView !== 'plan' || result.planAgentTabShimmerWorks === true,
         planAgentStatLabelsCalm: captureView !== 'plan' || result.planAgentStatLabelsCalm === true,
         sideChatTabs: captureView !== 'inspector' || result.sideChatTabsWork === true,
         sideChatComposerCompact: captureView !== 'inspector' || result.sideChatComposerCompactWorks === true,
@@ -788,33 +1389,89 @@ child.on('exit', (code) => {
         sideChatMessageLabelsCalm: captureView !== 'inspector' || result.sideChatMessageLabelsCalm === true,
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
         terminalTabsPersist: captureView !== 'terminal' || result.terminalTabsPersistState === true,
+        terminalShellOwnership: captureView !== 'terminal' || result.terminalShellOwnershipWorks === true,
+        terminalSharedLayoutController: captureView !== 'terminal' || result.terminalSharedLayoutControllerWorks === true,
+        terminalBottomPanelSizeDecomposition: captureView !== 'terminal' || result.terminalBottomPanelSizeDecompositionWorks === true,
         terminalRestore: captureView !== 'terminal' || result.terminalRestoreWorks === true,
         terminalTabMenu: captureView !== 'terminal' || result.terminalTabMenuWorks === true,
+        terminalTabMenuSharedSections: captureView !== 'terminal' || result.terminalTabMenuSharedSectionsWorks === true,
         terminalTabReorder: captureView !== 'terminal' || result.terminalTabReorderWorks === true,
         terminalTabDragReorder: captureView !== 'terminal' || result.terminalTabDragReorderWorks === true,
+        terminalTabDragMarker: captureView !== 'terminal' || result.terminalTabDragMarkerWorks === true,
+        terminalToolbarShared: captureView !== 'terminal' || result.terminalToolbarSharedWorks === true,
+        terminalHeaderSharedChrome: captureView !== 'terminal' || result.terminalHeaderSharedChromeWorks === true,
+        terminalContentSpacing: captureView !== 'terminal' || result.terminalContentSpacingWorks === true,
+        terminalResizeReset: captureView !== 'terminal' || result.terminalResizeResetWorks === true,
+        terminalResizeHandleOverlay: captureView !== 'terminal' || result.terminalResizeHandleOverlayWorks === true,
         terminalCloseActiveShortcut: captureView !== 'terminal' || result.terminalCloseActiveShortcutWorks === true,
+        terminalNewTabShortcut: captureView !== 'terminal' || result.terminalNewTabShortcutWorks === true,
+        terminalTabPanelA11y: captureView !== 'terminal' || result.terminalTabPanelA11yWorks === true,
+        terminalFullscreenCleanup: captureView !== 'terminal' || result.terminalFullscreenCleanupWorks === true,
+        terminalTabTelemetry: captureView !== 'terminal' || result.terminalTabTelemetryWorks === true,
+        terminalTabLifecycleTelemetry: captureView !== 'terminal' || result.terminalTabLifecycleTelemetryWorks === true,
+        terminalMoveToRightPanel: captureView !== 'terminal' || result.terminalMoveToRightPanelWorks === true,
+        terminalSharedTransferModel: captureView !== 'terminal' || result.terminalSharedTransferModelWorks === true,
+        terminalServiceSnapshot: captureView !== 'terminal' || result.terminalServiceSnapshotWorks === true,
+        terminalRightPanelNewTabShortcut: captureView !== 'terminal' || result.terminalRightPanelNewTabShortcutWorks === true,
+        terminalMoveBackToBottom: captureView !== 'terminal' || result.terminalMoveBackToBottomWorks === true,
+        terminalLinkRouting: captureView !== 'terminal' || result.terminalLinkRoutingWorks === true,
+        terminalThemeFontSync: captureView !== 'terminal' || result.terminalThemeFontSyncWorks === true,
+        terminalThemeTokenMatrix: captureView !== 'terminal' || result.terminalThemeTokenMatrixWorks === true,
         themeImport: captureView !== 'settings' || result.themeImportWorks === true,
         themeSharingControls: captureView !== 'settings' || result.themeSharingControls === true,
         themePresetPreview: captureView !== 'settings' || result.themePresetPreviewWorks === true,
         settingsTaxonomy: captureView !== 'settings' || result.settingsTaxonomyWorks === true,
         settingsRowsCalm: captureView !== 'settings' || result.settingsRowsCalmWorks === true,
+        settingsAppearanceSurface: captureView !== 'settings' || result.settingsAppearanceSurfaceWorks === true,
+        settingsAppearanceModule: captureView !== 'settings' || result.settingsAppearanceModuleWorks === true,
+        settingsGeneralSurface: captureView !== 'settings' || result.settingsGeneralSurfaceWorks === true,
+        settingsGeneralModule: captureView !== 'settings' || result.settingsGeneralModuleWorks === true,
+        settingsTopbarShared: captureView !== 'settings' || result.settingsTopbarSharedWorks === true,
+        settingsContentLayout: captureView !== 'settings' || result.settingsContentLayoutWorks === true,
+        settingsRouteOwned: !['settings', 'settings-providers'].includes(captureView) || result.settingsRouteOwnedWorks === true,
+        settingsDeepLinkRoute: captureView !== 'settings-deeplink' || result.settingsDeepLinkRouteWorks === true,
+        settingsHostContext: captureView !== 'settings' || result.settingsHostContextWorks === true,
+        settingsHostSectionFiltering: captureView !== 'settings' || result.settingsHostSectionFilteringWorks === true,
+        settingsHostAdapterBoundary: captureView !== 'settings' || result.settingsHostAdapterBoundaryWorks === true,
+        settingsPersonalizationHostBoundary: captureView !== 'settings' || result.settingsPersonalizationHostBoundaryWorks === true,
         settingsSidebarNavCompact: captureView !== 'settings' || result.settingsSidebarNavCompactWorks === true,
+        settingsSidebarNavPrimitive: captureView !== 'settings' || result.settingsSidebarNavPrimitiveWorks === true,
+        settingsSidebarGroupedNav: captureView !== 'settings' || result.settingsSidebarGroupedNavWorks === true,
         settingsProviderDropdown: captureView !== 'settings-providers' || result.settingsProviderDropdownWorks === true,
         settingsDiagnosticsSection: !['settings', 'settings-providers'].includes(captureView) || result.settingsDiagnosticsSectionWorks === true,
         settingsProviderStatusUnified: !['settings', 'settings-providers'].includes(captureView) || result.settingsProviderStatusUnifiedWorks === true,
         settingsUsageDiagnostics: !['settings', 'settings-providers'].includes(captureView) || result.settingsUsageDiagnosticsWorks === true,
         settingsProviderModelsCollapsed: !['settings', 'settings-providers'].includes(captureView) || result.settingsProviderModelsCollapsedWorks === true,
         settingsProviderControlSurfaceUnified: captureView !== 'settings-providers' || result.settingsProviderControlSurfaceUnifiedWorks === true,
+        settingsProvidersModule: !['settings', 'settings-providers'].includes(captureView) || result.settingsProvidersModuleWorks === true,
         settingsProviderCatalogLabelCalm: captureView !== 'settings-providers' || result.settingsProviderCatalogLabelCalm === true,
         settingsDiagnosticsDisclosureCompact: !['settings', 'settings-providers'].includes(captureView) || result.settingsDiagnosticsDisclosureCompactWorks === true,
+        settingsProviderSidebarRefresh: captureView !== 'settings-providers' || result.settingsProviderSidebarRefreshWorks === true,
         settingsDataControls: captureView !== 'settings' || result.settingsDataControlsWorks === true,
+        settingsDataControlsSurface: captureView !== 'settings' || result.settingsDataControlsSurfaceWorks === true,
+        settingsDataControlsModule: captureView !== 'settings' || result.settingsDataControlsModuleWorks === true,
+        settingsAutomationsPage: captureView !== 'settings' || result.settingsAutomationsPageWorks === true,
+        settingsWorktreesPage: captureView !== 'settings' || result.settingsWorktreesPageWorks === true,
+        settingsWorktreesCreate: captureView !== 'settings' || result.settingsWorktreesCreateWorks === true,
+        settingsWorktreesDelete: captureView !== 'settings' || result.settingsWorktreesDeleteWorks === true,
+        settingsWorktreesOpen: captureView !== 'settings' || result.settingsWorktreesOpenWorks === true,
+        settingsShortcutsSurface: captureView !== 'settings' || result.settingsShortcutsSurfaceWorks === true,
         settingsShortcutsCompact: captureView !== 'settings' || result.settingsShortcutsCompactWorks === true,
         settingsShortcutsEditable: captureView !== 'settings' || result.settingsShortcutsEditableWorks === true,
+        settingsShortcutsConflict: captureView !== 'settings' || result.settingsShortcutsConflictWorks === true,
+        settingsShortcutsPunctuationCapture: captureView !== 'settings' || result.settingsShortcutsPunctuationCaptureWorks === true,
+        settingsShortcutActionsShared: captureView !== 'settings' || result.settingsShortcutActionsSharedWorks === true,
+        settingsShortcutCaptureFieldShared: captureView !== 'settings' || result.settingsShortcutCaptureFieldSharedWorks === true,
+        settingsShortcutsPerBindingClear: captureView !== 'settings' || result.settingsShortcutsPerBindingClearWorks === true,
+        settingsShortcutsModule: captureView !== 'settings' || result.settingsShortcutsModuleWorks === true,
+        petsSettingsSurface: captureView !== 'pets' || result.petsSettingsSurfaceWorks === true,
+        petsSettingsContentLayout: captureView !== 'pets' || result.petsSettingsContentLayoutWorks === true,
+        petsSettingsModule: captureView !== 'pets' || result.petsSettingsModuleWorks === true,
         extensionsPanel: captureView !== 'extensions' || result.hasExtensionsPanel === true,
         extensionsPanelTabs: captureView !== 'extensions' || result.hasExtensionsPanelTabs === true,
         extensionsEmbeddedCopyCompact: captureView !== 'extensions' || result.extensionsEmbeddedCopyCompact === true,
         extensionsPanelCalm: captureView !== 'extensions' || result.extensionsPanelCalmWorks === true,
-        sideQuestionCommand: ['terminal', 'settings', 'settings-providers', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions', 'plan'].includes(captureView) || result.hasSideQuestionCommandText === true,
+        sideQuestionCommand: ['terminal', 'settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets', 'inspector', 'composer', 'extensions', 'plan'].includes(captureView) || result.hasSideQuestionCommandText === true,
         capabilityCreateMenu: captureView !== 'capabilities' || result.capabilityMenuOpened === true,
         capabilityMenuArrowFocus: captureView !== 'capabilities' || result.capabilityMenuArrowFocus === true,
         capabilityMenuEscape: captureView !== 'capabilities' || result.capabilityMenuClosedWithEscape === true,
@@ -829,6 +1486,7 @@ child.on('exit', (code) => {
         capabilityEditSheet: captureView !== 'capabilities' || result.capabilityEditSheetOpened === true,
         capabilitySyncSheet: captureView !== 'capabilities' || result.capabilitySyncSheetOpened === true,
         composerPermissionMenu: captureView !== 'composer' || result.composerPermissionMenuOpened === true,
+        composerDropdownMaterial: captureView !== 'composer' || result.composerDropdownMaterialWorks === true,
         composerPermissionNativeTooltips: captureView !== 'composer' || result.composerPermissionNativeTooltipsWork === true,
         composerPermissionLabelsCalm: captureView !== 'composer' || result.composerPermissionLabelsCalm === true,
         composerPermissionEscape: captureView !== 'composer' || result.composerPermissionMenuClosedWithEscape === true,
@@ -844,7 +1502,7 @@ child.on('exit', (code) => {
         composerDropOverlay: captureView !== 'composer' || result.composerDropOverlayWorks === true,
         composerDragDropAttachment: captureView !== 'composer' || result.composerDragDropAttachmentWorks === true,
         composerToolbarResponsive: captureView !== 'composer' || result.composerToolbarResponsiveWorks === true,
-        buttons: Number(result.buttonCount ?? 0) > 0
+        buttons: captureView === 'terminal' || Number(result.buttonCount ?? 0) > 0
       }
   const failed = Object.entries(checks).filter(([, ok]) => !ok)
   if (failed.length > 0) {

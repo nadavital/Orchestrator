@@ -1,18 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { sideChatIdFromTabId, useSessionStore } from '../../store/sessions'
-import type { RightPanelTabId } from '../../store/sessions'
-import { derivePlanStates, derivePlanStatesFromMessages } from '../../types'
+import { useCallback, useState } from 'react'
+import { filePathFromTabId, sideChatIdFromTabId, terminalTabIdFromTabId, useSessionStore } from '../../store/sessions'
+import type { RightPanelTabId, RightPanelTabKind } from '../../store/sessions'
+import { derivePlanStates, derivePlanStatesFromMessages, resolvePanelTabTransferAvailability } from '../../types'
 import type { AgentNode, Session, SessionRunEventRecord } from '../../types'
 import BrowserPanel from './BrowserPanel'
 import DiffPanel from './DiffPanel'
+import EnvironmentPanel from './EnvironmentPanel'
 import EventInspectorPanel from './EventInspectorPanel'
 import ExtensionsPanel from './ExtensionsPanel'
+import FileTabPanel from './FileTabPanel'
 import FilesPanel from './FilesPanel'
 import PlanPanel from './PlanPanel'
 import SideQuestionPanel from './SideQuestionPanel'
-import { IconButton, MenuItem, MenuSurface, MotionPanel, PanelResizeHandle, PanelTabStrip } from '../shared/designSystem'
+import TerminalView from './TerminalView'
+import { AppShellPanel, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, exitFullscreenForPanelTab, panelTabDomId, panelTabPanelDomId, useAppShellResizeController, useAppShellSidePanelLayout } from '../shared/designSystem'
 import { deriveSessionAgentNodes } from './agentNodes'
-import type { IconName } from '../shared/Icon'
+import Icon, { type IconName } from '../shared/Icon'
 
 export type ContextTab = RightPanelTabId
 
@@ -20,11 +23,11 @@ interface Props {
   sessionId: string
 }
 
-const DEFAULT_PANEL_WIDTH = 468
-const DEFAULT_PANEL_WIDTH_RATIO = 0.34
-const MIN_PANEL_WIDTH = 360
-const MAX_PANEL_WIDTH = 960
-const MIN_PRIMARY_CONTENT_WIDTH = 360
+const DEFAULT_PANEL_WIDTH = 600
+const LEGACY_DEFAULT_PANEL_WIDTH = 468
+const LEGACY_DEFAULT_PANEL_WIDTH_RATIO = 0.34
+const MIN_PANEL_WIDTH = 320
+const MIN_PRIMARY_CONTENT_WIDTH = 352
 const MIN_OVERLAY_PANEL_WIDTH = 280
 
 interface ContextTabSpec {
@@ -32,6 +35,10 @@ interface ContextTabSpec {
   label: string
   icon: IconName
   count?: number
+  preview?: boolean
+  pinned?: boolean
+  shimmering?: boolean
+  tooltipLabel?: string
 }
 
 export default function ContextSidebar({ sessionId }: Props): JSX.Element | null {
@@ -54,39 +61,44 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     setShowExtensions,
     setShowSideQuestions,
     setRightPanelWidth,
+    setRightPanelOpen,
     setRightPanelFullWidth,
     openRightPanelTab,
     closeRightPanelTab,
     moveRightPanelTab,
     resetRightPanelTabState,
+    pinRightPanelTab,
+    updateRightPanelFileTabState,
     setRightPanelBrowserUrl,
     setRightPanelBrowserWorkbench,
     closeSideChat,
     openSideChat,
+    closeTerminalTab,
+    addTerminalTab,
+    transferSessionPanelTab,
     closeRightPanel
   } = useSessionStore()
-  const [isResizing, setIsResizing] = useState(false)
   const [tabMenu, setTabMenu] = useState<{ tabId: ContextTab; x: number; y: number } | null>(null)
-  const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
-  const [mainRowWidth, setMainRowWidth] = useState(() => window.innerWidth)
-  const resizeStartRef = useRef<{ x: number; width: number } | null>(null)
   const ui = uiState[session.id]
   const rightPanel = ui?.rightPanel
-  const panelWidthRatio = rightPanel?.widthRatio ?? DEFAULT_PANEL_WIDTH_RATIO
-  const panelWidth = Math.round(mainRowWidth * panelWidthRatio) || rightPanel?.width || DEFAULT_PANEL_WIDTH
-  const shouldOverlayPanel = !rightPanel?.fullWidth && mainRowWidth < MIN_PRIMARY_CONTENT_WIDTH + MIN_PANEL_WIDTH
-  const maxPanelWidth = Math.max(
-    MIN_PANEL_WIDTH,
-    Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, mainRowWidth - MIN_PRIMARY_CONTENT_WIDTH))
-  )
-  const panelSize = rightPanel?.fullWidth
-    ? Math.max(MIN_PANEL_WIDTH, mainRowWidth)
-    : shouldOverlayPanel
-      ? Math.min(
-          Math.max(MIN_OVERLAY_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, panelWidth)),
-          Math.max(MIN_OVERLAY_PANEL_WIDTH, mainRowWidth - 16)
-        )
-    : Math.max(MIN_PANEL_WIDTH, Math.min(maxPanelWidth, panelWidth))
+  const rawPanelWidthRatio = rightPanel?.widthRatio
+  const panelLayout = useAppShellSidePanelLayout({
+    containerTestId: 'session-main-row',
+    defaultSize: DEFAULT_PANEL_WIDTH,
+    size: rightPanel?.width,
+    widthRatio: rawPanelWidthRatio,
+    legacyDefaultSize: LEGACY_DEFAULT_PANEL_WIDTH,
+    legacyDefaultSizeRatio: LEGACY_DEFAULT_PANEL_WIDTH_RATIO,
+    fullWidth: rightPanel?.fullWidth,
+    minSize: MIN_PANEL_WIDTH,
+    minPrimaryContentSize: MIN_PRIMARY_CONTENT_WIDTH,
+    minOverlaySize: MIN_OVERLAY_PANEL_WIDTH
+  })
+  const mainRowWidth = panelLayout.containerSize
+  const panelWidthRatio = panelLayout.widthRatio
+  const panelWidth = panelLayout.storedSize
+  const shouldOverlayPanel = panelLayout.isOverlay
+  const panelSize = panelLayout.size
   const events = eventBuffers[session.id] ?? []
   const plans = [
     ...derivePlanStatesFromMessages(session, session.messages),
@@ -97,8 +109,11 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   const hasOpenAgent = (ui?.agentTabIds?.length ?? 0) > 0
   const hasLiveAgent = agents.some(isLiveAgent)
   const hasSideQuestions = (ui?.sideQuestions?.length ?? 0) > 0
+  const hasEnvironmentTab = rightPanel?.tabs.some((tab) => tab.id === 'environment') ?? false
+  const hasDiffTab = rightPanel?.tabs.some((tab) => tab.id === 'diff') ?? false
   const hasFilesTab = rightPanel?.tabs.some((tab) => tab.id === 'files') ?? false
   const hasBrowserTab = rightPanel?.tabs.some((tab) => tab.id === 'browser') ?? false
+  const hasNewTab = rightPanel?.tabs.some((tab) => tab.id === 'new-tab') ?? false
   const sideChatTabs = (rightPanel?.tabs ?? [])
     .filter((tab) => tab.kind === 'sidechat')
     .map((tab) => {
@@ -108,16 +123,38 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         id: tab.id,
         label: chat?.title ?? tab.title,
         icon: 'chat' as const,
-        count: sideChatBadgeCount(chat)
+        count: sideChatBadgeCount(chat),
+        shimmering: chat?.messages.some((message) => message.status === 'pending') ?? false
       }
     })
+  const terminalTabs = (rightPanel?.tabs ?? [])
+    .filter((tab) => tab.kind === 'terminal')
+    .map((tab) => ({
+      id: tab.id,
+      label: tab.title,
+      icon: 'terminal' as const
+    }))
+  const fileTabs = (rightPanel?.tabs ?? [])
+    .filter((tab) => tab.kind === 'file' && tab.filePath)
+    .map((tab) => ({
+      id: tab.id,
+      label: tab.title,
+      icon: 'file' as const,
+      preview: tab.isPreview,
+      pinned: tab.isPinned,
+      tooltipLabel: tab.filePath
+    }))
   const availableTabs: ContextTabSpec[] = [
-    ...(ui?.showDiff ? [{ id: 'diff' as const, label: 'Review', icon: 'diff' as const }] : []),
+    ...(hasNewTab ? [{ id: 'new-tab' as const, label: 'New tab', icon: 'plus' as const }] : []),
+    ...(hasEnvironmentTab ? [{ id: 'environment' as const, label: 'Environment', icon: 'settings' as const }] : []),
+    ...(ui?.showDiff || hasDiffTab ? [{ id: 'diff' as const, label: 'Review', icon: 'diff' as const }] : []),
     ...(hasBrowserTab ? [{ id: 'browser' as const, label: 'Browser', icon: 'browser' as const }] : []),
     ...(hasFilesTab ? [{ id: 'files' as const, label: 'Files', icon: 'folder' as const }] : []),
+    ...fileTabs,
     ...sideChatTabs,
+    ...terminalTabs,
     ...(hasPlan ? [{ id: 'plan' as const, label: 'Plan', icon: 'plan' as const, count: plans.length }] : []),
-    ...((hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length }] : []),
+    ...((hasOpenAgent || hasLiveAgent) ? [{ id: 'agents' as const, label: 'Agents', icon: 'agents' as const, count: agents.length, shimmering: hasLiveAgent }] : []),
     ...(ui?.showExtensions ? [{ id: 'extensions' as const, label: 'Extensions', icon: 'extensions' as const }] : []),
     ...(hasSideQuestions ? [{ id: 'side' as const, label: 'Side', icon: 'chat' as const, count: ui?.sideQuestions?.length ?? 0 }] : [])
   ]
@@ -142,23 +179,10 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             ? 'side'
             : null
   const effectiveTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : tabs[0]?.id ?? null
-
-  useEffect(() => {
-    const updateWidths = (): void => {
-      const row = document.querySelector('[data-testid="session-main-row"]')
-      if (row instanceof HTMLElement) setMainRowWidth(row.getBoundingClientRect().width)
-    }
-    updateWidths()
-    const row = document.querySelector('[data-testid="session-main-row"]')
-    const observer = row instanceof HTMLElement ? new ResizeObserver(updateWidths) : null
-    observer?.observe(row as HTMLElement)
-    const onResize = (): void => updateWidths()
-    window.addEventListener('resize', onResize)
-    return () => {
-      observer?.disconnect()
-      window.removeEventListener('resize', onResize)
-    }
-  }, [])
+  const effectiveFilePath = filePathFromTabId(effectiveTab ?? 'plan')
+  const effectiveFileTab = rightPanel?.tabs.find((tab) => tab.id === effectiveTab && tab.kind === 'file') ?? null
+  const effectiveTabLabel = tabs.find((tab) => tab.id === effectiveTab)?.label ?? 'Workbench'
+  const rightPanelOpen = rightPanel?.open ?? false
 
   const activate = (tab: ContextTab): void => {
     const sideChatId = sideChatIdFromTabId(tab)
@@ -166,7 +190,15 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       openSideChat(session.id, sideChatId)
       return
     }
-    if (tab === 'files' || tab === 'browser') {
+    if (terminalTabIdFromTabId(tab) !== null) {
+      openRightPanelTab(session.id, tab)
+      return
+    }
+    if (filePathFromTabId(tab)) {
+      openRightPanelTab(session.id, tab)
+      return
+    }
+    if (tab === 'new-tab' || tab === 'environment' || tab === 'files' || tab === 'browser') {
       openRightPanelTab(session.id, tab)
       return
     }
@@ -183,10 +215,19 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       closeRightPanel(session.id)
       return
     }
+    exitFullscreenForPanelTab('right', tab)
+    if (tab === 'new-tab') closeRightPanelTab(session.id, 'new-tab')
+    if (tab === 'environment') closeRightPanelTab(session.id, 'environment')
     if (tab === 'files') closeRightPanelTab(session.id, 'files')
+    if (filePathFromTabId(tab)) closeRightPanelTab(session.id, tab)
     if (tab === 'browser') closeRightPanelTab(session.id, 'browser')
     const sideChatId = sideChatIdFromTabId(tab)
     if (sideChatId) closeSideChat(session.id, sideChatId)
+    const terminalTabId = terminalTabIdFromTabId(tab)
+    if (terminalTabId !== null) {
+      window.api.terminal.kill(`${session.id}-${terminalTabId}`)
+      closeTerminalTab(session.id, terminalTabId)
+    }
     if (tab === 'plan' || !tab) setShowPlan(session.id, false)
     if (tab === 'diff' || !tab) setShowDiff(session.id, false)
     if (tab === 'agents' || !tab) setShowEvents(session.id, false)
@@ -194,40 +235,30 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
     if (tab === 'side' || !tab) setShowSideQuestions(session.id, false)
   }
 
-  const handleResizeStart = useCallback((event: React.PointerEvent<HTMLButtonElement>): void => {
-    event.preventDefault()
-    try {
-      event.currentTarget.setPointerCapture?.(event.pointerId)
-    } catch {
-      // Synthetic smoke-test pointer events do not always create a capturable pointer.
-    }
-    resizeStartRef.current = { x: event.clientX, width: panelWidth }
-    setIsResizing(true)
-
-    const onMove = (moveEvent: PointerEvent): void => {
-      const start = resizeStartRef.current
-      if (!start) return
-      const delta = start.x - moveEvent.clientX
+  const getRightPanelDragRowWidth = useCallback((): number => {
       const row = document.querySelector('[data-testid="session-main-row"]')
-      const rowWidth = row instanceof HTMLElement ? row.getBoundingClientRect().width : mainRowWidth
-      const dragMaxPanelWidth = Math.max(
-        MIN_PANEL_WIDTH,
-        Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, rowWidth - MIN_PRIMARY_CONTENT_WIDTH))
-      )
-      const nextWidth = Math.max(MIN_PANEL_WIDTH, Math.min(dragMaxPanelWidth, start.width + delta))
+      return row instanceof HTMLElement ? row.getBoundingClientRect().width : mainRowWidth
+  }, [mainRowWidth])
+
+  const resizeController = useAppShellResizeController({
+    edge: 'left',
+    size: panelWidth,
+    defaultSize: DEFAULT_PANEL_WIDTH,
+    minSize: MIN_PANEL_WIDTH,
+    maxSize: () => Math.max(MIN_PANEL_WIDTH, getRightPanelDragRowWidth() - MIN_PRIMARY_CONTENT_WIDTH),
+    onBelowMin: () => {
+      setRightPanelOpen(session.id, false)
+      if (rightPanel?.fullWidth) setRightPanelFullWidth(session.id, false)
+    },
+    onSizeChange: (nextWidth) => {
+      const rowWidth = getRightPanelDragRowWidth()
       const nextRatio = rowWidth > 0 ? nextWidth / rowWidth : panelWidthRatio
+      setRightPanelOpen(session.id, true)
       setRightPanelWidth(session.id, nextWidth, nextRatio)
       if (rightPanel?.fullWidth) setRightPanelFullWidth(session.id, false)
-    }
-    const onUp = (): void => {
-      resizeStartRef.current = null
-      setIsResizing(false)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp, { once: true })
-  }, [mainRowWidth, panelWidth, panelWidthRatio, rightPanel?.fullWidth, session.id, setRightPanelFullWidth, setRightPanelWidth])
+    },
+    onReset: () => setRightPanelWidth(session.id, DEFAULT_PANEL_WIDTH, null)
+  })
 
   const moveTab = (tabId: ContextTab, direction: 'left' | 'right'): void => {
     moveRightPanelTab(session.id, tabId, direction)
@@ -240,33 +271,102 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
   }
 
   const tabMenuIndex = tabMenu ? tabs.findIndex((tab) => tab.id === tabMenu.tabId) : -1
-  const toolTabs = [
-    { id: 'browser' as const, label: 'Browser', icon: 'browser' as const, open: hasBrowserTab },
-    { id: 'files' as const, label: 'Files', icon: 'folder' as const, open: hasFilesTab }
-  ]
-  const openToolTab = (tab: ContextTab): void => {
-    setToolsMenuOpen(false)
+  const tabMenuTransferKind = tabMenu
+    ? rightPanelTabTransferKind(tabMenu.tabId, rightPanel?.tabs.find((tab) => tab.id === tabMenu.tabId)?.kind)
+    : null
+  const tabMenuTransferAvailability = tabMenuTransferKind
+    ? resolvePanelTabTransferAvailability('right', 'bottom', tabMenuTransferKind)
+    : null
+
+  const openToolTab = (tab: 'environment' | 'diff' | 'browser' | 'files'): void => {
+    if (tab === 'diff') {
+      openRightPanelTab(session.id, 'environment')
+      setShowDiff(session.id, true)
+      return
+    }
     openRightPanelTab(session.id, tab)
   }
+  const openSideChatTab = (): void => {
+    openSideChat(session.id, crypto.randomUUID(), 'Side chat')
+  }
+  const openRightTerminalTab = (): void => {
+    const tabId = addTerminalTab(session.id)
+    transferSessionPanelTab(session.id, {
+      sourcePanel: 'bottom',
+      targetPanel: 'right',
+      tabKind: 'terminal',
+      tabId
+    })
+  }
+  const newTabActions: WorkbenchNewTabAction[] = [
+    {
+      id: 'files',
+      title: 'Files',
+      description: 'Browse project files',
+      icon: 'folder',
+      disabled: hasFilesTab,
+      onSelect: () => openToolTab('files')
+    },
+    {
+      id: 'side-chat',
+      title: 'Side chat',
+      description: 'Start a side conversation',
+      icon: 'chat',
+      onSelect: openSideChatTab
+    },
+    {
+      id: 'browser',
+      title: 'Browser',
+      description: 'Open a website',
+      icon: 'browser',
+      disabled: hasBrowserTab,
+      onSelect: () => openToolTab('browser')
+    },
+    {
+      id: 'review',
+      title: 'Review',
+      description: 'View code changes',
+      icon: 'diff',
+      disabled: ui?.showDiff || hasDiffTab,
+      onSelect: () => openToolTab('diff')
+    },
+    {
+      id: 'terminal',
+      title: 'Terminal',
+      description: 'Start an interactive shell',
+      icon: 'terminal',
+      onSelect: openRightTerminalTab
+    }
+  ]
 
   return (
-    <MotionPanel
-      open={Boolean(effectiveTab)}
+    <AppShellPanel
+      open={rightPanelOpen && Boolean(effectiveTab)}
       side="right"
       size={panelSize}
-      className={`workbench-panel flex ${rightPanel?.fullWidth ? 'right-sidebar-expanded' : shouldOverlayPanel ? 'right-sidebar-overlay' : ''}`}
-      style={{
-        borderLeft: '1px solid var(--border-subtle)',
-        ...(rightPanel?.fullWidth ? { width: '100%', minWidth: '100%', maxWidth: '100%' } : {})
-      }}
+      panel="right"
+      surface="workbench"
+      focusArea="right-panel"
+      className={`workbench-panel flex ${panelLayout.className}`.trim()}
+      style={panelLayout.style}
+      data-app-shell-panel-size-controller="shared"
+      data-app-shell-panel-layout={panelLayout.mode}
+      data-app-shell-panel-container-size={Math.round(panelLayout.containerSize)}
+      data-app-shell-panel-resolved-size={panelLayout.size}
+      data-app-shell-panel-max-size={panelLayout.maxSize}
     >
-      {!rightPanel?.fullWidth && !shouldOverlayPanel && (
+      {rightPanelOpen && !rightPanel?.fullWidth && !shouldOverlayPanel && (
         <PanelResizeHandle
           orientation="vertical"
+          edge="left"
           label="Resize panel"
-          active={isResizing}
-          onPointerDown={handleResizeStart}
-          onDoubleClick={() => setRightPanelWidth(session.id, DEFAULT_PANEL_WIDTH, DEFAULT_PANEL_WIDTH_RATIO)}
+          active={resizeController.isResizing}
+          onPointerDown={resizeController.onPointerDown}
+          onKeyDown={resizeController.onKeyDown}
+          onDoubleClick={resizeController.onDoubleClick}
+          valueNow={resizeController.valueNow}
+          valueMin={resizeController.valueMin}
+          valueMax={resizeController.valueMax}
         />
       )}
       <aside
@@ -274,17 +374,19 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         data-testid="session-right-panel"
         data-app-shell-focus-area="right-panel"
         aria-label="Workbench panel"
+        data-right-panel-open={rightPanelOpen ? 'true' : 'false'}
         data-right-panel-active-tab={effectiveTab ?? ''}
         data-right-panel-width={panelSize}
         data-right-panel-full-width={rightPanel?.fullWidth ? 'true' : 'false'}
-        data-right-panel-width-ratio={panelWidthRatio.toFixed(4)}
-        data-right-panel-layout={rightPanel?.fullWidth ? 'full' : shouldOverlayPanel ? 'overlay' : 'docked'}
+        data-right-panel-width-ratio={panelWidthRatio?.toFixed(4) ?? ''}
+        data-right-panel-layout={panelLayout.mode}
         data-right-panel-tabs={rightPanel?.tabs.map((tab) => tab.id).join(',') ?? ''}
       >
-      <div className="right-sidebar-chrome workbench-panel-chrome">
+      <div className="workbench-panel-chrome">
         <PanelTabStrip
           tabs={tabs}
           activeTabId={effectiveTab}
+          panelId="right"
           onActivate={activate}
           onClose={close}
           onContextMenu={(event, tabId) => {
@@ -292,48 +394,27 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
             setTabMenu({ tabId, x: event.clientX, y: event.clientY })
           }}
           onMove={(tabId, direction) => moveTab(tabId, direction)}
-          className="right-sidebar-tabbar"
-          stripTestId="right-sidebar-tabbar"
-          tabRowTestId="right-sidebar-tab-row"
-          actionsTestId="right-sidebar-tab-actions"
+          className="workbench-panel-tabbar"
+          stripTestId="workbench-panel-tabbar"
+          tabRowTestId="workbench-panel-tab-row"
+          actionsTestId="workbench-panel-tab-actions"
+          activeActionsHostTestId="right-panel-active-tab-actions"
           actions={(
             <>
-            <div className="relative">
-              <IconButton
-                icon="plus"
-                label="Add Workbench tab"
-                size="sm"
-                active={toolsMenuOpen}
-                dataTestId="right-panel-add-tab"
-                onClick={() => setToolsMenuOpen((open) => !open)}
-              />
-              {toolsMenuOpen && (
-                <MenuSurface
-                  onClose={() => setToolsMenuOpen(false)}
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 34,
-                    width: 168,
-                    zIndex: 70
-                  }}
-                >
-                  {toolTabs.map((tab) => (
-                    <MenuItem
-                      key={tab.id}
-                      icon={tab.icon}
-                      label={tab.open ? `${tab.label} open` : tab.label}
-                      disabled={tab.open}
-                      onClick={() => openToolTab(tab.id)}
-                    />
-                  ))}
-                </MenuSurface>
-              )}
-            </div>
+            <IconButton
+              icon="plus"
+              label="Add Workbench tab"
+              size="sm"
+              variant="toolbar"
+              active={effectiveTab === 'new-tab'}
+              dataTestId="right-panel-add-tab"
+              onClick={() => openRightPanelTab(session.id, 'new-tab')}
+            />
             <IconButton
               icon={rightPanel?.fullWidth ? 'minimize' : 'maximize'}
               label={rightPanel?.fullWidth ? 'Restore Workbench width' : 'Expand Workbench'}
               size="sm"
+              variant="toolbar"
               active={rightPanel?.fullWidth}
               dataTestId="right-panel-expand-toggle"
               onClick={() => setRightPanelFullWidth(session.id, !rightPanel?.fullWidth)}
@@ -342,7 +423,26 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
           )}
         />
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden" data-app-shell-tab-panel-controller>
+      <div
+        id={effectiveTab ? panelTabPanelDomId('right', effectiveTab) : undefined}
+        role="tabpanel"
+        tabIndex={-1}
+        aria-label={effectiveTabLabel}
+        aria-labelledby={effectiveTab ? panelTabDomId('right', effectiveTab) : undefined}
+        className="flex-1 min-h-0 overflow-hidden"
+        data-app-shell-tab-panel-controller="right"
+        data-tab-id={effectiveTab ?? ''}
+      >
+        {effectiveTab === 'new-tab' && (
+          <WorkbenchNewTabPanel actions={newTabActions} />
+        )}
+        {effectiveTab === 'environment' && (
+          <EnvironmentPanel
+            session={session}
+            embedded
+            onOpenReview={() => setShowDiff(session.id, true)}
+          />
+        )}
         {effectiveTab === 'plan' && <PlanPanel session={session} embedded />}
         {effectiveTab === 'agents' && (
           <EventInspectorPanel session={session} embedded activeAgentId={ui?.activeAgentId ?? null} />
@@ -353,58 +453,169 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         {effectiveTab === 'browser' && (
           <BrowserPanel
             embedded
+            hostId={`right:${session.id}:browser`}
             initialUrl={ui?.browserUrl ?? ''}
             browserState={ui?.browserWorkbench}
             onUrlChange={(url) => setRightPanelBrowserUrl(session.id, url)}
             onBrowserStateChange={(patch) => setRightPanelBrowserWorkbench(session.id, patch)}
           />
         )}
-        {effectiveTab === 'files' && <FilesPanel workDir={session.workDir} embedded />}
+        {effectiveTab === 'files' && <FilesPanel sessionId={session.id} workDir={session.workDir} embedded />}
+        {effectiveFilePath && (
+          <FileTabPanel
+            workDir={session.workDir}
+            filePath={effectiveFilePath}
+            fileHost={effectiveFileTab?.fileHost}
+            tabId={effectiveTab ?? 'files'}
+            isPreview={effectiveFileTab?.isPreview}
+            fileViewMode={effectiveFileTab?.fileViewMode}
+            sourceWrap={effectiveFileTab?.sourceWrap ?? true}
+            selectedSourceLine={effectiveFileTab?.selectedSourceLine ?? null}
+            sourceSearchQuery={effectiveFileTab?.sourceSearchQuery ?? ''}
+            sourceSearchIndex={effectiveFileTab?.sourceSearchIndex ?? 0}
+            sourceAnnotations={effectiveFileTab?.sourceAnnotations ?? []}
+            sourceBlameVisible={effectiveFileTab?.sourceBlameVisible ?? false}
+            sourceRevealLine={effectiveFileTab?.sourceRevealLine ?? null}
+            sourceRevealRequest={effectiveFileTab?.sourceRevealRequest ?? 0}
+            onPin={(tabId) => pinRightPanelTab(session.id, tabId)}
+            onFileTabStateChange={(tabId, patch) => updateRightPanelFileTabState(session.id, tabId, patch)}
+          />
+        )}
         {effectiveTab === 'diff' && <DiffPanel sessionId={session.id} workDir={session.workDir} embedded />}
         {effectiveTab === 'side' && <SideQuestionPanel session={session} embedded />}
         {sideChatIdFromTabId(effectiveTab ?? 'plan') && (
           <SideQuestionPanel session={session} chatId={sideChatIdFromTabId(effectiveTab ?? 'plan') ?? undefined} embedded />
         )}
+        {terminalTabIdFromTabId(effectiveTab ?? 'plan') !== null && (
+          <TerminalView
+            terminalId={`${session.id}-${terminalTabIdFromTabId(effectiveTab ?? 'plan') ?? 0}`}
+            workDir={session.workDir}
+            onNewTab={() => {
+              const newTabId = addTerminalTab(session.id)
+              transferSessionPanelTab(session.id, {
+                sourcePanel: 'bottom',
+                targetPanel: 'right',
+                tabKind: 'terminal',
+                tabId: newTabId
+              })
+            }}
+          />
+        )}
       </div>
       {tabMenu && (
         <MenuSurface
+          className="workbench-tab-context-menu"
+          data-panel-tab-transfer-model={tabMenuTransferAvailability?.model ?? 'shared'}
+          data-panel-tab-transfer-source="right"
+          data-panel-tab-transfer-target="bottom"
+          data-panel-tab-transfer-kind={tabMenuTransferKind ?? 'unknown'}
+          data-panel-tab-transfer-supported={tabMenuTransferAvailability?.supported ? 'true' : 'false'}
+          data-panel-tab-transfer-reason={tabMenuTransferAvailability?.reason ?? 'unsupported-tab-kind'}
           onClose={() => setTabMenu(null)}
           style={{
             position: 'fixed',
             left: Math.max(8, Math.min(tabMenu.x, window.innerWidth - 190)),
             top: Math.max(8, Math.min(tabMenu.y, window.innerHeight - 130)),
-            width: 180,
+            width: 212,
             zIndex: 80
           }}
         >
-          <MenuItem
-            icon="arrowLeft"
-            label="Move tab left"
-            disabled={tabMenuIndex <= 0}
-            onClick={() => moveTab(tabMenu.tabId, 'left')}
-          />
-          <MenuItem
-            icon="arrowRight"
-            label="Move tab right"
-            disabled={tabMenuIndex < 0 || tabMenuIndex >= tabs.length - 1}
-            onClick={() => moveTab(tabMenu.tabId, 'right')}
-          />
-          {tabMenu.tabId === 'browser' && (
+          <MenuSection dataTestId="workbench-tab-context-menu-tab-section">
+            <MenuSectionLabel>Tab</MenuSectionLabel>
             <MenuItem
-              icon="refresh"
-              label="Reset tab"
-              onClick={() => resetTab(tabMenu.tabId)}
+              icon="arrowLeft"
+              label="Move tab left"
+              disabled={tabMenuIndex <= 0}
+              onClick={() => moveTab(tabMenu.tabId, 'left')}
             />
+            <MenuItem
+              icon="arrowRight"
+              label="Move tab right"
+              disabled={tabMenuIndex < 0 || tabMenuIndex >= tabs.length - 1}
+              onClick={() => moveTab(tabMenu.tabId, 'right')}
+            />
+            {tabMenu.tabId === 'browser' && (
+              <MenuItem
+                icon="refresh"
+                label="Reset tab"
+                onClick={() => resetTab(tabMenu.tabId)}
+              />
+            )}
+          </MenuSection>
+          {terminalTabIdFromTabId(tabMenu.tabId) !== null && (
+            <MenuSection
+              dataTestId="workbench-tab-context-menu-terminal-section"
+              data-panel-tab-transfer-model="shared"
+              data-panel-tab-transfer-source="right"
+              data-panel-tab-transfer-target="bottom"
+            >
+              <MenuSectionLabel>Terminal</MenuSectionLabel>
+              <MenuItem
+                icon="terminal"
+                label="Move terminal to bottom"
+                onClick={() => {
+                  transferSessionPanelTab(session.id, {
+                    sourcePanel: 'right',
+                    targetPanel: 'bottom',
+                    tabKind: 'terminal',
+                    tabId: tabMenu.tabId
+                  })
+                  setTabMenu(null)
+                }}
+              />
+            </MenuSection>
           )}
-          <MenuItem
-            icon="close"
-            label="Close tab"
-            onClick={() => close(tabMenu.tabId)}
-          />
+          <MenuSection dataTestId="workbench-tab-context-menu-manage-section">
+            <MenuSectionLabel>Manage</MenuSectionLabel>
+            <MenuItem
+              icon="close"
+              label="Close tab"
+              onClick={() => close(tabMenu.tabId)}
+            />
+          </MenuSection>
         </MenuSurface>
       )}
       </aside>
-    </MotionPanel>
+    </AppShellPanel>
+  )
+}
+
+interface WorkbenchNewTabAction {
+  id: string
+  title: string
+  description: string
+  icon: IconName
+  disabled?: boolean
+  onSelect: () => void
+}
+
+function WorkbenchNewTabPanel({ actions }: { actions: WorkbenchNewTabAction[] }): JSX.Element {
+  return (
+    <div className="workbench-new-tab-panel" data-testid="workbench-new-tab-panel">
+      <div className="workbench-new-tab-content">
+        <div className="workbench-new-tab-grid" data-testid="workbench-new-tab-action-grid">
+          {actions.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              className="workbench-new-tab-card"
+              disabled={action.disabled}
+              data-testid={`workbench-new-tab-action-${action.id}`}
+              data-workbench-new-tab-action={action.id}
+              onClick={action.onSelect}
+            >
+              <span className="workbench-new-tab-card-icon">
+                <Icon name={action.icon} size={18} />
+              </span>
+              <span className="workbench-new-tab-card-copy">
+                <span className="workbench-new-tab-card-title">{action.title}</span>
+                <span className="workbench-new-tab-card-description">{action.description}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -419,6 +630,14 @@ function sideChatBadgeCount(chat: { unread?: boolean; messages: Array<{ status?:
   if (pending > 0) return pending
   if (errors > 0) return errors
   return chat.unread ? 1 : undefined
+}
+
+function rightPanelTabTransferKind(tabId: RightPanelTabId, kind?: RightPanelTabKind): string {
+  if (kind) return kind
+  if (terminalTabIdFromTabId(tabId) !== null) return 'terminal'
+  if (filePathFromTabId(tabId)) return 'file'
+  if (sideChatIdFromTabId(tabId)) return 'sidechat'
+  return tabId
 }
 
 function hasActiveGoal(events: SessionRunEventRecord[]): boolean {

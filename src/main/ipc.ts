@@ -1,14 +1,17 @@
 import type { IpcMain } from 'electron'
-import { dialog, app, shell, session } from 'electron'
+import { dialog, app, clipboard, shell, session } from 'electron'
 import { execFile } from 'child_process'
 import { request as httpRequest } from 'http'
 import { closeSync, openSync, readFileSync, readSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, dirname, extname, join } from 'path'
 import { inflateRawSync } from 'zlib'
-import type { Attachment, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
+import type { Attachment, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityDeleteRequest, CapabilitySyncRequest, CapabilityUpdateRequest, ChatMessage, GitLineBlameResult, GitPathActionResult, OpenPathMethod, OpenPathOptions, OpenPathResult, OpenTargetAvailability, PerformanceMetric, PreferredOpenTarget, ReviewDiffSource, Session, SessionForkMode, TranscriptPageRequest, WorkspaceSearchRequest } from '../types'
+import { browserWebviewPartitionForHost, isOrchestratorBrowserWebviewPartition } from '../types'
 import { projectStore } from './projects'
 import { sessionManager } from './sessions'
+import { automationManager } from './automations'
+import { automationEligibilityForSession } from './automationEligibility'
 import { gitManager } from './git'
 import { settingsStore } from './settings'
 import { terminalManager } from './terminal'
@@ -77,6 +80,7 @@ const BINARY_EXTENSIONS = new Set([
 
 const BROWSER_ARTIFACT_DIR = 'orchestrator-browser-artifacts'
 const COMPOSER_ATTACHMENT_DIR = 'orchestrator-composer-attachments'
+const APP_DEEPLINK_PROTOCOL = 'orchestrator'
 const BROWSER_LOCAL_TARGET_PORTS = [
   3000, 3001, 3020, 4000, 4010, 5000, 5010, 5173, 5174, 6006, 7000, 8000, 8080, 8888, 9000
 ]
@@ -579,6 +583,85 @@ async function macAppIsRegistered(appName: string): Promise<boolean> {
   })
 }
 
+function formatConversationMarkdown(session: Session | undefined): string {
+  if (!session) return '# Conversation\n\n_Conversation not found._\n'
+
+  const lines: string[] = [`# ${session.name}`]
+  lines.push(
+    '',
+    `Provider: ${session.provider}`,
+    `Model: ${session.model}`,
+    `Working directory: \`${session.workDir}\``,
+    `Created: ${new Date(session.createdAt).toISOString()}`
+  )
+
+  if (session.messages.length === 0) {
+    lines.push('', '_No transcript messages yet._')
+    return `${lines.join('\n')}\n`
+  }
+
+  for (const message of session.messages) {
+    const rendered = renderMessageMarkdown(message)
+    if (rendered) lines.push('', rendered)
+  }
+
+  return `${lines.join('\n')}\n`
+}
+
+function formatSessionDeeplink(sessionId: string): string {
+  return `${APP_DEEPLINK_PROTOCOL}://threads/${encodeURIComponent(sessionId)}`
+}
+
+function renderMessageMarkdown(message: ChatMessage): string | null {
+  if (message.type === 'text') {
+    const attachmentLines = (message.attachments ?? []).map((attachment) => {
+      if (attachment.kind === 'local_file') return `- ${attachment.name} (${attachment.path})`
+      return `- ${attachment.name ?? attachment.relativePath} (${attachment.fileId})`
+    })
+    return [
+      `## ${roleTitle(message.role)}`,
+      message.content.trim() || '_Empty message_',
+      attachmentLines.length > 0 ? ['', 'Attachments:', ...attachmentLines].join('\n') : null
+    ].filter((part): part is string => Boolean(part)).join('\n\n')
+  }
+
+  if (message.type === 'tool_use') {
+    return [
+      `## Tool: ${message.toolName}`,
+      '```json',
+      JSON.stringify(message.toolInput, null, 2),
+      '```'
+    ].join('\n')
+  }
+
+  if (message.type === 'tool_result') {
+    return [
+      `## Tool Result${message.isError ? ' (error)' : ''}`,
+      fencedBlock(message.content)
+    ].join('\n\n')
+  }
+
+  if (message.type === 'result') {
+    return [
+      `## Run Result: ${message.subtype}`,
+      message.content.trim() || '_No result content._'
+    ].join('\n\n')
+  }
+
+  return null
+}
+
+function roleTitle(role: 'user' | 'assistant' | 'system'): string {
+  if (role === 'user') return 'User'
+  if (role === 'assistant') return 'Assistant'
+  return 'System'
+}
+
+function fencedBlock(content: string): string {
+  const fence = content.includes('```') ? '````' : '```'
+  return `${fence}\n${content.trim() || '(empty)'}\n${fence}`
+}
+
 export function registerIpcHandlers(ipcMain: IpcMain): void {
   // App profile
   ipcMain.handle('app:getProfile', () => getAppProfile())
@@ -610,7 +693,28 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:searchTranscript', (_, id: string, query: string, limit?: number) =>
     sessionManager.searchTranscript(id, query, limit)
   )
+  ipcMain.handle('sessions:copyMarkdown', (_, id: string) => {
+    const session = sessionManager.get(id)
+    const markdown = formatConversationMarkdown(session)
+    clipboard.writeText(markdown)
+    return markdown
+  })
+  ipcMain.handle('sessions:copyDeeplink', (_, id: string) => {
+    const deeplink = formatSessionDeeplink(id)
+    clipboard.writeText(deeplink)
+    return deeplink
+  })
   ipcMain.handle('sessions:create', (_, opts) => sessionManager.create(opts))
+  ipcMain.handle('sessions:fork', (_, id: string, mode: SessionForkMode) => {
+    if (!['local', 'same-worktree', 'new-worktree'].includes(mode)) {
+      throw new Error(`Unsupported fork mode: ${mode}`)
+    }
+    return sessionManager.fork(id, mode).then((forked) => {
+      projectStore.addSession(forked.projectId, forked.id)
+      return forked
+    })
+  })
+  ipcMain.handle('sessions:retryPendingWorktree', (_, id: string) => sessionManager.retryPendingWorktree(id))
   ipcMain.handle('sessions:sendMessage', (_, sessionId: string, prompt: string, useWorktree?: boolean, attachments?: Attachment[]) =>
     sessionManager.sendMessage(sessionId, prompt, useWorktree, attachments ?? [])
   )
@@ -622,6 +726,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('sessions:updatePinned', (_, id: string, pinned: boolean) =>
     sessionManager.updatePinned(id, pinned)
+  )
+  ipcMain.handle('sessions:reorderPinned', (_, orderedPinnedSessionIds: string[]) =>
+    sessionManager.reorderPinned(orderedPinnedSessionIds)
   )
   ipcMain.handle('sessions:updateSettings', (_, id: string, patch: {
     provider?: string
@@ -647,16 +754,24 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('sessions:archive', (_, sessionId: string) => sessionManager.archive(sessionId))
   ipcMain.handle('sessions:restoreArchived', (_, sessionId: string) => sessionManager.restoreArchived(sessionId))
   ipcMain.handle('sessions:remove', (_, sessionId: string) => sessionManager.remove(sessionId))
+  ipcMain.handle('worktrees:list', () => sessionManager.listWorktrees())
+  ipcMain.handle('worktrees:delete', (_, workDir: string) => sessionManager.deleteWorktree(workDir))
   ipcMain.handle('sessions:getDiff', (_, sessionId: string) => sessionManager.getDiff(sessionId))
-  ipcMain.handle('sessions:getChangedFiles', (_, sessionId: string) => {
+  ipcMain.handle('sessions:getReviewMetadata', (_, sessionId: string) => sessionManager.getReviewMetadata(sessionId))
+  ipcMain.handle('sessions:getChangedFiles', (_, sessionId: string, source: ReviewDiffSource = 'all', ref?: string) => {
     const session = sessionManager.get(sessionId)
     if (!session) return []
-    return gitManager.getChangedFiles(session.workDir)
+    return gitManager.getChangedFiles(session.workDir, source, ref)
   })
-  ipcMain.handle('sessions:getDiffForFile', (_, sessionId: string, filePath: string) => {
+  ipcMain.handle('sessions:getDiffForFile', (_, sessionId: string, filePath: string, source: ReviewDiffSource = 'all', ref?: string) => {
     const session = sessionManager.get(sessionId)
     if (!session) return ''
-    return gitManager.getDiffForFile(session.workDir, filePath)
+    return gitManager.getDiffForFile(session.workDir, filePath, source, ref)
+  })
+  ipcMain.handle('sessions:undoChangedFiles', (_, sessionId: string, paths: string[]): Promise<GitPathActionResult> => {
+    const session = sessionManager.get(sessionId)
+    if (!session) return Promise.resolve({ ok: false, paths: [], changedFiles: [], discarded: false, error: 'Session not found' })
+    return gitManager.discardPaths(session.workDir, Array.isArray(paths) ? paths : [])
   })
   ipcMain.handle('sessions:writeToPty', (_, sessionId: string, data: string) =>
     sessionManager.writeToPty(sessionId, data)
@@ -674,6 +789,42 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     sessionManager.denyPermission(sessionId)
   )
 
+  // Automations
+  ipcMain.handle('automations:list', () => automationManager.list())
+  ipcMain.handle('automations:listForSession', (_, sessionId: string) =>
+    automationManager.listForSession(sessionId)
+  )
+  ipcMain.handle('automations:listRuns', (_, automationId: string) =>
+    automationManager.listRuns(automationId)
+  )
+  ipcMain.handle('automations:upsert', (_, request: AutomationUpsertRequest) =>
+    automationManager.upsert(request)
+  )
+  ipcMain.handle('automations:runNow', (_, id: string) =>
+    automationManager.runNow({
+      id,
+      isEligible: (automation) => automationEligibilityForSession(automation, (sessionId) => sessionManager.get(sessionId)),
+      execute: async ({ automation, run }) => {
+        await sessionManager.sendMessage(
+          automation.target.sessionId,
+          automation.prompt,
+          undefined,
+          [],
+          {
+            permissionSnapshot: automation.permissionSnapshot ?? null,
+            onProviderRunComplete: (result) => {
+              automationManager.finishRun(run.id, result.ok ? 'SUCCEEDED' : 'FAILED', result.error ?? null)
+            }
+          }
+        )
+        return { deferCompletion: true }
+      }
+    })
+  )
+  ipcMain.handle('automations:pause', (_, id: string) => automationManager.pause(id))
+  ipcMain.handle('automations:resume', (_, id: string) => automationManager.resume(id))
+  ipcMain.handle('automations:delete', (_, id: string) => automationManager.delete(id))
+
   // Providers
   ipcMain.handle('providers:getRuntimeInfo', () => getProviderRuntimeInfo())
   ipcMain.handle('providers:getManifest', () => providerManifests())
@@ -687,6 +838,17 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   ipcMain.handle('providers:runCommandSurface', (_, providerId: string, surfaceId: string) =>
     runProviderCommandSurfaceAsync(providerId, surfaceId)
   )
+  ipcMain.handle('providers:refreshSidebarMetadata', (_, providerId: string, cwd?: string) => {
+    if (providerId !== 'codex') {
+      return {
+        ok: true,
+        providerId,
+        changed: 0,
+        skipped: 'unsupported-provider'
+      }
+    }
+    return sessionManager.refreshCodexSidebarMetadata(cwd)
+  })
   ipcMain.handle('providers:getPermissionContext', (_, providerId: string, cwd?: string) =>
     getProviderPermissionRuntimeContextAsync(providerId, cwd)
   )
@@ -722,17 +884,25 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   // Git
   ipcMain.handle('git:isGitRepo', (_, dir: string) => gitManager.isGitRepo(dir))
   ipcMain.handle('git:getCurrentBranch', (_, dir: string) => gitManager.getCurrentBranch(dir))
+  ipcMain.handle('git:listBranches', (_, dir: string) => gitManager.listBranches(dir))
+  ipcMain.handle('git:listRecentCommits', (_, dir: string) => gitManager.listRecentCommits(dir))
   ipcMain.handle('git:stagePaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
     gitManager.stagePaths(dir, Array.isArray(paths) ? paths : [])
   )
   ipcMain.handle('git:unstagePaths', (_, dir: string, paths: string[]): Promise<GitPathActionResult> =>
     gitManager.unstagePaths(dir, Array.isArray(paths) ? paths : [])
   )
+  ipcMain.handle('git:blameLine', (_, dir: string, filePath: string, line: number): Promise<GitLineBlameResult> =>
+    gitManager.blameLine(dir, filePath, line)
+  )
 
   // Browser side panel
   ipcMain.handle('browser:openExternal', (_, url: string): Promise<void> => shell.openExternal(url))
-  ipcMain.handle('browser:clearData', async (_, kind: string = 'all'): Promise<void> => {
-    const browserSession = session.fromPartition('persist:orchestrator-side-browser')
+  ipcMain.handle('browser:clearData', async (_, kind: string = 'all', partition?: string): Promise<void> => {
+    const browserPartition = isOrchestratorBrowserWebviewPartition(partition)
+      ? partition
+      : browserWebviewPartitionForHost()
+    const browserSession = session.fromPartition(browserPartition)
     const dataTypesByKind = {
       all: ['cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
       cache: ['cache'],
@@ -820,6 +990,9 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
   )
   ipcMain.handle('terminal:getBuffer', (_, terminalId: string) =>
     terminalManager.getBuffer(terminalId)
+  )
+  ipcMain.handle('terminal:getServiceSnapshot', () =>
+    terminalManager.getServiceSnapshot()
   )
   ipcMain.handle('terminal:clear', (_, terminalId: string) =>
     terminalManager.clear(terminalId)

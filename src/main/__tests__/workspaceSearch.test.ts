@@ -57,6 +57,34 @@ test('workspace search ranks basename matches before path-only matches', async (
   }
 })
 
+test('workspace search can return bounded text content matches with line metadata', async () => {
+  const root = mkdtempWorkspace()
+  try {
+    mkdirSync(join(root, 'docs'), { recursive: true })
+    writeFileSync(join(root, 'docs', 'reference.md'), [
+      '# Reference',
+      '',
+      'The parity audit uses a content-only sentinel phrase here.'
+    ].join('\n'))
+    writeFileSync(join(root, 'docs', 'content-only-sentinel.md'), 'Filename should rank first\n')
+
+    const result = await searchWorkspace({
+      root,
+      query: 'content only sentinel',
+      includeContentMatches: true,
+      limit: 20
+    })
+
+    assert.equal(result.entries[0]?.path, 'docs/content-only-sentinel.md')
+    const contentMatch = result.entries.find((entry) => entry.path === 'docs/reference.md')
+    assert.equal(contentMatch?.matchKind, 'content')
+    assert.equal(contentMatch?.matchLine, 3)
+    assert.match(contentMatch?.matchText ?? '', /content-only sentinel phrase/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('workspace search returns a browsable directory listing for an empty query', async () => {
   const root = mkdtempWorkspace()
   try {
@@ -71,6 +99,51 @@ test('workspace search returns a browsable directory listing for an empty query'
       ['directory', 'src/components'],
       ['file', 'src/components/Panel.tsx'],
       ['file', 'README.md']
+    ])
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('workspace search can lazily load only expanded directories for browsing', async () => {
+  const root = mkdtempWorkspace()
+  try {
+    mkdirSync(join(root, 'src', 'components'), { recursive: true })
+    mkdirSync(join(root, 'docs'), { recursive: true })
+    writeFileSync(join(root, 'README.md'), '# Readme')
+    writeFileSync(join(root, 'src', 'components', 'Panel.tsx'), 'export {}')
+    writeFileSync(join(root, 'docs', 'guide.md'), '# Guide')
+
+    const collapsed = await searchWorkspace({
+      root,
+      host: 'local-workspace',
+      query: '',
+      includeDirectories: true,
+      lazyDirectories: true,
+      expandedDirectories: []
+    })
+
+    assert.deepEqual(collapsed.entries.map((entry) => [entry.kind, entry.path, entry.loaded]), [
+      ['directory', 'docs', false],
+      ['directory', 'src', false],
+      ['file', 'README.md', undefined]
+    ])
+    assert.equal(collapsed.host, 'local-workspace')
+    assert.equal(collapsed.entries.find((entry) => entry.path === 'src')?.hasChildren, true)
+
+    const expanded = await searchWorkspace({
+      root,
+      query: '',
+      includeDirectories: true,
+      lazyDirectories: true,
+      expandedDirectories: ['src']
+    })
+
+    assert.deepEqual(expanded.entries.map((entry) => [entry.kind, entry.path, entry.loaded]), [
+      ['directory', 'docs', false],
+      ['directory', 'src', true],
+      ['directory', 'src/components', false],
+      ['file', 'README.md', undefined]
     ])
   } finally {
     rmSync(root, { recursive: true, force: true })
