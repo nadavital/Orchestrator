@@ -160,14 +160,14 @@ function buildContracts() {
       ],
       sourceEvidence: [
         { path: 'src/main/codexAppServerRuntime.ts', terms: ['clientDynamicToolBridge', 'dynamicTools', 'answerClientDynamicTool'] },
-        { path: 'src/main/browserClientTools.ts', terms: ['browser_open', 'browser_read', 'browser:clientToolCall'] },
+        { path: 'src/main/browserClientTools.ts', terms: ['browser_open', 'browser_read', 'browser:clientToolCall', 'browser:runClientToolSmoke'] },
         { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['onClientToolCall', 'browserClientToolSnapshot', 'waitForWebviewSettled'] },
         { path: 'src/main/__tests__/codexAppServerRuntime.test.ts', terms: ['advertises and answers supported Browser dynamic tools', 'browser_read'] },
         { path: 'scripts/codex-browser-appserver-live-proof.mjs', terms: ['CODEX_BROWSER_PROOF_DYNAMIC_TOOL', 'dynamicTools', 'browser_bridge_status'] }
       ],
-      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge'],
+      smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Synthetic manager events and UI boundaries pass; live provider-emitted Codex/browser-use proof is separate. The app-server path now advertises renderer-backed Browser open/read tools, but live provider-emitted browser-use behavior still needs proof.',
+      caveat: 'Synthetic manager events, UI boundaries, and the smoke-only Browser client-tool loopback pass; live provider-emitted Codex/browser-use proof is separate.',
       next: 'Run a live Codex app-server Browser dynamic-tool proof against the renderer bridge, then expand tool coverage only from real browser-use requests or keep unavailable runtime boundaries explicit.'
     },
     {

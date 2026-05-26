@@ -250,6 +250,12 @@ declare global {
         }>
         onClientToolCall: (cb: (call: BrowserClientToolCall) => void) => () => void
         answerClientToolCall: (response: BrowserClientToolResponse) => Promise<boolean>
+        runClientToolSmoke: (call: {
+          sessionId: string
+          namespace?: string | null
+          tool: string
+          arguments?: Record<string, unknown>
+        }) => Promise<{ success: boolean; contentItems: Array<{ type: 'inputText'; text: string }> }>
       }
       attachments: {
         savePastedFile: (request: { name?: string; mimeType?: string; bytes: ArrayBuffer }) => Promise<SavedPastedAttachment>

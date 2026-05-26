@@ -677,8 +677,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               providersNavButton?.click();
               await sleep(450);
               const diagnosticsButton = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
-              if (diagnosticsButton instanceof HTMLElement) diagnosticsButton.click();
-              await sleep(450);
+              if (
+                diagnosticsButton instanceof HTMLElement &&
+                diagnosticsButton.getAttribute('aria-expanded') !== 'true'
+              ) {
+                diagnosticsButton.click();
+              }
+              for (let attempts = 0; attempts < 10; attempts += 1) {
+                await sleep(150);
+                if (document.querySelector('[data-testid="provider-details-grid"]') instanceof HTMLElement) break;
+              }
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const providerSettingsShell = document.querySelector('.settings-shell');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
@@ -12607,6 +12615,43 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 await sleep(100);
               }
             }
+            const activeSmokeSession = (await window.api.sessions.list())[0] ?? null;
+            const parseClientToolPayload = (response) => {
+              try {
+                return JSON.parse(response?.contentItems?.[0]?.text ?? '{}');
+              } catch {
+                return {};
+              }
+            };
+            let browserClientToolBridgeWorks = false;
+            if (activeSmokeSession) {
+              const readResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_read',
+                arguments: {}
+              });
+              const readPayload = parseClientToolPayload(readResponse);
+              const openResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_open',
+                arguments: { url: smokeBaseUrl }
+              });
+              const openPayload = parseClientToolPayload(openResponse);
+              browserClientToolBridgeWorks =
+                readResponse?.success === true &&
+                openResponse?.success === true &&
+                readPayload.ok === true &&
+                openPayload.ok === true &&
+                readPayload.action === 'read' &&
+                openPayload.action === 'open' &&
+                typeof readPayload.visibleStructure === 'string' &&
+                readPayload.visibleStructure.includes('Browser') &&
+                typeof openPayload.visibleStructure === 'string' &&
+                openPayload.visibleStructure.includes('Browser') &&
+                String(openPayload.url ?? '').startsWith(smokeBaseUrl);
+            }
             const browserInspectButton = document.querySelector('[data-testid="browser-run-inspection"]');
             if (browserInspectButton instanceof HTMLButtonElement) {
               browserInspectButton.click();
@@ -13162,6 +13207,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserVisibleGeometryWorks,
               browserViewportResetWorks,
               browserManagerStateBridgeWorks,
+              browserClientToolBridgeWorks,
               browserCaptureGeometryWorks,
               browserUseNoMutationWorks,
               browserCacheReloadWorks,

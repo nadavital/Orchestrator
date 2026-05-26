@@ -1,4 +1,5 @@
-import type { BrowserWindow, IpcMain } from 'electron'
+import { BrowserWindow } from 'electron'
+import type { IpcMain } from 'electron'
 import { safeWindowSend } from './safeWebContents'
 
 type JsonObject = Record<string, unknown>
@@ -78,6 +79,18 @@ export function registerBrowserClientToolIpc(ipcMain: IpcMain): void {
     clearInterval(pending.interval)
     pending.resolve(normalizeBrowserClientToolResponse(record ?? {}))
     return true
+  })
+  ipcMain.handle('browser:runClientToolSmoke', async (_, call: unknown): Promise<BrowserClientToolResponse> => {
+    if (!process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT) {
+      return browserClientToolFailure('Browser client tool smoke is only available during automated UI smoke.')
+    }
+    const record = asRecord(call) ?? {}
+    return callBrowserClientTool(BrowserWindow.getAllWindows(), {
+      sessionId: stringValue(record.sessionId) ?? '',
+      namespace: stringValue(record.namespace) ?? BROWSER_CLIENT_TOOL_NAMESPACE,
+      tool: stringValue(record.tool) ?? BROWSER_CLIENT_TOOL_READ,
+      arguments: asRecord(record.arguments) ?? {}
+    })
   })
 }
 

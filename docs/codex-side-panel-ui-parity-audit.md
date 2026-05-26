@@ -6446,9 +6446,25 @@ Verification: `pnpm exec tsc --noEmit` passed. `src/main/__tests__/codexAppServe
 
 Remaining: this is a narrow renderer-backed Browser bridge, not a claim of full browser-use parity. Next proof should run a live Codex app-server Browser dynamic-tool turn against the renderer bridge. Broader click/type/screenshot tools should be added only from real provider requests or explicit product scope.
 
+### 2026-05-26 - Browser Client Tool Loopback Smoke
+
+Implemented: added a smoke-only `browser:runClientToolSmoke` loopback gated by `ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT`. The focused Browser smoke now invokes `orchestrator.browser_read` and `orchestrator.browser_open` through the same main-process client-tool dispatcher used by Codex app-server, receives the Browser renderer's `browser:clientToolResponse`, and validates URL/title/visible-structure content from the actual webview.
+
+Verification: focused `npm run smoke:ui:auto -- --browser` initially hit the expected sandbox `listen EPERM 127.0.0.1`; the escalated rerun passed with `browserClientToolBridge=true`, evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779784683008.json`, and screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-browser-1779784683008.png`. The refreshed full comparison also passed with Browser `browserClientToolBridge=true`, manifest created at `2026-05-26T08:53:49.059Z`, and final counts `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`.
+
+Remaining: this proves Orchestrator's main IPC to Browser renderer bridge in the app smoke harness. It is still not live provider-emitted browser-use proof; keep that distinction explicit.
+
+### 2026-05-26 - Full Comparison Smoke Harness Tightening
+
+Implemented: corrected the reusable smoke harness so provider-diagnostics assertions gate the `settings-providers` capture instead of forcing the general Settings capture to prove provider details while it is on a different page. The `settings-providers` automated path now opens the provider Details section only when it is collapsed and waits for the details grid before checking provider status, usage, models, and compact disclosure structure.
+
+Verification: focused `npm run smoke:ui:auto -- --settings` and `npm run smoke:ui:auto -- --settings-providers` first hit the expected sandbox `listen EPERM 127.0.0.1`; escalated reruns passed. Final full `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with 23 captures, `settingsHostContext=true`, `settingsProviderStatusUnified=true`, `browserClientToolBridge=true`, `sessionHeaderInPrimaryColumn=true`, and final counts `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`.
+
+Remaining: this closes the false Settings mismatch in the directly comparable report. Real remote-host Settings adapters and Codex Personalization data are still missing by product scope and remain tracked as explicit unavailable boundaries.
+
 Recommended order:
 
-1. Shell/tab foundation only.
+1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel.
 2. Workbench chrome migration.
 3. Browser agent-driven parity: implement or explicitly gate a dynamic client-tool bridge for browser-use style requests. Manual Browser UI is strong; provider/browser-use parity is still blocked at the current app-server boundary.
 4. Terminal live Codex bottom-panel height/animation comparison at multiple window sizes plus root shell ownership for any remaining non-shared tab paths. The local content/chrome/target decomposition is now smoke-gated at a Codex-bundle-aligned 400 px total default/reset target; exact live animation timing remains.

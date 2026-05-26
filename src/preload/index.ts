@@ -289,7 +289,14 @@ const api = {
       return () => ipcRenderer.off('browser:clientToolCall', handler)
     },
     answerClientToolCall: (response: BrowserClientToolResponse): Promise<boolean> =>
-      ipcRenderer.invoke('browser:clientToolResponse', response)
+      ipcRenderer.invoke('browser:clientToolResponse', response),
+    runClientToolSmoke: (call: {
+      sessionId: string
+      namespace?: string | null
+      tool: string
+      arguments?: Record<string, unknown>
+    }): Promise<{ success: boolean; contentItems: Array<{ type: 'inputText'; text: string }> }> =>
+      ipcRenderer.invoke('browser:runClientToolSmoke', call)
   },
 
   attachments: {
