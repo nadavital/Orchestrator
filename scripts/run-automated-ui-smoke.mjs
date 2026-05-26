@@ -1208,6 +1208,7 @@ child.on('exit', (code) => {
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
           browserActive: result.browserActive === true,
+          browserHeaderPanelSeam: result.browserHeaderPanelSeamWorks === true,
           browserEmptyState: result.browserEmptyStateWorks === true,
           browserLocalTargets: result.browserLocalTargetsWorks === true,
           browserLocalTargetsCalm: result.browserLocalTargetsCalm === true,
@@ -1383,6 +1384,7 @@ child.on('exit', (code) => {
     : captureView === 'files'
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
+          filesHeaderPanelSeam: result.filesHeaderPanelSeamWorks === true,
           filesToolbarCompact: result.filesToolbarCompactWorks === true,
           filesActionMenuCompact: result.filesActionMenuCompactWorks === true,
           filesActionMenuMaterial: result.filesActionMenuMaterialWorks === true,

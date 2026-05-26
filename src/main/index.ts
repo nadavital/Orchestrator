@@ -10684,6 +10684,41 @@ function runAutomatedFocusedSurfaceSmoke(
               const filesBody = document.querySelector('[data-testid="files-panel-body"]');
               const filesList = document.querySelector('[data-testid="files-panel-list"]');
               const filesPreview = document.querySelector('[data-testid="files-panel-preview"]');
+              const filesSessionTitlebar = document.querySelector('[data-testid="session-titlebar"]');
+              const filesSessionMainRow = document.querySelector('[data-testid="session-main-row"]');
+              const filesPrimaryContent = document.querySelector('[data-testid="session-primary-content"]');
+              const filesRightPanel = document.querySelector('[data-testid="session-right-panel"]');
+              const filesRightPanelShell = filesRightPanel instanceof HTMLElement
+                ? filesRightPanel.closest('[data-motion-panel="right"]')
+                : null;
+              const filesRightPanelChrome = document.querySelector('[data-testid="workbench-panel-tabbar"]')?.closest('.workbench-panel-chrome');
+              const filesTitlebarRect = filesSessionTitlebar instanceof HTMLElement ? filesSessionTitlebar.getBoundingClientRect() : null;
+              const filesMainRowRect = filesSessionMainRow instanceof HTMLElement ? filesSessionMainRow.getBoundingClientRect() : null;
+              const filesPrimaryRect = filesPrimaryContent instanceof HTMLElement ? filesPrimaryContent.getBoundingClientRect() : null;
+              const filesRightPanelRect = filesRightPanel instanceof HTMLElement ? filesRightPanel.getBoundingClientRect() : null;
+              const filesRightPanelShellRect = filesRightPanelShell instanceof HTMLElement ? filesRightPanelShell.getBoundingClientRect() : null;
+              const filesRightPanelChromeRect = filesRightPanelChrome instanceof HTMLElement ? filesRightPanelChrome.getBoundingClientRect() : null;
+              const filesHeaderPanelSeamWorks =
+                filesRightPanel instanceof HTMLElement &&
+                filesRightPanel.getAttribute('data-right-panel-active-tab') === 'files' &&
+                filesTitlebarRect !== null &&
+                filesMainRowRect !== null &&
+                filesPrimaryRect !== null &&
+                filesRightPanelRect !== null &&
+                filesRightPanelShellRect !== null &&
+                filesRightPanelChromeRect !== null &&
+                Math.abs(filesTitlebarRect.top - filesMainRowRect.top) <= 2 &&
+                Math.abs(filesPrimaryRect.top - filesMainRowRect.top) <= 2 &&
+                Math.abs(filesRightPanelShellRect.top - filesMainRowRect.top) <= 2 &&
+                Math.abs(filesRightPanelRect.top - filesMainRowRect.top) <= 2 &&
+                Math.abs(filesRightPanelChromeRect.top - filesTitlebarRect.top) <= 2 &&
+                Math.abs(filesTitlebarRect.right - filesRightPanelRect.left) <= 2 &&
+                filesTitlebarRect.height >= 32 &&
+                filesTitlebarRect.height <= 38 &&
+                filesRightPanelChromeRect.height >= 30 &&
+                filesRightPanelChromeRect.height <= 44 &&
+                filesToolbar instanceof HTMLElement &&
+                Math.abs(filesToolbar.getBoundingClientRect().top - filesRightPanelChromeRect.bottom) <= 2;
               const filesWorkbenchRows = () => [...document.querySelectorAll('[data-testid="files-panel-list"] [data-workbench-tree-row="true"]')]
                 .filter((row) => row instanceof HTMLElement);
               if (fileSearch instanceof HTMLInputElement) {
@@ -12165,6 +12200,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 loadedPreview.textContent?.includes('loaded preview') === true;
               return {
                 profile,
+                filesHeaderPanelSeamWorks,
                 filesToolbarCompactWorks:
                   filesToolbar instanceof HTMLElement &&
                   filesToolbar.getAttribute('data-panel-toolbar') === 'true' &&
@@ -14024,6 +14060,41 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               document.querySelector('[data-testid="browser-webview"]')?.parentElement?.getAttribute('data-browser-webview-dom-host') === 'body' &&
               document.querySelector('[data-testid="browser-webview"]')?.parentElement?.parentElement === document.body;
             const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const browserSessionTitlebar = document.querySelector('[data-testid="session-titlebar"]');
+            const browserSessionMainRow = document.querySelector('[data-testid="session-main-row"]');
+            const browserPrimaryContent = document.querySelector('[data-testid="session-primary-content"]');
+            const browserRightPanelShell = rightPanel instanceof HTMLElement
+              ? rightPanel.closest('[data-motion-panel="right"]')
+              : null;
+            const browserRightPanelChrome = document.querySelector('[data-testid="workbench-panel-tabbar"]')?.closest('.workbench-panel-chrome');
+            const browserTitlebarRect = browserSessionTitlebar instanceof HTMLElement ? browserSessionTitlebar.getBoundingClientRect() : null;
+            const browserMainRowRect = browserSessionMainRow instanceof HTMLElement ? browserSessionMainRow.getBoundingClientRect() : null;
+            const browserPrimaryRect = browserPrimaryContent instanceof HTMLElement ? browserPrimaryContent.getBoundingClientRect() : null;
+            const browserRightPanelRect = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
+            const browserRightPanelShellRect = browserRightPanelShell instanceof HTMLElement ? browserRightPanelShell.getBoundingClientRect() : null;
+            const browserRightPanelChromeRect = browserRightPanelChrome instanceof HTMLElement ? browserRightPanelChrome.getBoundingClientRect() : null;
+            const browserPanelRect = browserPanel instanceof HTMLElement ? browserPanel.getBoundingClientRect() : null;
+            const browserHeaderPanelSeamWorks =
+              rightPanel instanceof HTMLElement &&
+              rightPanel.getAttribute('data-right-panel-active-tab') === 'browser' &&
+              browserTitlebarRect !== null &&
+              browserMainRowRect !== null &&
+              browserPrimaryRect !== null &&
+              browserRightPanelRect !== null &&
+              browserRightPanelShellRect !== null &&
+              browserRightPanelChromeRect !== null &&
+              browserPanelRect !== null &&
+              Math.abs(browserTitlebarRect.top - browserMainRowRect.top) <= 2 &&
+              Math.abs(browserPrimaryRect.top - browserMainRowRect.top) <= 2 &&
+              Math.abs(browserRightPanelShellRect.top - browserMainRowRect.top) <= 2 &&
+              Math.abs(browserRightPanelRect.top - browserMainRowRect.top) <= 2 &&
+              Math.abs(browserRightPanelChromeRect.top - browserTitlebarRect.top) <= 2 &&
+              Math.abs(browserTitlebarRect.right - browserRightPanelRect.left) <= 2 &&
+              browserTitlebarRect.height >= 32 &&
+              browserTitlebarRect.height <= 38 &&
+              browserRightPanelChromeRect.height >= 30 &&
+              browserRightPanelChromeRect.height <= 44 &&
+              Math.abs(browserPanelRect.top - browserRightPanelChromeRect.bottom) <= 2;
             const browserSingleTabStripHidden =
               Number(browserPanel?.getAttribute('data-browser-tab-count') ?? '0') === 1 &&
               !document.querySelector('[data-testid="browser-tab-strip"]');
@@ -14254,6 +14325,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               profile,
               browserActive: rightPanel instanceof HTMLElement &&
                 rightPanel.dataset.rightPanelActiveTab === 'browser',
+              browserHeaderPanelSeamWorks,
               browserEmptyStateWorks,
               browserLocalTargetsWorks,
               browserLocalTargetHideWorks,
