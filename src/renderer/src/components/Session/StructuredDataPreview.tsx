@@ -269,73 +269,75 @@ function NotebookPreview({
       </div>
       {notebook.valid ? (
         <div className="notebook-preview-list min-h-0 flex-1 overflow-auto">
-          {notebook.cells.slice(0, 40).map((cell, index) => (
-            <details
-              className="notebook-preview-cell"
-              data-testid="notebook-preview-cell"
-              data-notebook-cell-disclosure="true"
-              data-notebook-cell-position={`${index + 1} of ${notebook.cells.length}`}
-              data-notebook-execution-count={cell.executionCount ?? undefined}
-              key={index}
-              open
-            >
-              <summary className="notebook-preview-cell-header">
-                <span className="notebook-preview-cell-title-group">
-                  <span className="notebook-preview-cell-disclosure-icon">
-                    <Icon name="chevronRight" size={12} />
-                  </span>
-                  <span className="notebook-preview-cell-title" title={notebookCellTitle(cell, index + 1)}>
-                    {notebookCellTitle(cell, index + 1)}
-                  </span>
-                  <span className="notebook-preview-cell-position">
-                    Cell {index + 1} of {notebook.cells.length}
-                  </span>
-                </span>
-                <span className="notebook-preview-cell-meta">
-                  {cell.type === 'code' && cell.executionCount != null && (
-                    <span
-                      className="notebook-preview-cell-execution-count"
-                      data-notebook-execution-count-label={cell.executionCount}
-                    >
-                      Run {cell.executionCount}
+          <div className="notebook-preview-list-inner" data-testid="notebook-preview-list-inner">
+            {notebook.cells.slice(0, 40).map((cell, index) => (
+              <details
+                className="notebook-preview-cell"
+                data-testid="notebook-preview-cell"
+                data-notebook-cell-disclosure="true"
+                data-notebook-cell-position={`${index + 1} of ${notebook.cells.length}`}
+                data-notebook-execution-count={cell.executionCount ?? undefined}
+                key={index}
+                open
+              >
+                <summary className="notebook-preview-cell-header">
+                  <span className="notebook-preview-cell-title-group">
+                    <span className="notebook-preview-cell-disclosure-icon">
+                      <Icon name="chevronRight" size={12} />
                     </span>
-                  )}
-                  {cell.type === 'code' && (
-                    <button
-                      aria-label="Running is disabled in read-only preview"
-                      className="notebook-preview-cell-run-disabled"
-                      data-notebook-cell-run-disabled="true"
-                      disabled
-                      title="Running is disabled in read-only preview"
-                      type="button"
+                    <span className="notebook-preview-cell-title" title={notebookCellTitle(cell, index + 1)}>
+                      {notebookCellTitle(cell, index + 1)}
+                    </span>
+                    <span className="notebook-preview-cell-position">
+                      Cell {index + 1} of {notebook.cells.length}
+                    </span>
+                  </span>
+                  <span className="notebook-preview-cell-meta">
+                    {cell.type === 'code' && cell.executionCount != null && (
+                      <span
+                        className="notebook-preview-cell-execution-count"
+                        data-notebook-execution-count-label={cell.executionCount}
+                      >
+                        Run {cell.executionCount}
+                      </span>
+                    )}
+                    {cell.type === 'code' && (
+                      <button
+                        aria-label="Running is disabled in read-only preview"
+                        className="notebook-preview-cell-run-disabled"
+                        data-notebook-cell-run-disabled="true"
+                        disabled
+                        title="Running is disabled in read-only preview"
+                        type="button"
+                      >
+                        <Icon name="play" size={12} />
+                      </button>
+                    )}
+                    {cell.outputs.length > 0 && <span>{cell.outputs.length} outputs</span>}
+                  </span>
+                </summary>
+                <div className="notebook-preview-cell-body">
+                  {cell.type === 'code'
+                    ? <NotebookCodeCellBody cell={cell} />
+                    : <pre>{cell.source || 'Empty cell'}</pre>}
+                  {cell.outputs.length > 0 && (
+                    <div
+                      className="notebook-preview-outputs"
+                      data-testid="notebook-preview-outputs"
+                      data-notebook-output-count={cell.outputs.length}
                     >
-                      <Icon name="play" size={12} />
-                    </button>
+                      {cell.outputs.slice(0, 20).map((output, outputIndex) => (
+                        <NotebookCellOutput key={outputIndex} output={output} outputIndex={outputIndex} />
+                      ))}
+                    </div>
                   )}
-                  {cell.outputs.length > 0 && <span>{cell.outputs.length} outputs</span>}
-                </span>
-              </summary>
-              <div className="notebook-preview-cell-body">
-                {cell.type === 'code'
-                  ? <NotebookCodeCellBody cell={cell} />
-                  : <pre>{cell.source || 'Empty cell'}</pre>}
-                {cell.outputs.length > 0 && (
-                  <div
-                    className="notebook-preview-outputs"
-                    data-testid="notebook-preview-outputs"
-                    data-notebook-output-count={cell.outputs.length}
-                  >
-                    {cell.outputs.slice(0, 20).map((output, outputIndex) => (
-                      <NotebookCellOutput key={outputIndex} output={output} outputIndex={outputIndex} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </details>
-          ))}
-          {notebook.cells.length > 40 && (
-            <div className="file-preview-note">First 40 cells shown.</div>
-          )}
+                </div>
+              </details>
+            ))}
+            {notebook.cells.length > 40 && (
+              <div className="file-preview-note">First 40 cells shown.</div>
+            )}
+          </div>
         </div>
       ) : (
         <pre className="file-preview-code min-h-0 flex-1 overflow-auto" data-valid="false">

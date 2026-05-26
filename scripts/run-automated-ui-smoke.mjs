@@ -1448,6 +1448,7 @@ child.on('exit', (code) => {
           filesNotebookOutputSummaries: result.filesNotebookOutputSummariesWorks === true,
           filesNotebookRawOutputDisclosure: result.filesNotebookRawOutputDisclosureWorks === true,
           filesNotebookCodeSnippet: result.filesNotebookCodeSnippetWorks === true,
+          filesNotebookCellSpacing: result.filesNotebookCellSpacingWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,

@@ -5221,12 +5221,26 @@
   }
 
   .notebook-preview-list {
-    padding: 8px;
+    padding: 16px;
+  }
+
+  .notebook-preview-list-inner {
+    display: flex;
+    max-width: 768px;
+    margin: 0 auto;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  @media (min-width: 640px) {
+    .notebook-preview-list {
+      padding: 20px 24px;
+    }
   }
 
   .notebook-preview-cell {
     border: 1px solid var(--border-subtle);
-    border-radius: 7px;
+    border-radius: 8px;
     background: color-mix(in srgb, var(--surface-bg) 84%, var(--control-bg));
     overflow: hidden;
   }
@@ -5240,16 +5254,16 @@
   }
 
   .notebook-preview-cell + .notebook-preview-cell {
-    margin-top: 8px;
+    margin-top: 0;
   }
 
   .notebook-preview-cell-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 12px;
     border-bottom: 1px solid var(--border-subtle);
-    padding: 6px 8px;
+    padding: 8px 16px;
     color: var(--text-tertiary);
     font-size: 11px;
     font-weight: 650;

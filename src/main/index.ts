@@ -10933,6 +10933,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookOutputSummaryChecks = {};
               const notebookRawOutputDisclosureChecks = {};
               const notebookCodeSnippetChecks = {};
+              const notebookCellSpacingChecks = {};
               const pdfPresentationModeChecks = {};
               const documentPageControlChecks = {};
               const spreadsheetRendererChecks = {};
@@ -11100,6 +11101,8 @@ function runAutomatedFocusedSurfaceSmoke(
                       restartKernel.getAttribute('data-notebook-readonly-control') === 'restart-kernel' &&
                       restartKernel.textContent?.includes('Restart kernel') === true;
                     const outputContainer = document.querySelector('[data-testid="notebook-preview-outputs"]');
+                    const notebookList = document.querySelector('.notebook-preview-list');
+                    const notebookListInner = document.querySelector('[data-testid="notebook-preview-list-inner"]');
                     const streamOutput = document.querySelector('[data-notebook-output-type="stream"]');
                     const textOutput = document.querySelector('[data-notebook-output-type="text"]');
                     const outputSummaries = [...document.querySelectorAll('[data-notebook-output-summary="true"]')];
@@ -11116,6 +11119,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     const codeNotebookSummary = codeNotebookCell instanceof HTMLDetailsElement
                       ? codeNotebookCell.querySelector('summary.notebook-preview-cell-header')
                       : null;
+                    const listStyle = notebookList instanceof HTMLElement ? getComputedStyle(notebookList) : null;
+                    const listInnerStyle = notebookListInner instanceof HTMLElement ? getComputedStyle(notebookListInner) : null;
+                    const firstCellStyle = firstNotebookCell instanceof HTMLElement ? getComputedStyle(firstNotebookCell) : null;
+                    const firstSummaryStyle = firstNotebookSummary instanceof HTMLElement ? getComputedStyle(firstNotebookSummary) : null;
                     const codeNotebookRunButton = codeNotebookSummary instanceof HTMLElement
                       ? codeNotebookSummary.querySelector('[data-notebook-cell-run-disabled="true"]')
                       : null;
@@ -11166,6 +11173,21 @@ function runAutomatedFocusedSurfaceSmoke(
                       codeNotebookTitle.textContent?.trim() === 'Python' &&
                       codeNotebookSourceDisclosure instanceof HTMLDetailsElement &&
                       codeNotebookSourceDisclosure.querySelector('[data-testid="notebook-preview-code-block"]') === codeNotebookBlock;
+                    notebookCellSpacingChecks[testId] =
+                      notebookList instanceof HTMLElement &&
+                      notebookListInner instanceof HTMLElement &&
+                      listStyle !== null &&
+                      listInnerStyle !== null &&
+                      firstCellStyle !== null &&
+                      firstSummaryStyle !== null &&
+                      Number.parseFloat(listStyle.paddingTop) >= 16 &&
+                      Number.parseFloat(listStyle.paddingLeft) >= 16 &&
+                      listInnerStyle.display === 'flex' &&
+                      Number.parseFloat(listInnerStyle.rowGap) >= 16 &&
+                      Number.parseFloat(listInnerStyle.maxWidth) >= 760 &&
+                      Number.parseFloat(firstCellStyle.borderRadius) >= 8 &&
+                      Number.parseFloat(firstSummaryStyle.paddingLeft) >= 16 &&
+                      Number.parseFloat(firstSummaryStyle.paddingTop) >= 8;
                     notebookOutputSummaryChecks[testId] =
                       outputSummaries.length >= 2 &&
                       outputSummaries.some((summary) => summary.textContent?.includes('Stream summary')) &&
@@ -12319,6 +12341,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesNotebookOutputSummariesWorks: Boolean(notebookOutputSummaryChecks['workspace-notebook-preview']),
                 filesNotebookRawOutputDisclosureWorks: Boolean(notebookRawOutputDisclosureChecks['workspace-notebook-preview']),
                 filesNotebookCodeSnippetWorks: Boolean(notebookCodeSnippetChecks['workspace-notebook-preview']),
+                filesNotebookCellSpacingWorks: Boolean(notebookCellSpacingChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks
