@@ -112,13 +112,15 @@ function buildContracts() {
         { basename: 'review-runtime-bridge-CZUIqW4U.js', terms: ['find-in-thread', 'content-search-input', 'codex.threadFindBar.chatFilter', 'codex.threadFindBar.diffFilter', 'open-find'] }
       ],
       sourceEvidence: [
-        { path: 'src/renderer/src/App.tsx', terms: ['orchestrator:focus-review-file-search', 'orchestrator:focus-browser-find'] },
+        { path: 'src/renderer/src/App.tsx', terms: ['content-search-input', 'orchestrator:thread-find-query', 'Search chat', 'Search diffs', 'orchestrator:focus-browser-find'] },
+        { path: 'src/renderer/src/components/Session/DiffPanel.tsx', terms: ['orchestrator:thread-find-query', "domain: 'diff'", 'orchestrator:thread-find-status'] },
+        { path: 'src/renderer/src/components/Session/ChatView.tsx', terms: ['orchestrator:thread-find-query', "domain: 'conversation'", 'orchestrator:thread-find-status'] },
         { path: 'src/types/panelTabs.ts', terms: ['review-files', 'workspace-files', 'browser-page', 'source-file'] }
       ],
       smokeChecks: ['rightPanelFindShortcutRouting', 'reviewSearchContent'],
-      forcedStatus: 'mismatch',
-      caveat: 'Current smoke proves Orchestrator per-panel routing. Codex evidence shows one floating thread find bar with chat/diff scope and Browser webview delegation.',
-      next: 'Implement a Codex-style thread find contract and rewrite this smoke to assert that behavior.'
+      statusWhenCovered: 'aligned',
+      caveat: 'Smoke now proves the shared content-search-input, chat/diff scope toggle, Review diff-domain search integration, and Browser find routing. Exact live Codex keyboard/focus timing still needs side-by-side UI comparison.',
+      next: 'Keep this as a regression contract and use live Codex comparison only for spacing, animation, and focus timing polish.'
     },
     {
       id: 'review-provider-metadata',

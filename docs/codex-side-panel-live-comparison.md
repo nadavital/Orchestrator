@@ -23,11 +23,16 @@ Scope note: "side panel" in the comparison matrix means the right-side Workbench
 - Current Orchestrator full visual inventory: `tmp/side-panel-visual-inventory-current/manifest.json`, 23 captures, no failures, created at `2026-05-25T05:42:15.115Z`.
 - Current pushed branch: `codex-side-panel-parity-stabilization`.
 
+## Recently Aligned
+
+| Surface | Codex evidence | Orchestrator state | Follow-up |
+| --- | --- | --- | --- |
+| Global find / Review search | `review-runtime-bridge-CZUIqW4U.js` registers `find-in-thread`, renders `content-search-input`, and provides `Search chat` / `Search diffs` scope buttons. If Browser is the active right-panel tab and the browser webview/right-panel is focused, the command dispatches `browser-sidebar-command` `{ type: "open-find" }`. | Orchestrator now opens a shared floating `content-search-input` for transcript/Review find, exposes `Search chat` and `Search diffs` scopes, routes the diff scope into Review content search/match stepping, keeps Files on workspace file search, and preserves Browser-focused `open-find` routing. The focused right-panel smoke treats `rightPanelFindShortcutRouting=true` as this Codex-style contract, not the older per-panel Review search focus. | Keep live Codex side-by-side comparison for spacing, animation, and focus timing. Keep the smoke contract focused on behavior. |
+
 ## Verified Mismatches
 
 | Surface | Codex evidence | Orchestrator state | Next action |
 | --- | --- | --- | --- |
-| Global find / Review search | `review-runtime-bridge-CZUIqW4U.js` registers `find-in-thread`, renders `content-search-input`, and provides `Search chat` / `Search diffs` scope buttons. If Browser is the active right-panel tab and the browser webview/right-panel is focused, the command dispatches `browser-sidebar-command` `{ type: "open-find" }`. | `App.tsx` routes `Cmd+F` by focused panel. Review focuses `diff-file-search`, Files focuses `workspace-file-search`, Browser opens `browser-find-input`, and Chat opens `transcript-search`. The right-panel smoke currently treats this as passing through `rightPanelFindShortcutRouting=true`. | Replace the Orchestrator-specific per-panel proof with a Codex-style thread find contract: one floating find UI with chat/diff scopes, diff-domain search integration, and Browser-focused `open-find` routing. Until that lands, the smoke is a regression check, not Codex parity proof. |
 | Review source metadata | Codex review chunks publish host snapshot metrics through `set-review-pane-snapshot-metrics-for-host` and support PR/check/reviewer/comment/blame toolbar/flyout surfaces. | Orchestrator has local and GitHub-backed metadata paths plus fixture coverage, but provider-native hosted/cloud review sources, checkpoint Undo, provider comments, and provider blame remain unavailable. | Implement one provider-backed review source at a time from real provider events or mark unavailable with explicit UI. Do not expand fixture-only Review work as if it proves hosted parity. |
 | Browser webview lifecycle | Codex `browser-sidebar-manager-ivre5jEI.js` maintains body-attached hidden/visible webviews keyed by `data-browser-sidebar-conversation-id`, transfers webviews between conversations, and subscribes to browser-use state, viewport, capture surface, cursor, and local-server notifications. | Orchestrator has manager state parsing, body-host webview containment, fork transfer, DOM transfer, and browser-use no-mutation smokes. Live provider-emitted Codex/browser-use proof is still missing. | Run a live Codex app-server/browser-use proof. Keep existing synthetic no-mutation smoke, but do not treat it as provider parity. |
 | Browser device presets | Codex presets include responsive 390x844, 4k, laptop-l, laptop, Surface Pro 7, iPad Air, iPad Mini, Surface Duo, iPhone 15 Pro Max, Pixel 8, iPhone 15 Pro, Samsung Galaxy S24 Ultra, and iPhone SE, with 240-4096 width and 160-4096 height clamps. | Orchestrator's `BrowserPanel.tsx` preset dimensions match the Codex set and clamp ranges. The visible label for `laptopLarge` is `Laptop L`; Codex's bundle id is `laptop-l`. | Keep this as lower priority unless a live UI screenshot shows label/order differences. No implementation change needed from the bundle/code comparison alone. |
@@ -49,7 +54,7 @@ What it does correctly:
 
 Where it has been holding progress back:
 
-- Some checks validate Orchestrator's approximation instead of Codex's behavior. The clearest example is `rightPanelFindShortcutRouting`, which currently proves per-panel search focus even though Codex uses a shared thread find bar with chat/diff scope and special Browser webview routing.
+- Some checks can validate Orchestrator's approximation instead of Codex's behavior. `rightPanelFindShortcutRouting` was the clearest example; it has been rewritten to prove the shared thread find bar with chat/diff scope plus special Browser routing.
 - Broad smoke failures can look like product parity gaps when the real issue is harness timing or fixture setup.
 - Screenshot inventory proves visual regression coverage, not provider-backed semantics.
 - Synthetic browser-use and review metadata events prove reducer/UI behavior, not that live Codex/provider sessions emit the same data in the app.
@@ -64,7 +69,7 @@ Correct trigger model going forward:
 
 ## Immediate Plan
 
-1. Fix the find/search model first because it is a verified mismatch and the current smoke explicitly masks it.
-2. Re-run right-panel and Review focused smokes after the find model is changed.
-3. Use the full visual inventory only after the focused contract checks pass.
-4. Move to live provider-backed Browser or Review proof next, instead of expanding fixture-only Review work.
+1. Re-run right-panel and Review focused smokes after each find/search change.
+2. Use the full visual inventory only after the focused contract checks pass.
+3. Move to live provider-backed Browser or Review proof next, instead of expanding fixture-only Review work.
+4. Keep newly aligned global/thread find under the comparison script so regressions fail directly.

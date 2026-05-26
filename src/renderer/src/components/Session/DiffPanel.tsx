@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { adjacentFileChangePath, buildFileChangeTreeRows, diffForPathFromUnifiedDiff, fileStatusLabel, isBinaryDiffText, parseFileChangesFromUnifiedDiff, resolveReviewDiffRenderWindow, shouldPreferTextDiff } from '../../types'
@@ -281,14 +281,14 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     setReviewSearchActiveMatchIndex(null)
   }, [query, reviewSource, sourceFilePathsKey])
 
-  const stepReviewSearchMatch = (direction: 1 | -1): void => {
+  const stepReviewSearchMatch = useCallback((direction: 1 | -1): void => {
     if (reviewSearchNavigationMatches.length === 0) return
     const current = reviewSearchActiveMatchIndex ?? (direction === 1 ? -1 : 0)
     const next = (current + direction + reviewSearchNavigationMatches.length) % reviewSearchNavigationMatches.length
     const match = reviewSearchNavigationMatches[next]
     setReviewSearchActiveMatchIndex(next)
     if (match) setSelectedFile(match.path)
-  }
+  }, [reviewSearchActiveMatchIndex, reviewSearchNavigationMatches])
 
   useEffect(() => {
     if (storeReviewMetadata) {
@@ -321,6 +321,49 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     window.addEventListener('orchestrator:focus-review-file-search', focusReviewSearch)
     return () => window.removeEventListener('orchestrator:focus-review-file-search', focusReviewSearch)
   }, [])
+
+  useEffect(() => {
+    const onThreadFindQuery = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string; domain?: string; query?: string }>).detail
+      if (detail?.sessionId !== sessionId || detail.domain !== 'diff') return
+      setReviewSidePaneVisible(true)
+      setFileJumpOpen(false)
+      setReviewOptionsOpen(false)
+      setReviewMetadataOpen(null)
+      setQuery(detail.query ?? '')
+    }
+    const onThreadFindStep = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string; domain?: string; direction?: number }>).detail
+      if (detail?.sessionId !== sessionId || detail.domain !== 'diff') return
+      stepReviewSearchMatch(detail.direction === -1 ? -1 : 1)
+    }
+    const onThreadFindClose = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string }>).detail
+      if (detail?.sessionId !== sessionId) return
+      setReviewSearchActiveMatchIndex(null)
+    }
+    window.addEventListener('orchestrator:thread-find-query', onThreadFindQuery)
+    window.addEventListener('orchestrator:thread-find-step', onThreadFindStep)
+    window.addEventListener('orchestrator:thread-find-close', onThreadFindClose)
+    return () => {
+      window.removeEventListener('orchestrator:thread-find-query', onThreadFindQuery)
+      window.removeEventListener('orchestrator:thread-find-step', onThreadFindStep)
+      window.removeEventListener('orchestrator:thread-find-close', onThreadFindClose)
+    }
+  }, [sessionId, stepReviewSearchMatch])
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('orchestrator:thread-find-status', {
+      detail: {
+        sessionId,
+        domain: 'diff',
+        totalMatches: reviewSearchVisibleMatchCount,
+        activeMatch: reviewSearchActiveMatch?.ordinal ?? (reviewSearchVisibleMatchCount > 0 ? 1 : 0),
+        isCapped: reviewSearchCapped,
+        activePath: reviewSearchActivePath
+      }
+    }))
+  }, [reviewSearchActiveMatch?.ordinal, reviewSearchActivePath, reviewSearchCapped, reviewSearchVisibleMatchCount, sessionId])
 
   useEffect(() => {
     if (!reviewSourceSupported) {

@@ -1,4 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { useProjectStore } from './store/projects'
 import { hasComposerDraft, sideChatIdFromTabId, useSessionStore } from './store/sessions'
@@ -13,6 +14,7 @@ import CommandPalette, { type CommandPaletteAction } from './components/CommandP
 import RenameChatDialog from './components/shared/RenameChatDialog'
 import { MotionView, exitFullscreenForPanelTab } from './components/shared/designSystem'
 import EmptyState from './components/shared/EmptyState'
+import Icon from './components/shared/Icon'
 import { applyAppearance, type Appearance } from './theme'
 import { markRendererStart, recordRendererMetric } from './performance'
 import { APP_COMMANDS, appMenuCommandForKeyboardEvent, commandShortcuts, formatShortcutSequence } from '../../types/appCommands'
@@ -22,6 +24,13 @@ import type { PanelFindTarget, SessionRunEventRecord } from '../../types'
 import type { PanelCloseFocusArea } from '../../types'
 
 type ShellFocusArea = PanelCloseFocusArea
+type ThreadFindDomain = 'conversation' | 'diff'
+type ThreadFindStatus = {
+  totalMatches: number
+  activeMatch: number
+  isCapped: boolean
+  activePath?: string | null
+}
 type BrowserPanelCommand =
   | 'open-browser-tab'
   | 'focus-browser-address-bar'
@@ -118,8 +127,16 @@ export default function App(): JSX.Element {
   const [renamingActiveChat, setRenamingActiveChat] = useState(false)
   const [shellFocusArea, setShellFocusArea] = useState<ShellFocusArea>('main')
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
+  const [threadFindVisible, setThreadFindVisible] = useState(false)
+  const [threadFindDomain, setThreadFindDomain] = useState<ThreadFindDomain>('conversation')
+  const [threadFindQuery, setThreadFindQuery] = useState('')
+  const [threadFindStatus, setThreadFindStatus] = useState<Record<ThreadFindDomain, ThreadFindStatus>>({
+    conversation: { totalMatches: 0, activeMatch: 0, isCapped: false },
+    diff: { totalMatches: 0, activeMatch: 0, isCapped: false }
+  })
   const waitingNotificationKeysRef = useRef(new Set<string>())
   const shellFocusAreaRef = useRef<ShellFocusArea>('main')
+  const threadFindInputRef = useRef<HTMLInputElement | null>(null)
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
 
   useEffect(() => {
@@ -294,16 +311,29 @@ export default function App(): JSX.Element {
     window.dispatchEvent(new CustomEvent('orchestrator:open-transcript-search'))
   }, [])
 
-  const openReviewFileSearch = useCallback((): void => {
-    window.dispatchEvent(new CustomEvent('orchestrator:focus-review-file-search'))
-  }, [])
-
   const openSourceFileSearch = useCallback((): void => {
     window.dispatchEvent(new CustomEvent('orchestrator:focus-workbench-source-search'))
   }, [])
 
   const openBrowserFind = useCallback((): void => {
     window.dispatchEvent(new CustomEvent('orchestrator:focus-browser-find'))
+  }, [])
+
+  const openThreadFind = useCallback((domain: ThreadFindDomain): void => {
+    setThreadFindDomain(domain)
+    setThreadFindVisible(true)
+    window.requestAnimationFrame(() => {
+      threadFindInputRef.current?.focus({ preventScroll: true })
+      threadFindInputRef.current?.select()
+    })
+  }, [])
+
+  const closeThreadFind = useCallback((): void => {
+    setThreadFindVisible(false)
+    setThreadFindQuery('')
+    window.dispatchEvent(new CustomEvent('orchestrator:thread-find-close', {
+      detail: { sessionId: useSessionStore.getState().activeSessionId }
+    }))
   }, [])
 
   const openFileSearch = useCallback((): void => {
@@ -389,11 +419,11 @@ export default function App(): JSX.Element {
   const openPanelFindTarget = useCallback((): void => {
     const target = resolveCurrentPanelFindTarget()
     if (target === 'transcript') {
-      openTranscriptSearch()
+      openThreadFind('conversation')
       return
     }
     if (target === 'review-files') {
-      openReviewFileSearch()
+      openThreadFind('diff')
       return
     }
     if (target === 'workspace-files') {
@@ -407,7 +437,7 @@ export default function App(): JSX.Element {
     if (target === 'browser-page') {
       openBrowserFind()
     }
-  }, [openBrowserFind, openReviewFileSearch, openSourceFileSearch, openTranscriptSearch, resolveCurrentPanelFindTarget])
+  }, [openBrowserFind, openSourceFileSearch, openThreadFind, resolveCurrentPanelFindTarget])
 
   const openBrowserTabCommand = useCallback((): void => {
     const { activeSessionId, uiState, addTerminalTab, moveTerminalTabToRight } = useSessionStore.getState()
@@ -1068,6 +1098,43 @@ export default function App(): JSX.Element {
   ])
 
   useEffect(() => {
+    if (!threadFindVisible || !activeSessionId) return
+    window.dispatchEvent(new CustomEvent('orchestrator:thread-find-query', {
+      detail: {
+        sessionId: activeSessionId,
+        domain: threadFindDomain,
+        query: threadFindQuery
+      }
+    }))
+  }, [activeSessionId, threadFindDomain, threadFindQuery, threadFindVisible])
+
+  useEffect(() => {
+    const onThreadFindStatus = (event: Event): void => {
+      const detail = (event as CustomEvent<{
+        sessionId?: string
+        domain?: ThreadFindDomain
+        totalMatches?: number
+        activeMatch?: number
+        isCapped?: boolean
+        activePath?: string | null
+      }>).detail
+      if (detail?.sessionId && detail.sessionId !== useSessionStore.getState().activeSessionId) return
+      if (detail?.domain !== 'conversation' && detail?.domain !== 'diff') return
+      setThreadFindStatus((current) => ({
+        ...current,
+        [detail.domain as ThreadFindDomain]: {
+          totalMatches: Math.max(0, detail.totalMatches ?? 0),
+          activeMatch: Math.max(0, detail.activeMatch ?? 0),
+          isCapped: detail.isCapped === true,
+          activePath: detail.activePath ?? null
+        }
+      }))
+    }
+    window.addEventListener('orchestrator:thread-find-status', onThreadFindStatus)
+    return () => window.removeEventListener('orchestrator:thread-find-status', onThreadFindStatus)
+  }, [])
+
+  useEffect(() => {
     if (isDesignSystemPreview) return
     void window.api.app.setMenuCommandAvailability(currentMenuCommandAvailability())
   }, [
@@ -1143,6 +1210,21 @@ export default function App(): JSX.Element {
           </>
         )}
       </section>
+      <ThreadFindBar
+        visible={threadFindVisible}
+        domain={threadFindDomain}
+        inputRef={threadFindInputRef}
+        query={threadFindQuery}
+        status={threadFindStatus[threadFindDomain]}
+        onDomainChange={(domain) => setThreadFindDomain(domain)}
+        onQueryChange={setThreadFindQuery}
+        onStep={(direction) => {
+          window.dispatchEvent(new CustomEvent('orchestrator:thread-find-step', {
+            detail: { sessionId: activeSessionId, domain: threadFindDomain, direction }
+          }))
+        }}
+        onClose={closeThreadFind}
+      />
       {commandPaletteOpen && (
         <CommandPalette
           actions={commandPaletteActions}
@@ -1156,6 +1238,129 @@ export default function App(): JSX.Element {
           onConfirm={(value) => void renameActiveChat(value)}
         />
       )}
+    </div>
+  )
+}
+
+function ThreadFindBar({
+  visible,
+  domain,
+  inputRef,
+  query,
+  status,
+  onDomainChange,
+  onQueryChange,
+  onStep,
+  onClose
+}: {
+  visible: boolean
+  domain: ThreadFindDomain
+  inputRef: RefObject<HTMLInputElement>
+  query: string
+  status: ThreadFindStatus
+  onDomainChange: (domain: ThreadFindDomain) => void
+  onQueryChange: (query: string) => void
+  onStep: (direction: 1 | -1) => void
+  onClose: () => void
+}): JSX.Element {
+  if (!visible) return <></>
+
+  const hasMatches = status.totalMatches > 0
+  const countLabel = query.trim()
+    ? hasMatches
+      ? `${Math.max(1, status.activeMatch || 1)} / ${status.totalMatches}${status.isCapped ? '+' : ''} results`
+      : '0 results'
+    : ''
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      onStep(event.shiftKey ? -1 : 1)
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onClose()
+    }
+  }
+
+  return (
+    <div
+      className="thread-find-bar"
+      data-testid="thread-find-bar"
+      data-thread-find-domain={domain}
+      data-thread-find-visible="true"
+      data-thread-find-query={query}
+      data-thread-find-total-matches={status.totalMatches}
+      data-thread-find-active-match={status.activeMatch}
+      data-thread-find-capped={status.isCapped ? 'true' : 'false'}
+    >
+      <div className="thread-find-input-cell">
+        <Icon name="search" size={14} />
+        <label className="sr-only" htmlFor="content-search-input">Find in chat</label>
+        <input
+          id="content-search-input"
+          ref={inputRef}
+          type="text"
+          value={query}
+          aria-label="Find in chat"
+          placeholder={domain === 'diff' ? 'Search diff...' : 'Search chat...'}
+          className="thread-find-input"
+          onChange={(event) => onQueryChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
+      <div className="thread-find-scope-controls" aria-label="Find scope">
+        <button
+          type="button"
+          className="thread-find-scope-button"
+          data-active={domain === 'conversation' ? 'true' : 'false'}
+          aria-label="Search chat"
+          aria-pressed={domain === 'conversation'}
+          onClick={() => onDomainChange('conversation')}
+        >
+          <Icon name="chat" size={14} />
+        </button>
+        <button
+          type="button"
+          className="thread-find-scope-button"
+          data-active={domain === 'diff' ? 'true' : 'false'}
+          aria-label="Search diffs"
+          aria-pressed={domain === 'diff'}
+          onClick={() => onDomainChange('diff')}
+        >
+          <Icon name="diff" size={14} />
+        </button>
+      </div>
+      <div className="thread-find-result-cell">
+        {countLabel && <span className="thread-find-result-count">{countLabel}</span>}
+        <button
+          type="button"
+          className="thread-find-nav-button"
+          aria-label="Previous result"
+          disabled={!hasMatches}
+          onClick={() => onStep(-1)}
+        >
+          <Icon name="arrowUp" size={13} />
+        </button>
+        <button
+          type="button"
+          className="thread-find-nav-button"
+          aria-label="Next result"
+          disabled={!hasMatches}
+          onClick={() => onStep(1)}
+        >
+          <Icon name="chevronDown" size={13} />
+        </button>
+        <button
+          type="button"
+          className="thread-find-close-button"
+          aria-label="Close find"
+          onClick={onClose}
+        >
+          <Icon name="close" size={13} />
+        </button>
+      </div>
     </div>
   )
 }
