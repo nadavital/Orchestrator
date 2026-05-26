@@ -5470,16 +5470,18 @@
 
   .notebook-preview-output {
     overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
     border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--surface-bg) 90%, var(--control-bg));
+    background: color-mix(in srgb, var(--surface-bg) 40%, transparent);
+    padding: 12px;
   }
 
   .notebook-preview-output pre {
     max-height: 260px;
     margin: 0;
     overflow: auto;
-    padding: 8px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--control-bg) 20%, transparent);
+    padding: 12px;
     color: var(--text-primary);
     font-family: var(--font-mono);
     font-size: var(--font-code-size);
@@ -5492,6 +5494,7 @@
     display: block;
     max-width: 100%;
     max-height: 420px;
+    border-radius: var(--radius-sm);
     object-fit: contain;
   }
 
@@ -5500,18 +5503,21 @@
     width: 100%;
     min-height: 180px;
     border: 0;
+    border-radius: var(--radius-sm);
     background: var(--surface-bg);
   }
 
   .notebook-preview-output-markdown {
-    padding: 8px;
+    padding: 8px 12px;
     color: var(--text-primary);
     font-size: var(--font-size-sm);
     line-height: 1.5;
   }
 
   .notebook-preview-output-error {
-    padding: 8px;
+    border: 1px solid color-mix(in srgb, var(--color-red) 30%, transparent);
+    background: color-mix(in srgb, var(--color-red) 5%, transparent);
+    padding: 12px;
     color: var(--color-red);
   }
 
