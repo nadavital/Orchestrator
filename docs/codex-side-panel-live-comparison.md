@@ -13,6 +13,7 @@ This file is the current comparison ledger for the side-panel parity goal. It se
 - Generate the same report without failing the shell on known mismatches:
   `npm run compare:codex-side-panels -- --no-fail`
 - The generated report is written to `tmp/codex-side-panel-comparison/comparison-report.md` and `tmp/codex-side-panel-comparison/comparison-report.json`.
+- The same run also writes `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html`, which groups the live Codex screenshot with Orchestrator's sidebar, transcript/header, Workbench right-panel, and Terminal bottom-panel captures for direct header/panel relationship review.
 
 Scope note: "side panel" in the comparison matrix means the right-side Workbench panel unless a row explicitly says Bottom panel, Left sidebar, or Settings.
 
@@ -55,7 +56,7 @@ Highest-value next UI/parity work:
 5. Settings adapter parity: keep unsupported Host Personalization and remote-host pages explicitly unavailable until real provider adapters exist.
 6. Review visual spacing: defer further Review padding/color work unless a live Codex screenshot or a new visual fixture demonstrates a specific mismatch.
 
-Panel/header interaction remains a first-class contract, not an incidental visual note: any future sidebar, main titlebar, Workbench right-panel, or Terminal bottom-panel change must keep the dedicated `Header and panel interaction` comparison row green and inspect the grouped screenshots together. The comparison report also records the live Codex screenshot file backing this row, including presence, size, and age, so stale or missing live evidence is visible during future parity runs.
+Panel/header interaction remains a first-class contract, not an incidental visual note: any future sidebar, main titlebar, Workbench right-panel, or Terminal bottom-panel change must keep the dedicated `Header and panel interaction` comparison row green and inspect `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html`. The comparison report also records the live Codex screenshot file backing this row, including presence, size, and age, so stale or missing live evidence is visible during future parity runs.
 
 ## Recently Aligned
 

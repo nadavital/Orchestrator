@@ -3,7 +3,7 @@ import * as asar from '@electron/asar'
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { join, relative, resolve } from 'path'
 import { spawnSync } from 'child_process'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const outDir = resolve(readArg('--out') ?? join(root, 'tmp', 'codex-side-panel-comparison'))
@@ -67,6 +67,10 @@ const report = {
   }))
 }
 
+report.artifacts = {
+  headerPanelContactSheetPath: writeHeaderPanelContactSheet(report)
+}
+
 const jsonPath = join(outDir, 'comparison-report.json')
 const markdownPath = join(outDir, 'comparison-report.md')
 writeFileSync(jsonPath, JSON.stringify(report, null, 2))
@@ -78,6 +82,7 @@ const exitCode = failedRows.length > 0 ? 2 : (smokeRun != null && smokeRun.exitC
 console.log(JSON.stringify({
   markdownPath,
   jsonPath,
+  headerPanelContactSheetPath: report.artifacts.headerPanelContactSheetPath,
   smokeManifestPath: manifestPath,
   statusCounts: summary.statusCounts,
   mismatchCount: summary.statusCounts.mismatch ?? 0,
@@ -508,6 +513,223 @@ function summarizeRows(rows, manifest) {
   }
 }
 
+function writeHeaderPanelContactSheet(report) {
+  const row = report.rows.find((entry) => entry.id === 'app-shell-header-panel-interaction')
+  const outputPath = join(outDir, 'header-panel-contact-sheet.html')
+  const liveScreenshot = row?.file?.files?.find((entry) => entry.path === '/private/tmp/codex-current-screen.png') ?? null
+  const captureIds = ['chat-sidebar', 'transcript-narrow', 'workbench-right-panel', 'terminal-bottom-panel']
+  const captures = captureIds.map((id) => {
+    const capture = report.captures.find((entry) => entry.id === id)
+    const smokeCapture = row?.smoke?.captures?.find((entry) => entry.id === id)
+    return {
+      id,
+      surface: capture?.surface ?? id,
+      state: capture?.state ?? '',
+      ok: capture?.ok === true && smokeCapture?.ok === true,
+      screenshotPath: capture?.screenshotPath ?? smokeCapture?.screenshotPath ?? null,
+      failedChecks: capture?.failedChecks ?? []
+    }
+  })
+  const checks = row?.smoke?.checks ?? []
+  const cards = [
+    {
+      title: 'Codex live shell evidence',
+      subtitle: liveScreenshot?.available
+        ? `${liveScreenshot.size} bytes, age ${liveScreenshot.ageHours == null ? 'unknown' : formatAge(liveScreenshot.ageHours)}`
+        : 'missing live screenshot',
+      status: liveScreenshot?.passed === true ? 'ok' : 'needs fresh proof',
+      imagePath: liveScreenshot?.available ? liveScreenshot.path : null
+    },
+    ...captures.map((capture) => ({
+      title: capture.id,
+      subtitle: `${capture.surface}${capture.state ? `, ${capture.state}` : ''}`,
+      status: capture.ok ? 'ok' : 'failed',
+      imagePath: capture.screenshotPath
+    }))
+  ]
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Header and Panel Interaction Contact Sheet</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1115;
+      color: #f5f7fb;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #0f1115;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+    p {
+      margin: 0 0 16px;
+      max-width: 960px;
+      color: #b8bfcc;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .pill {
+      border: 1px solid #303746;
+      border-radius: 999px;
+      padding: 4px 9px;
+      color: #d9deea;
+      background: #171b23;
+      font-size: 12px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+    .card {
+      overflow: hidden;
+      border: 1px solid #303746;
+      border-radius: 8px;
+      background: #171b23;
+    }
+    .cardHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #303746;
+    }
+    .title {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .title strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+    .title span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #a7afbd;
+      font-size: 12px;
+    }
+    .status {
+      flex: 0 0 auto;
+      border: 1px solid #394252;
+      border-radius: 999px;
+      padding: 3px 8px;
+      color: #d9deea;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .status.ok {
+      border-color: #2d6a4f;
+      color: #b7f7d0;
+      background: #10251b;
+    }
+    .status.warn {
+      border-color: #7f5f20;
+      color: #ffe0a3;
+      background: #2b2110;
+    }
+    .imageFrame {
+      display: grid;
+      place-items: center;
+      min-height: 220px;
+      background: #0b0d12;
+    }
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+    .missing {
+      padding: 48px 16px;
+      color: #a7afbd;
+      font-size: 13px;
+      text-align: center;
+    }
+    table {
+      width: 100%;
+      margin-top: 18px;
+      border-collapse: collapse;
+      border: 1px solid #303746;
+      background: #171b23;
+      font-size: 12px;
+    }
+    th,
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #303746;
+      text-align: left;
+    }
+    th {
+      color: #cfd5e3;
+      font-weight: 600;
+      background: #1d222c;
+    }
+  </style>
+</head>
+<body>
+  <h1>Header and Panel Interaction</h1>
+  <p>This contact sheet groups the live Codex shell screenshot with Orchestrator's sidebar, primary-header, right-panel, and bottom-panel captures. It is a review aid for relationship drift between surfaces; the smoke checks below remain the executable contract.</p>
+  <div class="meta">
+    <span class="pill">Generated ${escapeHtml(report.createdAt)}</span>
+    <span class="pill">Comparison status ${escapeHtml(row?.status ?? 'missing')}</span>
+    <span class="pill">Smoke captures ${escapeHtml(String(report.summary.smokeCaptures))}</span>
+  </div>
+  <section class="grid">
+    ${cards.map(renderContactSheetCard).join('\n    ')}
+  </section>
+  <table>
+    <thead>
+      <tr><th>Smoke check</th><th>Capture</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      ${checks.map((check) => `<tr><td>${escapeHtml(check.key)}</td><td>${escapeHtml(check.captureId ?? '')}</td><td>${check.passed ? 'ok' : 'failed'}</td></tr>`).join('\n      ')}
+    </tbody>
+  </table>
+</body>
+</html>
+`
+  writeFileSync(outputPath, html)
+  return outputPath
+}
+
+function renderContactSheetCard(card) {
+  const statusClass = card.status === 'ok' ? 'ok' : 'warn'
+  const image = card.imagePath
+    ? `<img src="${escapeHtml(pathToFileURL(card.imagePath).href)}" alt="${escapeHtml(card.title)}">`
+    : '<div class="missing">No screenshot available</div>'
+  return `<article class="card">
+      <div class="cardHeader">
+        <div class="title">
+          <strong>${escapeHtml(card.title)}</strong>
+          <span>${escapeHtml(card.subtitle)}</span>
+        </div>
+        <span class="status ${statusClass}">${escapeHtml(card.status)}</span>
+      </div>
+      <div class="imageFrame">${image}</div>
+    </article>`
+}
+
 function renderMarkdown(report) {
   const lines = []
   lines.push('# Codex Side Panel Comparison Report')
@@ -530,6 +752,7 @@ function renderMarkdown(report) {
   lines.push(`- Smoke captures: ${report.summary.smokeCaptures}`)
   lines.push(`- Smoke failures: ${report.summary.smokeFailures.length === 0 ? 'none' : report.summary.smokeFailures.join(', ')}`)
   lines.push(`- Status counts: ${Object.entries(report.summary.statusCounts).map(([key, value]) => `${key}=${value}`).join(', ')}`)
+  lines.push(`- Header/panel contact sheet: ${relative(root, report.artifacts.headerPanelContactSheetPath)}`)
   lines.push('')
   lines.push('## Comparison Matrix')
   lines.push('')
@@ -615,6 +838,15 @@ function summarizeSmoke(smoke) {
 
 function markdownCell(value) {
   return String(value ?? '').replace(/\|/g, '\\|').replace(/\n/g, '<br>')
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function failedChecks(checks) {
