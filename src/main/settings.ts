@@ -103,3 +103,11 @@ export const settingsStore = new Store<AppSettings>({
     shortcutOverrides: {},
   }
 })
+
+if (
+  process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_OUTPUT &&
+  process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_PRESERVE_THEME !== '1'
+) {
+  settingsStore.set('appearance', 'graphite')
+  settingsStore.set('appearanceTheme', 'dark')
+}

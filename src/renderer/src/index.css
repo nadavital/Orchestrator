@@ -302,6 +302,12 @@
     position: relative;
     --sidebar-row-active-opacity: 0.06;
     --sidebar-row-hover-opacity: 0.04;
+    --sidebar-row-font-size: 12px;
+    --sidebar-row-detail-font-size: 11px;
+    --sidebar-nav-row-height: 26px;
+    --sidebar-thread-row-height: 26px;
+    --sidebar-section-row-height: 22px;
+    --sidebar-compact-row-height: 22px;
     inline-size: var(--orchestrator-sidebar-width);
     min-inline-size: var(--orchestrator-sidebar-width);
     max-inline-size: var(--orchestrator-sidebar-width);
@@ -465,38 +471,38 @@
   .sidebar-list-row {
     box-sizing: border-box;
     width: 100%;
-    min-height: 28px;
+    min-height: var(--sidebar-nav-row-height);
     display: flex;
     min-width: 0;
     align-items: center;
-    gap: 7px;
-    border-radius: 7px;
-    padding: 4px 8px;
+    gap: 6px;
+    border-radius: 6px;
+    padding: 3px 7px;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: var(--sidebar-row-font-size);
     font-weight: 400;
     text-align: left;
   }
 
   .sidebar-list-row-thread {
-    min-height: 28px;
+    min-height: var(--sidebar-thread-row-height);
     gap: 6px;
-    padding: 3px 8px;
+    padding: 2px 7px;
   }
 
   .sidebar-list-row-section {
-    height: 24px;
-    min-height: 22px;
-    gap: 6px;
-    padding: 2px 6px;
-    font-size: 12px;
+    height: var(--sidebar-section-row-height);
+    min-height: var(--sidebar-section-row-height);
+    gap: 5px;
+    padding: 1px 5px;
+    font-size: 11px;
   }
 
   .sidebar-list-row-compact {
-    min-height: 24px;
+    min-height: var(--sidebar-compact-row-height);
     gap: 6px;
-    padding: 2px 6px;
-    font-size: 12px;
+    padding: 1px 5px;
+    font-size: var(--sidebar-row-font-size);
     font-weight: 460;
   }
 
@@ -527,7 +533,7 @@
     flex-shrink: 1;
     overflow: hidden;
     color: var(--text-tertiary);
-    font-size: 12px;
+    font-size: var(--sidebar-row-detail-font-size);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -8925,7 +8931,7 @@
 
   .session-row-title {
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: var(--sidebar-row-font-size, 12px);
     font-weight: 400;
   }
 

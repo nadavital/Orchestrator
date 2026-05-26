@@ -768,6 +768,7 @@ export default function Sidebar({
     <aside
       className="app-sidebar app-shell-left-panel flex min-w-0 flex-col overflow-hidden shrink-0"
       data-testid="app-sidebar"
+      data-sidebar-density="codex-compact"
       data-sidebar-selected-key={selectedSidebarKey ?? ''}
     >
       <div

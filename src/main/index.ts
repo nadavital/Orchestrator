@@ -14583,22 +14583,39 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   }))
                 }
               : null;
-            const sessionRowsCompact = [...document.querySelectorAll('[data-testid="session-row"]')]
-              .filter((row) => row instanceof HTMLElement)
-              .every((row) => row.getBoundingClientRect().height <= 28);
             const sessionRows = [...document.querySelectorAll('[data-testid="session-row"]')]
               .filter((row) => row instanceof HTMLElement);
             const sessionTitles = [...document.querySelectorAll('[data-thread-title]')]
               .filter((title) => title instanceof HTMLElement);
             const sessionActions = [...document.querySelectorAll('[data-testid="session-row"] .session-row-actions')]
               .filter((action) => action instanceof HTMLElement);
+            const primaryActionHeights = primaryActionRows
+              .filter((row) => row instanceof HTMLElement)
+              .map((row) => row.getBoundingClientRect().height);
+            const sessionRowHeights = sessionRows.map((row) => row.getBoundingClientRect().height);
+            const sectionHeaderRows = [...document.querySelectorAll('[data-testid="project-section-header"], [data-testid="sidebar-projectless-chats-header"], [data-testid="sidebar-pinned-collapse-toggle"]')]
+              .filter((row) => row instanceof HTMLElement);
+            const sectionHeaderHeights = sectionHeaderRows.map((row) => row.getBoundingClientRect().height);
+            const sidebarDensityDebug = {
+              density: sidebar instanceof HTMLElement ? sidebar.getAttribute('data-sidebar-density') : null,
+              rowFontSize: sidebar instanceof HTMLElement ? getComputedStyle(sidebar).getPropertyValue('--sidebar-row-font-size').trim() : '',
+              navRowHeight: sidebar instanceof HTMLElement ? getComputedStyle(sidebar).getPropertyValue('--sidebar-nav-row-height').trim() : '',
+              threadRowHeight: sidebar instanceof HTMLElement ? getComputedStyle(sidebar).getPropertyValue('--sidebar-thread-row-height').trim() : '',
+              compactRowHeight: sidebar instanceof HTMLElement ? getComputedStyle(sidebar).getPropertyValue('--sidebar-compact-row-height').trim() : '',
+              primaryActionHeights,
+              sessionRowHeights,
+              sectionHeaderHeights
+            };
+            const sessionRowsCompact =
+              sessionRows.length >= 4 &&
+              sessionRowHeights.every((height) => height <= 26);
             const activeSessionRows = sessionRows.filter((row) => row.getAttribute('data-active') === 'true');
             const sessionRowsCalm =
               sessionRows.length >= 4 &&
               sessionTitles.length >= 4 &&
               sessionActions.length >= 4 &&
               sessionTitles.every((title) => (
-                getComputedStyle(title).fontSize === '13px' &&
+                getComputedStyle(title).fontSize === '12px' &&
                 getComputedStyle(title).fontWeight === '400'
               )) &&
               sessionActions.every((action) => getComputedStyle(action).transform === 'none') &&
@@ -14623,9 +14640,18 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 const style = getComputedStyle(row);
                 const radius = Number.parseFloat(style.borderTopLeftRadius || '0');
                 return radius <= 8 &&
-                  row.getBoundingClientRect().height <= 28 &&
+                  row.getBoundingClientRect().height <= 26 &&
                   style.boxShadow === 'none';
               });
+            const sidebarRowDensityCodexLike =
+              sidebar instanceof HTMLElement &&
+              sidebar.getAttribute('data-sidebar-density') === 'codex-compact' &&
+              getComputedStyle(sidebar).getPropertyValue('--sidebar-row-font-size').trim() === '12px' &&
+              primaryActionHeights.length === 4 &&
+              primaryActionHeights.every((height) => height <= 26) &&
+              sessionRowsCompact &&
+              sectionHeaderHeights.length >= 2 &&
+              sectionHeaderHeights.every((height) => height <= 24);
             const sessionRowsUseSharedPrimitive =
               sessionRows.length >= 4 &&
               sessionRows.every((row) => (
@@ -16159,6 +16185,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarTopInsetCodexLike,
               sidebarTopInsetDebug,
               sidebarOverflowDebug,
+              sidebarRowDensityCodexLike,
+              sidebarDensityDebug,
               sessionRowsCompact,
               sessionRowsCalm,
               sidebarRowsMaterialQuiet,
