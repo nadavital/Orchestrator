@@ -13,7 +13,7 @@ This file is the current comparison ledger for the side-panel parity goal. It se
 - Generate the same report without failing the shell on known mismatches:
   `npm run compare:codex-side-panels -- --no-fail`
 - The generated report is written to `tmp/codex-side-panel-comparison/comparison-report.md` and `tmp/codex-side-panel-comparison/comparison-report.json`.
-- The same run also writes `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html`, which groups the live Codex screenshot with Orchestrator's sidebar, transcript/header, Workbench right-panel, and Terminal bottom-panel captures for direct header/panel relationship review.
+- The same run also writes `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html`, which groups the live Codex screenshot with Orchestrator's sidebar, focused header, transcript/header, Workbench right-panel, and Terminal bottom-panel captures for direct header/panel relationship review.
 - If the smoke runner cannot start the Electron/Vite server, for example `listen EPERM 127.0.0.1`, the comparison classifies affected rows as `needs-smoke` instead of `mismatch`. Without `--no-fail`, `needs-smoke` exits nonzero so automation can tell the report is incomplete. Treat that as harness evidence to rerun with the approved localhost-capable command path, not as product parity evidence.
 
 Scope note: "side panel" in the comparison matrix means the right-side Workbench panel unless a row explicitly says Bottom panel, Left sidebar, or Settings.
@@ -22,7 +22,7 @@ Scope note: "side panel" in the comparison matrix means the right-side Workbench
 
 - Codex app bundle: `/Applications/Codex.app/Contents/Resources/app.asar`, `CFBundleShortVersionString=26.519.41501`.
 - Extracted Codex side-panel chunks under `tmp/codex-app-assets`.
-- Current Orchestrator full visual inventory: `tmp/side-panel-visual-inventory-current/manifest.json`, 24 captures, no failures, created at `2026-05-26T13:25:56.260Z`.
+- Current Orchestrator full visual inventory: `tmp/side-panel-visual-inventory-current/manifest.json`, 25 captures, no failures, created at `2026-05-26T14:37:36.104Z`.
 - Current runnable comparison: `tmp/codex-side-panel-comparison/comparison-report.json`, status `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`.
 - Current dynamic client-tool transport proof: `tmp/codex-dynamic-tools-live-proof/result.json`, status `ok=true`; the live Codex app-server accepted advertised `dynamicTools`, sent `item/tool/call` for `orchestrator.browser_bridge_status`, received Orchestrator's response, and completed with `CODEX_BROWSER_LIVE_OK`.
 - Current real Browser dynamic-tool proof: `tmp/codex-browser-tools-live-proof/result.json`, status `ok=true`; the live Codex app-server accepted the production Browser tool specs, sent `item/tool/call` for `orchestrator.browser_open` with JSON-RPC id `0`, then `orchestrator.browser_read` with JSON-RPC id `1`, and completed with `CODEX_BROWSER_LIVE_OK`.
@@ -32,21 +32,23 @@ Scope note: "side panel" in the comparison matrix means the right-side Workbench
 
 ## 2026-05-26 Visual Pass
 
-Direct live Codex UI inspection through Computer Use is currently blocked by the app safety boundary: `com.openai.codex` is not inspectable from this environment. A macOS `screencapture` route does work for the currently visible Codex window, so live visual checks can use whole-screen screenshots when Codex is on screen. This pass still does not claim full pixel-level side-by-side parity with the running Codex app. It combines the live installed Codex bundle/version, live screenshot evidence where available, the runnable comparison script, and the current Orchestrator 24-surface screenshot inventory.
+Direct live Codex UI inspection through Computer Use is currently blocked by the app safety boundary: `com.openai.codex` is not inspectable from this environment. A macOS `screencapture` route does work for the currently visible Codex window, so live visual checks can use whole-screen screenshots when Codex is on screen. This pass still does not claim full pixel-level side-by-side parity with the running Codex app. It combines the live installed Codex bundle/version, live screenshot evidence where available, the runnable comparison script, and the current Orchestrator 25-surface screenshot inventory.
 
 Live screenshot evidence from 2026-05-26: `/private/tmp/codex-current-screen.png` showed Codex's left sidebar top utility rows as `New chat`, `Search`, `Plugins`, and `Automations`, followed by Pinned, Projects, Chats, and a Settings footer. It also showed the Review right panel using compact Review tabs, a `Last turn` source row, file path header, and compact diff rows.
 
 Reviewed Orchestrator screenshots:
 
+- `tmp/side-panel-visual-inventory-current/header.png`
 - `tmp/side-panel-visual-inventory-current/workbench-right-panel.png`
 - `tmp/side-panel-visual-inventory-current/chat-sidebar.png`
 - `tmp/side-panel-visual-inventory-current/review-entry.png`
+- `tmp/side-panel-visual-inventory-current/review-last-turn.png`
 - `tmp/side-panel-visual-inventory-current/review-source.png`
 - `tmp/side-panel-visual-inventory-current/browser.png`
 - `tmp/side-panel-visual-inventory-current/terminal-bottom-panel.png`
 - `tmp/side-panel-visual-inventory-current/settings.png`
 
-Result: the local surfaces look coherent against the current shared shell primitives, and `npm run compare:codex-side-panels -- --no-fail` reports `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`. The real remaining parity risk is not obvious one-off padding or color drift in the current Orchestrator screenshots; it is the set of areas that still need either live Codex screenshot/timing evidence or provider-backed data that fixtures cannot create.
+Result: the local 25-surface inventory looks coherent against the current shared shell primitives, and `npm run compare:codex-side-panels -- --no-fail` reports `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`. The real remaining parity risk is not obvious one-off padding or color drift in the current Orchestrator screenshots; it is the set of areas that still need either live Codex screenshot/timing evidence, provider-backed data that fixtures cannot create, or header/panel relationship checks where individually passing panels could still feel unlike Codex.
 
 Highest-value next UI/parity work:
 
@@ -100,7 +102,7 @@ The current smoke setup is valuable but not sufficient for the parity goal.
 What it does correctly:
 
 - It launches isolated profiles, seeds deterministic fixtures, and gives repeatable screenshots without touching the user's active app state.
-- The 24-surface visual inventory is a useful regression net for broad UI drift.
+- The 25-surface visual inventory is a useful regression net for broad UI drift.
 - Focused flags such as `--diff-core`, `--browser`, `--terminal`, `--settings`, and `--sidebar` keep most failures localized.
 - Recent timeout stabilization made the full inventory reliable enough to run after parity slices.
 - Smoke infrastructure failures are now separated from product mismatches: startup failures without screenshots/check payloads become `needs-smoke`, while completed smoke assertions can still produce `mismatch`.
@@ -116,7 +118,7 @@ Where it has been holding progress back:
 Correct trigger model going forward:
 
 1. Use focused smokes while developing a slice.
-2. Run the full 24-surface visual inventory only as the final regression net for a stable slice.
+2. Run the full 25-surface visual inventory only as the final regression net for a stable slice.
 3. Add small Codex contract checks only after verifying the behavior in the Codex bundle or live Codex UI.
 4. Keep provider/live smokes separate from fixture smokes, and label fixture-only proof as fixture-only.
 5. If a smoke assertion conflicts with Codex evidence, change or downgrade the assertion before building more UI around it.
