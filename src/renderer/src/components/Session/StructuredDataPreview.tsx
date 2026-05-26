@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
@@ -83,11 +84,102 @@ function DocumentPreview({
 }): JSX.Element {
   const paragraphs = (preview.text ?? '').split(/\n{2,}/).filter((paragraph) => paragraph.trim())
   const title = stripArtifactExtension(name, 'docx')
+  const pages = useMemo(() => chunkDocumentParagraphs(paragraphs.slice(0, 80)), [paragraphs])
+  const pageCount = Math.max(1, pages.length)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [zoomPercent, setZoomPercent] = useState(100)
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount))
+  }, [pageCount])
+  const zoomOut = (): void => {
+    setZoomPercent((zoom) => Math.max(50, zoom - 25))
+  }
+  const zoomIn = (): void => {
+    setZoomPercent((zoom) => Math.min(200, zoom + 25))
+  }
+  const visiblePage = pages[currentPage - 1] ?? []
   return (
-    <div className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden" data-testid={testId}>
+    <div
+      className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden"
+      data-testid={testId}
+      data-document-preview-page-count={pageCount}
+      data-document-preview-current-page={currentPage}
+      data-document-preview-zoom-percent={zoomPercent}
+    >
       <ArtifactPreviewHeader
         artifactType={statusLabel ? `DOC · ${statusLabel}` : 'DOC'}
-        rightContent={<PreviewHeaderActions actions={actions} testId={testId} />}
+        centerContent={(
+          <span
+            className="file-preview-page-controls"
+            data-testid={`${testId}-page-controls`}
+            data-document-current-page={currentPage}
+            data-document-page-count={pageCount}
+          >
+            <IconButton
+              icon="arrowLeft"
+              label="Previous page"
+              size="sm"
+              variant="toolbar"
+              disabled={currentPage <= 1}
+              dataTestId={`${testId}-page-previous`}
+              onClick={() => { setCurrentPage((page) => Math.max(1, page - 1)) }}
+            />
+            <span className="file-preview-page-indicator" data-testid={`${testId}-page-indicator`}>
+              {currentPage}/{pageCount}
+            </span>
+            <IconButton
+              icon="arrowRight"
+              label="Next page"
+              size="sm"
+              variant="toolbar"
+              disabled={currentPage >= pageCount}
+              dataTestId={`${testId}-page-next`}
+              onClick={() => { setCurrentPage((page) => Math.min(pageCount, page + 1)) }}
+            />
+          </span>
+        )}
+        rightContent={(
+          <span className="file-preview-header-actions" data-testid={`${testId}-actions`} data-preview-controls={`${actions?.map((action) => action.id).join(' ') ?? ''} docx-page-navigation docx-zoom`.trim()}>
+            <span
+              className="file-preview-zoom-controls"
+              data-testid={`${testId}-zoom-controls`}
+              data-document-zoom-percent={zoomPercent}
+            >
+              <IconButton
+                icon="zoomOut"
+                label="Zoom out"
+                size="sm"
+                variant="toolbar"
+                disabled={zoomPercent <= 50}
+                dataTestId={`${testId}-zoom-out`}
+                onClick={zoomOut}
+              />
+              <span className="file-preview-zoom-indicator" data-testid={`${testId}-zoom-indicator`}>
+                {zoomPercent}%
+              </span>
+              <IconButton
+                icon="zoomIn"
+                label="Zoom in"
+                size="sm"
+                variant="toolbar"
+                disabled={zoomPercent >= 200}
+                dataTestId={`${testId}-zoom-in`}
+                onClick={zoomIn}
+              />
+            </span>
+            {actions?.map((action) => (
+              <IconButton
+                key={action.id}
+                icon={action.icon}
+                label={action.label}
+                size="sm"
+                variant="toolbar"
+                dataTestId={`${testId}-action-${action.id}`}
+                onClick={action.onClick}
+              />
+            ))}
+          </span>
+        )}
         testId={testId}
         title={title}
       />
@@ -98,19 +190,40 @@ function DocumentPreview({
       )}
       <div className="file-preview-meta-strip">
         <span>{paragraphs.length.toLocaleString()} paragraphs</span>
+        <span>{pageCount.toLocaleString()} pages</span>
         <span>{formatBytes(preview.size ?? 0)}</span>
       </div>
-      <div className="document-preview-body min-h-0 flex-1 overflow-auto">
+      <div
+        className="document-preview-body min-h-0 flex-1 overflow-auto"
+        data-testid={`${testId}-body`}
+        data-document-preview-zoom-percent={zoomPercent}
+      >
         {paragraphs.length > 0 ? (
-          paragraphs.slice(0, 80).map((paragraph, index) => (
-            <p key={index}>{paragraph}</p>
-          ))
+          <section
+            className="document-preview-page"
+            data-testid={`${testId}-page`}
+            data-document-page-number={currentPage}
+            style={{ fontSize: `${Math.max(10, Math.min(22, 13 * (zoomPercent / 100)))}px` }}
+          >
+            {visiblePage.map((paragraph, index) => (
+              <p key={index}>{paragraph}</p>
+            ))}
+          </section>
         ) : (
           <p className="document-preview-empty">No document text found.</p>
         )}
       </div>
     </div>
   )
+}
+
+function chunkDocumentParagraphs(paragraphs: string[]): string[][] {
+  if (paragraphs.length === 0) return [[]]
+  const chunks: string[][] = []
+  for (let index = 0; index < paragraphs.length; index += 6) {
+    chunks.push(paragraphs.slice(index, index + 6))
+  }
+  return chunks
 }
 
 function NotebookPreview({

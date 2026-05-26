@@ -624,7 +624,13 @@ if (fixtureWorkspaceViews.has(captureView)) {
   writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture(['PDF preview smoke baseline', 'PDF preview smoke second page baseline']))
   writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
     'Document smoke baseline',
-    'This verifies DOCX text preview in the inspector.'
+    'This verifies DOCX text preview in the inspector.',
+    'Document smoke baseline section alpha',
+    'Document smoke baseline section beta',
+    'Document smoke baseline section gamma',
+    'Document smoke baseline section delta',
+    'Document smoke baseline appendix',
+    'Document smoke baseline closing note'
   ]))
   writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), createXlsxFixture({
     sheetName: 'Smoke data',
@@ -701,7 +707,13 @@ if (fixtureWorkspaceViews.has(captureView)) {
     writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture(['PDF preview smoke updated', 'PDF preview smoke second page updated']))
     writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
       'Document smoke updated',
-      'This verifies DOCX text preview in the inspector.'
+      'This verifies DOCX text preview in the inspector.',
+      'Document smoke section alpha',
+      'Document smoke section beta',
+      'Document smoke section gamma',
+      'Document smoke section delta',
+      'Document smoke appendix',
+      'Document smoke closing note'
     ]))
     writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), createXlsxFixture({
       sheetName: 'Smoke data',
@@ -1390,6 +1402,7 @@ child.on('exit', (code) => {
           filesPdfPreviewControls: result.filesPdfPreviewControlsWorks === true,
           filesPdfPresentationMode: result.filesPdfPresentationModeWorks === true,
           filesDocumentPreview: result.filesDocumentPreviewWorks === true,
+          filesDocumentPageControls: result.filesDocumentPageControlsWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
           filesSpreadsheetRenderer: result.filesSpreadsheetRendererWorks === true,
@@ -1571,6 +1584,7 @@ child.on('exit', (code) => {
         filesPdfPreviewControls: captureView !== 'inspector' || result.filesPdfPreviewControlsWorks === true,
         filesPdfPresentationMode: captureView !== 'inspector' || result.filesPdfPresentationModeWorks === true,
         filesDocumentPreview: captureView !== 'inspector' || result.filesDocumentPreviewWorks === true,
+        filesDocumentPageControls: captureView !== 'inspector' || result.filesDocumentPageControlsWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
         filesSpreadsheetRenderer: captureView !== 'inspector' || result.filesSpreadsheetRendererWorks === true,

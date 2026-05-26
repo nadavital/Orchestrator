@@ -10897,6 +10897,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookCellMetadataChecks = {};
               const notebookOutputSummaryChecks = {};
               const pdfPresentationModeChecks = {};
+              const documentPageControlChecks = {};
               const spreadsheetRendererChecks = {};
               const slidesRendererChecks = {};
               const previewTargets = [
@@ -11128,6 +11129,88 @@ function runAutomatedFocusedSurfaceSmoke(
                       streamOutput.textContent?.includes('result: 2') === true &&
                       jsonOutput instanceof HTMLElement &&
                       jsonOutput.textContent?.includes('"status": "updated"') === true;
+                  }
+                  if (testId === 'workspace-document-preview') {
+                    const documentPreview = document.querySelector('[data-testid="workspace-document-preview"]');
+                    const pageControls = document.querySelector('[data-testid="workspace-document-preview-page-controls"]');
+                    const pageIndicator = document.querySelector('[data-testid="workspace-document-preview-page-indicator"]');
+                    const previousPage = document.querySelector('[data-testid="workspace-document-preview-page-previous"]');
+                    const nextPage = document.querySelector('[data-testid="workspace-document-preview-page-next"]');
+                    const zoomControls = document.querySelector('[data-testid="workspace-document-preview-zoom-controls"]');
+                    const zoomIndicator = document.querySelector('[data-testid="workspace-document-preview-zoom-indicator"]');
+                    const zoomIn = document.querySelector('[data-testid="workspace-document-preview-zoom-in"]');
+                    const pageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
+                    const initialDocumentControls =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-page-count') === '2' &&
+                      documentPreview.getAttribute('data-document-preview-current-page') === '1' &&
+                      documentPreview.getAttribute('data-document-preview-zoom-percent') === '100' &&
+                      pageControls instanceof HTMLElement &&
+                      pageControls.getAttribute('data-document-current-page') === '1' &&
+                      pageControls.getAttribute('data-document-page-count') === '2' &&
+                      pageIndicator instanceof HTMLElement &&
+                      pageIndicator.textContent?.trim() === '1/2' &&
+                      previousPage instanceof HTMLButtonElement &&
+                      previousPage.disabled &&
+                      nextPage instanceof HTMLButtonElement &&
+                      !nextPage.disabled &&
+                      zoomControls instanceof HTMLElement &&
+                      zoomControls.getAttribute('data-document-zoom-percent') === '100' &&
+                      zoomIndicator instanceof HTMLElement &&
+                      zoomIndicator.textContent?.trim() === '100%' &&
+                      zoomIn instanceof HTMLButtonElement &&
+                      !zoomIn.disabled &&
+                      pageBody instanceof HTMLElement &&
+                      pageBody.getAttribute('data-document-page-number') === '1' &&
+                      pageBody.textContent?.includes('Document smoke updated') === true;
+                    if (nextPage instanceof HTMLButtonElement) {
+                      nextPage.click();
+                      await sleep(160);
+                    }
+                    const advancedPreview = document.querySelector('[data-testid="workspace-document-preview"]');
+                    const advancedPageControls = document.querySelector('[data-testid="workspace-document-preview-page-controls"]');
+                    const advancedPageIndicator = document.querySelector('[data-testid="workspace-document-preview-page-indicator"]');
+                    const advancedPreviousPage = document.querySelector('[data-testid="workspace-document-preview-page-previous"]');
+                    const advancedNextPage = document.querySelector('[data-testid="workspace-document-preview-page-next"]');
+                    const advancedPageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
+                    const pageNavigationWorks =
+                      advancedPreview instanceof HTMLElement &&
+                      advancedPreview.getAttribute('data-document-preview-page-count') === '2' &&
+                      advancedPreview.getAttribute('data-document-preview-current-page') === '2' &&
+                      advancedPageControls instanceof HTMLElement &&
+                      advancedPageControls.getAttribute('data-document-current-page') === '2' &&
+                      advancedPageIndicator instanceof HTMLElement &&
+                      advancedPageIndicator.textContent?.trim() === '2/2' &&
+                      advancedPreviousPage instanceof HTMLButtonElement &&
+                      !advancedPreviousPage.disabled &&
+                      advancedNextPage instanceof HTMLButtonElement &&
+                      advancedNextPage.disabled &&
+                      advancedPageBody instanceof HTMLElement &&
+                      advancedPageBody.getAttribute('data-document-page-number') === '2' &&
+                      advancedPageBody.textContent?.includes('Document smoke appendix') === true;
+                    const advancedZoomIn = document.querySelector('[data-testid="workspace-document-preview-zoom-in"]');
+                    if (advancedZoomIn instanceof HTMLButtonElement) {
+                      advancedZoomIn.click();
+                      await sleep(160);
+                    }
+                    const zoomedPreview = document.querySelector('[data-testid="workspace-document-preview"]');
+                    const zoomedControls = document.querySelector('[data-testid="workspace-document-preview-zoom-controls"]');
+                    const zoomedIndicator = document.querySelector('[data-testid="workspace-document-preview-zoom-indicator"]');
+                    const zoomedPageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
+                    const zoomControlsWork =
+                      zoomedPreview instanceof HTMLElement &&
+                      zoomedPreview.getAttribute('data-document-preview-current-page') === '2' &&
+                      zoomedPreview.getAttribute('data-document-preview-zoom-percent') === '125' &&
+                      zoomedControls instanceof HTMLElement &&
+                      zoomedControls.getAttribute('data-document-zoom-percent') === '125' &&
+                      zoomedIndicator instanceof HTMLElement &&
+                      zoomedIndicator.textContent?.trim() === '125%' &&
+                      zoomedPageBody instanceof HTMLElement &&
+                      window.getComputedStyle(zoomedPageBody).fontSize === '16.25px';
+                    documentPageControlChecks[testId] =
+                      initialDocumentControls &&
+                      pageNavigationWorks &&
+                      zoomControlsWork;
                   }
                   if (testId === 'workspace-spreadsheet-preview') {
                     const spreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
@@ -11995,6 +12078,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
                 filesPdfPreviewControlsWorks: Boolean(pdfPreviewControlChecks['workspace-pdf-preview']),
                 filesPdfPresentationModeWorks: Boolean(pdfPresentationModeChecks['workspace-pdf-preview']),
+                filesDocumentPageControlsWorks: Boolean(documentPageControlChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSpreadsheetSlidesArtifactBoundaryWorks:

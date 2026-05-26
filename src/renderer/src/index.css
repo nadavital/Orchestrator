@@ -5119,15 +5119,27 @@
   }
 
   .document-preview-body {
+    display: flex;
+    justify-content: center;
     padding: 14px;
     color: var(--text-primary);
     font-size: 13px;
     line-height: 1.55;
+    background: color-mix(in srgb, var(--surface-bg) 92%, var(--control-bg));
+  }
+
+  .document-preview-page {
+    width: min(100%, 720px);
+    min-height: min(720px, 100%);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--surface-bg);
+    box-shadow: 0 12px 28px color-mix(in srgb, black 10%, transparent);
+    padding: 28px 32px;
   }
 
   .document-preview-body p {
     margin: 0;
-    max-width: 680px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
