@@ -1131,6 +1131,7 @@ child.on('exit', (code) => {
           rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
           workbenchPanelNewTabPage: result.workbenchPanelNewTabPageWorks === true,
           workbenchNewTabVisual: result.workbenchNewTabVisualWorks === true,
+          workbenchNewTabSingleAddAffordance: result.workbenchNewTabSingleAddAffordance === true,
           workbenchNewTabCards: Number(result.workbenchNewTabActionCount ?? 0) >= 5,
           workbenchNewTabNoHorizontalOverflow: result.workbenchNewTabNoHorizontalOverflow === true
         }

@@ -5452,11 +5452,17 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  if (await waitForRightPanelTab()) return;
 	                }
 	              }
+              const actionId = tabId === 'diff' ? 'review' : tabId;
+              const visibleNewTabAction = document.querySelector('[data-testid="workbench-new-tab-action-' + actionId + '"]');
+              if (visibleNewTabAction instanceof HTMLElement && visibleNewTabAction.getAttribute('aria-disabled') !== 'true') {
+                visibleNewTabAction.click();
+                await sleep(260);
+                return;
+              }
               const addButton = findButton('Add Workbench tab');
               if (addButton instanceof HTMLElement) {
                 addButton.click();
                 await sleep(120);
-                const actionId = tabId === 'diff' ? 'review' : tabId;
                 const newTabAction = document.querySelector('[data-testid="workbench-new-tab-action-' + actionId + '"]');
                 if (newTabAction instanceof HTMLElement && !newTabAction.hasAttribute('disabled')) {
                   newTabAction.click();
@@ -5597,6 +5603,11 @@ function runAutomatedFocusedSurfaceSmoke(
                 }
                 const newTabPanel = document.querySelector('[data-testid="workbench-new-tab-panel"]');
                 const newTabGrid = document.querySelector('[data-testid="workbench-new-tab-action-grid"]');
+                const trailingAddButton = document.querySelector('[data-testid="right-panel-add-tab"]');
+                const activeNewTab = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"][data-active="true"]');
+                const activeNewTabIcon = activeNewTab instanceof HTMLElement
+                  ? activeNewTab.querySelector('svg')
+                  : null;
                 const newTabCards = [...document.querySelectorAll('[data-workbench-new-tab-action]')]
                   .filter((card) => card instanceof HTMLElement);
                 const newTabCardIds = newTabCards
@@ -5630,6 +5641,11 @@ function runAutomatedFocusedSurfaceSmoke(
                     panelRect.height >= 240 &&
                     gridRect.width >= 240 &&
                     gridRect.height >= 120,
+                  workbenchNewTabSingleAddAffordance:
+                    trailingAddButton === null &&
+                    activeNewTab instanceof HTMLElement &&
+                    activeNewTabIcon instanceof SVGElement &&
+                    (activeNewTab.textContent ?? '').includes('New tab'),
                   workbenchNewTabActionCount: newTabCards.length,
                   workbenchNewTabNoHorizontalOverflow:
                     rightPanelRect !== null &&
@@ -6039,6 +6055,14 @@ function runAutomatedFocusedSurfaceSmoke(
                   !afterCloseTabs.includes('browser') &&
                   document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]') instanceof HTMLElement;
                 await openPanelTab('browser', 'Browser');
+                const browserTabForFallback = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+                if (browserTabForFallback instanceof HTMLElement) {
+                  browserTabForFallback.click();
+                  for (let attempt = 0; attempt < 8; attempt += 1) {
+                    if (rightPanel.getAttribute('data-right-panel-active-tab') === 'browser') break;
+                    await sleep(80);
+                  }
+                }
                 const composerForFallback = document.querySelector('textarea');
                 if (composerForFallback instanceof HTMLElement) {
                   const beforeFallbackTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';

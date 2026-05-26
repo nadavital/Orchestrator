@@ -6570,6 +6570,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: keep inspecting `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html` when changing the left sidebar, primary titlebar/header, Workbench right panel, or Terminal bottom panel. Exact live Codex pixel spacing and animation timing remain open until fresh screenshot evidence identifies a measurable mismatch.
 
+### 2026-05-26 - Workbench New Tab Add Affordance
+
+Codex evidence: live screenshot `/private/tmp/codex-current-screen.png` shows Codex's right-panel tab chrome with a single add affordance adjacent to the tab strip. In Orchestrator's `workbench-new-tab` visual capture, the active `+ New tab` tab and the far-right `+` toolbar button both represented the same add-new-Workbench-tab action, creating duplicated chrome while the add surface was already active.
+
+Implemented: hid the trailing `right-panel-add-tab` button whenever the Workbench `New tab` surface is active, leaving the active `+ New tab` tab as the single add affordance. The trailing add button still appears in normal non-new-tab Workbench states. The focused Workbench new-tab smoke now gates the active state with `workbenchNewTabSingleAddAffordance=true`, and the full Codex side-panel comparison includes that check in the `Right-side Workbench shell` row.
+
+Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, `pnpm exec tsc --noEmit`, and `git diff --check` passed. Focused `npm run smoke:ui:auto -- --workbench-new-tab` passed with `workbenchNewTabSingleAddAffordance=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1779794850812.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-workbench-new-tab-1779794850812.png`. Focused `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelCloseFallbackFromMain=true` after the smoke helper learned to open missing Workbench tabs from the active New tab action cards; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779795564081.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779795564081.png`. Refreshed `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with 23 captures, `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needs-smoke=0`, and `needs-proof=0`; manifest created at `2026-05-26T11:44:11.592Z`; report: `tmp/codex-side-panel-comparison/comparison-report.json`.
+
+Remaining: this fixes one concrete Workbench chrome duplication. It does not close cross-panel move/receive semantics, exact live Codex tab spacing, or right-panel animation timing.
+
 Recommended order:
 
 1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel, and review `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html` because the user-visible mismatch can be in the relationship between surfaces rather than in any one panel.

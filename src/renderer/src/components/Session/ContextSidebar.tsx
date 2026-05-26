@@ -298,6 +298,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       tabId
     })
   }
+  const showWorkbenchAddTabButton = effectiveTab !== 'new-tab'
   const newTabActions: WorkbenchNewTabAction[] = [
     {
       id: 'files',
@@ -401,15 +402,16 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
           activeActionsHostTestId="right-panel-active-tab-actions"
           actions={(
             <>
-            <IconButton
-              icon="plus"
-              label="Add Workbench tab"
-              size="sm"
-              variant="toolbar"
-              active={effectiveTab === 'new-tab'}
-              dataTestId="right-panel-add-tab"
-              onClick={() => openRightPanelTab(session.id, 'new-tab')}
-            />
+            {showWorkbenchAddTabButton && (
+              <IconButton
+                icon="plus"
+                label="Add Workbench tab"
+                size="sm"
+                variant="toolbar"
+                dataTestId="right-panel-add-tab"
+                onClick={() => openRightPanelTab(session.id, 'new-tab')}
+              />
+            )}
             <IconButton
               icon={rightPanel?.fullWidth ? 'minimize' : 'maximize'}
               label={rightPanel?.fullWidth ? 'Restore Workbench width' : 'Expand Workbench'}
