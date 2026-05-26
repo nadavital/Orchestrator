@@ -48,14 +48,14 @@ Result: the local surfaces look coherent against the current shared shell primit
 
 Highest-value next UI/parity work:
 
-1. Header and panel interaction: keep sidebar, main header/titlebar, Workbench right panel, and Terminal bottom panel attached to the same shell contract. Any future panel layout change should update or keep green the dedicated comparison row before it is treated as parity-safe.
+1. Header and panel interaction: keep sidebar, main header/titlebar, Workbench right panel, and Terminal bottom panel attached to the same shell contract. Treat this as an active user-observed parity risk: Orchestrator can look unlike Codex when each panel passes independently but the header/panel relationship is inconsistent. Any future panel layout change should update or keep green the dedicated comparison row before it is treated as parity-safe.
 2. Browser agent-driven parity: keep the new real Browser dynamic-tool proof plus renderer loopback smoke green, then add broader browser-use tools only from real provider requests, explicit product scope, or a full installed-app end-to-end run. Manual Browser UI is strong, generic dynamic-tool transport works, real `browser_open` / `browser_read` requests are live-proven, and server-initiated unimplemented tool calls still surface an explicit unavailable status.
 3. Review provider data parity: add one real provider-backed source at a time, especially provider blame or live commented-PR proof. Do not treat local fixture comments as final hosted/cloud parity.
 4. Terminal visual parity: capture live Codex bottom-panel height/animation at multiple window sizes if a manual screenshot path becomes available; local Orchestrator terminal layout is smoke-covered but exact Codex timing is not.
 5. Settings adapter parity: keep unsupported Host Personalization and remote-host pages explicitly unavailable until real provider adapters exist.
 6. Review visual spacing: defer further Review padding/color work unless a live Codex screenshot or a new visual fixture demonstrates a specific mismatch.
 
-Panel/header interaction remains a first-class contract, not an incidental visual note: any future sidebar, main titlebar, Workbench right-panel, or Terminal bottom-panel change must keep the dedicated `Header and panel interaction` comparison row green. The comparison report also records the live Codex screenshot file backing this row, including presence, size, and age, so stale or missing live evidence is visible during future parity runs.
+Panel/header interaction remains a first-class contract, not an incidental visual note: any future sidebar, main titlebar, Workbench right-panel, or Terminal bottom-panel change must keep the dedicated `Header and panel interaction` comparison row green and inspect the grouped screenshots together. The comparison report also records the live Codex screenshot file backing this row, including presence, size, and age, so stale or missing live evidence is visible during future parity runs.
 
 ## Recently Aligned
 
