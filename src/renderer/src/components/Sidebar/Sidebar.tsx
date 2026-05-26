@@ -831,7 +831,7 @@ export default function Sidebar({
         <>
           <div className="min-w-0 px-2.5 pb-2" data-testid="sidebar-primary-actions">
             <SidebarNavItem
-              icon="plus"
+              icon="pencil"
               label="New chat"
               active={false}
               dataTestId="sidebar-primary-action-new-chat"
@@ -845,7 +845,7 @@ export default function Sidebar({
               onClick={onSearch}
             />
             <SidebarNavItem
-              icon="plug"
+              icon="extensions"
               label="Plugins"
               active={showCapabilities}
               sidebarKey="capabilities"
