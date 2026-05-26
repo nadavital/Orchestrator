@@ -1230,6 +1230,7 @@ child.on('exit', (code) => {
           isolatedProfile: result.profile?.isIsolated === true,
           terminalVisualPanel: result.terminalVisualPanelWorks === true,
           terminalPanelMaterialSolid: result.terminalVisualPanelMaterialSolidWorks === true,
+          terminalBottomPanelSizeDecomposition: result.terminalBottomPanelSizeDecompositionWorks === true,
           terminalVisualTabs: result.terminalVisualTabsWork === true,
           terminalVisualToolbar: result.terminalVisualToolbarWorks === true,
           terminalVisualHealthyContent: result.terminalVisualHealthyContentWorks === true

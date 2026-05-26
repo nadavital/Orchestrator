@@ -2569,6 +2569,34 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelShellForVisual.getAttribute('data-app-shell-panel-material') === 'solid' &&
               backgroundAlpha(bottomPanelShellForVisual) >= 0.99 &&
               backgroundAlpha(bottomPanelForTerminalVisual) >= 0.99;
+            const bottomPanelVisualTargetSize = Number(bottomPanelShellForVisual?.getAttribute('data-app-shell-panel-target-size') ?? '0');
+            const bottomPanelVisualContentHeight = Number(bottomPanelForTerminalVisual?.getAttribute('data-bottom-panel-content-height') ?? '0');
+            const bottomPanelVisualChromeHeight = Number(bottomPanelForTerminalVisual?.getAttribute('data-bottom-panel-chrome-height') ?? '0');
+            const bottomPanelVisualTotalHeight = Number(bottomPanelForTerminalVisual?.getAttribute('data-bottom-panel-total-height') ?? '0');
+            const bottomPanelVisualDefaultHeight = Number(bottomPanelForTerminalVisual?.getAttribute('data-bottom-panel-default-height') ?? '0');
+            const bottomPanelVisualMinHeight = Number(bottomPanelForTerminalVisual?.getAttribute('data-bottom-panel-min-height') ?? '0');
+            const terminalTabPanelForVisualSizing = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
+            const terminalTabPanelVisualContentHeight = Number(terminalTabPanelForVisualSizing?.getAttribute('data-bottom-panel-content-height') ?? '0');
+            const terminalTabPanelVisualChromeHeight = Number(terminalTabPanelForVisualSizing?.getAttribute('data-bottom-panel-chrome-height') ?? '0');
+            const terminalTabPanelVisualTotalHeight = Number(terminalTabPanelForVisualSizing?.getAttribute('data-bottom-panel-total-height') ?? '0');
+            var terminalBottomPanelSizeDecompositionWorks =
+              bottomPanelShellForVisual instanceof HTMLElement &&
+              bottomPanelForTerminalVisual instanceof HTMLElement &&
+              terminalTabPanelForVisualSizing instanceof HTMLElement &&
+              bottomPanelVisualContentHeight >= 120 &&
+              bottomPanelVisualChromeHeight === 50 &&
+              bottomPanelVisualDefaultHeight === 350 &&
+              bottomPanelVisualMinHeight === 120 &&
+              bottomPanelVisualTotalHeight === bottomPanelVisualContentHeight + bottomPanelVisualChromeHeight &&
+              bottomPanelVisualTotalHeight === 400 &&
+              bottomPanelVisualTargetSize === bottomPanelVisualTotalHeight &&
+              Number(bottomPanelShellForVisual.getAttribute('data-bottom-panel-content-height') ?? '0') === bottomPanelVisualContentHeight &&
+              Number(bottomPanelShellForVisual.getAttribute('data-bottom-panel-chrome-height') ?? '0') === bottomPanelVisualChromeHeight &&
+              Number(bottomPanelShellForVisual.getAttribute('data-bottom-panel-total-height') ?? '0') === bottomPanelVisualTotalHeight &&
+              terminalTabPanelVisualContentHeight === bottomPanelVisualContentHeight &&
+              terminalTabPanelVisualChromeHeight === bottomPanelVisualChromeHeight &&
+              terminalTabPanelVisualTotalHeight === bottomPanelVisualTotalHeight &&
+              Math.abs(terminalTabPanelForVisualSizing.getBoundingClientRect().height - bottomPanelVisualContentHeight) <= 2;
             var terminalVisualTabsWork =
               bottomPanelForTerminalVisual instanceof HTMLElement &&
               terminalTabsForVisual.length >= 2 &&

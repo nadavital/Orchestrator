@@ -118,9 +118,9 @@ function buildContracts() {
           maxAgeHours: 72
         }
       ],
-      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'headerMetadataTooltipOnly', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalVisualHealthyContent'],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'headerMetadataTooltipOnly', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, solid panel material, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
+      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, solid panel material, bottom-panel target size, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
       next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Workbench, or bottom-panel shell layout.'
     },
     {
@@ -247,10 +247,10 @@ function buildContracts() {
         { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['Terminal {index}', 'terminal-panel', 'terminal.tabs.title'] },
         { basename: 'terminal-service-BsiZiRKt.js', terms: ['conversationSessions', 'sessionSnapshots', 'terminal-create'] }
       ],
-      smokeChecks: ['terminalPanelMaterialSolid', 'terminalVisualHealthyContent'],
+      smokeChecks: ['terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Terminal behavior, solid bottom-panel material, and screenshot are covered; exact Codex height/open-close timing is not live-proven.',
-      next: 'Compare live panel height and animation timing when app UI access is available.'
+      caveat: 'Terminal behavior, solid bottom-panel material, Codex-bundle-aligned 400 px default shell size, and screenshot are covered; exact Codex open-close timing is not live-proven.',
+      next: 'Compare live panel animation timing when app UI access is available.'
     },
     {
       id: 'files-file-source-tabs',
