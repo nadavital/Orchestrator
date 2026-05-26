@@ -1339,6 +1339,7 @@
   }
 
   .workbench-panel-tabbar .motion-tab-button[data-active='true'] {
+    --motion-tab-close-background: color-mix(in srgb, var(--control-bg) 62%, var(--surface-bg));
     min-width: 96px;
     max-width: 148px;
     border-color: transparent;
@@ -5448,6 +5449,7 @@
   }
 
   .motion-tab-button {
+    --motion-tab-close-background: var(--surface-bg);
     display: inline-flex;
     min-width: 0;
     flex-shrink: 0;
@@ -5472,6 +5474,7 @@
 
   .motion-tab-button:hover,
   .motion-tab-button:focus-visible {
+    --motion-tab-close-background: var(--control-bg-hover);
     background: var(--control-bg-hover);
     color: var(--text-primary);
   }
@@ -5512,6 +5515,7 @@
   }
 
   .motion-tab-button[data-active='true'] {
+    --motion-tab-close-background: color-mix(in srgb, var(--surface-bg) 72%, transparent);
     border-color: color-mix(in srgb, var(--border-subtle) 72%, transparent);
     background: color-mix(in srgb, var(--surface-bg) 72%, transparent);
     color: var(--text-primary);
@@ -5551,13 +5555,13 @@
     place-items: center;
     border: 0;
     border-radius: var(--radius-sm);
-    background: transparent;
+    background: var(--motion-tab-close-background);
     color: var(--text-tertiary);
     opacity: 0;
     pointer-events: none;
     position: absolute;
     top: 50%;
-    right: 3px;
+    left: 3px;
     transform: translateY(-50%) scale(0.94);
     transition:
       opacity var(--motion-duration-control) var(--motion-ease-control),
@@ -5645,11 +5649,6 @@
     gap: 6px;
     padding-right: 0;
     transition: padding-right var(--motion-duration-control) var(--motion-ease-control);
-  }
-
-  .motion-tab-button[data-closable='true']:hover .panel-tab-content,
-  .motion-tab-button[data-closable='true']:focus-within .panel-tab-content {
-    padding-right: 14px;
   }
 
   .panel-tab-label {
@@ -7059,7 +7058,7 @@
     place-items: center;
     border: 0;
     border-radius: var(--radius-sm);
-    background: transparent;
+    background: var(--motion-tab-close-background);
     color: var(--text-tertiary);
     opacity: 0;
     padding: 0;

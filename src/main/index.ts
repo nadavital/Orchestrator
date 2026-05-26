@@ -4434,6 +4434,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           const workbenchPanelInactiveLabels = workbenchPanelInactiveTabs
             .map((tab) => tab.querySelector('.panel-tab-label'))
             .filter((label) => label instanceof HTMLElement);
+          const workbenchPanelClosableTabs = [...document.querySelectorAll('[data-testid="workbench-panel-tabbar"] .motion-tab-button[data-closable="true"]')]
+            .filter((tab) => tab instanceof HTMLElement);
+          const workbenchPanelCloseButtons = workbenchPanelClosableTabs
+            .map((tab) => ({
+              tab,
+              closeButton: tab.querySelector('.motion-tab-close')
+            }))
+            .filter(({ closeButton }) => closeButton instanceof HTMLElement);
           var rightPanelMenuCommandStateWorks = false;
           var rightPanelMenuCommandStateDebug = null;
           const workbenchPanelChromeCompactWorks =
@@ -4464,6 +4472,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             workbenchPanelTrailingFadeStyle.backgroundImage.includes('linear-gradient') &&
             Number.parseFloat(workbenchPanelTrailingFadeStyle.width || '0') >= 16 &&
             workbenchPanelTrailingFadeStyle.pointerEvents === 'none';
+          const workbenchPanelTabCloseStartEdgeWorks =
+            workbenchPanelCloseButtons.length >= 2 &&
+            workbenchPanelCloseButtons.every(({ tab, closeButton }) => {
+              if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return false;
+              const tabRect = tab.getBoundingClientRect();
+              const closeRect = closeButton.getBoundingClientRect();
+              return closeRect.left >= tabRect.left - 1 &&
+                closeRect.left <= tabRect.left + 8 &&
+                closeRect.right < tabRect.left + tabRect.width / 2;
+            });
+          const workbenchPanelTabCloseStartEdgeDebug = workbenchPanelCloseButtons.map(({ tab, closeButton }) => {
+            if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return null;
+            const tabRect = tab.getBoundingClientRect();
+            const closeRect = closeButton.getBoundingClientRect();
+            return {
+              tabId: tab.getAttribute('data-tab-id'),
+              tabLeft: Math.round(tabRect.left),
+              tabWidth: Math.round(tabRect.width),
+              closeLeft: Math.round(closeRect.left),
+              closeRight: Math.round(closeRect.right)
+            };
+          }).filter(Boolean);
           const workbenchPanelAddControlStableWorks =
             workbenchPanelAddTabButton instanceof HTMLButtonElement &&
             workbenchPanelAddTabButton.getAttribute('aria-label') === 'Add Workbench tab' &&
@@ -5129,6 +5159,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             workbenchPanelChromeCompactWorks,
             workbenchPanelChromeCompactDebug,
             workbenchPanelTrailingFadeWorks,
+            workbenchPanelTabCloseStartEdgeWorks,
+            workbenchPanelTabCloseStartEdgeDebug,
             workbenchPanelInactiveTabsCompactWorks,
             workbenchPanelInactiveTabTooltipWorks,
             diffToolbarCompactWorks,
@@ -5898,6 +5930,8 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelTabWeightCalmWorks = false;
               let rightPanelTabActionsSharedVariantWorks = false;
               let workbenchPanelTabOverflowControllerWorks = false;
+              let workbenchPanelTabCloseStartEdgeWorks = false;
+              let workbenchPanelTabCloseStartEdgeDebug = [];
               let workbenchPanelNewTabPageWorks = false;
               let rightPanelFindShortcutRoutingWorks = false;
               let rightPanelFindShortcutRoutingDebug = {};
@@ -5949,6 +5983,35 @@ function runAutomatedFocusedSurfaceSmoke(
                   tabsDoNotOverlap &&
                   rowCanScrollOverflow &&
                   tabRow.scrollHeight <= tabRow.clientHeight + 2;
+                const closableTabs = tabButtons.filter((tab) => tab.getAttribute('data-closable') === 'true');
+                const closeButtons = closableTabs
+                  .map((tab) => ({
+                    tab,
+                    closeButton: tab.querySelector('.motion-tab-close')
+                  }))
+                  .filter(({ closeButton }) => closeButton instanceof HTMLElement);
+                workbenchPanelTabCloseStartEdgeWorks =
+                  closeButtons.length >= 2 &&
+                  closeButtons.every(({ tab, closeButton }) => {
+                    if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return false;
+                    const tabRect = tab.getBoundingClientRect();
+                    const closeRect = closeButton.getBoundingClientRect();
+                    return closeRect.left >= tabRect.left - 1 &&
+                      closeRect.left <= tabRect.left + 8 &&
+                      closeRect.right < tabRect.left + tabRect.width / 2;
+                  });
+                workbenchPanelTabCloseStartEdgeDebug = closeButtons.map(({ tab, closeButton }) => {
+                  if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return null;
+                  const tabRect = tab.getBoundingClientRect();
+                  const closeRect = closeButton.getBoundingClientRect();
+                  return {
+                    tabId: tab.getAttribute('data-tab-id'),
+                    tabLeft: Math.round(tabRect.left),
+                    tabWidth: Math.round(tabRect.width),
+                    closeLeft: Math.round(closeRect.left),
+                    closeRight: Math.round(closeRect.right)
+                  };
+                }).filter(Boolean);
               }
               if (tabActions instanceof HTMLElement) {
                 const actionButtons = [...tabActions.querySelectorAll('.motion-icon-button')]
@@ -6793,6 +6856,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   tabRow.scrollHeight <= tabRow.clientHeight + 2 &&
                   tabActions.getBoundingClientRect().height <= 30,
                 workbenchPanelTabOverflowControllerWorks,
+                workbenchPanelTabCloseStartEdgeWorks,
+                workbenchPanelTabCloseStartEdgeDebug,
                 workbenchPanelAddControlStableWorks:
                   addButton instanceof HTMLButtonElement &&
                   addButton.dataset.icon === 'plus' &&

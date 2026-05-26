@@ -132,7 +132,8 @@ function buildContracts() {
       captureIds: ['workbench-right-panel', 'workbench-new-tab'],
       codexAssets: [
         { basename: 'thread-side-panel-tabs-CVr2AbYP.js', terms: ['app-shell-tab-controller', 'right-panel-composer-overlay', 'browser-sidebar-command'] },
-        { basename: 'app-shell-tab-controller-B2eCi4Le.js', terms: ['activeTab$', 'tabs$'] }
+        { basename: 'app-shell-tab-controller-B2eCi4Le.js', terms: ['activeTab$', 'tabs$'] },
+        { basename: 'app-shell-Bh-lgoQk.js', terms: ['start-0', 'codex.tabs.closeNamed'] }
       ],
       fileEvidence: [
         {
@@ -143,9 +144,9 @@ function buildContracts() {
           imageNonBlank: true
         }
       ],
-      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'workbenchPanelTabOverflowController', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance'],
+      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'workbenchPanelTabOverflowController', 'workbenchPanelTabCloseStartEdge', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
+      caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, start-edge tab close chrome, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
       next: 'Use focused right-panel smoke for regressions; do not call exact timing complete without live Codex comparison.'
     },
     {
