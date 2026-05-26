@@ -6376,6 +6376,16 @@ Verification: live `gh api graphql` schema introspection accepted both `PullRequ
 
 Remaining: this closes real GitHub adapter-shape support plus fixture-backed rendering for provider comment commit/blame metadata. Live commented-PR proof remains pending because the current PR has no review threads. Provider-native hosted/cloud comment adapters, true provider checkpoint Undo, cloud/hosted diff adapters, deeper hosted conflict workflows, full diff virtualization, and live Codex side-by-side Review spacing comparison remain open.
 
+### 2026-05-26 - Sidebar Primary Actions Slice
+
+Codex evidence: direct Computer Use inspection of `com.openai.codex` remains blocked, but a live macOS `screencapture` of the visible Codex window succeeded at `/private/tmp/codex-current-screen.png`. That screenshot shows Codex's left sidebar top utility rows as `New chat`, `Search`, `Plugins`, and `Automations`, above Pinned, Projects, and Chats.
+
+Implemented: Orchestrator's left sidebar now renders the same top utility stack above its chat sections. The rows use the shared sidebar row primitive and wire into existing app behavior: New chat creates a session, Search opens the command palette, Plugins opens the Capabilities surface, and Automations opens Settings > Automations. The previous single `Capabilities` top row is now represented by the Codex-shaped `Plugins` entry while preserving the existing Capabilities surface.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --sidebar` passed after moving the new behavioral probes to the end of the long sidebar smoke so they no longer perturb existing project/action checks. The smoke now gates `sidebarPrimaryActionsCodexOrder=true`, `sidebarPrimaryActionsBeforePinned=true`, `sidebarSearchPrimaryAction=true`, `sidebarPluginsPrimaryAction=true`, and `sidebarAutomationsPrimaryAction=true`. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779775056900.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779775056900.png`.
+
+Remaining: this closes the visible top-action mismatch, not full sidebar parity. Remaining sidebar work is provider-backed pin/list mutation semantics, exact live row spacing comparison where screenshots prove drift, and provider-native remote/deployed thread behavior.
+
 Recommended order:
 
 1. Shell/tab foundation only.

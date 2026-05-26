@@ -473,6 +473,23 @@ export default function App(): JSX.Element {
     setShowSettings(true)
   }, [setSettingsSection, setShowCapabilities, setShowSettings])
 
+  const handleSidebarNewChat = useCallback((): void => {
+    void createNewChat()
+  }, [createNewChat])
+
+  const openSidebarSearch = useCallback((): void => {
+    setCommandPaletteOpen(true)
+  }, [])
+
+  const openSidebarPlugins = useCallback((): void => {
+    setShowSettings(false)
+    setShowCapabilities(true)
+  }, [setShowCapabilities, setShowSettings])
+
+  const openSidebarAutomations = useCallback((): void => {
+    openSettings('automations')
+  }, [openSettings])
+
   const canCloseActivePanelTab = useCallback((): boolean => {
     const { activeSessionId, uiState } = useSessionStore.getState()
     if (!activeSessionId) return false
@@ -1182,7 +1199,12 @@ export default function App(): JSX.Element {
       onFocusCapture={(event) => updateShellFocusArea(event.target)}
       onPointerOverCapture={(event) => updateShellFocusArea(event.target)}
     >
-      <Sidebar />
+      <Sidebar
+        onNewChat={handleSidebarNewChat}
+        onSearch={openSidebarSearch}
+        onOpenPlugins={openSidebarPlugins}
+        onOpenAutomations={openSidebarAutomations}
+      />
       <section className="content-shell main-surface flex-1 flex flex-col min-w-0 min-h-0">
         {showSettings ? (
           <MotionView viewKey={`settings:${settingsSection}`} className="flex flex-col overflow-hidden">

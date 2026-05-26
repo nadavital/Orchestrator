@@ -45,7 +45,19 @@ export async function pickAndAddProject(addProject: (p: Project) => void): Promi
   return project
 }
 
-export default function Sidebar(): JSX.Element {
+interface SidebarProps {
+  onNewChat: () => void
+  onSearch: () => void
+  onOpenPlugins: () => void
+  onOpenAutomations: () => void
+}
+
+export default function Sidebar({
+  onNewChat,
+  onSearch,
+  onOpenPlugins,
+  onOpenAutomations
+}: SidebarProps): JSX.Element {
   const { projects, addProject, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const {
     sessions,
@@ -817,16 +829,41 @@ export default function Sidebar(): JSX.Element {
         </>
       ) : (
         <>
-          <div className="min-w-0 px-2.5 pb-2">
+          <div className="min-w-0 px-2.5 pb-2" data-testid="sidebar-primary-actions">
+            <SidebarNavItem
+              icon="plus"
+              label="New chat"
+              active={false}
+              dataTestId="sidebar-primary-action-new-chat"
+              onClick={onNewChat}
+            />
+            <SidebarNavItem
+              icon="search"
+              label="Search"
+              active={false}
+              dataTestId="sidebar-primary-action-search"
+              onClick={onSearch}
+            />
             <SidebarNavItem
               icon="plug"
-              label="Capabilities"
+              label="Plugins"
               active={showCapabilities}
               sidebarKey="capabilities"
+              dataTestId="sidebar-primary-action-plugins"
               onClick={() => {
                 setSelectedSidebarKey('capabilities')
-                setShowCapabilities(true)
-                setShowSettings(false)
+                onOpenPlugins()
+              }}
+            />
+            <SidebarNavItem
+              icon="clock"
+              label="Automations"
+              active={false}
+              sidebarKey={sidebarSettingsSelectedKey('automations')}
+              dataTestId="sidebar-primary-action-automations"
+              onClick={() => {
+                setSelectedSidebarKey(sidebarSettingsSelectedKey('automations'))
+                onOpenAutomations()
               }}
             />
           </div>
@@ -1006,6 +1043,7 @@ function SidebarNavItem({
   detail,
   active,
   sidebarKey,
+  dataTestId = 'sidebar-nav-item',
   onClick
 }: {
   icon: IconName
@@ -1013,13 +1051,14 @@ function SidebarNavItem({
   detail?: string
   active: boolean
   sidebarKey?: string
+  dataTestId?: string
   onClick: () => void
 }): JSX.Element {
   return (
     <SidebarListRow
       onClick={onClick}
       active={active}
-      dataTestId="sidebar-nav-item"
+      dataTestId={dataTestId}
       dataSidebarKey={sidebarKey}
       icon={icon}
       label={label}

@@ -13815,6 +13815,22 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               }
               return null;
             };
+            const restoreSmokeSession = async () => {
+              const expectedSessionId = ${JSON.stringify(normalSession?.id ?? '')};
+              if (
+                expectedSessionId &&
+                typeof window.__orchestratorSetActiveSessionForSmoke === 'function' &&
+                window.__orchestratorSetActiveSessionForSmoke(expectedSessionId)
+              ) {
+                await sleep(160);
+                return;
+              }
+              const backToChats = document.querySelector('[data-testid="sidebar-footer-action"]');
+              if (backToChats instanceof HTMLElement) {
+                backToChats.click();
+                await sleep(160);
+              }
+            };
             await waitForRow('Sidebar pinned recent');
             const initialShowMoreRow = [...document.querySelectorAll('[data-testid="project-show-more-row"]')]
               .find((row) => row.textContent?.includes('Show'));
@@ -13823,6 +13839,31 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(180);
             }
             await sleep(250);
+
+            const primaryActions = document.querySelector('[data-testid="sidebar-primary-actions"]');
+            const primaryActionRows = [
+              document.querySelector('[data-testid="sidebar-primary-action-new-chat"]'),
+              document.querySelector('[data-testid="sidebar-primary-action-search"]'),
+              document.querySelector('[data-testid="sidebar-primary-action-plugins"]'),
+              document.querySelector('[data-testid="sidebar-primary-action-automations"]')
+            ].filter((row) => row instanceof HTMLElement);
+            const primaryActionLabels = primaryActionRows.map((row) => row.textContent?.trim() ?? '');
+            const sidebarPrimaryActionsCodexOrderWorks =
+              primaryActions instanceof HTMLElement &&
+              primaryActionLabels.join('|') === 'New chat|Search|Plugins|Automations' &&
+              primaryActionRows.every((row) => (
+                row instanceof HTMLElement &&
+                row.classList.contains('sidebar-list-row') &&
+                row.querySelector('svg') instanceof SVGElement
+              ));
+            const sidebarPrimaryActionsBeforePinned =
+              primaryActions instanceof HTMLElement &&
+              document.body.innerText.indexOf('New chat') >= 0 &&
+              document.body.innerText.indexOf('Pinned') >= 0 &&
+              document.body.innerText.indexOf('New chat') < document.body.innerText.indexOf('Pinned');
+            let sidebarSearchPrimaryActionWorks = false;
+            let sidebarPluginsPrimaryActionWorks = false;
+            let sidebarAutomationsPrimaryActionWorks = false;
 
             const bodyText = document.body.innerText;
             const pinnedIndex = bodyText.indexOf('Pinned');
@@ -15628,6 +15669,58 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 };
               }
             }
+            await restoreSmokeSession();
+            const searchPrimaryActionForBehavior = document.querySelector('[data-testid="sidebar-primary-action-search"]');
+            if (searchPrimaryActionForBehavior instanceof HTMLElement) {
+              searchPrimaryActionForBehavior.click();
+              for (let index = 0; index < 60; index += 1) {
+                if (document.querySelector('[data-testid="command-palette-search"]')) break;
+                await sleep(25);
+              }
+              const commandInput = document.querySelector('[data-testid="command-palette-search"]');
+              sidebarSearchPrimaryActionWorks =
+                commandInput instanceof HTMLInputElement &&
+                document.activeElement === commandInput;
+              if (commandInput instanceof HTMLInputElement) {
+                commandInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                for (let index = 0; index < 40; index += 1) {
+                  if (!document.querySelector('[data-testid="command-palette-search"]')) break;
+                  await sleep(25);
+                }
+              }
+              await sleep(120);
+            }
+            const pluginsPrimaryActionForBehavior = document.querySelector('[data-testid="sidebar-primary-action-plugins"]');
+            if (pluginsPrimaryActionForBehavior instanceof HTMLElement) {
+              pluginsPrimaryActionForBehavior.click();
+              for (let index = 0; index < 60; index += 1) {
+                if (document.body.innerText.includes('Capabilities')) break;
+                await sleep(25);
+              }
+              sidebarPluginsPrimaryActionWorks =
+                document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'capabilities' &&
+                document.body.innerText.includes('Capabilities');
+              await restoreSmokeSession();
+            }
+            const automationsPrimaryActionForBehavior = document.querySelector('[data-testid="sidebar-primary-action-automations"]');
+            if (automationsPrimaryActionForBehavior instanceof HTMLElement) {
+              automationsPrimaryActionForBehavior.click();
+              for (let index = 0; index < 60; index += 1) {
+                if (
+                  document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'settings:automations' &&
+                  document.body.innerText.includes('Automations')
+                ) break;
+                await sleep(25);
+              }
+              const automationsNavRow = document.querySelector('[data-sidebar-key="settings:automations"]');
+              sidebarAutomationsPrimaryActionWorks =
+                (
+                  document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'settings:automations' ||
+                  automationsNavRow?.getAttribute('data-active') === 'true'
+                ) &&
+                document.body.innerText.includes('Automations');
+              await restoreSmokeSession();
+            }
             const customTooltipNativeTitleLeaks =
               [...document.querySelectorAll('button[data-tooltip-label][title]')]
                 .map((button) => (button.getAttribute('data-tooltip-label') ?? '') + ':' + (button.getAttribute('title') ?? ''));
@@ -15645,6 +15738,11 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarProjectlessChatsFirstPreferenceWorks,
               providerProjectlessMetadataWorks,
               providerWorktreeMetadataWorks,
+              sidebarPrimaryActionsCodexOrderWorks,
+              sidebarPrimaryActionsBeforePinned,
+              sidebarSearchPrimaryActionWorks,
+              sidebarPluginsPrimaryActionWorks,
+              sidebarAutomationsPrimaryActionWorks,
               sidebarSelectedKeySignalWorks,
               sidebarSelectedKeyPersistenceWorks,
               sidebarSelectedNavKeysWork,
