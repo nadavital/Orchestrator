@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url'
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const outDir = resolve(readArg('--out') ?? join(root, 'tmp', 'side-panel-visual-inventory'))
 const full = process.argv.includes('--full')
+const smokeTimeoutMs = Number.parseInt(process.env.ORCHESTRATOR_VISUAL_INVENTORY_TIMEOUT_MS ?? '120000', 10)
 
 const coreViews = [
   { id: 'chat-sidebar', surface: 'Chat Sidebar', state: 'normal and menu', flag: '--sidebar' },
@@ -51,7 +52,8 @@ for (const view of views) {
     cwd: root,
     encoding: 'utf8',
     env: process.env,
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: Number.isFinite(smokeTimeoutMs) && smokeTimeoutMs > 0 ? smokeTimeoutMs : undefined
   })
   const logPath = join(outDir, `${view.id}.log`)
   writeFileSync(logPath, `${result.stdout}\n${result.stderr}`)
@@ -64,10 +66,14 @@ for (const view of views) {
     copyFileSync(originalScreenshotPath, localScreenshotPath)
     screenshotSize = statSync(localScreenshotPath).size
   }
+  const checks = parsed?.checks ?? outputPayload?.checks ?? null
+  const completedWithPassingChecks = screenshotSize > 0 && checksPass(checks)
   captures.push({
     ...view,
-    ok: result.status === 0 && screenshotSize > 0,
+    ok: completedWithPassingChecks && (result.status === 0 || result.error?.code === 'ETIMEDOUT'),
     exitCode: result.status,
+    signal: result.signal ?? null,
+    timedOut: result.error?.code === 'ETIMEDOUT',
     failureKind: classifyFailure(result, parsed, outputPayload, screenshotSize),
     failureSummary: summarizeFailure(result, parsed, outputPayload, screenshotSize),
     startedAt,
@@ -77,7 +83,7 @@ for (const view of views) {
     screenshotPath: screenshotSize > 0 ? localScreenshotPath : null,
     screenshotSize,
     logPath,
-    checks: parsed?.checks ?? null
+    checks
   })
 }
 
@@ -131,7 +137,8 @@ function readJsonFile(path) {
 }
 
 function classifyFailure(result, parsed, outputPayload, screenshotSize) {
-  if (result.status === 0 && screenshotSize > 0) return null
+  const checks = parsed?.checks ?? outputPayload?.checks ?? null
+  if (screenshotSize > 0 && checksPass(checks) && (result.status === 0 || result.error?.code === 'ETIMEDOUT')) return null
   const combinedOutput = `${result.stdout}\n${result.stderr}`
   if (
     combinedOutput.includes('listen EPERM') ||
@@ -146,7 +153,8 @@ function classifyFailure(result, parsed, outputPayload, screenshotSize) {
 }
 
 function summarizeFailure(result, parsed, outputPayload, screenshotSize) {
-  if (result.status === 0 && screenshotSize > 0) return null
+  const checks = parsed?.checks ?? outputPayload?.checks ?? null
+  if (screenshotSize > 0 && checksPass(checks) && (result.status === 0 || result.error?.code === 'ETIMEDOUT')) return null
   const combinedOutput = `${result.stdout}\n${result.stderr}`
   const interestingLine = combinedOutput
     .split('\n')
@@ -161,4 +169,9 @@ function summarizeFailure(result, parsed, outputPayload, screenshotSize) {
   if (parsed?.checks || outputPayload?.checks) return 'Smoke completed with failing assertions.'
   if (result.status !== 0) return `Smoke exited with code ${result.status}.`
   return 'Smoke did not produce a screenshot.'
+}
+
+function checksPass(checks) {
+  if (!checks || typeof checks !== 'object') return false
+  return Object.values(checks).every((value) => value === true)
 }

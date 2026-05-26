@@ -5339,6 +5339,10 @@
     min-width: 0;
   }
 
+  .notebook-preview-cell-source {
+    padding: 12px 16px;
+  }
+
   .notebook-preview-code-with-description {
     min-width: 0;
   }
@@ -5457,10 +5461,11 @@
   .notebook-preview-outputs {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
     border-top: 1px solid var(--border-subtle);
-    background: color-mix(in srgb, var(--control-bg) 36%, transparent);
-    padding: 8px;
+    background: color-mix(in srgb, var(--control-bg) 15%, transparent);
+    padding: 12px 16px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
   .notebook-preview-output {

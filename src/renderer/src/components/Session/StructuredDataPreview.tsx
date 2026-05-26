@@ -317,9 +317,11 @@ function NotebookPreview({
                   </span>
                 </summary>
                 <div className="notebook-preview-cell-body">
-                  {cell.type === 'code'
-                    ? <NotebookCodeCellBody cell={cell} />
-                    : <pre>{cell.source || 'Empty cell'}</pre>}
+                  <div className="notebook-preview-cell-source">
+                    {cell.type === 'code'
+                      ? <NotebookCodeCellBody cell={cell} />
+                      : <pre>{cell.source || 'Empty cell'}</pre>}
+                  </div>
                   {cell.outputs.length > 0 && (
                     <div
                       className="notebook-preview-outputs"

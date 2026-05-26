@@ -10934,6 +10934,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookRawOutputDisclosureChecks = {};
               const notebookCodeSnippetChecks = {};
               const notebookCellSpacingChecks = {};
+              const notebookOutputChromeChecks = {};
               const pdfPresentationModeChecks = {};
               const documentPageControlChecks = {};
               const spreadsheetRendererChecks = {};
@@ -11123,6 +11124,11 @@ function runAutomatedFocusedSurfaceSmoke(
                     const listInnerStyle = notebookListInner instanceof HTMLElement ? getComputedStyle(notebookListInner) : null;
                     const firstCellStyle = firstNotebookCell instanceof HTMLElement ? getComputedStyle(firstNotebookCell) : null;
                     const firstSummaryStyle = firstNotebookSummary instanceof HTMLElement ? getComputedStyle(firstNotebookSummary) : null;
+                    const firstCellSource = firstNotebookCell instanceof HTMLElement
+                      ? firstNotebookCell.querySelector('.notebook-preview-cell-source')
+                      : null;
+                    const firstCellSourceStyle = firstCellSource instanceof HTMLElement ? getComputedStyle(firstCellSource) : null;
+                    const outputContainerStyle = outputContainer instanceof HTMLElement ? getComputedStyle(outputContainer) : null;
                     const codeNotebookRunButton = codeNotebookSummary instanceof HTMLElement
                       ? codeNotebookSummary.querySelector('[data-notebook-cell-run-disabled="true"]')
                       : null;
@@ -11188,6 +11194,18 @@ function runAutomatedFocusedSurfaceSmoke(
                       Number.parseFloat(firstCellStyle.borderRadius) >= 8 &&
                       Number.parseFloat(firstSummaryStyle.paddingLeft) >= 16 &&
                       Number.parseFloat(firstSummaryStyle.paddingTop) >= 8;
+                    notebookOutputChromeChecks[testId] =
+                      firstCellSource instanceof HTMLElement &&
+                      outputContainer instanceof HTMLElement &&
+                      firstCellSourceStyle !== null &&
+                      outputContainerStyle !== null &&
+                      Number.parseFloat(firstCellSourceStyle.paddingLeft) >= 16 &&
+                      Number.parseFloat(firstCellSourceStyle.paddingTop) >= 12 &&
+                      Number.parseFloat(outputContainerStyle.paddingLeft) >= 16 &&
+                      Number.parseFloat(outputContainerStyle.paddingTop) >= 12 &&
+                      Number.parseFloat(outputContainerStyle.rowGap) >= 12 &&
+                      outputContainerStyle.borderTopWidth !== '0px' &&
+                      outputContainerStyle.boxShadow !== 'none';
                     notebookOutputSummaryChecks[testId] =
                       outputSummaries.length >= 2 &&
                       outputSummaries.some((summary) => summary.textContent?.includes('Stream summary')) &&
@@ -12342,6 +12360,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesNotebookRawOutputDisclosureWorks: Boolean(notebookRawOutputDisclosureChecks['workspace-notebook-preview']),
                 filesNotebookCodeSnippetWorks: Boolean(notebookCodeSnippetChecks['workspace-notebook-preview']),
                 filesNotebookCellSpacingWorks: Boolean(notebookCellSpacingChecks['workspace-notebook-preview']),
+                filesNotebookOutputChromeWorks: Boolean(notebookOutputChromeChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks
