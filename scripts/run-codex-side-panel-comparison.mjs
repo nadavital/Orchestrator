@@ -92,15 +92,15 @@ function buildContracts() {
     {
       id: 'app-shell-header-panel-interaction',
       area: 'Header and panel interaction',
-      scope: 'Left sidebar, right side panel, bottom panel',
-      captureIds: ['chat-sidebar', 'workbench-right-panel', 'terminal-bottom-panel'],
+      scope: 'Left sidebar, main header, right side panel, bottom panel',
+      captureIds: ['chat-sidebar', 'transcript-narrow', 'workbench-right-panel', 'terminal-bottom-panel'],
       codexAssets: [
         { basename: 'app-shell-state-HP0T5lEX.js', terms: ['app-shell:right-panel-width:v2', 'app-shell-bottom-panel-launcher-visible'] },
         { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['terminal-panel'] }
       ],
-      smokeChecks: ['sidebarTopInsetCodexLike', 'rightPanelHeaderSeam', 'terminalVisualHealthyContent'],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'terminalVisualHealthyContent'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator panel/header geometry and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
+      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
       next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Workbench, or bottom-panel shell layout.'
     },
     {

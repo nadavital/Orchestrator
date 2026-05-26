@@ -938,6 +938,7 @@ child.on('exit', (code) => {
         commandPaletteSearchActionWorks: result.commandPaletteSearchActionWorks === true,
         searchShortcutOpens: result.searchShortcutOpens === true,
         transcriptSearchField: result.transcriptSearchFieldWorks === true,
+        sessionHeaderInPrimaryColumn: result.sessionHeaderInPrimaryColumn === true,
         keyboardShortcutsShortcutOpens: result.keyboardShortcutsShortcutOpens === true,
         hiddenMessageCopyQuiet: result.hiddenMessageCopyQuiet === true,
         documentNoHorizontalOverflow: result.documentNoHorizontalOverflow === true,

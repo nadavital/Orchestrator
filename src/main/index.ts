@@ -16078,6 +16078,34 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               return { transcriptFound: false, layoutFixtureVisible, bodyText: document.body.innerText };
             }
 
+            const sessionTitlebar = document.querySelector('[data-testid="session-titlebar"]');
+            const sessionMainRow = document.querySelector('[data-testid="session-main-row"]');
+            const sessionPrimaryContent = document.querySelector('[data-testid="session-primary-content"]');
+            const titlebarRect = sessionTitlebar instanceof HTMLElement ? sessionTitlebar.getBoundingClientRect() : null;
+            const mainRowRect = sessionMainRow instanceof HTMLElement ? sessionMainRow.getBoundingClientRect() : null;
+            const primaryRect = sessionPrimaryContent instanceof HTMLElement ? sessionPrimaryContent.getBoundingClientRect() : null;
+            const sessionHeaderInPrimaryColumn =
+              sessionTitlebar instanceof HTMLElement &&
+              sessionPrimaryContent instanceof HTMLElement &&
+              titlebarRect !== null &&
+              mainRowRect !== null &&
+              primaryRect !== null &&
+              sessionPrimaryContent.contains(sessionTitlebar) &&
+              Math.abs(titlebarRect.top - mainRowRect.top) <= 2 &&
+              Math.abs(titlebarRect.left - primaryRect.left) <= 2 &&
+              Math.abs(titlebarRect.right - primaryRect.right) <= 2 &&
+              titlebarRect.height >= 44 &&
+              titlebarRect.height <= 54;
+            const sessionHeaderInPrimaryColumnDebug = {
+              titlebarTop: titlebarRect?.top ?? null,
+              titlebarLeft: titlebarRect?.left ?? null,
+              titlebarRight: titlebarRect?.right ?? null,
+              titlebarHeight: titlebarRect?.height ?? null,
+              mainRowTop: mainRowRect?.top ?? null,
+              primaryLeft: primaryRect?.left ?? null,
+              primaryRight: primaryRect?.right ?? null
+            };
+
             const wideLayout = layoutProbe();
             const viewportWidth = wideLayout.viewportWidth;
             const docScrollWidth = wideLayout.docScrollWidth;
@@ -16172,6 +16200,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               commandPaletteSearchActionWorks,
               searchShortcutOpens,
               transcriptSearchFieldWorks,
+              sessionHeaderInPrimaryColumn,
+              sessionHeaderInPrimaryColumnDebug,
               hiddenMessageCopyQuiet: !document.body.innerText.includes('hidden for faster chat switching'),
               documentNoHorizontalOverflow,
               transcriptNoHorizontalOverflow,
