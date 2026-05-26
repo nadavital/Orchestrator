@@ -1,6 +1,6 @@
 # Codex Side Panel Live Comparison
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 This file is the current comparison ledger for the side-panel parity goal. It separates Codex-bundle evidence from Orchestrator fixture-smoke evidence so passing local smokes do not accidentally count as full Codex parity.
 
@@ -20,7 +20,8 @@ Scope note: "side panel" in the comparison matrix means the right-side Workbench
 
 - Codex app bundle: `/Applications/Codex.app/Contents/Resources/app.asar`, `CFBundleShortVersionString=26.519.41501`.
 - Extracted Codex side-panel chunks under `tmp/codex-app-assets`.
-- Current Orchestrator full visual inventory: `tmp/side-panel-visual-inventory-current/manifest.json`, 23 captures, no failures, created at `2026-05-25T05:42:15.115Z`.
+- Current Orchestrator full visual inventory: `tmp/side-panel-visual-inventory-current/manifest.json`, 23 captures, no failures, created at `2026-05-26T02:49:20.701Z`.
+- Current runnable comparison: `tmp/codex-side-panel-comparison/comparison-report.json`, status `fixture-covered=7`, `aligned=2`, `mismatch=0`, `blocked=0`.
 - Current pushed branch: `codex-side-panel-parity-stabilization`.
 
 ## Recently Aligned
@@ -55,6 +56,7 @@ What it does correctly:
 Where it has been holding progress back:
 
 - Some checks can validate Orchestrator's approximation instead of Codex's behavior. `rightPanelFindShortcutRouting` was the clearest example; it has been rewritten to prove the shared thread find bar with chat/diff scope plus special Browser routing.
+- The transcript-layout smoke now also asserts the shared `content-search-input`/scope controls instead of the old local `transcript-search` field, so the full inventory and focused right-panel check validate the same find contract.
 - Broad smoke failures can look like product parity gaps when the real issue is harness timing or fixture setup.
 - Screenshot inventory proves visual regression coverage, not provider-backed semantics.
 - Synthetic browser-use and review metadata events prove reducer/UI behavior, not that live Codex/provider sessions emit the same data in the app.

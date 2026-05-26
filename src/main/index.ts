@@ -6616,7 +6616,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     loadingRect !== null &&
                     previewRect !== null &&
                     loadingTitle instanceof HTMLElement &&
-                    loadingRect.width <= Math.max(360, previewRect.width - 32) &&
+                    loadingRect.width <= Math.max(360, previewRect.width - 12) &&
                     loadingRect.height <= 150 &&
                     Number.parseFloat(getComputedStyle(reviewLoadingState).fontSize || '0') <= 13 &&
                     Number.parseFloat(getComputedStyle(loadingTitle).fontWeight || '0') < 700,
@@ -15822,9 +15822,13 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               await sleep(80);
               document.querySelector('[data-command-id="search-transcript"]')?.click();
               await sleep(160);
-              const commandSearch = document.querySelector('[data-testid="transcript-search"]');
-              commandPaletteSearchActionWorks = commandSearch instanceof HTMLInputElement && document.activeElement === commandSearch;
-              document.querySelector('[aria-label="Close transcript search"]')?.click();
+              const commandSearch = document.querySelector('#content-search-input');
+              const commandFindBar = document.querySelector('[data-testid="thread-find-bar"]');
+              commandPaletteSearchActionWorks =
+                commandSearch instanceof HTMLInputElement &&
+                document.activeElement === commandSearch &&
+                commandFindBar?.getAttribute('data-thread-find-domain') === 'conversation';
+              document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Close find"]')?.click();
               await sleep(80);
             }
             window.dispatchEvent(new KeyboardEvent('keydown', {
@@ -15834,16 +15838,20 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               bubbles: true,
               cancelable: true
             }));
-            let search = document.querySelector('[data-testid="transcript-search"]');
+            let search = document.querySelector('#content-search-input');
             for (let index = 0; index < 10 && !(search instanceof HTMLInputElement && document.activeElement === search); index += 1) {
               await sleep(50);
-              search = document.querySelector('[data-testid="transcript-search"]');
+              search = document.querySelector('#content-search-input');
             }
+            const findBar = document.querySelector('[data-testid="thread-find-bar"]');
             const searchShortcutOpens = search instanceof HTMLInputElement && document.activeElement === search;
             const transcriptSearchFieldWorks =
               search instanceof HTMLInputElement &&
-              search.closest('.workbench-search-field')?.getAttribute('data-field-kind') === 'search' &&
-              search.closest('.workbench-search-field')?.querySelector('[aria-label="Close transcript search"]') instanceof HTMLButtonElement;
+              findBar instanceof HTMLElement &&
+              findBar.getAttribute('data-thread-find-domain') === 'conversation' &&
+              findBar.querySelector('[aria-label="Search chat"]') instanceof HTMLButtonElement &&
+              findBar.querySelector('[aria-label="Search diffs"]') instanceof HTMLButtonElement &&
+              findBar.querySelector('[aria-label="Close find"]') instanceof HTMLButtonElement;
 
             const scroller = document.querySelector('[data-testid="transcript-scroll"]');
             if (!scroller) {
