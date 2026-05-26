@@ -10936,6 +10936,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookCellSpacingChecks = {};
               const notebookOutputChromeChecks = {};
               const notebookOutputItemChromeChecks = {};
+              const notebookRichOutputItemChromeChecks = {};
               const pdfPresentationModeChecks = {};
               const documentPageControlChecks = {};
               const spreadsheetRendererChecks = {};
@@ -11702,6 +11703,43 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesFallbackNotice.querySelector('.orchestrator-panel-notice-actions') instanceof HTMLElement &&
                 filesFallbackNoticeActions.length === 2 &&
                 filesFallbackNoticeActions.every((button) => button.classList.contains('file-fallback-action'));
+              const richNotebookOpened = await openFilePreviewTab('notebook-output-types-smoke', 'notebook-output-types-smoke.ipynb');
+              for (let attempt = 0; attempt < 12 && !document.querySelector('[data-testid="workspace-notebook-preview"]'); attempt += 1) {
+                await sleep(100);
+              }
+              const richNotebookPreview = document.querySelector('[data-testid="workspace-notebook-preview"]');
+              const richNotebookHeader = document.querySelector('[data-testid="workspace-notebook-preview-header"]');
+              const markdownOutput = document.querySelector('[data-notebook-output-type="markdown"]');
+              const errorOutput = document.querySelector('[data-notebook-output-type="error"]');
+              const imageOutput = document.querySelector('[data-notebook-output-type="image"]');
+              const imageOutputImage = imageOutput instanceof HTMLElement ? imageOutput.querySelector('img') : null;
+              const markdownOutputStyle = markdownOutput instanceof HTMLElement ? getComputedStyle(markdownOutput) : null;
+              const errorOutputStyle = errorOutput instanceof HTMLElement ? getComputedStyle(errorOutput) : null;
+              const imageOutputStyle = imageOutput instanceof HTMLElement ? getComputedStyle(imageOutput) : null;
+              const imageOutputImageStyle = imageOutputImage instanceof HTMLElement ? getComputedStyle(imageOutputImage) : null;
+              notebookRichOutputItemChromeChecks['workspace-notebook-preview'] =
+                richNotebookOpened &&
+                richNotebookPreview instanceof HTMLElement &&
+                richNotebookHeader instanceof HTMLElement &&
+                richNotebookHeader.textContent?.includes('notebook-output-types-smoke') === true &&
+                markdownOutput instanceof HTMLElement &&
+                errorOutput instanceof HTMLElement &&
+                imageOutput instanceof HTMLElement &&
+                imageOutputImage instanceof HTMLImageElement &&
+                markdownOutput.textContent?.includes('Markdown output updated') === true &&
+                errorOutput.textContent?.includes('ValueError') === true &&
+                markdownOutputStyle !== null &&
+                errorOutputStyle !== null &&
+                imageOutputStyle !== null &&
+                imageOutputImageStyle !== null &&
+                Number.parseFloat(markdownOutputStyle.paddingLeft) >= 12 &&
+                markdownOutputStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                Number.parseFloat(errorOutputStyle.paddingLeft) >= 12 &&
+                errorOutputStyle.borderTopWidth !== '0px' &&
+                errorOutputStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                Number.parseFloat(imageOutputStyle.paddingLeft) >= 12 &&
+                imageOutputStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                Number.parseFloat(imageOutputImageStyle.borderRadius) > 0;
               await openPanelTab('files', 'Files');
               await sleep(160);
               const contentSearch = document.querySelector('[data-testid="workspace-file-search"]');
@@ -12382,6 +12420,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesNotebookCellSpacingWorks: Boolean(notebookCellSpacingChecks['workspace-notebook-preview']),
                 filesNotebookOutputChromeWorks: Boolean(notebookOutputChromeChecks['workspace-notebook-preview']),
                 filesNotebookOutputItemChromeWorks: Boolean(notebookOutputItemChromeChecks['workspace-notebook-preview']),
+                filesNotebookRichOutputItemChromeWorks: Boolean(notebookRichOutputItemChromeChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks

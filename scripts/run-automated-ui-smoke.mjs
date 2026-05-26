@@ -679,6 +679,23 @@ if (fixtureWorkspaceViews.has(captureView)) {
     nbformat: 4,
     nbformat_minor: 5
   }, null, 2))
+  writeFileSync(join(workspaceDir, 'notebook-output-types-smoke.ipynb'), JSON.stringify({
+    cells: [
+      {
+        cell_type: 'code',
+        execution_count: 4,
+        source: ['display("rich output baseline")'],
+        outputs: [
+          { output_type: 'display_data', data: { 'text/markdown': ['**Markdown output baseline**'] } },
+          { output_type: 'error', ename: 'ValueError', evalue: 'baseline failure', traceback: ['Traceback baseline\n', 'ValueError: baseline failure'] },
+          { output_type: 'display_data', data: { 'image/png': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lK3Q6wAAAABJRU5ErkJggg==' } }
+        ]
+      }
+    ],
+    metadata: { kernelspec: { display_name: 'Python 3' } },
+    nbformat: 4,
+    nbformat_minor: 5
+  }, null, 2))
   writeFileSync(join(workspaceDir, 'binary-preview-smoke.bin'), Buffer.from([0, 1, 2, 3, 4, 5, 255]))
   spawnSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' })
   spawnSync('git', ['config', 'user.email', 'orchestrator-smoke@example.test'], { cwd: workspaceDir, stdio: 'ignore' })
@@ -781,6 +798,23 @@ if (fixtureWorkspaceViews.has(captureView)) {
           ]
         },
         { cell_type: 'markdown', source: ['Summary cell'] }
+      ],
+      metadata: { kernelspec: { display_name: 'Python 3' } },
+      nbformat: 4,
+      nbformat_minor: 5
+    }, null, 2))
+    writeFileSync(join(workspaceDir, 'notebook-output-types-smoke.ipynb'), JSON.stringify({
+      cells: [
+        {
+          cell_type: 'code',
+          execution_count: 8,
+          source: ['display("rich output updated")'],
+          outputs: [
+            { output_type: 'display_data', data: { 'text/markdown': ['**Markdown output updated**'] } },
+            { output_type: 'error', ename: 'ValueError', evalue: 'updated failure', traceback: ['Traceback updated\n', 'ValueError: updated failure'] },
+            { output_type: 'display_data', data: { 'image/png': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==' } }
+          ]
+        }
       ],
       metadata: { kernelspec: { display_name: 'Python 3' } },
       nbformat: 4,
@@ -1451,6 +1485,7 @@ child.on('exit', (code) => {
           filesNotebookCellSpacing: result.filesNotebookCellSpacingWorks === true,
           filesNotebookOutputChrome: result.filesNotebookOutputChromeWorks === true,
           filesNotebookOutputItemChrome: result.filesNotebookOutputItemChromeWorks === true,
+          filesNotebookRichOutputItemChrome: result.filesNotebookRichOutputItemChromeWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,
@@ -1629,6 +1664,7 @@ child.on('exit', (code) => {
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSpreadsheetSlidesArtifactBoundary: captureView !== 'inspector' || result.filesSpreadsheetSlidesArtifactBoundaryWorks === true,
         filesNotebookPreview: captureView !== 'inspector' || result.filesNotebookPreviewWorks === true,
+        filesNotebookRichOutputItemChrome: captureView !== 'inspector' || result.filesNotebookRichOutputItemChromeWorks === true,
         filesBinaryPreview: captureView !== 'inspector' || result.filesBinaryPreviewWorks === true,
         filesNoResults: captureView !== 'inspector' || result.filesNoResultsWorks === true,
         filesSearchClear: captureView !== 'inspector' || result.filesSearchClearWorks === true,

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
-import { spawnSync } from 'child_process'
+import { spawn } from 'child_process'
 import { fileURLToPath } from 'url'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -46,15 +46,9 @@ mkdirSync(outDir, { recursive: true })
 
 const captures = []
 for (const view of views) {
-  const args = ['run', 'smoke:ui:auto', '--', view.flag]
+  const args = ['scripts/run-automated-ui-smoke.mjs', view.flag]
   const startedAt = new Date().toISOString()
-  const result = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, {
-    cwd: root,
-    encoding: 'utf8',
-    env: process.env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    timeout: Number.isFinite(smokeTimeoutMs) && smokeTimeoutMs > 0 ? smokeTimeoutMs : undefined
-  })
+  const result = await runSmokeCapture(args)
   const logPath = join(outDir, `${view.id}.log`)
   writeFileSync(logPath, `${result.stdout}\n${result.stderr}`)
   const parsed = safeParseLastJson(result.stdout) ?? safeParseLastJson(result.stderr)
@@ -107,6 +101,74 @@ console.log(JSON.stringify({
   captures: captures.length,
   screenshots: captures.map((capture) => ({ id: capture.id, path: capture.screenshotPath }))
 }, null, 2))
+
+function runSmokeCapture(args) {
+  return new Promise((resolveCapture) => {
+    const child = spawn(process.execPath, args, {
+      cwd: root,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
+    })
+    let stdout = ''
+    let stderr = ''
+    let timedOut = false
+    let settled = false
+    let killTimer = null
+    const timeoutMs = Number.isFinite(smokeTimeoutMs) && smokeTimeoutMs > 0 ? smokeTimeoutMs : null
+    const timeout = timeoutMs == null
+      ? null
+      : setTimeout(() => {
+        timedOut = true
+        terminateProcessTree(child)
+        killTimer = setTimeout(() => terminateProcessTree(child, 'SIGKILL'), 2500)
+      }, timeoutMs)
+
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString()
+    })
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString()
+    })
+    child.on('error', (error) => {
+      if (settled) return
+      settled = true
+      if (timeout) clearTimeout(timeout)
+      if (killTimer) clearTimeout(killTimer)
+      resolveCapture({ status: null, signal: null, error, stdout, stderr })
+    })
+    child.on('close', (code, signal) => {
+      if (settled) return
+      settled = true
+      if (timeout) clearTimeout(timeout)
+      if (killTimer) clearTimeout(killTimer)
+      resolveCapture({
+        status: code,
+        signal,
+        error: timedOut ? { code: 'ETIMEDOUT' } : null,
+        stdout,
+        stderr
+      })
+    })
+  })
+}
+
+function terminateProcessTree(child, signal = 'SIGTERM') {
+  if (!child.pid) return
+  try {
+    if (process.platform === 'win32') {
+      child.kill(signal)
+      return
+    }
+    process.kill(-child.pid, signal)
+  } catch {
+    try {
+      child.kill(signal)
+    } catch {
+      // The process may already have exited.
+    }
+  }
+}
 
 function readArg(name) {
   const index = process.argv.indexOf(name)
