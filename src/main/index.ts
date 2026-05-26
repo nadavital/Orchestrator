@@ -8126,7 +8126,7 @@ function runAutomatedFocusedSurfaceSmoke(
 	              let reviewLastTurnGitApplyCommandWorks = false;
 	              let reviewLastTurnGitApplyCommandDebug = {};
 	              let reviewTranscriptCardLastTurnWorks = false;
-	              if (smokeView === 'diff-source') {
+	              if (smokeView === 'diff-source' || smokeView === 'diff-last-turn') {
 	                const smokeSessionsForLastTurn = await window.api.sessions.list();
 	                const lastTurnSmokeDiff = [
 	                  'diff --git a/review-base.txt b/review-base.txt',
@@ -8264,6 +8264,43 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  lastTurnReviewCardInlineDiff instanceof HTMLElement &&
 	                  (lastTurnReviewCardInlineDiff.textContent ?? '').includes('last turn smoke') &&
                     lastTurnReviewCardOpenWorks;
+                  const lastTurnVisualReviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+                  const lastTurnVisualSidePane = lastTurnVisualReviewRoot?.querySelector('.diff-panel-changed-files-pane');
+                  const lastTurnVisualMainPane = lastTurnVisualReviewRoot?.querySelector('.diff-panel-preview-pane');
+                  const lastTurnVisualSourceSummary = document.querySelector('[data-testid="review-source-summary"]');
+                  const lastTurnVisualChangedFilesToggle = document.querySelector('[data-testid="review-changed-files-toggle"]');
+                  const lastTurnVisualSelectedSection = lastTurnVisualReviewRoot?.querySelector('[data-testid="review-file-section"][data-review-path="review-base.txt"]');
+                  var reviewLastTurnVisualStateWorks =
+                    reviewTranscriptCardLastTurnWorks &&
+                    lastTurnVisualReviewRoot instanceof HTMLElement &&
+                    lastTurnVisualReviewRoot.getAttribute('data-review-source') === 'last-turn' &&
+                    lastTurnVisualReviewRoot.getAttribute('data-review-side-pane-visible') === 'false' &&
+                    lastTurnVisualSidePane instanceof HTMLElement &&
+                    lastTurnVisualSidePane.getAttribute('data-review-side-pane-visible') === 'false' &&
+                    lastTurnVisualSidePane.getBoundingClientRect().width <= 2 &&
+                    lastTurnVisualMainPane instanceof HTMLElement &&
+                    lastTurnVisualMainPane.getBoundingClientRect().width >= 320 &&
+                    lastTurnVisualSourceSummary instanceof HTMLElement &&
+                    lastTurnVisualSourceSummary.textContent?.includes('Last turn') &&
+                    lastTurnVisualSourceSummary.getAttribute('data-review-source-summary-additions') === '1' &&
+                    lastTurnVisualSourceSummary.getAttribute('data-review-source-summary-deletions') === '0' &&
+                    lastTurnVisualSourceSummary.textContent?.includes('+1') &&
+                    lastTurnVisualChangedFilesToggle instanceof HTMLButtonElement &&
+                    lastTurnVisualSelectedSection instanceof HTMLElement &&
+                    lastTurnVisualSelectedSection.textContent?.includes('last turn smoke');
+                  if (smokeView === 'diff-last-turn') {
+                    const activeBottomPanelForLastTurnVisual = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="right"]');
+                    if (activeBottomPanelForLastTurnVisual instanceof HTMLElement) {
+                      activeBottomPanelForLastTurnVisual.focus({ preventScroll: true });
+                    }
+                    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                    await sleep(420);
+                    return {
+                      profile,
+                      reviewTranscriptCardLastTurnWorks,
+                      reviewLastTurnVisualStateWorks
+                    };
+                  }
                   if (lastTurnReviewCardOpenWorks) {
                     const restoreChangedFilesPane = document.querySelector('[data-testid="review-changed-files-toggle"]');
                     if (restoreChangedFilesPane instanceof HTMLButtonElement) {

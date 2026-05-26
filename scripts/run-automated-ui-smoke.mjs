@@ -48,6 +48,8 @@ const captureView = process.argv.includes('--settings-deeplink')
         ? 'diff-narrow'
       : process.argv.includes('--diff-core')
         ? 'diff-core'
+      : process.argv.includes('--diff-last-turn')
+        ? 'diff-last-turn'
       : process.argv.includes('--diff-source')
         ? 'diff-source'
       : process.argv.includes('--diff-preview')
@@ -99,7 +101,7 @@ const profile = 'automated-ui-smoke'
 const userDataDir = join(tmpdir(), 'orchestrator-profiles', `${profile}-${captureView}`)
 const workspaceDir = join(tmpdir(), 'orchestrator-automated-ui-workspace')
 const isDiffCaptureView = captureView === 'diff' || captureView.startsWith('diff-')
-const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-new-tab', 'environment', 'workbench-perf', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
+const fixtureWorkspaceViews = new Set(['inspector', 'right-panel', 'workbench-new-tab', 'environment', 'workbench-perf', 'diff', 'diff-entry', 'diff-empty', 'diff-loading', 'diff-conflict', 'diff-narrow', 'diff-core', 'diff-last-turn', 'diff-source', 'diff-preview', 'files', 'side-chat', 'browser'])
 const resetWorkspaceViews = new Set([...fixtureWorkspaceViews, 'sidebar', 'multi-window-focus'])
 const outputPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.json`)
 const screenshotPath = join(tmpdir(), `orchestrator-automated-ui-smoke-${captureView}-${Date.now()}.png`)
@@ -118,6 +120,7 @@ function buildDiffChecks(result, view) {
     reviewTranscriptCard: result.reviewTranscriptCardWorks === true,
     reviewTranscriptCardUndo: result.reviewTranscriptCardUndoWorks === true,
     reviewTranscriptCardLastTurn: result.reviewTranscriptCardLastTurnWorks === true,
+    reviewLastTurnVisualState: result.reviewLastTurnVisualStateWorks === true,
     reviewEnvironmentPanel: result.reviewEnvironmentPanelWorks === true,
     reviewEmptyState: result.reviewEmptyStateWorks === true,
     reviewEmptyStateCalm: result.reviewEmptyStateCalmWorks === true,
@@ -264,6 +267,11 @@ function buildDiffChecks(result, view) {
       'reviewGitApplyCommandCoversAll',
       'reviewFloatingGitActions',
       'reviewRevertAllConfirmation'
+    ],
+    'diff-last-turn': [
+      'isolatedProfile',
+      'reviewTranscriptCardLastTurn',
+      'reviewLastTurnVisualState'
     ],
     'diff-source': [
       'isolatedProfile',

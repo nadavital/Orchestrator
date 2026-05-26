@@ -25,6 +25,7 @@ const fullViews = [
   { id: 'review-loading', surface: 'Review', state: 'loading diff content', flag: '--diff-loading' },
   { id: 'review-narrow', surface: 'Review', state: 'narrow right-panel overlay', flag: '--diff-narrow' },
   { id: 'review-core', surface: 'Review', state: 'diff renderer core', flag: '--diff-core' },
+  { id: 'review-last-turn', surface: 'Review', state: 'transcript Last turn open state', flag: '--diff-last-turn' },
   { id: 'review-source', surface: 'Review', state: 'source mode', flag: '--diff-source' },
   { id: 'review-preview', surface: 'Review', state: 'rich preview and binary', flag: '--diff-preview' },
   { id: 'settings-providers', surface: 'Settings', state: 'provider settings', flag: '--settings-providers' },

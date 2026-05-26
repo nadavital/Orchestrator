@@ -1067,14 +1067,27 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     lastTurnReviewFiles.length
   )
   const activeReviewSourceLabel = reviewSourceSummaryLabel(reviewSource, activeReviewSource.label, branchReviewRef, commitReviewRef)
+  const activeReviewSourceStats = sourceFiles.reduce(
+    (totals, file) => ({
+      additions: totals.additions + file.additions,
+      deletions: totals.deletions + file.deletions
+    }),
+    { additions: 0, deletions: 0 }
+  )
+  const activeReviewSourceStatsLabel = [
+    activeReviewSourceStats.additions > 0 ? `+${activeReviewSourceStats.additions}` : '',
+    activeReviewSourceStats.deletions > 0 ? `-${activeReviewSourceStats.deletions}` : ''
+  ].filter(Boolean).join(' ')
   const reviewSourceSummary = (
     <button
       type="button"
       className="review-source-summary-button"
-      aria-label={`Review source: ${activeReviewSourceLabel}, ${activeReviewSourceCount} ${activeReviewSourceCount === 1 ? 'file' : 'files'}`}
+      aria-label={`Review source: ${activeReviewSourceLabel}, ${activeReviewSourceCount} ${activeReviewSourceCount === 1 ? 'file' : 'files'}${activeReviewSourceStatsLabel ? `, ${activeReviewSourceStatsLabel}` : ''}`}
       data-testid="review-source-summary"
       data-review-source-active={reviewSource}
       data-review-source-summary-count={activeReviewSourceCount}
+      data-review-source-summary-additions={activeReviewSourceStats.additions}
+      data-review-source-summary-deletions={activeReviewSourceStats.deletions}
       onClick={() => {
         setReviewOptionsOpen((open) => !open)
         setFileJumpOpen(false)
@@ -1083,7 +1096,16 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     >
       <Icon name="branch" size={14} />
       <span className="review-source-summary-label">{activeReviewSourceLabel}</span>
-      <span className="review-source-summary-count" aria-hidden="true">{activeReviewSourceCount}</span>
+      {(activeReviewSourceStats.additions > 0 || activeReviewSourceStats.deletions > 0) && (
+        <span className="review-source-summary-stats" aria-hidden="true">
+          {activeReviewSourceStats.additions > 0 && (
+            <span className="review-source-summary-stat-additions">+{activeReviewSourceStats.additions}</span>
+          )}
+          {activeReviewSourceStats.deletions > 0 && (
+            <span className="review-source-summary-stat-deletions">-{activeReviewSourceStats.deletions}</span>
+          )}
+        </span>
+      )}
     </button>
   )
 
