@@ -4987,6 +4987,27 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             profileBadgeRect !== null &&
             profileBadgeRect.width <= 32 &&
             profileBadgeRect.height <= 32;
+          const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
+          const titlebarActionButtons = titlebarActions instanceof HTMLElement
+            ? [
+                document.querySelector('[data-testid="titlebar-chat-actions"]'),
+                document.querySelector('[data-testid="titlebar-toggle-sidebar"]'),
+                document.querySelector('[data-testid="titlebar-toggle-terminal"]')
+              ].filter((button) => button instanceof HTMLButtonElement)
+            : [];
+          const titlebarActionRects = titlebarActionButtons.map((button) => button.getBoundingClientRect());
+          const headerActionChromeCompactWorks =
+            titlebarActions instanceof HTMLElement &&
+            titlebarActions.getAttribute('data-header-panel-action-style') === 'codex-compact' &&
+            titlebarActionButtons.length === 3 &&
+            titlebarActionButtons.every((button) =>
+              button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+              button.getAttribute('data-icon-button-size') === 'sm'
+            ) &&
+            titlebarActionRects.every((rect) => rect.width <= 26 && rect.height <= 26) &&
+            profileBadgeRect !== null &&
+            profileBadgeRect.width <= 26 &&
+            profileBadgeRect.height <= 26;
           if (profileBadge instanceof HTMLElement) {
             profileBadge.dispatchEvent(new MouseEvent('mouseover', {
               bubbles: true,
@@ -5092,6 +5113,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             nativeTitleFreeControlLeaks,
             composerNativeTooltipsWork,
             profileBadgeCompactWorks,
+            headerActionChromeCompactWorks,
             headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
             chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
             chatEmptyStateQuietWorks: typeof chatEmptyStateQuietWorks === 'boolean' ? chatEmptyStateQuietWorks : null,
@@ -5521,7 +5543,28 @@ function runAutomatedFocusedSurfaceSmoke(
               const activeTitleTooltip = activeSessionTitle instanceof HTMLElement ? activeSessionTitle.getAttribute('data-tooltip-label') ?? '' : '';
               const titlebarToggleSidebar = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
               const chatActionsButton = document.querySelector('[data-testid="titlebar-chat-actions"]');
-              const headerActions = document.querySelector('[data-testid="titlebar-actions"]')?.getAttribute('data-header-actions') ?? '';
+              const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
+              const headerActions = titlebarActions?.getAttribute('data-header-actions') ?? '';
+              const titlebarActionButtons = titlebarActions instanceof HTMLElement
+                ? [
+                    document.querySelector('[data-testid="titlebar-chat-actions"]'),
+                    document.querySelector('[data-testid="titlebar-toggle-sidebar"]'),
+                    document.querySelector('[data-testid="titlebar-toggle-terminal"]')
+                  ].filter((button) => button instanceof HTMLButtonElement)
+                : [];
+              const titlebarActionRects = titlebarActionButtons.map((button) => button.getBoundingClientRect());
+              const headerActionChromeCompactWorks =
+                titlebarActions instanceof HTMLElement &&
+                titlebarActions.getAttribute('data-header-panel-action-style') === 'codex-compact' &&
+                titlebarActionButtons.length === 3 &&
+                titlebarActionButtons.every((button) =>
+                  button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  button.getAttribute('data-icon-button-size') === 'sm'
+                ) &&
+                titlebarActionRects.every((rect) => rect.width <= 26 && rect.height <= 26) &&
+                profileBadgeRect !== null &&
+                profileBadgeRect.width <= 26 &&
+                profileBadgeRect.height <= 26;
               let headerActionMenuWorks =
                 headerActions.includes('folder') &&
                 headerActions.includes('project') &&
@@ -5575,6 +5618,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   titlebarToggleSidebar instanceof HTMLButtonElement &&
                   titlebarToggleSidebar.getAttribute('aria-label') === 'Toggle sidebar' &&
                   titlebarToggleSidebar.dataset.icon === 'panelRight',
+                headerActionChromeCompactWorks,
                 headerActionMenuWorks
               };
             };
@@ -6700,6 +6744,29 @@ function runAutomatedFocusedSurfaceSmoke(
                   metric.metadata?.panelId === 'right' &&
                   typeof metric.metadata?.tabId === 'string'
                 );
+              const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
+              const profileBadge = document.querySelector('[data-testid="profile-badge"]');
+              const profileBadgeRect = profileBadge instanceof HTMLElement ? profileBadge.getBoundingClientRect() : null;
+              const titlebarActionButtons = titlebarActions instanceof HTMLElement
+                ? [
+                    document.querySelector('[data-testid="titlebar-chat-actions"]'),
+                    document.querySelector('[data-testid="titlebar-toggle-sidebar"]'),
+                    document.querySelector('[data-testid="titlebar-toggle-terminal"]')
+                  ].filter((button) => button instanceof HTMLButtonElement)
+                : [];
+              const titlebarActionRects = titlebarActionButtons.map((button) => button.getBoundingClientRect());
+              const headerActionChromeCompactWorks =
+                titlebarActions instanceof HTMLElement &&
+                titlebarActions.getAttribute('data-header-panel-action-style') === 'codex-compact' &&
+                titlebarActionButtons.length === 3 &&
+                titlebarActionButtons.every((button) =>
+                  button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  button.getAttribute('data-icon-button-size') === 'sm'
+                ) &&
+                titlebarActionRects.every((rect) => rect.width <= 26 && rect.height <= 26) &&
+                profileBadgeRect !== null &&
+                profileBadgeRect.width <= 26 &&
+                profileBadgeRect.height <= 26;
               return {
                 profile,
                 hasRightPanelState: rightPanel instanceof HTMLElement &&
@@ -6714,6 +6781,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 headerPanelSharedBandWorks,
                 headerPanelSharedBandDebug,
                 headerMetadataTooltipOnlyWorks,
+                headerActionChromeCompactWorks,
                 rightPanelMaterialSolidWorks,
                 rightPanelMaterialDebug,
                 workbenchPanelChromeCompactWorks:

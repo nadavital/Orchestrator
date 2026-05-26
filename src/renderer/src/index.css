@@ -1205,6 +1205,14 @@
     color: var(--text-primary);
   }
 
+  .profile-badge-compact:hover,
+  .profile-badge-compact:focus-visible {
+    border-color: var(--border-subtle) !important;
+    background: var(--control-bg) !important;
+    color: var(--text-primary) !important;
+    outline: none;
+  }
+
   .motion-panel {
     position: relative;
     will-change: width, height, opacity;

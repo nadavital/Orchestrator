@@ -216,14 +216,14 @@ function Titlebar(): JSX.Element {
               aria-label={`Profile: ${profile.displayName}`}
               style={{
                 display: 'inline-flex',
-                width: 28,
-                height: 28,
+                width: 24,
+                height: 24,
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'var(--text-secondary)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 8,
-                background: 'var(--control-bg)'
+                border: '1px solid transparent',
+                borderRadius: 6,
+                background: 'transparent'
               }}
             >
               <Icon name="agents" size={13} />
@@ -235,8 +235,9 @@ function Titlebar(): JSX.Element {
       {/* Right: toggle buttons — no-drag */}
       <div
         data-testid="titlebar-actions"
+        data-header-panel-action-style="codex-compact"
         data-header-actions="folder,project,session,provider-session,branch"
-        className="flex items-center gap-2 px-3"
+        className="flex items-center gap-1 px-2"
         style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
       >
         {session && (
@@ -246,6 +247,8 @@ function Titlebar(): JSX.Element {
               label="Chat actions"
               active={menuPoint !== null}
               dataTestId="titlebar-chat-actions"
+              size="sm"
+              variant="toolbar"
               onClick={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect()
                 setMenuPoint({ x: rect.right - 196, y: rect.bottom + 6 })
@@ -256,12 +259,17 @@ function Titlebar(): JSX.Element {
               label="Toggle sidebar"
               active={inspectorOpen}
               dataTestId="titlebar-toggle-sidebar"
+              size="sm"
+              variant="toolbar"
               onClick={toggleInspector}
             />
             <ToolbarButton
               icon="terminal"
               label="Toggle terminal"
               active={showTerminal}
+              dataTestId="titlebar-toggle-terminal"
+              size="sm"
+              variant="toolbar"
               onClick={() => setShowTerminal(activeSessionId!, !showTerminal)}
             />
           </>

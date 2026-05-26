@@ -1093,6 +1093,7 @@ child.on('exit', (code) => {
           headerIdentity: result.headerIdentityWorks === true,
           headerMetadataTooltipOnly: result.headerMetadataTooltipOnlyWorks === true,
           profileBadgeCompact: result.profileBadgeCompactWorks === true,
+          headerActionChromeCompact: result.headerActionChromeCompactWorks === true,
           headerNativeTooltips: result.headerNativeTooltipsWork === true,
           titlebarSidebarToggle: result.titlebarSidebarToggleWorks === true,
           headerActionMenu: result.headerActionMenuWorks === true
@@ -1107,6 +1108,7 @@ child.on('exit', (code) => {
           rightPanelHeaderSeam: result.rightPanelHeaderSeamWorks === true,
           headerPanelSharedBand: result.headerPanelSharedBandWorks === true,
           headerMetadataTooltipOnly: result.headerMetadataTooltipOnlyWorks === true,
+          headerActionChromeCompact: result.headerActionChromeCompactWorks === true,
           rightPanelMaterialSolid: result.rightPanelMaterialSolidWorks === true,
           workbenchPanelChromeCompact: result.workbenchPanelChromeCompactWorks === true,
           workbenchPanelAddControlStable: result.workbenchPanelAddControlStableWorks === true,

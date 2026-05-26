@@ -118,9 +118,9 @@ function buildContracts() {
           maxAgeHours: 72
         }
       ],
-      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent'],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, compact profile/debug badge behavior, solid panel material, bottom-panel target size, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
+      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, compact profile/debug badge behavior, compact titlebar toolbar actions, solid panel material, bottom-panel target size, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
       next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Workbench, or bottom-panel shell layout.'
     },
     {

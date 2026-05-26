@@ -6660,9 +6660,19 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the visible footer affordance mismatch and adds functional left-sidebar collapse/expand. It does not prove exact live Codex collapsed-rail icon order or animation timing.
 
+### 2026-05-26 - Header Action Chrome Compactness
+
+Codex evidence: live screenshot `/private/tmp/codex-current-screen.png` shows the conversation header, right-panel chrome, and top-right controls reading as one compact toolbar band. Orchestrator's header/panel seam was already aligned, but the primary titlebar actions still rendered as heavier bordered controls, so the header could look like a separate control cluster from the right-panel chrome.
+
+Implemented: Orchestrator now renders the titlebar chat actions, side-panel toggle, and terminal toggle as compact `toolbar` variant icon buttons, reduces the titlebar action gap, and flattens the isolated profile badge to the same compact toolbar scale. The smoke report now emits `headerActionChromeCompact=true`, and the side-panel comparison includes that check in the `Header and panel interaction` contract row.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, `git diff --check`, and `npm run build` passed. Focused `npm run smoke:ui:auto -- --header` passed with `headerActionChromeCompact=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779805058201.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779805058201.png`. Focused `npm run smoke:ui:auto -- --right-panel` passed with `headerActionChromeCompact=true`, `headerPanelSharedBand=true`, and `rightPanelHeaderSeam=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779805152557.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779805152557.png`. Refreshed `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with 25 captures, `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needs-smoke=0`, and `needs-proof=0`; manifest created at `2026-05-26T14:24:18.754Z`.
+
+Remaining: this tightens the user-observed header/panel interaction mismatch. Exact live Codex button spacing and hover/active timing remain live screenshot/timing comparison items.
+
 Recommended order:
 
-1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel, and review `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html` because the user-visible mismatch can be in the relationship between surfaces rather than in any one panel.
+1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel, and review `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html` because the user-visible mismatch can be in the relationship between surfaces rather than in any one panel. Header action controls must stay compact toolbar chrome inside that shared band, not a heavier independent button cluster.
 2. Workbench chrome migration.
 3. Browser agent-driven parity: keep the live real Browser tool proof and `browserClientToolBridge=true` renderer loopback green. Add click/type/screenshot only from real browser-use requests, explicit product scope, or a full installed-app end-to-end run.
 4. Terminal live Codex bottom-panel height/animation comparison at multiple window sizes plus root shell ownership for any remaining non-shared tab paths. The local content/chrome/target decomposition is now smoke-gated at a Codex-bundle-aligned 400 px total default/reset target; exact live animation timing remains.
