@@ -14805,27 +14805,42 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               });
             const labelColorMarkers = [...document.querySelectorAll('[data-testid="session-label-color"]')]
               .filter((marker) => marker instanceof HTMLElement);
+            const visibleLabelColorMarkers = labelColorMarkers.filter((marker) => {
+              const rect = marker.getBoundingClientRect();
+              const style = getComputedStyle(marker);
+              return rect.width > 0 &&
+                rect.height > 0 &&
+                style.display !== 'none' &&
+                style.visibility !== 'hidden' &&
+                Number.parseFloat(style.opacity || '1') > 0.05;
+            });
+            const sessionRowsTextFirst =
+              sessionRows.length >= 4 &&
+              visibleLabelColorMarkers.length === 0 &&
+              sessionRows.every((row) => {
+                const title = row.querySelector('[data-thread-title]');
+                if (!(title instanceof HTMLElement)) return false;
+                const rowRect = row.getBoundingClientRect();
+                const titleRect = title.getBoundingClientRect();
+                return titleRect.left - rowRect.left <= 18;
+              });
             const sidebarLabelColorMetadataWorks =
-              labelColorMarkers.length >= 4 &&
-              labelColorMarkers.every((marker) => {
-                const style = getComputedStyle(marker);
-                return marker.getBoundingClientRect().width >= 6 &&
-                  marker.getBoundingClientRect().height >= 6 &&
-                  style.backgroundColor !== 'rgba(0, 0, 0, 0)';
-              }) &&
-              labelColorMarkers.some((marker) => Number.parseFloat(getComputedStyle(marker).opacity || '0') >= 0.6);
+              sessionRowShells.length >= 4 &&
+              sessionRowShells.every((shell) => Boolean(shell.getAttribute('data-sidebar-label-color')));
             const pinnedSessionShells = sessionRowShells.filter((shell) => (
               shell.getAttribute('data-sidebar-provider-pinned') === 'true' ||
               (pinnedSection instanceof HTMLElement && pinnedSection.contains(shell))
             ));
-            const sidebarPinnedRowsKeepIdentityMarker =
+            const sidebarPinnedRowsTextFirst =
               pinnedSessionShells.length >= 2 &&
               pinnedSessionShells.every((shell) => {
-                const marker = shell.querySelector('[data-testid="session-label-color"]');
-                return marker instanceof HTMLElement &&
-                  marker.getAttribute('data-pinned') === 'true' &&
-                  marker.closest('.session-item-identity-slot') instanceof HTMLElement &&
-                  getComputedStyle(marker).backgroundColor !== 'rgba(0, 0, 0, 0)';
+                const row = shell.querySelector('[data-testid="session-row"]');
+                const title = shell.querySelector('[data-thread-title]');
+                if (!(row instanceof HTMLElement) || !(title instanceof HTMLElement)) return false;
+                const rowRect = row.getBoundingClientRect();
+                const titleRect = title.getBoundingClientRect();
+                return !shell.querySelector('[data-testid="session-label-color"]') &&
+                  titleRect.left - rowRect.left <= 18;
               });
             const sidebarPinActionsConsolidated =
               sessionRows.length >= 4 &&
@@ -14833,10 +14848,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 const identitySlot = shell.querySelector('.session-item-identity-slot');
                 const actionSlot = shell.querySelector('[data-sidebar-row-action-slot="consolidated"]');
                 const pinButton = shell.querySelector('[data-testid="session-pin-toggle"]');
-                return identitySlot instanceof HTMLElement &&
+                return !(identitySlot instanceof HTMLElement) &&
                   actionSlot instanceof HTMLElement &&
                   pinButton instanceof HTMLElement &&
-                  !identitySlot.contains(pinButton) &&
                   actionSlot.contains(pinButton);
               });
 
@@ -16266,8 +16280,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               importantRowStatusIconOnly,
               chatEnvironmentIconAbsent,
               sidebarThreadIdentityMetadataWorks,
+              sessionRowsTextFirst,
               sidebarLabelColorMetadataWorks,
-              sidebarPinnedRowsKeepIdentityMarker,
+              sidebarPinnedRowsTextFirst,
               sidebarPinActionsConsolidated,
               sidebarActionMenuChromeCalm,
               sidebarActionMenuSharedSectionsWorks,

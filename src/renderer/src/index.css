@@ -8893,34 +8893,6 @@
     transform: translateX(0);
   }
 
-  .session-item-identity-slot {
-    position: relative;
-    display: grid;
-    place-items: center;
-    width: 14px;
-    height: 20px;
-  }
-
-  .session-item-label-color {
-    grid-area: 1 / 1;
-    width: 7px;
-    height: 7px;
-    border: 0.5px solid color-mix(in srgb, var(--panel-bg-solid) 74%, transparent);
-    border-radius: 999px;
-    box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 8%, transparent);
-    opacity: 0.72;
-    transition:
-      opacity var(--motion-duration-control) var(--motion-ease-control),
-      transform var(--motion-duration-control) var(--motion-ease-control);
-  }
-
-  .session-item-label-color[data-pinned='true'] {
-    opacity: 0.86;
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, currentColor 16%, transparent),
-      0 0 0 3px color-mix(in srgb, currentColor 5%, transparent);
-  }
-
   .session-row-shell {
     position: relative;
     min-width: 0;

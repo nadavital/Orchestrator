@@ -341,17 +341,6 @@ function SessionItem({ session }: Props): JSX.Element {
           onDoubleClick={openRename}
           onContextMenu={openMenu}
           dataSidebarKey={rowSelectedKey}
-          leading={(
-            <div className="session-item-identity-slot shrink-0">
-              <span
-                className="session-item-label-color"
-                data-testid="session-label-color"
-                aria-hidden="true"
-                data-pinned={isPinned ? 'true' : 'false'}
-                style={{ background: labelColor }}
-              />
-            </div>
-          )}
           label={(
             <div
               className="session-row-title truncate leading-4"
