@@ -121,6 +121,11 @@ function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
       approved: 1,
       changesRequested: 1,
       names: ['Ada', 'Linus']
+    },
+    comments: {
+      total: 2,
+      authors: ['Mona', 'Ada'],
+      url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1'
     }
   }
 }

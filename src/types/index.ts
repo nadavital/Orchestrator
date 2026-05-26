@@ -1214,10 +1214,18 @@ export interface ReviewReviewerSummary {
   url?: string | null
 }
 
+export interface ReviewCommentSummary {
+  total: number
+  unresolved?: number
+  authors?: string[]
+  url?: string | null
+}
+
 export interface ReviewMetadata {
   pullRequest?: ReviewPullRequestMetadata
   checks?: ReviewCheckSummary
   reviewers?: ReviewReviewerSummary
+  comments?: ReviewCommentSummary
 }
 
 export interface Session {

@@ -358,7 +358,7 @@ export const gitManager = {
         'pr',
         'view',
         '--json',
-        'number,title,url,state,isDraft,headRefName,baseRefName,statusCheckRollup,reviewRequests,reviews'
+        'number,title,url,state,isDraft,headRefName,baseRefName,statusCheckRollup,reviewRequests,reviews,comments'
       ], {
         cwd,
         encoding: 'utf-8',
@@ -381,6 +381,7 @@ export function reviewMetadataFromGitHubPullRequestView(value: unknown): ReviewM
   const url = stringValue(pr.url) ?? null
   const checks = reviewChecksFromGitHubStatusRollup(pr.statusCheckRollup, url)
   const reviewers = reviewReviewerSummaryFromGitHub(pr.reviewRequests, pr.reviews, url)
+  const comments = reviewCommentSummaryFromGitHub(pr.comments, url)
   return {
     pullRequest: {
       number,
@@ -391,7 +392,8 @@ export function reviewMetadataFromGitHubPullRequestView(value: unknown): ReviewM
       baseBranch: stringValue(pr.baseRefName)
     },
     ...(checks ? { checks } : {}),
-    ...(reviewers ? { reviewers } : {})
+    ...(reviewers ? { reviewers } : {}),
+    ...(comments ? { comments } : {})
   }
 }
 
@@ -508,6 +510,23 @@ function reviewRequestName(value: unknown): string | undefined {
 function reviewAuthorName(review: Record<string, unknown> | null): string | undefined {
   const author = asRecord(review?.author)
   return stringValue(author?.login, author?.name, review?.author)
+}
+
+function reviewCommentSummaryFromGitHub(value: unknown, url: string | null): ReviewMetadata['comments'] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined
+  const authors = new Set<string>()
+  let commentUrl: string | null = null
+  for (const item of value) {
+    const comment = asRecord(item)
+    const author = reviewAuthorName(comment)
+    if (author) authors.add(author)
+    commentUrl = commentUrl ?? stringValue(comment?.url, comment?.htmlUrl) ?? null
+  }
+  return {
+    total: value.length,
+    authors: [...authors].slice(0, 8),
+    url: commentUrl ?? url
+  }
 }
 
 function reviewPullRequestState(value: unknown): NonNullable<ReviewMetadata['pullRequest']>['state'] {

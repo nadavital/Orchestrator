@@ -18,7 +18,7 @@ interface Props {
 }
 
 type ReviewDiffMode = 'unified' | 'split'
-type ReviewMetadataPanel = 'pull-request' | 'checks' | 'reviewers'
+type ReviewMetadataPanel = 'pull-request' | 'checks' | 'reviewers' | 'comments'
 type ReviewSourceSupport = {
   hasLastTurnDiff: boolean
   hasLocalProviderSource: boolean
@@ -1449,7 +1449,7 @@ function ReviewMetadataStrip({
   openPanel: ReviewMetadataPanel | null
   onOpenPanelChange: (panel: ReviewMetadataPanel | null) => void
 }): JSX.Element {
-  const hasMetadata = Boolean(metadata.pullRequest || metadata.checks || metadata.reviewers)
+  const hasMetadata = Boolean(metadata.pullRequest || metadata.checks || metadata.reviewers || metadata.comments)
   if (!hasMetadata) return <></>
   const summary = reviewMetadataSummary(metadata)
   return (
@@ -1459,6 +1459,7 @@ function ReviewMetadataStrip({
       data-review-metadata-pr={metadata.pullRequest ? 'true' : 'false'}
       data-review-metadata-checks={metadata.checks?.status ?? ''}
       data-review-metadata-reviewers={reviewReviewerCount(metadata.reviewers)}
+      data-review-metadata-comments={metadata.comments?.total ?? 0}
     >
       <IconButton
         icon="plan"
@@ -1512,6 +1513,18 @@ function ReviewMetadataStrip({
                 meta={summary.reviewers}
                 externalUrl={metadata.reviewers.url ?? null}
                 onSelect={() => onOpenPanelChange('reviewers')}
+              />
+            )}
+            {metadata.comments && (
+              <ReviewMetadataRow
+                icon="chat"
+                testId="review-metadata-comments"
+                active={openPanel === 'comments'}
+                title={reviewCommentTitle(metadata.comments)}
+                detail={reviewCommentDetail(metadata.comments)}
+                meta={summary.comments}
+                externalUrl={metadata.comments.url ?? metadata.pullRequest?.url ?? null}
+                onSelect={() => onOpenPanelChange('comments')}
               />
             )}
           </MenuSection>
@@ -1574,11 +1587,12 @@ function ReviewMetadataRow({
   )
 }
 
-function reviewMetadataSummary(metadata: ReviewMetadata): { pullRequest: string; checks: string; reviewers: string } {
+function reviewMetadataSummary(metadata: ReviewMetadata): { pullRequest: string; checks: string; reviewers: string; comments: string } {
   return {
     pullRequest: metadata.pullRequest ? reviewPullRequestMeta(metadata.pullRequest) : 'No pull request',
     checks: metadata.checks ? reviewCheckTitle(metadata.checks) : 'No checks',
-    reviewers: metadata.reviewers ? reviewReviewerTitle(metadata.reviewers) : 'No reviewers'
+    reviewers: metadata.reviewers ? reviewReviewerTitle(metadata.reviewers) : 'No reviewers',
+    comments: metadata.comments ? reviewCommentTitle(metadata.comments) : 'No comments'
   }
 }
 
@@ -1639,6 +1653,16 @@ function reviewReviewerDetail(reviewers: NonNullable<ReviewMetadata['reviewers']
   ].filter(Boolean)
   const names = reviewers.names?.filter((name) => name.trim().length > 0).slice(0, 3).join(', ')
   return names ? `${names} / ${statusParts.join(' / ')}` : statusParts.join(' / ') || 'No reviewer detail available'
+}
+
+function reviewCommentTitle(comments: NonNullable<ReviewMetadata['comments']>): string {
+  return `${comments.total} ${comments.total === 1 ? 'comment' : 'comments'}`
+}
+
+function reviewCommentDetail(comments: NonNullable<ReviewMetadata['comments']>): string {
+  const authors = comments.authors?.filter((author) => author.trim().length > 0).slice(0, 3).join(', ')
+  const unresolved = comments.unresolved !== undefined ? `${comments.unresolved} unresolved` : null
+  return [authors, unresolved].filter(Boolean).join(' / ') || 'No comment detail available'
 }
 
 function ReviewFileSection({

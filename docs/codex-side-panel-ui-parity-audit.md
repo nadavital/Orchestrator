@@ -6316,12 +6316,22 @@ Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto --
 
 Remaining: this closes local rendered-diff active-line focus for the current text renderer. It still does not implement Codex's cross-conversation/thread-find controller, mark-level inline text wrapping, exact active-match reveal/scroll under a true virtualized diff renderer, over-cap UI beyond local `250+` count semantics, provider checkpoint Undo, hosted/cloud diff adapters, provider-backed PR/comments/blame metadata, deeper hosted conflict workflows, or live Codex side-by-side Review spacing comparison.
 
+### 2026-05-25 - Review Metadata General Comments Slice
+
+Codex evidence: re-checked the current extracted Review toolbar bundle. Codex's Review metadata toolbar/flyout includes a comments lane alongside PR, checks, and reviewers, with comment counts and add/remove actions for review comments. Orchestrator already had a shared Review metadata flyout and a GitHub-backed PR/check/reviewer adapter, but it did not render any provider-backed comments summary.
+
+Implemented: extended `ReviewMetadata` with a comment summary, added `comments` to the GitHub `gh pr view --json` metadata adapter, normalized general PR comments into total/authors/URL metadata, and rendered a `comments` row in the existing shared Review metadata flyout. The automated Review entry smoke now seeds and verifies the comments row beside PR/check/reviewer metadata.
+
+Verification: `pnpm exec tsc --noEmit` passed. `git diff --check` passed. `npm run test:providers` passed with 289/289 tests, including GitHub PR metadata normalization coverage for comments. `npm run build` passed. Focused `npm run smoke:ui:auto -- --diff-entry` first failed in the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `reviewMetadataToolbar=true` and `reviewMetadataFlyoutShared=true`, now including the seeded comments row. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779767282058.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779767282058.png`. `npm run compare:codex-side-panels -- --no-fail` passed with status counts `fixture-covered=7`, `aligned=2`, `mismatchCount=0`, `blockedCount=0`.
+
+Remaining: this closes a concrete GitHub-backed general PR comment-summary gap, not full Codex review-comment parity. Inline/threaded code-review comments, provider-native hosted/cloud metadata adapters, provider blame, true provider checkpoint Undo, cloud/hosted diff adapters, deeper hosted conflict workflows, and live Codex side-by-side Review spacing comparison remain open.
+
 Recommended order:
 
 1. Shell/tab foundation only.
 2. Workbench chrome migration.
 3. Terminal live Codex bottom-panel height/animation comparison at multiple window sizes plus root shell ownership for any remaining non-shared tab paths. The local content/chrome/target decomposition is now smoke-gated; live Codex numeric comparison remains.
-4. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, provider-backed comments/blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
+4. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, inline/threaded provider comments/blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
 5. File tabs and file viewer parity, now focused on full artifact rendering/provider search after the artifact identity/source-boundary slice.
 6. Browser lifecycle parity.
 7. Chat Sidebar model and visual rebuild.

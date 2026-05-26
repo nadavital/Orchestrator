@@ -277,6 +277,10 @@ test('GitHub PR view JSON normalizes to review metadata', () => {
       { author: { login: 'ada' }, state: 'COMMENTED' },
       { author: { login: 'ada' }, state: 'APPROVED' },
       { author: { login: 'linus' }, state: 'CHANGES_REQUESTED' }
+    ],
+    comments: [
+      { author: { login: 'mona' }, body: 'Please add docs', url: 'https://github.com/example/repo/pull/42#issuecomment-1' },
+      { author: { login: 'ada' }, body: 'Nit', url: 'https://github.com/example/repo/pull/42#issuecomment-2' }
     ]
   })
 
@@ -310,6 +314,15 @@ test('GitHub PR view JSON normalizes to review metadata', () => {
     commented: 0
   })
   assert.deepEqual(metadata?.reviewers?.names, ['ada', 'linus', 'grace', 'ios'])
+  assert.deepEqual({
+    total: metadata?.comments?.total,
+    authors: metadata?.comments?.authors,
+    url: metadata?.comments?.url
+  }, {
+    total: 2,
+    authors: ['mona', 'ada'],
+    url: 'https://github.com/example/repo/pull/42#issuecomment-1'
+  })
 })
 
 test('draft GitHub PR metadata maps to draft state', () => {
@@ -327,6 +340,7 @@ test('draft GitHub PR metadata maps to draft state', () => {
   assert.equal(metadata?.pullRequest?.state, 'draft')
   assert.equal(metadata?.checks, undefined)
   assert.equal(metadata?.reviewers, undefined)
+  assert.equal(metadata?.comments, undefined)
 })
 
 test('line blame returns author metadata for a tracked source line', async () => {

@@ -9935,18 +9935,23 @@ function runAutomatedFocusedSurfaceSmoke(
                   const reviewMetadataChecksRow = document.querySelector('[data-testid="review-metadata-checks-row"]');
                   const reviewMetadataReviewers = document.querySelector('[data-testid="review-metadata-reviewers"]');
                   const reviewMetadataReviewersRow = document.querySelector('[data-testid="review-metadata-reviewers-row"]');
+                  const reviewMetadataComments = document.querySelector('[data-testid="review-metadata-comments"]');
+                  const reviewMetadataCommentsRow = document.querySelector('[data-testid="review-metadata-comments-row"]');
                   if (
                     reviewMetadataStrip instanceof HTMLElement &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-pr') === 'true' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-checks') === 'failing' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-reviewers') === '4' &&
+                    reviewMetadataStrip.getAttribute('data-review-metadata-comments') === '2' &&
                     reviewMetadataPr instanceof HTMLElement &&
                     reviewMetadataChecks instanceof HTMLElement &&
                     reviewMetadataReviewers instanceof HTMLElement &&
+                    reviewMetadataComments instanceof HTMLElement &&
                     (reviewMetadataPr.textContent ?? '').includes('PR 42') &&
                     (reviewMetadataChecks.textContent ?? '').includes('Checks failing') &&
                     reviewMetadataChecks.getAttribute('data-review-check-status') === 'failing' &&
-                    (reviewMetadataReviewers.textContent ?? '').includes('4 reviewers')
+                    (reviewMetadataReviewers.textContent ?? '').includes('4 reviewers') &&
+                    (reviewMetadataComments.textContent ?? '').includes('2 comments')
                   ) {
                     reviewMetadataToolbarWorks = true;
                     reviewMetadataFlyoutSharedWorks =
@@ -9955,7 +9960,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       reviewMetadataSection.classList.contains('orchestrator-menu-section') &&
                       reviewMetadataSectionLabel instanceof HTMLElement &&
                       reviewMetadataSectionLabel.textContent?.trim() === 'Review' &&
-                      [reviewMetadataPrRow, reviewMetadataChecksRow, reviewMetadataReviewersRow].every((row) =>
+                      [reviewMetadataPrRow, reviewMetadataChecksRow, reviewMetadataReviewersRow, reviewMetadataCommentsRow].every((row) =>
                         row instanceof HTMLButtonElement &&
                         row.getAttribute('data-menu-row') === 'true' &&
                         row.classList.contains('orchestrator-menu-row') &&
@@ -17576,6 +17581,11 @@ function seedAutomatedReviewCardSmokeSession(sessionId: string): void {
           approved: 1,
           changesRequested: 1,
           names: ['Ada', 'Linus']
+        },
+        comments: {
+          total: 2,
+          authors: ['Mona', 'Ada'],
+          url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1'
         }
       }
     })
