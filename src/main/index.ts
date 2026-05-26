@@ -5575,9 +5575,39 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelTop: rightPanelRectForSeam?.top ?? null,
                 rightPanelShellTop: rightPanelShellRectForSeam?.top ?? null,
                 rightPanelChromeTop: rightPanelChromeRectForSeam?.top ?? null,
+                rightPanelChromeHeight: rightPanelChromeRectForSeam?.height ?? null,
                 rightPanelLeft: rightPanelRectForSeam?.left ?? null,
                 rightPanelLayout: rightPanel instanceof HTMLElement ? rightPanel.dataset.rightPanelLayout ?? null : null
               };
+              const sidebarDragSpacerForBand = document.querySelector('[data-testid="sidebar-window-drag-spacer"]');
+              const firstPrimaryActionForBand = document.querySelector('[data-testid="sidebar-primary-action-new-chat"]');
+              const sidebarForBand = document.querySelector('[data-testid="app-sidebar"]');
+              const sidebarDragSpacerRectForBand = sidebarDragSpacerForBand instanceof HTMLElement ? sidebarDragSpacerForBand.getBoundingClientRect() : null;
+              const firstPrimaryActionRectForBand = firstPrimaryActionForBand instanceof HTMLElement ? firstPrimaryActionForBand.getBoundingClientRect() : null;
+              const sidebarRectForBand = sidebarForBand instanceof HTMLElement ? sidebarForBand.getBoundingClientRect() : null;
+              const shellHeaderHeightToken = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-shell-header-height'));
+              const headerPanelSharedBandDebug = {
+                shellHeaderHeightToken: Number.isFinite(shellHeaderHeightToken) ? shellHeaderHeightToken : null,
+                titlebarHeight: titlebarRect?.height ?? null,
+                rightPanelChromeHeight: rightPanelChromeRectForSeam?.height ?? null,
+                sidebarDragSpacerHeight: sidebarDragSpacerRectForBand?.height ?? null,
+                sidebarPrimaryActionTopOffset: firstPrimaryActionRectForBand && sidebarRectForBand ? firstPrimaryActionRectForBand.top - sidebarRectForBand.top : null
+              };
+              const headerPanelSharedBandWorks =
+                titlebarRect !== null &&
+                rightPanelChromeRectForSeam !== null &&
+                sidebarDragSpacerRectForBand !== null &&
+                firstPrimaryActionRectForBand !== null &&
+                sidebarRectForBand !== null &&
+                Number.isFinite(shellHeaderHeightToken) &&
+                shellHeaderHeightToken >= 32 &&
+                shellHeaderHeightToken <= 38 &&
+                Math.abs(titlebarRect.height - shellHeaderHeightToken) <= 1 &&
+                Math.abs(rightPanelChromeRectForSeam.height - shellHeaderHeightToken) <= 2 &&
+                Math.abs(sidebarDragSpacerRectForBand.height - shellHeaderHeightToken) <= 1 &&
+                Math.abs(titlebarRect.top - rightPanelChromeRectForSeam.top) <= 2 &&
+                firstPrimaryActionRectForBand.top >= sidebarRectForBand.top + shellHeaderHeightToken - 1 &&
+                firstPrimaryActionRectForBand.top <= sidebarRectForBand.top + shellHeaderHeightToken + 8;
               const rightPanelHeaderSeamWorks =
                 titlebarRect !== null &&
                 mainRowRectForSeam !== null &&
@@ -5591,8 +5621,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 Math.abs(rightPanelRectForSeam.top - mainRowRectForSeam.top) <= 2 &&
                 Math.abs(rightPanelChromeRectForSeam.top - titlebarRect.top) <= 2 &&
                 Math.abs(titlebarRect.right - rightPanelRectForSeam.left) <= 2 &&
-                titlebarRect.height >= 44 &&
-                titlebarRect.height <= 54 &&
+                titlebarRect.height >= 32 &&
+                titlebarRect.height <= 38 &&
                 rightPanelChromeRectForSeam.height >= 30 &&
                 rightPanelChromeRectForSeam.height <= 44;
               if (smokeView === 'workbench-new-tab') {
@@ -6614,6 +6644,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelSharedLayoutControllerWorks,
                 rightPanelHeaderSeamWorks,
                 rightPanelHeaderSeamDebug,
+                headerPanelSharedBandWorks,
+                headerPanelSharedBandDebug,
                 rightPanelMaterialSolidWorks,
                 rightPanelMaterialDebug,
                 workbenchPanelChromeCompactWorks:
@@ -14512,11 +14544,11 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarDragSpacerRect !== null &&
               firstPrimaryActionRect !== null &&
               sidebarTopRect !== null &&
-              sidebarDragSpacerRect.height >= 46 &&
-              sidebarDragSpacerRect.height <= 50 &&
+              sidebarDragSpacerRect.height >= 32 &&
+              sidebarDragSpacerRect.height <= 38 &&
               sidebarPrimaryActionTopOffset !== null &&
-              sidebarPrimaryActionTopOffset >= 46 &&
-              sidebarPrimaryActionTopOffset <= 54;
+              sidebarPrimaryActionTopOffset >= 32 &&
+              sidebarPrimaryActionTopOffset <= 42;
             const sidebarOverflowDebug = sidebar instanceof HTMLElement
               ? {
                   sidebarClientWidth: sidebar.clientWidth,
@@ -16359,8 +16391,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               Math.abs(titlebarRect.top - mainRowRect.top) <= 2 &&
               Math.abs(titlebarRect.left - primaryRect.left) <= 2 &&
               Math.abs(titlebarRect.right - primaryRect.right) <= 2 &&
-              titlebarRect.height >= 44 &&
-              titlebarRect.height <= 54;
+              titlebarRect.height >= 32 &&
+              titlebarRect.height <= 38;
             const sessionHeaderInPrimaryColumnDebug = {
               titlebarTop: titlebarRect?.top ?? null,
               titlebarLeft: titlebarRect?.left ?? null,

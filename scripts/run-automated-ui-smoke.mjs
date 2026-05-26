@@ -1092,6 +1092,7 @@ child.on('exit', (code) => {
           rightPanelSharedAnimationController: result.rightPanelSharedAnimationControllerWorks === true,
           rightPanelSharedLayoutController: result.rightPanelSharedLayoutControllerWorks === true,
           rightPanelHeaderSeam: result.rightPanelHeaderSeamWorks === true,
+          headerPanelSharedBand: result.headerPanelSharedBandWorks === true,
           rightPanelMaterialSolid: result.rightPanelMaterialSolidWorks === true,
           workbenchPanelChromeCompact: result.workbenchPanelChromeCompactWorks === true,
           workbenchPanelAddControlStable: result.workbenchPanelAddControlStableWorks === true,

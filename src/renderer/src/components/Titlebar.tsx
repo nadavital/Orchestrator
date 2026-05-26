@@ -140,7 +140,7 @@ function Titlebar(): JSX.Element {
       data-testid="session-titlebar"
       className="flex items-center shrink-0 w-full"
       style={{
-        height: 50,
+        height: 'var(--app-shell-header-height)',
         background: 'var(--surface-bg)',
         borderBottom: '1px solid var(--border-subtle)',
         userSelect: 'none',
@@ -148,39 +148,37 @@ function Titlebar(): JSX.Element {
         WebkitAppRegion: 'drag'
       } as React.CSSProperties}
     >
-      <div className="flex min-w-0 items-center gap-2 px-4" style={{ flex: 1 }}>
+      <div className="flex min-w-0 items-center gap-2 px-3" style={{ flex: 1 }}>
         {session ? (
           <>
-            <div className="flex min-w-0 flex-col">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <Tooltip label={session.name}>
+            <div className="flex min-w-0 items-center gap-2">
+              <Tooltip label={session.name}>
+                <span
+                  data-testid="active-session-title"
+                  className="truncate"
+                  data-tooltip-label={session.name}
+                  data-native-title-free="true"
+                  aria-label={session.name}
+                  tabIndex={0}
+                  style={{ color: 'var(--text-primary)', flexShrink: 0, maxWidth: 260, fontSize: 13, fontWeight: 560, lineHeight: '16px' }}
+                >
+                  {session.name}
+                </span>
+              </Tooltip>
+              {session.pinned && (
+                <Tooltip label="Pinned">
                   <span
-                    data-testid="active-session-title"
-                    className="truncate"
-                    data-tooltip-label={session.name}
+                    className="shrink-0"
+                    data-testid="session-header-pinned"
+                    data-tooltip-label="Pinned"
                     data-native-title-free="true"
-                    aria-label={session.name}
-                    tabIndex={0}
-                    style={{ color: 'var(--text-primary)', maxWidth: 520, fontSize: 14, fontWeight: 540, lineHeight: '18px' }}
+                    aria-label="Pinned"
+                    style={{ color: 'var(--text-tertiary)' }}
                   >
-                    {session.name}
+                    <Icon name="pin" size={12} />
                   </span>
                 </Tooltip>
-                {session.pinned && (
-                  <Tooltip label="Pinned">
-                    <span
-                      className="shrink-0"
-                      data-testid="session-header-pinned"
-                      data-tooltip-label="Pinned"
-                      data-native-title-free="true"
-                      aria-label="Pinned"
-                      style={{ color: 'var(--text-tertiary)' }}
-                    >
-                      <Icon name="pin" size={12} />
-                    </span>
-                  </Tooltip>
-                )}
-              </div>
+              )}
               <Tooltip label={metadataParts.join(' · ')}>
                 <div
                   data-testid="session-header-metadata"
@@ -189,19 +187,9 @@ function Titlebar(): JSX.Element {
                   data-native-title-free="true"
                   aria-label={metadataParts.join(' · ')}
                   tabIndex={0}
-                  style={{ color: 'var(--text-tertiary)', lineHeight: '14px', maxWidth: 680 }}
+                  style={{ color: 'var(--text-tertiary)', lineHeight: '14px', minWidth: 0, maxWidth: 560 }}
                 >
-                  {metadataParts.map((part, index) => (
-                    <span
-                      key={`${part}-${index}`}
-                      data-testid={String(part).startsWith('Branch ') ? 'session-header-branch' : undefined}
-                      className="truncate"
-                      style={{ minWidth: index === 0 ? 0 : undefined }}
-                    >
-                      {index > 0 && <span aria-hidden="true">· </span>}
-                      {part}
-                    </span>
-                  ))}
+                  {metadataParts.length > 0 ? `· ${metadataParts.join(' · ')}` : ''}
                 </div>
               </Tooltip>
             </div>

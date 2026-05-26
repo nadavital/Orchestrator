@@ -26,6 +26,7 @@
     --space-6: 24px;
     --space-8: 32px;
     --app-shell-toolbar-height: 34px;
+    --app-shell-header-height: var(--app-shell-toolbar-height);
     --app-shell-tab-height: 24px;
     --app-shell-tab-radius: var(--radius-sm);
     --app-shell-tab-font-size: 11px;
