@@ -1183,6 +1183,18 @@
     box-shadow: -1px 0 0 rgba(255,255,255,0.55);
   }
 
+  .app-shell-panel {
+    isolation: isolate;
+    background: var(--surface-bg);
+    background-clip: padding-box;
+  }
+
+  .app-shell-panel-right,
+  .app-shell-panel-bottom,
+  .workbench-panel-surface {
+    background: var(--surface-bg);
+  }
+
   .motion-panel-right.workbench-panel-expanded {
     position: absolute;
     inset: 0;
@@ -1222,7 +1234,7 @@
     z-index: 20;
     flex-shrink: 0;
     border-bottom: 1px solid var(--border-subtle);
-    background: color-mix(in srgb, var(--surface-bg) 96%, transparent);
+    background: var(--surface-bg);
   }
 
   .app-shell-panel-chrome {
@@ -1232,7 +1244,7 @@
     min-height: var(--app-shell-toolbar-height);
     flex-shrink: 0;
     border-bottom: 1px solid var(--border-subtle);
-    background: color-mix(in srgb, var(--surface-bg) 96%, transparent);
+    background: var(--surface-bg);
   }
 
   .workbench-panel-tabbar {

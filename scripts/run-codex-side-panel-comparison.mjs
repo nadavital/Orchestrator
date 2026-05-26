@@ -108,9 +108,9 @@ function buildContracts() {
           maxAgeHours: 72
         }
       ],
-      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'terminalVisualHealthyContent'],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalVisualHealthyContent'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
+      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, solid panel material, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
       next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Workbench, or bottom-panel shell layout.'
     },
     {
@@ -130,7 +130,7 @@ function buildContracts() {
           maxAgeHours: 72
         }
       ],
-      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelContextMenuSharedSections', 'workbenchPanelTabOverflowController', 'workbenchPanelNewTabPage'],
+      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'workbenchPanelTabOverflowController', 'workbenchPanelNewTabPage'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
       next: 'Use focused right-panel smoke for regressions; do not call exact timing complete without live Codex comparison.'
@@ -237,9 +237,9 @@ function buildContracts() {
         { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['Terminal {index}', 'terminal-panel', 'terminal.tabs.title'] },
         { basename: 'terminal-service-BsiZiRKt.js', terms: ['conversationSessions', 'sessionSnapshots', 'terminal-create'] }
       ],
-      smokeChecks: ['terminalVisualHealthyContent'],
+      smokeChecks: ['terminalPanelMaterialSolid', 'terminalVisualHealthyContent'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Terminal behavior and screenshot are covered; exact Codex height/open-close timing is not live-proven.',
+      caveat: 'Terminal behavior, solid bottom-panel material, and screenshot are covered; exact Codex height/open-close timing is not live-proven.',
       next: 'Compare live panel height and animation timing when app UI access is available.'
     },
     {

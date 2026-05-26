@@ -758,6 +758,7 @@ export function AppShellPanel({
       style={{ ...shellBorder, ...style }}
       data-app-shell-panel={panel}
       data-app-shell-panel-surface={surface}
+      data-app-shell-panel-material="solid"
       data-app-shell-focus-area={focusArea}
     >
       {children}

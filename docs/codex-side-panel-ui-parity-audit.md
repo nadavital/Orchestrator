@@ -6549,6 +6549,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the basic Codex-style notebook disclosure shell. It does not claim exact cell spacing, execution-count labeling, full output sizing/polish, live provider artifact metadata, or runnable notebook execution.
 
+### 2026-05-26 - App-Shell Panel Material
+
+Codex evidence: the live screenshot `/private/tmp/codex-current-screen.png` shows the Codex right panel as a solid shell surface that does not let transcript/header content show through it, and bundle evidence in `app-shell-state-HP0T5lEX.js` plus `thread-page-bottom-panel-state-D1Lz0U4Y.js` keeps right and bottom panels under shared app-shell ownership.
+
+Implemented: Orchestrator shared `AppShellPanel` surfaces now expose `data-app-shell-panel-material="solid"`, and the Workbench right panel, Workbench chrome, Terminal bottom panel, and bottom-panel chrome use solid `var(--surface-bg)` shell backgrounds instead of transparent-mixed chrome surfaces. The right-panel and terminal visual smokes now gate computed background opacity through `rightPanelMaterialSolid=true` and `terminalPanelMaterialSolid=true`, and the comparison row includes both checks in the header/panel interaction contract.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, and `git diff --check` passed. Focused `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelMaterialSolid=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779791962067.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779791962067.png`. Focused `npm run smoke:ui:auto -- --terminal-visual` passed with `terminalPanelMaterialSolid=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779791962966.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779791962966.png`. The refreshed `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with 23 captures, `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, and a manifest created at `2026-05-26T10:44:06.628Z`.
+
+Remaining: this closes the concrete shell-material regression guard for right and bottom panels. It does not prove exact live Codex pixel spacing or panel animation timing; those still require fresh live Codex screenshots or another concrete visual mismatch.
+
 Recommended order:
 
 1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel.

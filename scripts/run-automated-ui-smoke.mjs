@@ -1092,6 +1092,7 @@ child.on('exit', (code) => {
           rightPanelSharedAnimationController: result.rightPanelSharedAnimationControllerWorks === true,
           rightPanelSharedLayoutController: result.rightPanelSharedLayoutControllerWorks === true,
           rightPanelHeaderSeam: result.rightPanelHeaderSeamWorks === true,
+          rightPanelMaterialSolid: result.rightPanelMaterialSolidWorks === true,
           workbenchPanelChromeCompact: result.workbenchPanelChromeCompactWorks === true,
           workbenchPanelAddControlStable: result.workbenchPanelAddControlStableWorks === true,
           workbenchPanelNewTabPage: result.workbenchPanelNewTabPageWorks === true,
@@ -1223,6 +1224,7 @@ child.on('exit', (code) => {
       ? {
           isolatedProfile: result.profile?.isIsolated === true,
           terminalVisualPanel: result.terminalVisualPanelWorks === true,
+          terminalPanelMaterialSolid: result.terminalVisualPanelMaterialSolidWorks === true,
           terminalVisualTabs: result.terminalVisualTabsWork === true,
           terminalVisualToolbar: result.terminalVisualToolbarWorks === true,
           terminalVisualHealthyContent: result.terminalVisualHealthyContentWorks === true
@@ -1232,6 +1234,7 @@ child.on('exit', (code) => {
           isolatedProfile: result.profile?.isIsolated === true,
           terminalTabsPersist: result.terminalTabsPersistState === true,
           terminalShellOwnership: result.terminalShellOwnershipWorks === true,
+          terminalPanelMaterialSolid: result.terminalPanelMaterialSolidWorks === true,
           terminalSharedAnimationController: result.terminalSharedAnimationControllerWorks === true,
           terminalSharedLayoutController: result.terminalSharedLayoutControllerWorks === true,
           terminalBottomPanelSizeDecomposition: result.terminalBottomPanelSizeDecompositionWorks === true,
@@ -1418,6 +1421,7 @@ child.on('exit', (code) => {
         sideChatClose: captureView !== 'inspector' || result.sideChatCloseWorks === true,
         terminalTabsPersist: captureView !== 'terminal' || result.terminalTabsPersistState === true,
         terminalShellOwnership: captureView !== 'terminal' || result.terminalShellOwnershipWorks === true,
+        terminalPanelMaterialSolid: captureView !== 'terminal' || result.terminalPanelMaterialSolidWorks === true,
         terminalSharedLayoutController: captureView !== 'terminal' || result.terminalSharedLayoutControllerWorks === true,
         terminalBottomPanelSizeDecomposition: captureView !== 'terminal' || result.terminalBottomPanelSizeDecompositionWorks === true,
         terminalRestore: captureView !== 'terminal' || result.terminalRestoreWorks === true,

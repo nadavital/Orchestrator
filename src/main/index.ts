@@ -556,6 +556,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           const findButtonStartingWith = (labelPrefix) =>
             [...document.querySelectorAll('button')]
               .find((button) => buttonLabel(button).startsWith(labelPrefix));
+          const colorAlpha = (color) => {
+            const value = String(color ?? '').trim().toLowerCase();
+            if (!value || value === 'transparent') return 0;
+            const rgbaMatch = value.match(/rgba?\\(([^)]+)\\)/);
+            if (rgbaMatch) {
+              const parts = rgbaMatch[1].split(/[,/\\s]+/).filter(Boolean);
+              return parts.length >= 4 ? Number.parseFloat(parts[3]) : 1;
+            }
+            const colorMatch = value.match(/color\\([^/]+\\/\\s*([0-9.]+)\\s*\\)/);
+            if (colorMatch) return Number.parseFloat(colorMatch[1]);
+            return 1;
+          };
+          const backgroundAlpha = (element) => element instanceof HTMLElement
+            ? colorAlpha(getComputedStyle(element).backgroundColor)
+            : 0;
           const profile = await window.api.app.getProfile();
           let projects = await window.api.projects.list();
           if (projects.length === 0) {
@@ -1801,6 +1816,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelRestored instanceof HTMLElement &&
               bottomPanelShell.contains(bottomPanelRestored) &&
               bottomPanelShell.getAttribute('data-app-shell-focus-area') === 'bottom-panel';
+            var terminalPanelMaterialSolidWorks =
+              bottomPanelShell instanceof HTMLElement &&
+              bottomPanelRestored instanceof HTMLElement &&
+              bottomPanelShell.getAttribute('data-app-shell-panel-material') === 'solid' &&
+              backgroundAlpha(bottomPanelShell) >= 0.99 &&
+              backgroundAlpha(bottomPanelRestored) >= 0.99;
             const bottomPanelAnimationProgress = Number(bottomPanelShell?.getAttribute('data-app-shell-panel-animation-progress') ?? '0');
             const bottomPanelAnimatedSize = Number(bottomPanelShell?.getAttribute('data-app-shell-panel-animated-size') ?? '0');
             const bottomPanelTargetSize = Number(bottomPanelShell?.getAttribute('data-app-shell-panel-target-size') ?? '0');
@@ -2535,10 +2556,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const terminalViewForVisual = document.querySelector('[data-testid="terminal-view"]');
             const terminalFailureForVisual = document.querySelector('[data-testid="terminal-failure-state"]');
             const terminalPlainOutputForVisual = document.querySelector('[data-testid="terminal-plain-output"]');
+            const bottomPanelShellForVisual = bottomPanelForTerminalVisual instanceof HTMLElement
+              ? bottomPanelForTerminalVisual.closest('[data-motion-panel="bottom"][data-app-shell-panel="bottom"]')
+              : null;
             var terminalVisualPanelWorks =
               bottomPanelForTerminalVisual instanceof HTMLElement &&
               terminalViewForVisual instanceof HTMLElement &&
               Number(bottomPanelForTerminalVisual.getAttribute('data-bottom-panel-height') ?? '0') >= 120;
+            var terminalVisualPanelMaterialSolidWorks =
+              bottomPanelShellForVisual instanceof HTMLElement &&
+              bottomPanelForTerminalVisual instanceof HTMLElement &&
+              bottomPanelShellForVisual.getAttribute('data-app-shell-panel-material') === 'solid' &&
+              backgroundAlpha(bottomPanelShellForVisual) >= 0.99 &&
+              backgroundAlpha(bottomPanelForTerminalVisual) >= 0.99;
             var terminalVisualTabsWork =
               bottomPanelForTerminalVisual instanceof HTMLElement &&
               terminalTabsForVisual.length >= 2 &&
@@ -5157,6 +5187,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,
             terminalShellOwnershipWorks: typeof terminalShellOwnershipWorks === 'boolean' ? terminalShellOwnershipWorks : null,
+            terminalPanelMaterialSolidWorks: typeof terminalPanelMaterialSolidWorks === 'boolean' ? terminalPanelMaterialSolidWorks : null,
             terminalSharedAnimationControllerWorks: typeof terminalSharedAnimationControllerWorks === 'boolean' ? terminalSharedAnimationControllerWorks : null,
             terminalSharedLayoutControllerWorks: typeof terminalSharedLayoutControllerWorks === 'boolean' ? terminalSharedLayoutControllerWorks : null,
             terminalBottomPanelSizeDecompositionWorks: typeof terminalBottomPanelSizeDecompositionWorks === 'boolean' ? terminalBottomPanelSizeDecompositionWorks : null,
@@ -5188,6 +5219,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalThemeFontSyncWorks: typeof terminalThemeFontSyncWorks === 'boolean' ? terminalThemeFontSyncWorks : null,
             terminalThemeTokenMatrixWorks: typeof terminalThemeTokenMatrixWorks === 'boolean' ? terminalThemeTokenMatrixWorks : null,
             terminalVisualPanelWorks: typeof terminalVisualPanelWorks === 'boolean' ? terminalVisualPanelWorks : null,
+            terminalVisualPanelMaterialSolidWorks: typeof terminalVisualPanelMaterialSolidWorks === 'boolean' ? terminalVisualPanelMaterialSolidWorks : null,
             terminalVisualTabsWork: typeof terminalVisualTabsWork === 'boolean' ? terminalVisualTabsWork : null,
             terminalVisualToolbarWorks: typeof terminalVisualToolbarWorks === 'boolean' ? terminalVisualToolbarWorks : null,
             terminalVisualHealthyContentWorks: typeof terminalVisualHealthyContentWorks === 'boolean' ? terminalVisualHealthyContentWorks : null,
@@ -5352,6 +5384,21 @@ function runAutomatedFocusedSurfaceSmoke(
             const findButtonStartingWith = (labelPrefix) =>
               [...document.querySelectorAll('button')]
                 .find((button) => buttonLabel(button).startsWith(labelPrefix));
+            const colorAlpha = (color) => {
+              const value = String(color ?? '').trim().toLowerCase();
+              if (!value || value === 'transparent') return 0;
+              const rgbaMatch = value.match(/rgba?\\(([^)]+)\\)/);
+              if (rgbaMatch) {
+                const parts = rgbaMatch[1].split(/[,/\\s]+/).filter(Boolean);
+                return parts.length >= 4 ? Number.parseFloat(parts[3]) : 1;
+              }
+              const colorMatch = value.match(/color\\([^/]+\\/\\s*([0-9.]+)\\s*\\)/);
+              if (colorMatch) return Number.parseFloat(colorMatch[1]);
+              return 1;
+            };
+            const backgroundAlpha = (element) => element instanceof HTMLElement
+              ? colorAlpha(getComputedStyle(element).backgroundColor)
+              : 0;
             const setNativeValue = (element, value) => {
               const setter = Object.getOwnPropertyDescriptor(element.constructor.prototype, 'value')?.set;
               setter?.call(element, value);
@@ -5499,6 +5546,20 @@ function runAutomatedFocusedSurfaceSmoke(
               const rightPanelRectForSeam = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
               const rightPanelShellRectForSeam = rightPanelShell instanceof HTMLElement ? rightPanelShell.getBoundingClientRect() : null;
               const rightPanelChromeRectForSeam = rightPanelChrome instanceof HTMLElement ? rightPanelChrome.getBoundingClientRect() : null;
+              const rightPanelMaterialDebug = {
+                shellMaterial: rightPanelShell instanceof HTMLElement ? rightPanelShell.getAttribute('data-app-shell-panel-material') : null,
+                shellBackground: rightPanelShell instanceof HTMLElement ? getComputedStyle(rightPanelShell).backgroundColor : null,
+                surfaceBackground: rightPanel instanceof HTMLElement ? getComputedStyle(rightPanel).backgroundColor : null,
+                chromeBackground: rightPanelChrome instanceof HTMLElement ? getComputedStyle(rightPanelChrome).backgroundColor : null
+              };
+              const rightPanelMaterialSolidWorks =
+                rightPanel instanceof HTMLElement &&
+                rightPanelShell instanceof HTMLElement &&
+                rightPanelChrome instanceof HTMLElement &&
+                rightPanelShell.getAttribute('data-app-shell-panel-material') === 'solid' &&
+                backgroundAlpha(rightPanelShell) >= 0.99 &&
+                backgroundAlpha(rightPanel) >= 0.99 &&
+                backgroundAlpha(rightPanelChrome) >= 0.99;
               const rightPanelHeaderSeamDebug = {
                 titlebarTop: titlebarRect?.top ?? null,
                 titlebarRight: titlebarRect?.right ?? null,
@@ -6529,6 +6590,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelSharedLayoutControllerWorks,
                 rightPanelHeaderSeamWorks,
                 rightPanelHeaderSeamDebug,
+                rightPanelMaterialSolidWorks,
+                rightPanelMaterialDebug,
                 workbenchPanelChromeCompactWorks:
                   rightPanel instanceof HTMLElement &&
                   tabbar instanceof HTMLElement &&
