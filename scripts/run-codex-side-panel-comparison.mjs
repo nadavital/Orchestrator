@@ -249,12 +249,12 @@ function buildContracts() {
       captureIds: ['files', 'review-source'],
       codexAssets: [
         { basename: 'review-file-source-tab-CjS7Xe_W.js', terms: ['Open file', 'Open in editor', 'Copy path', 'Show git blame', 'Enable rich view'] },
-        { basename: 'notebook-preview-panel-CAO-aRhM.js', terms: ['Read only', 'Run all', 'Restart kernel'] }
+        { basename: 'notebook-preview-panel-CAO-aRhM.js', terms: ['Read only', 'Run all', 'Restart kernel', 'Raw output', 'Notebook output'] }
       ],
-      smokeChecks: ['filesContentSearch', 'filesActionMenuSharedSections', 'workbenchFileTabActionMenuSharedSections', 'filesNotebookReadOnlyControls', 'reviewFullSourceRows', 'reviewFullSourceBlame'],
+      smokeChecks: ['filesContentSearch', 'filesActionMenuSharedSections', 'workbenchFileTabActionMenuSharedSections', 'filesNotebookReadOnlyControls', 'filesNotebookOutputRendering', 'reviewFullSourceRows', 'reviewFullSourceBlame'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Local file/source behavior is covered, including read-only notebook artifact controls. Full artifact renderer parity and provider-backed comments/blame remain incomplete.',
-      next: 'Prioritize notebook output depth, artifact renderer controls, or provider metadata, not more local tree styling.'
+      caveat: 'Local file/source behavior is covered, including read-only notebook artifact controls and basic notebook output rendering. Full artifact renderer parity and provider-backed comments/blame remain incomplete.',
+      next: 'Prioritize deeper notebook cell disclosure/output fidelity, other artifact renderer controls, or provider metadata, not more local tree styling.'
     },
     {
       id: 'settings-host-scope',

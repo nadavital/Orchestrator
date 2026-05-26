@@ -6528,6 +6528,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the read-only notebook toolbar boundary only. Deeper Codex notebook parity still needs richer output rendering, cell disclosure behavior, and any provider-backed artifact metadata that the current local preview fixture does not cover.
 
+### 2026-05-26 - Notebook Artifact Output Rendering
+
+Codex evidence: `tmp/codex-app-assets/notebook-preview-panel-CAO-aRhM.js` parses notebook outputs for streams/text, errors, JSON, HTML/Markdown, and embedded images, and renders those outputs inside the read-only notebook artifact preview instead of showing only source cells.
+
+Implemented: Orchestrator's structured notebook preview now preserves notebook cell outputs and renders stream/text, error, JSON, HTML/Markdown, and embedded image outputs below the source for each cell. The automated notebook fixture now includes stream and JSON outputs so the preview path proves output rendering, not only cell source and toolbar chrome.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, and `git diff --check` passed. Focused `npm run smoke:ui:auto -- --files` passed after the expected escalated rerun with `filesNotebookOutputRendering=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779790442703.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779790442703.png`. The refreshed `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, and `blocked=0`, and the Files comparison row now includes `filesNotebookOutputRendering`.
+
+Remaining: this adds basic notebook output fidelity but does not claim exact Codex cell disclosure styling, full output sizing/polish, live provider artifact metadata, or runnable notebook execution.
+
 Recommended order:
 
 1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel.

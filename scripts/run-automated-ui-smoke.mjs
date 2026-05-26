@@ -494,7 +494,14 @@ if (fixtureWorkspaceViews.has(captureView)) {
   writeFileSync(join(workspaceDir, 'notebook-preview-smoke.ipynb'), JSON.stringify({
     cells: [
       { cell_type: 'markdown', source: ['# Notebook smoke\n', 'Baseline'] },
-      { cell_type: 'code', source: ['value = 1\n', 'value'] }
+      {
+        cell_type: 'code',
+        source: ['value = 1\n', 'value'],
+        outputs: [
+          { output_type: 'stream', name: 'stdout', text: ['result: 1\n'] },
+          { output_type: 'execute_result', data: { 'application/json': { status: 'baseline', value: 1 }, 'text/plain': ['{"status":"baseline","value":1}'] } }
+        ]
+      }
     ],
     metadata: { kernelspec: { display_name: 'Python 3' } },
     nbformat: 4,
@@ -552,7 +559,14 @@ if (fixtureWorkspaceViews.has(captureView)) {
     writeFileSync(join(workspaceDir, 'notebook-preview-smoke.ipynb'), JSON.stringify({
       cells: [
         { cell_type: 'markdown', source: ['# Notebook smoke\n', 'Updated'] },
-        { cell_type: 'code', source: ['value = 2\n', 'value'] },
+        {
+          cell_type: 'code',
+          source: ['value = 2\n', 'value'],
+          outputs: [
+            { output_type: 'stream', name: 'stdout', text: ['result: 2\n'] },
+            { output_type: 'execute_result', data: { 'application/json': { status: 'updated', value: 2 }, 'text/plain': ['{"status":"updated","value":2}'] } }
+          ]
+        },
         { cell_type: 'markdown', source: ['Summary cell'] }
       ],
       metadata: { kernelspec: { display_name: 'Python 3' } },
@@ -1189,6 +1203,7 @@ child.on('exit', (code) => {
           filesDocumentPreview: result.filesDocumentPreviewWorks === true,
           filesNotebookPreview: result.filesNotebookPreviewWorks === true,
           filesNotebookReadOnlyControls: result.filesNotebookReadOnlyControlsWorks === true,
+          filesNotebookOutputRendering: result.filesNotebookOutputRenderingWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,

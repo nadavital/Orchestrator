@@ -1,3 +1,5 @@
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, PanelToolbar } from '../shared/designSystem'
 import Icon from '../shared/Icon'
@@ -16,6 +18,21 @@ interface Props {
   testId: string
   statusLabel?: string
   actions?: PreviewHeaderAction[]
+}
+
+type NotebookOutput =
+  | { type: 'stream'; name: string; text: string }
+  | { type: 'text'; text: string }
+  | { type: 'markdown'; markdown: string }
+  | { type: 'html'; html: string }
+  | { type: 'json'; text: string }
+  | { type: 'image'; dataUrl: string }
+  | { type: 'error'; name: string; message: string; traceback: string }
+
+interface NotebookCell {
+  type: string
+  source: string
+  outputs: NotebookOutput[]
 }
 
 export default function StructuredDataPreview({ name, preview, testId, statusLabel, actions }: Props): JSX.Element {
@@ -134,8 +151,20 @@ function NotebookPreview({
               <div className="notebook-preview-cell-header">
                 <Badge tone="neutral">{cell.type}</Badge>
                 <span>Cell {index + 1}</span>
+                {cell.outputs.length > 0 && <span>{cell.outputs.length} outputs</span>}
               </div>
               <pre>{cell.source || 'Empty cell'}</pre>
+              {cell.outputs.length > 0 && (
+                <div
+                  className="notebook-preview-outputs"
+                  data-testid="notebook-preview-outputs"
+                  data-notebook-output-count={cell.outputs.length}
+                >
+                  {cell.outputs.slice(0, 20).map((output, outputIndex) => (
+                    <NotebookCellOutput key={outputIndex} output={output} outputIndex={outputIndex} />
+                  ))}
+                </div>
+              )}
             </section>
           ))}
           {notebook.cells.length > 40 && (
@@ -147,6 +176,60 @@ function NotebookPreview({
           {preview.text ?? ''}
         </pre>
       )}
+    </div>
+  )
+}
+
+function NotebookCellOutput({
+  output,
+  outputIndex
+}: {
+  output: NotebookOutput
+  outputIndex: number
+}): JSX.Element {
+  if (output.type === 'image') {
+    return (
+      <div className="notebook-preview-output" data-notebook-output-type="image">
+        <img src={output.dataUrl} alt={`Notebook output ${outputIndex + 1}`} />
+      </div>
+    )
+  }
+  if (output.type === 'html') {
+    return (
+      <div className="notebook-preview-output" data-notebook-output-type="html">
+        <iframe
+          title={`Notebook HTML output ${outputIndex + 1}`}
+          sandbox=""
+          srcDoc={notebookHtmlDocument(output.html)}
+        />
+      </div>
+    )
+  }
+  if (output.type === 'markdown') {
+    return (
+      <div className="notebook-preview-output notebook-preview-output-markdown" data-notebook-output-type="markdown">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{output.markdown}</ReactMarkdown>
+      </div>
+    )
+  }
+  if (output.type === 'json') {
+    return (
+      <div className="notebook-preview-output" data-notebook-output-type="json">
+        <pre>{output.text}</pre>
+      </div>
+    )
+  }
+  if (output.type === 'error') {
+    return (
+      <div className="notebook-preview-output notebook-preview-output-error" data-notebook-output-type="error">
+        <strong>{output.name}{output.message ? `: ${output.message}` : ''}</strong>
+        {output.traceback && <pre>{output.traceback}</pre>}
+      </div>
+    )
+  }
+  return (
+    <div className="notebook-preview-output" data-notebook-output-type={output.type}>
+      <pre>{output.text}</pre>
     </div>
   )
 }
@@ -337,17 +420,18 @@ function parseDelimitedRows(text: string, delimiter: string): string[][] {
 function parseNotebook(text: string): {
   valid: boolean
   kernel: string | null
-  cells: Array<{ type: string; source: string }>
+  cells: NotebookCell[]
 } {
   try {
     const parsed = JSON.parse(text) as {
       metadata?: { kernelspec?: { display_name?: unknown; name?: unknown } }
-      cells?: Array<{ cell_type?: unknown; source?: unknown }>
+      cells?: Array<{ cell_type?: unknown; source?: unknown; outputs?: unknown }>
     }
     const cells = Array.isArray(parsed.cells)
       ? parsed.cells.map((cell) => ({
         type: typeof cell.cell_type === 'string' ? cell.cell_type : 'cell',
-        source: normalizeNotebookSource(cell.source).trim()
+        source: normalizeNotebookSource(cell.source).trim(),
+        outputs: normalizeNotebookOutputs(cell.outputs)
       }))
       : []
     const kernel = parsed.metadata?.kernelspec?.display_name ?? parsed.metadata?.kernelspec?.name
@@ -365,6 +449,88 @@ function normalizeNotebookSource(source: unknown): string {
   if (Array.isArray(source)) return source.map((part) => String(part)).join('')
   if (typeof source === 'string') return source
   return ''
+}
+
+function normalizeNotebookOutputs(outputs: unknown): NotebookOutput[] {
+  if (!Array.isArray(outputs)) return []
+  return outputs.flatMap((output) => normalizeNotebookOutput(output))
+}
+
+function normalizeNotebookOutput(output: unknown): NotebookOutput[] {
+  if (!output || typeof output !== 'object') return []
+  const record = output as Record<string, unknown>
+  const outputType = typeof record.output_type === 'string' ? record.output_type : ''
+  if (outputType === 'stream') {
+    const text = normalizeNotebookOutputText(record.text)
+    if (!text) return []
+    return [{ type: 'stream', name: typeof record.name === 'string' ? record.name : 'stdout', text }]
+  }
+  if (outputType === 'error') {
+    const name = typeof record.ename === 'string' ? record.ename : 'Error'
+    const message = typeof record.evalue === 'string' ? record.evalue : ''
+    const traceback = normalizeNotebookOutputText(record.traceback)
+    return [{ type: 'error', name, message, traceback }]
+  }
+  if (outputType === 'display_data' || outputType === 'execute_result') {
+    const data = record.data
+    if (!data || typeof data !== 'object') return []
+    const dataRecord = data as Record<string, unknown>
+    const image = normalizeNotebookImage(dataRecord)
+    if (image) return [image]
+    const html = normalizeNotebookOutputText(dataRecord['text/html'])
+    if (html.trim()) return [{ type: 'html', html }]
+    const markdown = normalizeNotebookOutputText(dataRecord['text/markdown'])
+    if (markdown.trim()) return [{ type: 'markdown', markdown }]
+    const json = dataRecord['application/json'] ?? dataRecord['application/vnd.vega.v5+json']
+    if (json !== undefined) return [{ type: 'json', text: normalizeNotebookJsonOutput(json) }]
+    const text = normalizeNotebookOutputText(dataRecord['text/plain'])
+    if (text.trim()) return [{ type: 'text', text }]
+  }
+  return []
+}
+
+function normalizeNotebookImage(data: Record<string, unknown>): NotebookOutput | null {
+  const png = normalizeNotebookOutputText(data['image/png']).replaceAll(/\s/g, '')
+  if (png) return { type: 'image', dataUrl: `data:image/png;base64,${png}` }
+  const jpeg = normalizeNotebookOutputText(data['image/jpeg']).replaceAll(/\s/g, '')
+  if (jpeg) return { type: 'image', dataUrl: `data:image/jpeg;base64,${jpeg}` }
+  const svg = normalizeNotebookOutputText(data['image/svg+xml'])
+  if (svg.trim()) return { type: 'image', dataUrl: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` }
+  return null
+}
+
+function normalizeNotebookOutputText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value) && value.every((part) => typeof part === 'string')) return value.join('')
+  return ''
+}
+
+function normalizeNotebookJsonOutput(value: unknown): string {
+  if (typeof value === 'string') {
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2)
+    } catch {
+      return value
+    }
+  }
+  return JSON.stringify(value, null, 2)
+}
+
+function notebookHtmlDocument(html: string): string {
+  const csp = [
+    "default-src 'none'",
+    "base-uri 'none'",
+    "connect-src 'none'",
+    "font-src data:",
+    "form-action 'none'",
+    "frame-src 'none'",
+    "img-src data: blob:",
+    "media-src data: blob:",
+    "object-src 'none'",
+    "script-src 'none'",
+    "style-src 'unsafe-inline'"
+  ].join('; ')
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="color-scheme" content="light dark"></head><body>${html}</body></html>`
 }
 
 function formatBytes(value: number): string {

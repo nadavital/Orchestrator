@@ -4831,6 +4831,67 @@
     overflow-wrap: anywhere;
   }
 
+  .notebook-preview-outputs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--border-subtle);
+    background: color-mix(in srgb, var(--control-bg) 36%, transparent);
+    padding: 8px;
+  }
+
+  .notebook-preview-output {
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-bg) 90%, var(--control-bg));
+  }
+
+  .notebook-preview-output pre {
+    max-height: 260px;
+    margin: 0;
+    overflow: auto;
+    padding: 8px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-code-size);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .notebook-preview-output img {
+    display: block;
+    max-width: 100%;
+    max-height: 420px;
+    object-fit: contain;
+  }
+
+  .notebook-preview-output iframe {
+    display: block;
+    width: 100%;
+    min-height: 180px;
+    border: 0;
+    background: var(--surface-bg);
+  }
+
+  .notebook-preview-output-markdown {
+    padding: 8px;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+  }
+
+  .notebook-preview-output-error {
+    padding: 8px;
+    color: var(--color-red);
+  }
+
+  .notebook-preview-output-error pre {
+    margin-top: 6px;
+    color: var(--text-primary);
+  }
+
   .motion-panel-right:not(.workbench-panel-expanded) .files-panel-root[data-embedded='true'] .files-panel-body:not([data-files-layout='file-tabs']) {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(104px, 0.36fr) minmax(0, 1fr);

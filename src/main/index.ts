@@ -10505,6 +10505,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const previewControlChecks = {};
               const previewArtifactTabChecks = {};
               const notebookReadOnlyControlChecks = {};
+              const notebookOutputRenderingChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
@@ -10614,6 +10615,16 @@ function runAutomatedFocusedSurfaceSmoke(
                       restartKernel.disabled &&
                       restartKernel.getAttribute('data-notebook-readonly-control') === 'restart-kernel' &&
                       restartKernel.textContent?.includes('Restart kernel') === true;
+                    const outputContainer = document.querySelector('[data-testid="notebook-preview-outputs"]');
+                    const streamOutput = document.querySelector('[data-notebook-output-type="stream"]');
+                    const jsonOutput = document.querySelector('[data-notebook-output-type="json"]');
+                    notebookOutputRenderingChecks[testId] =
+                      outputContainer instanceof HTMLElement &&
+                      Number(outputContainer.getAttribute('data-notebook-output-count') ?? '0') >= 2 &&
+                      streamOutput instanceof HTMLElement &&
+                      streamOutput.textContent?.includes('result: 2') === true &&
+                      jsonOutput instanceof HTMLElement &&
+                      jsonOutput.textContent?.includes('"status": "updated"') === true;
                   }
                 }
               }
@@ -11273,6 +11284,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewArtifactTabChecks['workspace-document-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
                 filesNotebookReadOnlyControlsWorks: Boolean(notebookReadOnlyControlChecks['workspace-notebook-preview']),
+                filesNotebookOutputRenderingWorks: Boolean(notebookOutputRenderingChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks
