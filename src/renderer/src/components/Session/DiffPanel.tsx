@@ -3999,6 +3999,10 @@ function ReviewDiffCommentStack({
           data-review-comment-url={comment.url ?? ''}
           data-review-comment-resolved={comment.resolved === undefined ? '' : comment.resolved ? 'true' : 'false'}
           data-review-comment-outdated={comment.outdated === undefined ? '' : comment.outdated ? 'true' : 'false'}
+          data-review-comment-blame-source={comment.blame?.source ?? ''}
+          data-review-comment-blame-commit={comment.blame?.commit ?? ''}
+          data-review-comment-blame-author={comment.blame?.author ?? ''}
+          data-review-comment-blame-date={comment.blame?.authoredAt ?? ''}
         >
           <span className="review-diff-comment-header">
             <span>{comment.status === 'provider' ? `${comment.author ?? 'GitHub'} review` : 'Review comment'}</span>
@@ -4048,6 +4052,12 @@ function ReviewDiffCommentStack({
                 <span>{comment.source === 'github' ? 'GitHub' : 'Provider'}</span>
                 {comment.resolved === false && <span>Unresolved</span>}
                 {comment.outdated === true && <span>Outdated</span>}
+                {comment.blame && (
+                  <span data-testid="review-diff-comment-provider-blame">
+                    {comment.blame.abbreviatedCommit ?? comment.blame.commit?.slice(0, 8) ?? 'Commit'}
+                    {comment.blame.author ? ` by ${comment.blame.author}` : ''}
+                  </span>
+                )}
                 {comment.url && (
                   <button
                     type="button"
@@ -4107,7 +4117,8 @@ function providerReviewCommentToDiffComment(comment: ReviewProviderComment): Rev
     url: comment.url,
     resolved: comment.resolved,
     outdated: comment.outdated,
-    createdAt: comment.createdAt
+    createdAt: comment.createdAt,
+    blame: comment.blame
   }
 }
 
@@ -4127,6 +4138,7 @@ interface ReviewDiffComment extends SelectedDiffLine {
   resolved?: boolean
   outdated?: boolean
   createdAt?: string
+  blame?: ReviewProviderComment['blame']
 }
 
 type MergeConflictResolution = 'current' | 'incoming' | 'both'

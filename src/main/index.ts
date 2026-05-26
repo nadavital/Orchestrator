@@ -8404,6 +8404,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const providerReviewCommentCard = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-card"][data-review-comment-status="provider"]');
               const providerReviewCommentBody = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-body"]');
               const providerReviewCommentMeta = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-provider-meta"]');
+              const providerReviewCommentBlame = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-provider-blame"]');
               const reviewCommentButton = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-add-comment"]');
               if (reviewCommentButton instanceof HTMLButtonElement) {
                 reviewCommentButton.click();
@@ -8439,10 +8440,16 @@ function runAutomatedFocusedSurfaceSmoke(
                 providerReviewCommentCard.getAttribute('data-review-comment-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
                 providerReviewCommentCard.getAttribute('data-review-comment-provider-source') === 'github' &&
                 providerReviewCommentCard.getAttribute('data-review-comment-resolved') === 'false' &&
+                providerReviewCommentCard.getAttribute('data-review-comment-blame-source') === 'github' &&
+                providerReviewCommentCard.getAttribute('data-review-comment-blame-commit') === 'abc1234def5678abc1234def5678abc1234def56' &&
+                providerReviewCommentCard.getAttribute('data-review-comment-blame-author') === 'Grace' &&
                 providerReviewCommentBody instanceof HTMLElement &&
                 providerReviewCommentBody.textContent?.includes('Provider inline review from GitHub') === true &&
                 providerReviewCommentMeta instanceof HTMLElement &&
                 providerReviewCommentMeta.textContent?.includes('Unresolved') === true &&
+                providerReviewCommentBlame instanceof HTMLElement &&
+                providerReviewCommentBlame.textContent?.includes('abc1234') === true &&
+                providerReviewCommentBlame.textContent?.includes('Grace') === true &&
                 reviewCommentCard instanceof HTMLElement &&
                 reviewCommentCard.getAttribute('data-review-comment-side') === selectedUnifiedLine.getAttribute('data-line-number-side') &&
                 reviewCommentCard.getAttribute('data-review-comment-line') === selectedUnifiedLine.getAttribute('data-line-number') &&

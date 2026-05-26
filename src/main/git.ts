@@ -3,7 +3,7 @@ import { join, resolve, sep } from 'path'
 import { mkdirSync } from 'fs'
 import { execFile, spawnSync } from 'child_process'
 import { promisify } from 'util'
-import type { FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus } from '../types'
+import type { FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, ReviewDiffSource, ReviewMetadata, ReviewCheckStatus, ReviewProviderBlame } from '../types'
 
 const execFileAsync = promisify(execFile)
 
@@ -405,6 +405,30 @@ query($pullRequestId: ID!) {
               }
               url
               createdAt
+              commit {
+                oid
+                abbreviatedOid
+                url
+                author {
+                  name
+                  date
+                  user {
+                    login
+                  }
+                }
+              }
+              originalCommit {
+                oid
+                abbreviatedOid
+                url
+                author {
+                  name
+                  date
+                  user {
+                    login
+                  }
+                }
+              }
             }
           }
         }
@@ -629,12 +653,14 @@ export function reviewThreadCommentMetadataFromGitHub(
     total += commentNodes.length
     for (const [index, commentItem] of commentNodes.entries()) {
       const comment = asRecord(commentItem)
+      if (!comment) continue
       const author = reviewAuthorName(comment)
       if (author) authors.add(author)
       commentUrl = commentUrl ?? stringValue(comment?.url) ?? null
       const body = stringValue(comment?.body)
       if (!path || lineNumber === undefined || !body) continue
       const createdAt = stringValue(comment?.createdAt)
+      const blame = reviewProviderBlameFromGitHubComment(comment)
       const providerComment = {
         id: stringValue(comment?.id, comment?.url) ?? `${path}:${side}:${lineNumber}:${index}`,
         source: 'github' as const,
@@ -646,7 +672,8 @@ export function reviewThreadCommentMetadataFromGitHub(
         url: stringValue(comment?.url) ?? url,
         resolved,
         outdated: thread.isOutdated === true,
-        ...(createdAt ? { createdAt } : {})
+        ...(createdAt ? { createdAt } : {}),
+        ...(blame ? { blame } : {})
       }
       commentsByPath[path] = [...(commentsByPath[path] ?? []), providerComment]
     }
@@ -668,6 +695,26 @@ export function reviewThreadCommentMetadataFromGitHub(
 function reviewThreadCommentSide(value: unknown): 'old' | 'new' {
   const raw = stringValue(value)?.toUpperCase()
   return raw === 'LEFT' ? 'old' : 'new'
+}
+
+function reviewProviderBlameFromGitHubComment(comment: Record<string, unknown>): ReviewProviderBlame | undefined {
+  const commit = asRecord(comment.originalCommit) ?? asRecord(comment.commit)
+  if (!commit) return undefined
+  const author = asRecord(commit.author)
+  const user = asRecord(author?.user)
+  const oid = stringValue(commit.oid)
+  const abbreviatedOid = stringValue(commit.abbreviatedOid)
+  const authorName = stringValue(user?.login, author?.name)
+  const authoredAt = stringValue(author?.date)
+  const blame: ReviewProviderBlame = {
+    source: 'github' as const,
+    ...(oid ? { commit: oid } : {}),
+    ...(abbreviatedOid ? { abbreviatedCommit: abbreviatedOid } : {}),
+    ...(authorName ? { author: authorName } : {}),
+    ...(authoredAt ? { authoredAt } : {}),
+    url: stringValue(commit.url) ?? null
+  }
+  return Object.keys(blame).some((key) => key !== 'source' && key !== 'url') ? blame : undefined
 }
 
 export function mergeReviewCommentSummaries(

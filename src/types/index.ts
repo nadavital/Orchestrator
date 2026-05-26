@@ -1241,6 +1241,16 @@ export interface ReviewProviderComment {
   resolved?: boolean
   outdated?: boolean
   createdAt?: string
+  blame?: ReviewProviderBlame
+}
+
+export interface ReviewProviderBlame {
+  source: 'github'
+  commit?: string
+  abbreviatedCommit?: string
+  author?: string
+  authoredAt?: string
+  url?: string | null
 }
 
 export interface ReviewMetadata {

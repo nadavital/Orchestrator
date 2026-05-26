@@ -359,7 +359,22 @@ test('GitHub PR review thread JSON normalizes to inline comment metadata', () =>
               comments: {
                 nodes: [
                   { id: 'IC_kw1', body: 'Please handle empty state', author: { login: 'grace' }, url: 'https://github.com/example/repo/pull/42#discussion_r1', createdAt: '2026-05-25T12:00:00Z' },
-                  { id: 'IC_kw2', body: 'Agree', author: { login: 'ada' }, url: 'https://github.com/example/repo/pull/42#discussion_r2' }
+                  {
+                    id: 'IC_kw2',
+                    body: 'Agree',
+                    author: { login: 'ada' },
+                    url: 'https://github.com/example/repo/pull/42#discussion_r2',
+                    originalCommit: {
+                      oid: 'abc1234def5678abc1234def5678abc1234def56',
+                      abbreviatedOid: 'abc1234',
+                      url: 'https://github.com/example/repo/commit/abc1234def5678abc1234def5678abc1234def56',
+                      author: {
+                        name: 'Ada Lovelace',
+                        date: '2026-05-24T10:30:00Z',
+                        user: { login: 'ada' }
+                      }
+                    }
+                  }
                 ]
               }
             },
@@ -414,7 +429,15 @@ test('GitHub PR review thread JSON normalizes to inline comment metadata', () =>
       author: 'ada',
       url: 'https://github.com/example/repo/pull/42#discussion_r2',
       resolved: false,
-      outdated: false
+      outdated: false,
+      blame: {
+        source: 'github',
+        commit: 'abc1234def5678abc1234def5678abc1234def56',
+        abbreviatedCommit: 'abc1234',
+        author: 'ada',
+        authoredAt: '2026-05-24T10:30:00Z',
+        url: 'https://github.com/example/repo/commit/abc1234def5678abc1234def5678abc1234def56'
+      }
     },
     {
       id: 'IC_kw3',

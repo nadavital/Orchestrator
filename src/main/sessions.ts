@@ -142,7 +142,15 @@ function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
           url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1',
           resolved: false,
           outdated: false,
-          createdAt: '2026-05-25T12:00:00Z'
+          createdAt: '2026-05-25T12:00:00Z',
+          blame: {
+            source: 'github',
+            commit: 'abc1234def5678abc1234def5678abc1234def56',
+            abbreviatedCommit: 'abc1234',
+            author: 'Grace',
+            authoredAt: '2026-05-24T10:30:00Z',
+            url: 'https://github.com/openai/orchestrator/commit/abc1234def5678abc1234def5678abc1234def56'
+          }
         }
       ]
     }

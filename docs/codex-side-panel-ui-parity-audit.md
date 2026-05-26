@@ -6366,6 +6366,16 @@ Verification: `pnpm exec tsc --noEmit` passed. `git diff --check` passed. `npm r
 
 Remaining: this closes fixture-backed GitHub provider comment line rendering and parser coverage. Live commented-PR proof is still pending because the current PR has no review threads. Provider-native hosted/cloud comment adapters, provider blame, true provider checkpoint Undo, cloud/hosted diff adapters, deeper hosted conflict workflows, full diff virtualization, and live Codex side-by-side Review spacing comparison remain open.
 
+### 2026-05-26 - Review Provider Comment Blame Metadata Slice
+
+Codex evidence: the Review backlog calls out provider-backed comments/blame as a separate gap from local git blame. Live GitHub GraphQL schema introspection confirmed the real adapter path: `PullRequestReviewComment` exposes both `commit` and `originalCommit`, while `PullRequestReviewThread` owns the path/side/line association.
+
+Implemented: the GitHub review-thread GraphQL query now requests `commit` and `originalCommit` for each review comment, normalizes the preferred original commit into `ReviewProviderBlame`, stores it on `ReviewProviderComment`, and renders the provider commit/author on read-only provider comment cards. The provider card exposes source, commit, author, and date metadata through smoke-readable attributes while leaving local draft/saved comments unchanged.
+
+Verification: live `gh api graphql` schema introspection accepted both `PullRequestReviewThread` and `PullRequestReviewComment` queries and showed the commit fields. `pnpm test src/main/__tests__/gitChanges.test.ts` passed. `pnpm exec tsc --noEmit` passed. `git diff --check` passed. `npm run build` passed. Focused `npm run smoke:ui:auto -- --diff-source` first failed in the sandbox with `listen EPERM 127.0.0.1`; the escalated run passed with `reviewLineComments=true`, now including provider comment blame assertions. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779773532407.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779773532407.png`.
+
+Remaining: this closes real GitHub adapter-shape support plus fixture-backed rendering for provider comment commit/blame metadata. Live commented-PR proof remains pending because the current PR has no review threads. Provider-native hosted/cloud comment adapters, true provider checkpoint Undo, cloud/hosted diff adapters, deeper hosted conflict workflows, full diff virtualization, and live Codex side-by-side Review spacing comparison remain open.
+
 Recommended order:
 
 1. Shell/tab foundation only.
