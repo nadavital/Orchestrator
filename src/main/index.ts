@@ -16229,6 +16229,70 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 document.body.innerText.includes('Automations');
               await restoreSmokeSession();
             }
+            let sidebarFooterCollapseAffordanceWorks = false;
+            let sidebarFooterCollapseAffordanceDebug = {};
+            const sidebarFooter = document.querySelector('[data-testid="sidebar-footer"]');
+            const sidebarFooterAction = document.querySelector('[data-testid="sidebar-footer-action"]');
+            const sidebarFooterCollapseToggle = document.querySelector('[data-testid="sidebar-footer-collapse-toggle"]');
+            const expandedSidebarBeforeCollapse = document.querySelector('[data-testid="app-sidebar"]');
+            if (
+              sidebarFooter instanceof HTMLElement &&
+              sidebarFooterAction instanceof HTMLElement &&
+              sidebarFooterCollapseToggle instanceof HTMLButtonElement &&
+              expandedSidebarBeforeCollapse instanceof HTMLElement
+            ) {
+              const footerRect = sidebarFooter.getBoundingClientRect();
+              const actionRect = sidebarFooterAction.getBoundingClientRect();
+              const toggleRect = sidebarFooterCollapseToggle.getBoundingClientRect();
+              const expandedWidth = expandedSidebarBeforeCollapse.getBoundingClientRect().width;
+              sidebarFooterCollapseToggle.click();
+              let collapsedSidebar = null;
+              let expandToggle = null;
+              for (let index = 0; index < 80; index += 1) {
+                collapsedSidebar = document.querySelector('[data-testid="app-sidebar"]');
+                expandToggle = document.querySelector('[data-testid="sidebar-rail-expand-toggle"]');
+                if (
+                  collapsedSidebar instanceof HTMLElement &&
+                  collapsedSidebar.getAttribute('data-sidebar-collapsed') === 'true' &&
+                  expandToggle instanceof HTMLButtonElement
+                ) break;
+                await sleep(25);
+              }
+              const collapsedWidth = collapsedSidebar instanceof HTMLElement
+                ? collapsedSidebar.getBoundingClientRect().width
+                : 0;
+              if (expandToggle instanceof HTMLButtonElement) {
+                expandToggle.click();
+                for (let index = 0; index < 80; index += 1) {
+                  const expandedSidebarAfterCollapse = document.querySelector('[data-testid="app-sidebar"]');
+                  if (
+                    expandedSidebarAfterCollapse instanceof HTMLElement &&
+                    expandedSidebarAfterCollapse.getAttribute('data-sidebar-collapsed') !== 'true' &&
+                    document.querySelector('[data-testid="sidebar-footer-collapse-toggle"]') instanceof HTMLButtonElement &&
+                    expandedSidebarAfterCollapse.getBoundingClientRect().width >= 239
+                  ) break;
+                  await sleep(25);
+                }
+              }
+              const expandedSidebarAfterCollapse = document.querySelector('[data-testid="app-sidebar"]');
+              sidebarFooterCollapseAffordanceWorks =
+                expandedWidth >= 239 &&
+                Math.abs(toggleRect.right - footerRect.right) <= 8 &&
+                actionRect.right <= toggleRect.left - 2 &&
+                collapsedWidth >= 46 &&
+                collapsedWidth <= 50 &&
+                expandedSidebarAfterCollapse instanceof HTMLElement &&
+                expandedSidebarAfterCollapse.getAttribute('data-sidebar-collapsed') !== 'true' &&
+                expandedSidebarAfterCollapse.getBoundingClientRect().width >= 239 &&
+                document.querySelector('[data-testid="sidebar-footer-collapse-toggle"]') instanceof HTMLButtonElement;
+              sidebarFooterCollapseAffordanceDebug = {
+                expandedWidth,
+                collapsedWidth,
+                footerRightGap: toggleRect.right - footerRect.right,
+                actionRightToToggleLeft: toggleRect.left - actionRect.right,
+                expandedAfterWidth: expandedSidebarAfterCollapse instanceof HTMLElement ? expandedSidebarAfterCollapse.getBoundingClientRect().width : null
+              };
+            }
             const customTooltipNativeTitleLeaks =
               [...document.querySelectorAll('button[data-tooltip-label][title]')]
                 .map((button) => (button.getAttribute('data-tooltip-label') ?? '') + ':' + (button.getAttribute('title') ?? ''));
@@ -16256,6 +16320,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarSelectedKeyPersistenceWorks,
               sidebarSelectedNavKeysWork,
               sidebarSelectedKeyDebug,
+              sidebarFooterCollapseAffordanceWorks,
+              sidebarFooterCollapseAffordanceDebug,
               pinnedRowUnpinned,
               newPinAppended,
               hoverPinVisible,

@@ -50,13 +50,17 @@ interface SidebarProps {
   onSearch: () => void
   onOpenPlugins: () => void
   onOpenAutomations: () => void
+  isCollapsed?: boolean
+  onToggleSidebar?: () => void
 }
 
 export default function Sidebar({
   onNewChat,
   onSearch,
   onOpenPlugins,
-  onOpenAutomations
+  onOpenAutomations,
+  isCollapsed = false,
+  onToggleSidebar
 }: SidebarProps): JSX.Element {
   const { projects, addProject, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const {
@@ -255,6 +259,31 @@ export default function Sidebar({
     setActiveSession(session.id)
     setShowCapabilities(false)
     setShowSettings(false)
+  }
+
+  const openPlugins = (): void => {
+    setSelectedSidebarKey('capabilities')
+    onOpenPlugins()
+  }
+
+  const openAutomations = (): void => {
+    setSelectedSidebarKey(sidebarSettingsSelectedKey('automations'))
+    onOpenAutomations()
+  }
+
+  const handleFooterAction = (): void => {
+    if (showCapabilities) {
+      setSelectedSidebarKey(activeSessionId ? sidebarSessionSelectedKey(activeSessionId) : null)
+      setShowCapabilities(false)
+      return
+    }
+    const nextShowSettings = !showSettings
+    setSelectedSidebarKey(nextShowSettings
+      ? sidebarSettingsSelectedKey(settingsSection)
+      : activeSessionId
+        ? sidebarSessionSelectedKey(activeSessionId)
+        : null)
+    setShowSettings(nextShowSettings)
   }
 
   const handleCreateCustomSection = (name: string): void => {
@@ -764,6 +793,34 @@ export default function Sidebar({
     )
   }
 
+  if (isCollapsed) {
+    return (
+      <aside
+        className="app-sidebar app-sidebar-collapsed app-shell-left-panel flex min-w-0 flex-col overflow-hidden shrink-0"
+        data-testid="app-sidebar"
+        data-sidebar-density="codex-compact"
+        data-sidebar-collapsed="true"
+        data-sidebar-selected-key={selectedSidebarKey ?? ''}
+      >
+        <div
+          className="shrink-0"
+          data-testid="sidebar-window-drag-spacer"
+          style={{ height: 'var(--app-shell-header-height)', WebkitAppRegion: 'drag' } as React.CSSProperties}
+        />
+        <div className="sidebar-collapsed-actions" data-testid="sidebar-collapsed-actions">
+          <IconButton icon="pencil" label="New chat" size="sm" variant="toolbar" dataTestId="sidebar-collapsed-action-new-chat" onClick={onNewChat} />
+          <IconButton icon="search" label="Search" size="sm" variant="toolbar" dataTestId="sidebar-collapsed-action-search" onClick={onSearch} />
+          <IconButton icon="extensions" label="Plugins" size="sm" variant="toolbar" active={showCapabilities} dataTestId="sidebar-collapsed-action-plugins" onClick={openPlugins} />
+          <IconButton icon="clock" label="Automations" size="sm" variant="toolbar" dataTestId="sidebar-collapsed-action-automations" onClick={openAutomations} />
+        </div>
+        <div className="sidebar-collapsed-footer" data-testid="sidebar-collapsed-footer">
+          <IconButton icon={showSettings || showCapabilities ? 'chat' : 'settings'} label={showSettings || showCapabilities ? 'Back to chats' : 'Settings'} size="sm" variant="toolbar" dataTestId="sidebar-collapsed-footer-action" onClick={handleFooterAction} />
+          <IconButton icon="panelRight" label="Expand sidebar" size="sm" variant="toolbar" dataTestId="sidebar-rail-expand-toggle" ariaExpanded={false} onClick={onToggleSidebar} />
+        </div>
+      </aside>
+    )
+  }
+
   return (
     <aside
       className="app-sidebar app-shell-left-panel flex min-w-0 flex-col overflow-hidden shrink-0"
@@ -854,10 +911,7 @@ export default function Sidebar({
               active={showCapabilities}
               sidebarKey="capabilities"
               dataTestId="sidebar-primary-action-plugins"
-              onClick={() => {
-                setSelectedSidebarKey('capabilities')
-                onOpenPlugins()
-              }}
+              onClick={openPlugins}
             />
             <SidebarNavItem
               icon="clock"
@@ -865,10 +919,7 @@ export default function Sidebar({
               active={false}
               sidebarKey={sidebarSettingsSelectedKey('automations')}
               dataTestId="sidebar-primary-action-automations"
-              onClick={() => {
-                setSelectedSidebarKey(sidebarSettingsSelectedKey('automations'))
-                onOpenAutomations()
-              }}
+              onClick={openAutomations}
             />
           </div>
 
@@ -899,27 +950,24 @@ export default function Sidebar({
 
       {/* Footer */}
       <div
-        className="shrink-0 px-2.5 py-2.5"
+        className="sidebar-footer-with-toggle shrink-0 px-2.5 py-2.5"
+        data-testid="sidebar-footer"
       >
         <SidebarListRow
-          onClick={() => {
-            if (showCapabilities) {
-              setSelectedSidebarKey(activeSessionId ? sidebarSessionSelectedKey(activeSessionId) : null)
-              setShowCapabilities(false)
-              return
-            }
-            const nextShowSettings = !showSettings
-            setSelectedSidebarKey(nextShowSettings
-              ? sidebarSettingsSelectedKey(settingsSection)
-              : activeSessionId
-                ? sidebarSessionSelectedKey(activeSessionId)
-                : null)
-            setShowSettings(nextShowSettings)
-          }}
+          onClick={handleFooterAction}
           dataTestId="sidebar-footer-action"
           icon={showSettings || showCapabilities ? 'chat' : 'settings'}
           label={showSettings || showCapabilities ? 'Back to chats' : 'Settings'}
           className="sidebar-footer-row"
+        />
+        <IconButton
+          icon="panelLeft"
+          label="Collapse sidebar"
+          size="sm"
+          variant="toolbar"
+          dataTestId="sidebar-footer-collapse-toggle"
+          ariaExpanded
+          onClick={onToggleSidebar}
         />
       </div>
       {creatingCustomSection && (

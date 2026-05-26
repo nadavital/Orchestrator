@@ -857,6 +857,7 @@ child.on('exit', (code) => {
         sidebarSelectedKeySignal: result.sidebarSelectedKeySignalWorks === true,
         sidebarSelectedKeyPersistence: result.sidebarSelectedKeyPersistenceWorks === true,
         sidebarSelectedNavKeys: result.sidebarSelectedNavKeysWork === true,
+        sidebarFooterCollapseAffordance: result.sidebarFooterCollapseAffordanceWorks === true,
         pinnedRowUnpinned: result.pinnedRowUnpinned === true,
         newPinAppended: result.newPinAppended === true,
         hoverPinVisible: result.hoverPinVisible === true,

@@ -46,6 +46,8 @@ const BROWSER_PANEL_COMMANDS: BrowserPanelCommand[] = [
   'browser-navigate-forward'
 ]
 
+const LEFT_SIDEBAR_COLLAPSED_KEY = 'orchestrator.leftSidebar.collapsed'
+
 function settingsRouteUrl(section: SettingsSection, hostId?: string | null): string {
   return settingsRouteUrlForLocation(section, hostId, window.location)
 }
@@ -127,6 +129,9 @@ export default function App(): JSX.Element {
   const [shellFocusArea, setShellFocusArea] = useState<ShellFocusArea>('main')
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
   const [threadFindVisible, setThreadFindVisible] = useState(false)
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(() => (
+    window.localStorage.getItem(LEFT_SIDEBAR_COLLAPSED_KEY) === 'true'
+  ))
   const [threadFindDomain, setThreadFindDomain] = useState<ThreadFindDomain>('conversation')
   const [threadFindQuery, setThreadFindQuery] = useState('')
   const [threadFindStatus, setThreadFindStatus] = useState<Record<ThreadFindDomain, ThreadFindStatus>>({
@@ -137,6 +142,10 @@ export default function App(): JSX.Element {
   const shellFocusAreaRef = useRef<ShellFocusArea>('main')
   const threadFindInputRef = useRef<HTMLInputElement | null>(null)
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
+
+  useEffect(() => {
+    window.localStorage.setItem(LEFT_SIDEBAR_COLLAPSED_KEY, leftSidebarCollapsed ? 'true' : 'false')
+  }, [leftSidebarCollapsed])
 
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorAppCommitCount?: number }
@@ -1203,6 +1212,8 @@ export default function App(): JSX.Element {
         onSearch={openSidebarSearch}
         onOpenPlugins={openSidebarPlugins}
         onOpenAutomations={openSidebarAutomations}
+        isCollapsed={leftSidebarCollapsed}
+        onToggleSidebar={() => setLeftSidebarCollapsed((collapsed) => !collapsed)}
       />
       <section className="content-shell main-surface flex-1 flex flex-col min-w-0 min-h-0">
         {showSettings ? (

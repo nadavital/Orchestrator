@@ -345,6 +345,33 @@
     border-color: transparent;
   }
 
+  .app-sidebar-collapsed {
+    inline-size: 48px;
+    min-inline-size: 48px;
+    max-inline-size: 48px;
+    align-items: center;
+  }
+
+  .sidebar-collapsed-actions,
+  .sidebar-collapsed-footer {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    flex-direction: column;
+    gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .sidebar-collapsed-actions {
+    flex: 1 1 auto;
+  }
+
+  .sidebar-collapsed-footer {
+    flex: 0 0 auto;
+    padding-block: 10px;
+  }
+
   .sidebar-section {
     margin-top: 2px;
   }
@@ -544,6 +571,17 @@
     align-items: center;
     justify-content: flex-end;
     gap: 4px;
+  }
+
+  .sidebar-footer-with-toggle {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .sidebar-footer-with-toggle .sidebar-footer-row {
+    flex: 1 1 auto;
   }
 
   .sidebar-draggable-session {
