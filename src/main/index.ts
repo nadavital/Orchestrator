@@ -10932,6 +10932,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookCellMetadataChecks = {};
               const notebookOutputSummaryChecks = {};
               const notebookRawOutputDisclosureChecks = {};
+              const notebookCodeSnippetChecks = {};
               const pdfPresentationModeChecks = {};
               const documentPageControlChecks = {};
               const spreadsheetRendererChecks = {};
@@ -11124,6 +11125,12 @@ function runAutomatedFocusedSurfaceSmoke(
                     const codeNotebookSourceDisclosure = codeNotebookCell instanceof HTMLElement
                       ? codeNotebookCell.querySelector('[data-testid="notebook-preview-code-source-disclosure"]')
                       : null;
+                    const codeNotebookBlock = codeNotebookCell instanceof HTMLElement
+                      ? codeNotebookCell.querySelector('[data-testid="notebook-preview-code-block"]')
+                      : null;
+                    const codeNotebookTitle = codeNotebookBlock instanceof HTMLElement
+                      ? codeNotebookBlock.querySelector('[data-notebook-code-title="Python"]')
+                      : null;
                     notebookCellDisclosureChecks[testId] =
                       notebookCells.length >= 2 &&
                       notebookCells.every((cell) =>
@@ -11153,6 +11160,12 @@ function runAutomatedFocusedSurfaceSmoke(
                       codeNotebookSourceDisclosure instanceof HTMLDetailsElement &&
                       codeNotebookSourceDisclosure.querySelector('summary')?.textContent?.includes('Code') === true &&
                       codeNotebookSourceDisclosure.textContent?.includes('value = 2') === true;
+                    notebookCodeSnippetChecks[testId] =
+                      codeNotebookBlock instanceof HTMLElement &&
+                      codeNotebookTitle instanceof HTMLElement &&
+                      codeNotebookTitle.textContent?.trim() === 'Python' &&
+                      codeNotebookSourceDisclosure instanceof HTMLDetailsElement &&
+                      codeNotebookSourceDisclosure.querySelector('[data-testid="notebook-preview-code-block"]') === codeNotebookBlock;
                     notebookOutputSummaryChecks[testId] =
                       outputSummaries.length >= 2 &&
                       outputSummaries.some((summary) => summary.textContent?.includes('Stream summary')) &&
@@ -12305,6 +12318,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesNotebookCellMetadataWorks: Boolean(notebookCellMetadataChecks['workspace-notebook-preview']),
                 filesNotebookOutputSummariesWorks: Boolean(notebookOutputSummaryChecks['workspace-notebook-preview']),
                 filesNotebookRawOutputDisclosureWorks: Boolean(notebookRawOutputDisclosureChecks['workspace-notebook-preview']),
+                filesNotebookCodeSnippetWorks: Boolean(notebookCodeSnippetChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks

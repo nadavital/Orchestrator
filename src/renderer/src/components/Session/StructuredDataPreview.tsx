@@ -368,7 +368,7 @@ function NotebookCodeCellBody({ cell }: { cell: NotebookCell }): JSX.Element {
               <Icon name="code" size={12} />
               <span>Code</span>
             </summary>
-            <pre>{cell.source}</pre>
+            <NotebookCodeBlock code={cell.source} />
           </details>
         ) : (
           <pre>Empty cell</pre>
@@ -376,7 +376,18 @@ function NotebookCodeCellBody({ cell }: { cell: NotebookCell }): JSX.Element {
       </div>
     )
   }
-  return <pre>{cell.source || 'Empty cell'}</pre>
+  return cell.source ? <NotebookCodeBlock code={cell.source} /> : <pre>Empty cell</pre>
+}
+
+function NotebookCodeBlock({ code }: { code: string }): JSX.Element {
+  return (
+    <div className="notebook-preview-code-block" data-testid="notebook-preview-code-block">
+      <div className="notebook-preview-code-block-title" data-notebook-code-title="Python">
+        Python
+      </div>
+      <pre>{code}</pre>
+    </div>
+  )
 }
 
 function NotebookCellOutput({

@@ -1447,6 +1447,7 @@ child.on('exit', (code) => {
           filesNotebookCellMetadata: result.filesNotebookCellMetadataWorks === true,
           filesNotebookOutputSummaries: result.filesNotebookOutputSummariesWorks === true,
           filesNotebookRawOutputDisclosure: result.filesNotebookRawOutputDisclosureWorks === true,
+          filesNotebookCodeSnippet: result.filesNotebookCodeSnippetWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,

@@ -5344,6 +5344,26 @@
     margin-top: 6px;
   }
 
+  .notebook-preview-code-block {
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-bg) 92%, var(--control-bg));
+  }
+
+  .notebook-preview-code-block-title {
+    border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    padding: 5px 8px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .notebook-preview-code-block > pre {
+    border-radius: 0;
+  }
+
   .notebook-preview-output-summary {
     margin-bottom: 6px;
     color: var(--text-primary);
