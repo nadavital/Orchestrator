@@ -105,7 +105,7 @@ function buildContracts() {
       id: 'app-shell-header-panel-interaction',
       area: 'Header and panel interaction',
       scope: 'Left sidebar, main header, right side panel, bottom panel',
-      captureIds: ['chat-sidebar', 'transcript-narrow', 'workbench-right-panel', 'terminal-bottom-panel'],
+      captureIds: ['chat-sidebar', 'header', 'transcript-narrow', 'workbench-right-panel', 'terminal-bottom-panel'],
       codexAssets: [
         { basename: 'app-shell-state-HP0T5lEX.js', terms: ['app-shell:right-panel-width:v2', 'app-shell-bottom-panel-launcher-visible'] },
         { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['terminal-panel'] }
@@ -118,9 +118,9 @@ function buildContracts() {
           maxAgeHours: 72
         }
       ],
-      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'headerMetadataTooltipOnly', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent'],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, solid panel material, bottom-panel target size, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
+      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, compact profile/debug badge behavior, solid panel material, bottom-panel target size, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
       next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Workbench, or bottom-panel shell layout.'
     },
     {
@@ -535,7 +535,7 @@ function writeHeaderPanelContactSheet(report) {
   const row = report.rows.find((entry) => entry.id === 'app-shell-header-panel-interaction')
   const outputPath = join(outDir, 'header-panel-contact-sheet.html')
   const liveScreenshot = row?.file?.files?.find((entry) => entry.path === '/private/tmp/codex-current-screen.png') ?? null
-  const captureIds = ['chat-sidebar', 'transcript-narrow', 'workbench-right-panel', 'terminal-bottom-panel']
+  const captureIds = ['chat-sidebar', 'header', 'transcript-narrow', 'workbench-right-panel', 'terminal-bottom-panel']
   const captures = captureIds.map((id) => {
     const capture = report.captures.find((entry) => entry.id === id)
     const smokeCapture = row?.smoke?.captures?.find((entry) => entry.id === id)
@@ -707,7 +707,7 @@ function writeHeaderPanelContactSheet(report) {
 </head>
 <body>
   <h1>Header and Panel Interaction</h1>
-  <p>This contact sheet groups the live Codex shell screenshot with Orchestrator's sidebar, primary-header, right-panel, and bottom-panel captures. It is a review aid for relationship drift between surfaces; the smoke checks below remain the executable contract.</p>
+  <p>This contact sheet groups the live Codex shell screenshot with Orchestrator's sidebar, focused header, primary-header, right-panel, and bottom-panel captures. It is a review aid for relationship drift between surfaces; the smoke checks below remain the executable contract.</p>
   <div class="meta">
     <span class="pill">Generated ${escapeHtml(report.createdAt)}</span>
     <span class="pill">Comparison status ${escapeHtml(row?.status ?? 'missing')}</span>

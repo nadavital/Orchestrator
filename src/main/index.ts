@@ -4979,12 +4979,19 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             });
           let headerLongTooltipBoundedWorks = false;
           const profileBadge = document.querySelector('[data-testid="profile-badge"]');
+          const profileBadgeRect = profileBadge instanceof HTMLElement ? profileBadge.getBoundingClientRect() : null;
+          const profileBadgeCompactWorks =
+            profileBadge instanceof HTMLElement &&
+            profileBadge.getAttribute('data-profile-badge-visibility') === 'icon-only' &&
+            !((profileBadge.textContent ?? '').includes(profile.displayName)) &&
+            profileBadgeRect !== null &&
+            profileBadgeRect.width <= 32 &&
+            profileBadgeRect.height <= 32;
           if (profileBadge instanceof HTMLElement) {
-            const badgeRect = profileBadge.getBoundingClientRect();
             profileBadge.dispatchEvent(new MouseEvent('mouseover', {
               bubbles: true,
-              clientX: badgeRect.left + badgeRect.width / 2,
-              clientY: badgeRect.top + badgeRect.height / 2
+              clientX: profileBadgeRect.left + profileBadgeRect.width / 2,
+              clientY: profileBadgeRect.top + profileBadgeRect.height / 2
             }));
             profileBadge.focus({ preventScroll: true });
             await sleep(360);
@@ -5084,6 +5091,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             nativeTitleFreeControlsWork,
             nativeTitleFreeControlLeaks,
             composerNativeTooltipsWork,
+            profileBadgeCompactWorks,
             headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
             chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
             chatEmptyStateQuietWorks: typeof chatEmptyStateQuietWorks === 'boolean' ? chatEmptyStateQuietWorks : null,
@@ -5507,6 +5515,8 @@ function runAutomatedFocusedSurfaceSmoke(
               const headerMetadata = document.querySelector('[data-testid="session-header-metadata"]');
               const headerMetadataText = headerMetadata?.textContent ?? '';
               const activeSessionTitle = document.querySelector('[data-testid="active-session-title"]');
+              const profileBadge = document.querySelector('[data-testid="profile-badge"]');
+              const profileBadgeRect = profileBadge instanceof HTMLElement ? profileBadge.getBoundingClientRect() : null;
               const metadataRect = headerMetadata instanceof HTMLElement ? headerMetadata.getBoundingClientRect() : null;
               const activeTitleTooltip = activeSessionTitle instanceof HTMLElement ? activeSessionTitle.getAttribute('data-tooltip-label') ?? '' : '';
               const titlebarToggleSidebar = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
@@ -5546,6 +5556,13 @@ function runAutomatedFocusedSurfaceSmoke(
                   metadataRect !== null &&
                   metadataRect.width <= 2 &&
                   metadataRect.height <= 2,
+                profileBadgeCompactWorks:
+                  profileBadge instanceof HTMLElement &&
+                  profileBadge.getAttribute('data-profile-badge-visibility') === 'icon-only' &&
+                  !((profileBadge.textContent ?? '').includes(profile.displayName)) &&
+                  profileBadgeRect !== null &&
+                  profileBadgeRect.width <= 32 &&
+                  profileBadgeRect.height <= 32,
                 headerNativeTooltipsWork: headerTooltipIds.every((testId) => {
                   const element = document.querySelector('[data-testid="' + testId + '"]');
                   return element instanceof HTMLElement &&

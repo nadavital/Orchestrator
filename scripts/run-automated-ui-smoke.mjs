@@ -1091,6 +1091,7 @@ child.on('exit', (code) => {
           composer: result.hasComposer === true,
           headerIdentity: result.headerIdentityWorks === true,
           headerMetadataTooltipOnly: result.headerMetadataTooltipOnlyWorks === true,
+          profileBadgeCompact: result.profileBadgeCompactWorks === true,
           headerNativeTooltips: result.headerNativeTooltipsWork === true,
           titlebarSidebarToggle: result.titlebarSidebarToggleWorks === true,
           headerActionMenu: result.headerActionMenuWorks === true
@@ -1282,7 +1283,7 @@ child.on('exit', (code) => {
         }
     : {
         isolatedProfile: result.profile?.isIsolated === true,
-        profileBadge: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || result.hasProfileBadge === true,
+        profileBadgeCompact: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || result.profileBadgeCompactWorks === true,
         composer: captureView === 'settings-deeplink' || result.hasComposer === true,
         sidebarNavigation: ['settings', 'settings-providers', 'settings-deeplink', 'capabilities', 'pets'].includes(captureView) || result.hasSidebarNavigation === true,
         headerIdentity: ['settings', 'settings-providers', 'settings-deeplink', 'resources', 'capabilities', 'pets'].includes(captureView) || result.headerIdentityWorks === true,

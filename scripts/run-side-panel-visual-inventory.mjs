@@ -10,6 +10,7 @@ const full = process.argv.includes('--full')
 
 const coreViews = [
   { id: 'chat-sidebar', surface: 'Chat Sidebar', state: 'normal and menu', flag: '--sidebar' },
+  { id: 'header', surface: 'Header / Main Shell', state: 'titlebar and profile controls', flag: '--header' },
   { id: 'workbench-right-panel', surface: 'Workbench Right Panel', state: 'normal and narrow overlay checks', flag: '--right-panel' },
   { id: 'review-entry', surface: 'Review', state: 'entry and metadata', flag: '--diff-entry' },
   { id: 'files', surface: 'Files / File Viewer', state: 'tree and file tab', flag: '--files' },

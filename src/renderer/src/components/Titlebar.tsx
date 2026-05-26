@@ -207,18 +207,26 @@ function Titlebar(): JSX.Element {
         >
           <Tooltip label={`Profile: ${profile.displayName}`}>
             <span
-              className="text-xs font-medium rounded-md px-2 py-0.5"
+              className="profile-badge-compact"
               data-testid="profile-badge"
               data-tooltip-label={`Profile: ${profile.displayName}`}
               data-native-title-free="true"
+              data-profile-badge-visibility="icon-only"
               tabIndex={0}
+              aria-label={`Profile: ${profile.displayName}`}
               style={{
+                display: 'inline-flex',
+                width: 28,
+                height: 28,
+                alignItems: 'center',
+                justifyContent: 'center',
                 color: 'var(--text-secondary)',
                 border: '1px solid var(--border-subtle)',
+                borderRadius: 8,
                 background: 'var(--control-bg)'
               }}
             >
-              {profile.displayName} profile
+              <Icon name="agents" size={13} />
             </span>
           </Tooltip>
         </div>
