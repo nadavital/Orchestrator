@@ -904,6 +904,20 @@ function SpreadsheetArtifactPreview({
   const title = stripArtifactExtension(stripArtifactExtension(entry.name, 'xlsx'), 'xlsm')
   const actions = artifactPreviewActions(entry, absolutePath, preview)
   const payload = parseSpreadsheetPreview(preview.text)
+  const sheets = payload?.sheets ?? []
+  const [activeSheetIndex, setActiveSheetIndex] = useState(0)
+  const [zoomPercent, setZoomPercent] = useState(100)
+  const activeSheet = sheets[activeSheetIndex] ?? null
+  const sheetCount = sheets.length
+  useEffect(() => {
+    setActiveSheetIndex((index) => Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
+  }, [sheetCount])
+  const zoomOut = (): void => {
+    setZoomPercent((zoom) => Math.max(50, zoom - 25))
+  }
+  const zoomIn = (): void => {
+    setZoomPercent((zoom) => Math.min(200, zoom + 25))
+  }
   return (
     <div
       className="file-structured-preview workspace-office-artifact-preview flex h-full min-h-0 flex-col overflow-hidden"
@@ -911,16 +925,80 @@ function SpreadsheetArtifactPreview({
       data-artifact-preview-kind={preview.kind}
       data-artifact-preview-size={preview.size ?? entry.size ?? 0}
       data-spreadsheet-preview-rendered={payload ? 'true' : 'false'}
-      data-spreadsheet-preview-sheet-count={payload?.sheets.length ?? 0}
+      data-spreadsheet-preview-sheet-count={sheetCount}
+      data-spreadsheet-active-sheet-index={activeSheetIndex + 1}
+      data-spreadsheet-active-sheet-name={activeSheet?.name ?? ''}
+      data-spreadsheet-preview-zoom-percent={zoomPercent}
     >
       <ArtifactPreviewHeader
         artifactType="XLSX"
+        centerContent={payload
+          ? (
+              <span
+                className="file-preview-page-controls"
+                data-testid="workspace-spreadsheet-preview-sheet-controls"
+                data-spreadsheet-current-sheet={activeSheetIndex + 1}
+                data-spreadsheet-sheet-count={sheetCount}
+              >
+                <IconButton
+                  icon="arrowLeft"
+                  label="Previous sheet"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={activeSheetIndex <= 0}
+                  dataTestId="workspace-spreadsheet-preview-sheet-previous"
+                  onClick={() => { setActiveSheetIndex((index) => Math.max(0, index - 1)) }}
+                />
+                <span className="file-preview-page-indicator" data-testid="workspace-spreadsheet-preview-sheet-indicator">
+                  {activeSheetIndex + 1}/{Math.max(1, sheetCount)}
+                </span>
+                <IconButton
+                  icon="arrowRight"
+                  label="Next sheet"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={activeSheetIndex >= sheetCount - 1}
+                  dataTestId="workspace-spreadsheet-preview-sheet-next"
+                  onClick={() => { setActiveSheetIndex((index) => Math.min(sheetCount - 1, index + 1)) }}
+                />
+              </span>
+            )
+          : null}
         rightContent={(
           <span
             className="file-preview-header-actions"
             data-testid="workspace-spreadsheet-preview-actions"
-            data-preview-controls="copy-path open-file reveal-file"
+            data-preview-controls="copy-path spreadsheet-sheet-navigation spreadsheet-zoom open-file reveal-file"
           >
+            {payload && (
+              <span
+                className="file-preview-zoom-controls"
+                data-testid="workspace-spreadsheet-preview-zoom-controls"
+                data-spreadsheet-zoom-percent={zoomPercent}
+              >
+                <IconButton
+                  icon="zoomOut"
+                  label="Zoom out"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={zoomPercent <= 50}
+                  dataTestId="workspace-spreadsheet-preview-zoom-out"
+                  onClick={zoomOut}
+                />
+                <span className="file-preview-zoom-indicator" data-testid="workspace-spreadsheet-preview-zoom-indicator">
+                  {zoomPercent}%
+                </span>
+                <IconButton
+                  icon="zoomIn"
+                  label="Zoom in"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={zoomPercent >= 200}
+                  dataTestId="workspace-spreadsheet-preview-zoom-in"
+                  onClick={zoomIn}
+                />
+              </span>
+            )}
             {actions.map((action) => (
               <IconButton
                 key={action.id}
@@ -938,22 +1016,25 @@ function SpreadsheetArtifactPreview({
         title={title}
       />
       <div className="workspace-office-preview-body" data-testid="workspace-spreadsheet-preview-body">
-        {payload ? (
-          payload.sheets.map((sheet, index) => (
+        {activeSheet ? (
             <section
-              key={`${sheet.name}-${index}`}
               className="workspace-spreadsheet-sheet"
               data-testid="workspace-spreadsheet-preview-sheet"
-              data-spreadsheet-sheet-name={sheet.name}
+              data-spreadsheet-sheet-name={activeSheet.name}
+              data-spreadsheet-sheet-index={activeSheetIndex + 1}
             >
               <div className="workspace-office-section-heading">
                 <Icon name="file" size={14} />
-                <span>{sheet.name}</span>
+                <span>{activeSheet.name}</span>
               </div>
               <div className="workspace-spreadsheet-table-wrap">
-                <table className="workspace-spreadsheet-table" data-testid="workspace-spreadsheet-preview-table">
+                <table
+                  className="workspace-spreadsheet-table"
+                  data-testid="workspace-spreadsheet-preview-table"
+                  style={{ fontSize: `${Math.max(10, Math.min(18, 12 * (zoomPercent / 100)))}px` }}
+                >
                   <tbody>
-                    {sheet.rows.map((row, rowIndex) => (
+                    {activeSheet.rows.map((row, rowIndex) => (
                       <tr key={rowIndex}>
                         {row.map((cell, cellIndex) => (
                           <td key={cellIndex}>{cell}</td>
@@ -964,7 +1045,6 @@ function SpreadsheetArtifactPreview({
                 </table>
               </div>
             </section>
-          ))
         ) : (
           <ArtifactPreviewUnavailableBody size={preview.size ?? entry.size ?? 0} />
         )}
@@ -985,6 +1065,20 @@ function SlidesArtifactPreview({
   const title = stripArtifactExtension(entry.name, 'pptx')
   const actions = artifactPreviewActions(entry, absolutePath, preview)
   const payload = parseSlidesPreview(preview.text)
+  const slides = payload?.slides ?? []
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
+  const [zoomPercent, setZoomPercent] = useState(100)
+  const slideCount = slides.length
+  const currentSlide = slides[currentSlideIndex] ?? null
+  useEffect(() => {
+    setCurrentSlideIndex((index) => Math.min(Math.max(index, 0), Math.max(0, slideCount - 1)))
+  }, [slideCount])
+  const zoomOut = (): void => {
+    setZoomPercent((zoom) => Math.max(50, zoom - 25))
+  }
+  const zoomIn = (): void => {
+    setZoomPercent((zoom) => Math.min(200, zoom + 25))
+  }
   return (
     <div
       className="file-structured-preview workspace-office-artifact-preview flex h-full min-h-0 flex-col overflow-hidden"
@@ -992,16 +1086,79 @@ function SlidesArtifactPreview({
       data-artifact-preview-kind={preview.kind}
       data-artifact-preview-size={preview.size ?? entry.size ?? 0}
       data-slides-preview-rendered={payload ? 'true' : 'false'}
-      data-slides-preview-slide-count={payload?.slides.length ?? 0}
+      data-slides-preview-slide-count={slideCount}
+      data-slides-preview-current-slide={currentSlideIndex + 1}
+      data-slides-preview-zoom-percent={zoomPercent}
     >
       <ArtifactPreviewHeader
         artifactType="PPTX"
+        centerContent={payload
+          ? (
+              <span
+                className="file-preview-page-controls"
+                data-testid="workspace-slides-preview-slide-controls"
+                data-slides-current-slide={currentSlideIndex + 1}
+                data-slides-slide-count={slideCount}
+              >
+                <IconButton
+                  icon="arrowLeft"
+                  label="Previous slide"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={currentSlideIndex <= 0}
+                  dataTestId="workspace-slides-preview-slide-previous"
+                  onClick={() => { setCurrentSlideIndex((index) => Math.max(0, index - 1)) }}
+                />
+                <span className="file-preview-page-indicator" data-testid="workspace-slides-preview-slide-indicator">
+                  {currentSlideIndex + 1}/{Math.max(1, slideCount)}
+                </span>
+                <IconButton
+                  icon="arrowRight"
+                  label="Next slide"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={currentSlideIndex >= slideCount - 1}
+                  dataTestId="workspace-slides-preview-slide-next"
+                  onClick={() => { setCurrentSlideIndex((index) => Math.min(slideCount - 1, index + 1)) }}
+                />
+              </span>
+            )
+          : null}
         rightContent={(
           <span
             className="file-preview-header-actions"
             data-testid="workspace-slides-preview-actions"
-            data-preview-controls="copy-path open-file reveal-file"
+            data-preview-controls="copy-path slides-slide-navigation slides-zoom open-file reveal-file"
           >
+            {payload && (
+              <span
+                className="file-preview-zoom-controls"
+                data-testid="workspace-slides-preview-zoom-controls"
+                data-slides-zoom-percent={zoomPercent}
+              >
+                <IconButton
+                  icon="zoomOut"
+                  label="Zoom out"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={zoomPercent <= 50}
+                  dataTestId="workspace-slides-preview-zoom-out"
+                  onClick={zoomOut}
+                />
+                <span className="file-preview-zoom-indicator" data-testid="workspace-slides-preview-zoom-indicator">
+                  {zoomPercent}%
+                </span>
+                <IconButton
+                  icon="zoomIn"
+                  label="Zoom in"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={zoomPercent >= 200}
+                  dataTestId="workspace-slides-preview-zoom-in"
+                  onClick={zoomIn}
+                />
+              </span>
+            )}
             {actions.map((action) => (
               <IconButton
                 key={action.id}
@@ -1019,14 +1176,46 @@ function SlidesArtifactPreview({
         title={title}
       />
       <div className="workspace-office-preview-body" data-testid="workspace-slides-preview-body">
-        {payload ? (
-          <div className="workspace-slides-outline">
-            {payload.slides.map((slide) => (
+        {currentSlide ? (
+          <>
+            <section
+              className="workspace-slide-stage"
+              data-testid="workspace-slides-preview-current-slide"
+              data-slide-index={currentSlide.index}
+              style={{ fontSize: `${Math.max(10, Math.min(18, 13 * (zoomPercent / 100)))}px` }}
+            >
+              <div className="workspace-slide-preview-number">{currentSlide.index}</div>
+              <div className="workspace-slide-preview-content">
+                <h3>{currentSlide.title}</h3>
+                {currentSlide.text.map((line, index) => (
+                  <p key={index}>{line}</p>
+                ))}
+              </div>
+            </section>
+            <div className="workspace-slides-thumbnail-strip" data-testid="workspace-slides-preview-thumbnails">
+              {slides.map((slide, index) => (
+                <button
+                  key={slide.index}
+                  type="button"
+                  className="workspace-slide-thumbnail"
+                  data-testid="workspace-slides-preview-thumbnail"
+                  data-active={index === currentSlideIndex ? 'true' : 'false'}
+                  data-slide-index={slide.index}
+                  onClick={() => { setCurrentSlideIndex(index) }}
+                >
+                  <span>{slide.index}</span>
+                  <strong>{slide.title}</strong>
+                </button>
+              ))}
+            </div>
+            <div className="workspace-slides-outline" data-testid="workspace-slides-preview-outline">
+              {slides.map((slide) => (
               <section
                 key={slide.index}
                 className="workspace-slide-preview-card"
                 data-testid="workspace-slides-preview-slide"
                 data-slide-index={slide.index}
+                data-active={slide.index === currentSlide.index ? 'true' : 'false'}
               >
                 <div className="workspace-slide-preview-number">{slide.index}</div>
                 <div className="workspace-slide-preview-content">
@@ -1036,8 +1225,9 @@ function SlidesArtifactPreview({
                   ))}
                 </div>
               </section>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         ) : (
           <ArtifactPreviewUnavailableBody size={preview.size ?? entry.size ?? 0} />
         )}
