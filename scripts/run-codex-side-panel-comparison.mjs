@@ -252,7 +252,7 @@ function buildContracts() {
       ],
       smokeChecks: ['terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Terminal behavior, solid bottom-panel material, Codex-bundle-aligned 400 px default shell size, and screenshot are covered; exact Codex open-close timing is not live-proven.',
+      caveat: 'Terminal behavior, solid bottom-panel material, Codex-bundle-aligned 280 px default shell size, and screenshot are covered; exact Codex open-close timing is not live-proven.',
       next: 'Compare live panel animation timing when app UI access is available.'
     },
     {

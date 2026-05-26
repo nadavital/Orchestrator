@@ -1848,12 +1848,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelShell instanceof HTMLElement &&
               bottomPanelRestored instanceof HTMLElement &&
               terminalTabPanelForSizing instanceof HTMLElement &&
-              bottomPanelContentHeight >= 120 &&
+              bottomPanelContentHeight >= 110 &&
               bottomPanelChromeHeight === 50 &&
-              bottomPanelDefaultHeight === 350 &&
-              bottomPanelMinHeight === 120 &&
+              bottomPanelDefaultHeight === 230 &&
+              bottomPanelMinHeight === 110 &&
               bottomPanelTotalHeight === bottomPanelContentHeight + bottomPanelChromeHeight &&
-              bottomPanelTotalHeight === 400 &&
+              bottomPanelTotalHeight === 280 &&
               bottomPanelTargetSize === bottomPanelTotalHeight &&
               Number(bottomPanelShell.getAttribute('data-bottom-panel-content-height') ?? '0') === bottomPanelContentHeight &&
               Number(bottomPanelShell.getAttribute('data-bottom-panel-chrome-height') ?? '0') === bottomPanelChromeHeight &&
@@ -2030,10 +2030,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 heightAfterKeyboardReset = Number(terminalBottomHeaderAfterKeyboardReset?.getAttribute('data-bottom-panel-height') ?? '0');
                 terminalResizeKeyboardWorks =
                   terminalResizeHandleForKeyboard.getAttribute('tabindex') === '0' &&
-                  terminalResizeHandleForKeyboard.getAttribute('aria-valuemin') === '120' &&
-                  Number(terminalResizeHandleForKeyboard.getAttribute('aria-valuemax') ?? '0') >= 350 &&
+                  terminalResizeHandleForKeyboard.getAttribute('aria-valuemin') === '110' &&
+                  Number(terminalResizeHandleForKeyboard.getAttribute('aria-valuemax') ?? '0') >= 230 &&
                   Math.abs(heightAfterKeyboard - heightAfterReset) >= 8 &&
-                  Math.abs(heightAfterKeyboardReset - 350) <= 4;
+                  Math.abs(heightAfterKeyboardReset - 230) <= 4;
               }
               terminalResizeResetDebug = {
                 resizeHandleFound: true,
@@ -2056,7 +2056,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 bottomPanelTotalHeight,
                 bottomPanelTargetSize,
                 resizeDelta: heightAfterResize - heightBeforeResize,
-                resetDelta: heightAfterReset - 350,
+                resetDelta: heightAfterReset - 230,
                 handleRect: {
                   width: resizeRect.width,
                   height: resizeRect.height,
@@ -2078,7 +2078,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 terminalResizeHandle.getAttribute('data-app-shell-resize-handle') === 'true' &&
                 terminalResizeHandle.getAttribute('data-app-shell-resize-edge') === 'top' &&
                 Math.abs(heightAfterResize - heightBeforeResize) >= 24 &&
-                Math.abs(heightAfterReset - 350) <= 4;
+                Math.abs(heightAfterReset - 230) <= 4;
             } else {
               terminalResizeResetDebug = {
                 resizeHandleFound: terminalResizeHandle instanceof HTMLElement,
@@ -2583,12 +2583,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelShellForVisual instanceof HTMLElement &&
               bottomPanelForTerminalVisual instanceof HTMLElement &&
               terminalTabPanelForVisualSizing instanceof HTMLElement &&
-              bottomPanelVisualContentHeight >= 120 &&
+              bottomPanelVisualContentHeight >= 110 &&
               bottomPanelVisualChromeHeight === 50 &&
-              bottomPanelVisualDefaultHeight === 350 &&
-              bottomPanelVisualMinHeight === 120 &&
+              bottomPanelVisualDefaultHeight === 230 &&
+              bottomPanelVisualMinHeight === 110 &&
               bottomPanelVisualTotalHeight === bottomPanelVisualContentHeight + bottomPanelVisualChromeHeight &&
-              bottomPanelVisualTotalHeight === 400 &&
+              bottomPanelVisualTotalHeight === 280 &&
               bottomPanelVisualTargetSize === bottomPanelVisualTotalHeight &&
               Number(bottomPanelShellForVisual.getAttribute('data-bottom-panel-content-height') ?? '0') === bottomPanelVisualContentHeight &&
               Number(bottomPanelShellForVisual.getAttribute('data-bottom-panel-chrome-height') ?? '0') === bottomPanelVisualChromeHeight &&
