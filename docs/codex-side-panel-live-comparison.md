@@ -24,6 +24,29 @@ Scope note: "side panel" in the comparison matrix means the right-side Workbench
 - Current runnable comparison: `tmp/codex-side-panel-comparison/comparison-report.json`, status `fixture-covered=7`, `aligned=2`, `mismatch=0`, `blocked=0`.
 - Current pushed branch: `codex-side-panel-parity-stabilization`.
 
+## 2026-05-26 Visual Pass
+
+Direct live Codex UI inspection through Computer Use is currently blocked by the app safety boundary: `com.openai.codex` is not inspectable from this environment. This pass therefore does not claim pixel-level side-by-side parity with the running Codex app. It combines the live installed Codex bundle/version, the runnable comparison script, and the current Orchestrator 23-surface screenshot inventory.
+
+Reviewed Orchestrator screenshots:
+
+- `tmp/side-panel-visual-inventory-current/workbench-right-panel.png`
+- `tmp/side-panel-visual-inventory-current/review-entry.png`
+- `tmp/side-panel-visual-inventory-current/review-source.png`
+- `tmp/side-panel-visual-inventory-current/browser.png`
+- `tmp/side-panel-visual-inventory-current/terminal-bottom-panel.png`
+- `tmp/side-panel-visual-inventory-current/settings.png`
+
+Result: the local surfaces look coherent against the current shared shell primitives, and `npm run compare:codex-side-panels -- --no-fail` reports `fixture-covered=7`, `aligned=2`, `mismatch=0`, `blocked=0`. The real remaining parity risk is not obvious one-off padding or color drift in the current Orchestrator screenshots; it is the set of areas that still need either live Codex screenshot/timing evidence or provider-backed data that fixtures cannot create.
+
+Highest-value next UI/parity work:
+
+1. Browser agent-driven parity: implement or explicitly gate a dynamic client-tool bridge for browser-use style requests. Manual Browser UI is strong; provider/browser-use parity is still blocked at the current app-server boundary.
+2. Review provider data parity: add one real provider-backed source at a time, especially provider blame or live commented-PR proof. Do not treat local fixture comments as final hosted/cloud parity.
+3. Terminal visual parity: capture live Codex bottom-panel height/animation at multiple window sizes if a manual screenshot path becomes available; local Orchestrator terminal layout is smoke-covered but exact Codex timing is not.
+4. Settings adapter parity: keep unsupported Host Personalization and remote-host pages explicitly unavailable until real provider adapters exist.
+5. Review visual spacing: defer further Review padding/color work unless a live Codex screenshot or a new visual fixture demonstrates a specific mismatch.
+
 ## Recently Aligned
 
 | Surface | Codex evidence | Orchestrator state | Follow-up |
