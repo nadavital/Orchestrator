@@ -483,6 +483,28 @@ export function FilePreview({
   if (preview.kind === 'document') {
     return <StructuredDataPreview name={entry.name} preview={preview} testId="workspace-document-preview" actions={artifactPreviewActions(entry, absolutePath, preview, structuredPreviewExtraActions)} />
   }
+  if (preview.kind === 'spreadsheet') {
+    return (
+      <ArtifactUnavailablePreview
+        absolutePath={absolutePath}
+        artifactType="XLSX"
+        entry={entry}
+        preview={preview}
+        testId="workspace-spreadsheet-preview"
+      />
+    )
+  }
+  if (preview.kind === 'slides') {
+    return (
+      <ArtifactUnavailablePreview
+        absolutePath={absolutePath}
+        artifactType="PPTX"
+        entry={entry}
+        preview={preview}
+        testId="workspace-slides-preview"
+      />
+    )
+  }
   if (preview.kind === 'audio') {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 p-4 text-center">
@@ -862,6 +884,65 @@ function artifactPreviewActions(
     }
   )
   return actions
+}
+
+function ArtifactUnavailablePreview({
+  absolutePath,
+  artifactType,
+  entry,
+  preview,
+  testId
+}: {
+  absolutePath: string
+  artifactType: 'XLSX' | 'PPTX'
+  entry: WorkspaceSearchEntry
+  preview: FilePreviewResult
+  testId: string
+}): JSX.Element {
+  const title = artifactType === 'XLSX'
+    ? stripArtifactExtension(stripArtifactExtension(entry.name, 'xlsx'), 'xlsm')
+    : stripArtifactExtension(entry.name, 'pptx')
+  const actions = artifactPreviewActions(entry, absolutePath, preview)
+  return (
+    <div
+      className="file-structured-preview workspace-artifact-unavailable-preview flex h-full min-h-0 flex-col overflow-hidden"
+      data-testid={testId}
+      data-artifact-preview-kind={preview.kind}
+      data-artifact-preview-size={preview.size ?? entry.size ?? 0}
+    >
+      <ArtifactPreviewHeader
+        artifactType={artifactType}
+        rightContent={(
+          <span
+            className="file-preview-header-actions"
+            data-testid={`${testId}-actions`}
+            data-preview-controls="copy-path open-file reveal-file"
+          >
+            {actions.map((action) => (
+              <IconButton
+                key={action.id}
+                icon={action.icon}
+                label={action.label}
+                size="sm"
+                variant="toolbar"
+                dataTestId={`${testId}-action-${action.id}`}
+                onClick={action.onClick}
+              />
+            ))}
+          </span>
+        )}
+        testId={testId}
+        title={title}
+      />
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center" data-testid={`${testId}-body`}>
+        <div className="flex max-w-[280px] flex-col items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <Icon name="file" size={24} />
+          <div className="font-medium" style={{ color: 'var(--text-primary)' }}>Preview unavailable</div>
+          <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{formatBytes(preview.size ?? entry.size ?? 0)}</div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function PdfPreview({

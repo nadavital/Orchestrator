@@ -80,7 +80,7 @@ export interface BrowserClientToolResponse {
 }
 
 export interface FilePreviewResult {
-  kind: 'text' | 'markdown' | 'json' | 'csv' | 'notebook' | 'document' | 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary' | 'missing' | 'unreadable'
+  kind: 'text' | 'markdown' | 'json' | 'csv' | 'notebook' | 'document' | 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'spreadsheet' | 'slides' | 'binary' | 'missing' | 'unreadable'
   size?: number
   text?: string
   truncated: boolean

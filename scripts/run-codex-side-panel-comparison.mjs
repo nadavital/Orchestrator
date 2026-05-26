@@ -261,12 +261,14 @@ function buildContracts() {
         { basename: 'review-file-source-tab-CjS7Xe_W.js', terms: ['Open file', 'Open in editor', 'Copy path', 'Show git blame', 'Enable rich view'] },
         { basename: 'notebook-preview-panel-CAO-aRhM.js', terms: ['Read only', 'Run all', 'Restart kernel', 'Raw output', 'Notebook output', 'details', 'summary', 'descriptionMarkdown', 'cellTitle', 'outputSummaries', 'summaryMarkdown', 'IPYNB'] },
         { basename: 'docx-preview-panel-BjyRJuYA.js', terms: ['artifactType:`DOC`', 'title:P', 'replace(/\\.docx$/i'] },
-        { basename: 'pdf-preview-panel-CkrOHSbs.js', terms: ['artifactType:`PDF`', 'title:ht', 'replace(/\\.pdf$/i'] }
+        { basename: 'pdf-preview-panel-CkrOHSbs.js', terms: ['artifactType:`PDF`', 'title:ht', 'replace(/\\.pdf$/i'] },
+        { basename: 'artifact-tab-file-kind-fsu6JKhI.js', terms: ['xlsm`,`xlsx', 'pptx`,`pptx', 'artifactType:`spreadsheet`', 'artifactType:`slides`'] },
+        { basename: 'artifact-tab-content.electron-DayvYBGS.js', terms: ['ExtractXlsxProto', 'ExtractSlidesProto', 'PopcornElectronWorkbookPanel', 'PopcornElectronPresentationPanel'] }
       ],
-      smokeChecks: ['filesContentSearch', 'filesActionMenuSharedSections', 'workbenchFileTabActionMenuSharedSections', 'filesArtifactHeaderTitleType', 'filesNotebookReadOnlyControls', 'filesNotebookOutputRendering', 'filesNotebookCellDisclosure', 'filesNotebookExecutionCount', 'filesNotebookCellMetadata', 'filesNotebookOutputSummaries', 'reviewFullSourceRows', 'reviewFullSourceBlame'],
+      smokeChecks: ['filesContentSearch', 'filesActionMenuSharedSections', 'workbenchFileTabActionMenuSharedSections', 'filesArtifactHeaderTitleType', 'filesSpreadsheetSlidesArtifactBoundary', 'filesNotebookReadOnlyControls', 'filesNotebookOutputRendering', 'filesNotebookCellDisclosure', 'filesNotebookExecutionCount', 'filesNotebookCellMetadata', 'filesNotebookOutputSummaries', 'reviewFullSourceRows', 'reviewFullSourceBlame'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Local file/source behavior is covered, including Codex-style artifact header title/type splitting for PDF/DOCX/IPYNB previews, read-only notebook artifact controls, basic notebook output rendering, Codex-style notebook cell disclosure shells, notebook execution-count labels, notebook metadata titles/descriptions, and notebook output summary markdown. Full artifact renderer parity and provider-backed comments/blame remain incomplete.',
-      next: 'Prioritize deeper notebook output styling, exact cell spacing, other artifact renderer controls, or provider metadata, not more local tree styling.'
+      caveat: 'Local file/source behavior is covered, including Codex-style artifact header title/type splitting for PDF/DOCX/IPYNB/XLSX/PPTX previews, an explicit spreadsheet/slides artifact boundary with file actions instead of generic binary fallback, read-only notebook artifact controls, basic notebook output rendering, Codex-style notebook cell disclosure shells, notebook execution-count labels, notebook metadata titles/descriptions, and notebook output summary markdown. Full XLSX/PPTX/PDF/DOCX artifact renderer parity and provider-backed comments/blame remain incomplete.',
+      next: 'Prioritize real artifact renderer controls/rendering, deeper notebook output styling, exact cell spacing, or provider metadata, not more local tree styling.'
     },
     {
       id: 'settings-host-scope',

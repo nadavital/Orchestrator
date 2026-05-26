@@ -6722,6 +6722,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the visible artifact identity/header mismatch for local PDF/DOCX/IPYNB previews. It does not implement true Codex PDF page controls, DOCX page/zoom rendering, spreadsheet/slides renderers, exact output spacing, or provider-backed artifact metadata.
 
+### 2026-05-26 - Spreadsheet And Slides Artifact Boundary
+
+Codex evidence: `tmp/codex-app-assets/artifact-tab-file-kind-fsu6JKhI.js` maps `.xlsx`/`.xlsm` to `xlsx` spreadsheet artifacts and `.pptx` to `pptx` slides artifacts, while `tmp/codex-app-assets/artifact-tab-content.electron-DayvYBGS.js` routes XLSX through `ExtractXlsxProto` / `PopcornElectronWorkbookPanel` and PPTX through `ExtractSlidesProto` / `PopcornElectronPresentationPanel`.
+
+Implemented: Orchestrator no longer falls through XLSX/XLSM and PPTX files to a generic binary/plain preview path. The main preview classifier now returns `spreadsheet` and `slides` artifact kinds, and the Files panel renders explicit artifact-preview states with extensionless titles, separate `XLSX` / `PPTX` type labels, compact Copy path/Open/Reveal toolbar actions, and no unsupported source toggle. Focused Files smoke and the comparison now gate this with `filesSpreadsheetSlidesArtifactBoundary=true`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, `git diff --check`, and `npm run build` passed. Focused `npm run smoke:ui:auto -- --files` passed with `filesSpreadsheetPreview=true`, `filesSlidesPreview=true`, `filesSpreadsheetSlidesArtifactBoundary=true`, `filesArtifactHeaderTitleType=true`, and `filesArtifactTabModel=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779809957482.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779809957482.png`. Refreshed visual inventory passed with 25 captures and manifest created at `2026-05-26T15:50:48.998Z`; the comparison report passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, and `needsProof=0`, created at `2026-05-26T15:50:54.981Z`.
+
+Remaining: this closes the misleading generic-binary boundary for spreadsheet/slides artifacts. It does not implement Codex's true workbook/presentation renderers, page/slide controls, editing/annotation hooks, or provider-backed artifact metadata.
+
 Recommended order:
 
 1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel, and review `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html` because the user-visible mismatch can be in the relationship between surfaces rather than in any one panel. Header action controls must stay compact toolbar chrome inside that shared band, not a heavier independent button cluster.

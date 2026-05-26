@@ -497,6 +497,8 @@ if (fixtureWorkspaceViews.has(captureView)) {
     'Document smoke baseline',
     'This verifies DOCX text preview in the inspector.'
   ]))
+  writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), Buffer.from('spreadsheet preview smoke baseline\n'))
+  writeFileSync(join(workspaceDir, 'slides-preview-smoke.pptx'), Buffer.from('slides preview smoke baseline\n'))
   writeFileSync(
     join(workspaceDir, 'image-preview-smoke.png'),
     Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lK3Q6wAAAABJRU5ErkJggg==', 'base64')
@@ -563,6 +565,8 @@ if (fixtureWorkspaceViews.has(captureView)) {
       'Document smoke updated',
       'This verifies DOCX text preview in the inspector.'
     ]))
+    writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), Buffer.from('spreadsheet preview smoke updated\n'))
+    writeFileSync(join(workspaceDir, 'slides-preview-smoke.pptx'), Buffer.from('slides preview smoke updated\n'))
     writeFileSync(
       join(workspaceDir, 'image-preview-smoke.png'),
       Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', 'base64')
@@ -1235,6 +1239,9 @@ child.on('exit', (code) => {
           filesCsvPreview: result.filesCsvPreviewWorks === true,
           filesPdfPreview: result.filesPdfPreviewWorks === true,
           filesDocumentPreview: result.filesDocumentPreviewWorks === true,
+          filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
+          filesSlidesPreview: result.filesSlidesPreviewWorks === true,
+          filesSpreadsheetSlidesArtifactBoundary: result.filesSpreadsheetSlidesArtifactBoundaryWorks === true,
           filesNotebookPreview: result.filesNotebookPreviewWorks === true,
           filesNotebookReadOnlyControls: result.filesNotebookReadOnlyControlsWorks === true,
           filesNotebookOutputRendering: result.filesNotebookOutputRenderingWorks === true,
@@ -1408,6 +1415,9 @@ child.on('exit', (code) => {
         filesCsvPreview: captureView !== 'inspector' || result.filesCsvPreviewWorks === true,
         filesPdfPreview: captureView !== 'inspector' || result.filesPdfPreviewWorks === true,
         filesDocumentPreview: captureView !== 'inspector' || result.filesDocumentPreviewWorks === true,
+        filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
+        filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
+        filesSpreadsheetSlidesArtifactBoundary: captureView !== 'inspector' || result.filesSpreadsheetSlidesArtifactBoundaryWorks === true,
         filesNotebookPreview: captureView !== 'inspector' || result.filesNotebookPreviewWorks === true,
         filesBinaryPreview: captureView !== 'inspector' || result.filesBinaryPreviewWorks === true,
         filesNoResults: captureView !== 'inspector' || result.filesNoResultsWorks === true,

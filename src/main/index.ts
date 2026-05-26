@@ -10836,6 +10836,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 ['filesCsvPreviewWorks', 'table-preview-smoke', 'table-preview-smoke.csv', 'workspace-csv-preview'],
                 ['filesPdfPreviewWorks', 'pdf-preview-smoke', 'pdf-preview-smoke.pdf', 'workspace-pdf-preview'],
                 ['filesDocumentPreviewWorks', 'document-preview-smoke', 'document-preview-smoke.docx', 'workspace-document-preview'],
+                ['filesSpreadsheetPreviewWorks', 'spreadsheet-preview-smoke', 'spreadsheet-preview-smoke.xlsx', 'workspace-spreadsheet-preview'],
+                ['filesSlidesPreviewWorks', 'slides-preview-smoke', 'slides-preview-smoke.pptx', 'workspace-slides-preview'],
                 ['filesNotebookPreviewWorks', 'notebook-preview-smoke', 'notebook-preview-smoke.ipynb', 'workspace-notebook-preview'],
                 ['filesBinaryPreviewWorks', 'binary-preview-smoke', 'binary-preview-smoke.bin', 'workspace-binary-state']
               ];
@@ -10884,7 +10886,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       artifactTitle instanceof HTMLElement &&
                       artifactType instanceof HTMLElement &&
                       artifactTitle.textContent?.trim().length > 0 &&
-                      !/\.(pdf|docx|ipynb)$/i.test(artifactTitle.textContent?.trim() ?? '') &&
+                      !/\.(pdf|docx|ipynb|xlsx|pptx)$/i.test(artifactTitle.textContent?.trim() ?? '') &&
                       (testId === 'workspace-pdf-preview'
                         ? artifactTitle.textContent?.trim() === 'pdf-preview-smoke' &&
                           artifactType.textContent?.trim() === 'PDF'
@@ -10893,12 +10895,20 @@ function runAutomatedFocusedSurfaceSmoke(
                         ? artifactTitle.textContent?.trim() === 'document-preview-smoke' &&
                           artifactType.textContent?.trim().startsWith('DOC')
                         : true) &&
+                      (testId === 'workspace-spreadsheet-preview'
+                        ? artifactTitle.textContent?.trim() === 'spreadsheet-preview-smoke' &&
+                          artifactType.textContent?.trim() === 'XLSX'
+                        : true) &&
+                      (testId === 'workspace-slides-preview'
+                        ? artifactTitle.textContent?.trim() === 'slides-preview-smoke' &&
+                          artifactType.textContent?.trim() === 'PPTX'
+                        : true) &&
                       (testId === 'workspace-notebook-preview'
                         ? artifactTitle.textContent?.trim() === 'notebook-preview-smoke' &&
                           artifactType.textContent?.trim().startsWith('IPYNB · 3 cells')
                         : true)
                     );
-                  const requiresRawCopy = testId !== 'workspace-pdf-preview';
+                  const requiresRawCopy = !['workspace-pdf-preview', 'workspace-spreadsheet-preview', 'workspace-slides-preview'].includes(testId);
                   previewControlChecks[testId] =
                     actions instanceof HTMLElement &&
                     actions.getAttribute('data-preview-controls')?.includes('copy-path') === true &&
@@ -10941,6 +10951,20 @@ function runAutomatedFocusedSurfaceSmoke(
                         artifactTab.getAttribute('data-file-tab-artifact-import-kind') === 'docx' &&
                         artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'false' &&
                         !controls.includes('view-source')
+                      : true) &&
+                    (testId === 'workspace-spreadsheet-preview'
+                      ? artifactTab.getAttribute('data-file-tab-artifact-type') === 'spreadsheet' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-import-kind') === 'xlsx' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'false' &&
+                        !controls.includes('view-source') &&
+                        document.querySelector('[data-testid="workspace-spreadsheet-preview-body"]') instanceof HTMLElement
+                      : true) &&
+                    (testId === 'workspace-slides-preview'
+                      ? artifactTab.getAttribute('data-file-tab-artifact-type') === 'slides' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-import-kind') === 'pptx' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'false' &&
+                        !controls.includes('view-source') &&
+                        document.querySelector('[data-testid="workspace-slides-preview-body"]') instanceof HTMLElement
                       : true) &&
                     (testId === 'workspace-notebook-preview'
                       ? artifactTab.getAttribute('data-file-tab-artifact-type') === 'notebook' &&
@@ -11681,22 +11705,39 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewHeaderChecks['workspace-csv-preview']) &&
                   Boolean(previewHeaderChecks['workspace-pdf-preview']) &&
                   Boolean(previewHeaderChecks['workspace-document-preview']) &&
+                  Boolean(previewHeaderChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewHeaderChecks['workspace-slides-preview']) &&
                   Boolean(previewHeaderChecks['workspace-notebook-preview']),
                 filesArtifactPreviewControlsWorks:
                   Boolean(previewControlChecks['workspace-json-preview']) &&
                   Boolean(previewControlChecks['workspace-csv-preview']) &&
                   Boolean(previewControlChecks['workspace-pdf-preview']) &&
                   Boolean(previewControlChecks['workspace-document-preview']) &&
+                  Boolean(previewControlChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewControlChecks['workspace-slides-preview']) &&
                   Boolean(previewControlChecks['workspace-notebook-preview']),
                 filesArtifactHeaderTitleTypeWorks:
                   Boolean(previewArtifactHeaderChecks['workspace-pdf-preview']) &&
                   Boolean(previewArtifactHeaderChecks['workspace-document-preview']) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-slides-preview']) &&
                   Boolean(previewArtifactHeaderChecks['workspace-notebook-preview']),
                 filesArtifactTabModelWorks:
                   Boolean(previewArtifactTabChecks['workspace-csv-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-pdf-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-document-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-slides-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
+                filesSpreadsheetSlidesArtifactBoundaryWorks:
+                  Boolean(previewChecks.filesSpreadsheetPreviewWorks) &&
+                  Boolean(previewChecks.filesSlidesPreviewWorks) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-slides-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-slides-preview']) &&
+                  Boolean(previewControlChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewControlChecks['workspace-slides-preview']),
                 filesNotebookReadOnlyControlsWorks: Boolean(notebookReadOnlyControlChecks['workspace-notebook-preview']),
                 filesNotebookOutputRenderingWorks: Boolean(notebookOutputRenderingChecks['workspace-notebook-preview']),
                 filesNotebookCellDisclosureWorks: Boolean(notebookCellDisclosureChecks['workspace-notebook-preview']),

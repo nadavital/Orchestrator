@@ -38,7 +38,7 @@ type FilePreviewResult =
   | { kind: 'csv'; size: number; text: string; truncated: boolean }
   | { kind: 'notebook'; size: number; text: string; truncated: boolean }
   | { kind: 'document'; size: number; text: string; truncated: boolean }
-  | { kind: 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
+  | { kind: 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'spreadsheet' | 'slides' | 'binary'; size: number; truncated: boolean }
   | { kind: 'missing' | 'unreadable'; size?: number; truncated: false }
 
 interface BrowserAssetRequest {
@@ -71,6 +71,8 @@ const JSON_EXTENSIONS = new Set(['.json', '.jsonl'])
 const CSV_EXTENSIONS = new Set(['.csv', '.tsv'])
 const NOTEBOOK_EXTENSIONS = new Set(['.ipynb'])
 const DOCUMENT_EXTENSIONS = new Set(['.docx'])
+const SPREADSHEET_EXTENSIONS = new Set(['.xlsx', '.xlsm'])
+const SLIDES_EXTENSIONS = new Set(['.pptx'])
 const HTML_EXTENSIONS = new Set(['.html', '.htm'])
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.aiff', '.m4a', '.aac', '.flac', '.ogg'])
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm'])
@@ -111,6 +113,8 @@ function previewFile(filePath: string): FilePreviewResult {
     if (IMAGE_EXTENSIONS.has(extension)) return { kind: 'image', size, truncated: false }
     if (extension === '.pdf') return { kind: 'pdf', size, truncated: false }
     if (DOCUMENT_EXTENSIONS.has(extension)) return previewDocxFile(filePath, size)
+    if (SPREADSHEET_EXTENSIONS.has(extension)) return { kind: 'spreadsheet', size, truncated: false }
+    if (SLIDES_EXTENSIONS.has(extension)) return { kind: 'slides', size, truncated: false }
     if (HTML_EXTENSIONS.has(extension)) return { kind: 'html', size, truncated: false }
     if (AUDIO_EXTENSIONS.has(extension)) return { kind: 'audio', size, truncated: false }
     if (VIDEO_EXTENSIONS.has(extension)) return { kind: 'video', size, truncated: false }
