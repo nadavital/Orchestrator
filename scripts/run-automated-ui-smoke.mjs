@@ -576,7 +576,11 @@ if (fixtureWorkspaceViews.has(captureView)) {
           metadata: {
             codex: {
               title: 'Compute updated value',
-              descriptionMarkdown: '**Smoke description:** computes the updated value.'
+              descriptionMarkdown: '**Smoke description:** computes the updated value.',
+              outputSummaries: [
+                { summaryMarkdown: '**Stream summary:** printed the updated result.' },
+                { summaryMarkdown: '**Result summary:** returned updated JSON.' }
+              ]
             }
           },
           source: ['value = 2\n', 'value'],
@@ -1236,6 +1240,7 @@ child.on('exit', (code) => {
           filesNotebookCellDisclosure: result.filesNotebookCellDisclosureWorks === true,
           filesNotebookExecutionCount: result.filesNotebookExecutionCountWorks === true,
           filesNotebookCellMetadata: result.filesNotebookCellMetadataWorks === true,
+          filesNotebookOutputSummaries: result.filesNotebookOutputSummariesWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,

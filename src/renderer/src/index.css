@@ -4990,6 +4990,21 @@
     margin-top: 6px;
   }
 
+  .notebook-preview-output-summary {
+    margin-bottom: 6px;
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .notebook-preview-output-summary p {
+    margin: 0;
+  }
+
+  .notebook-preview-output-summary p + p {
+    margin-top: 6px;
+  }
+
   .notebook-preview-code-source-disclosure {
     border-top: 1px solid var(--border-subtle);
   }

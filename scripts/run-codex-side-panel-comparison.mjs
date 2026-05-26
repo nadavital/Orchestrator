@@ -259,11 +259,11 @@ function buildContracts() {
       captureIds: ['files', 'review-source'],
       codexAssets: [
         { basename: 'review-file-source-tab-CjS7Xe_W.js', terms: ['Open file', 'Open in editor', 'Copy path', 'Show git blame', 'Enable rich view'] },
-        { basename: 'notebook-preview-panel-CAO-aRhM.js', terms: ['Read only', 'Run all', 'Restart kernel', 'Raw output', 'Notebook output', 'details', 'summary', 'descriptionMarkdown', 'cellTitle'] }
+        { basename: 'notebook-preview-panel-CAO-aRhM.js', terms: ['Read only', 'Run all', 'Restart kernel', 'Raw output', 'Notebook output', 'details', 'summary', 'descriptionMarkdown', 'cellTitle', 'outputSummaries', 'summaryMarkdown'] }
       ],
-      smokeChecks: ['filesContentSearch', 'filesActionMenuSharedSections', 'workbenchFileTabActionMenuSharedSections', 'filesNotebookReadOnlyControls', 'filesNotebookOutputRendering', 'filesNotebookCellDisclosure', 'filesNotebookExecutionCount', 'filesNotebookCellMetadata', 'reviewFullSourceRows', 'reviewFullSourceBlame'],
+      smokeChecks: ['filesContentSearch', 'filesActionMenuSharedSections', 'workbenchFileTabActionMenuSharedSections', 'filesNotebookReadOnlyControls', 'filesNotebookOutputRendering', 'filesNotebookCellDisclosure', 'filesNotebookExecutionCount', 'filesNotebookCellMetadata', 'filesNotebookOutputSummaries', 'reviewFullSourceRows', 'reviewFullSourceBlame'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Local file/source behavior is covered, including read-only notebook artifact controls, basic notebook output rendering, Codex-style notebook cell disclosure shells, notebook execution-count labels, and notebook metadata titles/descriptions. Full artifact renderer parity and provider-backed comments/blame remain incomplete.',
+      caveat: 'Local file/source behavior is covered, including read-only notebook artifact controls, basic notebook output rendering, Codex-style notebook cell disclosure shells, notebook execution-count labels, notebook metadata titles/descriptions, and notebook output summary markdown. Full artifact renderer parity and provider-backed comments/blame remain incomplete.',
       next: 'Prioritize deeper notebook output styling, exact cell spacing, other artifact renderer controls, or provider metadata, not more local tree styling.'
     },
     {

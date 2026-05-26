@@ -10828,6 +10828,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookCellDisclosureChecks = {};
               const notebookExecutionCountChecks = {};
               const notebookCellMetadataChecks = {};
+              const notebookOutputSummaryChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
@@ -10940,6 +10941,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const outputContainer = document.querySelector('[data-testid="notebook-preview-outputs"]');
                     const streamOutput = document.querySelector('[data-notebook-output-type="stream"]');
                     const jsonOutput = document.querySelector('[data-notebook-output-type="json"]');
+                    const outputSummaries = [...document.querySelectorAll('[data-notebook-output-summary="true"]')];
                     const notebookCells = [...document.querySelectorAll('[data-testid="notebook-preview-cell"]')];
                     const firstNotebookCell = notebookCells[0];
                     const codeNotebookCell = notebookCells.find((cell) =>
@@ -10990,6 +10992,14 @@ function runAutomatedFocusedSurfaceSmoke(
                       codeNotebookSourceDisclosure instanceof HTMLDetailsElement &&
                       codeNotebookSourceDisclosure.querySelector('summary')?.textContent?.includes('Code') === true &&
                       codeNotebookSourceDisclosure.textContent?.includes('value = 2') === true;
+                    notebookOutputSummaryChecks[testId] =
+                      outputSummaries.length >= 2 &&
+                      outputSummaries.some((summary) => summary.textContent?.includes('Stream summary')) &&
+                      outputSummaries.some((summary) => summary.textContent?.includes('Result summary')) &&
+                      streamOutput instanceof HTMLElement &&
+                      streamOutput.textContent?.includes('Stream summary') === true &&
+                      jsonOutput instanceof HTMLElement &&
+                      jsonOutput.textContent?.includes('Result summary') === true;
                     notebookOutputRenderingChecks[testId] =
                       outputContainer instanceof HTMLElement &&
                       Number(outputContainer.getAttribute('data-notebook-output-count') ?? '0') >= 2 &&
@@ -11660,6 +11670,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesNotebookCellDisclosureWorks: Boolean(notebookCellDisclosureChecks['workspace-notebook-preview']),
                 filesNotebookExecutionCountWorks: Boolean(notebookExecutionCountChecks['workspace-notebook-preview']),
                 filesNotebookCellMetadataWorks: Boolean(notebookCellMetadataChecks['workspace-notebook-preview']),
+                filesNotebookOutputSummariesWorks: Boolean(notebookOutputSummaryChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks

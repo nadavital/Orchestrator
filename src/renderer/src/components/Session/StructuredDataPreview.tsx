@@ -21,13 +21,13 @@ interface Props {
 }
 
 type NotebookOutput =
-  | { type: 'stream'; name: string; text: string }
-  | { type: 'text'; text: string }
-  | { type: 'markdown'; markdown: string }
-  | { type: 'html'; html: string }
-  | { type: 'json'; text: string }
-  | { type: 'image'; dataUrl: string }
-  | { type: 'error'; name: string; message: string; traceback: string }
+  | { type: 'stream'; name: string; text: string; summaryMarkdown?: string | null }
+  | { type: 'text'; text: string; summaryMarkdown?: string | null }
+  | { type: 'markdown'; markdown: string; summaryMarkdown?: string | null }
+  | { type: 'html'; html: string; summaryMarkdown?: string | null }
+  | { type: 'json'; text: string; summaryMarkdown?: string | null }
+  | { type: 'image'; dataUrl: string; summaryMarkdown?: string | null }
+  | { type: 'error'; name: string; message: string; traceback: string; summaryMarkdown?: string | null }
 
 interface NotebookCell {
   type: string
@@ -294,6 +294,7 @@ function NotebookCellOutput({
   if (output.type === 'json') {
     return (
       <div className="notebook-preview-output" data-notebook-output-type="json">
+        <NotebookOutputSummary summaryMarkdown={output.summaryMarkdown} />
         <pre>{output.text}</pre>
       </div>
     )
@@ -301,6 +302,7 @@ function NotebookCellOutput({
   if (output.type === 'error') {
     return (
       <div className="notebook-preview-output notebook-preview-output-error" data-notebook-output-type="error">
+        <NotebookOutputSummary summaryMarkdown={output.summaryMarkdown} />
         <strong>{output.name}{output.message ? `: ${output.message}` : ''}</strong>
         {output.traceback && <pre>{output.traceback}</pre>}
       </div>
@@ -308,7 +310,22 @@ function NotebookCellOutput({
   }
   return (
     <div className="notebook-preview-output" data-notebook-output-type={output.type}>
+      <NotebookOutputSummary summaryMarkdown={output.summaryMarkdown} />
       <pre>{output.text}</pre>
+    </div>
+  )
+}
+
+function NotebookOutputSummary({ summaryMarkdown }: { summaryMarkdown?: string | null }): JSX.Element | null {
+  const summary = summaryMarkdown?.trim()
+  if (!summary) return null
+  return (
+    <div
+      className="notebook-preview-output-summary"
+      data-testid="notebook-preview-output-summary"
+      data-notebook-output-summary="true"
+    >
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
     </div>
   )
 }
@@ -509,6 +526,7 @@ function parseNotebook(text: string): {
     const cells = Array.isArray(parsed.cells)
       ? parsed.cells.map((cell) => {
         const metadata = normalizeNotebookMetadata(cell)
+        const outputSummaries = normalizeNotebookOutputSummaries(metadata)
         return {
           type: typeof cell.cell_type === 'string' ? cell.cell_type : 'cell',
           source: normalizeNotebookSource(cell.source).trim(),
@@ -521,7 +539,7 @@ function parseNotebook(text: string): {
             'description'
           ]),
           executionCount: normalizeNotebookExecutionCount((cell as { execution_count?: unknown }).execution_count),
-          outputs: normalizeNotebookOutputs(cell.outputs)
+          outputs: normalizeNotebookOutputs(cell.outputs, outputSummaries)
         }
       })
       : []
@@ -580,31 +598,43 @@ function normalizeNotebookMetadataString(metadata: Array<Record<string, unknown>
   return null
 }
 
+function normalizeNotebookOutputSummaries(metadata: Array<Record<string, unknown>>): Array<string | null> {
+  for (const record of metadata) {
+    const outputSummaries = record.outputSummaries
+    if (!Array.isArray(outputSummaries)) continue
+    return outputSummaries.map((summary) => {
+      if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return null
+      return normalizeNotebookMetadataString([summary as Record<string, unknown>], ['summaryMarkdown'])
+    })
+  }
+  return []
+}
+
 function normalizeNotebookSource(source: unknown): string {
   if (Array.isArray(source)) return source.map((part) => String(part)).join('')
   if (typeof source === 'string') return source
   return ''
 }
 
-function normalizeNotebookOutputs(outputs: unknown): NotebookOutput[] {
+function normalizeNotebookOutputs(outputs: unknown, outputSummaries: Array<string | null> = []): NotebookOutput[] {
   if (!Array.isArray(outputs)) return []
-  return outputs.flatMap((output) => normalizeNotebookOutput(output))
+  return outputs.flatMap((output, outputIndex) => normalizeNotebookOutput(output, outputSummaries[outputIndex] ?? null))
 }
 
-function normalizeNotebookOutput(output: unknown): NotebookOutput[] {
+function normalizeNotebookOutput(output: unknown, summaryMarkdown: string | null): NotebookOutput[] {
   if (!output || typeof output !== 'object') return []
   const record = output as Record<string, unknown>
   const outputType = typeof record.output_type === 'string' ? record.output_type : ''
   if (outputType === 'stream') {
     const text = normalizeNotebookOutputText(record.text)
     if (!text) return []
-    return [{ type: 'stream', name: typeof record.name === 'string' ? record.name : 'stdout', text }]
+    return [{ type: 'stream', name: typeof record.name === 'string' ? record.name : 'stdout', text, summaryMarkdown }]
   }
   if (outputType === 'error') {
     const name = typeof record.ename === 'string' ? record.ename : 'Error'
     const message = typeof record.evalue === 'string' ? record.evalue : ''
     const traceback = normalizeNotebookOutputText(record.traceback)
-    return [{ type: 'error', name, message, traceback }]
+    return [{ type: 'error', name, message, traceback, summaryMarkdown }]
   }
   if (outputType === 'display_data' || outputType === 'execute_result') {
     const data = record.data
@@ -617,9 +647,9 @@ function normalizeNotebookOutput(output: unknown): NotebookOutput[] {
     const markdown = normalizeNotebookOutputText(dataRecord['text/markdown'])
     if (markdown.trim()) return [{ type: 'markdown', markdown }]
     const json = dataRecord['application/json'] ?? dataRecord['application/vnd.vega.v5+json']
-    if (json !== undefined) return [{ type: 'json', text: normalizeNotebookJsonOutput(json) }]
+    if (json !== undefined) return [{ type: 'json', text: normalizeNotebookJsonOutput(json), summaryMarkdown }]
     const text = normalizeNotebookOutputText(dataRecord['text/plain'])
-    if (text.trim()) return [{ type: 'text', text }]
+    if (text.trim()) return [{ type: 'text', text, summaryMarkdown }]
   }
   return []
 }
