@@ -14183,9 +14183,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const sidebarWidth = sidebar instanceof HTMLElement ? sidebar.getBoundingClientRect().width : 0;
             const sidebarWidthTokenWorks =
               sidebar instanceof HTMLElement &&
-              sidebarWidthToken.includes('clamp') &&
               sidebarWidth >= 239 &&
-              sidebarWidth <= 301;
+              sidebarWidth <= 241;
             const sidebarOverflowDebug = sidebar instanceof HTMLElement
               ? {
                   sidebarClientWidth: sidebar.clientWidth,

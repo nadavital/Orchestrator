@@ -258,7 +258,7 @@
   }
 
   :root {
-    --orchestrator-sidebar-width: clamp(240px, 300px, min(520px, calc(100vw - 320px)));
+    --orchestrator-sidebar-width: 240px;
   }
 
   :root[data-sidebar-tint='off'] {
