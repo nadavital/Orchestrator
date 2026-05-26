@@ -63,6 +63,8 @@ const report = {
     ok: capture.ok === true,
     flag: capture.flag,
     screenshotPath: capture.screenshotPath ?? null,
+    failureKind: capture.failureKind ?? null,
+    failureSummary: capture.failureSummary ?? null,
     failedChecks: failedChecks(capture.checks)
   }))
 }
@@ -77,7 +79,8 @@ writeFileSync(jsonPath, JSON.stringify(report, null, 2))
 writeFileSync(markdownPath, renderMarkdown(report))
 
 const failedRows = rows.filter((row) => row.status === 'mismatch' || row.status === 'blocked')
-const exitCode = failedRows.length > 0 ? 2 : (smokeRun != null && smokeRun.exitCode !== 0 ? 1 : 0)
+const incompleteRows = rows.filter((row) => row.status === 'needs-smoke' || row.status === 'needs-proof')
+const exitCode = failedRows.length > 0 ? 2 : (incompleteRows.length > 0 || (smokeRun != null && smokeRun.exitCode !== 0) ? 1 : 0)
 
 console.log(JSON.stringify({
   markdownPath,
@@ -87,6 +90,8 @@ console.log(JSON.stringify({
   statusCounts: summary.statusCounts,
   mismatchCount: summary.statusCounts.mismatch ?? 0,
   blockedCount: summary.statusCounts.blocked ?? 0,
+  needsSmokeCount: summary.statusCounts['needs-smoke'] ?? 0,
+  needsProofCount: summary.statusCounts['needs-proof'] ?? 0,
   exitCode,
   noFail
 }, null, 2))
@@ -316,6 +321,7 @@ function inferStatus(contract, codex, source, artifact, file, smoke) {
   if (file.required && file.available && file.passed === false) return 'mismatch'
   if (file.required && !file.available) return 'needs-proof'
   if (!smoke.available) return 'needs-smoke'
+  if (smoke.infrastructureFailed) return 'needs-smoke'
   if (!smoke.passed) return 'mismatch'
   return contract.statusWhenCovered ?? 'fixture-covered'
 }
@@ -493,12 +499,17 @@ function evaluateSmokeEvidence(contract, manifest) {
     available: capture != null,
     ok: capture?.ok === true,
     flag: capture?.flag ?? null,
-    screenshotPath: capture?.screenshotPath ?? null
+    screenshotPath: capture?.screenshotPath ?? null,
+    failureKind: capture?.failureKind ?? null,
+    failureSummary: capture?.failureSummary ?? null
   }))
+  const infrastructureFailures = captureSummaries.filter((capture) => capture.failureKind === 'infrastructure')
   return {
     available: captures.some(Boolean),
+    infrastructureFailed: infrastructureFailures.length > 0,
     passed: captureSummaries.every((capture) => capture.available && capture.ok) && checks.every((check) => check.passed),
     captures: captureSummaries,
+    infrastructureFailures,
     checks
   }
 }
@@ -506,10 +517,17 @@ function evaluateSmokeEvidence(contract, manifest) {
 function summarizeRows(rows, manifest) {
   const statusCounts = {}
   for (const row of rows) statusCounts[row.status] = (statusCounts[row.status] ?? 0) + 1
+  const smokeFailureKinds = {}
+  for (const capture of manifest?.captures ?? []) {
+    if (capture.ok === true) continue
+    const kind = capture.failureKind ?? 'unknown'
+    smokeFailureKinds[kind] = (smokeFailureKinds[kind] ?? 0) + 1
+  }
   return {
     statusCounts,
     smokeCaptures: manifest?.captures?.length ?? 0,
-    smokeFailures: manifest?.failed ?? []
+    smokeFailures: manifest?.failed ?? [],
+    smokeFailureKinds
   }
 }
 
@@ -751,6 +769,7 @@ function renderMarkdown(report) {
   lines.push(`- Smoke manifest: ${report.smokeManifestAvailable ? report.smokeManifestPath : `missing at ${report.smokeManifestPath}`}`)
   lines.push(`- Smoke captures: ${report.summary.smokeCaptures}`)
   lines.push(`- Smoke failures: ${report.summary.smokeFailures.length === 0 ? 'none' : report.summary.smokeFailures.join(', ')}`)
+  lines.push(`- Smoke failure kinds: ${formatStatusCounts(report.summary.smokeFailureKinds)}`)
   lines.push(`- Status counts: ${Object.entries(report.summary.statusCounts).map(([key, value]) => `${key}=${value}`).join(', ')}`)
   lines.push(`- Header/panel contact sheet: ${relative(root, report.artifacts.headerPanelContactSheetPath)}`)
   lines.push('')
@@ -772,8 +791,8 @@ function renderMarkdown(report) {
   lines.push('')
   lines.push('## Smoke Captures')
   lines.push('')
-  lines.push('| Capture | Surface | Result | Screenshot | Failed Checks |')
-  lines.push('| --- | --- | --- | --- | --- |')
+  lines.push('| Capture | Surface | Result | Screenshot | Failure | Failed Checks |')
+  lines.push('| --- | --- | --- | --- | --- | --- |')
   for (const capture of report.captures) {
     const screenshot = capture.screenshotPath ? relative(root, capture.screenshotPath) : ''
     lines.push([
@@ -781,6 +800,7 @@ function renderMarkdown(report) {
       `${capture.surface} (${capture.state})`,
       capture.ok ? 'ok' : 'failed',
       screenshot,
+      [capture.failureKind, capture.failureSummary].filter(Boolean).join(': '),
       capture.failedChecks.length === 0 ? '' : capture.failedChecks.join(', ')
     ].map(markdownCell).join(' | ').replace(/^/, '| ').replace(/$/, ' |'))
   }
@@ -832,8 +852,20 @@ function formatAge(hours) {
 function summarizeSmoke(smoke) {
   if (!smoke.available) return 'missing'
   const captures = smoke.captures.map((capture) => `${capture.id}:${capture.ok ? 'ok' : 'fail'}`).join(', ')
+  if (smoke.infrastructureFailed) {
+    const failures = smoke.infrastructureFailures.map((capture) =>
+      `${capture.id}${capture.failureSummary ? ` (${capture.failureSummary})` : ''}`
+    )
+    return `${captures}; smoke infrastructure failed: ${failures.join(', ')}`
+  }
   const failed = smoke.checks.filter((check) => !check.passed).map((check) => check.key)
   return failed.length === 0 ? captures : `${captures}; failed checks: ${failed.join(', ')}`
+}
+
+function formatStatusCounts(counts) {
+  const entries = Object.entries(counts ?? {})
+  if (entries.length === 0) return 'none'
+  return entries.map(([key, value]) => `${key}=${value}`).join(', ')
 }
 
 function markdownCell(value) {

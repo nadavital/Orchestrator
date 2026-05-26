@@ -14,6 +14,7 @@ This file is the current comparison ledger for the side-panel parity goal. It se
   `npm run compare:codex-side-panels -- --no-fail`
 - The generated report is written to `tmp/codex-side-panel-comparison/comparison-report.md` and `tmp/codex-side-panel-comparison/comparison-report.json`.
 - The same run also writes `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html`, which groups the live Codex screenshot with Orchestrator's sidebar, transcript/header, Workbench right-panel, and Terminal bottom-panel captures for direct header/panel relationship review.
+- If the smoke runner cannot start the Electron/Vite server, for example `listen EPERM 127.0.0.1`, the comparison classifies affected rows as `needs-smoke` instead of `mismatch`. Without `--no-fail`, `needs-smoke` exits nonzero so automation can tell the report is incomplete. Treat that as harness evidence to rerun with the approved localhost-capable command path, not as product parity evidence.
 
 Scope note: "side panel" in the comparison matrix means the right-side Workbench panel unless a row explicitly says Bottom panel, Left sidebar, or Settings.
 
@@ -99,6 +100,7 @@ What it does correctly:
 - The 23-surface visual inventory is a useful regression net for broad UI drift.
 - Focused flags such as `--diff-core`, `--browser`, `--terminal`, `--settings`, and `--sidebar` keep most failures localized.
 - Recent timeout stabilization made the full inventory reliable enough to run after parity slices.
+- Smoke infrastructure failures are now separated from product mismatches: startup failures without screenshots/check payloads become `needs-smoke`, while completed smoke assertions can still produce `mismatch`.
 
 Where it has been holding progress back:
 

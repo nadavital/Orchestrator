@@ -65,6 +65,8 @@ for (const view of views) {
     ...view,
     ok: result.status === 0 && screenshotSize > 0,
     exitCode: result.status,
+    failureKind: classifyFailure(result, parsed, outputPayload, screenshotSize),
+    failureSummary: summarizeFailure(result, parsed, outputPayload, screenshotSize),
     startedAt,
     completedAt: new Date().toISOString(),
     outputPath: parsed?.outputPath ?? null,
@@ -123,4 +125,37 @@ function readJsonFile(path) {
   } catch {
     return null
   }
+}
+
+function classifyFailure(result, parsed, outputPayload, screenshotSize) {
+  if (result.status === 0 && screenshotSize > 0) return null
+  const combinedOutput = `${result.stdout}\n${result.stderr}`
+  if (
+    combinedOutput.includes('listen EPERM') ||
+    combinedOutput.includes('EADDRINUSE') ||
+    combinedOutput.includes('error during start dev server and electron app')
+  ) {
+    return 'infrastructure'
+  }
+  if (parsed?.checks || outputPayload?.checks) return 'assertion'
+  if (!parsed && !outputPayload) return 'infrastructure'
+  return 'unknown'
+}
+
+function summarizeFailure(result, parsed, outputPayload, screenshotSize) {
+  if (result.status === 0 && screenshotSize > 0) return null
+  const combinedOutput = `${result.stdout}\n${result.stderr}`
+  const interestingLine = combinedOutput
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) =>
+      line.includes('listen EPERM') ||
+      line.includes('EADDRINUSE') ||
+      line.includes('error during start dev server and electron app') ||
+      line.includes('Automated UI smoke did not produce an output file')
+    )
+  if (interestingLine) return interestingLine
+  if (parsed?.checks || outputPayload?.checks) return 'Smoke completed with failing assertions.'
+  if (result.status !== 0) return `Smoke exited with code ${result.status}.`
+  return 'Smoke did not produce a screenshot.'
 }
