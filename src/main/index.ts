@@ -10896,6 +10896,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookExecutionCountChecks = {};
               const notebookCellMetadataChecks = {};
               const notebookOutputSummaryChecks = {};
+              const pdfPresentationModeChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
@@ -11217,11 +11218,81 @@ function runAutomatedFocusedSurfaceSmoke(
                       invertedFrame.src.includes('#page=2&zoom=125') &&
                       invertedFilter !== '' &&
                       invertedFilter !== 'none';
+                    const presentationButton = document.querySelector('[data-testid="workspace-pdf-preview-presentation"]');
+                    if (presentationButton instanceof HTMLButtonElement) {
+                      presentationButton.click();
+                      await sleep(200);
+                    }
+                    const presentation = document.querySelector('[data-testid="artifact-pdf-presentation"]');
+                    const presentationControls = document.querySelector('[data-testid="artifact-pdf-presentation-controls"]');
+                    const presentationIndicator = document.querySelector('[data-testid="artifact-pdf-presentation-page-indicator"]');
+                    const presentationPrevious = document.querySelector('[data-testid="artifact-pdf-presentation-previous"]');
+                    const presentationNext = document.querySelector('[data-testid="artifact-pdf-presentation-next"]');
+                    const presentationFrame = document.querySelector('[data-testid="artifact-pdf-presentation-frame"]');
+                    const presentationOpened =
+                      presentation instanceof HTMLElement &&
+                      presentation.getAttribute('data-pdf-presentation-current-page') === '2' &&
+                      presentation.getAttribute('data-pdf-presentation-page-count') === '2' &&
+                      presentation.getAttribute('data-pdf-presentation-invert-colors') === 'true' &&
+                      presentationControls instanceof HTMLElement &&
+                      presentationIndicator instanceof HTMLElement &&
+                      presentationIndicator.textContent?.trim() === '2/2' &&
+                      presentationPrevious instanceof HTMLButtonElement &&
+                      !presentationPrevious.disabled &&
+                      presentationNext instanceof HTMLButtonElement &&
+                      presentationNext.disabled &&
+                      presentationFrame instanceof HTMLIFrameElement &&
+                      presentationFrame.getAttribute('data-pdf-invert-colors') === 'true' &&
+                      presentationFrame.src.includes('#page=2&zoom=125');
+                    if (presentationPrevious instanceof HTMLButtonElement) {
+                      presentationPrevious.click();
+                      await sleep(160);
+                    }
+                    const previousPresentation = document.querySelector('[data-testid="artifact-pdf-presentation"]');
+                    const previousPresentationIndicator = document.querySelector('[data-testid="artifact-pdf-presentation-page-indicator"]');
+                    const previousPresentationFrame = document.querySelector('[data-testid="artifact-pdf-presentation-frame"]');
+                    const presentationPreviousWorks =
+                      previousPresentation instanceof HTMLElement &&
+                      previousPresentation.getAttribute('data-pdf-presentation-current-page') === '1' &&
+                      previousPresentationIndicator instanceof HTMLElement &&
+                      previousPresentationIndicator.textContent?.trim() === '1/2' &&
+                      previousPresentationFrame instanceof HTMLIFrameElement &&
+                      previousPresentationFrame.src.includes('#page=1&zoom=125');
+                    const activePresentation = document.querySelector('[data-testid="artifact-pdf-presentation"]');
+                    if (activePresentation instanceof HTMLElement) {
+                      activePresentation.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+                      await sleep(160);
+                    }
+                    const nextPresentation = document.querySelector('[data-testid="artifact-pdf-presentation"]');
+                    const nextPresentationIndicator = document.querySelector('[data-testid="artifact-pdf-presentation-page-indicator"]');
+                    const presentationKeyboardWorks =
+                      nextPresentation instanceof HTMLElement &&
+                      nextPresentation.getAttribute('data-pdf-presentation-current-page') === '2' &&
+                      nextPresentationIndicator instanceof HTMLElement &&
+                      nextPresentationIndicator.textContent?.trim() === '2/2';
+                    const presentationExit = document.querySelector('[data-testid="artifact-pdf-presentation-exit"]');
+                    if (presentationExit instanceof HTMLButtonElement) {
+                      presentationExit.click();
+                      await sleep(200);
+                    }
+                    const exitedPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const exitedFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const presentationExitWorks =
+                      !(document.querySelector('[data-testid="artifact-pdf-presentation"]') instanceof HTMLElement) &&
+                      exitedPreview instanceof HTMLElement &&
+                      exitedPreview.getAttribute('data-pdf-preview-presentation-mode') === 'false' &&
+                      exitedFrame instanceof HTMLIFrameElement &&
+                      exitedFrame.src.includes('#page=2&zoom=125');
                     pdfPreviewControlChecks[testId] =
                       initialPdfControls &&
                       pageNavigationWorks &&
                       zoomControlsWork &&
                       invertControlsWork;
+                    pdfPresentationModeChecks[testId] =
+                      presentationOpened &&
+                      presentationPreviousWorks &&
+                      presentationKeyboardWorks &&
+                      presentationExitWorks;
                   }
                 }
               }
@@ -11893,6 +11964,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewArtifactTabChecks['workspace-slides-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
                 filesPdfPreviewControlsWorks: Boolean(pdfPreviewControlChecks['workspace-pdf-preview']),
+                filesPdfPresentationModeWorks: Boolean(pdfPresentationModeChecks['workspace-pdf-preview']),
                 filesSpreadsheetSlidesArtifactBoundaryWorks:
                   Boolean(previewChecks.filesSpreadsheetPreviewWorks) &&
                   Boolean(previewChecks.filesSlidesPreviewWorks) &&

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { FilePreviewResult } from '../../env'
@@ -959,6 +959,7 @@ function PdfPreview({
   const [currentPage, setCurrentPage] = useState(1)
   const [zoomPercent, setZoomPercent] = useState(100)
   const [invertColors, setInvertColors] = useState(false)
+  const [presentationMode, setPresentationMode] = useState(false)
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount))
   }, [pageCount])
@@ -983,104 +984,254 @@ function PdfPreview({
       data-pdf-preview-current-page={currentPage}
       data-pdf-preview-zoom-percent={zoomPercent}
       data-pdf-preview-invert-colors={invertColors ? 'true' : 'false'}
+      data-pdf-preview-presentation-mode={presentationMode ? 'true' : 'false'}
     >
-      <ArtifactPreviewHeader
-        artifactType="PDF"
-        centerContent={(
-          <span
-            className="file-preview-page-controls"
-            data-testid="workspace-pdf-preview-page-controls"
-            data-pdf-current-page={currentPage}
-            data-pdf-page-count={pageCount}
-          >
-            <IconButton
-              icon="arrowLeft"
-              label="Previous page"
-              size="sm"
-              variant="toolbar"
-              disabled={currentPage <= 1}
-              dataTestId="workspace-pdf-preview-page-previous"
-              onClick={goToPreviousPage}
-            />
-            <span className="file-preview-page-indicator" data-testid="workspace-pdf-preview-page-indicator">
-              {currentPage}/{pageCount}
-            </span>
-            <IconButton
-              icon="arrowRight"
-              label="Next page"
-              size="sm"
-              variant="toolbar"
-              disabled={currentPage >= pageCount}
-              dataTestId="workspace-pdf-preview-page-next"
-              onClick={goToNextPage}
-            />
-          </span>
-        )}
-        rightContent={(
-          <span
-            className="file-preview-header-actions"
-            data-testid="workspace-pdf-preview-actions"
-            data-preview-controls="copy-path pdf-page-navigation pdf-zoom pdf-invert-colors open-file reveal-file"
-          >
-            <IconButton
-              active={invertColors}
-              icon="contrast"
-              label={invertColors ? 'Show original colors' : 'Invert colors'}
-              size="sm"
-              variant="toolbar"
-              dataTestId="workspace-pdf-preview-invert-colors"
-              onClick={() => { setInvertColors((value) => !value) }}
-            />
-            <span
-              className="file-preview-zoom-controls"
-              data-testid="workspace-pdf-preview-zoom-controls"
-              data-pdf-zoom-percent={zoomPercent}
-            >
-              <IconButton
-                icon="zoomOut"
-                label="Zoom out"
-                size="sm"
-                variant="toolbar"
-                disabled={zoomPercent <= 50}
-                dataTestId="workspace-pdf-preview-zoom-out"
-                onClick={zoomOut}
-              />
-              <span className="file-preview-zoom-indicator" data-testid="workspace-pdf-preview-zoom-indicator">
-                {zoomPercent}%
+      {presentationMode ? (
+        <PdfPresentationMode
+          absolutePath={absolutePath}
+          currentPage={currentPage}
+          invertColors={invertColors}
+          pageCount={pageCount}
+          title={title}
+          zoomPercent={zoomPercent}
+          onClose={() => { setPresentationMode(false) }}
+          onPageChange={setCurrentPage}
+        />
+      ) : (
+        <>
+          <ArtifactPreviewHeader
+            artifactType="PDF"
+            centerContent={(
+              <span
+                className="file-preview-page-controls"
+                data-testid="workspace-pdf-preview-page-controls"
+                data-pdf-current-page={currentPage}
+                data-pdf-page-count={pageCount}
+              >
+                <IconButton
+                  icon="arrowLeft"
+                  label="Previous page"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={currentPage <= 1}
+                  dataTestId="workspace-pdf-preview-page-previous"
+                  onClick={goToPreviousPage}
+                />
+                <span className="file-preview-page-indicator" data-testid="workspace-pdf-preview-page-indicator">
+                  {currentPage}/{pageCount}
+                </span>
+                <IconButton
+                  icon="arrowRight"
+                  label="Next page"
+                  size="sm"
+                  variant="toolbar"
+                  disabled={currentPage >= pageCount}
+                  dataTestId="workspace-pdf-preview-page-next"
+                  onClick={goToNextPage}
+                />
               </span>
-              <IconButton
-                icon="zoomIn"
-                label="Zoom in"
-                size="sm"
-                variant="toolbar"
-                disabled={zoomPercent >= 200}
-                dataTestId="workspace-pdf-preview-zoom-in"
-                onClick={zoomIn}
-              />
-            </span>
-            {artifactPreviewActions(entry, absolutePath, preview).map((action) => (
-              <IconButton
-                key={action.id}
-                icon={action.icon}
-                label={action.label}
-                size="sm"
-                variant="toolbar"
-                dataTestId={`workspace-pdf-preview-action-${action.id}`}
-                onClick={action.onClick}
-              />
-            ))}
-          </span>
-        )}
-        testId="workspace-pdf-preview"
-        title={title}
-      />
-      <iframe
-        title={entry.name}
-        src={pdfPreviewUrl(absolutePath, currentPage, zoomPercent)}
-        className={`min-h-0 flex-1 border-0 ${invertColors ? 'workspace-pdf-preview-frame-inverted' : ''}`}
-        data-testid="workspace-pdf-preview-frame"
-        data-pdf-invert-colors={invertColors ? 'true' : 'false'}
-      />
+            )}
+            rightContent={(
+              <span
+                className="file-preview-header-actions"
+                data-testid="workspace-pdf-preview-actions"
+                data-preview-controls="copy-path pdf-page-navigation pdf-zoom pdf-invert-colors pdf-presentation open-file reveal-file"
+              >
+                <IconButton
+                  active={invertColors}
+                  icon="contrast"
+                  label={invertColors ? 'Show original colors' : 'Invert colors'}
+                  size="sm"
+                  variant="toolbar"
+                  dataTestId="workspace-pdf-preview-invert-colors"
+                  onClick={() => { setInvertColors((value) => !value) }}
+                />
+                <span
+                  className="file-preview-zoom-controls"
+                  data-testid="workspace-pdf-preview-zoom-controls"
+                  data-pdf-zoom-percent={zoomPercent}
+                >
+                  <IconButton
+                    icon="zoomOut"
+                    label="Zoom out"
+                    size="sm"
+                    variant="toolbar"
+                    disabled={zoomPercent <= 50}
+                    dataTestId="workspace-pdf-preview-zoom-out"
+                    onClick={zoomOut}
+                  />
+                  <span className="file-preview-zoom-indicator" data-testid="workspace-pdf-preview-zoom-indicator">
+                    {zoomPercent}%
+                  </span>
+                  <IconButton
+                    icon="zoomIn"
+                    label="Zoom in"
+                    size="sm"
+                    variant="toolbar"
+                    disabled={zoomPercent >= 200}
+                    dataTestId="workspace-pdf-preview-zoom-in"
+                    onClick={zoomIn}
+                  />
+                </span>
+                <IconButton
+                  icon="maximize"
+                  label="Present"
+                  size="sm"
+                  variant="toolbar"
+                  dataTestId="workspace-pdf-preview-presentation"
+                  onClick={() => { setPresentationMode(true) }}
+                />
+                {artifactPreviewActions(entry, absolutePath, preview).map((action) => (
+                  <IconButton
+                    key={action.id}
+                    icon={action.icon}
+                    label={action.label}
+                    size="sm"
+                    variant="toolbar"
+                    dataTestId={`workspace-pdf-preview-action-${action.id}`}
+                    onClick={action.onClick}
+                  />
+                ))}
+              </span>
+            )}
+            testId="workspace-pdf-preview"
+            title={title}
+          />
+          <iframe
+            title={entry.name}
+            src={pdfPreviewUrl(absolutePath, currentPage, zoomPercent)}
+            className={`min-h-0 flex-1 border-0 ${invertColors ? 'workspace-pdf-preview-frame-inverted' : ''}`}
+            data-testid="workspace-pdf-preview-frame"
+            data-pdf-invert-colors={invertColors ? 'true' : 'false'}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+function PdfPresentationMode({
+  absolutePath,
+  currentPage,
+  invertColors,
+  pageCount,
+  title,
+  zoomPercent,
+  onClose,
+  onPageChange
+}: {
+  absolutePath: string
+  currentPage: number
+  invertColors: boolean
+  pageCount: number
+  title: string
+  zoomPercent: number
+  onClose: () => void
+  onPageChange: (page: number) => void
+}): JSX.Element {
+  const presentationRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    presentationRef.current?.focus()
+  }, [])
+  const goToPreviousPage = (): void => {
+    onPageChange(Math.max(1, currentPage - 1))
+  }
+  const goToNextPage = (): void => {
+    onPageChange(Math.min(pageCount, currentPage + 1))
+  }
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onClose()
+      return
+    }
+    if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+      event.preventDefault()
+      goToPreviousPage()
+      return
+    }
+    if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') {
+      event.preventDefault()
+      goToNextPage()
+      return
+    }
+    if (event.key === 'Home') {
+      event.preventDefault()
+      onPageChange(1)
+      return
+    }
+    if (event.key === 'End') {
+      event.preventDefault()
+      onPageChange(pageCount)
+    }
+  }
+  const handleClick = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    if (event.defaultPrevented) return
+    if (event.target instanceof Element && event.target.closest('button,a,input,select,textarea,[role="button"]')) return
+    const bounds = event.currentTarget.getBoundingClientRect()
+    if (event.clientX < bounds.left + bounds.width / 2) {
+      goToPreviousPage()
+    } else {
+      goToNextPage()
+    }
+  }
+  return (
+    <div
+      ref={presentationRef}
+      aria-label={title}
+      className="workspace-pdf-presentation-mode"
+      data-testid="artifact-pdf-presentation"
+      data-pdf-presentation-current-page={currentPage}
+      data-pdf-presentation-page-count={pageCount}
+      data-pdf-presentation-invert-colors={invertColors ? 'true' : 'false'}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      tabIndex={-1}
+    >
+      <div className="workspace-pdf-presentation-page">
+        <iframe
+          title={`${title} presentation`}
+          src={pdfPreviewUrl(absolutePath, currentPage, zoomPercent)}
+          className={`workspace-pdf-presentation-frame ${invertColors ? 'workspace-pdf-preview-frame-inverted' : ''}`}
+          data-testid="artifact-pdf-presentation-frame"
+          data-pdf-invert-colors={invertColors ? 'true' : 'false'}
+        />
+      </div>
+      <div className="workspace-pdf-presentation-controls" data-testid="artifact-pdf-presentation-controls">
+        <IconButton
+          icon="arrowLeft"
+          label="Previous page"
+          size="sm"
+          variant="toolbar"
+          className="workspace-pdf-presentation-button"
+          disabled={currentPage <= 1}
+          dataTestId="artifact-pdf-presentation-previous"
+          onClick={goToPreviousPage}
+        />
+        <span className="workspace-pdf-presentation-page-indicator" data-testid="artifact-pdf-presentation-page-indicator">
+          {currentPage}/{pageCount}
+        </span>
+        <IconButton
+          icon="arrowRight"
+          label="Next page"
+          size="sm"
+          variant="toolbar"
+          className="workspace-pdf-presentation-button"
+          disabled={currentPage >= pageCount}
+          dataTestId="artifact-pdf-presentation-next"
+          onClick={goToNextPage}
+        />
+        <span className="workspace-pdf-presentation-separator" aria-hidden="true" />
+        <Button
+          variant="ghost"
+          className="workspace-pdf-presentation-exit"
+          dataTestId="artifact-pdf-presentation-exit"
+          onClick={onClose}
+        >
+          <Icon name="minimize" size={13} />
+          Exit
+        </Button>
+      </div>
     </div>
   )
 }

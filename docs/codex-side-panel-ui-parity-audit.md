@@ -6730,7 +6730,7 @@ Implemented: Orchestrator PDF previews now parse a lightweight page count from l
 
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, `git diff --check`, and `npm run build` passed before full comparison. Focused `npm run smoke:ui:auto -- --files` passed with `filesPdfPreviewControls=true`, `filesArtifactHeaderTitleType=true`, and the existing Files artifact checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779811770352.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779811770352.png`. Refreshed visual inventory passed with 25 captures and manifest created at `2026-05-26T16:15:42.776Z`; the comparison report passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, and `needsProof=0`, created at `2026-05-26T16:16:48.727Z`.
 
-Remaining: this closes local PDF page/zoom/invert control parity at the header/control layer. It does not implement Codex's PDF canvas renderer, annotation mode, presentation mode, download handling, or provider-backed PDF comments/metadata.
+Remaining: this closes local PDF page/zoom/invert control parity at the header/control layer. It does not implement Codex's PDF canvas renderer, annotation mode, download handling, or provider-backed PDF comments/metadata.
 
 ### 2026-05-26 - Live Codex Screenshot Nonblank Gate
 
@@ -6781,6 +6781,16 @@ Implemented: moved the shared panel tab close affordance to the start edge, gave
 Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, `git diff --check`, and `npm run build` passed. The first focused right-panel smoke hit the expected sandbox `listen EPERM 127.0.0.1`; the escalated rerun passed with `workbenchPanelTabCloseStartEdge=true` plus existing shared shell, context-menu, resize, close, drag, focus routing, Browser command, and unsupported-transfer checks. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779815710407.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779815710408.png`. `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed after regenerating 25 captures with no smoke failures; latest manifest created at `2026-05-26T17:19:21.442Z`, and the comparison report passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, and `needsProof=0`, created at `2026-05-26T17:19:21.720Z`.
 
 Remaining: this closes the concrete right-edge close affordance drift for shared Workbench tabs. Cross-panel move/receive semantics, exact live Codex tab spacing, and right-panel animation timing remain open.
+
+### 2026-05-26 - PDF Presentation Mode
+
+Codex evidence: `tmp/codex-app-assets/pdf-preview-panel-CkrOHSbs.js` contains a Codex PDF presentation surface named `artifact-pdf-presentation`, preserves page/invert state, supports page navigation via previous/next controls and keyboard/click gestures, and exposes the localized `artifactTab.preview.exitPresentation` Exit control.
+
+Implemented: Orchestrator PDF previews now expose a compact `Present` toolbar control in the shared artifact header. Opening it swaps the preview into a Codex-named `artifact-pdf-presentation` surface with a black presentation background, centered PDF frame, floating previous/current-next/Exit controls, click-left/right navigation, Arrow/Page/Home/End/Escape keyboard handling, and preserved current page, zoom, and invert-color state. Focused Files smoke now gates this separately with `filesPdfPresentationMode=true`, and the side-panel comparison row checks the Codex presentation bundle terms plus that smoke flag.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, `git diff --check`, and `npm run build` passed. Focused `npm run smoke:ui:auto -- --files` first hit the expected sandbox `listen EPERM 127.0.0.1`; the escalated reruns passed with `filesPdfPresentationMode=true`, `filesPdfPreviewControls=true`, and the existing Files artifact checks. Latest evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779817150443.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779817150443.png`. Refreshed full visual inventory passed with 25 captures and manifest created at `2026-05-26T17:37:32.737Z`; the comparison report passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, and `needsProof=0`, created at `2026-05-26T17:37:43.482Z`.
+
+Remaining: this closes Codex-named PDF presentation mode at the local file-preview control/state layer. It does not implement Codex's PDF canvas renderer, annotation/comment layer, download handling, or provider-backed PDF metadata.
 
 Recommended order:
 
