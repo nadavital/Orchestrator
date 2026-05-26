@@ -11121,6 +11121,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const zoomedControls = document.querySelector('[data-testid="workspace-pdf-preview-zoom-controls"]');
                     const zoomedIndicator = document.querySelector('[data-testid="workspace-pdf-preview-zoom-indicator"]');
                     const zoomedFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const invertButton = document.querySelector('[data-testid="workspace-pdf-preview-invert-colors"]');
                     const zoomControlsWork =
                       zoomedPreview instanceof HTMLElement &&
                       zoomedPreview.getAttribute('data-pdf-preview-current-page') === '2' &&
@@ -11131,10 +11132,31 @@ function runAutomatedFocusedSurfaceSmoke(
                       zoomedIndicator.textContent?.trim() === '125%' &&
                       zoomedFrame instanceof HTMLIFrameElement &&
                       zoomedFrame.src.includes('#page=2&zoom=125');
+                    if (invertButton instanceof HTMLButtonElement) {
+                      invertButton.click();
+                      await sleep(160);
+                    }
+                    const invertedPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const invertedButton = document.querySelector('[data-testid="workspace-pdf-preview-invert-colors"]');
+                    const invertedFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const invertedFilter = invertedFrame instanceof HTMLElement
+                      ? window.getComputedStyle(invertedFrame).filter
+                      : '';
+                    const invertControlsWork =
+                      invertedPreview instanceof HTMLElement &&
+                      invertedPreview.getAttribute('data-pdf-preview-invert-colors') === 'true' &&
+                      invertedButton instanceof HTMLButtonElement &&
+                      invertedButton.getAttribute('data-active') === 'true' &&
+                      invertedFrame instanceof HTMLIFrameElement &&
+                      invertedFrame.getAttribute('data-pdf-invert-colors') === 'true' &&
+                      invertedFrame.src.includes('#page=2&zoom=125') &&
+                      invertedFilter !== '' &&
+                      invertedFilter !== 'none';
                     pdfPreviewControlChecks[testId] =
                       initialPdfControls &&
                       pageNavigationWorks &&
-                      zoomControlsWork;
+                      zoomControlsWork &&
+                      invertControlsWork;
                   }
                 }
               }

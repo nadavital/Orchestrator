@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Clock3,
   Code2,
+  Contrast,
   Copy,
   CircleDot,
   Ellipsis,
@@ -79,6 +80,7 @@ export type IconName =
   | 'chevronRight'
   | 'clock'
   | 'code'
+  | 'contrast'
   | 'copy'
   | 'close'
   | 'dot'
@@ -140,6 +142,7 @@ const icons: Record<IconName, LucideIcon> = {
   chevronRight: ChevronRight,
   clock: Clock3,
   code: Code2,
+  contrast: Contrast,
   copy: Copy,
   close: X,
   dot: CircleDot,

@@ -958,6 +958,7 @@ function PdfPreview({
   const pageCount = Math.max(1, Math.floor(preview.pageCount ?? 1))
   const [currentPage, setCurrentPage] = useState(1)
   const [zoomPercent, setZoomPercent] = useState(100)
+  const [invertColors, setInvertColors] = useState(false)
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount))
   }, [pageCount])
@@ -981,6 +982,7 @@ function PdfPreview({
       data-pdf-preview-page-count={pageCount}
       data-pdf-preview-current-page={currentPage}
       data-pdf-preview-zoom-percent={zoomPercent}
+      data-pdf-preview-invert-colors={invertColors ? 'true' : 'false'}
     >
       <ArtifactPreviewHeader
         artifactType="PDF"
@@ -1018,8 +1020,17 @@ function PdfPreview({
           <span
             className="file-preview-header-actions"
             data-testid="workspace-pdf-preview-actions"
-            data-preview-controls="copy-path pdf-page-navigation pdf-zoom open-file reveal-file"
+            data-preview-controls="copy-path pdf-page-navigation pdf-zoom pdf-invert-colors open-file reveal-file"
           >
+            <IconButton
+              active={invertColors}
+              icon="contrast"
+              label={invertColors ? 'Show original colors' : 'Invert colors'}
+              size="sm"
+              variant="toolbar"
+              dataTestId="workspace-pdf-preview-invert-colors"
+              onClick={() => { setInvertColors((value) => !value) }}
+            />
             <span
               className="file-preview-zoom-controls"
               data-testid="workspace-pdf-preview-zoom-controls"
@@ -1066,8 +1077,9 @@ function PdfPreview({
       <iframe
         title={entry.name}
         src={pdfPreviewUrl(absolutePath, currentPage, zoomPercent)}
-        className="min-h-0 flex-1 border-0"
+        className={`min-h-0 flex-1 border-0 ${invertColors ? 'workspace-pdf-preview-frame-inverted' : ''}`}
         data-testid="workspace-pdf-preview-frame"
+        data-pdf-invert-colors={invertColors ? 'true' : 'false'}
       />
     </div>
   )

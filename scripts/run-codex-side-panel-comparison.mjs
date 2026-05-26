@@ -263,12 +263,13 @@ function buildContracts() {
         { basename: 'docx-preview-panel-BjyRJuYA.js', terms: ['artifactType:`DOC`', 'title:P', 'replace(/\\.docx$/i'] },
         { basename: 'pdf-preview-panel-CkrOHSbs.js', terms: ['artifactType:`PDF`', 'title:ht', 'replace(/\\.pdf$/i'] },
         { basename: 'artifact-preview-status-D5kFRFQE.js', terms: ['artifactTab.preview.previousPage', 'artifactTab.preview.nextPage', 'artifactTab.preview.zoomPercent'] },
+        { basename: 'pdf-preview-panel-CkrOHSbs.js', terms: ['artifactPdfPreview.invertColors', 'artifactPdfPreview.originalColors'] },
         { basename: 'artifact-tab-file-kind-fsu6JKhI.js', terms: ['xlsm`,`xlsx', 'pptx`,`pptx', 'artifactType:`spreadsheet`', 'artifactType:`slides`'] },
         { basename: 'artifact-tab-content.electron-DayvYBGS.js', terms: ['ExtractXlsxProto', 'ExtractSlidesProto', 'PopcornElectronWorkbookPanel', 'PopcornElectronPresentationPanel'] }
       ],
       smokeChecks: ['filesContentSearch', 'filesActionMenuSharedSections', 'workbenchFileTabActionMenuSharedSections', 'filesArtifactHeaderTitleType', 'filesPdfPreviewControls', 'filesSpreadsheetSlidesArtifactBoundary', 'filesNotebookReadOnlyControls', 'filesNotebookOutputRendering', 'filesNotebookCellDisclosure', 'filesNotebookExecutionCount', 'filesNotebookCellMetadata', 'filesNotebookOutputSummaries', 'reviewFullSourceRows', 'reviewFullSourceBlame'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Local file/source behavior is covered, including Codex-style artifact header title/type splitting for PDF/DOCX/IPYNB/XLSX/PPTX previews, local PDF page/zoom controls, an explicit spreadsheet/slides artifact boundary with file actions instead of generic binary fallback, read-only notebook artifact controls, basic notebook output rendering, Codex-style notebook cell disclosure shells, notebook execution-count labels, notebook metadata titles/descriptions, and notebook output summary markdown. Full XLSX/PPTX/PDF/DOCX artifact renderer parity, PDF canvas/annotation/invert rendering, and provider-backed comments/blame remain incomplete.',
+      caveat: 'Local file/source behavior is covered, including Codex-style artifact header title/type splitting for PDF/DOCX/IPYNB/XLSX/PPTX previews, local PDF page/zoom/invert-color controls, an explicit spreadsheet/slides artifact boundary with file actions instead of generic binary fallback, read-only notebook artifact controls, basic notebook output rendering, Codex-style notebook cell disclosure shells, notebook execution-count labels, notebook metadata titles/descriptions, and notebook output summary markdown. Full XLSX/PPTX/PDF/DOCX artifact renderer parity, PDF canvas/annotation rendering, and provider-backed comments/blame remain incomplete.',
       next: 'Prioritize real artifact renderer controls/rendering, deeper notebook output styling, exact cell spacing, or provider metadata, not more local tree styling.'
     },
     {

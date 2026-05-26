@@ -4544,6 +4544,10 @@
     min-width: 42px;
   }
 
+  .workspace-pdf-preview-frame-inverted {
+    filter: invert(1) hue-rotate(180deg);
+  }
+
   .notebook-preview-readonly-controls {
     display: inline-flex;
     min-width: 0;
