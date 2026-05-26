@@ -271,8 +271,15 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
   assert.equal(writes[writes.length - 1].id, 'dynamic-tool-1')
   assert.deepEqual(writes[writes.length - 1].error, {
     code: -32601,
-    message: 'Orchestrator does not provide client-side dynamic tools yet.'
+    message: 'Client tool unavailable: unsupported_tool. Orchestrator does not provide client-side dynamic tools for this runtime yet.'
   })
+  assert.equal(
+    events.some((event) =>
+      event.type === 'assistant.status' &&
+      event.content === 'Client tool unavailable: unsupported_tool. Orchestrator does not provide client-side dynamic tools for this runtime yet.'
+    ),
+    true
+  )
 
   proc.emitStdout({ jsonrpc: '2.0', method: 'item/agentMessage/delta', params: { threadId: 'thread-1', turnId: 'turn-1', itemId: 'msg-1', delta: 'hi' } })
   proc.emitStdout({ jsonrpc: '2.0', method: 'item/completed', params: { threadId: 'thread-1', turnId: 'turn-1', item: { type: 'agentMessage', id: 'msg-1', text: 'hi', phase: null, memoryCitation: null } } })

@@ -6406,6 +6406,16 @@ Verification: `pnpm exec tsc --noEmit` passed. The initial focused sidebar smoke
 
 Remaining: this closes the concrete sidebar/header inset mismatch and makes panel/header interaction a first-class comparison row. It does not prove exact live Codex pixel spacing, live bottom-panel animation timing, installed-app replacement proof, or provider-backed sidebar pin/list mutation semantics.
 
+### 2026-05-26 - Browser Dynamic Client Tool Boundary Slice
+
+Codex evidence: current Codex bundle evidence includes browser-use client route and dynamic-tool paths in `app-server-manager-signals-Csopz8aM.js`, `browser-sidebar-manager-ivre5jEI.js`, and `thread-management-dynamic-tools-4r_Yz1XH.js`. The live proof artifact `tmp/codex-browser-appserver-live-proof/result.json` still shows that the tested stdio app-server path completes a turn without `browser.manager_state`, browser server requests, or dynamic browser tool calls, so provider-backed browser-use parity remains unproven.
+
+Implemented: tightened the unsupported runtime boundary for server-initiated `item/tool/call` requests. Orchestrator now emits a visible assistant status of the form `Client tool unavailable: <tool>. Orchestrator does not provide client-side dynamic tools for this runtime yet.` and then returns the structured JSON-RPC unsupported-tool error with the same message. This keeps manual Browser UI provider-neutral while making missing agent-driven browser tooling explicit if a runtime asks for it.
+
+Verification: `npm run test:providers` passed with 292 tests. The `codex app-server runtime starts a thread, starts a turn, and answers native requests` test now asserts both the visible assistant status and the structured JSON-RPC error for a synthetic `item/tool/call`. `npm run compare:codex-side-panels -- --no-fail` still reports `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, and the Browser comparison row now includes source evidence for the explicit unavailable boundary.
+
+Remaining: this does not implement the real dynamic client-tool bridge. Agent-driven browser-use parity still requires a bridge that advertises browser tools and routes tool calls to the Browser renderer, plus a live provider proof that browser/tool requests or `browser.manager_state` events actually flow through that bridge.
+
 Recommended order:
 
 1. Shell/tab foundation only.

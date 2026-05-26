@@ -364,12 +364,17 @@ class CodexAppServerSession implements CodexAppServerRun {
       this.pendingServerRequests.set(id, { id, method, params, kind: 'mcp_elicitation' })
       this.record('Codex app-server requested MCP elicitation.', { method, severity: 'info' })
     } else if (method === 'item/tool/call') {
+      const namespace = stringValue(params.namespace)
+      const tool = stringValue(params.tool) ?? 'unknown'
+      const toolName = namespace ? `${namespace}.${tool}` : tool
       this.record('Codex app-server requested an unsupported client tool.', {
         method,
         severity: 'warning',
         code: 'unsupported-client-tool'
       })
-      this.sendError(id, -32601, 'Orchestrator does not provide client-side dynamic tools yet.')
+      const message = `Client tool unavailable: ${toolName}. Orchestrator does not provide client-side dynamic tools for this runtime yet.`
+      this.options.onParsedEvents([{ type: 'assistant.status', content: message }])
+      this.sendError(id, -32601, message)
     } else if (method === 'account/chatgptAuthTokens/refresh') {
       this.record('Codex app-server requested unsupported auth token refresh.', {
         method,

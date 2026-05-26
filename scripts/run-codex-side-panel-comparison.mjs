@@ -158,10 +158,14 @@ function buildContracts() {
       codexAssets: [
         { basename: 'browser-sidebar-manager-ivre5jEI.js', terms: ['data-browser-sidebar-conversation-id', 'transferWebview', 'browser-sidebar-browser-use-state', 'browser-sidebar-local-servers'] }
       ],
+      sourceEvidence: [
+        { path: 'src/main/codexAppServerRuntime.ts', terms: ['item/tool/call', 'Client tool unavailable:', 'client-side dynamic tools for this runtime'] },
+        { path: 'src/main/__tests__/codexAppServerRuntime.test.ts', terms: ['dynamic-tool-1', 'Client tool unavailable: unsupported_tool'] }
+      ],
       smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Synthetic manager events and UI boundaries pass; live provider-emitted Codex/browser-use proof is separate.',
-      next: 'Run live provider/browser-use proof before claiming provider parity.'
+      caveat: 'Synthetic manager events and UI boundaries pass; live provider-emitted Codex/browser-use proof is separate. Server-initiated dynamic tool calls now surface an explicit unavailable status and structured error until a real client-tool bridge exists.',
+      next: 'Build a real dynamic client-tool bridge before claiming agent-driven browser-use parity; keep unavailable runtime boundaries explicit where no bridge is exposed.'
     },
     {
       id: 'browser-device-presets',
