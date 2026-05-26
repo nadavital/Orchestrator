@@ -49,7 +49,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Goal updates | Parsed | Handles `thread/goal/updated` and `thread/goal/cleared` as status messages. No persistent goal panel yet. |
 | Subagents / multi-agent | Parsed | Handles `collabAgentToolCall` as `agent.started/completed/failed`. Agent transcript depth still depends on emitted items we map. |
 | Token usage | Partial | `thread/tokenUsage/updated` is currently a status message, not a full `UsageSummary` rollup. |
-| Diff updates | Parsed | App-server `turn/diff/updated` becomes a `diff.updated` event/status. Orchestrator Diff panel still reads workspace git diff. |
+| Diff updates | Parsed | App-server `turn/diff/updated` becomes a `diff.updated` event/status and preserves provider session, turn, and optional checkpoint ids. Orchestrator Diff panel still reads workspace git diff. |
 | Side questions | External | `/btw` exists as Orchestrator-owned detached side question. It is not a Codex app-server same-thread side channel. |
 | Review mode | Parsed | `enteredReviewMode` and `exitedReviewMode` render as status messages; `review/start` is not productized. Existing `/review` still uses Codex headless review. |
 | Skills/plugins/apps browsers | Partial | App-server settings surfaces list skills, hooks, plugins, and apps; the Capabilities page also discovers file-backed Codex skills, plugins, MCP config, and AGENTS instructions. Native install/configuration UI is still missing. |
@@ -115,7 +115,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Token usage | `thread/tokenUsage/updated` | Partial; status message only. |
 | Turn lifecycle | `turn/started`, `turn/completed` | Supported/parsed. `turn/completed` drives run completion/failure; `turn/started` is a status message. |
 | Plans | `turn/plan/updated`, `item/plan/delta` | `turn/plan/updated` supported. `item/plan/delta` currently streams text-like deltas. |
-| Diff | `turn/diff/updated` | Parsed as `diff.updated`; existing Diff panel reads git diff separately. |
+| Diff | `turn/diff/updated` | Parsed as `diff.updated` with provider session, turn, and optional checkpoint metadata; existing Diff panel reads git diff separately. |
 | Hook lifecycle | `hook/started`, `hook/completed` | Parsed as generic status messages. |
 | Items | `item/started`, `item/completed` | Parsed for supported item types. |
 | Assistant message streaming | `item/agentMessage/delta` | Supported. |

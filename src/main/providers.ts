@@ -2902,7 +2902,24 @@ function parseCodexAppServerMessage(obj: Record<string, unknown>): RunEvent[] {
   }
 
   if (method === 'turn/diff/updated' && typeof params.diff === 'string') {
-    events.push({ type: 'diff.updated', content: params.diff })
+    const providerSessionId = stringValue(params.threadId)
+    const providerTurnId = stringValue(params.turnId)
+    const checkpoint = asRecord(params.checkpoint)
+    const checkpointId = stringValue(
+      params.checkpointId,
+      params.checkpoint_id,
+      checkpoint?.id,
+      checkpoint?.checkpointId,
+      checkpoint?.checkpoint_id
+    )
+    events.push({
+      type: 'diff.updated',
+      content: params.diff,
+      ...(providerSessionId ? { providerSessionId } : {}),
+      ...(providerTurnId ? { providerTurnId } : {}),
+      ...(checkpointId ? { checkpointId } : {}),
+      checkpointUndoSupported: false
+    })
   }
 
   if (method === 'item/autoApprovalReview/started') {

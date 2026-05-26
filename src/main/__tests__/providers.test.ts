@@ -1297,7 +1297,11 @@ test('codex app-server protocol messages normalize lifecycle, review, diff, and 
   const events = lines.flatMap((line) => PROVIDERS.codex.parseOutputLine(JSON.stringify(line)))
   const messages = eventsToMessages(events)
 
-  assert.ok(eventTypes(events).includes('diff.updated'))
+  const diffUpdated = firstEvent(events, 'diff.updated')
+  assert.equal(diffUpdated.providerSessionId, 'codex-thread-rich')
+  assert.equal(diffUpdated.providerTurnId, 'turn-1')
+  assert.equal(diffUpdated.checkpointId, undefined)
+  assert.equal(diffUpdated.checkpointUndoSupported, false)
   assert.ok(events.some((event) => event.type === 'tool.started' && event.toolName === 'web_search'))
   assert.ok(events.some((event) => event.type === 'tool.completed' && event.toolUseId === 'img-1'))
   assert.ok(events.some((event) => event.type === 'assistant.text.delta' && event.content === 'stdout chunk'))
@@ -1306,6 +1310,25 @@ test('codex app-server protocol messages normalize lifecycle, review, diff, and 
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('Auto-review completed')))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('watch out')))
   assert.ok(messages.some((message) => 'content' in message && message.content.includes('Thread closed')))
+})
+
+test('codex app-server diff updates preserve provider turn and checkpoint metadata without claiming restore support', () => {
+  const events = PROVIDERS.codex.parseOutputLine(JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'turn/diff/updated',
+    params: {
+      threadId: 'codex-thread-checkpoint',
+      turnId: 'turn-checkpoint-1',
+      checkpoint: { id: 'checkpoint-1' },
+      diff: 'diff --git a/a b/a'
+    }
+  }))
+  const diffUpdated = firstEvent(events, 'diff.updated')
+
+  assert.equal(diffUpdated.providerSessionId, 'codex-thread-checkpoint')
+  assert.equal(diffUpdated.providerTurnId, 'turn-checkpoint-1')
+  assert.equal(diffUpdated.checkpointId, 'checkpoint-1')
+  assert.equal(diffUpdated.checkpointUndoSupported, false)
 })
 
 test('codex app-server browser-use notifications normalize to Browser manager state events', () => {

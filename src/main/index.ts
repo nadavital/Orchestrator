@@ -7897,7 +7897,13 @@ function runAutomatedFocusedSurfaceSmoke(
 	                    window.__orchestratorAppendSessionEventsForSmoke(smokeSession.id, [{
 	                      id: 'last-turn-review-source-smoke',
 	                      timestamp: Date.now(),
-	                      event: { type: 'diff.updated', content: lastTurnSmokeDiff }
+	                      event: {
+	                        type: 'diff.updated',
+	                        content: lastTurnSmokeDiff,
+	                        providerSessionId: 'codex-thread-rich',
+	                        providerTurnId: 'turn-1',
+	                        checkpointUndoSupported: false
+	                      }
 	                    }])
 	                  );
 	                await sleep(180);
@@ -7978,11 +7984,15 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  lastTurnInjected &&
 	                  lastTurnReviewCard instanceof HTMLElement &&
 	                  lastTurnReviewCard.getAttribute('data-review-card-source') === 'last-turn' &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-undo-kind') === 'provider-checkpoint-unsupported' &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-undo') === 'unsupported' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-undo-kind') === 'provider-checkpoint-missing' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-undo') === 'missing-checkpoint' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-session-id') === 'codex-thread-rich' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-turn-id') === 'turn-1' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-id') === '' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-adapter-supported') === 'false' &&
 	                  lastTurnReviewCardUndo instanceof HTMLButtonElement &&
 	                  lastTurnReviewCardUndo.disabled === true &&
-	                  (lastTurnReviewCardUndo.getAttribute('title') ?? '') === 'Provider checkpoint undo is not supported by this adapter yet' &&
+	                  (lastTurnReviewCardUndo.getAttribute('title') ?? '') === 'Provider checkpoint id was not provided by this adapter' &&
 	                  Number(lastTurnReviewCard.getAttribute('data-review-card-file-count') ?? '0') === 1 &&
 	                  (lastTurnReviewCard.textContent ?? '').includes('review-base.txt') &&
 	                  lastTurnReviewCardInlineDiff instanceof HTMLElement &&

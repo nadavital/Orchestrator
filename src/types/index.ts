@@ -1033,7 +1033,14 @@ export type RunEvent =
   | { type: 'assistant.status'; content: string }
   | { type: 'assistant.text.delta'; streamId: string; content: string }
   | { type: 'assistant.text.completed'; streamId: string }
-  | { type: 'diff.updated'; content: string }
+  | {
+    type: 'diff.updated'
+    content: string
+    providerSessionId?: string
+    providerTurnId?: string
+    checkpointId?: string
+    checkpointUndoSupported?: boolean
+  }
   | { type: 'tool.started'; id: string; toolName: string; toolInput: Record<string, unknown> }
   | { type: 'tool.completed'; id: string; toolUseId: string; content: string; isError: boolean }
   | { type: 'agent.started'; agent: AgentNode }

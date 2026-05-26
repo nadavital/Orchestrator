@@ -56,6 +56,9 @@ const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
 const TRANSCRIPT_RENDER_CHUNK = 40
 const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
 const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
+
+type DiffUpdatedRunEvent = Extract<SessionRunEventRecord['event'], { type: 'diff.updated' }>
+type ProviderCheckpointUndoStatus = 'not-applicable' | 'missing-checkpoint' | 'unsupported'
 const TRANSCRIPT_VIRTUAL_ROW_GAP = 14
 
 export default function ChatView({ sessionId }: Props): JSX.Element {
@@ -1456,7 +1459,8 @@ function StatusCard({ content, session }: { content: string; session: Session })
 function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { content: string; session: Session; hideWhenEmpty?: boolean }): JSX.Element {
   const openRightPanelTab = useSessionStore((state) => state.openRightPanelTab)
   const setShowDiff = useSessionStore((state) => state.setShowDiff)
-  const lastTurnDiff = useSessionStore((state) => latestDiffUpdatedContent(state.eventBuffers[session.id] ?? []))
+  const lastTurnDiffEvent = useSessionStore((state) => latestDiffUpdatedEvent(state.eventBuffers[session.id] ?? []))
+  const lastTurnDiff = lastTurnDiffEvent?.content ?? ''
   const [files, setFiles] = useState<FileChange[]>([])
   const [diffsByPath, setDiffsByPath] = useState<Record<string, { loading: boolean; diff: string }>>({})
   const [loading, setLoading] = useState(true)
@@ -1551,11 +1555,23 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
     setShowDiff(session.id, true)
     openRightPanelTab(session.id, 'diff')
   }
+  const providerCheckpointUndoStatus: ProviderCheckpointUndoStatus = reviewCardSource !== 'last-turn'
+    ? 'not-applicable'
+    : lastTurnDiffEvent?.checkpointId
+      ? 'unsupported'
+      : 'missing-checkpoint'
+  const undoKind = reviewCardSource === 'last-turn'
+    ? providerCheckpointUndoStatus === 'missing-checkpoint'
+      ? 'provider-checkpoint-missing'
+      : 'provider-checkpoint-unsupported'
+    : 'local-current-change'
   const canUndo = reviewCardSource === 'local' && !loading && files.length > 0 && undoState !== 'undoing'
   const undoTitle = canUndo
     ? `Undo ${files.length} changed ${files.length === 1 ? 'file' : 'files'}`
     : reviewCardSource === 'last-turn'
-      ? 'Provider checkpoint undo is not supported by this adapter yet'
+      ? providerCheckpointUndoStatus === 'missing-checkpoint'
+        ? 'Provider checkpoint id was not provided by this adapter'
+        : 'Provider checkpoint undo is not supported by this adapter yet'
       : undoState === 'undoing'
         ? 'Undoing changes...'
         : undoState === 'error'
@@ -1594,8 +1610,12 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
         data-review-card-undo-state={undoState}
         data-review-card-undo-available={canUndo ? 'true' : 'false'}
         data-review-card-source={reviewCardSource}
-        data-review-card-provider-checkpoint-undo={reviewCardSource === 'last-turn' ? 'unsupported' : 'not-applicable'}
-        data-review-card-undo-kind={reviewCardSource === 'last-turn' ? 'provider-checkpoint-unsupported' : 'local-current-change'}
+        data-review-card-provider-session-id={reviewCardSource === 'last-turn' ? lastTurnDiffEvent?.providerSessionId ?? '' : ''}
+        data-review-card-provider-turn-id={reviewCardSource === 'last-turn' ? lastTurnDiffEvent?.providerTurnId ?? '' : ''}
+        data-review-card-provider-checkpoint-id={reviewCardSource === 'last-turn' ? lastTurnDiffEvent?.checkpointId ?? '' : ''}
+        data-review-card-provider-checkpoint-adapter-supported={reviewCardSource === 'last-turn' && lastTurnDiffEvent?.checkpointUndoSupported === true ? 'true' : 'false'}
+        data-review-card-provider-checkpoint-undo={providerCheckpointUndoStatus}
+        data-review-card-undo-kind={undoKind}
       >
         <div className="codex-review-card-summary">
           <span className="codex-review-card-icon" aria-hidden="true">
@@ -1780,12 +1800,12 @@ function isDiffUpdatedStatus(content: string): boolean {
   return /^Diff updated\b/i.test(content.trim())
 }
 
-function latestDiffUpdatedContent(events: SessionRunEventRecord[]): string {
+function latestDiffUpdatedEvent(events: SessionRunEventRecord[]): DiffUpdatedRunEvent | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]?.event
-    if (event?.type === 'diff.updated' && event.content.trim().length > 0) return event.content
+    if (event?.type === 'diff.updated' && event.content.trim().length > 0) return event
   }
-  return ''
+  return null
 }
 
 function statusBody(content: string): string {
