@@ -8026,11 +8026,30 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  );
 	                const lastTurnReviewCardUndo = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-undo"]');
 	                const lastTurnReviewCardFile = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-file"]');
+                  const lastTurnReviewCardReview = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-review"]');
 	                if (lastTurnReviewCardFile instanceof HTMLButtonElement) {
 	                  lastTurnReviewCardFile.click();
 	                  await sleep(180);
 	                }
 	                const lastTurnReviewCardInlineDiff = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-inline-diff"]');
+                  let lastTurnReviewCardOpenWorks = false;
+                  if (lastTurnReviewCardReview instanceof HTMLButtonElement) {
+                    lastTurnReviewCardReview.click();
+                    for (let attempt = 0; attempt < 10; attempt += 1) {
+                      await sleep(100);
+                      const cardReviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+                      if (
+                        document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                        cardReviewRoot instanceof HTMLElement &&
+                        cardReviewRoot.getAttribute('data-review-source') === 'last-turn' &&
+                        cardReviewRoot.getAttribute('data-review-side-pane-visible') === 'false' &&
+                        document.querySelector('[data-testid="review-changed-files-toggle"]') instanceof HTMLButtonElement
+                      ) {
+                        lastTurnReviewCardOpenWorks = true;
+                        break;
+                      }
+                    }
+                  }
 	                reviewTranscriptCardLastTurnWorks =
 	                  lastTurnInjected &&
 	                  lastTurnReviewCard instanceof HTMLElement &&
@@ -8047,7 +8066,15 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  Number(lastTurnReviewCard.getAttribute('data-review-card-file-count') ?? '0') === 1 &&
 	                  (lastTurnReviewCard.textContent ?? '').includes('review-base.txt') &&
 	                  lastTurnReviewCardInlineDiff instanceof HTMLElement &&
-	                  (lastTurnReviewCardInlineDiff.textContent ?? '').includes('last turn smoke');
+	                  (lastTurnReviewCardInlineDiff.textContent ?? '').includes('last turn smoke') &&
+                    lastTurnReviewCardOpenWorks;
+                  if (lastTurnReviewCardOpenWorks) {
+                    const restoreChangedFilesPane = document.querySelector('[data-testid="review-changed-files-toggle"]');
+                    if (restoreChangedFilesPane instanceof HTMLButtonElement) {
+                      restoreChangedFilesPane.click();
+                      await sleep(180);
+                    }
+                  }
 	              }
               if (await clickReviewSource('staged')) {
                 await sleep(260);
@@ -10111,13 +10138,23 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentPanel.getAttribute('data-environment-pull-request') === 'true' &&
 	                  environmentSourcesCard.textContent?.includes('Web search') === true;
 	                if (reviewTranscriptCardReviewButton instanceof HTMLButtonElement) {
+                    const reviewTranscriptCardSource = reviewTranscriptCard instanceof HTMLElement
+                      ? reviewTranscriptCard.getAttribute('data-review-card-source')
+                      : null;
 	                  reviewTranscriptCardReviewButton.click();
 	                  for (let attempt = 0; attempt < 10; attempt += 1) {
 	                    await sleep(100);
-	                    if (
-	                      document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
-	                      document.querySelector('.diff-panel-root[data-embedded="true"]') instanceof HTMLElement
-	                    ) {
+                      const cardReviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+                      const reviewPanelOpened =
+                        document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                        cardReviewRoot instanceof HTMLElement;
+                      const reviewPanelMatchesCardSource = reviewTranscriptCardSource === 'last-turn'
+                        ? cardReviewRoot instanceof HTMLElement &&
+                          cardReviewRoot.getAttribute('data-review-source') === 'last-turn' &&
+                          cardReviewRoot.getAttribute('data-review-side-pane-visible') === 'false' &&
+                          document.querySelector('[data-testid="review-changed-files-toggle"]') instanceof HTMLButtonElement
+                        : true;
+	                    if (reviewPanelOpened && reviewPanelMatchesCardSource) {
 	                      reviewTranscriptCardActionWorks = true;
 	                      break;
 	                    }

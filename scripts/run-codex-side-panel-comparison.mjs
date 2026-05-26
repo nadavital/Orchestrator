@@ -163,9 +163,9 @@ function buildContracts() {
         { basename: 'review-runtime-bridge-CZUIqW4U.js', terms: ['set-review-pane-snapshot-metrics-for-host', 'reviewDiffFilesTotal'] },
         { basename: 'review-header-toolbar-6CN1dM2m.js', terms: ['checks', 'reviewer'] }
       ],
-      smokeChecks: ['reviewMetadataToolbar', 'reviewMetadataFlyoutShared', 'reviewWorktreeProviderSource', 'reviewFullSourceBlame', 'reviewLineComments'],
+      smokeChecks: ['reviewMetadataToolbar', 'reviewMetadataFlyoutShared', 'reviewTranscriptCardLastTurn', 'reviewWorktreeProviderSource', 'reviewFullSourceBlame', 'reviewLineComments'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Fixture and local/GitHub-backed paths pass, including general PR and inline/threaded review comment summaries, provider comment line rendering, and GitHub review-comment commit/blame metadata. Live commented-PR proof, provider-native hosted/cloud sources, and checkpoint Undo are not live-proven.',
+      caveat: 'Fixture and local/GitHub-backed paths pass, including Last turn transcript-card Review opening, general PR and inline/threaded review comment summaries, provider comment line rendering, and GitHub review-comment commit/blame metadata. Live commented-PR proof, provider-native hosted/cloud sources, and checkpoint Undo are not live-proven.',
       next: 'Add one real provider-backed Review source or keep the unsupported UI explicit.'
     },
     {

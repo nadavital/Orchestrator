@@ -6426,6 +6426,16 @@ Verification: `node -c scripts/run-codex-side-panel-comparison.mjs` passed. `npm
 
 Remaining: this improves the parity ledger and comparison signal. It does not replace a fresh side-by-side pixel/timing review when making exact spacing, animation, or installed-app replacement claims.
 
+### 2026-05-26 - Review Transcript Card Last-Turn Open State Slice
+
+Codex evidence: live screenshot evidence at `/private/tmp/codex-current-screen.png` shows the transcript `Edited ... files` Review card opening a Review side-panel state with `Last turn` selected and no persistent changed-files rail visible. Bundle evidence in `review-file-tree-side-pane-CGo_VDrf.js` and `thread-side-panel-tabs-CVr2AbYP.js` still confirms Codex has a changed-files side pane behind an explicit show/hide files control, so the mismatch was the card-opened state rather than the existence of the rail.
+
+Implemented: Orchestrator's transcript Review card now treats last-turn provider diff cards as a source-specific open request. When the card source is `last-turn`, the Review button persists/requests `last-turn` as the detailed Review source and hides the changed-files pane for the opened full panel. Mounted Review panels listen for the same request so already-open Review updates immediately. Local/current-change Review cards keep the existing all-changes source and changed-files rail behavior.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --diff-source` passed with `reviewTranscriptCardLastTurn=true`, `reviewLastTurnGitApplyCommand=true`, and the existing Review source/search/side-pane checks still green after restoring the rail for the rest of the smoke. Focused `npm run smoke:ui:auto -- --diff-entry` passed with `reviewTranscriptCard=true`, proving the normal local Review card still opens. `git diff --check` passed.
+
+Remaining: this closes the concrete card-to-panel source/rail mismatch from the live screenshot. It does not close live commented-PR proof, provider-native hosted/cloud sources, true provider checkpoint Undo, full diff virtualization, or exact Review pixel spacing.
+
 ### 2026-05-26 - Browser Dynamic Client Tool Boundary Slice
 
 Codex evidence: current Codex bundle evidence includes browser-use client route and dynamic-tool paths in `app-server-manager-signals-Csopz8aM.js`, `browser-sidebar-manager-ivre5jEI.js`, and `thread-management-dynamic-tools-4r_Yz1XH.js`. The live proof artifact `tmp/codex-browser-appserver-live-proof/result.json` still shows that the tested stdio app-server path completes a turn without `browser.manager_state`, browser server requests, or dynamic browser tool calls, so provider-backed browser-use parity remains unproven.

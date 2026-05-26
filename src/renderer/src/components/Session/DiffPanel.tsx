@@ -631,6 +631,25 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
     writeStoredReviewSource(workDir, source)
   }
 
+  useEffect(() => {
+    const handleReviewOpenRequest = (event: Event): void => {
+      const detail = (event as CustomEvent<{
+        sessionId?: string
+        source?: ReviewDiffSource
+        sidePaneVisible?: boolean
+      }>).detail
+      if (detail?.sessionId && detail.sessionId !== sessionId) return
+      if (detail?.source && isSupportedReviewDiffSource(detail.source, reviewSourceSupport)) {
+        setReviewSource(detail.source)
+      }
+      if (typeof detail?.sidePaneVisible === 'boolean') {
+        setStoredReviewSidePaneVisible(detail.sidePaneVisible)
+      }
+    }
+    window.addEventListener('orchestrator:review-open-request', handleReviewOpenRequest)
+    return () => window.removeEventListener('orchestrator:review-open-request', handleReviewOpenRequest)
+  }, [reviewSourceSupport, sessionId, workDir])
+
   const setReviewSourceRef = (source: 'branch' | 'commit', value: string): void => {
     if (source === 'branch') setBranchReviewRef(value)
     if (source === 'commit') setCommitReviewRef(value)
