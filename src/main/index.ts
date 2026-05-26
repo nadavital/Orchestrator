@@ -1629,8 +1629,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
-            const capabilitiesButton = [...document.querySelectorAll('button')]
-              .find((button) => button.textContent?.includes('Capabilities'));
+            const capabilitiesButton = document.querySelector('[data-testid="sidebar-primary-action-plugins"]') ??
+              [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Capabilities') || button.textContent?.includes('Plugins'));
             capabilitiesButton?.click();
             await sleep(450);
             for (let index = 0; index < 20; index += 1) {

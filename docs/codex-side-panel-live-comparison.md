@@ -20,7 +20,7 @@ Scope note: "side panel" in the comparison matrix means the right-side Workbench
 
 - Codex app bundle: `/Applications/Codex.app/Contents/Resources/app.asar`, `CFBundleShortVersionString=26.519.41501`.
 - Extracted Codex side-panel chunks under `tmp/codex-app-assets`.
-- Current Orchestrator full visual inventory: `tmp/side-panel-visual-inventory-current/manifest.json`, 23 captures, no failures, created at `2026-05-26T02:49:20.701Z`.
+- Current Orchestrator full visual inventory: `tmp/side-panel-visual-inventory-current/manifest.json`, 23 captures, no failures, created at `2026-05-26T06:20:03.015Z`.
 - Current runnable comparison: `tmp/codex-side-panel-comparison/comparison-report.json`, status `fixture-covered=7`, `aligned=2`, `mismatch=0`, `blocked=0`.
 - Current pushed branch: `codex-side-panel-parity-stabilization`.
 
