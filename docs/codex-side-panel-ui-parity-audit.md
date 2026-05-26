@@ -6630,6 +6630,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this makes the Codex Last-turn Review state directly comparable and closes the visible source-row stats mismatch for Review source summaries. It does not prove live commented-PR data, provider checkpoint restore, hosted/cloud review adapters, or exact pixel-level Codex spacing.
 
+### 2026-05-26 - Last Turn Review Path-First File Header
+
+Codex evidence: live screenshot `/private/tmp/codex-current-screen.png` shows the selected Review file header reading path-first, with the file path and stats in the row and no prominent colored status glyph before the path. Orchestrator's latest Last turn Review capture still showed a cyan square change icon before `review-base.txt`, which made the header less like the Codex Review panel even though the source selection and changed-files rail state were correct.
+
+Implemented: Review file section headers now tag the selected-file row as `data-review-file-header-style="codex-path-first"` and hide the decorative change glyph in that header. The path remains the first visible header element while the underlying change-type metadata stays available for state and tests. Focused `--diff-last-turn` smoke now gates `reviewFileHeaderPathFirst=true`, and the side-panel comparison includes that check in the Review provider metadata row.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, `git diff --check`, and `npm run build` passed. Focused `npm run smoke:ui:auto -- --diff-last-turn` passed with `reviewTranscriptCardLastTurn=true`, `reviewFileHeaderPathFirst=true`, and `reviewLastTurnVisualState=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-last-turn-1779805927189.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-last-turn-1779805927189.png`. Refreshed `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with 25 captures, `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needs-smoke=0`, and `needs-proof=0`; manifest created at `2026-05-26T14:37:36.138Z`.
+
+Remaining: this closes the visible path-header glyph mismatch in the Last turn Review screenshot. It does not prove exact Codex hunk spacing, live commented-PR data, provider checkpoint restore, or hosted/cloud review adapters.
+
 ### 2026-05-26 - Sidebar Text-First Session Rows
 
 Codex evidence: live screenshot `/private/tmp/codex-current-screen.png` shows Codex sidebar session rows as text-first rows, with status/progress appearing on the right when needed rather than an always-visible provider/color dot before every chat title. The previous Orchestrator sidebar capture still rendered colored leading dots on pinned, project, and Chats rows, making the sidebar feel heavier and less Codex-like even after row density was tightened.

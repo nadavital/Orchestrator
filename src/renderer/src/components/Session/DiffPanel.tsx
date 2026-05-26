@@ -1773,13 +1773,15 @@ function ReviewFileSection({
         data-diffs-header="default"
         data-change-type={reviewHeaderChangeType(change.status)}
         data-review-file-header="true"
+        data-review-file-header-style="codex-path-first"
         onClick={onSelect}
       >
         <span className="review-file-section-leading" data-header-content="">
           <span
             className="review-file-section-change-icon"
             data-change-icon={reviewHeaderChangeType(change.status)}
-            aria-label={fileStatusLabel(change.status)}
+            data-review-file-change-icon="decorative"
+            aria-hidden="true"
           >
             <ReviewHeaderChangeGlyph changeType={reviewHeaderChangeType(change.status)} />
           </span>

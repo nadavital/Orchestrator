@@ -136,6 +136,7 @@ function buildDiffChecks(result, view) {
     diffListCompact: result.diffListCompactWorks === true,
     reviewFileSections: result.reviewFileSectionStructureWorks === true,
     reviewFileHeaderMetrics: result.reviewFileHeaderMetricsWork === true,
+    reviewFileHeaderPathFirst: result.reviewFileHeaderPathFirstWorks === true,
     reviewDiffRowMetrics: result.reviewDiffRowMetricsWork === true,
     reviewHunkSeparatorStructure: result.reviewHunkSeparatorStructureWorks === true,
     reviewDiffIndicatorStructure: result.reviewDiffIndicatorStructureWork === true,
@@ -271,6 +272,7 @@ function buildDiffChecks(result, view) {
     'diff-last-turn': [
       'isolatedProfile',
       'reviewTranscriptCardLastTurn',
+      'reviewFileHeaderPathFirst',
       'reviewLastTurnVisualState'
     ],
     'diff-source': [

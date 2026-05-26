@@ -3288,6 +3288,10 @@
     color: var(--color-red);
   }
 
+  .review-file-section-header[data-review-file-header-style='codex-path-first'] .review-file-section-change-icon {
+    display: none;
+  }
+
   .review-file-section-path {
     min-width: 0;
     flex: 1 1 auto;

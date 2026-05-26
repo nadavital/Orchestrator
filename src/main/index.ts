@@ -8355,6 +8355,32 @@ function runAutomatedFocusedSurfaceSmoke(
                   const lastTurnVisualSourceSummary = document.querySelector('[data-testid="review-source-summary"]');
                   const lastTurnVisualChangedFilesToggle = document.querySelector('[data-testid="review-changed-files-toggle"]');
                   const lastTurnVisualSelectedSection = lastTurnVisualReviewRoot?.querySelector('[data-testid="review-file-section"][data-review-path="review-base.txt"]');
+                  const lastTurnVisualFileHeader = lastTurnVisualSelectedSection instanceof HTMLElement
+                    ? lastTurnVisualSelectedSection.querySelector('.review-file-section-header[data-review-file-header="true"]')
+                    : null;
+                  const lastTurnVisualFilePath = lastTurnVisualFileHeader instanceof HTMLElement
+                    ? lastTurnVisualFileHeader.querySelector('.review-file-section-path')
+                    : null;
+                  const lastTurnVisualChangeIcon = lastTurnVisualFileHeader instanceof HTMLElement
+                    ? lastTurnVisualFileHeader.querySelector('.review-file-section-change-icon')
+                    : null;
+                  const lastTurnVisualHeaderRect = lastTurnVisualFileHeader instanceof HTMLElement
+                    ? lastTurnVisualFileHeader.getBoundingClientRect()
+                    : null;
+                  const lastTurnVisualPathRect = lastTurnVisualFilePath instanceof HTMLElement
+                    ? lastTurnVisualFilePath.getBoundingClientRect()
+                    : null;
+                  var reviewFileHeaderPathFirstWorks =
+                    lastTurnVisualFileHeader instanceof HTMLButtonElement &&
+                    lastTurnVisualFileHeader.getAttribute('data-review-file-header-style') === 'codex-path-first' &&
+                    lastTurnVisualFilePath instanceof HTMLElement &&
+                    (lastTurnVisualFilePath.textContent ?? '').includes('review-base.txt') &&
+                    lastTurnVisualChangeIcon instanceof HTMLElement &&
+                    lastTurnVisualChangeIcon.getAttribute('data-review-file-change-icon') === 'decorative' &&
+                    getComputedStyle(lastTurnVisualChangeIcon).display === 'none' &&
+                    lastTurnVisualHeaderRect !== null &&
+                    lastTurnVisualPathRect !== null &&
+                    lastTurnVisualPathRect.left <= lastTurnVisualHeaderRect.left + 18;
                   var reviewLastTurnVisualStateWorks =
                     reviewTranscriptCardLastTurnWorks &&
                     lastTurnVisualReviewRoot instanceof HTMLElement &&
@@ -8383,6 +8409,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     return {
                       profile,
                       reviewTranscriptCardLastTurnWorks,
+                      reviewFileHeaderPathFirstWorks,
                       reviewLastTurnVisualStateWorks
                     };
                   }
