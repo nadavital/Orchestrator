@@ -40,9 +40,10 @@ const manifest = readJsonFile(manifestPath)
 const packageJson = readJsonFile(join(root, 'package.json'))
 const codexAssets = new CodexAssetReader(codexAsarPath)
 const sourceCache = new Map()
+const artifactCache = new Map()
 
 const contracts = buildContracts()
-const rows = contracts.map((contract) => evaluateContract(contract, manifest, codexAssets, sourceCache))
+const rows = contracts.map((contract) => evaluateContract(contract, manifest, codexAssets, sourceCache, artifactCache))
 const summary = summarizeRows(rows, manifest)
 const report = {
   createdAt: new Date().toISOString(),
@@ -167,6 +168,28 @@ function buildContracts() {
         { path: 'scripts/codex-browser-appserver-live-proof.mjs', terms: ['CODEX_BROWSER_PROOF_DYNAMIC_TOOL', 'CODEX_BROWSER_PROOF_REAL_BROWSER_TOOLS', 'browser_bridge_status'] },
         { path: 'package.json', terms: ['live:codex-browser-tools'] }
       ],
+      artifactEvidence: [
+        {
+          path: 'tmp/codex-dynamic-tools-live-proof/result.json',
+          checks: [
+            { path: 'ok', equals: true },
+            { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_bridge_status' },
+            { serverToolCall: 'orchestrator.browser_bridge_status' },
+            { path: 'assistantText', includes: 'CODEX_BROWSER_LIVE_OK' }
+          ]
+        },
+        {
+          path: 'tmp/codex-browser-tools-live-proof/result.json',
+          checks: [
+            { path: 'ok', equals: true },
+            { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_open' },
+            { path: 'advertisedDynamicTools', includes: 'orchestrator.browser_read' },
+            { serverToolCall: 'orchestrator.browser_open' },
+            { serverToolCall: 'orchestrator.browser_read' },
+            { path: 'assistantText', includes: 'CODEX_BROWSER_LIVE_OK' }
+          ]
+        }
+      ],
       smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Synthetic manager events, UI boundaries, smoke-only Browser renderer loopback, and live Codex app-server real browser_open/browser_read tool requests pass; native browser-use event streaming is still separate.',
@@ -240,11 +263,12 @@ function buildContracts() {
   ]
 }
 
-function evaluateContract(contract, manifest, codexAssets, sourceCache) {
+function evaluateContract(contract, manifest, codexAssets, sourceCache, artifactCache) {
   const codex = evaluateCodexEvidence(contract, codexAssets)
   const source = evaluateSourceEvidence(contract, sourceCache)
+  const artifact = evaluateArtifactEvidence(contract, artifactCache)
   const smoke = evaluateSmokeEvidence(contract, manifest)
-  const status = contract.forcedStatus ?? inferStatus(contract, codex, source, smoke)
+  const status = contract.forcedStatus ?? inferStatus(contract, codex, source, artifact, smoke)
   return {
     id: contract.id,
     area: contract.area,
@@ -252,15 +276,18 @@ function evaluateContract(contract, manifest, codexAssets, sourceCache) {
     status,
     codex,
     source,
+    artifact,
     smoke,
     caveat: contract.caveat,
     next: contract.next
   }
 }
 
-function inferStatus(contract, codex, source, smoke) {
+function inferStatus(contract, codex, source, artifact, smoke) {
   if (!codex.available) return 'blocked'
   if (source.available && source.passed === false) return 'mismatch'
+  if (artifact.available && artifact.passed === false) return 'mismatch'
+  if (artifact.required && !artifact.available) return 'needs-proof'
   if (!smoke.available) return 'needs-smoke'
   if (!smoke.passed) return 'mismatch'
   return contract.statusWhenCovered ?? 'fixture-covered'
@@ -308,6 +335,73 @@ function evaluateSourceEvidence(contract, sourceCache) {
     passed: sourceResults.every((file) => file.available && file.terms.every((term) => term.found)),
     files: sourceResults
   }
+}
+
+function evaluateArtifactEvidence(contract, artifactCache) {
+  const artifactResults = []
+  for (const spec of contract.artifactEvidence ?? []) {
+    const path = join(root, spec.path)
+    let parsed = artifactCache.get(path)
+    if (parsed === undefined) {
+      parsed = readJsonFile(path)
+      artifactCache.set(path, parsed)
+    }
+    const text = parsed == null ? null : JSON.stringify(parsed)
+    artifactResults.push({
+      path: spec.path,
+      available: parsed !== null,
+      terms: (spec.terms ?? []).map((term) => ({ term, found: text?.includes(term) === true })),
+      checks: (spec.checks ?? []).map((check) => evaluateArtifactCheck(parsed, check))
+    })
+  }
+  if (artifactResults.length === 0) return { required: false, available: false, passed: null, files: [] }
+  return {
+    required: true,
+    available: artifactResults.every((file) => file.available),
+    passed: artifactResults.every((file) =>
+      file.available &&
+      file.terms.every((term) => term.found) &&
+      file.checks.every((check) => check.passed)
+    ),
+    files: artifactResults
+  }
+}
+
+function evaluateArtifactCheck(parsed, check) {
+  if (parsed == null) return { ...check, passed: false }
+  if (check.serverToolCall) {
+    const [namespace, tool] = String(check.serverToolCall).split('.')
+    const requests = Array.isArray(parsed.serverRequests) ? parsed.serverRequests : []
+    const passed = requests.some((request) => {
+      const preview = typeof request?.paramsPreview === 'string' ? request.paramsPreview : ''
+      try {
+        const params = JSON.parse(preview)
+        return params.namespace === namespace && params.tool === tool
+      } catch {
+        return false
+      }
+    })
+    return { ...check, passed }
+  }
+
+  const value = artifactValueAtPath(parsed, check.path)
+  if ('equals' in check) return { ...check, passed: value === check.equals }
+  if ('includes' in check) {
+    const needle = check.includes
+    const passed = Array.isArray(value)
+      ? value.includes(needle)
+      : (typeof value === 'string' && value.includes(needle))
+    return { ...check, passed }
+  }
+  return { ...check, passed: false }
+}
+
+function artifactValueAtPath(value, path) {
+  if (!path) return value
+  return String(path).split('.').reduce((current, key) => {
+    if (current == null || typeof current !== 'object') return undefined
+    return current[key]
+  }, value)
 }
 
 function evaluateSmokeEvidence(contract, manifest) {
@@ -372,14 +466,15 @@ function renderMarkdown(report) {
   lines.push('')
   lines.push('## Comparison Matrix')
   lines.push('')
-  lines.push('| Area | Scope | Status | Codex Evidence | Orchestrator Smoke | Next |')
-  lines.push('| --- | --- | --- | --- | --- | --- |')
+  lines.push('| Area | Scope | Status | Codex Evidence | Live Artifacts | Orchestrator Smoke | Next |')
+  lines.push('| --- | --- | --- | --- | --- | --- | --- |')
   for (const row of report.rows) {
     lines.push([
       row.area,
       row.scope,
       row.status,
       summarizeCodex(row.codex),
+      summarizeArtifact(row.artifact),
       summarizeSmoke(row.smoke),
       `${row.caveat} ${row.next}`
     ].map(markdownCell).join(' | ').replace(/^/, '| ').replace(/$/, ' |'))
@@ -406,6 +501,23 @@ function renderMarkdown(report) {
 function summarizeCodex(codex) {
   if (!codex.available) return 'missing or incomplete'
   return codex.assets.map((asset) => asset.asset).join(', ')
+}
+
+function summarizeArtifact(artifact) {
+  if (!artifact.required) return ''
+  if (!artifact.available) return 'missing'
+  const failed = []
+  for (const file of artifact.files) {
+    const missingTerms = file.terms.filter((term) => !term.found).map((term) => term.term)
+    const missingChecks = file.checks.filter((check) => !check.passed).map((check) =>
+      check.serverToolCall ? `serverToolCall ${check.serverToolCall}` : check.path
+    )
+    if (missingTerms.length > 0 || missingChecks.length > 0) {
+      failed.push(`${file.path}: ${[...missingTerms, ...missingChecks].join(', ')}`)
+    }
+  }
+  if (failed.length > 0) return `failed: ${failed.join('; ')}`
+  return artifact.files.map((file) => file.path).join(', ')
 }
 
 function summarizeSmoke(smoke) {

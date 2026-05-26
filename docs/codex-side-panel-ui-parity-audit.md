@@ -6464,6 +6464,14 @@ Verification: the first run hit the expected sandbox boundary because Codex coul
 
 Remaining: this proves live Codex app-server requests the real Browser tool names and that the app-server transport can round-trip their responses. The renderer webview bridge remains proven by focused app smoke (`browserClientToolBridge=true`), not by this headless live app-server script. Native browser-use event streaming and broader click/type/screenshot tools remain future work and should only be added from real provider requests, explicit product scope, or a full installed-app end-to-end run.
 
+### 2026-05-26 - Live Proof Artifacts In Comparison Report
+
+Implemented: the runnable comparison now has an artifact-evidence layer for live proof JSON files. The Browser row checks `tmp/codex-dynamic-tools-live-proof/result.json` for `ok=true`, advertised `orchestrator.browser_bridge_status`, a parsed live server tool call, and `CODEX_BROWSER_LIVE_OK`. It also checks `tmp/codex-browser-tools-live-proof/result.json` for `ok=true`, advertised `orchestrator.browser_open` and `orchestrator.browser_read`, parsed live server tool calls for both tools, and `CODEX_BROWSER_LIVE_OK`.
+
+Verification: `node -c scripts/run-codex-side-panel-comparison.mjs` passed. `npm run compare:codex-side-panels -- --no-fail` first caught brittle escaped-string matching in the new artifact terms, then passed after switching to semantic `serverRequests[].paramsPreview` parsing. Final counts remain `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`.
+
+Remaining: this strengthens the direct comparison report; it does not add new Browser tool capability. If live proof artifacts are missing or stale, the Browser row will now move to `needs-proof` or `mismatch` instead of silently relying on docs.
+
 ### 2026-05-26 - Full Comparison Smoke Harness Tightening
 
 Implemented: corrected the reusable smoke harness so provider-diagnostics assertions gate the `settings-providers` capture instead of forcing the general Settings capture to prove provider details while it is on a different page. The `settings-providers` automated path now opens the provider Details section only when it is collapsed and waits for the details grid before checking provider status, usage, models, and compact disclosure structure.
