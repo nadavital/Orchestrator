@@ -10504,6 +10504,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const previewHeaderChecks = {};
               const previewControlChecks = {};
               const previewArtifactTabChecks = {};
+              const notebookReadOnlyControlChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
@@ -10595,6 +10596,25 @@ function runAutomatedFocusedSurfaceSmoke(
                         artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'true' &&
                         controls.includes('view-source')
                       : true);
+                  if (testId === 'workspace-notebook-preview') {
+                    const readOnlyControls = document.querySelector('[data-testid="workspace-notebook-preview-readonly-controls"]');
+                    const readOnlyBadge = document.querySelector('[data-testid="workspace-notebook-preview-readonly-badge"]');
+                    const runAll = document.querySelector('[data-testid="workspace-notebook-preview-run-all-disabled"]');
+                    const restartKernel = document.querySelector('[data-testid="workspace-notebook-preview-restart-kernel-disabled"]');
+                    notebookReadOnlyControlChecks[testId] =
+                      readOnlyControls instanceof HTMLElement &&
+                      readOnlyControls.getAttribute('data-notebook-readonly-controls') === 'true' &&
+                      readOnlyBadge instanceof HTMLElement &&
+                      readOnlyBadge.textContent?.trim() === 'Read only' &&
+                      runAll instanceof HTMLButtonElement &&
+                      runAll.disabled &&
+                      runAll.getAttribute('data-notebook-readonly-control') === 'run-all' &&
+                      runAll.textContent?.includes('Run all') === true &&
+                      restartKernel instanceof HTMLButtonElement &&
+                      restartKernel.disabled &&
+                      restartKernel.getAttribute('data-notebook-readonly-control') === 'restart-kernel' &&
+                      restartKernel.textContent?.includes('Restart kernel') === true;
+                  }
                 }
               }
               const filesFallbackNotice = document.querySelector('[data-testid="workspace-binary-state"]');
@@ -11252,6 +11272,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewArtifactTabChecks['workspace-pdf-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-document-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
+                filesNotebookReadOnlyControlsWorks: Boolean(notebookReadOnlyControlChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks

@@ -4395,6 +4395,49 @@
     margin-left: auto;
   }
 
+  .notebook-preview-readonly-controls {
+    display: inline-flex;
+    min-width: 0;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+  }
+
+  .notebook-preview-readonly-badge {
+    display: inline-flex;
+    height: 24px;
+    flex-shrink: 0;
+    align-items: center;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--control-bg) 72%, transparent);
+    padding: 0 8px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .notebook-preview-readonly-control {
+    display: inline-flex;
+    height: 24px;
+    min-width: 0;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    padding: 0 7px;
+    color: color-mix(in srgb, var(--text-tertiary) 82%, transparent);
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .notebook-preview-readonly-control:disabled {
+    cursor: default;
+  }
+
   .file-preview-note,
   .file-preview-meta-strip {
     display: flex;

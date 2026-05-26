@@ -6518,6 +6518,16 @@ Verification: focused `npm run smoke:ui:auto -- --sidebar` passed after the expe
 
 Remaining: add real provider pin set/list adapters only when a provider exposes a safe mutation API. Also keep panel/header interaction in the same parity plan: sidebar, main titlebar, Workbench right panel, and Terminal bottom panel changes must preserve the dedicated header/panel comparison row before any future visual parity claim.
 
+### 2026-05-26 - Notebook Artifact Read-Only Controls
+
+Codex evidence: `tmp/codex-app-assets/notebook-preview-panel-CAO-aRhM.js` renders notebook artifact previews with a `Read only` badge plus disabled `Run all` and `Restart kernel` controls, making notebook execution boundaries visible even inside the preview.
+
+Implemented: Orchestrator's structured notebook preview now exposes a compact read-only control cluster in the file preview header. Valid notebook previews show `Read only`, disabled `Run all`, and disabled `Restart kernel` controls with explicit metadata/test ids, while keeping existing Copy path, View source, Copy raw preview, Open file, and Reveal file actions.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, and `git diff --check` passed. Focused `npm run smoke:ui:auto -- --files` passed after the expected escalated rerun with `filesNotebookReadOnlyControls=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779789833476.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779789833476.png`. The refreshed `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, and `blocked=0`, and the Files comparison row now includes `filesNotebookReadOnlyControls`.
+
+Remaining: this closes the read-only notebook toolbar boundary only. Deeper Codex notebook parity still needs richer output rendering, cell disclosure behavior, and any provider-backed artifact metadata that the current local preview fixture does not cover.
+
 Recommended order:
 
 1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel.

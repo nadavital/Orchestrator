@@ -1188,6 +1188,7 @@ child.on('exit', (code) => {
           filesPdfPreview: result.filesPdfPreviewWorks === true,
           filesDocumentPreview: result.filesDocumentPreviewWorks === true,
           filesNotebookPreview: result.filesNotebookPreviewWorks === true,
+          filesNotebookReadOnlyControls: result.filesNotebookReadOnlyControlsWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,

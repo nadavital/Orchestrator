@@ -1,5 +1,6 @@
 import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, PanelToolbar } from '../shared/designSystem'
+import Icon from '../shared/Icon'
 import type { IconName } from '../shared/Icon'
 
 export interface PreviewHeaderAction {
@@ -111,6 +112,9 @@ function NotebookPreview({
         {statusLabel && <Badge tone="neutral">{statusLabel}</Badge>}
         <Badge tone="neutral">Notebook</Badge>
         <span className="min-w-0 flex-1 truncate">{name}</span>
+        {notebook.valid && (
+          <NotebookReadOnlyControls testId={testId} />
+        )}
         <PreviewHeaderActions actions={actions} testId={testId} />
       </PanelToolbar>
       {preview.truncated && (
@@ -144,6 +148,47 @@ function NotebookPreview({
         </pre>
       )}
     </div>
+  )
+}
+
+function NotebookReadOnlyControls({ testId }: { testId: string }): JSX.Element {
+  return (
+    <span
+      className="notebook-preview-readonly-controls"
+      data-testid={`${testId}-readonly-controls`}
+      data-notebook-readonly-controls="true"
+    >
+      <span
+        className="notebook-preview-readonly-badge"
+        data-testid={`${testId}-readonly-badge`}
+      >
+        Read only
+      </span>
+      <button
+        type="button"
+        className="notebook-preview-readonly-control"
+        disabled
+        aria-disabled="true"
+        aria-label="Running is not available in this preview"
+        data-testid={`${testId}-run-all-disabled`}
+        data-notebook-readonly-control="run-all"
+      >
+        <Icon name="play" size={12} />
+        <span>Run all</span>
+      </button>
+      <button
+        type="button"
+        className="notebook-preview-readonly-control"
+        disabled
+        aria-disabled="true"
+        aria-label="Kernels are not connected in this preview"
+        data-testid={`${testId}-restart-kernel-disabled`}
+        data-notebook-readonly-control="restart-kernel"
+      >
+        <Icon name="refresh" size={12} />
+        <span>Restart kernel</span>
+      </button>
+    </span>
   )
 }
 

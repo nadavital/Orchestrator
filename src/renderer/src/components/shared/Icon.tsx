@@ -36,6 +36,7 @@ import {
   Paperclip,
   Pencil,
   Pin,
+  Play,
   Plug,
   Plus,
   RotateCw,
@@ -96,6 +97,7 @@ export type IconName =
   | 'paperclip'
   | 'pencil'
   | 'pin'
+  | 'play'
   | 'plan'
   | 'plug'
   | 'plus'
@@ -154,6 +156,7 @@ const icons: Record<IconName, LucideIcon> = {
   paperclip: Paperclip,
   pencil: Pencil,
   pin: Pin,
+  play: Play,
   plan: ListChecks,
   plug: Plug,
   plus: Plus,
