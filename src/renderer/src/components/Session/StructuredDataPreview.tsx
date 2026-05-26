@@ -32,6 +32,7 @@ type NotebookOutput =
 interface NotebookCell {
   type: string
   source: string
+  executionCount: number | null
   outputs: NotebookOutput[]
 }
 
@@ -151,18 +152,44 @@ function NotebookPreview({
               className="notebook-preview-cell"
               data-testid="notebook-preview-cell"
               data-notebook-cell-disclosure="true"
+              data-notebook-cell-position={`${index + 1} of ${notebook.cells.length}`}
+              data-notebook-execution-count={cell.executionCount ?? undefined}
               key={index}
               open
             >
               <summary className="notebook-preview-cell-header">
-                <span className="notebook-preview-cell-disclosure-icon">
-                  <Icon name="chevronRight" size={12} />
-                </span>
-                <span className="notebook-preview-cell-title">
-                  <Badge tone="neutral">{cell.type}</Badge>
-                  <span>Cell {index + 1}</span>
+                <span className="notebook-preview-cell-title-group">
+                  <span className="notebook-preview-cell-disclosure-icon">
+                    <Icon name="chevronRight" size={12} />
+                  </span>
+                  <span className="notebook-preview-cell-title" title={notebookCellTitle(cell, index + 1)}>
+                    {notebookCellTitle(cell, index + 1)}
+                  </span>
+                  <span className="notebook-preview-cell-position">
+                    Cell {index + 1} of {notebook.cells.length}
+                  </span>
                 </span>
                 <span className="notebook-preview-cell-meta">
+                  {cell.type === 'code' && cell.executionCount != null && (
+                    <span
+                      className="notebook-preview-cell-execution-count"
+                      data-notebook-execution-count-label={cell.executionCount}
+                    >
+                      Run {cell.executionCount}
+                    </span>
+                  )}
+                  {cell.type === 'code' && (
+                    <button
+                      aria-label="Running is disabled in read-only preview"
+                      className="notebook-preview-cell-run-disabled"
+                      data-notebook-cell-run-disabled="true"
+                      disabled
+                      title="Running is disabled in read-only preview"
+                      type="button"
+                    >
+                      <Icon name="play" size={12} />
+                    </button>
+                  )}
                   {cell.outputs.length > 0 && <span>{cell.outputs.length} outputs</span>}
                 </span>
               </summary>
@@ -446,6 +473,7 @@ function parseNotebook(text: string): {
       ? parsed.cells.map((cell) => ({
         type: typeof cell.cell_type === 'string' ? cell.cell_type : 'cell',
         source: normalizeNotebookSource(cell.source).trim(),
+        executionCount: normalizeNotebookExecutionCount((cell as { execution_count?: unknown }).execution_count),
         outputs: normalizeNotebookOutputs(cell.outputs)
       }))
       : []
@@ -458,6 +486,23 @@ function parseNotebook(text: string): {
   } catch {
     return { valid: false, kernel: null, cells: [] }
   }
+}
+
+function normalizeNotebookExecutionCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
+}
+
+function notebookCellTitle(cell: NotebookCell, cellNumber: number): string {
+  if (cell.type === 'markdown') {
+    const heading = cell.source.split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => /^#{1,6}\s+/.test(line))
+    if (heading) return heading.replace(/^#{1,6}\s+/, '').trim() || `Markdown cell ${cellNumber}`
+    return `Markdown cell ${cellNumber}`
+  }
+  if (cell.type === 'raw') return `Raw cell ${cellNumber}`
+  if (cell.type === 'code') return `Code cell ${cellNumber}`
+  return `Cell ${cellNumber}`
 }
 
 function normalizeNotebookSource(source: unknown): string {

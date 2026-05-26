@@ -506,6 +506,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
       { cell_type: 'markdown', source: ['# Notebook smoke\n', 'Baseline'] },
       {
         cell_type: 'code',
+        execution_count: 3,
         source: ['value = 1\n', 'value'],
         outputs: [
           { output_type: 'stream', name: 'stdout', text: ['result: 1\n'] },
@@ -571,6 +572,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         { cell_type: 'markdown', source: ['# Notebook smoke\n', 'Updated'] },
         {
           cell_type: 'code',
+          execution_count: 7,
           source: ['value = 2\n', 'value'],
           outputs: [
             { output_type: 'stream', name: 'stdout', text: ['result: 2\n'] },
@@ -1226,6 +1228,7 @@ child.on('exit', (code) => {
           filesNotebookReadOnlyControls: result.filesNotebookReadOnlyControlsWorks === true,
           filesNotebookOutputRendering: result.filesNotebookOutputRenderingWorks === true,
           filesNotebookCellDisclosure: result.filesNotebookCellDisclosureWorks === true,
+          filesNotebookExecutionCount: result.filesNotebookExecutionCountWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,
