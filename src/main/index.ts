@@ -5959,6 +5959,19 @@ function runAutomatedFocusedSurfaceSmoke(
                   const element = document.querySelector(selector);
                   return element instanceof HTMLElement ? element : null;
                 };
+                const setInputValue = (input, value) => {
+                  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+                  if (setter) setter.call(input, value);
+                  else input.value = value;
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                };
+                const waitForActiveElementId = async (id) => {
+                  for (let index = 0; index < 20; index += 1) {
+                    if (document.activeElement?.id === id) return true;
+                    await sleep(80);
+                  }
+                  return document.activeElement?.id === id;
+                };
                 const waitForActiveTestId = async (testId) => {
                   for (let index = 0; index < 20; index += 1) {
                     if (document.activeElement?.getAttribute('data-testid') === testId) return true;
@@ -5972,7 +5985,44 @@ function runAutomatedFocusedSurfaceSmoke(
                 const reviewBrowserAddressMenuState = await waitForMenuEnabledState('focus-browser-address-bar', false);
                 const reviewFindMenuState = await waitForMenuEnabledState('search-transcript', true);
                 sendShortcut(reviewPanel, 'f', 'KeyF');
-                const reviewFindFocused = await waitForActiveTestId('diff-file-search');
+                const reviewSharedFindInput = await waitForElement('#content-search-input');
+                const reviewFindFocused = await waitForActiveElementId('content-search-input');
+                const reviewFindBar = document.querySelector('[data-testid="thread-find-bar"]');
+                const reviewSharedFindDiffScope = reviewFindBar?.getAttribute('data-thread-find-domain') === 'diff';
+                let reviewSharedFindScopeToggle = false;
+                if (reviewSharedFindInput instanceof HTMLInputElement) {
+                  setInputValue(reviewSharedFindInput, 'review tree grouping');
+                  await sleep(360);
+                }
+                const chatScopeButton = document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Search chat"]');
+                const diffScopeButton = document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Search diffs"]');
+                if (chatScopeButton instanceof HTMLElement && diffScopeButton instanceof HTMLElement) {
+                  chatScopeButton.click();
+                  await sleep(160);
+                  const chatScopeActive = document.querySelector('[data-testid="thread-find-bar"]')?.getAttribute('data-thread-find-domain') === 'conversation';
+                  diffScopeButton.click();
+                  await sleep(240);
+                  const diffScopeActive = document.querySelector('[data-testid="thread-find-bar"]')?.getAttribute('data-thread-find-domain') === 'diff';
+                  reviewSharedFindScopeToggle = chatScopeActive && diffScopeActive;
+                }
+                let reviewSharedFindDrivesDiff = false;
+                for (let index = 0; index < 20; index += 1) {
+                  const diffRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+                  const matchCount = Number(diffRoot?.getAttribute('data-review-tree-search-match-count') ?? '0');
+                  const activePath = diffRoot?.getAttribute('data-review-tree-search-active-path') ?? '';
+                  const query = diffRoot?.getAttribute('data-review-tree-query') ?? '';
+                  if (query === 'review tree grouping' && matchCount > 0) {
+                    reviewSharedFindDrivesDiff = true;
+                    if (!activePath) {
+                      const nextButton = document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Next result"]');
+                      if (nextButton instanceof HTMLElement) nextButton.click();
+                    }
+                    break;
+                  }
+                  await sleep(80);
+                }
+                document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Close find"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                await sleep(120);
                 await openPanelTab('files', 'Files');
                 await waitForElement('[data-testid="workspace-file-search"]');
                 const filesPanel = focusActiveRightPanel();
@@ -5984,15 +6034,26 @@ function runAutomatedFocusedSurfaceSmoke(
                 const browserAddressMenuState = await waitForMenuEnabledState('focus-browser-address-bar', true);
                 sendShortcut(browserPanel, 'f', 'KeyF');
                 const browserFindFocused = await waitForActiveTestId('browser-find-input');
-                rightPanelFindShortcutRoutingWorks = reviewFindFocused && fileFindFocused && browserFindFocused;
+                rightPanelFindShortcutRoutingWorks =
+                  reviewFindFocused &&
+                  reviewSharedFindDiffScope &&
+                  reviewSharedFindScopeToggle &&
+                  reviewSharedFindDrivesDiff &&
+                  fileFindFocused &&
+                  browserFindFocused;
                 rightPanelFindShortcutRoutingDebug = {
                   reviewFindFocused,
+                  reviewSharedFindDiffScope,
+                  reviewSharedFindScopeToggle,
+                  reviewSharedFindDrivesDiff,
                   fileFindFocused,
                   browserFindFocused,
+                  activeElementId: document.activeElement?.id ?? null,
                   activeElementTestId: document.activeElement?.getAttribute('data-testid') ?? null,
                   activeElementClass: document.activeElement instanceof HTMLElement ? document.activeElement.className : null,
                   activeRightPanelTab: rightPanel.getAttribute('data-right-panel-active-tab'),
                   appShellFocusArea: document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') ?? null,
+                  threadFindPresent: Boolean(document.querySelector('[data-testid="thread-find-bar"]')),
                   diffSearchPresent: Boolean(document.querySelector('[data-testid="diff-file-search"]')),
                   fileSearchPresent: Boolean(document.querySelector('[data-testid="workspace-file-search"]')),
                   browserFindPresent: Boolean(document.querySelector('[data-testid="browser-find-input"]'))

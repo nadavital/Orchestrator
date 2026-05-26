@@ -82,6 +82,8 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<TranscriptSearchResult[]>([])
   const [searching, setSearching] = useState(false)
+  const [sharedFindActive, setSharedFindActive] = useState(false)
+  const [sharedSearchActiveResultIndex, setSharedSearchActiveResultIndex] = useState(0)
   const [renderLimit, setRenderLimit] = useState(() => Math.min(session.messages.length, TRANSCRIPT_RENDER_CHUNK))
   const [scrollMetrics, setScrollMetrics] = useState({ top: 0, height: 0, listOffsetTop: 0 })
   const [rowMeasurementVersion, setRowMeasurementVersion] = useState(0)
@@ -434,13 +436,11 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   }, [session.id, visibleMessages.length])
 
   useEffect(() => {
-    const openSearch = (): void => setSearchOpen(true)
+    const openSearch = (): void => {
+      setSharedFindActive(false)
+      setSearchOpen(true)
+    }
     const onKeyDown = (event: KeyboardEvent): void => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
-        event.preventDefault()
-        openSearch()
-        return
-      }
       if (event.key === 'Escape' && searchOpen) {
         const activeElement = document.activeElement
         if (activeElement === searchInputRef.current || searchInputRef.current?.contains(activeElement)) {
@@ -460,9 +460,9 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
   }, [searchOpen])
 
   useEffect(() => {
-    if (!searchOpen) return
+    if (!searchOpen || sharedFindActive) return
     window.requestAnimationFrame(() => searchInputRef.current?.focus())
-  }, [searchOpen])
+  }, [searchOpen, sharedFindActive])
 
   useEffect(() => {
     const query = searchQuery.trim()
@@ -544,6 +544,61 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
     })
   }, [session.id])
 
+  useEffect(() => {
+    if (sharedSearchActiveResultIndex < searchResults.length) return
+    setSharedSearchActiveResultIndex(0)
+  }, [searchResults.length, sharedSearchActiveResultIndex])
+
+  useEffect(() => {
+    const onThreadFindQuery = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string; domain?: string; query?: string }>).detail
+      if (detail?.sessionId !== session.id || detail.domain !== 'conversation') return
+      setSharedFindActive(true)
+      setSearchOpen(true)
+      setSearchQuery(detail.query ?? '')
+      setSharedSearchActiveResultIndex(0)
+    }
+    const onThreadFindStep = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string; domain?: string; direction?: number }>).detail
+      if (detail?.sessionId !== session.id || detail.domain !== 'conversation') return
+      if (searchResults.length === 0) return
+      const direction = detail.direction === -1 ? -1 : 1
+      const next = (sharedSearchActiveResultIndex + direction + searchResults.length) % searchResults.length
+      setSharedSearchActiveResultIndex(next)
+      void handleJumpToSearchResult(searchResults[next])
+    }
+    const onThreadFindClose = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string }>).detail
+      if (detail?.sessionId !== session.id) return
+      setSharedFindActive(false)
+      setSearchOpen(false)
+      setSearchQuery('')
+      setSearchResults([])
+      setSharedSearchActiveResultIndex(0)
+    }
+    window.addEventListener('orchestrator:thread-find-query', onThreadFindQuery)
+    window.addEventListener('orchestrator:thread-find-step', onThreadFindStep)
+    window.addEventListener('orchestrator:thread-find-close', onThreadFindClose)
+    return () => {
+      window.removeEventListener('orchestrator:thread-find-query', onThreadFindQuery)
+      window.removeEventListener('orchestrator:thread-find-step', onThreadFindStep)
+      window.removeEventListener('orchestrator:thread-find-close', onThreadFindClose)
+    }
+  }, [handleJumpToSearchResult, searchResults, session.id, sharedSearchActiveResultIndex])
+
+  useEffect(() => {
+    if (!sharedFindActive) return
+    window.dispatchEvent(new CustomEvent('orchestrator:thread-find-status', {
+      detail: {
+        sessionId: session.id,
+        domain: 'conversation',
+        totalMatches: searchResults.length,
+        activeMatch: searchResults.length > 0 ? sharedSearchActiveResultIndex + 1 : 0,
+        isCapped: false
+      }
+    }))
+  }, [searchResults.length, session.id, sharedFindActive, sharedSearchActiveResultIndex])
+
   if (session.messages.length === 0 && session.status !== 'running') {
     const promptTarget = projectName ?? 'this project'
     return (
@@ -622,7 +677,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
             <TranscriptLoadingState />
           )}
           <TranscriptSearch
-            open={searchOpen}
+            open={searchOpen && !sharedFindActive}
             inputRef={searchInputRef}
             query={searchQuery}
             results={searchResults}
@@ -633,6 +688,7 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
               setSearchOpen(false)
               setSearchQuery('')
               setSearchResults([])
+              setSharedFindActive(false)
             }}
           />
           <div
