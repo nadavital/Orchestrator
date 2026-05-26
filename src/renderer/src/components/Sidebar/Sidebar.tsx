@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { DragEvent as ReactDragEvent, ReactNode } from 'react'
 import type { Project, Session, SidebarConnectionGroupIdentity } from '../../types'
-import { comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, orderProjectlessSidebarGroups, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, sidebarConnectionGroupIdentity } from '../../types'
+import { comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, sidebarConnectionGroupIdentity } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import type { SidebarCustomSection } from '../../store/sidebar'
 import { sidebarSessionSelectedKey, sidebarSettingsSelectedKey, useSidebarStore } from '../../store/sidebar'
@@ -205,9 +205,6 @@ export default function Sidebar({
         })
     return sorted.sort(compareProjectsByPin)
   }, [projects, sessionsByProject, viewMode])
-  const orderedProjectGroups = useMemo(() => (
-    orderProjectlessSidebarGroups(projectlessSessions.length > 0 ? ['projectless'] : [], visibleProjects, projectlessChatsFirst)
-  ), [projectlessChatsFirst, projectlessSessions.length, visibleProjects])
   const connectionGroups = useMemo(() => {
     const groups = new Map<string, {
       identity: SidebarConnectionGroupIdentity
@@ -610,7 +607,7 @@ export default function Sidebar({
             ))}
           </div>
         ) : (
-          visibleProjects.length === 0 && projectlessSessions.length === 0 ? (
+          visibleProjects.length === 0 ? (
             <div className="min-w-0 px-1 pt-0.5" data-testid="sidebar-project-empty-state">
               <SidebarListRow
                 icon="plus"
@@ -626,23 +623,13 @@ export default function Sidebar({
               data-testid="sidebar-project-group-list"
               data-sidebar-projectless-chats-first={projectlessChatsFirst ? 'true' : 'false'}
             >
-              {orderedProjectGroups.map((group) => (
-                group.kind === 'projectless' ? (
-                  <SidebarProjectlessChatsGroup
-                    key="projectless"
-                    sessions={projectlessSessions}
-                    collapsed={projectlessChatsCollapsed}
-                    onToggle={toggleProjectlessChatsCollapsed}
-                    renderSession={renderDraggableSession}
-                  />
-                ) : (
-                  <ProjectSection
-                    key={group.item.id}
-                    project={group.item}
-                    sessions={sessionsByProject.get(group.item.id) ?? []}
-                    renderSession={renderDraggableSession}
-                  />
-                )
+              {visibleProjects.map((project) => (
+                <ProjectSection
+                  key={project.id}
+                  project={project}
+                  sessions={sessionsByProject.get(project.id) ?? []}
+                  renderSession={renderDraggableSession}
+                />
               ))}
             </div>
           )
@@ -650,6 +637,21 @@ export default function Sidebar({
       </div>}
     </div>
   )
+
+  const renderProjectlessChatsSection = (): JSX.Element | null => {
+    if (viewMode === 'chronological' || viewMode === 'connections' || projectlessSessions.length === 0) return null
+
+    return (
+      <SidebarProjectlessChatsGroup
+        key="projectless"
+        sessions={projectlessSessions}
+        collapsed={projectlessChatsCollapsed}
+        projectlessChatsFirst={projectlessChatsFirst}
+        onToggle={toggleProjectlessChatsCollapsed}
+        renderSession={renderDraggableSession}
+      />
+    )
+  }
 
   const renderCustomSection = (section: SidebarCustomSection): JSX.Element => {
     const sectionSessions = customSectionSessions.get(section.id) ?? []
@@ -876,7 +878,16 @@ export default function Sidebar({
           >
             {sectionOrder.map((section) => {
               if (section === 'pinned') return renderPinnedSection()
-              if (section === 'projects') return renderProjectsSection()
+              if (section === 'projects') {
+                const projectlessSection = renderProjectlessChatsSection()
+                return (
+                  <Fragment key="projects-and-chats">
+                    {projectlessChatsFirst ? projectlessSection : null}
+                    {renderProjectsSection()}
+                    {projectlessChatsFirst ? null : projectlessSection}
+                  </Fragment>
+                )
+              }
               const customSection = customSections.find((candidate) => `custom:${candidate.id}` === section)
               return customSection ? renderCustomSection(customSection) : null
             })}
@@ -995,19 +1006,22 @@ function SidebarConnectionGroup({
 function SidebarProjectlessChatsGroup({
   sessions,
   collapsed,
+  projectlessChatsFirst,
   onToggle,
   renderSession
 }: {
   sessions: Session[]
   collapsed: boolean
+  projectlessChatsFirst: boolean
   onToggle: () => void
   renderSession?: (session: Session) => ReactNode
 }): JSX.Element {
   return (
     <div
-      className="sidebar-projectless-chats-group min-w-0"
+      className="sidebar-section sidebar-projectless-chats-group min-w-0 px-2 py-1.5"
       data-testid="sidebar-projectless-chats-section"
       data-sidebar-projectless-session-count={sessions.length}
+      data-sidebar-projectless-chats-first={projectlessChatsFirst ? 'true' : 'false'}
     >
       <SidebarListRow
         as="div"

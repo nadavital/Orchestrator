@@ -13974,11 +13974,11 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               remoteProjectlessRow instanceof HTMLElement &&
               projectsSection instanceof HTMLElement
             ) {
-              const projectGroupList = document.querySelector('[data-testid="sidebar-project-group-list"]');
-              const firstProjectHeader = projectsSection.querySelector('[data-testid="project-section-header"]');
+              const projectlessSectionSharesProjectScroll =
+                chatScrollContainer instanceof HTMLElement &&
+                projectlessSection.parentElement === chatScrollContainer;
               const projectlessChatsAfterProjects =
-                !(firstProjectHeader instanceof HTMLElement) ||
-                Boolean(firstProjectHeader.compareDocumentPosition(projectlessSection) & Node.DOCUMENT_POSITION_FOLLOWING);
+                Boolean(projectsSection.compareDocumentPosition(projectlessSection) & Node.DOCUMENT_POSITION_FOLLOWING);
               const projectlessRowScoped =
                 projectlessRow.closest('[data-testid="sidebar-projectless-chats-section"]') === projectlessSection;
               const remoteProjectlessRowScoped =
@@ -13991,8 +13991,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 projectlessHeader.classList.contains('sidebar-list-row-section');
               const defaultProjectlessPreferenceStored =
                 window.localStorage.getItem('orchestrator.sidebar.projectlessChatsFirst') == null &&
-                projectGroupList instanceof HTMLElement &&
-                projectGroupList.getAttribute('data-sidebar-projectless-chats-first') === 'false';
+                projectlessSection.getAttribute('data-sidebar-projectless-chats-first') === 'false';
               const projectlessOrganizeButton = findButton('Organize sidebar');
               if (projectlessOrganizeButton instanceof HTMLButtonElement) {
                 projectlessOrganizeButton.click();
@@ -14003,20 +14002,19 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   chatsBeforeProjects.click();
                   await sleep(180);
                   const reorderedProjectlessSection = document.querySelector('[data-testid="sidebar-projectless-chats-section"]');
-                  const reorderedProjectGroupList = document.querySelector('[data-testid="sidebar-project-group-list"]');
-                  const reorderedFirstProjectHeader = projectsSection.querySelector('[data-testid="project-section-header"]');
+                  const reorderedProjectsSection = document.querySelector('[data-testid="sidebar-projects-section"]');
                   const projectlessChatsFirst =
-                    !(reorderedFirstProjectHeader instanceof HTMLElement) ||
                     (
                       reorderedProjectlessSection instanceof HTMLElement &&
-                      Boolean(reorderedProjectlessSection.compareDocumentPosition(reorderedFirstProjectHeader) & Node.DOCUMENT_POSITION_FOLLOWING)
+                      reorderedProjectsSection instanceof HTMLElement &&
+                      Boolean(reorderedProjectlessSection.compareDocumentPosition(reorderedProjectsSection) & Node.DOCUMENT_POSITION_FOLLOWING)
                     );
                   sidebarProjectlessChatsFirstPreferenceWorks =
                     defaultProjectlessPreferenceStored &&
                     projectlessChatsAfterProjects &&
                     window.localStorage.getItem('orchestrator.sidebar.projectlessChatsFirst') === 'true' &&
-                    reorderedProjectGroupList instanceof HTMLElement &&
-                    reorderedProjectGroupList.getAttribute('data-sidebar-projectless-chats-first') === 'true' &&
+                    reorderedProjectlessSection instanceof HTMLElement &&
+                    reorderedProjectlessSection.getAttribute('data-sidebar-projectless-chats-first') === 'true' &&
                     projectlessChatsFirst;
                 }
               }
@@ -14036,6 +14034,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 rowFor('Sidebar remote projectless codex') instanceof HTMLElement;
               sidebarProjectlessChatsWorks =
                 projectlessSection.getAttribute('data-sidebar-projectless-session-count') === '2' &&
+                projectlessSectionSharesProjectScroll &&
                 projectlessRowScoped &&
                 remoteProjectlessRowScoped &&
                 providerProjectlessMetadataWorks &&
@@ -15853,6 +15852,23 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
           })()
         `)
         if (screenshotPath) {
+          await win.webContents.executeJavaScript(`
+            (() => {
+              window.localStorage.removeItem('orchestrator.sidebar.projectlessChatsFirst');
+              window.localStorage.removeItem('orchestrator.sidebar.customSections');
+              window.localStorage.removeItem('orchestrator.sidebar.collapsedSections');
+              window.localStorage.removeItem('orchestrator.sidebar.collapsedProjectlessChats');
+              window.localStorage.setItem('orchestrator.sidebar.sectionOrder', JSON.stringify(['pinned', 'projects']));
+            })()
+          `)
+          await new Promise<void>((resolve) => {
+            const timeout = setTimeout(resolve, 6000)
+            win.webContents.once('did-finish-load', () => {
+              clearTimeout(timeout)
+              setTimeout(resolve, 900)
+            })
+            win.webContents.reload()
+          })
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
