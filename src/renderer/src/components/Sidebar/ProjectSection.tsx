@@ -188,7 +188,7 @@ export default function ProjectSection({ project, sessions, renderSession }: Pro
                 dataTestId="project-empty-new-chat"
                 size="compact"
                 icon="plus"
-                label="New Chat"
+                label="New chat"
                 ariaLabel="New chat"
                 onClick={handleNewSession}
               />

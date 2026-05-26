@@ -14573,7 +14573,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const emptyProjectNewChatCompact =
               (emptyProjectNewChatRows.length === 0 || emptyProjectNewChatRows.every((row) => (
                 row.getBoundingClientRect().height <= 28 &&
-                row.textContent?.trim() === 'New Chat' &&
+                row.textContent?.trim() === 'New chat' &&
                 row.querySelector('svg') instanceof SVGElement
               )));
             const emptyProjectNewChatUsesSharedPrimitive =

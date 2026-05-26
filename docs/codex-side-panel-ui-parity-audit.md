@@ -6560,6 +6560,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the concrete shell-material regression guard for right and bottom panels. It does not prove exact live Codex pixel spacing or panel animation timing; those still require fresh live Codex screenshots or another concrete visual mismatch.
 
+### 2026-05-26 - Header/Panel Interaction Tracking and Empty Project Copy
+
+Codex evidence: live screenshot `/private/tmp/codex-current-screen.png` shows Codex sidebar and panel chrome as coordinated shell surfaces, and its sidebar new-chat copy is sentence-case `New chat`. The dedicated `Header and panel interaction` parity row remains a first-class tracking item because a sidebar, right panel, bottom panel, or main header can pass alone while still feeling unlike Codex when their top seams, ownership, or attachments are inconsistent.
+
+Implemented: kept the header/panel interaction item in the parity list and comparison contract, and fixed the empty-project compact row copy from `New Chat` to `New chat` so the sidebar does not drift from Codex's sentence-case action copy. The focused Sidebar smoke now requires `emptyProjectNewChatCompact=true` with the sentence-case label.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, and `git diff --check` passed. Focused `npm run smoke:ui:auto -- --sidebar` passed with `emptyProjectNewChatCompact=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779794172270.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779794172270.png`. Refreshed `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with 23 captures, `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needs-smoke=0`, and `needs-proof=0`; manifest created at `2026-05-26T11:21:12.590Z`; report: `tmp/codex-side-panel-comparison/comparison-report.json`; header/panel contact sheet: `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html`.
+
+Remaining: keep inspecting `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html` when changing the left sidebar, primary titlebar/header, Workbench right panel, or Terminal bottom panel. Exact live Codex pixel spacing and animation timing remain open until fresh screenshot evidence identifies a measurable mismatch.
+
 Recommended order:
 
 1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel, and review `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html` because the user-visible mismatch can be in the relationship between surfaces rather than in any one panel.
