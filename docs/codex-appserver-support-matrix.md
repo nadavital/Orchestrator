@@ -1,6 +1,6 @@
 # Codex App-Server Support Matrix
 
-Last checked: 2026-05-14  
+Last checked: 2026-05-26
 Local Codex CLI: `codex-cli 0.128.0`
 
 ## Research Basis
@@ -17,6 +17,10 @@ Local Codex CLI: `codex-cli 0.128.0`
   - `src/main/runEvents.ts`
   - `src/main/__tests__/codexAppServerRuntime.test.ts`
   - `src/main/__tests__/providers.test.ts`
+- Browser boundary proof:
+  - `npm run live:codex-browser-appserver`
+  - `tmp/codex-browser-appserver-live-proof/result.json`
+  - Installed Codex bundle chunks: `app-server-manager-signals-Csopz8aM.js`, `browser-sidebar-manager-ivre5jEI.js`, `thread-management-dynamic-tools-4r_Yz1XH.js`
 
 ## Status Legend
 
@@ -49,6 +53,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Side questions | External | `/btw` exists as Orchestrator-owned detached side question. It is not a Codex app-server same-thread side channel. |
 | Review mode | Parsed | `enteredReviewMode` and `exitedReviewMode` render as status messages; `review/start` is not productized. Existing `/review` still uses Codex headless review. |
 | Skills/plugins/apps browsers | Partial | App-server settings surfaces list skills, hooks, plugins, and apps; the Capabilities page also discovers file-backed Codex skills, plugins, MCP config, and AGENTS instructions. Native install/configuration UI is still missing. |
+| Browser-use client tools | Blocked | Codex desktop has browser-use webview state and turn-route capture/release code in the app bundle, but the live stdio app-server proof completes without `browser.manager_state`, browser server requests, or dynamic browser tool calls. Manual Orchestrator Browser UI remains provider-neutral; agent-driven browser-use automation is not proven through this runtime. |
 | Account/model/config/filesystem/MCP management | Partial | Read-only app-server settings surfaces cover models, model-provider capabilities, auth/account/rate limits, config, config requirements, MCP status, external agent config detection, and thread lists. Filesystem and mutating management APIs are still not productized. |
 | Realtime/audio | Parsed | Realtime/audio notifications are consumed as generic status/delta events. There is no voice/realtime UI. |
 | Remote/unix/ws transports | Not wired | Orchestrator uses stdio only. |
@@ -94,7 +99,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | `item/permissions/requestApproval` | Supported | Maps to permission card; on allow echoes requested profile with turn/session scope. |
 | `item/tool/requestUserInput` | Supported | Maps to Answer Required card; responds with per-question answers. |
 | `mcpServer/elicitation/request` | Supported | Maps to Answer Required card; responds with `accept` and content. |
-| `item/tool/call` | Parsed/blocked | Orchestrator responds with a structured JSON-RPC unsupported-tool error instead of leaving the server request hanging. |
+| `item/tool/call` | Parsed/blocked | Orchestrator responds with a structured JSON-RPC unsupported-tool error instead of leaving the server request hanging. The live browser proof currently sees no `item/tool/call` requests, so browser-use is not merely missing a handler in this path. |
 | `account/chatgptAuthTokens/refresh` | Parsed/blocked | Orchestrator responds with a structured unsupported-auth-refresh error because it relies on Codex CLI-managed auth. |
 | `applyPatchApproval` | Supported | Legacy approval request maps to the existing permission card and responds `approved`, `approved_for_session`, or `denied`. |
 | `execCommandApproval` | Supported | Legacy approval request maps to the existing permission card and responds `approved`, `approved_for_session`, or `denied`. |
@@ -162,6 +167,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Approvals | Supported | Command/file/permission requests round-trip through app-server. | Live approval-producing Codex UI smoke and auto-review/guardian details. |
 | MCP elicitation | Supported | Request maps to user input and responds through JSON-RPC. | Live MCP form fixture and structured schema-aware form UI. |
 | Apps/connectors | Partial | `app/list` is available as a read-only app-server settings surface. | Browser/mention insertion with `app://...` and connector invocation UI. |
+| Browser-use client tools | Blocked | Manual Browser panel state, tabs, navigation, inspection, comments, security policy, and local-target discovery are Orchestrator-owned and provider-neutral. The Codex desktop bundle has browser-use client route evidence, but the live stdio app-server proof emitted no browser events or dynamic browser tool requests. | A real dynamic client-tool bridge that advertises browser tools and routes tool calls to the Browser renderer, or explicit unavailable state for runtimes/providers without that bridge. |
 | Skills | Partial | `skills/list` and `hooks/list` are available as read-only app-server settings surfaces. Capabilities discovers documented `$HOME/.agents/skills` and repo `.agents/skills`; create/edit/delete is file-backed. Prompt can still mention `$skill`. | `skills/config/write`, native skill input items, and provider enable/disable controls. |
 | Plugins | Partial | `plugin/list` is available as a read-only app-server settings surface. Capabilities creates portable `.codex-plugin/plugin.json` packages and local `.agents/plugins/marketplace.json` entries. | Marketplace/plugin read/install/uninstall UI and `plugin://...` mention insertion. |
 | Review | Partial/external | Existing provider command surface can use headless review command; review-mode items are parsed. | `review/start` inline/detached app-server flow and review mode item UI. |

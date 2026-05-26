@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import * as asar from '@electron/asar'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = join(__dirname, '..')
@@ -18,6 +19,7 @@ const model = process.env.CODEX_BROWSER_PROOF_MODEL ?? 'gpt-5.4-mini'
 const cwd = process.env.CODEX_BROWSER_PROOF_CWD ?? repoRoot
 const browserProofUrl = process.env.CODEX_BROWSER_PROOF_URL ??
   'data:text/html,<title>Orchestrator Browser Proof</title><h1>ORCHESTRATOR_BROWSER_PROOF_PAGE</h1>'
+const codexAppAsarPath = process.env.CODEX_APP_ASAR_PATH ?? '/Applications/Codex.app/Contents/Resources/app.asar'
 const expectedToken = 'CODEX_BROWSER_LIVE_OK'
 const noBrowserToken = 'CODEX_BROWSER_LIVE_NO_BROWSER'
 const prompt = process.env.CODEX_BROWSER_PROOF_PROMPT ?? [
@@ -259,6 +261,7 @@ function writeArtifacts(result) {
     serverRequests,
     eventTypes: [...new Set(events.map((event) => event.type))],
     browserEvents,
+    codexBrowserBoundaryEvidence: collectCodexBrowserBoundaryEvidence(),
     assistantText,
     turnStatus,
     parseErrors,
@@ -267,6 +270,64 @@ function writeArtifacts(result) {
   writeFileSync(join(artifactRoot, 'result.json'), `${JSON.stringify(payload, null, 2)}\n`)
   writeFileSync(join(artifactRoot, 'raw.jsonl'), `${rawLines.join('\n')}\n`)
   return payload
+}
+
+function collectCodexBrowserBoundaryEvidence() {
+  const terms = [
+    'dynamic-tools-for-thread-start-requested',
+    'dynamic-tool-call-requested',
+    'item/tool/call',
+    'capture-browser-use-turn-route',
+    'browser-use-turn-route-capture',
+    'browser-use-turn-route-release',
+    'codex/browserUse',
+    'browser-sidebar-browser-use-state',
+    'browser-sidebar-browser-use-viewport',
+    'browser-sidebar-browser-use-capture-surface',
+    'browser-sidebar-browser-use-cursor-state'
+  ]
+  const evidence = {
+    appAsarPath: codexAppAsarPath,
+    available: false,
+    chunks: [],
+    terms: Object.fromEntries(terms.map((term) => [term, []])),
+    conclusion: 'Codex app bundle was unavailable for boundary inspection.'
+  }
+  if (!existsSync(codexAppAsarPath)) return evidence
+
+  try {
+    const packageFiles = asar.listPackage(codexAppAsarPath)
+    const relevantFiles = packageFiles.filter((file) => {
+      const basename = file.split('/').pop() ?? ''
+      return /^(app-server-manager-signals|browser-sidebar-manager|thread-management-dynamic-tools)-.*\.js$/.test(basename)
+    })
+    evidence.available = true
+    evidence.chunks = relevantFiles.map((file) => file.split('/').pop())
+
+    for (const file of relevantFiles) {
+      const basename = file.split('/').pop() ?? file
+      const text = asar.extractFile(codexAppAsarPath, file.slice(1)).toString('utf8')
+      for (const term of terms) {
+        const count = countOccurrences(text, term)
+        if (count > 0) evidence.terms[term].push({ chunk: basename, count })
+      }
+    }
+
+    evidence.conclusion = [
+      'Codex desktop contains browser-use sidebar state and turn-route capture/release code in the webview bundle.',
+      'The live stdio app-server proof must still see server requests or browser.manager_state events before Orchestrator can claim provider-backed browser-use parity.'
+    ].join(' ')
+  } catch (error) {
+    evidence.conclusion = `Codex app bundle boundary inspection failed: ${error instanceof Error ? error.message : String(error)}`
+  }
+  return evidence
+}
+
+function countOccurrences(text, term) {
+  let count = 0
+  let index = -1
+  while ((index = text.indexOf(term, index + 1)) >= 0) count += 1
+  return count
 }
 
 function finish(ok, reason) {
