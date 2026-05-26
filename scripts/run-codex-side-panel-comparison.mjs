@@ -259,11 +259,13 @@ function buildContracts() {
       captureIds: ['files', 'review-source'],
       codexAssets: [
         { basename: 'review-file-source-tab-CjS7Xe_W.js', terms: ['Open file', 'Open in editor', 'Copy path', 'Show git blame', 'Enable rich view'] },
-        { basename: 'notebook-preview-panel-CAO-aRhM.js', terms: ['Read only', 'Run all', 'Restart kernel', 'Raw output', 'Notebook output', 'details', 'summary', 'descriptionMarkdown', 'cellTitle', 'outputSummaries', 'summaryMarkdown'] }
+        { basename: 'notebook-preview-panel-CAO-aRhM.js', terms: ['Read only', 'Run all', 'Restart kernel', 'Raw output', 'Notebook output', 'details', 'summary', 'descriptionMarkdown', 'cellTitle', 'outputSummaries', 'summaryMarkdown', 'IPYNB'] },
+        { basename: 'docx-preview-panel-BjyRJuYA.js', terms: ['artifactType:`DOC`', 'title:P', 'replace(/\\.docx$/i'] },
+        { basename: 'pdf-preview-panel-CkrOHSbs.js', terms: ['artifactType:`PDF`', 'title:ht', 'replace(/\\.pdf$/i'] }
       ],
-      smokeChecks: ['filesContentSearch', 'filesActionMenuSharedSections', 'workbenchFileTabActionMenuSharedSections', 'filesNotebookReadOnlyControls', 'filesNotebookOutputRendering', 'filesNotebookCellDisclosure', 'filesNotebookExecutionCount', 'filesNotebookCellMetadata', 'filesNotebookOutputSummaries', 'reviewFullSourceRows', 'reviewFullSourceBlame'],
+      smokeChecks: ['filesContentSearch', 'filesActionMenuSharedSections', 'workbenchFileTabActionMenuSharedSections', 'filesArtifactHeaderTitleType', 'filesNotebookReadOnlyControls', 'filesNotebookOutputRendering', 'filesNotebookCellDisclosure', 'filesNotebookExecutionCount', 'filesNotebookCellMetadata', 'filesNotebookOutputSummaries', 'reviewFullSourceRows', 'reviewFullSourceBlame'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Local file/source behavior is covered, including read-only notebook artifact controls, basic notebook output rendering, Codex-style notebook cell disclosure shells, notebook execution-count labels, notebook metadata titles/descriptions, and notebook output summary markdown. Full artifact renderer parity and provider-backed comments/blame remain incomplete.',
+      caveat: 'Local file/source behavior is covered, including Codex-style artifact header title/type splitting for PDF/DOCX/IPYNB previews, read-only notebook artifact controls, basic notebook output rendering, Codex-style notebook cell disclosure shells, notebook execution-count labels, notebook metadata titles/descriptions, and notebook output summary markdown. Full artifact renderer parity and provider-backed comments/blame remain incomplete.',
       next: 'Prioritize deeper notebook output styling, exact cell spacing, other artifact renderer controls, or provider metadata, not more local tree styling.'
     },
     {

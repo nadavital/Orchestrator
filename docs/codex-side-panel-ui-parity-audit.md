@@ -6712,6 +6712,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this tightens the user-observed header/panel interaction mismatch. Exact live Codex button spacing and hover/active timing remain live screenshot/timing comparison items.
 
+### 2026-05-26 - Artifact Preview Title/Type Headers
+
+Codex evidence: `tmp/codex-app-assets/docx-preview-panel-BjyRJuYA.js` renders DOCX artifacts through the shared artifact preview header with `artifactType: DOC` and strips `.docx` from the visible title. `tmp/codex-app-assets/pdf-preview-panel-CkrOHSbs.js` does the same for PDF artifacts and strips `.pdf`. `tmp/codex-app-assets/notebook-preview-panel-CAO-aRhM.js` renders notebook previews with an `IPYNB` artifact type that includes the cell count when parsing succeeds.
+
+Implemented: PDF, DOCX, and notebook previews now use a shared artifact-style title/type header instead of a badge-plus-full-filename row. The visible title is extensionless (`pdf-preview-smoke`, `document-preview-smoke`, `notebook-preview-smoke` in smoke), while the type label is separate (`PDF`, `DOC`, `IPYNB · 3 cells`). Focused Files smoke and the side-panel comparison now gate this with `filesArtifactHeaderTitleType=true`.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, and focused `npm run smoke:ui:auto -- --files` passed. The first focused smoke hit the expected sandbox `listen EPERM 127.0.0.1`; the escalated rerun passed with `filesArtifactHeaderTitleType=true` plus the existing Files/notebook checks. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779809072098.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779809072098.png`. Refreshed `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with 25 captures, `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needs-smoke=0`, and `needs-proof=0`; manifest created at `2026-05-26T15:29:36.749Z`.
+
+Remaining: this closes the visible artifact identity/header mismatch for local PDF/DOCX/IPYNB previews. It does not implement true Codex PDF page controls, DOCX page/zoom rendering, spreadsheet/slides renderers, exact output spacing, or provider-backed artifact metadata.
+
 Recommended order:
 
 1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel, and review `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html` because the user-visible mismatch can be in the relationship between surfaces rather than in any one panel. Header action controls must stay compact toolbar chrome inside that shared band, not a heavier independent button cluster.
@@ -6719,7 +6729,7 @@ Recommended order:
 3. Browser agent-driven parity: keep the live real Browser tool proof and `browserClientToolBridge=true` renderer loopback green. Add click/type/screenshot only from real browser-use requests, explicit product scope, or a full installed-app end-to-end run.
 4. Terminal live Codex bottom-panel height/animation comparison at multiple window sizes plus root shell ownership for any remaining non-shared tab paths. The local content/chrome/target decomposition is now smoke-gated at a Codex-bundle-aligned 400 px total default/reset target; exact live animation timing remains.
 5. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, live commented-PR proof, provider blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
-6. File tabs and file viewer parity, now focused on full artifact rendering/provider search after the artifact identity/source-boundary slice.
+6. File tabs and file viewer parity, now focused on full artifact rendering/provider search after the artifact identity/header and source-boundary slices.
 7. Browser lifecycle parity.
 8. Chat Sidebar provider-backed model gaps: safe provider pin set/list, deeper real provider worktree/projectless adapters, and any new screenshot-proven visual drift beyond the current compact density contract.
 9. Settings remote-adapter parity: real remote-host Settings adapters behind the current unavailable boundaries, native theme/font/chrome checks, platform shortcut live checks, and live Codex Settings screenshot comparison. The packaged custom-protocol route gap is now covered by the 2026-05-25 Settings packaged renderer-route slice.

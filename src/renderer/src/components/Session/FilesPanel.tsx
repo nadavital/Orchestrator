@@ -7,7 +7,7 @@ import type { WorkspaceSearchEntry, WorkspaceSearchResult } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import { Badge, Button, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelHeader, PanelNotice, PanelToolbar, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
-import StructuredDataPreview, { type PreviewHeaderAction } from './StructuredDataPreview'
+import StructuredDataPreview, { ArtifactPreviewHeader, stripArtifactExtension, type PreviewHeaderAction } from './StructuredDataPreview'
 import WorkbenchTree, { WorkbenchTreeMessage, type WorkbenchTreeRow } from './WorkbenchTree'
 
 interface Props {
@@ -873,34 +873,37 @@ function PdfPreview({
   absolutePath: string
   preview: FilePreviewResult
 }): JSX.Element {
+  const title = stripArtifactExtension(entry.name, 'pdf')
   return (
     <div
       className="file-structured-preview workspace-pdf-preview flex h-full min-h-0 flex-col overflow-hidden"
       data-testid="workspace-pdf-preview"
       data-pdf-preview-size={preview.size ?? entry.size ?? 0}
     >
-      <PanelToolbar className="file-preview-header" dataTestId="workspace-pdf-preview-header">
-        <Badge tone="neutral">PDF</Badge>
-        <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-        <span className="file-tab-meta">{formatBytes(preview.size ?? entry.size ?? 0)}</span>
-        <span
-          className="file-preview-header-actions"
-          data-testid="workspace-pdf-preview-actions"
-          data-preview-controls="copy-path open-file reveal-file"
-        >
-          {artifactPreviewActions(entry, absolutePath, preview).map((action) => (
-            <IconButton
-              key={action.id}
-              icon={action.icon}
-              label={action.label}
-              size="sm"
-              variant="toolbar"
-              dataTestId={`workspace-pdf-preview-action-${action.id}`}
-              onClick={action.onClick}
-            />
-          ))}
-        </span>
-      </PanelToolbar>
+      <ArtifactPreviewHeader
+        artifactType="PDF"
+        rightContent={(
+          <span
+            className="file-preview-header-actions"
+            data-testid="workspace-pdf-preview-actions"
+            data-preview-controls="copy-path open-file reveal-file"
+          >
+            {artifactPreviewActions(entry, absolutePath, preview).map((action) => (
+              <IconButton
+                key={action.id}
+                icon={action.icon}
+                label={action.label}
+                size="sm"
+                variant="toolbar"
+                dataTestId={`workspace-pdf-preview-action-${action.id}`}
+                onClick={action.onClick}
+              />
+            ))}
+          </span>
+        )}
+        testId="workspace-pdf-preview"
+        title={title}
+      />
       <iframe
         title={entry.name}
         src={fileUrl(absolutePath)}

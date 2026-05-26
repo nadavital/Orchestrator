@@ -10821,6 +10821,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   .some((attachment) => attachment.textContent?.includes('nested note.md'));
               const previewChecks = {};
               const previewHeaderChecks = {};
+              const previewArtifactHeaderChecks = {};
               const previewControlChecks = {};
               const previewArtifactTabChecks = {};
               const notebookReadOnlyControlChecks = {};
@@ -10870,6 +10871,33 @@ function runAutomatedFocusedSurfaceSmoke(
                     header instanceof HTMLElement &&
                     header.getAttribute('data-panel-toolbar') === 'true' &&
                     header.getBoundingClientRect().height <= 34;
+                  const artifactTitle = header instanceof HTMLElement
+                    ? header.querySelector('[data-artifact-preview-title]')
+                    : null;
+                  const artifactType = header instanceof HTMLElement
+                    ? header.querySelector('[data-artifact-preview-type]')
+                    : null;
+                  previewArtifactHeaderChecks[testId] =
+                    testId === 'workspace-json-preview' ||
+                    testId === 'workspace-csv-preview' ||
+                    (
+                      artifactTitle instanceof HTMLElement &&
+                      artifactType instanceof HTMLElement &&
+                      artifactTitle.textContent?.trim().length > 0 &&
+                      !/\.(pdf|docx|ipynb)$/i.test(artifactTitle.textContent?.trim() ?? '') &&
+                      (testId === 'workspace-pdf-preview'
+                        ? artifactTitle.textContent?.trim() === 'pdf-preview-smoke' &&
+                          artifactType.textContent?.trim() === 'PDF'
+                        : true) &&
+                      (testId === 'workspace-document-preview'
+                        ? artifactTitle.textContent?.trim() === 'document-preview-smoke' &&
+                          artifactType.textContent?.trim().startsWith('DOC')
+                        : true) &&
+                      (testId === 'workspace-notebook-preview'
+                        ? artifactTitle.textContent?.trim() === 'notebook-preview-smoke' &&
+                          artifactType.textContent?.trim().startsWith('IPYNB · 3 cells')
+                        : true)
+                    );
                   const requiresRawCopy = testId !== 'workspace-pdf-preview';
                   previewControlChecks[testId] =
                     actions instanceof HTMLElement &&
@@ -11660,6 +11688,10 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewControlChecks['workspace-pdf-preview']) &&
                   Boolean(previewControlChecks['workspace-document-preview']) &&
                   Boolean(previewControlChecks['workspace-notebook-preview']),
+                filesArtifactHeaderTitleTypeWorks:
+                  Boolean(previewArtifactHeaderChecks['workspace-pdf-preview']) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-document-preview']) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-notebook-preview']),
                 filesArtifactTabModelWorks:
                   Boolean(previewArtifactTabChecks['workspace-csv-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-pdf-preview']) &&

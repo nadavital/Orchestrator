@@ -82,14 +82,15 @@ function DocumentPreview({
   actions?: PreviewHeaderAction[]
 }): JSX.Element {
   const paragraphs = (preview.text ?? '').split(/\n{2,}/).filter((paragraph) => paragraph.trim())
+  const title = stripArtifactExtension(name, 'docx')
   return (
     <div className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden" data-testid={testId}>
-      <PanelToolbar className="file-preview-header" dataTestId={`${testId}-header`}>
-        {statusLabel && <Badge tone="neutral">{statusLabel}</Badge>}
-        <Badge tone="neutral">DOCX</Badge>
-        <span className="min-w-0 flex-1 truncate">{name}</span>
-        <PreviewHeaderActions actions={actions} testId={testId} />
-      </PanelToolbar>
+      <ArtifactPreviewHeader
+        artifactType={statusLabel ? `DOC · ${statusLabel}` : 'DOC'}
+        rightContent={<PreviewHeaderActions actions={actions} testId={testId} />}
+        testId={testId}
+        title={title}
+      />
       {preview.truncated && (
         <div className="file-preview-note">
           Showing first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
@@ -126,17 +127,23 @@ function NotebookPreview({
   actions?: PreviewHeaderAction[]
 }): JSX.Element {
   const notebook = parseNotebook(preview.text ?? '')
+  const title = notebook.title ?? stripArtifactExtension(name, 'ipynb')
+  const artifactType = notebook.valid
+    ? `IPYNB · ${notebook.cells.length.toLocaleString()} ${notebook.cells.length === 1 ? 'cell' : 'cells'}`
+    : 'IPYNB'
   return (
     <div className="file-structured-preview flex h-full min-h-0 flex-col overflow-hidden" data-testid={testId}>
-      <PanelToolbar className="file-preview-header" dataTestId={`${testId}-header`}>
-        {statusLabel && <Badge tone="neutral">{statusLabel}</Badge>}
-        <Badge tone="neutral">Notebook</Badge>
-        <span className="min-w-0 flex-1 truncate">{name}</span>
-        {notebook.valid && (
-          <NotebookReadOnlyControls testId={testId} />
+      <ArtifactPreviewHeader
+        artifactType={statusLabel ? `${artifactType} · ${statusLabel}` : artifactType}
+        rightContent={(
+          <>
+            {notebook.valid && <NotebookReadOnlyControls testId={testId} />}
+            <PreviewHeaderActions actions={actions} testId={testId} />
+          </>
         )}
-        <PreviewHeaderActions actions={actions} testId={testId} />
-      </PanelToolbar>
+        testId={testId}
+        title={title}
+      />
       {preview.truncated && (
         <div className="file-preview-note">
           Showing first {formatBytes((preview.text ?? '').length)} of {formatBytes(preview.size ?? 0)}.
@@ -400,6 +407,42 @@ function PreviewHeaderActions({
   )
 }
 
+export function ArtifactPreviewHeader({
+  artifactType,
+  rightContent,
+  testId,
+  title
+}: {
+  artifactType: string
+  rightContent?: JSX.Element | null
+  testId: string
+  title: string
+}): JSX.Element {
+  return (
+    <PanelToolbar className="file-preview-header artifact-preview-header" dataTestId={`${testId}-header`}>
+      <span className="artifact-preview-title-group">
+        <span className="artifact-preview-title" data-artifact-preview-title={title} title={title}>
+          {title}
+        </span>
+        <span className="artifact-preview-type" data-artifact-preview-type={artifactType}>
+          {artifactType}
+        </span>
+      </span>
+      <span className="artifact-preview-header-center" aria-hidden="true" />
+      <span className="artifact-preview-header-right">
+        {rightContent}
+      </span>
+    </PanelToolbar>
+  )
+}
+
+export function stripArtifactExtension(name: string, extension: string): string {
+  const suffix = `.${extension.replace(/^\./, '')}`
+  return name.toLowerCase().endsWith(suffix.toLowerCase())
+    ? name.slice(0, -suffix.length)
+    : name
+}
+
 function JsonPreview({ text }: { text: string }): JSX.Element {
   const formatted = formatJson(text)
   return (
@@ -515,12 +558,13 @@ function parseDelimitedRows(text: string, delimiter: string): string[][] {
 
 function parseNotebook(text: string): {
   valid: boolean
+  title: string | null
   kernel: string | null
   cells: NotebookCell[]
 } {
   try {
     const parsed = JSON.parse(text) as {
-      metadata?: { kernelspec?: { display_name?: unknown; name?: unknown } }
+      metadata?: { title?: unknown; kernelspec?: { display_name?: unknown; name?: unknown } }
       cells?: Array<{ cell_type?: unknown; source?: unknown; outputs?: unknown }>
     }
     const cells = Array.isArray(parsed.cells)
@@ -544,13 +588,15 @@ function parseNotebook(text: string): {
       })
       : []
     const kernel = parsed.metadata?.kernelspec?.display_name ?? parsed.metadata?.kernelspec?.name
+    const title = parsed.metadata?.title
     return {
       valid: true,
+      title: typeof title === 'string' && title.trim() ? title.trim() : null,
       kernel: typeof kernel === 'string' && kernel.trim() ? kernel : null,
       cells
     }
   } catch {
-    return { valid: false, kernel: null, cells: [] }
+    return { valid: false, title: null, kernel: null, cells: [] }
   }
 }
 

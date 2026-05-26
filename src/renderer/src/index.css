@@ -4461,6 +4461,56 @@
     font-size: 11px;
   }
 
+  .artifact-preview-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
+    gap: 8px;
+    min-height: 34px;
+    overflow: hidden;
+    padding-right: 8px;
+    padding-left: 12px;
+    background: var(--panel-bg);
+  }
+
+  .artifact-preview-title-group {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .artifact-preview-title {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .artifact-preview-type {
+    flex-shrink: 0;
+    color: var(--text-tertiary);
+    font-size: 13px;
+    line-height: 20px;
+    white-space: nowrap;
+  }
+
+  .artifact-preview-header-center {
+    min-width: 0;
+    justify-self: center;
+  }
+
+  .artifact-preview-header-right {
+    display: inline-flex;
+    min-width: 0;
+    justify-content: flex-end;
+    overflow: hidden;
+  }
+
   .file-preview-header-actions {
     display: inline-flex;
     flex-shrink: 0;
