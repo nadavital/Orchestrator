@@ -32,6 +32,8 @@ type NotebookOutput =
 interface NotebookCell {
   type: string
   source: string
+  title: string | null
+  descriptionMarkdown: string | null
   executionCount: number | null
   outputs: NotebookOutput[]
 }
@@ -194,7 +196,9 @@ function NotebookPreview({
                 </span>
               </summary>
               <div className="notebook-preview-cell-body">
-                <pre>{cell.source || 'Empty cell'}</pre>
+                {cell.type === 'code'
+                  ? <NotebookCodeCellBody cell={cell} />
+                  : <pre>{cell.source || 'Empty cell'}</pre>}
                 {cell.outputs.length > 0 && (
                   <div
                     className="notebook-preview-outputs"
@@ -220,6 +224,39 @@ function NotebookPreview({
       )}
     </div>
   )
+}
+
+function NotebookCodeCellBody({ cell }: { cell: NotebookCell }): JSX.Element {
+  const description = cell.descriptionMarkdown?.trim() ?? ''
+  if (description) {
+    return (
+      <div className="notebook-preview-code-with-description">
+        <div
+          className="notebook-preview-code-description"
+          data-testid="notebook-preview-code-description"
+          data-notebook-code-description="true"
+        >
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
+        </div>
+        {cell.source ? (
+          <details
+            className="notebook-preview-code-source-disclosure"
+            data-testid="notebook-preview-code-source-disclosure"
+          >
+            <summary>
+              <Icon name="chevronRight" size={12} />
+              <Icon name="code" size={12} />
+              <span>Code</span>
+            </summary>
+            <pre>{cell.source}</pre>
+          </details>
+        ) : (
+          <pre>Empty cell</pre>
+        )}
+      </div>
+    )
+  }
+  return <pre>{cell.source || 'Empty cell'}</pre>
 }
 
 function NotebookCellOutput({
@@ -470,12 +507,23 @@ function parseNotebook(text: string): {
       cells?: Array<{ cell_type?: unknown; source?: unknown; outputs?: unknown }>
     }
     const cells = Array.isArray(parsed.cells)
-      ? parsed.cells.map((cell) => ({
-        type: typeof cell.cell_type === 'string' ? cell.cell_type : 'cell',
-        source: normalizeNotebookSource(cell.source).trim(),
-        executionCount: normalizeNotebookExecutionCount((cell as { execution_count?: unknown }).execution_count),
-        outputs: normalizeNotebookOutputs(cell.outputs)
-      }))
+      ? parsed.cells.map((cell) => {
+        const metadata = normalizeNotebookMetadata(cell)
+        return {
+          type: typeof cell.cell_type === 'string' ? cell.cell_type : 'cell',
+          source: normalizeNotebookSource(cell.source).trim(),
+          title: normalizeNotebookMetadataString(metadata, ['title', 'cellTitle', 'cell_title']),
+          descriptionMarkdown: normalizeNotebookMetadataString(metadata, [
+            'codeDescriptionMarkdown',
+            'code_description_markdown',
+            'descriptionMarkdown',
+            'description_markdown',
+            'description'
+          ]),
+          executionCount: normalizeNotebookExecutionCount((cell as { execution_count?: unknown }).execution_count),
+          outputs: normalizeNotebookOutputs(cell.outputs)
+        }
+      })
       : []
     const kernel = parsed.metadata?.kernelspec?.display_name ?? parsed.metadata?.kernelspec?.name
     return {
@@ -493,6 +541,7 @@ function normalizeNotebookExecutionCount(value: unknown): number | null {
 }
 
 function notebookCellTitle(cell: NotebookCell, cellNumber: number): string {
+  if (cell.title?.trim()) return cell.title.trim()
   if (cell.type === 'markdown') {
     const heading = cell.source.split(/\r?\n/)
       .map((line) => line.trim())
@@ -503,6 +552,32 @@ function notebookCellTitle(cell: NotebookCell, cellNumber: number): string {
   if (cell.type === 'raw') return `Raw cell ${cellNumber}`
   if (cell.type === 'code') return `Code cell ${cellNumber}`
   return `Cell ${cellNumber}`
+}
+
+function normalizeNotebookMetadata(cell: unknown): Array<Record<string, unknown>> {
+  if (!cell || typeof cell !== 'object') return []
+  const metadata = (cell as { metadata?: unknown }).metadata
+  if (!metadata || typeof metadata !== 'object') return []
+  const record = metadata as Record<string, unknown>
+  const nestedKeys = ['codex', 'codexNotebook', 'codex_notebook', 'codex-app']
+  const nested = nestedKeys.flatMap((key) => {
+    const value = record[key]
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? [value as Record<string, unknown>]
+      : []
+  })
+  return [...nested, record]
+}
+
+function normalizeNotebookMetadataString(metadata: Array<Record<string, unknown>>, keys: string[]): string | null {
+  for (const record of metadata) {
+    for (const key of keys) {
+      const value = record[key]
+      const text = normalizeNotebookSource(value).trim()
+      if (text) return text
+    }
+  }
+  return null
 }
 
 function normalizeNotebookSource(source: unknown): string {

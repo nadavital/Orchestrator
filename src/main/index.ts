@@ -10827,6 +10827,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookOutputRenderingChecks = {};
               const notebookCellDisclosureChecks = {};
               const notebookExecutionCountChecks = {};
+              const notebookCellMetadataChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
@@ -10954,6 +10955,12 @@ function runAutomatedFocusedSurfaceSmoke(
                     const codeNotebookRunButton = codeNotebookSummary instanceof HTMLElement
                       ? codeNotebookSummary.querySelector('[data-notebook-cell-run-disabled="true"]')
                       : null;
+                    const codeNotebookDescription = codeNotebookCell instanceof HTMLElement
+                      ? codeNotebookCell.querySelector('[data-notebook-code-description="true"]')
+                      : null;
+                    const codeNotebookSourceDisclosure = codeNotebookCell instanceof HTMLElement
+                      ? codeNotebookCell.querySelector('[data-testid="notebook-preview-code-source-disclosure"]')
+                      : null;
                     notebookCellDisclosureChecks[testId] =
                       notebookCells.length >= 2 &&
                       notebookCells.every((cell) =>
@@ -10975,6 +10982,14 @@ function runAutomatedFocusedSurfaceSmoke(
                       codeNotebookSummary.querySelector('[data-notebook-execution-count-label="7"]') instanceof HTMLElement &&
                       codeNotebookRunButton instanceof HTMLButtonElement &&
                       codeNotebookRunButton.disabled;
+                    notebookCellMetadataChecks[testId] =
+                      codeNotebookSummary instanceof HTMLElement &&
+                      codeNotebookSummary.textContent?.includes('Compute updated value') === true &&
+                      codeNotebookDescription instanceof HTMLElement &&
+                      codeNotebookDescription.textContent?.includes('Smoke description') === true &&
+                      codeNotebookSourceDisclosure instanceof HTMLDetailsElement &&
+                      codeNotebookSourceDisclosure.querySelector('summary')?.textContent?.includes('Code') === true &&
+                      codeNotebookSourceDisclosure.textContent?.includes('value = 2') === true;
                     notebookOutputRenderingChecks[testId] =
                       outputContainer instanceof HTMLElement &&
                       Number(outputContainer.getAttribute('data-notebook-output-count') ?? '0') >= 2 &&
@@ -11644,6 +11659,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesNotebookOutputRenderingWorks: Boolean(notebookOutputRenderingChecks['workspace-notebook-preview']),
                 filesNotebookCellDisclosureWorks: Boolean(notebookCellDisclosureChecks['workspace-notebook-preview']),
                 filesNotebookExecutionCountWorks: Boolean(notebookExecutionCountChecks['workspace-notebook-preview']),
+                filesNotebookCellMetadataWorks: Boolean(notebookCellMetadataChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks

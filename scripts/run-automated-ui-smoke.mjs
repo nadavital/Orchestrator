@@ -573,6 +573,12 @@ if (fixtureWorkspaceViews.has(captureView)) {
         {
           cell_type: 'code',
           execution_count: 7,
+          metadata: {
+            codex: {
+              title: 'Compute updated value',
+              descriptionMarkdown: '**Smoke description:** computes the updated value.'
+            }
+          },
           source: ['value = 2\n', 'value'],
           outputs: [
             { output_type: 'stream', name: 'stdout', text: ['result: 2\n'] },
@@ -1229,6 +1235,7 @@ child.on('exit', (code) => {
           filesNotebookOutputRendering: result.filesNotebookOutputRenderingWorks === true,
           filesNotebookCellDisclosure: result.filesNotebookCellDisclosureWorks === true,
           filesNotebookExecutionCount: result.filesNotebookExecutionCountWorks === true,
+          filesNotebookCellMetadata: result.filesNotebookCellMetadataWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,

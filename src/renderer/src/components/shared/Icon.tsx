@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Code2,
   Copy,
   CircleDot,
   Ellipsis,
@@ -77,6 +78,7 @@ export type IconName =
   | 'chevronDown'
   | 'chevronRight'
   | 'clock'
+  | 'code'
   | 'copy'
   | 'close'
   | 'dot'
@@ -137,6 +139,7 @@ const icons: Record<IconName, LucideIcon> = {
   chevronDown: ChevronDown,
   chevronRight: ChevronRight,
   clock: Clock3,
+  code: Code2,
   copy: Copy,
   close: X,
   dot: CircleDot,
