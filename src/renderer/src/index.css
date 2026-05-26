@@ -4549,6 +4549,123 @@
     filter: invert(1) hue-rotate(180deg);
   }
 
+  .workspace-office-preview-body {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 14px;
+    overflow: auto;
+    background: var(--surface-bg);
+    padding: 16px;
+  }
+
+  .workspace-office-section-heading {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  .workspace-spreadsheet-sheet {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .workspace-spreadsheet-table-wrap {
+    min-width: 0;
+    overflow: auto;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--surface-bg);
+  }
+
+  .workspace-spreadsheet-table {
+    width: 100%;
+    min-width: 360px;
+    border-collapse: collapse;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .workspace-spreadsheet-table td {
+    max-width: 220px;
+    border-right: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 6px 8px;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+    vertical-align: top;
+  }
+
+  .workspace-spreadsheet-table tr:first-child td {
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    font-weight: 650;
+  }
+
+  .workspace-spreadsheet-table td:last-child {
+    border-right: 0;
+  }
+
+  .workspace-spreadsheet-table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .workspace-slides-outline {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .workspace-slide-preview-card {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--surface-bg);
+    padding: 10px;
+  }
+
+  .workspace-slide-preview-number {
+    display: grid;
+    width: 28px;
+    height: 24px;
+    place-items: center;
+    border-radius: 5px;
+    background: var(--control-bg);
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .workspace-slide-preview-content {
+    min-width: 0;
+  }
+
+  .workspace-slide-preview-content h3 {
+    margin: 0 0 5px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .workspace-slide-preview-content p {
+    margin: 3px 0 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
   .workspace-pdf-presentation-mode {
     position: relative;
     display: flex;

@@ -370,6 +370,127 @@ function createDocxFixture(paragraphs) {
   ])
 }
 
+function createXlsxFixture({ sheetName, rows }) {
+  const sharedStrings = []
+  const sharedStringIndex = new Map()
+  const cellXml = rows.map((row, rowIndex) => {
+    const cells = row.map((value, columnIndex) => {
+      const key = String(value)
+      let index = sharedStringIndex.get(key)
+      if (index === undefined) {
+        index = sharedStrings.length
+        sharedStringIndex.set(key, index)
+        sharedStrings.push(key)
+      }
+      return `<c r="${columnName(columnIndex)}${rowIndex + 1}" t="s"><v>${index}</v></c>`
+    }).join('')
+    return `<row r="${rowIndex + 1}">${cells}</row>`
+  }).join('\n      ')
+  return createStoredZip([
+    {
+      name: '[Content_Types].xml',
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+</Types>`
+    },
+    {
+      name: '_rels/.rels',
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`
+    },
+    {
+      name: 'xl/_rels/workbook.xml.rels',
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+</Relationships>`
+    },
+    {
+      name: 'xl/workbook.xml',
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="${escapeXml(sheetName)}" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`
+    },
+    {
+      name: 'xl/sharedStrings.xml',
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${sharedStrings.length}" uniqueCount="${sharedStrings.length}">
+  ${sharedStrings.map((value) => `<si><t>${escapeXml(value)}</t></si>`).join('\n  ')}
+</sst>`
+    },
+    {
+      name: 'xl/worksheets/sheet1.xml',
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+      ${cellXml}
+  </sheetData>
+</worksheet>`
+    }
+  ])
+}
+
+function createPptxFixture(slides) {
+  const entries = [
+    {
+      name: '[Content_Types].xml',
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  ${slides.map((_, index) => `<Override PartName="/ppt/slides/slide${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join('\n  ')}
+</Types>`
+    },
+    {
+      name: '_rels/.rels',
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>`
+    },
+    {
+      name: 'ppt/presentation.xml',
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>${slides.map((_, index) => `<p:sldId id="${256 + index}" r:id="rId${index + 1}"/>`).join('')}</p:sldIdLst>
+</p:presentation>`
+    }
+  ]
+  for (const [index, slide] of slides.entries()) {
+    entries.push({
+      name: `ppt/slides/slide${index + 1}.xml`,
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    ${slide.map((line) => `<p:sp><p:txBody><a:p><a:r><a:t>${escapeXml(line)}</a:t></a:r></a:p></p:txBody></p:sp>`).join('\n    ')}
+  </p:spTree></p:cSld>
+</p:sld>`
+    })
+  }
+  return createStoredZip(entries)
+}
+
+function columnName(index) {
+  let value = index + 1
+  let name = ''
+  while (value > 0) {
+    const remainder = (value - 1) % 26
+    name = String.fromCharCode(65 + remainder) + name
+    value = Math.floor((value - 1) / 26)
+  }
+  return name
+}
+
 function createPdfFixture(text) {
   const pages = Array.isArray(text) ? text : [text]
   const pageObjectStart = 3
@@ -505,8 +626,17 @@ if (fixtureWorkspaceViews.has(captureView)) {
     'Document smoke baseline',
     'This verifies DOCX text preview in the inspector.'
   ]))
-  writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), Buffer.from('spreadsheet preview smoke baseline\n'))
-  writeFileSync(join(workspaceDir, 'slides-preview-smoke.pptx'), Buffer.from('slides preview smoke baseline\n'))
+  writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), createXlsxFixture({
+    sheetName: 'Smoke data',
+    rows: [
+      ['Name', 'Count', 'Status'],
+      ['Alpha', '1', 'Baseline']
+    ]
+  }))
+  writeFileSync(join(workspaceDir, 'slides-preview-smoke.pptx'), createPptxFixture([
+    ['Slides smoke baseline', 'First slide baseline'],
+    ['Second slide baseline', 'Follow-up content']
+  ]))
   writeFileSync(
     join(workspaceDir, 'image-preview-smoke.png'),
     Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lK3Q6wAAAABJRU5ErkJggg==', 'base64')
@@ -573,8 +703,18 @@ if (fixtureWorkspaceViews.has(captureView)) {
       'Document smoke updated',
       'This verifies DOCX text preview in the inspector.'
     ]))
-    writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), Buffer.from('spreadsheet preview smoke updated\n'))
-    writeFileSync(join(workspaceDir, 'slides-preview-smoke.pptx'), Buffer.from('slides preview smoke updated\n'))
+    writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), createXlsxFixture({
+      sheetName: 'Smoke data',
+      rows: [
+        ['Name', 'Count', 'Status'],
+        ['Alpha', '2', 'Updated'],
+        ['Beta', '3', 'New']
+      ]
+    }))
+    writeFileSync(join(workspaceDir, 'slides-preview-smoke.pptx'), createPptxFixture([
+      ['Slides smoke updated', 'First slide updated'],
+      ['Second slide updated', 'Follow-up content']
+    ]))
     writeFileSync(
       join(workspaceDir, 'image-preview-smoke.png'),
       Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', 'base64')
@@ -1252,6 +1392,8 @@ child.on('exit', (code) => {
           filesDocumentPreview: result.filesDocumentPreviewWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
+          filesSpreadsheetRenderer: result.filesSpreadsheetRendererWorks === true,
+          filesSlidesRenderer: result.filesSlidesRendererWorks === true,
           filesSpreadsheetSlidesArtifactBoundary: result.filesSpreadsheetSlidesArtifactBoundaryWorks === true,
           filesNotebookPreview: result.filesNotebookPreviewWorks === true,
           filesNotebookReadOnlyControls: result.filesNotebookReadOnlyControlsWorks === true,
@@ -1431,6 +1573,8 @@ child.on('exit', (code) => {
         filesDocumentPreview: captureView !== 'inspector' || result.filesDocumentPreviewWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
+        filesSpreadsheetRenderer: captureView !== 'inspector' || result.filesSpreadsheetRendererWorks === true,
+        filesSlidesRenderer: captureView !== 'inspector' || result.filesSlidesRendererWorks === true,
         filesSpreadsheetSlidesArtifactBoundary: captureView !== 'inspector' || result.filesSpreadsheetSlidesArtifactBoundaryWorks === true,
         filesNotebookPreview: captureView !== 'inspector' || result.filesNotebookPreviewWorks === true,
         filesBinaryPreview: captureView !== 'inspector' || result.filesBinaryPreviewWorks === true,

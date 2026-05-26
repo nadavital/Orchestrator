@@ -10897,6 +10897,8 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookCellMetadataChecks = {};
               const notebookOutputSummaryChecks = {};
               const pdfPresentationModeChecks = {};
+              const spreadsheetRendererChecks = {};
+              const slidesRendererChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
@@ -11126,6 +11128,34 @@ function runAutomatedFocusedSurfaceSmoke(
                       streamOutput.textContent?.includes('result: 2') === true &&
                       jsonOutput instanceof HTMLElement &&
                       jsonOutput.textContent?.includes('"status": "updated"') === true;
+                  }
+                  if (testId === 'workspace-spreadsheet-preview') {
+                    const spreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const sheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet"]');
+                    const table = document.querySelector('[data-testid="workspace-spreadsheet-preview-table"]');
+                    spreadsheetRendererChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-preview-rendered') === 'true' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-preview-sheet-count') === '1' &&
+                      sheet instanceof HTMLElement &&
+                      sheet.getAttribute('data-spreadsheet-sheet-name') === 'Smoke data' &&
+                      table instanceof HTMLTableElement &&
+                      table.textContent?.includes('Alpha') === true &&
+                      table.textContent?.includes('Updated') === true &&
+                      table.textContent?.includes('Beta') === true &&
+                      table.textContent?.includes('New') === true;
+                  }
+                  if (testId === 'workspace-slides-preview') {
+                    const slidesPreview = document.querySelector('[data-testid="workspace-slides-preview"]');
+                    const slides = [...document.querySelectorAll('[data-testid="workspace-slides-preview-slide"]')];
+                    slidesRendererChecks[testId] =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-rendered') === 'true' &&
+                      slidesPreview.getAttribute('data-slides-preview-slide-count') === '2' &&
+                      slides.length === 2 &&
+                      slides.some((slide) => slide.textContent?.includes('Slides smoke updated')) &&
+                      slides.some((slide) => slide.textContent?.includes('Second slide updated')) &&
+                      slides.some((slide) => slide.textContent?.includes('Follow-up content'));
                   }
                   if (testId === 'workspace-pdf-preview') {
                     const pageControls = document.querySelector('[data-testid="workspace-pdf-preview-page-controls"]');
@@ -11965,6 +11995,8 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
                 filesPdfPreviewControlsWorks: Boolean(pdfPreviewControlChecks['workspace-pdf-preview']),
                 filesPdfPresentationModeWorks: Boolean(pdfPresentationModeChecks['workspace-pdf-preview']),
+                filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
+                filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSpreadsheetSlidesArtifactBoundaryWorks:
                   Boolean(previewChecks.filesSpreadsheetPreviewWorks) &&
                   Boolean(previewChecks.filesSlidesPreviewWorks) &&

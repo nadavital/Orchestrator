@@ -39,8 +39,16 @@ type FilePreviewResult =
   | { kind: 'notebook'; size: number; text: string; truncated: boolean }
   | { kind: 'document'; size: number; text: string; truncated: boolean }
   | { kind: 'pdf'; size: number; pageCount?: number; truncated: boolean }
-  | { kind: 'image' | 'html' | 'audio' | 'video' | 'spreadsheet' | 'slides' | 'binary'; size: number; truncated: boolean }
+  | { kind: 'spreadsheet' | 'slides'; size: number; text?: string; truncated: boolean }
+  | { kind: 'image' | 'html' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
   | { kind: 'missing' | 'unreadable'; size?: number; truncated: false }
+
+interface ZipEntryRecord {
+  name: string
+  method: number
+  compressedSize: number
+  localHeaderOffset: number
+}
 
 interface BrowserAssetRequest {
   inventoryId: string
@@ -115,8 +123,8 @@ function previewFile(filePath: string): FilePreviewResult {
     if (IMAGE_EXTENSIONS.has(extension)) return { kind: 'image', size, truncated: false }
     if (extension === '.pdf') return previewPdfFile(filePath, size)
     if (DOCUMENT_EXTENSIONS.has(extension)) return previewDocxFile(filePath, size)
-    if (SPREADSHEET_EXTENSIONS.has(extension)) return { kind: 'spreadsheet', size, truncated: false }
-    if (SLIDES_EXTENSIONS.has(extension)) return { kind: 'slides', size, truncated: false }
+    if (SPREADSHEET_EXTENSIONS.has(extension)) return previewSpreadsheetFile(filePath, size)
+    if (SLIDES_EXTENSIONS.has(extension)) return previewSlidesFile(filePath, size)
     if (HTML_EXTENSIONS.has(extension)) return { kind: 'html', size, truncated: false }
     if (AUDIO_EXTENSIONS.has(extension)) return { kind: 'audio', size, truncated: false }
     if (VIDEO_EXTENSIONS.has(extension)) return { kind: 'video', size, truncated: false }
@@ -217,14 +225,42 @@ function previewDocxFile(filePath: string, size: number): FilePreviewResult {
   }
 }
 
+function previewSpreadsheetFile(filePath: string, size: number): FilePreviewResult {
+  const archive = readFileSync(filePath)
+  const summary = extractSpreadsheetPreview(archive)
+  return {
+    kind: 'spreadsheet',
+    size,
+    text: summary ? JSON.stringify(summary) : undefined,
+    truncated: summary?.truncated === true
+  }
+}
+
+function previewSlidesFile(filePath: string, size: number): FilePreviewResult {
+  const archive = readFileSync(filePath)
+  const summary = extractSlidesPreview(archive)
+  return {
+    kind: 'slides',
+    size,
+    text: summary ? JSON.stringify(summary) : undefined,
+    truncated: summary?.truncated === true
+  }
+}
+
 function readZipEntry(archive: Buffer, entryName: string): Buffer | null {
+  const entry = listZipEntries(archive).find((entry) => entry.name === entryName)
+  return entry ? readZipEntryData(archive, entry) : null
+}
+
+function listZipEntries(archive: Buffer): ZipEntryRecord[] {
   const eocdOffset = findEndOfCentralDirectory(archive)
-  if (eocdOffset < 0 || eocdOffset + 22 > archive.length) return null
+  if (eocdOffset < 0 || eocdOffset + 22 > archive.length) return []
 
   const entryCount = archive.readUInt16LE(eocdOffset + 10)
   let offset = archive.readUInt32LE(eocdOffset + 16)
+  const entries: ZipEntryRecord[] = []
   for (let index = 0; index < entryCount && offset + 46 <= archive.length; index += 1) {
-    if (archive.readUInt32LE(offset) !== 0x02014b50) return null
+    if (archive.readUInt32LE(offset) !== 0x02014b50) return []
     const method = archive.readUInt16LE(offset + 10)
     const compressedSize = archive.readUInt32LE(offset + 20)
     const nameLength = archive.readUInt16LE(offset + 28)
@@ -234,20 +270,22 @@ function readZipEntry(archive: Buffer, entryName: string): Buffer | null {
     const nameStart = offset + 46
     const nameEnd = nameStart + nameLength
     const name = archive.toString('utf8', nameStart, nameEnd)
-    if (name === entryName) {
-      if (localHeaderOffset + 30 > archive.length || archive.readUInt32LE(localHeaderOffset) !== 0x04034b50) return null
-      const localNameLength = archive.readUInt16LE(localHeaderOffset + 26)
-      const localExtraLength = archive.readUInt16LE(localHeaderOffset + 28)
-      const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength
-      const dataEnd = dataStart + compressedSize
-      if (dataEnd > archive.length) return null
-      const data = archive.subarray(dataStart, dataEnd)
-      if (method === 0) return Buffer.from(data)
-      if (method === 8) return inflateRawSync(data)
-      return null
-    }
+    entries.push({ name, method, compressedSize, localHeaderOffset })
     offset = nameEnd + extraLength + commentLength
   }
+  return entries
+}
+
+function readZipEntryData(archive: Buffer, entry: ZipEntryRecord): Buffer | null {
+  if (entry.localHeaderOffset + 30 > archive.length || archive.readUInt32LE(entry.localHeaderOffset) !== 0x04034b50) return null
+  const localNameLength = archive.readUInt16LE(entry.localHeaderOffset + 26)
+  const localExtraLength = archive.readUInt16LE(entry.localHeaderOffset + 28)
+  const dataStart = entry.localHeaderOffset + 30 + localNameLength + localExtraLength
+  const dataEnd = dataStart + entry.compressedSize
+  if (dataEnd > archive.length) return null
+  const data = archive.subarray(dataStart, dataEnd)
+  if (entry.method === 0) return Buffer.from(data)
+  if (entry.method === 8) return inflateRawSync(data)
   return null
 }
 
@@ -272,6 +310,121 @@ function extractDocxText(xml: string): string {
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
     .join('\n\n')
+}
+
+function extractSpreadsheetPreview(archive: Buffer): { sheets: Array<{ name: string; rows: string[][] }>; truncated: boolean } | null {
+  const entries = listZipEntries(archive)
+  const sharedStrings = extractSpreadsheetSharedStrings(readZipEntry(archive, 'xl/sharedStrings.xml')?.toString('utf8') ?? '')
+  const workbookXml = readZipEntry(archive, 'xl/workbook.xml')?.toString('utf8') ?? ''
+  const relationshipsXml = readZipEntry(archive, 'xl/_rels/workbook.xml.rels')?.toString('utf8') ?? ''
+  const sheetTargets = extractWorkbookSheetTargets(workbookXml, relationshipsXml)
+  const worksheetEntries = sheetTargets.length > 0
+    ? sheetTargets
+    : entries
+      .map((entry) => entry.name)
+      .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(name))
+      .sort(naturalCompare)
+      .map((path, index) => ({ name: `Sheet ${index + 1}`, path }))
+  const sheets: Array<{ name: string; rows: string[][] }> = []
+  let truncated = false
+  for (const sheet of worksheetEntries.slice(0, 6)) {
+    const xml = readZipEntry(archive, sheet.path)?.toString('utf8') ?? ''
+    if (!xml) continue
+    const parsed = extractWorksheetRows(xml, sharedStrings)
+    truncated ||= parsed.truncated
+    sheets.push({ name: sheet.name, rows: parsed.rows })
+  }
+  if (worksheetEntries.length > 6) truncated = true
+  return sheets.length > 0 ? { sheets, truncated } : null
+}
+
+function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number; title: string; text: string[] }>; truncated: boolean } | null {
+  const entries = listZipEntries(archive)
+  const slideNames = entries
+    .map((entry) => entry.name)
+    .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
+    .sort(naturalCompare)
+  const slides: Array<{ index: number; title: string; text: string[] }> = []
+  let truncated = slideNames.length > 12
+  for (const [index, name] of slideNames.slice(0, 12).entries()) {
+    const xml = readZipEntry(archive, name)?.toString('utf8') ?? ''
+    if (!xml) continue
+    const text = [...xml.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g)]
+      .map((match) => decodeXmlText(match[1] ?? '').trim())
+      .filter(Boolean)
+    if (text.length > 12) truncated = true
+    slides.push({
+      index: index + 1,
+      title: text[0] ?? `Slide ${index + 1}`,
+      text: text.slice(1, 12)
+    })
+  }
+  return slides.length > 0 ? { slides, truncated } : null
+}
+
+function extractSpreadsheetSharedStrings(xml: string): string[] {
+  if (!xml) return []
+  return [...xml.matchAll(/<si[\s\S]*?<\/si>/g)]
+    .map((match) => extractXmlText(match[0] ?? ''))
+}
+
+function extractWorkbookSheetTargets(workbookXml: string, relationshipsXml: string): Array<{ name: string; path: string }> {
+  if (!workbookXml) return []
+  const relationships = new Map<string, string>()
+  for (const match of relationshipsXml.matchAll(/<Relationship\b[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)) {
+    const target = match[2] ?? ''
+    relationships.set(match[1] ?? '', target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\/?xl\//, '')}`)
+  }
+  return [...workbookXml.matchAll(/<sheet\b[^>]*\/>/g)]
+    .map((match, index) => {
+      const tag = match[0] ?? ''
+      const relId = /\br:id="([^"]+)"/.exec(tag)?.[1] ?? ''
+      return {
+        name: decodeXmlText(/\bname="([^"]+)"/.exec(tag)?.[1] ?? `Sheet ${index + 1}`),
+        path: relationships.get(relId) ?? `xl/worksheets/sheet${index + 1}.xml`
+      }
+    })
+}
+
+function extractWorksheetRows(xml: string, sharedStrings: string[]): { rows: string[][]; truncated: boolean } {
+  const rows: string[][] = []
+  let truncated = false
+  for (const rowMatch of xml.matchAll(/<row\b[\s\S]*?<\/row>/g)) {
+    const values: string[] = []
+    for (const cellMatch of (rowMatch[0] ?? '').matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
+      const attributes = cellMatch[1] ?? ''
+      const cellXml = cellMatch[2] ?? ''
+      const type = /t="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      if (type === 's') {
+        const index = Number(/<v>([\s\S]*?)<\/v>/.exec(cellXml)?.[1] ?? -1)
+        values.push(Number.isFinite(index) && index >= 0 ? sharedStrings[index] ?? '' : '')
+      } else if (type === 'inlineStr') {
+        values.push(extractXmlText(cellXml))
+      } else {
+        values.push(decodeXmlText(/<v>([\s\S]*?)<\/v>/.exec(cellXml)?.[1] ?? '').trim())
+      }
+      if (values.length >= 12) {
+        truncated = true
+        break
+      }
+    }
+    if (values.some(Boolean)) rows.push(values)
+    if (rows.length >= 24) {
+      truncated = true
+      break
+    }
+  }
+  return { rows, truncated }
+}
+
+function extractXmlText(xml: string): string {
+  return [...xml.matchAll(/<[^:>]*:?t(?:\s[^>]*)?>([\s\S]*?)<\/[^:>]*:?t>/g)]
+    .map((match) => decodeXmlText(match[1] ?? ''))
+    .join('')
+}
+
+function naturalCompare(left: string, right: string): number {
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
 }
 
 function decodeXmlText(value: string): string {

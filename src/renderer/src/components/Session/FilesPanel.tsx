@@ -485,23 +485,19 @@ export function FilePreview({
   }
   if (preview.kind === 'spreadsheet') {
     return (
-      <ArtifactUnavailablePreview
+      <SpreadsheetArtifactPreview
         absolutePath={absolutePath}
-        artifactType="XLSX"
         entry={entry}
         preview={preview}
-        testId="workspace-spreadsheet-preview"
       />
     )
   }
   if (preview.kind === 'slides') {
     return (
-      <ArtifactUnavailablePreview
+      <SlidesArtifactPreview
         absolutePath={absolutePath}
-        artifactType="PPTX"
         entry={entry}
         preview={preview}
-        testId="workspace-slides-preview"
       />
     )
   }
@@ -886,36 +882,43 @@ function artifactPreviewActions(
   return actions
 }
 
-function ArtifactUnavailablePreview({
+interface SpreadsheetPreviewPayload {
+  sheets: Array<{ name: string; rows: string[][] }>
+  truncated?: boolean
+}
+
+interface SlidesPreviewPayload {
+  slides: Array<{ index: number; title: string; text: string[] }>
+  truncated?: boolean
+}
+
+function SpreadsheetArtifactPreview({
   absolutePath,
-  artifactType,
   entry,
-  preview,
-  testId
+  preview
 }: {
   absolutePath: string
-  artifactType: 'XLSX' | 'PPTX'
   entry: WorkspaceSearchEntry
   preview: FilePreviewResult
-  testId: string
 }): JSX.Element {
-  const title = artifactType === 'XLSX'
-    ? stripArtifactExtension(stripArtifactExtension(entry.name, 'xlsx'), 'xlsm')
-    : stripArtifactExtension(entry.name, 'pptx')
+  const title = stripArtifactExtension(stripArtifactExtension(entry.name, 'xlsx'), 'xlsm')
   const actions = artifactPreviewActions(entry, absolutePath, preview)
+  const payload = parseSpreadsheetPreview(preview.text)
   return (
     <div
-      className="file-structured-preview workspace-artifact-unavailable-preview flex h-full min-h-0 flex-col overflow-hidden"
-      data-testid={testId}
+      className="file-structured-preview workspace-office-artifact-preview flex h-full min-h-0 flex-col overflow-hidden"
+      data-testid="workspace-spreadsheet-preview"
       data-artifact-preview-kind={preview.kind}
       data-artifact-preview-size={preview.size ?? entry.size ?? 0}
+      data-spreadsheet-preview-rendered={payload ? 'true' : 'false'}
+      data-spreadsheet-preview-sheet-count={payload?.sheets.length ?? 0}
     >
       <ArtifactPreviewHeader
-        artifactType={artifactType}
+        artifactType="XLSX"
         rightContent={(
           <span
             className="file-preview-header-actions"
-            data-testid={`${testId}-actions`}
+            data-testid="workspace-spreadsheet-preview-actions"
             data-preview-controls="copy-path open-file reveal-file"
           >
             {actions.map((action) => (
@@ -925,24 +928,180 @@ function ArtifactUnavailablePreview({
                 label={action.label}
                 size="sm"
                 variant="toolbar"
-                dataTestId={`${testId}-action-${action.id}`}
+                dataTestId={`workspace-spreadsheet-preview-action-${action.id}`}
                 onClick={action.onClick}
               />
             ))}
           </span>
         )}
-        testId={testId}
+        testId="workspace-spreadsheet-preview"
         title={title}
       />
-      <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center" data-testid={`${testId}-body`}>
-        <div className="flex max-w-[280px] flex-col items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <Icon name="file" size={24} />
-          <div className="font-medium" style={{ color: 'var(--text-primary)' }}>Preview unavailable</div>
-          <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{formatBytes(preview.size ?? entry.size ?? 0)}</div>
-        </div>
+      <div className="workspace-office-preview-body" data-testid="workspace-spreadsheet-preview-body">
+        {payload ? (
+          payload.sheets.map((sheet, index) => (
+            <section
+              key={`${sheet.name}-${index}`}
+              className="workspace-spreadsheet-sheet"
+              data-testid="workspace-spreadsheet-preview-sheet"
+              data-spreadsheet-sheet-name={sheet.name}
+            >
+              <div className="workspace-office-section-heading">
+                <Icon name="file" size={14} />
+                <span>{sheet.name}</span>
+              </div>
+              <div className="workspace-spreadsheet-table-wrap">
+                <table className="workspace-spreadsheet-table" data-testid="workspace-spreadsheet-preview-table">
+                  <tbody>
+                    {sheet.rows.map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                        {row.map((cell, cellIndex) => (
+                          <td key={cellIndex}>{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))
+        ) : (
+          <ArtifactPreviewUnavailableBody size={preview.size ?? entry.size ?? 0} />
+        )}
       </div>
     </div>
   )
+}
+
+function SlidesArtifactPreview({
+  absolutePath,
+  entry,
+  preview
+}: {
+  absolutePath: string
+  entry: WorkspaceSearchEntry
+  preview: FilePreviewResult
+}): JSX.Element {
+  const title = stripArtifactExtension(entry.name, 'pptx')
+  const actions = artifactPreviewActions(entry, absolutePath, preview)
+  const payload = parseSlidesPreview(preview.text)
+  return (
+    <div
+      className="file-structured-preview workspace-office-artifact-preview flex h-full min-h-0 flex-col overflow-hidden"
+      data-testid="workspace-slides-preview"
+      data-artifact-preview-kind={preview.kind}
+      data-artifact-preview-size={preview.size ?? entry.size ?? 0}
+      data-slides-preview-rendered={payload ? 'true' : 'false'}
+      data-slides-preview-slide-count={payload?.slides.length ?? 0}
+    >
+      <ArtifactPreviewHeader
+        artifactType="PPTX"
+        rightContent={(
+          <span
+            className="file-preview-header-actions"
+            data-testid="workspace-slides-preview-actions"
+            data-preview-controls="copy-path open-file reveal-file"
+          >
+            {actions.map((action) => (
+              <IconButton
+                key={action.id}
+                icon={action.icon}
+                label={action.label}
+                size="sm"
+                variant="toolbar"
+                dataTestId={`workspace-slides-preview-action-${action.id}`}
+                onClick={action.onClick}
+              />
+            ))}
+          </span>
+        )}
+        testId="workspace-slides-preview"
+        title={title}
+      />
+      <div className="workspace-office-preview-body" data-testid="workspace-slides-preview-body">
+        {payload ? (
+          <div className="workspace-slides-outline">
+            {payload.slides.map((slide) => (
+              <section
+                key={slide.index}
+                className="workspace-slide-preview-card"
+                data-testid="workspace-slides-preview-slide"
+                data-slide-index={slide.index}
+              >
+                <div className="workspace-slide-preview-number">{slide.index}</div>
+                <div className="workspace-slide-preview-content">
+                  <h3>{slide.title}</h3>
+                  {slide.text.map((line, index) => (
+                    <p key={index}>{line}</p>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <ArtifactPreviewUnavailableBody size={preview.size ?? entry.size ?? 0} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ArtifactPreviewUnavailableBody({ size }: { size: number }): JSX.Element {
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center">
+      <div className="flex max-w-[280px] flex-col items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <Icon name="file" size={24} />
+        <div className="font-medium" style={{ color: 'var(--text-primary)' }}>Preview unavailable</div>
+        <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{formatBytes(size)}</div>
+      </div>
+    </div>
+  )
+}
+
+function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPayload | null {
+  if (!text) return null
+  try {
+    const parsed = JSON.parse(text) as Partial<SpreadsheetPreviewPayload>
+    if (!Array.isArray(parsed.sheets) || parsed.sheets.length === 0) return null
+    const sheets = parsed.sheets
+      .filter((sheet) => typeof sheet?.name === 'string' && Array.isArray(sheet.rows))
+      .map((sheet) => ({
+        name: sheet.name,
+        rows: sheet.rows
+          .filter((row) => Array.isArray(row))
+          .map((row) => row.map((cell) => String(cell)))
+      }))
+      .filter((sheet) => sheet.rows.length > 0)
+    if (sheets.length === 0) return null
+    return {
+      sheets,
+      truncated: parsed.truncated === true
+    }
+  } catch {
+    return null
+  }
+}
+
+function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | null {
+  if (!text) return null
+  try {
+    const parsed = JSON.parse(text) as Partial<SlidesPreviewPayload>
+    if (!Array.isArray(parsed.slides) || parsed.slides.length === 0) return null
+    const slides = parsed.slides
+      .filter((slide) => Number.isFinite(slide?.index) && typeof slide?.title === 'string' && Array.isArray(slide.text))
+      .map((slide) => ({
+        index: slide.index,
+        title: slide.title,
+        text: slide.text.map((line) => String(line))
+      }))
+    if (slides.length === 0) return null
+    return {
+      slides,
+      truncated: parsed.truncated === true
+    }
+  } catch {
+    return null
+  }
 }
 
 function PdfPreview({
