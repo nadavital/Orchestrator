@@ -9,6 +9,14 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = join(__dirname, '..')
 const providersModulePath = join(repoRoot, 'out-test/src/main/providers.js')
 const { PROVIDERS, providerSpawnEnv, resolveProviderCommand } = await import(providersModulePath)
+const browserToolSpecsModulePath = join(repoRoot, 'out-test/src/main/browserClientToolSpecs.js')
+const {
+  BROWSER_CLIENT_TOOL_NAMESPACE,
+  BROWSER_CLIENT_TOOL_OPEN,
+  BROWSER_CLIENT_TOOL_READ,
+  browserClientDynamicTools,
+  isBrowserClientDynamicTool
+} = await import(browserToolSpecsModulePath)
 
 const provider = PROVIDERS.codex
 const artifactRoot = process.env.CODEX_BROWSER_PROOF_ARTIFACT_DIR
@@ -23,10 +31,23 @@ const codexAppAsarPath = process.env.CODEX_APP_ASAR_PATH ?? '/Applications/Codex
 const expectedToken = 'CODEX_BROWSER_LIVE_OK'
 const noBrowserToken = 'CODEX_BROWSER_LIVE_NO_BROWSER'
 const enableDynamicToolProof = process.env.CODEX_BROWSER_PROOF_DYNAMIC_TOOL === '1'
+const enableRealBrowserToolProof = process.env.CODEX_BROWSER_PROOF_REAL_BROWSER_TOOLS === '1'
 const dynamicToolNamespace = 'orchestrator'
 const dynamicToolName = 'browser_bridge_status'
 const dynamicToolFullName = `${dynamicToolNamespace}.${dynamicToolName}`
-const defaultPrompt = enableDynamicToolProof
+const browserOpenFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_OPEN}`
+const browserReadFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_READ}`
+const defaultPrompt = enableRealBrowserToolProof
+  ? [
+      'This is a live Orchestrator/Codex app-server Browser dynamic client-tool proof.',
+      'Do not edit files.',
+      'Do not run shell commands.',
+      `First call the dynamic client tool named ${browserOpenFullName} with this URL: ${browserProofUrl}`,
+      `Then call the dynamic client tool named ${browserReadFullName}.`,
+      `After both tools return, reply with exactly ${expectedToken}.`,
+      `If either tool is not available, reply with exactly ${noBrowserToken}.`
+    ]
+  : enableDynamicToolProof
   ? [
       'This is a live Orchestrator/Codex app-server dynamic client-tool proof.',
       'Do not edit files.',
@@ -117,7 +138,9 @@ try {
     ephemeral: true,
     sessionStartSource: 'startup'
   }
-  if (enableDynamicToolProof) {
+  if (enableRealBrowserToolProof) {
+    threadStartParams.dynamicTools = browserClientDynamicTools
+  } else if (enableDynamicToolProof) {
     threadStartParams.dynamicTools = [{
       namespace: dynamicToolNamespace,
       name: dynamicToolName,
@@ -158,8 +181,23 @@ try {
   const assistantSawNoBrowser = assistantText.includes(noBrowserToken)
   const assistantSawOk = assistantText.includes(expectedToken)
   const dynamicToolCalls = serverRequests.filter((request) => request.method === 'item/tool/call')
+  const realBrowserToolCalls = dynamicToolCalls.filter((request) =>
+    request.paramsPreview.includes(`"namespace":"${BROWSER_CLIENT_TOOL_NAMESPACE}"`) &&
+    (
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_OPEN}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_READ}"`)
+    )
+  )
+  const calledBrowserOpen = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_OPEN}"`))
+  const calledBrowserRead = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_READ}"`))
 
-  if (enableDynamicToolProof && dynamicToolCalls.length > 0 && assistantSawOk) {
+  if (enableRealBrowserToolProof && calledBrowserOpen && calledBrowserRead && assistantSawOk) {
+    finish(true, 'live Codex app-server requested real Browser dynamic tools and completed browser_open/browser_read round trip')
+  } else if (enableRealBrowserToolProof && realBrowserToolCalls.length > 0) {
+    finish(false, `real Browser tool call observed but required open/read calls or expected assistant token were missing: ${assistantText.trim()}`)
+  } else if (enableRealBrowserToolProof) {
+    finish(false, 'no item/tool/call observed for advertised real Browser dynamic tools')
+  } else if (enableDynamicToolProof && dynamicToolCalls.length > 0 && assistantSawOk) {
     finish(true, 'live Codex app-server accepted advertised dynamicTools and completed an item/tool/call round trip')
   } else if (enableDynamicToolProof && dynamicToolCalls.length > 0) {
     finish(false, `dynamic tool call observed but expected assistant token was missing: ${assistantText.trim()}`)
@@ -268,6 +306,13 @@ function answerServerRequest(message) {
   if (message.method === 'item/tool/call') {
     const namespace = typeof message.params?.namespace === 'string' ? message.params.namespace : null
     const tool = typeof message.params?.tool === 'string' ? message.params.tool : ''
+    if (enableRealBrowserToolProof && isBrowserClientDynamicTool(namespace, tool)) {
+      send({
+        id: message.id,
+        result: browserToolProofResponse(tool, message.params?.arguments)
+      })
+      return
+    }
     if (enableDynamicToolProof && namespace === dynamicToolNamespace && tool === dynamicToolName) {
       send({
         id: message.id,
@@ -304,6 +349,25 @@ function preview(value) {
   return text.length > 500 ? `${text.slice(0, 500)}...` : text
 }
 
+function browserToolProofResponse(tool, args) {
+  const record = args && typeof args === 'object' && !Array.isArray(args) ? args : {}
+  const url = typeof record.url === 'string' && record.url.length > 0 ? record.url : browserProofUrl
+  const action = tool === BROWSER_CLIENT_TOOL_OPEN ? 'open' : 'read'
+  return {
+    contentItems: [{
+      type: 'inputText',
+      text: JSON.stringify({
+        ok: true,
+        action,
+        url,
+        title: 'Orchestrator Browser Proof',
+        visibleStructure: 'ORCHESTRATOR_BROWSER_PROOF_PAGE'
+      })
+    }],
+    success: true
+  }
+}
+
 function resetArtifacts() {
   rmSync(artifactRoot, { recursive: true, force: true })
   mkdirSync(artifactRoot, { recursive: true })
@@ -318,7 +382,10 @@ function writeArtifacts(result) {
     model,
     prompt,
     enableDynamicToolProof,
-    advertisedDynamicTools: enableDynamicToolProof ? [dynamicToolFullName] : [],
+    enableRealBrowserToolProof,
+    advertisedDynamicTools: enableRealBrowserToolProof
+      ? browserClientDynamicTools.map((tool) => `${tool.namespace}.${tool.name}`)
+      : (enableDynamicToolProof ? [dynamicToolFullName] : []),
     methods: [...new Set(methods)],
     methodCounts: methods.reduce((counts, method) => ({ ...counts, [method]: (counts[method] ?? 0) + 1 }), {}),
     serverRequests,

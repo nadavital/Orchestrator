@@ -160,15 +160,17 @@ function buildContracts() {
       ],
       sourceEvidence: [
         { path: 'src/main/codexAppServerRuntime.ts', terms: ['clientDynamicToolBridge', 'dynamicTools', 'answerClientDynamicTool'] },
-        { path: 'src/main/browserClientTools.ts', terms: ['browser_open', 'browser_read', 'browser:clientToolCall', 'browser:runClientToolSmoke'] },
+        { path: 'src/main/browserClientToolSpecs.ts', terms: ['browser_open', 'browser_read', 'browserClientDynamicTools'] },
+        { path: 'src/main/browserClientTools.ts', terms: ['browser:clientToolCall', 'browser:runClientToolSmoke'] },
         { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['onClientToolCall', 'browserClientToolSnapshot', 'waitForWebviewSettled'] },
         { path: 'src/main/__tests__/codexAppServerRuntime.test.ts', terms: ['advertises and answers supported Browser dynamic tools', 'browser_read'] },
-        { path: 'scripts/codex-browser-appserver-live-proof.mjs', terms: ['CODEX_BROWSER_PROOF_DYNAMIC_TOOL', 'dynamicTools', 'browser_bridge_status'] }
+        { path: 'scripts/codex-browser-appserver-live-proof.mjs', terms: ['CODEX_BROWSER_PROOF_DYNAMIC_TOOL', 'CODEX_BROWSER_PROOF_REAL_BROWSER_TOOLS', 'browser_bridge_status'] },
+        { path: 'package.json', terms: ['live:codex-browser-tools'] }
       ],
       smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Synthetic manager events, UI boundaries, and the smoke-only Browser client-tool loopback pass; live provider-emitted Codex/browser-use proof is separate.',
-      next: 'Run a live Codex app-server Browser dynamic-tool proof against the renderer bridge, then expand tool coverage only from real browser-use requests or keep unavailable runtime boundaries explicit.'
+      caveat: 'Synthetic manager events, UI boundaries, smoke-only Browser renderer loopback, and live Codex app-server real browser_open/browser_read tool requests pass; native browser-use event streaming is still separate.',
+      next: 'Expand click/type/screenshot coverage only from real browser-use requests or a full installed-app end-to-end run; keep unavailable runtime boundaries explicit.'
     },
     {
       id: 'browser-device-presets',

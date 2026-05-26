@@ -1,6 +1,18 @@
 import { BrowserWindow } from 'electron'
 import type { IpcMain } from 'electron'
 import { safeWindowSend } from './safeWebContents'
+export {
+  BROWSER_CLIENT_TOOL_NAMESPACE,
+  BROWSER_CLIENT_TOOL_OPEN,
+  BROWSER_CLIENT_TOOL_READ,
+  browserClientDynamicTools,
+  isBrowserClientDynamicTool
+} from './browserClientToolSpecs'
+import {
+  BROWSER_CLIENT_TOOL_NAMESPACE,
+  BROWSER_CLIENT_TOOL_READ,
+  isBrowserClientDynamicTool
+} from './browserClientToolSpecs'
 
 type JsonObject = Record<string, unknown>
 
@@ -23,48 +35,10 @@ interface PendingBrowserClientToolRequest {
   interval: NodeJS.Timeout
 }
 
-export const BROWSER_CLIENT_TOOL_NAMESPACE = 'orchestrator'
-export const BROWSER_CLIENT_TOOL_OPEN = 'browser_open'
-export const BROWSER_CLIENT_TOOL_READ = 'browser_read'
-
 const BROWSER_CLIENT_TOOL_TIMEOUT_MS = 8_000
 const BROWSER_CLIENT_TOOL_RETRY_MS = 150
 const pendingBrowserClientToolRequests = new Map<string, PendingBrowserClientToolRequest>()
 let nextBrowserClientToolRequestId = 1
-
-export const browserClientDynamicTools: JsonObject[] = [
-  {
-    namespace: BROWSER_CLIENT_TOOL_NAMESPACE,
-    name: BROWSER_CLIENT_TOOL_OPEN,
-    description: 'Open a URL in Orchestrator Browser and return the current page URL, title, and visible page structure.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['url'],
-      properties: {
-        url: {
-          type: 'string',
-          description: 'The http, https, file, or about URL to open in the Browser panel.'
-        }
-      }
-    }
-  },
-  {
-    namespace: BROWSER_CLIENT_TOOL_NAMESPACE,
-    name: BROWSER_CLIENT_TOOL_READ,
-    description: 'Read the current Orchestrator Browser page and return URL, title, and visible page structure.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {}
-    }
-  }
-]
-
-export function isBrowserClientDynamicTool(namespace: string | null | undefined, tool: string | null | undefined): boolean {
-  return namespace === BROWSER_CLIENT_TOOL_NAMESPACE &&
-    (tool === BROWSER_CLIENT_TOOL_OPEN || tool === BROWSER_CLIENT_TOOL_READ)
-}
 
 export function registerBrowserClientToolIpc(ipcMain: IpcMain): void {
   ipcMain.handle('browser:clientToolResponse', (_, response: unknown): boolean => {

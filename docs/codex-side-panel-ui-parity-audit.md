@@ -6454,6 +6454,16 @@ Verification: focused `npm run smoke:ui:auto -- --browser` initially hit the exp
 
 Remaining: this proves Orchestrator's main IPC to Browser renderer bridge in the app smoke harness. It is still not live provider-emitted browser-use proof; keep that distinction explicit.
 
+### 2026-05-26 - Live Browser Open/Read Dynamic Tool Proof
+
+Codex evidence: the earlier generic dynamic-tool proof showed the app-server could call a harmless `orchestrator.browser_bridge_status` tool, but it did not prove Codex would request the production Browser tools. The production Browser tool specs now live in `src/main/browserClientToolSpecs.ts`, so the app runtime and live proof harness advertise the same `orchestrator.browser_open` and `orchestrator.browser_read` definitions.
+
+Implemented: added `npm run live:codex-browser-tools`, which compiles the shared Browser tool specs, starts the live Codex app-server, advertises the production Browser dynamic tools through `thread/start.dynamicTools`, asks Codex to call `orchestrator.browser_open` with the proof URL and then `orchestrator.browser_read`, answers both `item/tool/call` requests with Browser-shaped content items, and records the result under `tmp/codex-browser-tools-live-proof`.
+
+Verification: the first run hit the expected sandbox boundary because Codex could not access `/Users/nadav/.codex/sessions`; the escalated rerun passed. The artifact shows `ok=true`, advertised tools `orchestrator.browser_open` and `orchestrator.browser_read`, live server requests for `browser_open` with JSON-RPC id `0` and `browser_read` with id `1`, assistant text ending in `CODEX_BROWSER_LIVE_OK`, no parse errors, and event types including `tool.started`, `tool.completed`, `assistant.text.delta`, and `run.completed`.
+
+Remaining: this proves live Codex app-server requests the real Browser tool names and that the app-server transport can round-trip their responses. The renderer webview bridge remains proven by focused app smoke (`browserClientToolBridge=true`), not by this headless live app-server script. Native browser-use event streaming and broader click/type/screenshot tools remain future work and should only be added from real provider requests, explicit product scope, or a full installed-app end-to-end run.
+
 ### 2026-05-26 - Full Comparison Smoke Harness Tightening
 
 Implemented: corrected the reusable smoke harness so provider-diagnostics assertions gate the `settings-providers` capture instead of forcing the general Settings capture to prove provider details while it is on a different page. The `settings-providers` automated path now opens the provider Details section only when it is collapsed and waits for the details grid before checking provider status, usage, models, and compact disclosure structure.
@@ -6466,7 +6476,7 @@ Recommended order:
 
 1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel.
 2. Workbench chrome migration.
-3. Browser agent-driven parity: implement or explicitly gate a dynamic client-tool bridge for browser-use style requests. Manual Browser UI is strong; provider/browser-use parity is still blocked at the current app-server boundary.
+3. Browser agent-driven parity: keep the live real Browser tool proof and `browserClientToolBridge=true` renderer loopback green. Add click/type/screenshot only from real browser-use requests, explicit product scope, or a full installed-app end-to-end run.
 4. Terminal live Codex bottom-panel height/animation comparison at multiple window sizes plus root shell ownership for any remaining non-shared tab paths. The local content/chrome/target decomposition is now smoke-gated at a Codex-bundle-aligned 400 px total default/reset target; exact live animation timing remains.
 5. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, live commented-PR proof, provider blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
 6. File tabs and file viewer parity, now focused on full artifact rendering/provider search after the artifact identity/source-boundary slice.
