@@ -6,6 +6,8 @@ This is the canonical execution plan for Orchestrator. Every long-running implem
 
 The goal is a first-class desktop GUI for local coding agents, with Claude Code as the first complete provider and Codex, Cursor, Copilot, and future CLIs mapped through the same Orchestrator-native abstractions.
 
+For provider-specific implementation work, use `docs/provider-integration-runbook.md` as the adapter/runtime/test map before touching UI.
+
 Recent side-panel parity checkpoint:
 
 - Live Review rollback proof: added `npm run live:codex-review-appserver`, which creates a disposable git workspace, runs a real Codex app-server turn that edits `live-review-proof.txt`, captures raw `turn/diff/updated` JSONL plus normalized `diff.updated` events, probes `thread/rollback`, and archives the throwaway persisted thread. Live proof passed with 3 normalized diff events, no checkpoint ids, and a successful `thread/rollback` call using `{ threadId, numTurns: 1 }`; artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-review-appserver-live-proof/result.json`. The rollback response removed the turn from thread history but did not revert the workspace file or git diff, so provider Review Undo remains intentionally disabled until a real working-tree checkpoint restore path exists.
