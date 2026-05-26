@@ -2448,7 +2448,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       rightTransferSection.getAttribute('data-panel-tab-transfer-source') === 'right' &&
                       rightTransferSection.getAttribute('data-panel-tab-transfer-target') === 'bottom';
                     const moveShortcutToBottom = [...document.querySelectorAll('[role="menuitem"]')]
-                      .find((item) => item.textContent?.includes('Move terminal to bottom'));
+                      .find((item) => item.textContent?.includes('Move tab to bottom panel'));
                     if (moveShortcutToBottom instanceof HTMLButtonElement) {
                       moveShortcutToBottom.click();
                       await sleep(260);
@@ -2465,7 +2465,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   }));
                   await sleep(140);
                   const moveToBottom = [...document.querySelectorAll('[role="menuitem"]')]
-                    .find((item) => item.textContent?.includes('Move terminal to bottom'));
+                    .find((item) => item.textContent?.includes('Move tab to bottom panel'));
                   if (moveToBottom instanceof HTMLButtonElement) {
                     moveToBottom.click();
                     await sleep(260);

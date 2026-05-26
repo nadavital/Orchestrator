@@ -554,7 +554,8 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
               <MenuSectionLabel>Terminal</MenuSectionLabel>
               <MenuItem
                 icon="terminal"
-                label="Move terminal to bottom"
+                label="Move tab to bottom panel"
+                dataTestId="workbench-tab-context-menu-move-bottom"
                 onClick={() => {
                   transferSessionPanelTab(session.id, {
                     sourcePanel: 'right',

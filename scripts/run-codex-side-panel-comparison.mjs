@@ -144,9 +144,9 @@ function buildContracts() {
           imageNonBlank: true
         }
       ],
-      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'workbenchPanelTabOverflowController', 'workbenchPanelTabCloseStartEdge', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance'],
+      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'rightPanelTransferUnsupportedBoundary', 'workbenchPanelTabOverflowController', 'workbenchPanelTabCloseStartEdge', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, start-edge tab close chrome, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
+      caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, start-edge tab close chrome, shared context-menu sections, explicit unsupported transfer boundaries for Review/Files/Browser, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
       next: 'Use focused right-panel smoke for regressions; do not call exact timing complete without live Codex comparison.'
     },
     {
@@ -246,14 +246,14 @@ function buildContracts() {
       id: 'terminal-bottom-panel',
       area: 'Terminal bottom panel',
       scope: 'Bottom panel',
-      captureIds: ['terminal-bottom-panel'],
+      captureIds: ['terminal-bottom-panel', 'terminal-behavior'],
       codexAssets: [
         { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['Terminal {index}', 'terminal-panel', 'terminal.tabs.title'] },
         { basename: 'terminal-service-BsiZiRKt.js', terms: ['conversationSessions', 'sessionSnapshots', 'terminal-create'] }
       ],
-      smokeChecks: ['terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent'],
+      smokeChecks: ['terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent', 'terminalSharedTransferModel', 'terminalMoveToRightPanel', 'terminalMoveBackToBottom'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Terminal behavior, solid bottom-panel material, Codex-bundle-aligned 280 px default shell size, and screenshot are covered; exact Codex open-close timing is not live-proven.',
+      caveat: 'Terminal behavior, solid bottom-panel material, Codex-bundle-aligned 280 px default shell size, right/bottom shared transfer model, move to right panel, move back to bottom panel, and screenshot are covered; exact Codex open-close timing is not live-proven.',
       next: 'Compare live panel animation timing when app UI access is available.'
     },
     {
