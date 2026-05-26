@@ -5476,8 +5476,11 @@ function runAutomatedFocusedSurfaceSmoke(
             };
 
             const runHeader = async () => {
-              const headerMetadataText = document.querySelector('[data-testid="session-header-metadata"]')?.textContent ?? '';
+              const headerMetadata = document.querySelector('[data-testid="session-header-metadata"]');
+              const headerMetadataText = headerMetadata?.textContent ?? '';
               const activeSessionTitle = document.querySelector('[data-testid="active-session-title"]');
+              const metadataRect = headerMetadata instanceof HTMLElement ? headerMetadata.getBoundingClientRect() : null;
+              const activeTitleTooltip = activeSessionTitle instanceof HTMLElement ? activeSessionTitle.getAttribute('data-tooltip-label') ?? '' : '';
               const titlebarToggleSidebar = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
               const chatActionsButton = document.querySelector('[data-testid="titlebar-chat-actions"]');
               const headerActions = document.querySelector('[data-testid="titlebar-actions"]')?.getAttribute('data-header-actions') ?? '';
@@ -5508,6 +5511,13 @@ function runAutomatedFocusedSurfaceSmoke(
                   headerMetadataText.includes('Automated UI Smoke') &&
                   headerMetadataText.includes('Claude') &&
                   headerMetadataText.length > 'Automated UI Smoke'.length,
+                headerMetadataTooltipOnlyWorks:
+                  headerMetadata instanceof HTMLElement &&
+                  headerMetadata.getAttribute('data-session-header-metadata-visibility') === 'tooltip-only' &&
+                  activeTitleTooltip.includes(headerMetadataText) &&
+                  metadataRect !== null &&
+                  metadataRect.width <= 2 &&
+                  metadataRect.height <= 2,
                 headerNativeTooltipsWork: headerTooltipIds.every((testId) => {
                   const element = document.querySelector('[data-testid="' + testId + '"]');
                   return element instanceof HTMLElement &&
@@ -5579,6 +5589,18 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelLeft: rightPanelRectForSeam?.left ?? null,
                 rightPanelLayout: rightPanel instanceof HTMLElement ? rightPanel.dataset.rightPanelLayout ?? null : null
               };
+              const sessionHeaderMetadata = document.querySelector('[data-testid="session-header-metadata"]');
+              const sessionHeaderMetadataRect = sessionHeaderMetadata instanceof HTMLElement ? sessionHeaderMetadata.getBoundingClientRect() : null;
+              const activeSessionTitleForMetadata = document.querySelector('[data-testid="active-session-title"]');
+              const headerMetadataText = sessionHeaderMetadata?.textContent ?? '';
+              const headerMetadataTooltipOnlyWorks =
+                sessionHeaderMetadata instanceof HTMLElement &&
+                activeSessionTitleForMetadata instanceof HTMLElement &&
+                sessionHeaderMetadata.getAttribute('data-session-header-metadata-visibility') === 'tooltip-only' &&
+                (activeSessionTitleForMetadata.getAttribute('data-tooltip-label') ?? '').includes(headerMetadataText) &&
+                sessionHeaderMetadataRect !== null &&
+                sessionHeaderMetadataRect.width <= 2 &&
+                sessionHeaderMetadataRect.height <= 2;
               const sidebarDragSpacerForBand = document.querySelector('[data-testid="sidebar-window-drag-spacer"]');
               const firstPrimaryActionForBand = document.querySelector('[data-testid="sidebar-primary-action-new-chat"]');
               const sidebarForBand = document.querySelector('[data-testid="app-sidebar"]');
@@ -6646,6 +6668,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelHeaderSeamDebug,
                 headerPanelSharedBandWorks,
                 headerPanelSharedBandDebug,
+                headerMetadataTooltipOnlyWorks,
                 rightPanelMaterialSolidWorks,
                 rightPanelMaterialDebug,
                 workbenchPanelChromeCompactWorks:

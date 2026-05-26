@@ -134,6 +134,8 @@ function Titlebar(): JSX.Element {
     branchLabel ? `Branch ${branchLabel}` : null,
     providerLabel
   ].filter(Boolean)
+  const metadataLabel = metadataParts.join(' · ')
+  const titleTooltipLabel = [session?.name, metadataLabel].filter(Boolean).join(' · ')
 
   return (
     <div
@@ -152,13 +154,13 @@ function Titlebar(): JSX.Element {
         {session ? (
           <>
             <div className="flex min-w-0 items-center gap-2">
-              <Tooltip label={session.name}>
+              <Tooltip label={titleTooltipLabel}>
                 <span
                   data-testid="active-session-title"
                   className="truncate"
-                  data-tooltip-label={session.name}
+                  data-tooltip-label={titleTooltipLabel}
                   data-native-title-free="true"
-                  aria-label={session.name}
+                  aria-label={titleTooltipLabel}
                   tabIndex={0}
                   style={{ color: 'var(--text-primary)', flexShrink: 0, maxWidth: 260, fontSize: 13, fontWeight: 560, lineHeight: '16px' }}
                 >
@@ -179,19 +181,16 @@ function Titlebar(): JSX.Element {
                   </span>
                 </Tooltip>
               )}
-              <Tooltip label={metadataParts.join(' · ')}>
-                <div
-                  data-testid="session-header-metadata"
-                  className="flex min-w-0 items-center gap-1 truncate text-[11px]"
-                  data-tooltip-label={metadataParts.join(' · ')}
-                  data-native-title-free="true"
-                  aria-label={metadataParts.join(' · ')}
-                  tabIndex={0}
-                  style={{ color: 'var(--text-tertiary)', lineHeight: '14px', minWidth: 0, maxWidth: 560 }}
-                >
-                  {metadataParts.length > 0 ? `· ${metadataParts.join(' · ')}` : ''}
-                </div>
-              </Tooltip>
+              <span
+                data-testid="session-header-metadata"
+                className="sr-only"
+                data-tooltip-label={metadataLabel}
+                data-native-title-free="true"
+                aria-label={metadataLabel}
+                data-session-header-metadata-visibility="tooltip-only"
+              >
+                {metadataLabel}
+              </span>
             </div>
           </>
         ) : (

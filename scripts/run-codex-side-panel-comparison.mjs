@@ -118,7 +118,7 @@ function buildContracts() {
           maxAgeHours: 72
         }
       ],
-      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalVisualHealthyContent'],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'headerMetadataTooltipOnly', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalVisualHealthyContent'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, solid panel material, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
       next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Workbench, or bottom-panel shell layout.'

@@ -1080,6 +1080,7 @@ child.on('exit', (code) => {
           isolatedProfile: result.profile?.isIsolated === true,
           composer: result.hasComposer === true,
           headerIdentity: result.headerIdentityWorks === true,
+          headerMetadataTooltipOnly: result.headerMetadataTooltipOnlyWorks === true,
           headerNativeTooltips: result.headerNativeTooltipsWork === true,
           titlebarSidebarToggle: result.titlebarSidebarToggleWorks === true,
           headerActionMenu: result.headerActionMenuWorks === true
@@ -1093,6 +1094,7 @@ child.on('exit', (code) => {
           rightPanelSharedLayoutController: result.rightPanelSharedLayoutControllerWorks === true,
           rightPanelHeaderSeam: result.rightPanelHeaderSeamWorks === true,
           headerPanelSharedBand: result.headerPanelSharedBandWorks === true,
+          headerMetadataTooltipOnly: result.headerMetadataTooltipOnlyWorks === true,
           rightPanelMaterialSolid: result.rightPanelMaterialSolidWorks === true,
           workbenchPanelChromeCompact: result.workbenchPanelChromeCompactWorks === true,
           workbenchPanelAddControlStable: result.workbenchPanelAddControlStableWorks === true,
