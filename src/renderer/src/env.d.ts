@@ -65,6 +65,20 @@ export interface SavedPastedAttachment {
   mimeType?: string
 }
 
+export interface BrowserClientToolCall {
+  sessionId: string
+  requestId: string
+  namespace: string | null
+  tool: string
+  arguments: Record<string, unknown>
+}
+
+export interface BrowserClientToolResponse {
+  requestId: string
+  success: boolean
+  contentItems: Array<{ type: 'inputText'; text: string }>
+}
+
 export interface FilePreviewResult {
   kind: 'text' | 'markdown' | 'json' | 'csv' | 'notebook' | 'document' | 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary' | 'missing' | 'unreadable'
   size?: number
@@ -234,6 +248,8 @@ declare global {
           allowedUploadOrigins: string[]
           blockedUploadOrigins: string[]
         }>
+        onClientToolCall: (cb: (call: BrowserClientToolCall) => void) => () => void
+        answerClientToolCall: (response: BrowserClientToolResponse) => Promise<boolean>
       }
       attachments: {
         savePastedFile: (request: { name?: string; mimeType?: string; bytes: ArrayBuffer }) => Promise<SavedPastedAttachment>

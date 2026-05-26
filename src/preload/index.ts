@@ -72,6 +72,20 @@ interface SavedPastedAttachment {
   mimeType?: string
 }
 
+interface BrowserClientToolCall {
+  sessionId: string
+  requestId: string
+  namespace: string | null
+  tool: string
+  arguments: Record<string, unknown>
+}
+
+interface BrowserClientToolResponse {
+  requestId: string
+  success: boolean
+  contentItems: Array<{ type: 'inputText'; text: string }>
+}
+
 export type SessionEvent =
   | { type: 'created'; session: Session }
   | { type: 'status'; id: string; status: Session['status'] }
@@ -268,7 +282,14 @@ const api = {
       blockedDownloadOrigins?: string[]
       allowedUploadOrigins?: string[]
       blockedUploadOrigins?: string[]
-    }) => ipcRenderer.invoke('browser:setSecurityPolicy', policy)
+    }) => ipcRenderer.invoke('browser:setSecurityPolicy', policy),
+    onClientToolCall: (cb: (call: BrowserClientToolCall) => void): (() => void) => {
+      const handler = (_: Electron.IpcRendererEvent, call: BrowserClientToolCall): void => cb(call)
+      ipcRenderer.on('browser:clientToolCall', handler)
+      return () => ipcRenderer.off('browser:clientToolCall', handler)
+    },
+    answerClientToolCall: (response: BrowserClientToolResponse): Promise<boolean> =>
+      ipcRenderer.invoke('browser:clientToolResponse', response)
   },
 
   attachments: {

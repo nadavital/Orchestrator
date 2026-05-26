@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
 import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserLocalServerRoute, BrowserTabState, BrowserUseCursorState, BrowserUseSurfaceBounds, BrowserUseSurfaceSize, BrowserWorkbenchState } from '../../store/sessions'
 import { browserWebviewPartitionForHost } from '../../types'
 import { Badge, Button, IconButton, InspectorDisclosure, InspectorRow, InspectorSection, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelMessage, PanelNotice, PanelTabStrip, PanelToolbar, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
@@ -161,6 +161,7 @@ export default function BrowserPanel({
   const workbenchRef = useRef(workbench)
   const webviewRefs = useRef<Record<string, WebviewElement | null>>({})
   const webviewRef = useRef<WebviewElement | null>(null)
+  const handledClientToolRequestIdsRef = useRef<Set<string>>(new Set())
   const browserStageRef = useRef<HTMLDivElement | null>(null)
   const pendingCacheReloadRef = useRef(false)
   const addressInputRef = useRef<HTMLInputElement | null>(null)
@@ -986,6 +987,87 @@ export default function BrowserPanel({
     setAssetInventory(assets)
     if (!selectedTargetId && targets[0]) setSelectedTargetId(targets[0].nodeId)
   }
+
+  const browserClientToolSnapshot = async (webview: WebviewElement | null): Promise<Record<string, unknown>> => {
+    const resolvedUrl = webview?.getURL?.() || currentUrl || activeBrowserTab(workbenchRef.current).url || ''
+    const resolvedTitle = webview?.getTitle?.() || title || activeBrowserTab(workbenchRef.current).title || ''
+    let visibleStructure = domSnapshot
+    if (webview && resolvedUrl && resolvedUrl !== 'about:blank') {
+      try {
+        visibleStructure = await webview.executeJavaScript<string>(DOM_SNAPSHOT_SCRIPT)
+        setDomSnapshot(visibleStructure)
+      } catch {
+        visibleStructure = ''
+      }
+    }
+    return {
+      ok: true,
+      url: resolvedUrl,
+      title: resolvedTitle,
+      visible: workbenchRef.current.visible,
+      loading: isLoading,
+      error,
+      visibleStructure: visibleStructure.trim().slice(0, 6000)
+    }
+  }
+
+  const answerBrowserClientTool = (
+    call: BrowserClientToolCall,
+    success: boolean,
+    payload: Record<string, unknown>
+  ): void => {
+    void window.api.browser.answerClientToolCall({
+      requestId: call.requestId,
+      success,
+      contentItems: [{
+        type: 'inputText',
+        text: JSON.stringify(payload)
+      }]
+    })
+  }
+
+  const handleBrowserClientToolCall = async (call: BrowserClientToolCall): Promise<void> => {
+    const expectedSessionId = sessionIdFromBrowserHost(hostId)
+    if (!expectedSessionId || call.sessionId !== expectedSessionId) return
+    if (call.namespace !== 'orchestrator') return
+    if (call.tool !== 'browser_open' && call.tool !== 'browser_read') return
+    if (handledClientToolRequestIdsRef.current.has(call.requestId)) return
+    handledClientToolRequestIdsRef.current.add(call.requestId)
+
+    try {
+      if (call.tool === 'browser_open') {
+        const rawUrl = typeof call.arguments.url === 'string' ? call.arguments.url : ''
+        const nextUrl = normalizeUrl(rawUrl)
+        if (!nextUrl) {
+          answerBrowserClientTool(call, false, { ok: false, error: 'browser_open requires a valid URL.' })
+          return
+        }
+        navigate(nextUrl)
+        const webview = await waitForActiveWebview(webviewRef, 4000)
+        if (webview) await waitForWebviewSettled(webview, 6000)
+        answerBrowserClientTool(call, true, {
+          ...(await browserClientToolSnapshot(webview)),
+          action: 'open'
+        })
+        return
+      }
+
+      const webview = await waitForActiveWebview(webviewRef, 1000)
+      answerBrowserClientTool(call, true, {
+        ...(await browserClientToolSnapshot(webview)),
+        action: 'read'
+      })
+    } catch (toolError) {
+      answerBrowserClientTool(call, false, {
+        ok: false,
+        error: toolError instanceof Error ? toolError.message : String(toolError)
+      })
+    }
+  }
+
+  useEffect(() => window.api.browser.onClientToolCall((call) => {
+    void handleBrowserClientToolCall(call)
+  }))
 
   const runTargetAction = async (action: BrowserTargetAction): Promise<void> => {
     if (!selectedTargetId || !webviewRef.current) return
@@ -2903,6 +2985,49 @@ function clampViewportSize(value: number, axis: 'width' | 'height'): number {
   const min = axis === 'width' ? MIN_VIEWPORT_SIZE.width : MIN_VIEWPORT_SIZE.height
   const max = axis === 'width' ? MAX_VIEWPORT_SIZE.width : MAX_VIEWPORT_SIZE.height
   return Math.min(max, Math.max(min, Math.round(value)))
+}
+
+function sessionIdFromBrowserHost(hostId: string): string | null {
+  const match = /^right:(.+):browser$/.exec(hostId)
+  return match?.[1] ?? null
+}
+
+function waitForActiveWebview(
+  webviewRef: MutableRefObject<WebviewElement | null>,
+  timeoutMs: number
+): Promise<WebviewElement | null> {
+  const startedAt = Date.now()
+  return new Promise((resolve) => {
+    const poll = (): void => {
+      if (webviewRef.current) {
+        resolve(webviewRef.current)
+        return
+      }
+      if (Date.now() - startedAt >= timeoutMs) {
+        resolve(null)
+        return
+      }
+      window.setTimeout(poll, 50)
+    }
+    poll()
+  })
+}
+
+function waitForWebviewSettled(webview: WebviewElement, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = (): void => {
+      if (done) return
+      done = true
+      webview.removeEventListener('did-stop-loading', finish)
+      webview.removeEventListener('did-fail-load', finish)
+      window.clearTimeout(timeout)
+      resolve()
+    }
+    const timeout = window.setTimeout(finish, timeoutMs)
+    webview.addEventListener('did-stop-loading', finish)
+    webview.addEventListener('did-fail-load', finish)
+  })
 }
 
 function normalizeUrl(raw: string): string {

@@ -29,6 +29,7 @@ import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
 import { performanceSnapshot, recordPerformanceMetric, resetPerformanceMetrics } from './performanceTelemetry'
 import { providerManifests } from './providerManifest'
 import { setBrowserSecurityPolicy } from './browserSecurityPolicy'
+import { registerBrowserClientToolIpc } from './browserClientTools'
 import { EDITOR_OPEN_TARGETS, editorCliTargets, editorFileUrl, editorOpenTarget, findExecutableCommand, normalizePreferredOpenTarget, type EditorOpenTarget } from './editorOpen'
 type FilePreviewResult =
   | { kind: 'text'; size: number; text: string; truncated: boolean }
@@ -663,6 +664,8 @@ function fencedBlock(content: string): string {
 }
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
+  registerBrowserClientToolIpc(ipcMain)
+
   // App profile
   ipcMain.handle('app:getProfile', () => getAppProfile())
 

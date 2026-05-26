@@ -159,14 +159,16 @@ function buildContracts() {
         { basename: 'browser-sidebar-manager-ivre5jEI.js', terms: ['data-browser-sidebar-conversation-id', 'transferWebview', 'browser-sidebar-browser-use-state', 'browser-sidebar-local-servers'] }
       ],
       sourceEvidence: [
-        { path: 'src/main/codexAppServerRuntime.ts', terms: ['item/tool/call', 'Client tool unavailable:', 'client-side dynamic tools for this runtime'] },
-        { path: 'src/main/__tests__/codexAppServerRuntime.test.ts', terms: ['dynamic-tool-1', 'Client tool unavailable: unsupported_tool'] },
+        { path: 'src/main/codexAppServerRuntime.ts', terms: ['clientDynamicToolBridge', 'dynamicTools', 'answerClientDynamicTool'] },
+        { path: 'src/main/browserClientTools.ts', terms: ['browser_open', 'browser_read', 'browser:clientToolCall'] },
+        { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['onClientToolCall', 'browserClientToolSnapshot', 'waitForWebviewSettled'] },
+        { path: 'src/main/__tests__/codexAppServerRuntime.test.ts', terms: ['advertises and answers supported Browser dynamic tools', 'browser_read'] },
         { path: 'scripts/codex-browser-appserver-live-proof.mjs', terms: ['CODEX_BROWSER_PROOF_DYNAMIC_TOOL', 'dynamicTools', 'browser_bridge_status'] }
       ],
       smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Synthetic manager events and UI boundaries pass; live provider-emitted Codex/browser-use proof is separate. A live dynamicTools proof now shows stdio app-server can send item/tool/call and receive a response, but no Browser renderer tool bridge exists yet.',
-      next: 'Build real Browser renderer dynamic tools on top of the proven app-server item/tool/call transport before claiming agent-driven browser-use parity; keep unavailable runtime boundaries explicit where no bridge is exposed.'
+      caveat: 'Synthetic manager events and UI boundaries pass; live provider-emitted Codex/browser-use proof is separate. The app-server path now advertises renderer-backed Browser open/read tools, but live provider-emitted browser-use behavior still needs proof.',
+      next: 'Run a live Codex app-server Browser dynamic-tool proof against the renderer bridge, then expand tool coverage only from real browser-use requests or keep unavailable runtime boundaries explicit.'
     },
     {
       id: 'browser-device-presets',

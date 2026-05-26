@@ -2,7 +2,7 @@ import test, { beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import type { SpawnOptionsWithoutStdio } from 'child_process'
 import type { RunEvent, Session } from '../../types'
-import { CodexAppServerRuntimeManager, type CodexAppServerSpawn } from '../codexAppServerRuntime'
+import { CodexAppServerRuntimeManager, type CodexAppServerSpawn, type CodexClientDynamicToolBridge } from '../codexAppServerRuntime'
 import {
   clearProviderRuntimeConnections,
   clearProviderRuntimeDebugEvents,
@@ -293,6 +293,97 @@ test('codex app-server runtime starts a thread, starts a turn, and answers nativ
   proc.emitExit()
   assert.equal(exited, true)
   assert.equal(manager.has(session.id), false)
+})
+
+test('codex app-server runtime advertises and answers supported Browser dynamic tools', async () => {
+  let fake: FakeAppServerProcess | null = null
+  const spawn: CodexAppServerSpawn = () => {
+    fake = new FakeAppServerProcess()
+    return fake
+  }
+  const calls: Array<{ namespace: string | null; tool: string; arguments: Record<string, unknown> }> = []
+  const bridge: CodexClientDynamicToolBridge = {
+    dynamicTools: [{
+      namespace: 'orchestrator',
+      name: 'browser_read',
+      description: 'Read browser',
+      inputSchema: { type: 'object', properties: {} }
+    }],
+    isSupported: (namespace, tool) => namespace === 'orchestrator' && tool === 'browser_read',
+    call: async (call) => {
+      calls.push({ namespace: call.namespace, tool: call.tool, arguments: call.arguments })
+      return {
+        success: true,
+        contentItems: [{ type: 'inputText', text: JSON.stringify({ ok: true, title: 'Browser page' }) }]
+      }
+    }
+  }
+  const manager = new CodexAppServerRuntimeManager(spawn)
+  const events: RunEvent[] = []
+
+  const result = manager.start({
+    sessionId: session.id,
+    session,
+    provider,
+    request: {
+      prompt: 'read the browser',
+      cwd: process.cwd(),
+      model: 'gpt-5.4',
+      effort: 'high',
+      providerSessionId: null,
+      executionPolicy: 'default',
+      allowedTools: [],
+      runtime: 'app-server'
+    },
+    mode: 'start',
+    clientDynamicToolBridge: bridge,
+    onRawData: () => {},
+    onParsedEvents: (parsed) => events.push(...parsed),
+    onExit: () => {}
+  })
+
+  assert.equal(result.ok, true)
+  assert.ok(fake)
+  const proc = fake as FakeAppServerProcess
+
+  let writes = writtenJson(proc)
+  proc.emitStdout({ id: writes[0].id, result: { protocolVersion: 'v2' } })
+  writes = writtenJson(proc)
+  assert.equal(writes[2].method, 'thread/start')
+  assert.deepEqual((writes[2].params as Record<string, unknown>).dynamicTools, bridge.dynamicTools)
+
+  proc.emitStdout({
+    id: writes[2].id,
+    result: { thread: { id: 'thread-1' }, model: 'gpt-5.4', cwd: process.cwd() }
+  })
+  writes = writtenJson(proc)
+  proc.emitStdout({ id: writes[3].id, result: { turn: { id: 'turn-1' } } })
+  proc.emitStdout({
+    jsonrpc: '2.0',
+    id: 0,
+    method: 'item/tool/call',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      callId: 'call-1',
+      namespace: 'orchestrator',
+      tool: 'browser_read',
+      arguments: '{"source":"test"}'
+    }
+  })
+
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(calls, [{ namespace: 'orchestrator', tool: 'browser_read', arguments: { source: 'test' } }])
+  writes = writtenJson(proc)
+  assert.deepEqual(writes[writes.length - 1], {
+    id: 0,
+    result: {
+      success: true,
+      contentItems: [{ type: 'inputText', text: JSON.stringify({ ok: true, title: 'Browser page' }) }]
+    }
+  })
+  assert.equal(events.some((event) => event.type === 'browser.manager_state' && event.open === true), true)
+  assert.equal(events.some((event) => event.type === 'assistant.status' && event.content === 'Browser tool requested: orchestrator.browser_read'), true)
 })
 
 test('codex app-server runtime fails loudly when the process exits before responding', () => {

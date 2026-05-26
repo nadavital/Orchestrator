@@ -6436,6 +6436,16 @@ Verification: `npm run live:codex-dynamic-tools` passed. The artifact shows `ok=
 
 Remaining: this proves generic app-server dynamic client-tool transport, not Browser automation parity. The next Browser bridge slice should advertise real Browser tools and route `item/tool/call` from main to the Browser renderer for navigation/read/action results. The production runtime should keep explicit unavailable handling for unimplemented dynamic tools until that bridge exists.
 
+### 2026-05-26 - Browser Renderer Dynamic Tool Bridge
+
+Codex evidence: the previous live dynamicTools proof showed `thread/start.dynamicTools` and JSON-RPC id `0` `item/tool/call` round-trip through the stdio app-server. Codex bundle Browser evidence still shows browser-use route capture/release and webview manager state, while the live browser-use proof has not emitted provider-native Browser events in this environment.
+
+Implemented: added a production dynamic Browser bridge instead of another proof-only stub. Codex app-server sessions now advertise `orchestrator.browser_open` and `orchestrator.browser_read` dynamic tools. Supported `item/tool/call` requests emit `browser.manager_state` to open the Browser panel, route through main-to-renderer IPC (`browser:clientToolCall` / `browser:clientToolResponse`), and are handled by `BrowserPanel` against the active webview. `browser_open` navigates the Browser panel and returns URL/title/visible-structure data; `browser_read` returns URL/title/visible-structure for the current page. Unsupported client tools keep the visible `Client tool unavailable` status and structured JSON-RPC error.
+
+Verification: `pnpm exec tsc --noEmit` passed. `src/main/__tests__/codexAppServerRuntime.test.ts` now covers `thread/start.dynamicTools`, supported `item/tool/call` response handling with numeric id `0`, parsed JSON arguments, and the `browser.manager_state`/status events that mount the Browser panel for the renderer bridge.
+
+Remaining: this is a narrow renderer-backed Browser bridge, not a claim of full browser-use parity. Next proof should run a live Codex app-server Browser dynamic-tool turn against the renderer bridge. Broader click/type/screenshot tools should be added only from real provider requests or explicit product scope.
+
 Recommended order:
 
 1. Shell/tab foundation only.
