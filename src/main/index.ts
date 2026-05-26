@@ -14041,6 +14041,22 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               providerPinnedRow instanceof HTMLElement &&
               providerPinnedRow.closest('.session-row-shell')?.getAttribute('data-sidebar-provider-pinned') === 'true' &&
               providerPinnedRow.closest('.session-row-shell')?.getAttribute('data-sidebar-pinned-thread-key') === 'remote:sidebar-provider-pinned-codex';
+            const providerPinnedShell = providerPinnedRow instanceof HTMLElement
+              ? providerPinnedRow.closest('.session-row-shell')
+              : null;
+            const providerPinnedPin = providerPinnedShell instanceof HTMLElement
+              ? providerPinnedShell.querySelector('[data-testid="session-pin-toggle"]')
+              : null;
+            const localPinnedPin = rowFor('Sidebar pinned recent')?.closest('.session-row-shell')?.querySelector('[data-testid="session-pin-toggle"]');
+            const sidebarProviderPinBoundaryWorks =
+              providerPinnedPin instanceof HTMLButtonElement &&
+              localPinnedPin instanceof HTMLButtonElement &&
+              providerPinnedPin.disabled &&
+              providerPinnedPin.getAttribute('data-sidebar-pin-boundary') === 'provider-readonly' &&
+              (providerPinnedPin.getAttribute('aria-label') ?? '').includes('Provider pin') &&
+              !localPinnedPin.disabled &&
+              localPinnedPin.getAttribute('data-sidebar-pin-boundary') === 'local' &&
+              (localPinnedPin.getAttribute('aria-label') ?? '').includes('locally');
             const chatScrollContainer = document.querySelector('[data-testid="sidebar-chat-scroll"]');
             const pinnedSection = document.querySelector('[data-testid="sidebar-pinned-section"]');
             const projectsSection = document.querySelector('[data-testid="sidebar-projects-section"]');
@@ -15908,6 +15924,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               pinnedOrderStable,
               pinnedRowsHiddenFromProjects,
               providerPinnedMetadataWorks,
+              sidebarProviderPinBoundaryWorks,
               pinnedSharesProjectScroll,
               sidebarPinnedDragReorderWorks,
               sidebarProjectlessChatsWorks,

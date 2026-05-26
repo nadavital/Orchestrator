@@ -6510,6 +6510,14 @@ Verification: focused `npm run smoke:ui:auto -- --settings` and `npm run smoke:u
 
 Remaining: this closes the false Settings mismatch in the directly comparable report. Real remote-host Settings adapters and Codex Personalization data are still missing by product scope and remain tracked as explicit unavailable boundaries.
 
+### 2026-05-26 - Sidebar Provider Pin Boundary
+
+Implemented: made provider-projected pinned rows explicitly read-only at the Sidebar pin action boundary. A row pinned only by provider metadata still appears in Pinned, preserves `providerPinned` and `providerPinnedThreadKey` metadata, and keeps local/provider ordering behavior, but its pin button now exposes `data-sidebar-pin-boundary="provider-readonly"`, is disabled, and labels the action as provider read-only. Local pinned rows keep `data-sidebar-pin-boundary="local"` and local pin/unpin behavior.
+
+Verification: focused `npm run smoke:ui:auto -- --sidebar` passed after the expected escalated rerun with `sidebarProviderPinBoundary=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779789243389.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779789243389.png`. The refreshed `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` also passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, and `blocked=0`, and the `chat-sidebar-provider-state` row now includes `sidebarProviderPinBoundary`. This keeps local pin-order parity separate from live provider pin mutation, which remains blocked through the currently probed app-server bridge.
+
+Remaining: add real provider pin set/list adapters only when a provider exposes a safe mutation API. Also keep panel/header interaction in the same parity plan: sidebar, main titlebar, Workbench right panel, and Terminal bottom panel changes must preserve the dedicated header/panel comparison row before any future visual parity claim.
+
 Recommended order:
 
 1. Shell/tab foundation and panel/header interaction first: keep the dedicated comparison row green whenever changing the left sidebar, main titlebar, Workbench right panel, or Terminal bottom panel.

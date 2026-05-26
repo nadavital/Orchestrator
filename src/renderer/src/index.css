@@ -8919,6 +8919,18 @@
     color: var(--text-primary);
   }
 
+  .session-item-pin-button:disabled {
+    cursor: default;
+    color: color-mix(in srgb, var(--text-tertiary) 80%, var(--text-secondary));
+    background: transparent;
+  }
+
+  .session-item-pin-button:disabled:hover,
+  .session-item-pin-button:disabled:focus-visible {
+    color: color-mix(in srgb, var(--text-tertiary) 80%, var(--text-secondary));
+    background: transparent;
+  }
+
   .surface-row:hover .session-item-pin-button,
   .surface-row:focus-within .session-item-pin-button,
   .session-row-shell:hover .session-item-pin-button,

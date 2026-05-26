@@ -820,6 +820,7 @@ child.on('exit', (code) => {
         pinnedOrderStable: result.pinnedOrderStable === true,
         pinnedRowsHiddenFromProjects: result.pinnedRowsHiddenFromProjects === true,
         providerPinnedMetadata: result.providerPinnedMetadataWorks === true,
+        sidebarProviderPinBoundary: result.sidebarProviderPinBoundaryWorks === true,
         pinnedSharesProjectScroll: result.pinnedSharesProjectScroll === true,
         sidebarPinnedDragReorder: result.sidebarPinnedDragReorderWorks === true,
         sidebarProjectlessChats: result.sidebarProjectlessChatsWorks === true,

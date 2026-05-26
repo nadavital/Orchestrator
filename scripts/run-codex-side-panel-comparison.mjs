@@ -272,10 +272,10 @@ function buildContracts() {
       scope: 'Left sidebar',
       captureIds: ['chat-sidebar'],
       codexAssetNames: ['sidebar-project-group-signals-', 'sidebar-thread-keys-', 'sidebar-thread-list-signals-'],
-      smokeChecks: ['providerPinnedMetadata', 'providerWorktreeMetadata', 'sidebarConnectionGrouping', 'sidebarPinnedDragReorder'],
+      smokeChecks: ['providerPinnedMetadata', 'sidebarProviderPinBoundary', 'providerWorktreeMetadata', 'sidebarConnectionGrouping', 'sidebarPinnedDragReorder'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Provider thread-list projection and local pin order are covered. Live provider pin set/list mutation is still blocked through the current app-server bridge.',
-      next: 'Find a safe provider pin mutation boundary or keep local pin order clearly scoped.'
+      caveat: 'Provider thread-list projection and local pin order are covered. Provider-projected pinned rows are now read-only at the Sidebar action boundary because live provider pin set/list mutation is still blocked through the current app-server bridge.',
+      next: 'Add real provider pin set/list adapters only when a provider exposes a safe mutation API.'
     }
   ]
 }

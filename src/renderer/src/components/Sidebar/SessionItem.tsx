@@ -85,6 +85,12 @@ function SessionItem({ session }: Props): JSX.Element {
   const threadKind = sidebarThreadKind(session)
   const labelColor = sidebarLabelColor(session)
   const isPinned = isSidebarPinnedSession(session)
+  const providerPinReadOnly = session.providerPinned === true && session.pinned !== true
+  const pinActionLabel = providerPinReadOnly
+    ? 'Provider pin is read-only in Orchestrator'
+    : isPinned
+      ? 'Unpin chat locally'
+      : 'Pin chat locally'
   const rowSelectedKey = sidebarSessionSelectedKey(session.id)
 
   useEffect(() => {
@@ -208,6 +214,7 @@ function SessionItem({ session }: Props): JSX.Element {
   const togglePinned = async (event: React.MouseEvent): Promise<void> => {
     event.preventDefault()
     event.stopPropagation()
+    if (providerPinReadOnly) return
     const nextPinned = !isPinned
     const previousPinOrder = session.pinOrder
     updatePinned(session.id, nextPinned)
@@ -408,14 +415,16 @@ function SessionItem({ session }: Props): JSX.Element {
               className="surface-row-secondary session-row-actions"
               data-sidebar-row-action-slot="consolidated"
             >
-              <Tooltip label={isPinned ? 'Unpin chat' : 'Pin chat'}>
+              <Tooltip label={pinActionLabel}>
                 <button
                   type="button"
                   className="session-item-pin-button"
                   data-testid="session-pin-toggle"
-                  aria-label={isPinned ? 'Unpin chat' : 'Pin chat'}
+                  aria-label={pinActionLabel}
                   data-native-title-free="true"
                   data-pinned={isPinned ? 'true' : 'false'}
+                  data-sidebar-pin-boundary={providerPinReadOnly ? 'provider-readonly' : 'local'}
+                  disabled={providerPinReadOnly}
                   onClick={(event) => void togglePinned(event)}
                 >
                   <Icon name="pin" size={12} />
