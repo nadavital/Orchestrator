@@ -295,6 +295,8 @@ interface SessionState {
 }
 
 const SESSION_STORE_TAIL_MESSAGES = 64
+export const DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT = 350
+export const LEGACY_TERMINAL_PANEL_CONTENT_HEIGHT = 260
 
 export const defaultUI: SessionUIState = {
   showPlan: false,
@@ -314,7 +316,7 @@ export const defaultUI: SessionUIState = {
   browserUrl: '',
   browserWorkbench: defaultBrowserWorkbench(),
   terminalPanel: {
-    height: 260,
+    height: DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT,
     tabs: [0],
     activeTabId: 0,
     nextTabId: 1
@@ -1439,8 +1441,12 @@ function ensureTerminalPanel(panel?: TerminalPanelState): TerminalPanelState {
   const tabs = panel?.tabs ?? [0]
   const activeTabId = tabs.includes(panel?.activeTabId ?? 0) ? panel?.activeTabId ?? 0 : tabs[0]
   const maxTabId = tabs.length > 0 ? Math.max(...tabs) : 0
+  const storedHeight = panel?.height
+  const height = storedHeight == null || storedHeight === LEGACY_TERMINAL_PANEL_CONTENT_HEIGHT
+    ? DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT
+    : storedHeight
   return {
-    height: panel?.height ?? 260,
+    height,
     tabs,
     activeTabId: activeTabId ?? 0,
     nextTabId: Math.max(panel?.nextTabId ?? 1, maxTabId + 1)

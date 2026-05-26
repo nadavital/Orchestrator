@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { defaultUI, useSessionStore } from '../../store/sessions'
+import { DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT, defaultUI, useSessionStore } from '../../store/sessions'
 import type { Session } from '../../types'
 import { AppShellPanel, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelResizeHandle, PanelTabStrip, ToolbarButton, exitFullscreenForPanelTab, panelTabDomId, panelTabPanelDomId, useAppShellBottomPanelLayout, useAppShellResizeController } from '../shared/designSystem'
 import TerminalView from './TerminalView'
 
 const MIN_TERMINAL_HEIGHT = 120
 const MAX_TERMINAL_HEIGHT = 600
-const DEFAULT_TERMINAL_HEIGHT = 260
+const DEFAULT_TERMINAL_HEIGHT = DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT
 const MIN_PRIMARY_CONTENT_HEIGHT = 260
 const TERMINAL_PANEL_CHROME_HEIGHT = 50
 

@@ -1821,9 +1821,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               terminalTabPanelForSizing instanceof HTMLElement &&
               bottomPanelContentHeight >= 120 &&
               bottomPanelChromeHeight === 50 &&
-              bottomPanelDefaultHeight === 260 &&
+              bottomPanelDefaultHeight === 350 &&
               bottomPanelMinHeight === 120 &&
               bottomPanelTotalHeight === bottomPanelContentHeight + bottomPanelChromeHeight &&
+              bottomPanelTotalHeight === 400 &&
               bottomPanelTargetSize === bottomPanelTotalHeight &&
               Number(bottomPanelShell.getAttribute('data-bottom-panel-content-height') ?? '0') === bottomPanelContentHeight &&
               Number(bottomPanelShell.getAttribute('data-bottom-panel-chrome-height') ?? '0') === bottomPanelChromeHeight &&
@@ -2001,9 +2002,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 terminalResizeKeyboardWorks =
                   terminalResizeHandleForKeyboard.getAttribute('tabindex') === '0' &&
                   terminalResizeHandleForKeyboard.getAttribute('aria-valuemin') === '120' &&
-                  Number(terminalResizeHandleForKeyboard.getAttribute('aria-valuemax') ?? '0') >= 260 &&
+                  Number(terminalResizeHandleForKeyboard.getAttribute('aria-valuemax') ?? '0') >= 350 &&
                   Math.abs(heightAfterKeyboard - heightAfterReset) >= 8 &&
-                  Math.abs(heightAfterKeyboardReset - 260) <= 4;
+                  Math.abs(heightAfterKeyboardReset - 350) <= 4;
               }
               terminalResizeResetDebug = {
                 resizeHandleFound: true,
@@ -2026,7 +2027,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 bottomPanelTotalHeight,
                 bottomPanelTargetSize,
                 resizeDelta: heightAfterResize - heightBeforeResize,
-                resetDelta: heightAfterReset - 260,
+                resetDelta: heightAfterReset - 350,
                 handleRect: {
                   width: resizeRect.width,
                   height: resizeRect.height,
@@ -2048,7 +2049,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 terminalResizeHandle.getAttribute('data-app-shell-resize-handle') === 'true' &&
                 terminalResizeHandle.getAttribute('data-app-shell-resize-edge') === 'top' &&
                 Math.abs(heightAfterResize - heightBeforeResize) >= 24 &&
-                Math.abs(heightAfterReset - 260) <= 4;
+                Math.abs(heightAfterReset - 350) <= 4;
             } else {
               terminalResizeResetDebug = {
                 resizeHandleFound: terminalResizeHandle instanceof HTMLElement,
