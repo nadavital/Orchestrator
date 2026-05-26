@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as asar from '@electron/asar'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { join, relative, resolve } from 'path'
 import { spawnSync } from 'child_process'
 import { fileURLToPath } from 'url'
@@ -41,9 +41,10 @@ const packageJson = readJsonFile(join(root, 'package.json'))
 const codexAssets = new CodexAssetReader(codexAsarPath)
 const sourceCache = new Map()
 const artifactCache = new Map()
+const fileCache = new Map()
 
 const contracts = buildContracts()
-const rows = contracts.map((contract) => evaluateContract(contract, manifest, codexAssets, sourceCache, artifactCache))
+const rows = contracts.map((contract) => evaluateContract(contract, manifest, codexAssets, sourceCache, artifactCache, fileCache))
 const summary = summarizeRows(rows, manifest)
 const report = {
   createdAt: new Date().toISOString(),
@@ -99,6 +100,14 @@ function buildContracts() {
         { basename: 'app-shell-state-HP0T5lEX.js', terms: ['app-shell:right-panel-width:v2', 'app-shell-bottom-panel-launcher-visible'] },
         { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['terminal-panel'] }
       ],
+      fileEvidence: [
+        {
+          path: '/private/tmp/codex-current-screen.png',
+          label: 'live Codex shell screenshot',
+          minBytes: 100000,
+          maxAgeHours: 72
+        }
+      ],
       smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'terminalVisualHealthyContent'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
@@ -112,6 +121,14 @@ function buildContracts() {
       codexAssets: [
         { basename: 'thread-side-panel-tabs-CVr2AbYP.js', terms: ['app-shell-tab-controller', 'right-panel-composer-overlay', 'browser-sidebar-command'] },
         { basename: 'app-shell-tab-controller-B2eCi4Le.js', terms: ['activeTab$', 'tabs$'] }
+      ],
+      fileEvidence: [
+        {
+          path: '/private/tmp/codex-current-screen.png',
+          label: 'live Codex right-panel/header screenshot',
+          minBytes: 100000,
+          maxAgeHours: 72
+        }
       ],
       smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelContextMenuSharedSections', 'workbenchPanelNewTabPage'],
       statusWhenCovered: 'fixture-covered',
@@ -263,12 +280,13 @@ function buildContracts() {
   ]
 }
 
-function evaluateContract(contract, manifest, codexAssets, sourceCache, artifactCache) {
+function evaluateContract(contract, manifest, codexAssets, sourceCache, artifactCache, fileCache) {
   const codex = evaluateCodexEvidence(contract, codexAssets)
   const source = evaluateSourceEvidence(contract, sourceCache)
   const artifact = evaluateArtifactEvidence(contract, artifactCache)
+  const file = evaluateFileEvidence(contract, fileCache)
   const smoke = evaluateSmokeEvidence(contract, manifest)
-  const status = contract.forcedStatus ?? inferStatus(contract, codex, source, artifact, smoke)
+  const status = contract.forcedStatus ?? inferStatus(contract, codex, source, artifact, file, smoke)
   return {
     id: contract.id,
     area: contract.area,
@@ -277,17 +295,20 @@ function evaluateContract(contract, manifest, codexAssets, sourceCache, artifact
     codex,
     source,
     artifact,
+    file,
     smoke,
     caveat: contract.caveat,
     next: contract.next
   }
 }
 
-function inferStatus(contract, codex, source, artifact, smoke) {
+function inferStatus(contract, codex, source, artifact, file, smoke) {
   if (!codex.available) return 'blocked'
   if (source.available && source.passed === false) return 'mismatch'
   if (artifact.available && artifact.passed === false) return 'mismatch'
   if (artifact.required && !artifact.available) return 'needs-proof'
+  if (file.required && file.available && file.passed === false) return 'mismatch'
+  if (file.required && !file.available) return 'needs-proof'
   if (!smoke.available) return 'needs-smoke'
   if (!smoke.passed) return 'mismatch'
   return contract.statusWhenCovered ?? 'fixture-covered'
@@ -364,6 +385,51 @@ function evaluateArtifactEvidence(contract, artifactCache) {
       file.checks.every((check) => check.passed)
     ),
     files: artifactResults
+  }
+}
+
+function evaluateFileEvidence(contract, fileCache) {
+  const fileResults = []
+  const now = Date.now()
+  for (const spec of contract.fileEvidence ?? []) {
+    const resolvedPath = spec.path.startsWith('/') ? spec.path : join(root, spec.path)
+    let cached = fileCache.get(resolvedPath)
+    if (cached === undefined) {
+      if (existsSync(resolvedPath)) {
+        const stat = statSync(resolvedPath)
+        cached = {
+          available: true,
+          size: stat.size,
+          mtimeMs: stat.mtimeMs,
+          mtimeIso: stat.mtime.toISOString()
+        }
+      } else {
+        cached = { available: false, size: 0, mtimeMs: null, mtimeIso: null }
+      }
+      fileCache.set(resolvedPath, cached)
+    }
+    const minBytesPassed = cached.available && (spec.minBytes == null || cached.size >= spec.minBytes)
+    const ageHours = cached.mtimeMs == null ? null : (now - cached.mtimeMs) / (1000 * 60 * 60)
+    const freshnessPassed = cached.available && (spec.maxAgeHours == null || ageHours <= spec.maxAgeHours)
+    fileResults.push({
+      path: spec.path,
+      label: spec.label ?? spec.path,
+      required: spec.required === true,
+      available: cached.available,
+      size: cached.size,
+      mtimeIso: cached.mtimeIso,
+      maxAgeHours: spec.maxAgeHours ?? null,
+      ageHours,
+      minBytes: spec.minBytes ?? null,
+      passed: minBytesPassed && freshnessPassed
+    })
+  }
+  if (fileResults.length === 0) return { required: false, available: false, passed: null, files: [] }
+  return {
+    required: fileResults.some((file) => file.required),
+    available: fileResults.every((file) => file.available),
+    passed: fileResults.every((file) => !file.required || file.passed) && fileResults.every((file) => file.required || file.available),
+    files: fileResults
   }
 }
 
@@ -466,7 +532,7 @@ function renderMarkdown(report) {
   lines.push('')
   lines.push('## Comparison Matrix')
   lines.push('')
-  lines.push('| Area | Scope | Status | Codex Evidence | Live Artifacts | Orchestrator Smoke | Next |')
+  lines.push('| Area | Scope | Status | Codex Evidence | Live Evidence | Orchestrator Smoke | Next |')
   lines.push('| --- | --- | --- | --- | --- | --- | --- |')
   for (const row of report.rows) {
     lines.push([
@@ -474,7 +540,7 @@ function renderMarkdown(report) {
       row.scope,
       row.status,
       summarizeCodex(row.codex),
-      summarizeArtifact(row.artifact),
+      summarizeLiveEvidence(row.artifact, row.file),
       summarizeSmoke(row.smoke),
       `${row.caveat} ${row.next}`
     ].map(markdownCell).join(' | ').replace(/^/, '| ').replace(/$/, ' |'))
@@ -518,6 +584,25 @@ function summarizeArtifact(artifact) {
   }
   if (failed.length > 0) return `failed: ${failed.join('; ')}`
   return artifact.files.map((file) => file.path).join(', ')
+}
+
+function summarizeLiveEvidence(artifact, file) {
+  return [summarizeArtifact(artifact), summarizeFileEvidence(file)].filter(Boolean).join('; ')
+}
+
+function summarizeFileEvidence(file) {
+  if (file.files.length === 0) return ''
+  return file.files.map((entry) => {
+    if (!entry.available) return `${entry.label}: missing`
+    const age = entry.ageHours == null ? '' : `, age ${formatAge(entry.ageHours)}`
+    const status = entry.passed ? 'ok' : 'stale/incomplete'
+    return `${entry.label}: ${status} (${entry.path}, ${entry.size} bytes${age})`
+  }).join('; ')
+}
+
+function formatAge(hours) {
+  if (hours < 1) return `${Math.round(hours * 60)}m`
+  return `${hours.toFixed(1)}h`
 }
 
 function summarizeSmoke(smoke) {

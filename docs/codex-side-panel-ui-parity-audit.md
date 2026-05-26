@@ -6416,6 +6416,16 @@ Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto --
 
 Remaining: this is a stronger regression guard, not fresh live Codex pixel proof. Any future sidebar, titlebar, Workbench, or Terminal shell move must keep this comparison row green and should still use live Codex screenshots for exact spacing/timing decisions.
 
+### 2026-05-26 - Header Panel Live Evidence Tracking
+
+Codex evidence: the current panel/header contract depends on live screenshot evidence at `/private/tmp/codex-current-screen.png` plus Codex bundle evidence for shared app-shell/right-panel/bottom-panel state.
+
+Implemented: the runnable side-panel comparison now records live screenshot file evidence for the `Header and panel interaction` and `Right-side Workbench shell` rows. The report shows whether the screenshot exists, its byte size, and its age, alongside the existing Codex bundle, live JSON artifact, and Orchestrator smoke evidence. This makes header/panel evidence drift visible without turning a missing optional screenshot into a false mismatch against smoke-backed structural coverage.
+
+Verification: `node -c scripts/run-codex-side-panel-comparison.mjs` passed. `npm run compare:codex-side-panels -- --no-fail` passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`; the generated report now lists `/private/tmp/codex-current-screen.png` as live evidence for the header/panel and Workbench shell rows.
+
+Remaining: this improves the parity ledger and comparison signal. It does not replace a fresh side-by-side pixel/timing review when making exact spacing, animation, or installed-app replacement claims.
+
 ### 2026-05-26 - Browser Dynamic Client Tool Boundary Slice
 
 Codex evidence: current Codex bundle evidence includes browser-use client route and dynamic-tool paths in `app-server-manager-signals-Csopz8aM.js`, `browser-sidebar-manager-ivre5jEI.js`, and `thread-management-dynamic-tools-4r_Yz1XH.js`. The live proof artifact `tmp/codex-browser-appserver-live-proof/result.json` still shows that the tested stdio app-server path completes a turn without `browser.manager_state`, browser server requests, or dynamic browser tool calls, so provider-backed browser-use parity remains unproven.

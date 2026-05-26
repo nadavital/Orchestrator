@@ -54,7 +54,7 @@ Highest-value next UI/parity work:
 4. Settings adapter parity: keep unsupported Host Personalization and remote-host pages explicitly unavailable until real provider adapters exist.
 5. Review visual spacing: defer further Review padding/color work unless a live Codex screenshot or a new visual fixture demonstrates a specific mismatch.
 
-Panel/header interaction remains a first-class contract, not an incidental visual note: any future sidebar, main titlebar, Workbench right-panel, or Terminal bottom-panel change must keep the dedicated `Header and panel interaction` comparison row green.
+Panel/header interaction remains a first-class contract, not an incidental visual note: any future sidebar, main titlebar, Workbench right-panel, or Terminal bottom-panel change must keep the dedicated `Header and panel interaction` comparison row green. The comparison report also records the live Codex screenshot file backing this row, including presence, size, and age, so stale or missing live evidence is visible during future parity runs.
 
 ## Recently Aligned
 
