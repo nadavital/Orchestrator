@@ -98,7 +98,7 @@ function buildContracts() {
         { basename: 'thread-side-panel-tabs-CVr2AbYP.js', terms: ['app-shell-tab-controller', 'right-panel-composer-overlay', 'browser-sidebar-command'] },
         { basename: 'app-shell-tab-controller-B2eCi4Le.js', terms: ['activeTab$', 'tabs$'] }
       ],
-      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelContextMenuSharedSections', 'workbenchPanelNewTabPage'],
+      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelContextMenuSharedSections', 'workbenchPanelNewTabPage'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Smoke covers Orchestrator shell behavior; exact live Codex spacing and animation timing still need live UI evidence.',
       next: 'Use focused right-panel smoke for regressions; do not call exact timing complete without live Codex comparison.'

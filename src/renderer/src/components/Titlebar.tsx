@@ -137,6 +137,7 @@ function Titlebar(): JSX.Element {
 
   return (
     <div
+      data-testid="session-titlebar"
       className="flex items-center shrink-0 w-full"
       style={{
         height: 50,

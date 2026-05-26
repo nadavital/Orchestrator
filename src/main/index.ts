@@ -5481,6 +5481,45 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelShell.getAttribute('data-app-shell-panel-surface') === 'workbench' &&
                 rightPanelShell.getAttribute('data-app-shell-focus-area') === 'right-panel' &&
                 rightPanelShell.contains(rightPanel);
+              const sessionTitlebar = document.querySelector('[data-testid="session-titlebar"]');
+              const sessionMainRow = document.querySelector('[data-testid="session-main-row"]');
+              const sessionPrimaryContent = document.querySelector('[data-testid="session-primary-content"]');
+              const rightPanelChrome = document.querySelector('[data-testid="workbench-panel-tabbar"]')?.closest('.workbench-panel-chrome');
+              const titlebarRect = sessionTitlebar instanceof HTMLElement ? sessionTitlebar.getBoundingClientRect() : null;
+              const mainRowRectForSeam = sessionMainRow instanceof HTMLElement ? sessionMainRow.getBoundingClientRect() : null;
+              const primaryRectForSeam = sessionPrimaryContent instanceof HTMLElement ? sessionPrimaryContent.getBoundingClientRect() : null;
+              const rightPanelRectForSeam = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
+              const rightPanelShellRectForSeam = rightPanelShell instanceof HTMLElement ? rightPanelShell.getBoundingClientRect() : null;
+              const rightPanelChromeRectForSeam = rightPanelChrome instanceof HTMLElement ? rightPanelChrome.getBoundingClientRect() : null;
+              const rightPanelHeaderSeamDebug = {
+                titlebarTop: titlebarRect?.top ?? null,
+                titlebarRight: titlebarRect?.right ?? null,
+                titlebarHeight: titlebarRect?.height ?? null,
+                mainRowTop: mainRowRectForSeam?.top ?? null,
+                primaryTop: primaryRectForSeam?.top ?? null,
+                rightPanelTop: rightPanelRectForSeam?.top ?? null,
+                rightPanelShellTop: rightPanelShellRectForSeam?.top ?? null,
+                rightPanelChromeTop: rightPanelChromeRectForSeam?.top ?? null,
+                rightPanelLeft: rightPanelRectForSeam?.left ?? null,
+                rightPanelLayout: rightPanel instanceof HTMLElement ? rightPanel.dataset.rightPanelLayout ?? null : null
+              };
+              const rightPanelHeaderSeamWorks =
+                titlebarRect !== null &&
+                mainRowRectForSeam !== null &&
+                primaryRectForSeam !== null &&
+                rightPanelRectForSeam !== null &&
+                rightPanelShellRectForSeam !== null &&
+                rightPanelChromeRectForSeam !== null &&
+                Math.abs(titlebarRect.top - mainRowRectForSeam.top) <= 2 &&
+                Math.abs(primaryRectForSeam.top - mainRowRectForSeam.top) <= 2 &&
+                Math.abs(rightPanelShellRectForSeam.top - mainRowRectForSeam.top) <= 2 &&
+                Math.abs(rightPanelRectForSeam.top - mainRowRectForSeam.top) <= 2 &&
+                Math.abs(rightPanelChromeRectForSeam.top - titlebarRect.top) <= 2 &&
+                Math.abs(titlebarRect.right - rightPanelRectForSeam.left) <= 2 &&
+                titlebarRect.height >= 44 &&
+                titlebarRect.height <= 54 &&
+                rightPanelChromeRectForSeam.height >= 30 &&
+                rightPanelChromeRectForSeam.height <= 44;
               if (smokeView === 'workbench-new-tab') {
                 const addButton = document.querySelector('[data-testid="right-panel-add-tab"]');
                 if (addButton instanceof HTMLElement) {
@@ -6455,6 +6494,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelShellOwnershipWorks,
                 rightPanelSharedAnimationControllerWorks,
                 rightPanelSharedLayoutControllerWorks,
+                rightPanelHeaderSeamWorks,
+                rightPanelHeaderSeamDebug,
                 workbenchPanelChromeCompactWorks:
                   rightPanel instanceof HTMLElement &&
                   tabbar instanceof HTMLElement &&
@@ -17497,7 +17538,7 @@ async function dispatchTitlebarDrag(win: BrowserWindow): Promise<{
 }> {
   const rect = await win.webContents.executeJavaScript(`
     (() => {
-      const titlebar = document.querySelector('.content-shell > div');
+      const titlebar = document.querySelector('[data-testid="session-titlebar"]');
       const rect = titlebar instanceof HTMLElement ? titlebar.getBoundingClientRect() : { left: 120, top: 8, width: 360, height: 42 };
       return { x: Math.max(90, rect.left + Math.min(240, rect.width * 0.35)), y: rect.top + Math.min(28, Math.max(14, rect.height / 2)) };
     })()

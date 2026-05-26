@@ -6,7 +6,6 @@ import { hasComposerDraft, sideChatIdFromTabId, useSessionStore } from './store/
 import type { SettingsSection } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
-import Titlebar from './components/Titlebar'
 import SettingsPage from './components/SettingsModal'
 import CapabilitiesPage from './components/CapabilitiesPage'
 import DesignSystemPreview from './components/DesignSystemPreview'
@@ -1218,18 +1217,15 @@ export default function App(): JSX.Element {
             <CapabilitiesPage />
           </MotionView>
         ) : (
-          <>
-            <Titlebar />
-            <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              {deferredActiveSessionId ? (
-                <MotionView viewKey="session" animate={false} className="flex flex-col overflow-hidden">
-                  <SessionPane sessionId={deferredActiveSessionId} />
-                </MotionView>
-              ) : (
-                <EmptyState />
-              )}
-            </main>
-          </>
+          <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {deferredActiveSessionId ? (
+              <MotionView viewKey="session" animate={false} className="flex flex-col overflow-hidden">
+                <SessionPane sessionId={deferredActiveSessionId} />
+              </MotionView>
+            ) : (
+              <EmptyState />
+            )}
+          </main>
         )}
       </section>
       <ThreadFindBar

@@ -6386,11 +6386,21 @@ Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto --
 
 Remaining: this closes the visible top-action mismatch, not full sidebar parity. Remaining sidebar work is provider-backed pin/list mutation semantics, exact live row spacing comparison where screenshots prove drift, and provider-native remote/deployed thread behavior.
 
+### 2026-05-26 - Header And Panel Interaction Slice
+
+Codex evidence: direct Computer Use inspection of `com.openai.codex` remains blocked, but live screenshot evidence at `/private/tmp/codex-current-screen.png` shows Codex's right-panel Review shell chrome starting in the same compact top band as the conversation header/titlebar, rather than starting below a full-width chat header. This made Orchestrator's old structure visibly wrong: `Titlebar` sat above the entire session area, forcing the Workbench right panel to begin below it.
+
+Implemented: moved `Titlebar` into the primary chat column inside `SessionPane`, leaving `ContextSidebar` as the sibling right-panel surface in the same `session-main-row`. The Workbench right panel now starts at the same top seam as the titlebar; the titlebar's right edge meets the right panel's left edge, and the right-panel chrome starts in the same header band. Added `data-testid="session-titlebar"` and a focused `rightPanelHeaderSeam` smoke assertion covering the titlebar, primary content, right-panel shell, right-panel surface, and right-panel chrome geometry.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --right-panel` passed with `rightPanelHeaderSeam=true` plus all existing right-panel shell/layout/resize/tab checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779779236406.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779779236406.png`. Focused `--header` passed after the move; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779779280949.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-header-1779779280949.png`. Focused `--terminal` and `--terminal-visual` also passed after the structural change; terminal visual evidence screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-terminal-visual-1779779310086.png`. Full side-panel visual inventory refreshed with 23 captures and no failures; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`.
+
+Remaining: this closes the structural header/right-panel seam mismatch with smoke-backed Orchestrator geometry and current screenshot evidence. It does not prove exact live Codex pixel spacing, live titlebar animation timing, or installed-app replacement proof. Continue only from new live screenshot evidence or a concrete panel/header mismatch.
+
 Recommended order:
 
 1. Shell/tab foundation only.
 2. Workbench chrome migration.
-3. Header/panel interaction parity: explicitly compare how Codex and Orchestrator right and bottom panels meet the titlebar/header, including top offsets, border continuity, toolbar height, and whether panel chrome starts below or visually integrates with the app header.
+3. Browser agent-driven parity: implement or explicitly gate a dynamic client-tool bridge for browser-use style requests. Manual Browser UI is strong; provider/browser-use parity is still blocked at the current app-server boundary.
 4. Terminal live Codex bottom-panel height/animation comparison at multiple window sizes plus root shell ownership for any remaining non-shared tab paths. The local content/chrome/target decomposition is now smoke-gated at a Codex-bundle-aligned 400 px total default/reset target; exact live animation timing remains.
 5. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, live commented-PR proof, provider blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
 6. File tabs and file viewer parity, now focused on full artifact rendering/provider search after the artifact identity/source-boundary slice.

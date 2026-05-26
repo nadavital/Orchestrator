@@ -1073,6 +1073,7 @@ child.on('exit', (code) => {
           rightPanelShellOwnership: result.rightPanelShellOwnershipWorks === true,
           rightPanelSharedAnimationController: result.rightPanelSharedAnimationControllerWorks === true,
           rightPanelSharedLayoutController: result.rightPanelSharedLayoutControllerWorks === true,
+          rightPanelHeaderSeam: result.rightPanelHeaderSeamWorks === true,
           workbenchPanelChromeCompact: result.workbenchPanelChromeCompactWorks === true,
           workbenchPanelAddControlStable: result.workbenchPanelAddControlStableWorks === true,
           workbenchPanelNewTabPage: result.workbenchPanelNewTabPageWorks === true,
