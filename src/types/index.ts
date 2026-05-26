@@ -1217,6 +1217,7 @@ export interface ReviewReviewerSummary {
 export interface ReviewCommentSummary {
   total: number
   unresolved?: number
+  threads?: number
   authors?: string[]
   url?: string | null
 }

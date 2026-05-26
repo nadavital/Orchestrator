@@ -6326,12 +6326,22 @@ Verification: `pnpm exec tsc --noEmit` passed. `git diff --check` passed. `npm r
 
 Remaining: this closes a concrete GitHub-backed general PR comment-summary gap, not full Codex review-comment parity. Inline/threaded code-review comments, provider-native hosted/cloud metadata adapters, provider blame, true provider checkpoint Undo, cloud/hosted diff adapters, deeper hosted conflict workflows, and live Codex side-by-side Review spacing comparison remain open.
 
+### 2026-05-25 - Review Metadata Inline Thread Summary Slice
+
+Codex evidence: re-used the current extracted Review toolbar/comment bundles. Codex's Review comments lane is backed by pull-request review comments and exposes comment counts plus add/remove flows. The prior Orchestrator slice covered only top-level PR comments from `gh pr view --json comments`, leaving inline review threads out of the metadata row.
+
+Implemented: the GitHub PR metadata adapter now requests the PR GraphQL node id, then optionally queries `reviewThreads` through `gh api graphql`. The parser normalizes inline/threaded review-comment totals, unresolved thread count, thread count, authors, and first thread URL, then merges that summary with top-level PR comments. The existing Review metadata comments row now shows unresolved/thread detail and smoke-readable unresolved metadata while keeping the GraphQL fetch isolated from the base PR/check/reviewer path.
+
+Verification: live `gh pr view --json id,url` found PR #2 (`PR_kwDOSUkx-M7fPPvv`), and live `gh api graphql` accepted the `reviewThreads` query shape, returning an empty thread list for the current PR. `pnpm exec tsc --noEmit` passed. `git diff --check` passed. `npm run test:providers` passed with 291/291 tests, including review-thread parser and comment-summary merge coverage. `npm run build` passed. Focused `npm run smoke:ui:auto -- --diff-entry` passed with `reviewMetadataToolbar=true` and `reviewMetadataFlyoutShared=true`, now gating `data-review-metadata-comments-unresolved="1"` plus visible `1 unresolved` detail. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779767861626.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-entry-1779767861626.png`. `npm run compare:codex-side-panels -- --no-fail` passed with status counts `fixture-covered=7`, `aligned=2`, `mismatchCount=0`, `blockedCount=0`.
+
+Remaining: this closes GitHub-backed inline review-thread summary metadata, not full per-line provider comment rendering. Provider-native hosted/cloud metadata adapters, provider blame, true provider checkpoint Undo, cloud/hosted diff adapters, deeper hosted conflict workflows, full diff virtualization, and live Codex side-by-side Review spacing comparison remain open.
+
 Recommended order:
 
 1. Shell/tab foundation only.
 2. Workbench chrome migration.
 3. Terminal live Codex bottom-panel height/animation comparison at multiple window sizes plus root shell ownership for any remaining non-shared tab paths. The local content/chrome/target decomposition is now smoke-gated; live Codex numeric comparison remains.
-4. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, inline/threaded provider comments/blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
+4. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, per-line provider comment rendering/blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
 5. File tabs and file viewer parity, now focused on full artifact rendering/provider search after the artifact identity/source-boundary slice.
 6. Browser lifecycle parity.
 7. Chat Sidebar model and visual rebuild.

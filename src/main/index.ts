@@ -9942,7 +9942,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     reviewMetadataStrip.getAttribute('data-review-metadata-pr') === 'true' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-checks') === 'failing' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-reviewers') === '4' &&
-                    reviewMetadataStrip.getAttribute('data-review-metadata-comments') === '2' &&
+                    reviewMetadataStrip.getAttribute('data-review-metadata-comments') === '5' &&
+                    reviewMetadataStrip.getAttribute('data-review-metadata-comments-unresolved') === '1' &&
                     reviewMetadataPr instanceof HTMLElement &&
                     reviewMetadataChecks instanceof HTMLElement &&
                     reviewMetadataReviewers instanceof HTMLElement &&
@@ -9951,7 +9952,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     (reviewMetadataChecks.textContent ?? '').includes('Checks failing') &&
                     reviewMetadataChecks.getAttribute('data-review-check-status') === 'failing' &&
                     (reviewMetadataReviewers.textContent ?? '').includes('4 reviewers') &&
-                    (reviewMetadataComments.textContent ?? '').includes('2 comments')
+                    (reviewMetadataComments.textContent ?? '').includes('5 comments') &&
+                    (reviewMetadataComments.textContent ?? '').includes('1 unresolved')
                   ) {
                     reviewMetadataToolbarWorks = true;
                     reviewMetadataFlyoutSharedWorks =
@@ -17583,8 +17585,10 @@ function seedAutomatedReviewCardSmokeSession(sessionId: string): void {
           names: ['Ada', 'Linus']
         },
         comments: {
-          total: 2,
-          authors: ['Mona', 'Ada'],
+          total: 5,
+          unresolved: 1,
+          threads: 2,
+          authors: ['Mona', 'Ada', 'Grace'],
           url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1'
         }
       }

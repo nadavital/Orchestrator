@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
-import { gitManager, reviewMetadataFromGitHubPullRequestView } from '../git'
+import { gitManager, mergeReviewCommentSummaries, reviewMetadataFromGitHubPullRequestView, reviewThreadCommentSummaryFromGitHub } from '../git'
 
 test('changed files preserve paths with spaces without git porcelain quotes', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-changes-'))
@@ -341,6 +341,69 @@ test('draft GitHub PR metadata maps to draft state', () => {
   assert.equal(metadata?.checks, undefined)
   assert.equal(metadata?.reviewers, undefined)
   assert.equal(metadata?.comments, undefined)
+})
+
+test('GitHub PR review thread JSON normalizes to inline comment metadata', () => {
+  const metadata = reviewThreadCommentSummaryFromGitHub({
+    data: {
+      node: {
+        reviewThreads: {
+          nodes: [
+            {
+              isResolved: false,
+              comments: {
+                nodes: [
+                  { author: { login: 'grace' }, url: 'https://github.com/example/repo/pull/42#discussion_r1' },
+                  { author: { login: 'ada' }, url: 'https://github.com/example/repo/pull/42#discussion_r2' }
+                ]
+              }
+            },
+            {
+              isResolved: true,
+              comments: {
+                nodes: [
+                  { author: { login: 'mona' }, url: 'https://github.com/example/repo/pull/42#discussion_r3' }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }, 'https://github.com/example/repo/pull/42')
+
+  assert.deepEqual(metadata, {
+    total: 3,
+    unresolved: 1,
+    threads: 2,
+    authors: ['grace', 'ada', 'mona'],
+    url: 'https://github.com/example/repo/pull/42#discussion_r1'
+  })
+})
+
+test('GitHub PR general and review-thread comment summaries merge for review metadata', () => {
+  const metadata = mergeReviewCommentSummaries(
+    {
+      total: 2,
+      authors: ['mona', 'ada'],
+      url: 'https://github.com/example/repo/pull/42#issuecomment-1'
+    },
+    {
+      total: 3,
+      unresolved: 1,
+      threads: 2,
+      authors: ['grace', 'ada'],
+      url: 'https://github.com/example/repo/pull/42#discussion_r1'
+    }
+  )
+
+  assert.deepEqual(metadata, {
+    total: 5,
+    unresolved: 1,
+    threads: 2,
+    authors: ['mona', 'ada', 'grace'],
+    url: 'https://github.com/example/repo/pull/42#discussion_r1'
+  })
 })
 
 test('line blame returns author metadata for a tracked source line', async () => {

@@ -1460,6 +1460,7 @@ function ReviewMetadataStrip({
       data-review-metadata-checks={metadata.checks?.status ?? ''}
       data-review-metadata-reviewers={reviewReviewerCount(metadata.reviewers)}
       data-review-metadata-comments={metadata.comments?.total ?? 0}
+      data-review-metadata-comments-unresolved={metadata.comments?.unresolved ?? 0}
     >
       <IconButton
         icon="plan"
@@ -1662,7 +1663,8 @@ function reviewCommentTitle(comments: NonNullable<ReviewMetadata['comments']>): 
 function reviewCommentDetail(comments: NonNullable<ReviewMetadata['comments']>): string {
   const authors = comments.authors?.filter((author) => author.trim().length > 0).slice(0, 3).join(', ')
   const unresolved = comments.unresolved !== undefined ? `${comments.unresolved} unresolved` : null
-  return [authors, unresolved].filter(Boolean).join(' / ') || 'No comment detail available'
+  const threads = comments.threads !== undefined ? `${comments.threads} ${comments.threads === 1 ? 'thread' : 'threads'}` : null
+  return [authors, unresolved, threads].filter(Boolean).join(' / ') || 'No comment detail available'
 }
 
 function ReviewFileSection({

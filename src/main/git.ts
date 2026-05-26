@@ -358,17 +358,73 @@ export const gitManager = {
         'pr',
         'view',
         '--json',
-        'number,title,url,state,isDraft,headRefName,baseRefName,statusCheckRollup,reviewRequests,reviews,comments'
+        'id,number,title,url,state,isDraft,headRefName,baseRefName,statusCheckRollup,reviewRequests,reviews,comments'
       ], {
         cwd,
         encoding: 'utf-8',
         timeout: 5000,
         maxBuffer: 1024 * 1024
       })
-      return reviewMetadataFromGitHubPullRequestView(JSON.parse(stdout))
+      const view = JSON.parse(stdout)
+      const metadata = reviewMetadataFromGitHubPullRequestView(view)
+      const prId = stringValue(asRecord(view)?.id)
+      const threadComments = prId
+        ? await getGitHubReviewThreadCommentSummary(cwd, prId, metadata?.pullRequest?.url ?? null)
+        : undefined
+      if (metadata && threadComments) {
+        metadata.comments = mergeReviewCommentSummaries(metadata.comments, threadComments)
+      }
+      return metadata
     } catch {
       return undefined
     }
+  }
+}
+
+const GITHUB_REVIEW_THREADS_QUERY = `
+query($pullRequestId: ID!) {
+  node(id: $pullRequestId) {
+    ... on PullRequest {
+      reviewThreads(first: 100) {
+        nodes {
+          isResolved
+          comments(first: 20) {
+            nodes {
+              author {
+                login
+              }
+              url
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`
+
+async function getGitHubReviewThreadCommentSummary(
+  cwd: string,
+  pullRequestId: string,
+  url: string | null
+): Promise<ReviewMetadata['comments'] | undefined> {
+  try {
+    const { stdout } = await execFileAsync('gh', [
+      'api',
+      'graphql',
+      '-F',
+      `pullRequestId=${pullRequestId}`,
+      '-f',
+      `query=${GITHUB_REVIEW_THREADS_QUERY}`
+    ], {
+      cwd,
+      encoding: 'utf-8',
+      timeout: 7000,
+      maxBuffer: 1024 * 1024
+    })
+    return reviewThreadCommentSummaryFromGitHub(JSON.parse(stdout), url)
+  } catch {
+    return undefined
   }
 }
 
@@ -526,6 +582,62 @@ function reviewCommentSummaryFromGitHub(value: unknown, url: string | null): Rev
     total: value.length,
     authors: [...authors].slice(0, 8),
     url: commentUrl ?? url
+  }
+}
+
+export function reviewThreadCommentSummaryFromGitHub(value: unknown, url: string | null): ReviewMetadata['comments'] | undefined {
+  const root = asRecord(value)
+  const data = asRecord(root?.data)
+  const node = asRecord(data?.node) ?? asRecord(root?.node) ?? root
+  const reviewThreads = asRecord(node?.reviewThreads)
+  const threadNodes = Array.isArray(reviewThreads?.nodes) ? reviewThreads.nodes : []
+  if (threadNodes.length === 0) return undefined
+
+  const authors = new Set<string>()
+  let total = 0
+  let unresolved = 0
+  let commentUrl: string | null = null
+  for (const item of threadNodes) {
+    const thread = asRecord(item)
+    if (!thread) continue
+    if (thread.isResolved === false) unresolved += 1
+    const comments = asRecord(thread.comments)
+    const commentNodes = Array.isArray(comments?.nodes) ? comments.nodes : []
+    total += commentNodes.length
+    for (const commentItem of commentNodes) {
+      const comment = asRecord(commentItem)
+      const author = reviewAuthorName(comment)
+      if (author) authors.add(author)
+      commentUrl = commentUrl ?? stringValue(comment?.url) ?? null
+    }
+  }
+  if (total === 0 && unresolved === 0) return undefined
+  return {
+    total,
+    unresolved,
+    threads: threadNodes.length,
+    authors: [...authors].slice(0, 8),
+    url: commentUrl ?? url
+  }
+}
+
+export function mergeReviewCommentSummaries(
+  first: ReviewMetadata['comments'] | undefined,
+  second: ReviewMetadata['comments'] | undefined
+): ReviewMetadata['comments'] | undefined {
+  if (!first) return second
+  if (!second) return first
+  const authors = new Set<string>()
+  for (const author of first.authors ?? []) authors.add(author)
+  for (const author of second.authors ?? []) authors.add(author)
+  const unresolved = (first.unresolved ?? 0) + (second.unresolved ?? 0)
+  const threads = (first.threads ?? 0) + (second.threads ?? 0)
+  return {
+    total: first.total + second.total,
+    ...(unresolved > 0 ? { unresolved } : {}),
+    ...(threads > 0 ? { threads } : {}),
+    authors: [...authors].slice(0, 8),
+    url: second.url ?? first.url ?? null
   }
 }
 

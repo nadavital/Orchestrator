@@ -133,7 +133,7 @@ function buildContracts() {
       ],
       smokeChecks: ['reviewMetadataToolbar', 'reviewMetadataFlyoutShared', 'reviewWorktreeProviderSource', 'reviewFullSourceBlame'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Fixture and local/GitHub-backed paths pass, including general PR comment summary, but provider-native hosted/cloud sources, checkpoint Undo, inline/threaded provider comments, and blame are not live-proven.',
+      caveat: 'Fixture and local/GitHub-backed paths pass, including general PR and inline/threaded review comment summaries, but provider-native hosted/cloud sources, checkpoint Undo, per-line provider comment rendering, and blame are not live-proven.',
       next: 'Add one real provider-backed Review source or keep the unsupported UI explicit.'
     },
     {
