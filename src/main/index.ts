@@ -14227,6 +14227,32 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebar instanceof HTMLElement &&
               sidebarWidth >= 239 &&
               sidebarWidth <= 241;
+            const sidebarDragSpacer = document.querySelector('[data-testid="sidebar-window-drag-spacer"]');
+            const firstPrimaryAction = primaryActionRows[0] instanceof HTMLElement ? primaryActionRows[0] : null;
+            const sidebarDragSpacerRect = sidebarDragSpacer instanceof HTMLElement
+              ? sidebarDragSpacer.getBoundingClientRect()
+              : null;
+            const firstPrimaryActionRect = firstPrimaryAction instanceof HTMLElement
+              ? firstPrimaryAction.getBoundingClientRect()
+              : null;
+            const sidebarTopRect = sidebar instanceof HTMLElement ? sidebar.getBoundingClientRect() : null;
+            const sidebarPrimaryActionTopOffset =
+              firstPrimaryActionRect && sidebarTopRect ? firstPrimaryActionRect.top - sidebarTopRect.top : null;
+            const sidebarTopInsetDebug = {
+              dragSpacerHeight: sidebarDragSpacerRect?.height ?? null,
+              firstPrimaryActionTopOffset: sidebarPrimaryActionTopOffset,
+              sidebarTop: sidebarTopRect?.top ?? null,
+              firstPrimaryActionTop: firstPrimaryActionRect?.top ?? null
+            };
+            const sidebarTopInsetCodexLike =
+              sidebarDragSpacerRect !== null &&
+              firstPrimaryActionRect !== null &&
+              sidebarTopRect !== null &&
+              sidebarDragSpacerRect.height >= 46 &&
+              sidebarDragSpacerRect.height <= 50 &&
+              sidebarPrimaryActionTopOffset !== null &&
+              sidebarPrimaryActionTopOffset >= 46 &&
+              sidebarPrimaryActionTopOffset <= 54;
             const sidebarOverflowDebug = sidebar instanceof HTMLElement
               ? {
                   sidebarClientWidth: sidebar.clientWidth,
@@ -15810,6 +15836,8 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarNoHorizontalOverflow,
               sidebarWidthTokenWorks,
               sidebarWidth,
+              sidebarTopInsetCodexLike,
+              sidebarTopInsetDebug,
               sidebarOverflowDebug,
               sessionRowsCompact,
               sessionRowsCalm,

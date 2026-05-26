@@ -772,7 +772,8 @@ export default function Sidebar({
     >
       <div
         className="shrink-0"
-        style={{ height: 64, WebkitAppRegion: 'drag' } as React.CSSProperties}
+        data-testid="sidebar-window-drag-spacer"
+        style={{ height: 48, WebkitAppRegion: 'drag' } as React.CSSProperties}
       />
 
       {showSettings ? (

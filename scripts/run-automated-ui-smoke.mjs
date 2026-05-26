@@ -853,6 +853,7 @@ child.on('exit', (code) => {
         nativeTitleFreeControls: result.nativeTitleFreeControlsWork === true,
         sidebarNoHorizontalOverflow: result.sidebarNoHorizontalOverflow === true,
         sidebarWidthToken: result.sidebarWidthTokenWorks === true,
+        sidebarTopInsetCodexLike: result.sidebarTopInsetCodexLike === true,
         sessionRowsCompact: result.sessionRowsCompact === true,
         sessionRowsCalm: result.sessionRowsCalm === true,
         sidebarRowsMaterialQuiet: result.sidebarRowsMaterialQuiet === true,

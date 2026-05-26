@@ -6396,6 +6396,16 @@ Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto --
 
 Remaining: this closes the structural header/right-panel seam mismatch with smoke-backed Orchestrator geometry and current screenshot evidence. It does not prove exact live Codex pixel spacing, live titlebar animation timing, or installed-app replacement proof. Continue only from new live screenshot evidence or a concrete panel/header mismatch.
 
+### 2026-05-26 - Sidebar Top Inset And Header Contract Slice
+
+Codex evidence: live screenshot evidence at `/private/tmp/codex-current-screen.png` shows Codex's first left-sidebar utility row sitting closer to the window/header band than Orchestrator's previous 64 px drag spacer allowed. The same screenshot also reinforces that panel/header interaction is not just a Review concern: the left sidebar, conversation header, right panel, and bottom panel need to read as coordinated shell surfaces. Bundle evidence in `tmp/codex-app-assets/app-shell-state-HP0T5lEX.js` and `tmp/codex-app-assets/thread-page-bottom-panel-state-D1Lz0U4Y.js` keeps the right and bottom panel state tied to Codex's app-shell primitives.
+
+Implemented: reduced Orchestrator's left sidebar drag spacer from 64 px to 48 px, exposed it as `data-testid="sidebar-window-drag-spacer"`, and added a focused `sidebarTopInsetCodexLike` smoke assertion. The runnable comparison script now includes a dedicated `Header and panel interaction` contract across `chat-sidebar`, `workbench-right-panel`, and `terminal-bottom-panel`, requiring `sidebarTopInsetCodexLike=true`, `rightPanelHeaderSeam=true`, and `terminalVisualHealthyContent=true`.
+
+Verification: `pnpm exec tsc --noEmit` passed. The initial focused sidebar smoke hit the expected sandbox `listen EPERM 127.0.0.1:5173`; the escalated rerun first caught a debug-variable typo in the new assertion, then passed after the fix with `sidebarTopInsetCodexLike=true`; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779780312214.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779780312214.png`. Full side-panel visual inventory refreshed with 23 captures and no failures; manifest: `/Users/nadav/Desktop/Orchestrator/tmp/side-panel-visual-inventory-current/manifest.json`, created at `2026-05-26T07:30:11.302Z`. `npm run compare:codex-side-panels -- --no-fail` now reports `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`.
+
+Remaining: this closes the concrete sidebar/header inset mismatch and makes panel/header interaction a first-class comparison row. It does not prove exact live Codex pixel spacing, live bottom-panel animation timing, installed-app replacement proof, or provider-backed sidebar pin/list mutation semantics.
+
 Recommended order:
 
 1. Shell/tab foundation only.

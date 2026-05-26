@@ -90,6 +90,20 @@ process.exit(noFail ? 0 : exitCode)
 function buildContracts() {
   return [
     {
+      id: 'app-shell-header-panel-interaction',
+      area: 'Header and panel interaction',
+      scope: 'Left sidebar, right side panel, bottom panel',
+      captureIds: ['chat-sidebar', 'workbench-right-panel', 'terminal-bottom-panel'],
+      codexAssets: [
+        { basename: 'app-shell-state-HP0T5lEX.js', terms: ['app-shell:right-panel-width:v2', 'app-shell-bottom-panel-launcher-visible'] },
+        { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['terminal-panel'] }
+      ],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'rightPanelHeaderSeam', 'terminalVisualHealthyContent'],
+      statusWhenCovered: 'fixture-covered',
+      caveat: 'Smoke covers Orchestrator panel/header geometry and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
+      next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Workbench, or bottom-panel shell layout.'
+    },
+    {
       id: 'right-side-workbench-shell',
       area: 'Right-side Workbench shell',
       scope: 'Right side panel',
