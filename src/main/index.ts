@@ -6616,7 +6616,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     loadingRect !== null &&
                     previewRect !== null &&
                     loadingTitle instanceof HTMLElement &&
-                    loadingRect.width <= Math.max(360, previewRect.width - 32) &&
+                    loadingRect.width <= Math.max(360, previewRect.width - 12) &&
                     loadingRect.height <= 150 &&
                     Number.parseFloat(getComputedStyle(reviewLoadingState).fontSize || '0') <= 13 &&
                     Number.parseFloat(getComputedStyle(loadingTitle).fontWeight || '0') < 700,
@@ -7897,7 +7897,13 @@ function runAutomatedFocusedSurfaceSmoke(
 	                    window.__orchestratorAppendSessionEventsForSmoke(smokeSession.id, [{
 	                      id: 'last-turn-review-source-smoke',
 	                      timestamp: Date.now(),
-	                      event: { type: 'diff.updated', content: lastTurnSmokeDiff }
+	                      event: {
+	                        type: 'diff.updated',
+	                        content: lastTurnSmokeDiff,
+	                        providerSessionId: 'codex-thread-rich',
+	                        providerTurnId: 'turn-1',
+	                        checkpointUndoSupported: false
+	                      }
 	                    }])
 	                  );
 	                await sleep(180);
@@ -7978,11 +7984,15 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  lastTurnInjected &&
 	                  lastTurnReviewCard instanceof HTMLElement &&
 	                  lastTurnReviewCard.getAttribute('data-review-card-source') === 'last-turn' &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-undo-kind') === 'provider-checkpoint-unsupported' &&
-	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-undo') === 'unsupported' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-undo-kind') === 'provider-checkpoint-missing' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-undo') === 'missing-checkpoint' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-session-id') === 'codex-thread-rich' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-turn-id') === 'turn-1' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-id') === '' &&
+	                  lastTurnReviewCard.getAttribute('data-review-card-provider-checkpoint-adapter-supported') === 'false' &&
 	                  lastTurnReviewCardUndo instanceof HTMLButtonElement &&
 	                  lastTurnReviewCardUndo.disabled === true &&
-	                  (lastTurnReviewCardUndo.getAttribute('title') ?? '') === 'Provider checkpoint undo is not supported by this adapter yet' &&
+	                  (lastTurnReviewCardUndo.getAttribute('title') ?? '') === 'Provider checkpoint id was not provided by this adapter' &&
 	                  Number(lastTurnReviewCard.getAttribute('data-review-card-file-count') ?? '0') === 1 &&
 	                  (lastTurnReviewCard.textContent ?? '').includes('review-base.txt') &&
 	                  lastTurnReviewCardInlineDiff instanceof HTMLElement &&
@@ -8391,6 +8401,9 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(160);
               }
               const selectedUnifiedLine = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"] [data-review-selected-line="true"]');
+              const providerReviewCommentCard = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-card"][data-review-comment-status="provider"]');
+              const providerReviewCommentBody = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-body"]');
+              const providerReviewCommentMeta = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-provider-meta"]');
               const reviewCommentButton = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-add-comment"]');
               if (reviewCommentButton instanceof HTMLButtonElement) {
                 reviewCommentButton.click();
@@ -8408,8 +8421,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(160);
               }
               const reviewDiffAfterComment = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"]');
-              const reviewCommentCard = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-card"]');
-              const reviewCommentBody = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-body"]');
+              const reviewCommentCard = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-card"][data-review-comment-status="saved"]');
+              const reviewCommentBody = reviewCommentCard?.querySelector('[data-testid="review-diff-comment-body"]');
               const commentedReviewLine = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"] [data-review-line-has-comment="true"]');
               const commentedReviewPath = selectedUnifiedLine instanceof HTMLElement
                 ? selectedUnifiedLine.closest('[data-testid="review-file-section"]')?.getAttribute('data-review-path') ?? ''
@@ -8420,7 +8433,16 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewCommentInput instanceof HTMLTextAreaElement &&
                 reviewCommentSave instanceof HTMLButtonElement &&
                 reviewDiffAfterComment instanceof HTMLElement &&
-                reviewDiffAfterComment.getAttribute('data-review-comment-count') === '1' &&
+                reviewDiffAfterComment.getAttribute('data-review-comment-count') === '2' &&
+                providerReviewCommentCard instanceof HTMLElement &&
+                providerReviewCommentCard.getAttribute('data-review-comment-side') === selectedUnifiedLine.getAttribute('data-line-number-side') &&
+                providerReviewCommentCard.getAttribute('data-review-comment-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
+                providerReviewCommentCard.getAttribute('data-review-comment-provider-source') === 'github' &&
+                providerReviewCommentCard.getAttribute('data-review-comment-resolved') === 'false' &&
+                providerReviewCommentBody instanceof HTMLElement &&
+                providerReviewCommentBody.textContent?.includes('Provider inline review from GitHub') === true &&
+                providerReviewCommentMeta instanceof HTMLElement &&
+                providerReviewCommentMeta.textContent?.includes('Unresolved') === true &&
                 reviewCommentCard instanceof HTMLElement &&
                 reviewCommentCard.getAttribute('data-review-comment-side') === selectedUnifiedLine.getAttribute('data-line-number-side') &&
                 reviewCommentCard.getAttribute('data-review-comment-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
@@ -8428,7 +8450,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewCommentBody instanceof HTMLElement &&
                 reviewCommentBody.textContent?.includes('review diff note from smoke') === true &&
                 commentedReviewLine instanceof HTMLElement &&
-                commentedReviewLine.getAttribute('data-review-line-comment-count') === '1';
+                commentedReviewLine.getAttribute('data-review-line-comment-count') === '2';
               const reviewSidePaneCommentCount = commentedReviewPath
                 ? document.querySelector('.diff-panel-list [data-review-path="' + CSS.escape(commentedReviewPath) + '"] [data-review-file-comment-count]')
                 : null;
@@ -8436,8 +8458,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewLineCommentsWork &&
                 commentedReviewPath.length > 0 &&
                 reviewSidePaneCommentCount instanceof HTMLElement &&
-                reviewSidePaneCommentCount.textContent?.trim() === '1' &&
-                reviewSidePaneCommentCount.getAttribute('aria-label') === '1 review comment' &&
+                reviewSidePaneCommentCount.textContent?.trim() === '2' &&
+                reviewSidePaneCommentCount.getAttribute('aria-label') === '2 review comments' &&
                 !document.querySelector('.diff-panel-list .motion-badge');
               const reviewBlameToggle = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-toggle-blame"]');
               const reviewInlineActionPopover = selectedUnifiedLine instanceof HTMLElement
@@ -9935,18 +9957,25 @@ function runAutomatedFocusedSurfaceSmoke(
                   const reviewMetadataChecksRow = document.querySelector('[data-testid="review-metadata-checks-row"]');
                   const reviewMetadataReviewers = document.querySelector('[data-testid="review-metadata-reviewers"]');
                   const reviewMetadataReviewersRow = document.querySelector('[data-testid="review-metadata-reviewers-row"]');
+                  const reviewMetadataComments = document.querySelector('[data-testid="review-metadata-comments"]');
+                  const reviewMetadataCommentsRow = document.querySelector('[data-testid="review-metadata-comments-row"]');
                   if (
                     reviewMetadataStrip instanceof HTMLElement &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-pr') === 'true' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-checks') === 'failing' &&
                     reviewMetadataStrip.getAttribute('data-review-metadata-reviewers') === '4' &&
+                    reviewMetadataStrip.getAttribute('data-review-metadata-comments') === '5' &&
+                    reviewMetadataStrip.getAttribute('data-review-metadata-comments-unresolved') === '1' &&
                     reviewMetadataPr instanceof HTMLElement &&
                     reviewMetadataChecks instanceof HTMLElement &&
                     reviewMetadataReviewers instanceof HTMLElement &&
+                    reviewMetadataComments instanceof HTMLElement &&
                     (reviewMetadataPr.textContent ?? '').includes('PR 42') &&
                     (reviewMetadataChecks.textContent ?? '').includes('Checks failing') &&
                     reviewMetadataChecks.getAttribute('data-review-check-status') === 'failing' &&
-                    (reviewMetadataReviewers.textContent ?? '').includes('4 reviewers')
+                    (reviewMetadataReviewers.textContent ?? '').includes('4 reviewers') &&
+                    (reviewMetadataComments.textContent ?? '').includes('5 comments') &&
+                    (reviewMetadataComments.textContent ?? '').includes('1 unresolved')
                   ) {
                     reviewMetadataToolbarWorks = true;
                     reviewMetadataFlyoutSharedWorks =
@@ -9955,7 +9984,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       reviewMetadataSection.classList.contains('orchestrator-menu-section') &&
                       reviewMetadataSectionLabel instanceof HTMLElement &&
                       reviewMetadataSectionLabel.textContent?.trim() === 'Review' &&
-                      [reviewMetadataPrRow, reviewMetadataChecksRow, reviewMetadataReviewersRow].every((row) =>
+                      [reviewMetadataPrRow, reviewMetadataChecksRow, reviewMetadataReviewersRow, reviewMetadataCommentsRow].every((row) =>
                         row instanceof HTMLButtonElement &&
                         row.getAttribute('data-menu-row') === 'true' &&
                         row.classList.contains('orchestrator-menu-row') &&
@@ -15822,9 +15851,13 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               await sleep(80);
               document.querySelector('[data-command-id="search-transcript"]')?.click();
               await sleep(160);
-              const commandSearch = document.querySelector('[data-testid="transcript-search"]');
-              commandPaletteSearchActionWorks = commandSearch instanceof HTMLInputElement && document.activeElement === commandSearch;
-              document.querySelector('[aria-label="Close transcript search"]')?.click();
+              const commandSearch = document.querySelector('#content-search-input');
+              const commandFindBar = document.querySelector('[data-testid="thread-find-bar"]');
+              commandPaletteSearchActionWorks =
+                commandSearch instanceof HTMLInputElement &&
+                document.activeElement === commandSearch &&
+                commandFindBar?.getAttribute('data-thread-find-domain') === 'conversation';
+              document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Close find"]')?.click();
               await sleep(80);
             }
             window.dispatchEvent(new KeyboardEvent('keydown', {
@@ -15834,16 +15867,20 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               bubbles: true,
               cancelable: true
             }));
-            let search = document.querySelector('[data-testid="transcript-search"]');
+            let search = document.querySelector('#content-search-input');
             for (let index = 0; index < 10 && !(search instanceof HTMLInputElement && document.activeElement === search); index += 1) {
               await sleep(50);
-              search = document.querySelector('[data-testid="transcript-search"]');
+              search = document.querySelector('#content-search-input');
             }
+            const findBar = document.querySelector('[data-testid="thread-find-bar"]');
             const searchShortcutOpens = search instanceof HTMLInputElement && document.activeElement === search;
             const transcriptSearchFieldWorks =
               search instanceof HTMLInputElement &&
-              search.closest('.workbench-search-field')?.getAttribute('data-field-kind') === 'search' &&
-              search.closest('.workbench-search-field')?.querySelector('[aria-label="Close transcript search"]') instanceof HTMLButtonElement;
+              findBar instanceof HTMLElement &&
+              findBar.getAttribute('data-thread-find-domain') === 'conversation' &&
+              findBar.querySelector('[aria-label="Search chat"]') instanceof HTMLButtonElement &&
+              findBar.querySelector('[aria-label="Search diffs"]') instanceof HTMLButtonElement &&
+              findBar.querySelector('[aria-label="Close find"]') instanceof HTMLButtonElement;
 
             const scroller = document.querySelector('[data-testid="transcript-scroll"]');
             if (!scroller) {
@@ -17568,6 +17605,30 @@ function seedAutomatedReviewCardSmokeSession(sessionId: string): void {
           approved: 1,
           changesRequested: 1,
           names: ['Ada', 'Linus']
+        },
+        comments: {
+          total: 5,
+          unresolved: 1,
+          threads: 2,
+          authors: ['Mona', 'Ada', 'Grace'],
+          url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1'
+        },
+        providerCommentsByPath: {
+          'review-base.txt': [
+            {
+              id: 'github-review-thread-smoke-1',
+              source: 'github',
+              path: 'review-base.txt',
+              side: 'new',
+              lineNumber: 2,
+              body: 'Provider inline review from GitHub',
+              author: 'Grace',
+              url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1',
+              resolved: false,
+              outdated: false,
+              createdAt: '2026-05-25T12:00:00Z'
+            }
+          ]
         }
       }
     })

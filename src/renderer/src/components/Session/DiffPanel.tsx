@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { adjacentFileChangePath, buildFileChangeTreeRows, diffForPathFromUnifiedDiff, fileStatusLabel, isBinaryDiffText, parseFileChangesFromUnifiedDiff, resolveReviewDiffRenderWindow, shouldPreferTextDiff } from '../../types'
-import type { FileChange, GitLineBlameResult, GitRefOption, ReviewCheckStatus, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord } from '../../types'
+import type { FileChange, GitLineBlameResult, GitRefOption, ReviewCheckStatus, ReviewDiffSource, ReviewMetadata, ReviewProviderComment, SessionRunEventRecord } from '../../types'
 import type { FilePreviewResult } from '../../env'
 import { useSessionStore } from '../../store/sessions'
 import { Badge, Button, DialogContent, DialogFooter, DialogHeader, IconButton, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, MotionOverlay, PanelHeader, PanelNotice, PanelResizeHandle, PanelToolbar, WorkbenchSearchField, useAppShellResizeController } from '../shared/designSystem'
@@ -18,7 +18,7 @@ interface Props {
 }
 
 type ReviewDiffMode = 'unified' | 'split'
-type ReviewMetadataPanel = 'pull-request' | 'checks' | 'reviewers'
+type ReviewMetadataPanel = 'pull-request' | 'checks' | 'reviewers' | 'comments'
 type ReviewSourceSupport = {
   hasLastTurnDiff: boolean
   hasLocalProviderSource: boolean
@@ -188,7 +188,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
   const reviewCommentCountByPath = useMemo(() => {
     const counts = new Map<string, number>()
     Object.entries(reviewCommentsByPath).forEach(([path, comments]) => {
-      const count = comments.filter((comment) => comment.status === 'draft' || comment.status === 'saved').length
+      const count = comments.filter((comment) => comment.status === 'draft' || comment.status === 'saved' || comment.status === 'provider').length
       if (count > 0) counts.set(path, count)
     })
     return counts
@@ -405,6 +405,11 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
       return next
     })
   }, [sourceFilePathsKey, sourceFiles])
+
+  useEffect(() => {
+    const providerCommentsByPath = reviewMetadata?.providerCommentsByPath ?? {}
+    setReviewCommentsByPath((current) => mergeProviderReviewComments(current, providerCommentsByPath, sourceFiles.map((file) => file.path)))
+  }, [reviewMetadata?.providerCommentsByPath, sourceFilePathsKey, sourceFiles])
 
   useEffect(() => {
     setReviewSourceState(readStoredReviewSource(workDir))
@@ -1449,7 +1454,7 @@ function ReviewMetadataStrip({
   openPanel: ReviewMetadataPanel | null
   onOpenPanelChange: (panel: ReviewMetadataPanel | null) => void
 }): JSX.Element {
-  const hasMetadata = Boolean(metadata.pullRequest || metadata.checks || metadata.reviewers)
+  const hasMetadata = Boolean(metadata.pullRequest || metadata.checks || metadata.reviewers || metadata.comments)
   if (!hasMetadata) return <></>
   const summary = reviewMetadataSummary(metadata)
   return (
@@ -1459,6 +1464,8 @@ function ReviewMetadataStrip({
       data-review-metadata-pr={metadata.pullRequest ? 'true' : 'false'}
       data-review-metadata-checks={metadata.checks?.status ?? ''}
       data-review-metadata-reviewers={reviewReviewerCount(metadata.reviewers)}
+      data-review-metadata-comments={metadata.comments?.total ?? 0}
+      data-review-metadata-comments-unresolved={metadata.comments?.unresolved ?? 0}
     >
       <IconButton
         icon="plan"
@@ -1512,6 +1519,18 @@ function ReviewMetadataStrip({
                 meta={summary.reviewers}
                 externalUrl={metadata.reviewers.url ?? null}
                 onSelect={() => onOpenPanelChange('reviewers')}
+              />
+            )}
+            {metadata.comments && (
+              <ReviewMetadataRow
+                icon="chat"
+                testId="review-metadata-comments"
+                active={openPanel === 'comments'}
+                title={reviewCommentTitle(metadata.comments)}
+                detail={reviewCommentDetail(metadata.comments)}
+                meta={summary.comments}
+                externalUrl={metadata.comments.url ?? metadata.pullRequest?.url ?? null}
+                onSelect={() => onOpenPanelChange('comments')}
               />
             )}
           </MenuSection>
@@ -1574,11 +1593,12 @@ function ReviewMetadataRow({
   )
 }
 
-function reviewMetadataSummary(metadata: ReviewMetadata): { pullRequest: string; checks: string; reviewers: string } {
+function reviewMetadataSummary(metadata: ReviewMetadata): { pullRequest: string; checks: string; reviewers: string; comments: string } {
   return {
     pullRequest: metadata.pullRequest ? reviewPullRequestMeta(metadata.pullRequest) : 'No pull request',
     checks: metadata.checks ? reviewCheckTitle(metadata.checks) : 'No checks',
-    reviewers: metadata.reviewers ? reviewReviewerTitle(metadata.reviewers) : 'No reviewers'
+    reviewers: metadata.reviewers ? reviewReviewerTitle(metadata.reviewers) : 'No reviewers',
+    comments: metadata.comments ? reviewCommentTitle(metadata.comments) : 'No comments'
   }
 }
 
@@ -1639,6 +1659,17 @@ function reviewReviewerDetail(reviewers: NonNullable<ReviewMetadata['reviewers']
   ].filter(Boolean)
   const names = reviewers.names?.filter((name) => name.trim().length > 0).slice(0, 3).join(', ')
   return names ? `${names} / ${statusParts.join(' / ')}` : statusParts.join(' / ') || 'No reviewer detail available'
+}
+
+function reviewCommentTitle(comments: NonNullable<ReviewMetadata['comments']>): string {
+  return `${comments.total} ${comments.total === 1 ? 'comment' : 'comments'}`
+}
+
+function reviewCommentDetail(comments: NonNullable<ReviewMetadata['comments']>): string {
+  const authors = comments.authors?.filter((author) => author.trim().length > 0).slice(0, 3).join(', ')
+  const unresolved = comments.unresolved !== undefined ? `${comments.unresolved} unresolved` : null
+  const threads = comments.threads !== undefined ? `${comments.threads} ${comments.threads === 1 ? 'thread' : 'threads'}` : null
+  return [authors, unresolved, threads].filter(Boolean).join(' / ') || 'No comment detail available'
 }
 
 function ReviewFileSection({
@@ -2818,7 +2849,7 @@ function DiffLines({
     hiddenContextSegments.every((segment) => expandedHiddenContext.has(segment.key))
   useEffect(() => {
     setSelectedLine(null)
-    onCommentsChange([])
+    onCommentsChange((current) => current.filter((comment) => comment.status === 'provider'))
     setBlameVisible(false)
     setLineBlame(null)
     setLineBlameByLine(new Map())
@@ -3060,7 +3091,7 @@ function DiffLines({
   }
   const addComment = (line: SelectedDiffLine | null): void => {
     if (line === null) return
-    const existing = comments.find((comment) => sameDiffLine(comment, line))
+    const existing = comments.find((comment) => comment.status !== 'provider' && sameDiffLine(comment, line))
     if (existing) {
       onCommentsChange((current) => current.map((comment) =>
         comment.id === existing.id ? { ...comment, status: 'draft', updatedAt: Date.now() } : comment
@@ -3963,9 +3994,14 @@ function ReviewDiffCommentStack({
           data-review-comment-side={comment.side}
           data-review-comment-line={comment.lineNumber}
           data-review-comment-status={comment.status}
+          data-review-comment-provider-source={comment.source ?? ''}
+          data-review-comment-author={comment.author ?? ''}
+          data-review-comment-url={comment.url ?? ''}
+          data-review-comment-resolved={comment.resolved === undefined ? '' : comment.resolved ? 'true' : 'false'}
+          data-review-comment-outdated={comment.outdated === undefined ? '' : comment.outdated ? 'true' : 'false'}
         >
           <span className="review-diff-comment-header">
-            <span>Review comment</span>
+            <span>{comment.status === 'provider' ? `${comment.author ?? 'GitHub'} review` : 'Review comment'}</span>
             <span>{comment.side === 'new' ? '+' : '-'}{comment.lineNumber}</span>
           </span>
           {comment.status === 'draft' ? (
@@ -4006,6 +4042,28 @@ function ReviewDiffCommentStack({
                 />
               </span>
             </>
+          ) : comment.status === 'provider' ? (
+            <>
+              <span className="review-diff-comment-provider-meta" data-testid="review-diff-comment-provider-meta">
+                <span>{comment.source === 'github' ? 'GitHub' : 'Provider'}</span>
+                {comment.resolved === false && <span>Unresolved</span>}
+                {comment.outdated === true && <span>Outdated</span>}
+                {comment.url && (
+                  <button
+                    type="button"
+                    className="review-diff-comment-link"
+                    data-testid="review-diff-comment-provider-link"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void window.api.browser.openExternal(comment.url ?? '')
+                    }}
+                  >
+                    Open
+                  </button>
+                )}
+              </span>
+              <span className="review-diff-comment-body" data-testid="review-diff-comment-body">{comment.body}</span>
+            </>
           ) : (
             <span className="review-diff-comment-body" data-testid="review-diff-comment-body">{comment.body}</span>
           )}
@@ -4013,6 +4071,44 @@ function ReviewDiffCommentStack({
       ))}
     </span>
   )
+}
+
+function mergeProviderReviewComments(
+  current: Record<string, ReviewDiffComment[]>,
+  providerCommentsByPath: Record<string, ReviewProviderComment[]>,
+  sourcePaths: string[]
+): Record<string, ReviewDiffComment[]> {
+  const sourcePathSet = new Set(sourcePaths)
+  const next: Record<string, ReviewDiffComment[]> = {}
+  Object.entries(current).forEach(([path, comments]) => {
+    const localComments = comments.filter((comment) => comment.status !== 'provider')
+    if (sourcePathSet.has(path) && localComments.length > 0) next[path] = localComments
+  })
+  Object.entries(providerCommentsByPath).forEach(([path, comments]) => {
+    if (!sourcePathSet.has(path)) return
+    const providerComments = comments.map(providerReviewCommentToDiffComment)
+    if (providerComments.length === 0) return
+    next[path] = [...(next[path] ?? []), ...providerComments]
+  })
+  return next
+}
+
+function providerReviewCommentToDiffComment(comment: ReviewProviderComment): ReviewDiffComment {
+  const updatedAt = comment.createdAt ? Date.parse(comment.createdAt) : 0
+  return {
+    id: `provider:${comment.source}:${comment.id}`,
+    side: comment.side,
+    lineNumber: comment.lineNumber,
+    body: comment.body,
+    status: 'provider',
+    updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0,
+    author: comment.author,
+    source: comment.source,
+    url: comment.url,
+    resolved: comment.resolved,
+    outdated: comment.outdated,
+    createdAt: comment.createdAt
+  }
 }
 
 interface SelectedDiffLine {
@@ -4023,8 +4119,14 @@ interface SelectedDiffLine {
 interface ReviewDiffComment extends SelectedDiffLine {
   id: string
   body: string
-  status: 'draft' | 'saved'
+  status: 'draft' | 'saved' | 'provider'
   updatedAt: number
+  author?: string
+  source?: ReviewProviderComment['source']
+  url?: string | null
+  resolved?: boolean
+  outdated?: boolean
+  createdAt?: string
 }
 
 type MergeConflictResolution = 'current' | 'incoming' | 'both'

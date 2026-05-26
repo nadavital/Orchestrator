@@ -1033,7 +1033,14 @@ export type RunEvent =
   | { type: 'assistant.status'; content: string }
   | { type: 'assistant.text.delta'; streamId: string; content: string }
   | { type: 'assistant.text.completed'; streamId: string }
-  | { type: 'diff.updated'; content: string }
+  | {
+    type: 'diff.updated'
+    content: string
+    providerSessionId?: string
+    providerTurnId?: string
+    checkpointId?: string
+    checkpointUndoSupported?: boolean
+  }
   | { type: 'tool.started'; id: string; toolName: string; toolInput: Record<string, unknown> }
   | { type: 'tool.completed'; id: string; toolUseId: string; content: string; isError: boolean }
   | { type: 'agent.started'; agent: AgentNode }
@@ -1214,10 +1221,34 @@ export interface ReviewReviewerSummary {
   url?: string | null
 }
 
+export interface ReviewCommentSummary {
+  total: number
+  unresolved?: number
+  threads?: number
+  authors?: string[]
+  url?: string | null
+}
+
+export interface ReviewProviderComment {
+  id: string
+  source: 'github'
+  path: string
+  side: 'old' | 'new'
+  lineNumber: number
+  body: string
+  author?: string
+  url?: string | null
+  resolved?: boolean
+  outdated?: boolean
+  createdAt?: string
+}
+
 export interface ReviewMetadata {
   pullRequest?: ReviewPullRequestMetadata
   checks?: ReviewCheckSummary
   reviewers?: ReviewReviewerSummary
+  comments?: ReviewCommentSummary
+  providerCommentsByPath?: Record<string, ReviewProviderComment[]>
 }
 
 export interface Session {

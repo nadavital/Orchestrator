@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
-import { gitManager, reviewMetadataFromGitHubPullRequestView } from '../git'
+import { gitManager, mergeReviewCommentSummaries, reviewMetadataFromGitHubPullRequestView, reviewThreadCommentMetadataFromGitHub, reviewThreadCommentSummaryFromGitHub } from '../git'
 
 test('changed files preserve paths with spaces without git porcelain quotes', async () => {
   const root = mkdtempSync(join(tmpdir(), 'orchestrator-git-changes-'))
@@ -277,6 +277,10 @@ test('GitHub PR view JSON normalizes to review metadata', () => {
       { author: { login: 'ada' }, state: 'COMMENTED' },
       { author: { login: 'ada' }, state: 'APPROVED' },
       { author: { login: 'linus' }, state: 'CHANGES_REQUESTED' }
+    ],
+    comments: [
+      { author: { login: 'mona' }, body: 'Please add docs', url: 'https://github.com/example/repo/pull/42#issuecomment-1' },
+      { author: { login: 'ada' }, body: 'Nit', url: 'https://github.com/example/repo/pull/42#issuecomment-2' }
     ]
   })
 
@@ -310,6 +314,15 @@ test('GitHub PR view JSON normalizes to review metadata', () => {
     commented: 0
   })
   assert.deepEqual(metadata?.reviewers?.names, ['ada', 'linus', 'grace', 'ios'])
+  assert.deepEqual({
+    total: metadata?.comments?.total,
+    authors: metadata?.comments?.authors,
+    url: metadata?.comments?.url
+  }, {
+    total: 2,
+    authors: ['mona', 'ada'],
+    url: 'https://github.com/example/repo/pull/42#issuecomment-1'
+  })
 })
 
 test('draft GitHub PR metadata maps to draft state', () => {
@@ -327,6 +340,120 @@ test('draft GitHub PR metadata maps to draft state', () => {
   assert.equal(metadata?.pullRequest?.state, 'draft')
   assert.equal(metadata?.checks, undefined)
   assert.equal(metadata?.reviewers, undefined)
+  assert.equal(metadata?.comments, undefined)
+})
+
+test('GitHub PR review thread JSON normalizes to inline comment metadata', () => {
+  const payload = {
+    data: {
+      node: {
+        reviewThreads: {
+          nodes: [
+            {
+              isResolved: false,
+              isOutdated: false,
+              path: 'src/App.tsx',
+              line: 12,
+              originalLine: 10,
+              diffSide: 'RIGHT',
+              comments: {
+                nodes: [
+                  { id: 'IC_kw1', body: 'Please handle empty state', author: { login: 'grace' }, url: 'https://github.com/example/repo/pull/42#discussion_r1', createdAt: '2026-05-25T12:00:00Z' },
+                  { id: 'IC_kw2', body: 'Agree', author: { login: 'ada' }, url: 'https://github.com/example/repo/pull/42#discussion_r2' }
+                ]
+              }
+            },
+            {
+              isResolved: true,
+              isOutdated: true,
+              path: 'src/App.tsx',
+              originalLine: 8,
+              diffSide: 'LEFT',
+              comments: {
+                nodes: [
+                  { id: 'IC_kw3', body: 'Old side note', author: { login: 'mona' }, url: 'https://github.com/example/repo/pull/42#discussion_r3' }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+  const metadata = reviewThreadCommentSummaryFromGitHub(payload, 'https://github.com/example/repo/pull/42')
+  const threaded = reviewThreadCommentMetadataFromGitHub(payload, 'https://github.com/example/repo/pull/42')
+
+  assert.deepEqual(metadata, {
+    total: 3,
+    unresolved: 1,
+    threads: 2,
+    authors: ['grace', 'ada', 'mona'],
+    url: 'https://github.com/example/repo/pull/42#discussion_r1'
+  })
+  assert.deepEqual(threaded?.commentsByPath?.['src/App.tsx'], [
+    {
+      id: 'IC_kw1',
+      source: 'github',
+      path: 'src/App.tsx',
+      side: 'new',
+      lineNumber: 12,
+      body: 'Please handle empty state',
+      author: 'grace',
+      url: 'https://github.com/example/repo/pull/42#discussion_r1',
+      resolved: false,
+      outdated: false,
+      createdAt: '2026-05-25T12:00:00Z'
+    },
+    {
+      id: 'IC_kw2',
+      source: 'github',
+      path: 'src/App.tsx',
+      side: 'new',
+      lineNumber: 12,
+      body: 'Agree',
+      author: 'ada',
+      url: 'https://github.com/example/repo/pull/42#discussion_r2',
+      resolved: false,
+      outdated: false
+    },
+    {
+      id: 'IC_kw3',
+      source: 'github',
+      path: 'src/App.tsx',
+      side: 'old',
+      lineNumber: 8,
+      body: 'Old side note',
+      author: 'mona',
+      url: 'https://github.com/example/repo/pull/42#discussion_r3',
+      resolved: true,
+      outdated: true
+    }
+  ])
+})
+
+test('GitHub PR general and review-thread comment summaries merge for review metadata', () => {
+  const metadata = mergeReviewCommentSummaries(
+    {
+      total: 2,
+      authors: ['mona', 'ada'],
+      url: 'https://github.com/example/repo/pull/42#issuecomment-1'
+    },
+    {
+      total: 3,
+      unresolved: 1,
+      threads: 2,
+      authors: ['grace', 'ada'],
+      url: 'https://github.com/example/repo/pull/42#discussion_r1'
+    }
+  )
+
+  assert.deepEqual(metadata, {
+    total: 5,
+    unresolved: 1,
+    threads: 2,
+    authors: ['mona', 'ada', 'grace'],
+    url: 'https://github.com/example/repo/pull/42#discussion_r1'
+  })
 })
 
 test('line blame returns author metadata for a tracked source line', async () => {

@@ -358,17 +358,84 @@ export const gitManager = {
         'pr',
         'view',
         '--json',
-        'number,title,url,state,isDraft,headRefName,baseRefName,statusCheckRollup,reviewRequests,reviews'
+        'id,number,title,url,state,isDraft,headRefName,baseRefName,statusCheckRollup,reviewRequests,reviews,comments'
       ], {
         cwd,
         encoding: 'utf-8',
         timeout: 5000,
         maxBuffer: 1024 * 1024
       })
-      return reviewMetadataFromGitHubPullRequestView(JSON.parse(stdout))
+      const view = JSON.parse(stdout)
+      const metadata = reviewMetadataFromGitHubPullRequestView(view)
+      const prId = stringValue(asRecord(view)?.id)
+      const threadComments = prId
+        ? await getGitHubReviewThreadCommentSummary(cwd, prId, metadata?.pullRequest?.url ?? null)
+        : undefined
+      if (metadata && threadComments?.summary) {
+        metadata.comments = mergeReviewCommentSummaries(metadata.comments, threadComments.summary)
+      }
+      if (metadata && threadComments?.commentsByPath) {
+        metadata.providerCommentsByPath = threadComments.commentsByPath
+      }
+      return metadata
     } catch {
       return undefined
     }
+  }
+}
+
+const GITHUB_REVIEW_THREADS_QUERY = `
+query($pullRequestId: ID!) {
+  node(id: $pullRequestId) {
+    ... on PullRequest {
+      reviewThreads(first: 100) {
+        nodes {
+          isResolved
+          isOutdated
+          path
+          line
+          originalLine
+          diffSide
+          comments(first: 20) {
+            nodes {
+              id
+              body
+              author {
+                login
+              }
+              url
+              createdAt
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`
+
+async function getGitHubReviewThreadCommentSummary(
+  cwd: string,
+  pullRequestId: string,
+  url: string | null
+): Promise<{ summary?: ReviewMetadata['comments']; commentsByPath?: NonNullable<ReviewMetadata['providerCommentsByPath']> } | undefined> {
+  try {
+    const { stdout } = await execFileAsync('gh', [
+      'api',
+      'graphql',
+      '-F',
+      `pullRequestId=${pullRequestId}`,
+      '-f',
+      `query=${GITHUB_REVIEW_THREADS_QUERY}`
+    ], {
+      cwd,
+      encoding: 'utf-8',
+      timeout: 7000,
+      maxBuffer: 1024 * 1024
+    })
+    return reviewThreadCommentMetadataFromGitHub(JSON.parse(stdout), url)
+  } catch {
+    return undefined
   }
 }
 
@@ -381,6 +448,7 @@ export function reviewMetadataFromGitHubPullRequestView(value: unknown): ReviewM
   const url = stringValue(pr.url) ?? null
   const checks = reviewChecksFromGitHubStatusRollup(pr.statusCheckRollup, url)
   const reviewers = reviewReviewerSummaryFromGitHub(pr.reviewRequests, pr.reviews, url)
+  const comments = reviewCommentSummaryFromGitHub(pr.comments, url)
   return {
     pullRequest: {
       number,
@@ -391,7 +459,8 @@ export function reviewMetadataFromGitHubPullRequestView(value: unknown): ReviewM
       baseBranch: stringValue(pr.baseRefName)
     },
     ...(checks ? { checks } : {}),
-    ...(reviewers ? { reviewers } : {})
+    ...(reviewers ? { reviewers } : {}),
+    ...(comments ? { comments } : {})
   }
 }
 
@@ -508,6 +577,117 @@ function reviewRequestName(value: unknown): string | undefined {
 function reviewAuthorName(review: Record<string, unknown> | null): string | undefined {
   const author = asRecord(review?.author)
   return stringValue(author?.login, author?.name, review?.author)
+}
+
+function reviewCommentSummaryFromGitHub(value: unknown, url: string | null): ReviewMetadata['comments'] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined
+  const authors = new Set<string>()
+  let commentUrl: string | null = null
+  for (const item of value) {
+    const comment = asRecord(item)
+    const author = reviewAuthorName(comment)
+    if (author) authors.add(author)
+    commentUrl = commentUrl ?? stringValue(comment?.url, comment?.htmlUrl) ?? null
+  }
+  return {
+    total: value.length,
+    authors: [...authors].slice(0, 8),
+    url: commentUrl ?? url
+  }
+}
+
+export function reviewThreadCommentSummaryFromGitHub(value: unknown, url: string | null): ReviewMetadata['comments'] | undefined {
+  return reviewThreadCommentMetadataFromGitHub(value, url)?.summary
+}
+
+export function reviewThreadCommentMetadataFromGitHub(
+  value: unknown,
+  url: string | null
+): { summary?: ReviewMetadata['comments']; commentsByPath?: NonNullable<ReviewMetadata['providerCommentsByPath']> } | undefined {
+  const root = asRecord(value)
+  const data = asRecord(root?.data)
+  const node = asRecord(data?.node) ?? asRecord(root?.node) ?? root
+  const reviewThreads = asRecord(node?.reviewThreads)
+  const threadNodes = Array.isArray(reviewThreads?.nodes) ? reviewThreads.nodes : []
+  if (threadNodes.length === 0) return undefined
+
+  const authors = new Set<string>()
+  let total = 0
+  let unresolved = 0
+  let commentUrl: string | null = null
+  const commentsByPath: NonNullable<ReviewMetadata['providerCommentsByPath']> = {}
+  for (const item of threadNodes) {
+    const thread = asRecord(item)
+    if (!thread) continue
+    const resolved = thread.isResolved === true
+    if (!resolved) unresolved += 1
+    const path = stringValue(thread.path)
+    const lineNumber = numberValue(thread.line) ?? numberValue(thread.originalLine)
+    const side = reviewThreadCommentSide(thread.diffSide)
+    const comments = asRecord(thread.comments)
+    const commentNodes = Array.isArray(comments?.nodes) ? comments.nodes : []
+    total += commentNodes.length
+    for (const [index, commentItem] of commentNodes.entries()) {
+      const comment = asRecord(commentItem)
+      const author = reviewAuthorName(comment)
+      if (author) authors.add(author)
+      commentUrl = commentUrl ?? stringValue(comment?.url) ?? null
+      const body = stringValue(comment?.body)
+      if (!path || lineNumber === undefined || !body) continue
+      const createdAt = stringValue(comment?.createdAt)
+      const providerComment = {
+        id: stringValue(comment?.id, comment?.url) ?? `${path}:${side}:${lineNumber}:${index}`,
+        source: 'github' as const,
+        path,
+        side,
+        lineNumber,
+        body,
+        ...(author ? { author } : {}),
+        url: stringValue(comment?.url) ?? url,
+        resolved,
+        outdated: thread.isOutdated === true,
+        ...(createdAt ? { createdAt } : {})
+      }
+      commentsByPath[path] = [...(commentsByPath[path] ?? []), providerComment]
+    }
+  }
+  if (total === 0 && unresolved === 0) return undefined
+  const summary = {
+    total,
+    unresolved,
+    threads: threadNodes.length,
+    authors: [...authors].slice(0, 8),
+    url: commentUrl ?? url
+  }
+  return {
+    summary,
+    ...(Object.keys(commentsByPath).length > 0 ? { commentsByPath } : {})
+  }
+}
+
+function reviewThreadCommentSide(value: unknown): 'old' | 'new' {
+  const raw = stringValue(value)?.toUpperCase()
+  return raw === 'LEFT' ? 'old' : 'new'
+}
+
+export function mergeReviewCommentSummaries(
+  first: ReviewMetadata['comments'] | undefined,
+  second: ReviewMetadata['comments'] | undefined
+): ReviewMetadata['comments'] | undefined {
+  if (!first) return second
+  if (!second) return first
+  const authors = new Set<string>()
+  for (const author of first.authors ?? []) authors.add(author)
+  for (const author of second.authors ?? []) authors.add(author)
+  const unresolved = (first.unresolved ?? 0) + (second.unresolved ?? 0)
+  const threads = (first.threads ?? 0) + (second.threads ?? 0)
+  return {
+    total: first.total + second.total,
+    ...(unresolved > 0 ? { unresolved } : {}),
+    ...(threads > 0 ? { threads } : {}),
+    authors: [...authors].slice(0, 8),
+    url: second.url ?? first.url ?? null
+  }
 }
 
 function reviewPullRequestState(value: unknown): NonNullable<ReviewMetadata['pullRequest']>['state'] {
