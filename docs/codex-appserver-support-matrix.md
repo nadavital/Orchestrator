@@ -21,6 +21,9 @@ Local Codex CLI: `codex-cli 0.128.0`
   - `npm run live:codex-browser-appserver`
   - `tmp/codex-browser-appserver-live-proof/result.json`
   - Installed Codex bundle chunks: `app-server-manager-signals-Csopz8aM.js`, `browser-sidebar-manager-ivre5jEI.js`, `thread-management-dynamic-tools-4r_Yz1XH.js`
+- Review/rollback boundary proof:
+  - `npm run live:codex-review-appserver`
+  - `tmp/codex-review-appserver-live-proof/result.json`
 
 ## Status Legend
 
@@ -66,7 +69,7 @@ Local Codex CLI: `codex-cli 0.128.0`
 | Thread create/resume | `thread/start`, `thread/resume` | Supported for normal Codex sessions. |
 | Thread fork/history/list/read | `thread/fork`, `thread/list`, `thread/loaded/list`, `thread/read`, `thread/turns/list` | Partial. `thread/list` and `thread/loaded/list` are exposed as read-only settings surfaces; fork/read/turn listing are not productized. |
 | Thread metadata/lifecycle | `thread/archive`, `thread/unarchive`, `thread/unsubscribe`, `thread/name/set`, `thread/metadata/update` | Not wired. |
-| Thread context operations | `thread/compact/start`, `thread/rollback`, `thread/inject_items` | Not wired. |
+| Thread context operations | `thread/compact/start`, `thread/rollback`, `thread/inject_items` | Partial. Live proof shows `thread/rollback` accepts `{ threadId, numTurns: 1 }` on persisted threads and rewrites thread history, but it does not revert the workspace file/git diff. It is not a Review Undo implementation by itself. |
 | Thread shell command | `thread/shellCommand` | Not wired. Existing terminal/shell surfaces are Orchestrator-owned. |
 | Guardian denied action | `thread/approveGuardianDeniedAction` | Not wired. |
 | Turn execution | `turn/start`, `turn/steer`, `turn/interrupt` | Supported. |

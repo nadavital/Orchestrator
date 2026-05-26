@@ -65,6 +65,7 @@
     "live:providers": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/provider-live-smoke.mjs",
     "live:codex-appserver": "node scripts/codex-appserver-live-smoke.mjs",
     "live:codex-browser-appserver": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-browser-appserver-live-proof.mjs",
+    "live:codex-review-appserver": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/codex-review-appserver-live-proof.mjs",
     "live:claude-capabilities": "tsc -p tsconfig.node.json --outDir out-test --module commonjs && node scripts/claude-live-capability-suite.mjs",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",

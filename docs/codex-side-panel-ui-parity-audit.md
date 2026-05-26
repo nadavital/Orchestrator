@@ -5976,6 +5976,16 @@ Verification: `pnpm exec tsc --noEmit` passed. `npm run test:providers` passed w
 
 Remaining: actual provider checkpoint Undo is still not implemented. It should only be enabled after a provider supplies a checkpoint id and Orchestrator has a real rollback adapter path with success/failure events and post-rollback Review refresh.
 
+### 2026-05-26 - Live Codex Review Rollback Proof
+
+Codex evidence: added a live `npm run live:codex-review-appserver` harness that starts Codex app-server, creates a disposable git workspace, asks Codex to edit `live-review-proof.txt`, stores the raw app-server JSONL, parses it through Orchestrator's Codex provider adapter, probes `thread/rollback`, and archives the persisted throwaway thread after the probe.
+
+Result: the live run produced 3 normalized `diff.updated` events from real `turn/diff/updated` notifications. Those events carried provider session id and provider turn id, but no checkpoint id. A persisted-thread `thread/rollback` request with `{ threadId, numTurns: 1 }` succeeded and returned a thread with empty turns, proving the app-server history rollback contract. The workspace file and git diff remained changed after rollback, so this API is not a working-tree Review Undo path.
+
+Verification: `pnpm exec tsc --noEmit` passed. `git diff --check` passed. `npm run live:codex-review-appserver` passed. Artifact: `/Users/nadav/Desktop/Orchestrator/tmp/codex-review-appserver-live-proof/result.json`; raw JSONL: `/Users/nadav/Desktop/Orchestrator/tmp/codex-review-appserver-live-proof/raw.jsonl`.
+
+Remaining: keep provider Last turn Undo disabled. To enable it later, Orchestrator needs a provider API or checkpoint contract that actually restores workspace changes, or an explicit product decision to pair provider history rollback with local git discard over the exact provider diff paths.
+
 ### 2026-05-24 - Shared Panel Tab Drag Marker Slice
 
 Codex evidence: `webview/assets/app-shell-tab-controller-B2eCi4Le.js` in the current extracted Codex bundle treats tab drag/reorder as part of the shared app-shell tab controller, not as local Workbench-only behavior. The remaining Orchestrator mismatch was that right-panel and bottom-panel tabs could reorder, but drag feedback highlighted a whole tab instead of showing a precise before/after insertion marker.
