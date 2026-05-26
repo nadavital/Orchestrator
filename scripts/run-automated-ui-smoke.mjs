@@ -770,14 +770,14 @@ if (fixtureWorkspaceViews.has(captureView)) {
               descriptionMarkdown: '**Smoke description:** computes the updated value.',
               outputSummaries: [
                 { summaryMarkdown: '**Stream summary:** printed the updated result.' },
-                { summaryMarkdown: '**Result summary:** returned updated JSON.' }
+                { summaryMarkdown: '**Result summary:** returned the text/plain display value.' }
               ]
             }
           },
           source: ['value = 2\n', 'value'],
           outputs: [
             { output_type: 'stream', name: 'stdout', text: ['result: 2\n'] },
-            { output_type: 'execute_result', data: { 'application/json': { status: 'updated', value: 2 }, 'text/plain': ['{"status":"updated","value":2}'] } }
+            { output_type: 'execute_result', data: { 'application/json': { status: 'updated', value: 2 }, 'text/plain': ['plain result: 2'] } }
           ]
         },
         { cell_type: 'markdown', source: ['Summary cell'] }
@@ -1446,6 +1446,7 @@ child.on('exit', (code) => {
           filesNotebookExecutionCount: result.filesNotebookExecutionCountWorks === true,
           filesNotebookCellMetadata: result.filesNotebookCellMetadataWorks === true,
           filesNotebookOutputSummaries: result.filesNotebookOutputSummariesWorks === true,
+          filesNotebookRawOutputDisclosure: result.filesNotebookRawOutputDisclosureWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,

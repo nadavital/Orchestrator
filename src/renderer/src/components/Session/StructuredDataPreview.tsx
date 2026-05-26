@@ -401,6 +401,7 @@ function NotebookCellOutput({
           sandbox=""
           srcDoc={notebookHtmlDocument(output.html)}
         />
+        <NotebookRawOutputDisclosure text={output.html} />
       </div>
     )
   }
@@ -415,7 +416,7 @@ function NotebookCellOutput({
     return (
       <div className="notebook-preview-output" data-notebook-output-type="json">
         <NotebookOutputSummary summaryMarkdown={output.summaryMarkdown} />
-        <pre>{output.text}</pre>
+        <NotebookRawOutput text={output.text} disclosed={Boolean(output.summaryMarkdown?.trim())} />
       </div>
     )
   }
@@ -423,16 +424,45 @@ function NotebookCellOutput({
     return (
       <div className="notebook-preview-output notebook-preview-output-error" data-notebook-output-type="error">
         <NotebookOutputSummary summaryMarkdown={output.summaryMarkdown} />
-        <strong>{output.name}{output.message ? `: ${output.message}` : ''}</strong>
-        {output.traceback && <pre>{output.traceback}</pre>}
+        {output.summaryMarkdown?.trim() ? (
+          <NotebookRawOutputDisclosure text={`${output.name}${output.message ? `: ${output.message}` : ''}${output.traceback ? `\n${output.traceback}` : ''}`} />
+        ) : (
+          <>
+            <strong>{output.name}{output.message ? `: ${output.message}` : ''}</strong>
+            {output.traceback && <pre>{output.traceback}</pre>}
+          </>
+        )}
       </div>
     )
   }
   return (
     <div className="notebook-preview-output" data-notebook-output-type={output.type}>
       <NotebookOutputSummary summaryMarkdown={output.summaryMarkdown} />
-      <pre>{output.text}</pre>
+      <NotebookRawOutput text={output.text} disclosed={Boolean(output.summaryMarkdown?.trim())} />
     </div>
+  )
+}
+
+function NotebookRawOutput({
+  disclosed,
+  text
+}: {
+  disclosed: boolean
+  text: string
+}): JSX.Element {
+  return disclosed ? <NotebookRawOutputDisclosure text={text} /> : <pre>{text}</pre>
+}
+
+function NotebookRawOutputDisclosure({ text }: { text: string }): JSX.Element {
+  return (
+    <details
+      className="notebook-preview-raw-output-disclosure"
+      data-testid="notebook-preview-raw-output-disclosure"
+      data-notebook-raw-output-disclosure="true"
+    >
+      <summary>Raw output</summary>
+      <pre>{text}</pre>
+    </details>
   )
 }
 
@@ -809,10 +839,10 @@ function normalizeNotebookOutput(output: unknown, summaryMarkdown: string | null
     if (html.trim()) return [{ type: 'html', html }]
     const markdown = normalizeNotebookOutputText(dataRecord['text/markdown'])
     if (markdown.trim()) return [{ type: 'markdown', markdown }]
-    const json = dataRecord['application/json'] ?? dataRecord['application/vnd.vega.v5+json']
-    if (json !== undefined) return [{ type: 'json', text: normalizeNotebookJsonOutput(json), summaryMarkdown }]
     const text = normalizeNotebookOutputText(dataRecord['text/plain'])
     if (text.trim()) return [{ type: 'text', text, summaryMarkdown }]
+    const json = dataRecord['application/json'] ?? dataRecord['application/vnd.vega.v5+json']
+    if (json !== undefined) return [{ type: 'json', text: normalizeNotebookJsonOutput(json), summaryMarkdown }]
   }
   return []
 }

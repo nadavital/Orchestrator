@@ -10931,6 +10931,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookExecutionCountChecks = {};
               const notebookCellMetadataChecks = {};
               const notebookOutputSummaryChecks = {};
+              const notebookRawOutputDisclosureChecks = {};
               const pdfPresentationModeChecks = {};
               const documentPageControlChecks = {};
               const spreadsheetRendererChecks = {};
@@ -11099,8 +11100,9 @@ function runAutomatedFocusedSurfaceSmoke(
                       restartKernel.textContent?.includes('Restart kernel') === true;
                     const outputContainer = document.querySelector('[data-testid="notebook-preview-outputs"]');
                     const streamOutput = document.querySelector('[data-notebook-output-type="stream"]');
-                    const jsonOutput = document.querySelector('[data-notebook-output-type="json"]');
+                    const textOutput = document.querySelector('[data-notebook-output-type="text"]');
                     const outputSummaries = [...document.querySelectorAll('[data-notebook-output-summary="true"]')];
+                    const rawOutputDisclosures = [...document.querySelectorAll('[data-notebook-raw-output-disclosure="true"]')];
                     const notebookCells = [...document.querySelectorAll('[data-testid="notebook-preview-cell"]')];
                     const firstNotebookCell = notebookCells[0];
                     const codeNotebookCell = notebookCells.find((cell) =>
@@ -11157,15 +11159,24 @@ function runAutomatedFocusedSurfaceSmoke(
                       outputSummaries.some((summary) => summary.textContent?.includes('Result summary')) &&
                       streamOutput instanceof HTMLElement &&
                       streamOutput.textContent?.includes('Stream summary') === true &&
-                      jsonOutput instanceof HTMLElement &&
-                      jsonOutput.textContent?.includes('Result summary') === true;
+                      textOutput instanceof HTMLElement &&
+                      textOutput.textContent?.includes('Result summary') === true;
+                    notebookRawOutputDisclosureChecks[testId] =
+                      rawOutputDisclosures.length >= 2 &&
+                      rawOutputDisclosures.every((disclosure) => disclosure instanceof HTMLDetailsElement) &&
+                      rawOutputDisclosures.every((disclosure) => disclosure.querySelector('summary')?.textContent?.includes('Raw output') === true) &&
+                      streamOutput instanceof HTMLElement &&
+                      streamOutput.querySelector('[data-notebook-raw-output-disclosure="true"]') instanceof HTMLDetailsElement &&
+                      textOutput instanceof HTMLElement &&
+                      textOutput.querySelector('[data-notebook-raw-output-disclosure="true"]') instanceof HTMLDetailsElement;
                     notebookOutputRenderingChecks[testId] =
                       outputContainer instanceof HTMLElement &&
                       Number(outputContainer.getAttribute('data-notebook-output-count') ?? '0') >= 2 &&
                       streamOutput instanceof HTMLElement &&
                       streamOutput.textContent?.includes('result: 2') === true &&
-                      jsonOutput instanceof HTMLElement &&
-                      jsonOutput.textContent?.includes('"status": "updated"') === true;
+                      textOutput instanceof HTMLElement &&
+                      textOutput.textContent?.includes('plain result: 2') === true &&
+                      !(document.querySelector('[data-notebook-output-type="json"]') instanceof HTMLElement);
                   }
                   if (testId === 'workspace-document-preview') {
                     const documentPreview = document.querySelector('[data-testid="workspace-document-preview"]');
@@ -12293,6 +12304,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesNotebookExecutionCountWorks: Boolean(notebookExecutionCountChecks['workspace-notebook-preview']),
                 filesNotebookCellMetadataWorks: Boolean(notebookCellMetadataChecks['workspace-notebook-preview']),
                 filesNotebookOutputSummariesWorks: Boolean(notebookOutputSummaryChecks['workspace-notebook-preview']),
+                filesNotebookRawOutputDisclosureWorks: Boolean(notebookRawOutputDisclosureChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks

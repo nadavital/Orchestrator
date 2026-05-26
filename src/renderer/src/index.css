@@ -5359,6 +5359,25 @@
     margin-top: 6px;
   }
 
+  .notebook-preview-raw-output-disclosure {
+    margin-top: 6px;
+  }
+
+  .notebook-preview-raw-output-disclosure > summary {
+    color: var(--text-tertiary);
+    cursor: default;
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .notebook-preview-raw-output-disclosure > summary::marker {
+    color: var(--text-tertiary);
+  }
+
+  .notebook-preview-raw-output-disclosure > pre {
+    margin-top: 6px;
+  }
+
   .notebook-preview-code-source-disclosure {
     border-top: 1px solid var(--border-subtle);
   }
