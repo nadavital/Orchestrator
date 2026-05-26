@@ -955,20 +955,98 @@ function PdfPreview({
   preview: FilePreviewResult
 }): JSX.Element {
   const title = stripArtifactExtension(entry.name, 'pdf')
+  const pageCount = Math.max(1, Math.floor(preview.pageCount ?? 1))
+  const [currentPage, setCurrentPage] = useState(1)
+  const [zoomPercent, setZoomPercent] = useState(100)
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount))
+  }, [pageCount])
+  const goToPreviousPage = (): void => {
+    setCurrentPage((page) => Math.max(1, page - 1))
+  }
+  const goToNextPage = (): void => {
+    setCurrentPage((page) => Math.min(pageCount, page + 1))
+  }
+  const zoomOut = (): void => {
+    setZoomPercent((zoom) => Math.max(50, zoom - 25))
+  }
+  const zoomIn = (): void => {
+    setZoomPercent((zoom) => Math.min(200, zoom + 25))
+  }
   return (
     <div
       className="file-structured-preview workspace-pdf-preview flex h-full min-h-0 flex-col overflow-hidden"
       data-testid="workspace-pdf-preview"
       data-pdf-preview-size={preview.size ?? entry.size ?? 0}
+      data-pdf-preview-page-count={pageCount}
+      data-pdf-preview-current-page={currentPage}
+      data-pdf-preview-zoom-percent={zoomPercent}
     >
       <ArtifactPreviewHeader
         artifactType="PDF"
+        centerContent={(
+          <span
+            className="file-preview-page-controls"
+            data-testid="workspace-pdf-preview-page-controls"
+            data-pdf-current-page={currentPage}
+            data-pdf-page-count={pageCount}
+          >
+            <IconButton
+              icon="arrowLeft"
+              label="Previous page"
+              size="sm"
+              variant="toolbar"
+              disabled={currentPage <= 1}
+              dataTestId="workspace-pdf-preview-page-previous"
+              onClick={goToPreviousPage}
+            />
+            <span className="file-preview-page-indicator" data-testid="workspace-pdf-preview-page-indicator">
+              {currentPage}/{pageCount}
+            </span>
+            <IconButton
+              icon="arrowRight"
+              label="Next page"
+              size="sm"
+              variant="toolbar"
+              disabled={currentPage >= pageCount}
+              dataTestId="workspace-pdf-preview-page-next"
+              onClick={goToNextPage}
+            />
+          </span>
+        )}
         rightContent={(
           <span
             className="file-preview-header-actions"
             data-testid="workspace-pdf-preview-actions"
-            data-preview-controls="copy-path open-file reveal-file"
+            data-preview-controls="copy-path pdf-page-navigation pdf-zoom open-file reveal-file"
           >
+            <span
+              className="file-preview-zoom-controls"
+              data-testid="workspace-pdf-preview-zoom-controls"
+              data-pdf-zoom-percent={zoomPercent}
+            >
+              <IconButton
+                icon="zoomOut"
+                label="Zoom out"
+                size="sm"
+                variant="toolbar"
+                disabled={zoomPercent <= 50}
+                dataTestId="workspace-pdf-preview-zoom-out"
+                onClick={zoomOut}
+              />
+              <span className="file-preview-zoom-indicator" data-testid="workspace-pdf-preview-zoom-indicator">
+                {zoomPercent}%
+              </span>
+              <IconButton
+                icon="zoomIn"
+                label="Zoom in"
+                size="sm"
+                variant="toolbar"
+                disabled={zoomPercent >= 200}
+                dataTestId="workspace-pdf-preview-zoom-in"
+                onClick={zoomIn}
+              />
+            </span>
             {artifactPreviewActions(entry, absolutePath, preview).map((action) => (
               <IconButton
                 key={action.id}
@@ -987,12 +1065,16 @@ function PdfPreview({
       />
       <iframe
         title={entry.name}
-        src={fileUrl(absolutePath)}
+        src={pdfPreviewUrl(absolutePath, currentPage, zoomPercent)}
         className="min-h-0 flex-1 border-0"
         data-testid="workspace-pdf-preview-frame"
       />
     </div>
   )
+}
+
+function pdfPreviewUrl(path: string, page: number, zoomPercent: number): string {
+  return `${fileUrl(path)}#page=${page}&zoom=${zoomPercent}`
 }
 
 export function joinPath(root: string, filePath: string): string {

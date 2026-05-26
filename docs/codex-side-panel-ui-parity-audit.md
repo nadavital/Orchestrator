@@ -6722,6 +6722,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the visible artifact identity/header mismatch for local PDF/DOCX/IPYNB previews. It does not implement true Codex PDF page controls, DOCX page/zoom rendering, spreadsheet/slides renderers, exact output spacing, or provider-backed artifact metadata.
 
+### 2026-05-26 - PDF Page And Zoom Controls
+
+Codex evidence: `tmp/codex-app-assets/pdf-preview-panel-CkrOHSbs.js` renders PDF artifacts through the shared artifact header with page navigation, zoom controls, invert colors, annotation, and open/download actions. `tmp/codex-app-assets/artifact-preview-status-D5kFRFQE.js` contains the shared previous/next page and zoom percent controls used by artifact previews.
+
+Implemented: Orchestrator PDF previews now parse a lightweight page count from local PDFs, render previous/next page controls in the shared artifact header center slot, render zoom out/in controls with a visible percent indicator, and update the embedded PDF URL fragment with the selected page and zoom. The smoke fixture PDF now has two pages so the UI proves disabled/enabled navigation states, page changes from `1/2` to `2/2`, and zoom changes from `100%` to `125%`. The shared `ArtifactPreviewHeader` now accepts real center content instead of always reserving an empty center slot.
+
+Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, `git diff --check`, and `npm run build` passed. Focused `npm run smoke:ui:auto -- --files` passed with `filesPdfPreviewControls=true`, `filesArtifactHeaderTitleType=true`, and the existing Files artifact checks; evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779811185663.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779811185663.png`. Refreshed visual inventory passed with 25 captures and manifest created at `2026-05-26T16:05:54.228Z`; the comparison report passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, and `needsProof=0`, created at `2026-05-26T16:06:00.902Z`.
+
+Remaining: this closes local PDF page/zoom control parity at the header/control layer. It does not implement Codex's PDF canvas renderer, annotation mode, invert-colors rendering, presentation mode, download handling, or provider-backed PDF comments/metadata.
+
 ### 2026-05-26 - Spreadsheet And Slides Artifact Boundary
 
 Codex evidence: `tmp/codex-app-assets/artifact-tab-file-kind-fsu6JKhI.js` maps `.xlsx`/`.xlsm` to `xlsx` spreadsheet artifacts and `.pptx` to `pptx` slides artifacts, while `tmp/codex-app-assets/artifact-tab-content.electron-DayvYBGS.js` routes XLSX through `ExtractXlsxProto` / `PopcornElectronWorkbookPanel` and PPTX through `ExtractSlidesProto` / `PopcornElectronPresentationPanel`.

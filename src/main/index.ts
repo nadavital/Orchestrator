@@ -10824,6 +10824,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const previewArtifactHeaderChecks = {};
               const previewControlChecks = {};
               const previewArtifactTabChecks = {};
+              const pdfPreviewControlChecks = {};
               const notebookReadOnlyControlChecks = {};
               const notebookOutputRenderingChecks = {};
               const notebookCellDisclosureChecks = {};
@@ -11059,6 +11060,81 @@ function runAutomatedFocusedSurfaceSmoke(
                       streamOutput.textContent?.includes('result: 2') === true &&
                       jsonOutput instanceof HTMLElement &&
                       jsonOutput.textContent?.includes('"status": "updated"') === true;
+                  }
+                  if (testId === 'workspace-pdf-preview') {
+                    const pageControls = document.querySelector('[data-testid="workspace-pdf-preview-page-controls"]');
+                    const pageIndicator = document.querySelector('[data-testid="workspace-pdf-preview-page-indicator"]');
+                    const previousPage = document.querySelector('[data-testid="workspace-pdf-preview-page-previous"]');
+                    const nextPage = document.querySelector('[data-testid="workspace-pdf-preview-page-next"]');
+                    const zoomControls = document.querySelector('[data-testid="workspace-pdf-preview-zoom-controls"]');
+                    const zoomIndicator = document.querySelector('[data-testid="workspace-pdf-preview-zoom-indicator"]');
+                    const zoomIn = document.querySelector('[data-testid="workspace-pdf-preview-zoom-in"]');
+                    const initialFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const initialPdfControls =
+                      pageControls instanceof HTMLElement &&
+                      pageControls.getAttribute('data-pdf-current-page') === '1' &&
+                      pageControls.getAttribute('data-pdf-page-count') === '2' &&
+                      pageIndicator instanceof HTMLElement &&
+                      pageIndicator.textContent?.trim() === '1/2' &&
+                      previousPage instanceof HTMLButtonElement &&
+                      previousPage.disabled &&
+                      nextPage instanceof HTMLButtonElement &&
+                      !nextPage.disabled &&
+                      zoomControls instanceof HTMLElement &&
+                      zoomControls.getAttribute('data-pdf-zoom-percent') === '100' &&
+                      zoomIndicator instanceof HTMLElement &&
+                      zoomIndicator.textContent?.trim() === '100%' &&
+                      zoomIn instanceof HTMLButtonElement &&
+                      !zoomIn.disabled &&
+                      initialFrame instanceof HTMLIFrameElement &&
+                      initialFrame.src.includes('#page=1&zoom=100');
+                    if (nextPage instanceof HTMLButtonElement) {
+                      nextPage.click();
+                      await sleep(160);
+                    }
+                    const advancedPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const advancedPageControls = document.querySelector('[data-testid="workspace-pdf-preview-page-controls"]');
+                    const advancedPageIndicator = document.querySelector('[data-testid="workspace-pdf-preview-page-indicator"]');
+                    const advancedPreviousPage = document.querySelector('[data-testid="workspace-pdf-preview-page-previous"]');
+                    const advancedNextPage = document.querySelector('[data-testid="workspace-pdf-preview-page-next"]');
+                    const advancedFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const pageNavigationWorks =
+                      advancedPreview instanceof HTMLElement &&
+                      advancedPreview.getAttribute('data-pdf-preview-page-count') === '2' &&
+                      advancedPreview.getAttribute('data-pdf-preview-current-page') === '2' &&
+                      advancedPageControls instanceof HTMLElement &&
+                      advancedPageControls.getAttribute('data-pdf-current-page') === '2' &&
+                      advancedPageIndicator instanceof HTMLElement &&
+                      advancedPageIndicator.textContent?.trim() === '2/2' &&
+                      advancedPreviousPage instanceof HTMLButtonElement &&
+                      !advancedPreviousPage.disabled &&
+                      advancedNextPage instanceof HTMLButtonElement &&
+                      advancedNextPage.disabled &&
+                      advancedFrame instanceof HTMLIFrameElement &&
+                      advancedFrame.src.includes('#page=2&zoom=100');
+                    const advancedZoomIn = document.querySelector('[data-testid="workspace-pdf-preview-zoom-in"]');
+                    if (advancedZoomIn instanceof HTMLButtonElement) {
+                      advancedZoomIn.click();
+                      await sleep(160);
+                    }
+                    const zoomedPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const zoomedControls = document.querySelector('[data-testid="workspace-pdf-preview-zoom-controls"]');
+                    const zoomedIndicator = document.querySelector('[data-testid="workspace-pdf-preview-zoom-indicator"]');
+                    const zoomedFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const zoomControlsWork =
+                      zoomedPreview instanceof HTMLElement &&
+                      zoomedPreview.getAttribute('data-pdf-preview-current-page') === '2' &&
+                      zoomedPreview.getAttribute('data-pdf-preview-zoom-percent') === '125' &&
+                      zoomedControls instanceof HTMLElement &&
+                      zoomedControls.getAttribute('data-pdf-zoom-percent') === '125' &&
+                      zoomedIndicator instanceof HTMLElement &&
+                      zoomedIndicator.textContent?.trim() === '125%' &&
+                      zoomedFrame instanceof HTMLIFrameElement &&
+                      zoomedFrame.src.includes('#page=2&zoom=125');
+                    pdfPreviewControlChecks[testId] =
+                      initialPdfControls &&
+                      pageNavigationWorks &&
+                      zoomControlsWork;
                   }
                 }
               }
@@ -11729,6 +11805,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewArtifactTabChecks['workspace-spreadsheet-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-slides-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
+                filesPdfPreviewControlsWorks: Boolean(pdfPreviewControlChecks['workspace-pdf-preview']),
                 filesSpreadsheetSlidesArtifactBoundaryWorks:
                   Boolean(previewChecks.filesSpreadsheetPreviewWorks) &&
                   Boolean(previewChecks.filesSlidesPreviewWorks) &&

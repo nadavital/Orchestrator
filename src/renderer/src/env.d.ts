@@ -82,6 +82,7 @@ export interface BrowserClientToolResponse {
 export interface FilePreviewResult {
   kind: 'text' | 'markdown' | 'json' | 'csv' | 'notebook' | 'document' | 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'spreadsheet' | 'slides' | 'binary' | 'missing' | 'unreadable'
   size?: number
+  pageCount?: number
   text?: string
   truncated: boolean
 }

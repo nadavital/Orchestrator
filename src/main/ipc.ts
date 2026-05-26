@@ -38,7 +38,8 @@ type FilePreviewResult =
   | { kind: 'csv'; size: number; text: string; truncated: boolean }
   | { kind: 'notebook'; size: number; text: string; truncated: boolean }
   | { kind: 'document'; size: number; text: string; truncated: boolean }
-  | { kind: 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'spreadsheet' | 'slides' | 'binary'; size: number; truncated: boolean }
+  | { kind: 'pdf'; size: number; pageCount?: number; truncated: boolean }
+  | { kind: 'image' | 'html' | 'audio' | 'video' | 'spreadsheet' | 'slides' | 'binary'; size: number; truncated: boolean }
   | { kind: 'missing' | 'unreadable'; size?: number; truncated: false }
 
 interface BrowserAssetRequest {
@@ -65,6 +66,7 @@ interface PastedAttachmentRequest {
 }
 
 const FILE_PREVIEW_LIMIT = 80_000
+const PDF_PAGE_COUNT_LIMIT = 1_000_000
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdx'])
 const JSON_EXTENSIONS = new Set(['.json', '.jsonl'])
@@ -111,7 +113,7 @@ function previewFile(filePath: string): FilePreviewResult {
     const size = stat.size
     const extension = extname(filePath).toLowerCase()
     if (IMAGE_EXTENSIONS.has(extension)) return { kind: 'image', size, truncated: false }
-    if (extension === '.pdf') return { kind: 'pdf', size, truncated: false }
+    if (extension === '.pdf') return previewPdfFile(filePath, size)
     if (DOCUMENT_EXTENSIONS.has(extension)) return previewDocxFile(filePath, size)
     if (SPREADSHEET_EXTENSIONS.has(extension)) return { kind: 'spreadsheet', size, truncated: false }
     if (SLIDES_EXTENSIONS.has(extension)) return { kind: 'slides', size, truncated: false }
@@ -171,6 +173,33 @@ function previewFile(filePath: string): FilePreviewResult {
   } catch {
     return { kind: 'unreadable', truncated: false }
   }
+}
+
+function previewPdfFile(filePath: string, size: number): FilePreviewResult {
+  const byteCount = Math.min(size, PDF_PAGE_COUNT_LIMIT)
+  const buffer = Buffer.alloc(byteCount)
+  const fd = openSync(filePath, 'r')
+  try {
+    readSync(fd, buffer, 0, byteCount, 0)
+  } finally {
+    closeSync(fd)
+  }
+  const pageCount = extractPdfPageCount(buffer.toString('latin1'))
+  return pageCount !== undefined
+    ? { kind: 'pdf', size, pageCount, truncated: false }
+    : { kind: 'pdf', size, truncated: false }
+}
+
+function extractPdfPageCount(text: string): number | undefined {
+  let pagesCount = 0
+  for (const match of text.matchAll(/\/Type\s*\/Pages\b[\s\S]{0,800}?\/Count\s+(\d+)/g)) {
+    const value = Number(match[1])
+    if (Number.isFinite(value) && value > pagesCount) pagesCount = value
+  }
+  if (pagesCount > 0) return pagesCount
+
+  const pageObjectCount = [...text.matchAll(/\/Type\s*\/Page\b(?!s)/g)].length
+  return pageObjectCount > 0 ? pageObjectCount : undefined
 }
 
 function previewDocxFile(filePath: string, size: number): FilePreviewResult {

@@ -409,11 +409,13 @@ function PreviewHeaderActions({
 
 export function ArtifactPreviewHeader({
   artifactType,
+  centerContent,
   rightContent,
   testId,
   title
 }: {
   artifactType: string
+  centerContent?: JSX.Element | null
   rightContent?: JSX.Element | null
   testId: string
   title: string
@@ -428,7 +430,9 @@ export function ArtifactPreviewHeader({
           {artifactType}
         </span>
       </span>
-      <span className="artifact-preview-header-center" aria-hidden="true" />
+      <span className="artifact-preview-header-center" aria-hidden={centerContent ? undefined : 'true'}>
+        {centerContent}
+      </span>
       <span className="artifact-preview-header-right">
         {rightContent}
       </span>

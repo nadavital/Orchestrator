@@ -4519,6 +4519,31 @@
     margin-left: auto;
   }
 
+  .file-preview-page-controls,
+  .file-preview-zoom-controls {
+    display: inline-flex;
+    min-width: 0;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .file-preview-page-indicator,
+  .file-preview-zoom-indicator {
+    min-width: 34px;
+    padding: 0 3px;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    line-height: 20px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .file-preview-zoom-indicator {
+    min-width: 42px;
+  }
+
   .notebook-preview-readonly-controls {
     display: inline-flex;
     min-width: 0;

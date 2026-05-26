@@ -371,13 +371,21 @@ function createDocxFixture(paragraphs) {
 }
 
 function createPdfFixture(text) {
-  const content = `BT /F1 18 Tf 72 720 Td (${escapePdfText(text)}) Tj ET`
+  const pages = Array.isArray(text) ? text : [text]
+  const pageObjectStart = 3
+  const fontObjectId = pageObjectStart + pages.length
+  const contentObjectStart = fontObjectId + 1
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    `<< /Type /Pages /Kids [${pages.map((_, index) => `${pageObjectStart + index} 0 R`).join(' ')}] /Count ${pages.length} >>`,
+    ...pages.map((_, index) => (
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontObjectId} 0 R >> >> /Contents ${contentObjectStart + index} 0 R >>`
+    )),
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`
+    ...pages.map((pageText) => {
+      const content = `BT /F1 18 Tf 72 720 Td (${escapePdfText(pageText)}) Tj ET`
+      return `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`
+    })
   ]
   const parts = ['%PDF-1.4\n']
   const offsets = [0]
@@ -492,7 +500,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
   writeFileSync(join(workspaceDir, 'preview-page.html'), '<!doctype html><main><h1>HTML preview smoke</h1><p>Rendered in the file inspector.</p></main>\n')
   writeFileSync(join(workspaceDir, 'data-preview-smoke.json'), JSON.stringify({ status: 'baseline', items: [{ name: 'alpha', count: 1 }] }, null, 2))
   writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,1,baseline\n')
-  writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture('PDF preview smoke baseline'))
+  writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture(['PDF preview smoke baseline', 'PDF preview smoke second page baseline']))
   writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
     'Document smoke baseline',
     'This verifies DOCX text preview in the inspector.'
@@ -560,7 +568,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     writeFileSync(join(workspaceDir, 'Nested Folder', 'nested note.md'), '# Nested file smoke preview\n\nThis verifies spaces in paths and review tree grouping.\n')
     writeFileSync(join(workspaceDir, 'data-preview-smoke.json'), JSON.stringify({ status: 'updated', items: [{ name: 'alpha', count: 2 }, { name: 'beta', count: 3 }] }, null, 2))
     writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,2,updated\nbeta,3,new\n')
-    writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture('PDF preview smoke updated'))
+    writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture(['PDF preview smoke updated', 'PDF preview smoke second page updated']))
     writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
       'Document smoke updated',
       'This verifies DOCX text preview in the inspector.'
@@ -1238,6 +1246,7 @@ child.on('exit', (code) => {
           filesJsonPreview: result.filesJsonPreviewWorks === true,
           filesCsvPreview: result.filesCsvPreviewWorks === true,
           filesPdfPreview: result.filesPdfPreviewWorks === true,
+          filesPdfPreviewControls: result.filesPdfPreviewControlsWorks === true,
           filesDocumentPreview: result.filesDocumentPreviewWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
@@ -1414,6 +1423,7 @@ child.on('exit', (code) => {
         filesJsonPreview: captureView !== 'inspector' || result.filesJsonPreviewWorks === true,
         filesCsvPreview: captureView !== 'inspector' || result.filesCsvPreviewWorks === true,
         filesPdfPreview: captureView !== 'inspector' || result.filesPdfPreviewWorks === true,
+        filesPdfPreviewControls: captureView !== 'inspector' || result.filesPdfPreviewControlsWorks === true,
         filesDocumentPreview: captureView !== 'inspector' || result.filesDocumentPreviewWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
