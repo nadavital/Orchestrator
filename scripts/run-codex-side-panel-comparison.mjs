@@ -130,9 +130,9 @@ function buildContracts() {
           maxAgeHours: 72
         }
       ],
-      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelContextMenuSharedSections', 'workbenchPanelNewTabPage'],
+      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelContextMenuSharedSections', 'workbenchPanelTabOverflowController', 'workbenchPanelNewTabPage'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator shell behavior; exact live Codex spacing and animation timing still need live UI evidence.',
+      caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
       next: 'Use focused right-panel smoke for regressions; do not call exact timing complete without live Codex comparison.'
     },
     {

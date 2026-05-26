@@ -1101,6 +1101,7 @@ child.on('exit', (code) => {
           rightPanelTabLifecycleTelemetry: result.rightPanelTabLifecycleTelemetryWorks === true,
           rightPanelTabWeightCalm: result.rightPanelTabWeightCalmWorks === true,
           rightPanelTabActionsSharedVariant: result.rightPanelTabActionsSharedVariantWorks === true,
+          workbenchPanelTabOverflowController: result.workbenchPanelTabOverflowControllerWorks === true,
           rightPanelMenuCommandState: result.rightPanelMenuCommandStateWorks === true,
           rightPanelFindShortcutRouting: result.rightPanelFindShortcutRoutingWorks === true,
           rightPanelBrowserCommandRouting: result.rightPanelBrowserCommandRoutingWorks === true,

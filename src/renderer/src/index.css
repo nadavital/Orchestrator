@@ -1258,8 +1258,9 @@
   }
 
   .workbench-panel-tabbar .motion-tab-button {
+    flex: 0 0 auto;
     min-height: var(--app-shell-tab-height);
-    min-width: 0;
+    min-width: 42px;
     max-width: 132px;
     border-radius: var(--app-shell-tab-radius);
     color: var(--text-tertiary);
@@ -1273,6 +1274,7 @@
   }
 
   .workbench-panel-tabbar .motion-tab-button[data-active='true'] {
+    min-width: 96px;
     max-width: 148px;
     border-color: transparent;
     background: color-mix(in srgb, var(--control-bg) 62%, transparent);

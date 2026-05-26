@@ -5679,6 +5679,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelTabLifecycleTelemetryWorks = false;
               let rightPanelTabWeightCalmWorks = false;
               let rightPanelTabActionsSharedVariantWorks = false;
+              let workbenchPanelTabOverflowControllerWorks = false;
               let workbenchPanelNewTabPageWorks = false;
               let rightPanelFindShortcutRoutingWorks = false;
               let rightPanelFindShortcutRoutingDebug = {};
@@ -5706,6 +5707,30 @@ function runAutomatedFocusedSurfaceSmoke(
                   activeFontWeight > 0 &&
                   activeFontWeight <= 520 &&
                   tabCountWeights.every((weight) => weight <= 500);
+              }
+              if (tabbar instanceof HTMLElement && tabRow instanceof HTMLElement) {
+                const tabButtons = [...tabbar.querySelectorAll('.motion-tab-button')]
+                  .filter((button) => button instanceof HTMLElement);
+                const activeTabButton = tabButtons.find((button) => button.getAttribute('data-active') === 'true') ?? null;
+                const tabRects = tabButtons.map((button) => button.getBoundingClientRect());
+                const tabStyles = tabButtons.map((button) => getComputedStyle(button));
+                const tabWidthsStable = tabRects.length >= 3 &&
+                  tabRects.every((rect) => rect.width >= 38 && rect.height >= 24) &&
+                  tabStyles.every((style) => style.flexShrink === '0') &&
+                  activeTabButton instanceof HTMLElement &&
+                  activeTabButton.getBoundingClientRect().width >= 84;
+                const tabsDoNotOverlap = tabRects.every((rect, index) => {
+                  const next = tabRects[index + 1];
+                  return !next || rect.right <= next.left + 1;
+                });
+                const rowCanScrollOverflow = tabRow.scrollWidth > tabRow.clientWidth + 2
+                  ? tabbar.getAttribute('data-overflow-end') === 'true' || tabRow.scrollLeft > 0
+                  : true;
+                workbenchPanelTabOverflowControllerWorks =
+                  tabWidthsStable &&
+                  tabsDoNotOverlap &&
+                  rowCanScrollOverflow &&
+                  tabRow.scrollHeight <= tabRow.clientHeight + 2;
               }
               if (tabActions instanceof HTMLElement) {
                 const actionButtons = [...tabActions.querySelectorAll('.motion-icon-button')]
@@ -6510,8 +6535,9 @@ function runAutomatedFocusedSurfaceSmoke(
                   tabRow instanceof HTMLElement &&
                   tabActions instanceof HTMLElement &&
                   tabbar.getBoundingClientRect().height <= 42 &&
-                  tabRow.scrollWidth <= tabRow.clientWidth + 64 &&
+                  tabRow.scrollHeight <= tabRow.clientHeight + 2 &&
                   tabActions.getBoundingClientRect().height <= 30,
+                workbenchPanelTabOverflowControllerWorks,
                 workbenchPanelAddControlStableWorks:
                   addButton instanceof HTMLButtonElement &&
                   addButton.dataset.icon === 'plus' &&

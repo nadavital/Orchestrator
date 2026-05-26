@@ -6436,6 +6436,16 @@ Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto --
 
 Remaining: this closes the concrete card-to-panel source/rail mismatch from the live screenshot. It does not close live commented-PR proof, provider-native hosted/cloud sources, true provider checkpoint Undo, full diff virtualization, or exact Review pixel spacing.
 
+### 2026-05-26 - Workbench Tab Overflow Chrome Slice
+
+Codex evidence: bundle evidence in `app-shell-tab-controller-B2eCi4Le.js` shows the right side panel is managed by a shared app-shell tab controller that scrolls the active tab into view. The live screenshot evidence at `/private/tmp/codex-current-screen.png` also keeps the right-panel chrome in a compact header band without collapsing the active Review tab into adjacent controls.
+
+Implemented: tightened Orchestrator's Workbench tab chrome so right-panel tab buttons keep stable compact minimum widths, active tabs keep a wider readable minimum, and crowded tab rows rely on the existing scroll/overflow controller instead of shrinking labels into the header band. Added `workbenchPanelTabOverflowController` to the focused right-panel smoke and the runnable comparison's Workbench row.
+
+Verification: `pnpm exec tsc --noEmit` passed. Focused `npm run smoke:ui:auto -- --right-panel` passed with `workbenchPanelTabOverflowController=true`, while preserving `rightPanelHeaderSeam=true`, shared layout/animation, context-menu sections, tab reorder/drag, keyboard resize, Browser command routing, and unsupported transfer boundaries. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779788387125.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-right-panel-1779788387125.png`.
+
+Remaining: this closes the local Workbench tab-collapse regression guard. It does not prove exact live Codex tab spacing, animation timing, or installed-app replacement behavior.
+
 ### 2026-05-26 - Browser Dynamic Client Tool Boundary Slice
 
 Codex evidence: current Codex bundle evidence includes browser-use client route and dynamic-tool paths in `app-server-manager-signals-Csopz8aM.js`, `browser-sidebar-manager-ivre5jEI.js`, and `thread-management-dynamic-tools-4r_Yz1XH.js`. The live proof artifact `tmp/codex-browser-appserver-live-proof/result.json` still shows that the tested stdio app-server path completes a turn without `browser.manager_state`, browser server requests, or dynamic browser tool calls, so provider-backed browser-use parity remains unproven.
