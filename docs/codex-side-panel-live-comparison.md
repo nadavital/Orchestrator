@@ -23,7 +23,7 @@ Scope note: "side panel" in the comparison matrix means the right-side Workbench
 - Codex app bundle: `/Applications/Codex.app/Contents/Resources/app.asar`, `CFBundleShortVersionString=26.519.41501`.
 - Extracted Codex side-panel chunks under `tmp/codex-app-assets`.
 - Current Orchestrator full visual inventory: `tmp/side-panel-visual-inventory-current/manifest.json`, 25 captures, no failures, created at `2026-05-26T16:15:42.776Z`.
-- Current runnable comparison: `tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-26T16:16:48.727Z`, status `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, `needsProof=0`.
+- Current runnable comparison: `tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-26T16:25:14.342Z`, status `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, `needsProof=0`.
 - Current dynamic client-tool transport proof: `tmp/codex-dynamic-tools-live-proof/result.json`, status `ok=true`; the live Codex app-server accepted advertised `dynamicTools`, sent `item/tool/call` for `orchestrator.browser_bridge_status`, received Orchestrator's response, and completed with `CODEX_BROWSER_LIVE_OK`.
 - Current real Browser dynamic-tool proof: `tmp/codex-browser-tools-live-proof/result.json`, status `ok=true`; the live Codex app-server accepted the production Browser tool specs, sent `item/tool/call` for `orchestrator.browser_open` with JSON-RPC id `0`, then `orchestrator.browser_read` with JSON-RPC id `1`, and completed with `CODEX_BROWSER_LIVE_OK`.
 - Current comparison artifact gating: the Browser row now parses those live proof JSON files directly, including the `serverRequests[].paramsPreview` tool calls, so missing or stale live proof artifacts show up in the comparison report.
@@ -32,9 +32,9 @@ Scope note: "side panel" in the comparison matrix means the right-side Workbench
 
 ## 2026-05-26 Visual Pass
 
-Direct live Codex UI inspection through Computer Use is currently blocked by the app safety boundary: `com.openai.codex` is not inspectable from this environment. A macOS `screencapture` route does work for the currently visible Codex window, so live visual checks can use whole-screen screenshots when Codex is on screen. This pass still does not claim full pixel-level side-by-side parity with the running Codex app. It combines the live installed Codex bundle/version, live screenshot evidence where available, the runnable comparison script, and the current Orchestrator 25-surface screenshot inventory.
+Direct live Codex UI inspection through Computer Use is currently blocked by the app safety boundary: `com.openai.codex` is not inspectable from this environment. A macOS `screencapture` route has worked in earlier passes, but the current attempt produced an all-black PNG. The comparison now validates PNG nonblank signal for `/private/tmp/codex-current-screen.png` and marks black captures as `stale/incomplete` instead of treating file presence, byte size, and age as proof. This pass still does not claim full pixel-level side-by-side parity with the running Codex app. It combines the live installed Codex bundle/version, live screenshot evidence only when the PNG is nonblank, the runnable comparison script, and the current Orchestrator 25-surface screenshot inventory.
 
-Live screenshot evidence from 2026-05-26: `/private/tmp/codex-current-screen.png` showed Codex's left sidebar top utility rows as `New chat`, `Search`, `Plugins`, and `Automations`, followed by Pinned, Projects, Chats, and a Settings footer. It also showed the Review right panel using compact Review tabs, a `Last turn` source row, file path header, and compact diff rows.
+Earlier live screenshot evidence from 2026-05-26 showed Codex's left sidebar top utility rows as `New chat`, `Search`, `Plugins`, and `Automations`, followed by Pinned, Projects, Chats, and a Settings footer. It also showed the Review right panel using compact Review tabs, a `Last turn` source row, file path header, and compact diff rows. Do not reuse the current `/private/tmp/codex-current-screen.png` as visual proof unless the comparison reports nonblank image metrics for it.
 
 Reviewed Orchestrator screenshots:
 
@@ -59,7 +59,7 @@ Highest-value next UI/parity work:
 5. Settings adapter parity: keep unsupported Host Personalization and remote-host pages explicitly unavailable until real provider adapters exist.
 6. Review visual spacing: defer further Review padding/color work unless a live Codex screenshot or a new visual fixture demonstrates a specific mismatch.
 
-Panel/header interaction remains a first-class contract, not an incidental visual note: any future sidebar, main titlebar, Workbench right-panel, or Terminal bottom-panel change must keep the dedicated `Header and panel interaction` comparison row green and inspect `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html`. The comparison report also records the live Codex screenshot file backing this row, including presence, size, and age, so stale or missing live evidence is visible during future parity runs.
+Panel/header interaction remains a first-class contract, not an incidental visual note: any future sidebar, main titlebar, Workbench right-panel, or Terminal bottom-panel change must keep the dedicated `Header and panel interaction` comparison row green and inspect `tmp/codex-side-panel-comparison/header-panel-contact-sheet.html`. The comparison report also records the live Codex screenshot file backing this row, including presence, size, age, and nonblank PNG metrics, so stale, missing, or black live evidence is visible during future parity runs.
 
 ## Recently Aligned
 

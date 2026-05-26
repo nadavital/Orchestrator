@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs
 import { join, relative, resolve } from 'path'
 import { spawnSync } from 'child_process'
 import { fileURLToPath, pathToFileURL } from 'url'
+import { inflateSync } from 'zlib'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const outDir = resolve(readArg('--out') ?? join(root, 'tmp', 'codex-side-panel-comparison'))
@@ -115,7 +116,8 @@ function buildContracts() {
           path: '/private/tmp/codex-current-screen.png',
           label: 'live Codex shell screenshot',
           minBytes: 100000,
-          maxAgeHours: 72
+          maxAgeHours: 72,
+          imageNonBlank: true
         }
       ],
       smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent'],
@@ -137,7 +139,8 @@ function buildContracts() {
           path: '/private/tmp/codex-current-screen.png',
           label: 'live Codex right-panel/header screenshot',
           minBytes: 100000,
-          maxAgeHours: 72
+          maxAgeHours: 72,
+          imageNonBlank: true
         }
       ],
       smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'workbenchPanelTabOverflowController', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance'],
@@ -419,16 +422,18 @@ function evaluateFileEvidence(contract, fileCache) {
           available: true,
           size: stat.size,
           mtimeMs: stat.mtimeMs,
-          mtimeIso: stat.mtime.toISOString()
+          mtimeIso: stat.mtime.toISOString(),
+          image: inspectImageEvidence(resolvedPath)
         }
       } else {
-        cached = { available: false, size: 0, mtimeMs: null, mtimeIso: null }
+        cached = { available: false, size: 0, mtimeMs: null, mtimeIso: null, image: null }
       }
       fileCache.set(resolvedPath, cached)
     }
     const minBytesPassed = cached.available && (spec.minBytes == null || cached.size >= spec.minBytes)
     const ageHours = cached.mtimeMs == null ? null : (now - cached.mtimeMs) / (1000 * 60 * 60)
     const freshnessPassed = cached.available && (spec.maxAgeHours == null || ageHours <= spec.maxAgeHours)
+    const imagePassed = !spec.imageNonBlank || (cached.image?.nonBlank === true)
     fileResults.push({
       path: spec.path,
       label: spec.label ?? spec.path,
@@ -439,7 +444,9 @@ function evaluateFileEvidence(contract, fileCache) {
       maxAgeHours: spec.maxAgeHours ?? null,
       ageHours,
       minBytes: spec.minBytes ?? null,
-      passed: minBytesPassed && freshnessPassed
+      imageNonBlank: spec.imageNonBlank === true,
+      image: cached.image,
+      passed: minBytesPassed && freshnessPassed && imagePassed
     })
   }
   if (fileResults.length === 0) return { required: false, available: false, passed: null, files: [] }
@@ -449,6 +456,167 @@ function evaluateFileEvidence(contract, fileCache) {
     passed: fileResults.every((file) => !file.required || file.passed) && fileResults.every((file) => file.required || file.available),
     files: fileResults
   }
+}
+
+function inspectImageEvidence(path) {
+  if (!path.endsWith('.png')) return null
+  try {
+    return inspectPngImage(path)
+  } catch (error) {
+    return {
+      inspected: false,
+      nonBlank: false,
+      reason: error instanceof Error ? error.message : String(error)
+    }
+  }
+}
+
+function inspectPngImage(path) {
+  const bytes = readFileSync(path)
+  const signature = bytes.subarray(0, 8)
+  if (!signature.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return { inspected: false, nonBlank: false, reason: 'not a png' }
+  }
+
+  let width = 0
+  let height = 0
+  let bitDepth = 0
+  let colorType = 0
+  let interlace = 0
+  const idatChunks = []
+  for (let offset = 8; offset + 12 <= bytes.length;) {
+    const length = bytes.readUInt32BE(offset)
+    const type = bytes.toString('ascii', offset + 4, offset + 8)
+    const dataStart = offset + 8
+    const dataEnd = dataStart + length
+    if (dataEnd + 4 > bytes.length) break
+    if (type === 'IHDR') {
+      width = bytes.readUInt32BE(dataStart)
+      height = bytes.readUInt32BE(dataStart + 4)
+      bitDepth = bytes[dataStart + 8]
+      colorType = bytes[dataStart + 9]
+      interlace = bytes[dataStart + 12]
+    } else if (type === 'IDAT') {
+      idatChunks.push(bytes.subarray(dataStart, dataEnd))
+    } else if (type === 'IEND') {
+      break
+    }
+    offset = dataEnd + 4
+  }
+
+  if (width <= 0 || height <= 0 || idatChunks.length === 0) {
+    return { inspected: false, nonBlank: false, reason: 'missing image data' }
+  }
+  if (bitDepth !== 8 || interlace !== 0 || (colorType !== 2 && colorType !== 6)) {
+    return {
+      inspected: false,
+      nonBlank: false,
+      reason: `unsupported png format bitDepth=${bitDepth} colorType=${colorType} interlace=${interlace}`,
+      width,
+      height
+    }
+  }
+
+  const channels = colorType === 6 ? 4 : 3
+  const rowLength = width * channels
+  const inflated = inflateSync(Buffer.concat(idatChunks))
+  const expectedLength = (rowLength + 1) * height
+  if (inflated.length < expectedLength) {
+    return { inspected: false, nonBlank: false, reason: 'truncated image data', width, height }
+  }
+
+  const sampleEvery = Math.max(1, Math.floor((width * height) / 50000))
+  const previous = Buffer.alloc(rowLength)
+  const current = Buffer.alloc(rowLength)
+  let sampled = 0
+  let nonTransparent = 0
+  let nonBlack = 0
+  let luminanceSum = 0
+  let luminanceSquares = 0
+  const colorBuckets = new Set()
+
+  for (let y = 0; y < height; y += 1) {
+    const rowStart = y * (rowLength + 1)
+    const filter = inflated[rowStart]
+    inflated.copy(current, 0, rowStart + 1, rowStart + 1 + rowLength)
+    unfilterPngRow(current, previous, channels, filter)
+
+    for (let x = 0; x < width; x += 1) {
+      const pixelIndex = y * width + x
+      if (pixelIndex % sampleEvery !== 0) continue
+      const offset = x * channels
+      const red = current[offset]
+      const green = current[offset + 1]
+      const blue = current[offset + 2]
+      const alpha = channels === 4 ? current[offset + 3] : 255
+      const luminance = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
+      sampled += 1
+      luminanceSum += luminance
+      luminanceSquares += luminance * luminance
+      if (alpha > 16) nonTransparent += 1
+      if (alpha > 16 && (red > 5 || green > 5 || blue > 5)) nonBlack += 1
+      if (colorBuckets.size < 256) {
+        colorBuckets.add(`${red >> 4}:${green >> 4}:${blue >> 4}:${alpha >> 4}`)
+      }
+    }
+
+    current.copy(previous)
+  }
+
+  const meanLuminance = sampled > 0 ? luminanceSum / sampled : 0
+  const luminanceVariance = sampled > 0 ? Math.max(0, (luminanceSquares / sampled) - (meanLuminance * meanLuminance)) : 0
+  const luminanceStdDev = Math.sqrt(luminanceVariance)
+  const nonTransparentRatio = sampled > 0 ? nonTransparent / sampled : 0
+  const nonBlackRatio = sampled > 0 ? nonBlack / sampled : 0
+  const nonBlank = nonTransparentRatio >= 0.01 && nonBlackRatio >= 0.005 && luminanceStdDev >= 2 && colorBuckets.size >= 3
+
+  return {
+    inspected: true,
+    nonBlank,
+    width,
+    height,
+    sampled,
+    nonTransparentRatio: Number(nonTransparentRatio.toFixed(4)),
+    nonBlackRatio: Number(nonBlackRatio.toFixed(4)),
+    luminanceStdDev: Number(luminanceStdDev.toFixed(2)),
+    colorBucketCount: colorBuckets.size
+  }
+}
+
+function unfilterPngRow(row, previous, bytesPerPixel, filter) {
+  for (let index = 0; index < row.length; index += 1) {
+    const left = index >= bytesPerPixel ? row[index - bytesPerPixel] : 0
+    const up = previous[index] ?? 0
+    const upLeft = index >= bytesPerPixel ? previous[index - bytesPerPixel] : 0
+    switch (filter) {
+      case 0:
+        break
+      case 1:
+        row[index] = (row[index] + left) & 0xff
+        break
+      case 2:
+        row[index] = (row[index] + up) & 0xff
+        break
+      case 3:
+        row[index] = (row[index] + Math.floor((left + up) / 2)) & 0xff
+        break
+      case 4:
+        row[index] = (row[index] + paethPredictor(left, up, upLeft)) & 0xff
+        break
+      default:
+        throw new Error(`unsupported png filter ${filter}`)
+    }
+  }
+}
+
+function paethPredictor(left, up, upLeft) {
+  const estimate = left + up - upLeft
+  const leftDistance = Math.abs(estimate - left)
+  const upDistance = Math.abs(estimate - up)
+  const upLeftDistance = Math.abs(estimate - upLeft)
+  if (leftDistance <= upDistance && leftDistance <= upLeftDistance) return left
+  if (upDistance <= upLeftDistance) return up
+  return upLeft
 }
 
 function evaluateArtifactCheck(parsed, check) {
@@ -845,9 +1013,17 @@ function summarizeFileEvidence(file) {
   return file.files.map((entry) => {
     if (!entry.available) return `${entry.label}: missing`
     const age = entry.ageHours == null ? '' : `, age ${formatAge(entry.ageHours)}`
+    const image = summarizeImageEvidence(entry)
     const status = entry.passed ? 'ok' : 'stale/incomplete'
-    return `${entry.label}: ${status} (${entry.path}, ${entry.size} bytes${age})`
+    return `${entry.label}: ${status} (${entry.path}, ${entry.size} bytes${age}${image})`
   }).join('; ')
+}
+
+function summarizeImageEvidence(entry) {
+  if (entry.imageNonBlank !== true) return ''
+  if (entry.image == null) return ', image not inspected'
+  if (entry.image.inspected !== true) return `, image failed: ${entry.image.reason ?? 'not inspected'}`
+  return `, nonBlack=${entry.image.nonBlackRatio}, lumaStdDev=${entry.image.luminanceStdDev}, colors=${entry.image.colorBucketCount}`
 }
 
 function formatAge(hours) {
