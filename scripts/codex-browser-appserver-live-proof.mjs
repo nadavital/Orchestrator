@@ -22,14 +22,28 @@ const browserProofUrl = process.env.CODEX_BROWSER_PROOF_URL ??
 const codexAppAsarPath = process.env.CODEX_APP_ASAR_PATH ?? '/Applications/Codex.app/Contents/Resources/app.asar'
 const expectedToken = 'CODEX_BROWSER_LIVE_OK'
 const noBrowserToken = 'CODEX_BROWSER_LIVE_NO_BROWSER'
-const prompt = process.env.CODEX_BROWSER_PROOF_PROMPT ?? [
+const enableDynamicToolProof = process.env.CODEX_BROWSER_PROOF_DYNAMIC_TOOL === '1'
+const dynamicToolNamespace = 'orchestrator'
+const dynamicToolName = 'browser_bridge_status'
+const dynamicToolFullName = `${dynamicToolNamespace}.${dynamicToolName}`
+const defaultPrompt = enableDynamicToolProof
+  ? [
+      'This is a live Orchestrator/Codex app-server dynamic client-tool proof.',
+      'Do not edit files.',
+      'Do not run shell commands.',
+      `Call the dynamic client tool named ${dynamicToolFullName}.`,
+      `After the tool returns, reply with exactly ${expectedToken}.`,
+      `If the tool is not available, reply with exactly ${noBrowserToken}.`
+    ]
+  : [
   'This is a live Orchestrator/Codex app-server browser integration proof.',
   'Do not edit files.',
   'Do not run shell commands.',
   `If a browser or browser-use tool is available, use it to inspect this URL: ${browserProofUrl}`,
   `After using the browser, reply with exactly ${expectedToken}.`,
   `If no browser/browser-use tool is available, reply with exactly ${noBrowserToken}.`
-].join(' ')
+    ]
+const prompt = process.env.CODEX_BROWSER_PROOF_PROMPT ?? defaultPrompt.join(' ')
 
 const resolved = resolveProviderCommand(provider, { binary: provider.binary, args: ['app-server', '--listen', 'stdio://'] })
 if (!resolved) {
@@ -93,7 +107,7 @@ try {
     capabilities: { experimentalApi: true }
   })
   notify('initialized')
-  const threadResult = await request('thread/start', {
+  const threadStartParams = {
     model,
     cwd,
     approvalPolicy: 'never',
@@ -102,7 +116,26 @@ try {
     serviceName: 'orchestrator-browser-live-proof',
     ephemeral: true,
     sessionStartSource: 'startup'
-  })
+  }
+  if (enableDynamicToolProof) {
+    threadStartParams.dynamicTools = [{
+      namespace: dynamicToolNamespace,
+      name: dynamicToolName,
+      description: 'Return a small status payload proving Orchestrator can receive and answer Codex app-server dynamic client-tool calls. This tool does not control the browser.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          reason: {
+            type: 'string',
+            description: 'Why the model is checking the browser bridge.'
+          }
+        }
+      }
+    }]
+  }
+
+  const threadResult = await request('thread/start', threadStartParams)
   const threadId = threadResult?.thread?.id
   if (!threadId) throw new Error('thread/start did not return a thread id')
 
@@ -124,8 +157,15 @@ try {
   )
   const assistantSawNoBrowser = assistantText.includes(noBrowserToken)
   const assistantSawOk = assistantText.includes(expectedToken)
+  const dynamicToolCalls = serverRequests.filter((request) => request.method === 'item/tool/call')
 
-  if (browserEvents.length > 0 && assistantSawOk) {
+  if (enableDynamicToolProof && dynamicToolCalls.length > 0 && assistantSawOk) {
+    finish(true, 'live Codex app-server accepted advertised dynamicTools and completed an item/tool/call round trip')
+  } else if (enableDynamicToolProof && dynamicToolCalls.length > 0) {
+    finish(false, `dynamic tool call observed but expected assistant token was missing: ${assistantText.trim()}`)
+  } else if (enableDynamicToolProof) {
+    finish(false, 'no item/tool/call observed for advertised dynamicTools proof')
+  } else if (browserEvents.length > 0 && assistantSawOk) {
     finish(true, 'live Codex app-server emitted browser.manager_state and completed browser proof')
   } else if (unsupportedClientTools.length > 0) {
     finish(false, `blocked: Codex app-server requested unsupported client browser/tool call(s): ${unsupportedClientTools.map((request) => request.method).join(', ')}`)
@@ -175,7 +215,7 @@ function handleLine(line) {
     parseErrors.push({ line, error: error instanceof Error ? error.message : String(error) })
   }
 
-  if (message.id && !message.method) {
+  if (message.id != null && !message.method) {
     const waiter = pending.get(message.id)
     if (!waiter) return
     pending.delete(message.id)
@@ -184,7 +224,7 @@ function handleLine(line) {
     return
   }
 
-  if (message.id && message.method) {
+  if (message.id != null && message.method) {
     serverRequests.push({
       id: message.id,
       method: message.method,
@@ -225,6 +265,27 @@ function answerServerRequest(message) {
     send({ id: message.id, result: { action: 'decline', content: noBrowserToken, _meta: null } })
     return
   }
+  if (message.method === 'item/tool/call') {
+    const namespace = typeof message.params?.namespace === 'string' ? message.params.namespace : null
+    const tool = typeof message.params?.tool === 'string' ? message.params.tool : ''
+    if (enableDynamicToolProof && namespace === dynamicToolNamespace && tool === dynamicToolName) {
+      send({
+        id: message.id,
+        result: {
+          contentItems: [{
+            type: 'inputText',
+            text: JSON.stringify({
+              ok: true,
+              bridge: 'dynamicTools',
+              note: 'Orchestrator received and answered this dynamic client-tool call.'
+            })
+          }],
+          success: true
+        }
+      })
+      return
+    }
+  }
   send({ id: message.id, error: { code: -32601, message: 'Orchestrator browser live proof does not implement client-side dynamic tools.' } })
 }
 
@@ -256,6 +317,8 @@ function writeArtifacts(result) {
     cwd,
     model,
     prompt,
+    enableDynamicToolProof,
+    advertisedDynamicTools: enableDynamicToolProof ? [dynamicToolFullName] : [],
     methods: [...new Set(methods)],
     methodCounts: methods.reduce((counts, method) => ({ ...counts, [method]: (counts[method] ?? 0) + 1 }), {}),
     serverRequests,

@@ -6426,6 +6426,16 @@ Verification: `npm run test:providers` passed with 292 tests. The `codex app-ser
 
 Remaining: this does not implement the real dynamic client-tool bridge. Agent-driven browser-use parity still requires a bridge that advertises browser tools and routes tool calls to the Browser renderer, plus a live provider proof that browser/tool requests or `browser.manager_state` events actually flow through that bridge.
 
+### 2026-05-26 - Dynamic Client Tool Transport Proof
+
+Codex evidence: the generated app-server TypeScript omits `dynamicTools` from `ThreadStartParams`, but Codex desktop bundle evidence in `app-server-manager-signals-Csopz8aM.js` shows `buildNewConversationParams` adding `dynamicTools` from `dynamic-tools-for-thread-start-requested`, and `thread-management-dynamic-tools-4r_Yz1XH.js` contains concrete `DynamicToolSpec`-style tool definitions. The previous browser-use live proof did not trigger browser-specific tools, so the missing question was whether the stdio app-server path could transport any advertised dynamic client tool at all.
+
+Implemented: added `npm run live:codex-dynamic-tools`, which reuses the live browser app-server proof harness with `CODEX_BROWSER_PROOF_DYNAMIC_TOOL=1`. In that mode the script advertises a harmless `orchestrator.browser_bridge_status` dynamic tool on `thread/start.dynamicTools`, asks Codex to call it, handles JSON-RPC server request ids correctly including numeric id `0`, returns a `DynamicToolCallResponse`, and records the artifact under `tmp/codex-dynamic-tools-live-proof`.
+
+Verification: `npm run live:codex-dynamic-tools` passed. The artifact shows `ok=true`, one `item/tool/call` server request for `orchestrator.browser_bridge_status`, assistant text `CODEX_BROWSER_LIVE_OK`, and event types including `tool.started`, `tool.completed`, `assistant.text.delta`, and `run.completed`.
+
+Remaining: this proves generic app-server dynamic client-tool transport, not Browser automation parity. The next Browser bridge slice should advertise real Browser tools and route `item/tool/call` from main to the Browser renderer for navigation/read/action results. The production runtime should keep explicit unavailable handling for unimplemented dynamic tools until that bridge exists.
+
 Recommended order:
 
 1. Shell/tab foundation only.
