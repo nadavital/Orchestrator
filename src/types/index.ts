@@ -1222,11 +1222,26 @@ export interface ReviewCommentSummary {
   url?: string | null
 }
 
+export interface ReviewProviderComment {
+  id: string
+  source: 'github'
+  path: string
+  side: 'old' | 'new'
+  lineNumber: number
+  body: string
+  author?: string
+  url?: string | null
+  resolved?: boolean
+  outdated?: boolean
+  createdAt?: string
+}
+
 export interface ReviewMetadata {
   pullRequest?: ReviewPullRequestMetadata
   checks?: ReviewCheckSummary
   reviewers?: ReviewReviewerSummary
   comments?: ReviewCommentSummary
+  providerCommentsByPath?: Record<string, ReviewProviderComment[]>
 }
 
 export interface Session {

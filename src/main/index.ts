@@ -8391,6 +8391,9 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(160);
               }
               const selectedUnifiedLine = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"] [data-review-selected-line="true"]');
+              const providerReviewCommentCard = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-card"][data-review-comment-status="provider"]');
+              const providerReviewCommentBody = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-body"]');
+              const providerReviewCommentMeta = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-provider-meta"]');
               const reviewCommentButton = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-add-comment"]');
               if (reviewCommentButton instanceof HTMLButtonElement) {
                 reviewCommentButton.click();
@@ -8408,8 +8411,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 await sleep(160);
               }
               const reviewDiffAfterComment = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"]');
-              const reviewCommentCard = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-card"]');
-              const reviewCommentBody = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-body"]');
+              const reviewCommentCard = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-card"][data-review-comment-status="saved"]');
+              const reviewCommentBody = reviewCommentCard?.querySelector('[data-testid="review-diff-comment-body"]');
               const commentedReviewLine = activeReviewSectionForLine?.querySelector('[data-testid="review-unified-diff"] [data-review-line-has-comment="true"]');
               const commentedReviewPath = selectedUnifiedLine instanceof HTMLElement
                 ? selectedUnifiedLine.closest('[data-testid="review-file-section"]')?.getAttribute('data-review-path') ?? ''
@@ -8420,7 +8423,16 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewCommentInput instanceof HTMLTextAreaElement &&
                 reviewCommentSave instanceof HTMLButtonElement &&
                 reviewDiffAfterComment instanceof HTMLElement &&
-                reviewDiffAfterComment.getAttribute('data-review-comment-count') === '1' &&
+                reviewDiffAfterComment.getAttribute('data-review-comment-count') === '2' &&
+                providerReviewCommentCard instanceof HTMLElement &&
+                providerReviewCommentCard.getAttribute('data-review-comment-side') === selectedUnifiedLine.getAttribute('data-line-number-side') &&
+                providerReviewCommentCard.getAttribute('data-review-comment-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
+                providerReviewCommentCard.getAttribute('data-review-comment-provider-source') === 'github' &&
+                providerReviewCommentCard.getAttribute('data-review-comment-resolved') === 'false' &&
+                providerReviewCommentBody instanceof HTMLElement &&
+                providerReviewCommentBody.textContent?.includes('Provider inline review from GitHub') === true &&
+                providerReviewCommentMeta instanceof HTMLElement &&
+                providerReviewCommentMeta.textContent?.includes('Unresolved') === true &&
                 reviewCommentCard instanceof HTMLElement &&
                 reviewCommentCard.getAttribute('data-review-comment-side') === selectedUnifiedLine.getAttribute('data-line-number-side') &&
                 reviewCommentCard.getAttribute('data-review-comment-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
@@ -8428,7 +8440,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewCommentBody instanceof HTMLElement &&
                 reviewCommentBody.textContent?.includes('review diff note from smoke') === true &&
                 commentedReviewLine instanceof HTMLElement &&
-                commentedReviewLine.getAttribute('data-review-line-comment-count') === '1';
+                commentedReviewLine.getAttribute('data-review-line-comment-count') === '2';
               const reviewSidePaneCommentCount = commentedReviewPath
                 ? document.querySelector('.diff-panel-list [data-review-path="' + CSS.escape(commentedReviewPath) + '"] [data-review-file-comment-count]')
                 : null;
@@ -8436,8 +8448,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewLineCommentsWork &&
                 commentedReviewPath.length > 0 &&
                 reviewSidePaneCommentCount instanceof HTMLElement &&
-                reviewSidePaneCommentCount.textContent?.trim() === '1' &&
-                reviewSidePaneCommentCount.getAttribute('aria-label') === '1 review comment' &&
+                reviewSidePaneCommentCount.textContent?.trim() === '2' &&
+                reviewSidePaneCommentCount.getAttribute('aria-label') === '2 review comments' &&
                 !document.querySelector('.diff-panel-list .motion-badge');
               const reviewBlameToggle = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-toggle-blame"]');
               const reviewInlineActionPopover = selectedUnifiedLine instanceof HTMLElement
@@ -17590,6 +17602,23 @@ function seedAutomatedReviewCardSmokeSession(sessionId: string): void {
           threads: 2,
           authors: ['Mona', 'Ada', 'Grace'],
           url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1'
+        },
+        providerCommentsByPath: {
+          'review-base.txt': [
+            {
+              id: 'github-review-thread-smoke-1',
+              source: 'github',
+              path: 'review-base.txt',
+              side: 'new',
+              lineNumber: 2,
+              body: 'Provider inline review from GitHub',
+              author: 'Grace',
+              url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1',
+              resolved: false,
+              outdated: false,
+              createdAt: '2026-05-25T12:00:00Z'
+            }
+          ]
         }
       }
     })

@@ -6336,12 +6336,22 @@ Verification: live `gh pr view --json id,url` found PR #2 (`PR_kwDOSUkx-M7fPPvv`
 
 Remaining: this closes GitHub-backed inline review-thread summary metadata, not full per-line provider comment rendering. Provider-native hosted/cloud metadata adapters, provider blame, true provider checkpoint Undo, cloud/hosted diff adapters, deeper hosted conflict workflows, full diff virtualization, and live Codex side-by-side Review spacing comparison remain open.
 
+### 2026-05-25 - Review Provider Comment Line Rendering Slice
+
+Codex evidence: re-used the current extracted Review comments bundles. Codex's comments lane is not only a toolbar count; inline PR review comments are associated with files and diff lines. The previous Orchestrator slice normalized thread summary metadata but did not render provider comments on the affected Review lines.
+
+Implemented: `reviewThreads` parsing now captures path, side, line/originalLine, body, author, URL, resolved, outdated, and created-at fields into `providerCommentsByPath`. Detailed Review merges those provider comments into the existing `ReviewDiffComment` stack as read-only `provider` cards, keeps local draft/saved comments editable, prevents local Add comment from mutating provider cards on the same line, preserves provider comments across diff reloads, and counts provider comments in the changed-files rail badge. Provider comment cards expose source/author/url/resolved/outdated metadata and an external Open action.
+
+Verification: `pnpm exec tsc --noEmit` passed. `git diff --check` passed. `npm run test:providers` passed with 291/291 tests, including review-thread parser coverage for provider line comments. `npm run build` passed. Focused `npm run smoke:ui:auto -- --diff-source` passed with `reviewLineComments=true` and `reviewSidePaneCommentCount=true`, proving a seeded GitHub provider comment and a local saved comment render on the same Review diff line with a count of 2 in both the line and side rail. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779768713722.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-diff-source-1779768713722.png`.
+
+Remaining: this closes fixture-backed GitHub provider comment line rendering and parser coverage. Live commented-PR proof is still pending because the current PR has no review threads. Provider-native hosted/cloud comment adapters, provider blame, true provider checkpoint Undo, cloud/hosted diff adapters, deeper hosted conflict workflows, full diff virtualization, and live Codex side-by-side Review spacing comparison remain open.
+
 Recommended order:
 
 1. Shell/tab foundation only.
 2. Workbench chrome migration.
 3. Terminal live Codex bottom-panel height/animation comparison at multiple window sizes plus root shell ownership for any remaining non-shared tab paths. The local content/chrome/target decomposition is now smoke-gated; live Codex numeric comparison remains.
-4. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, per-line provider comment rendering/blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
+4. Preserve the Review backlog as targeted slices, not a catch-all proving ground: true provider checkpoint Undo adapter, cloud/provider-native review sources, hosted provider source flows, real PR metadata beyond the local GitHub path, live commented-PR proof, provider blame, richer context thresholds, diff virtualization, hosted/deeper conflict workflows, and exact Review spacing screenshot comparison.
 5. File tabs and file viewer parity, now focused on full artifact rendering/provider search after the artifact identity/source-boundary slice.
 6. Browser lifecycle parity.
 7. Chat Sidebar model and visual rebuild.

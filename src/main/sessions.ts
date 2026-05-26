@@ -128,6 +128,23 @@ function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
       threads: 2,
       authors: ['Mona', 'Ada', 'Grace'],
       url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1'
+    },
+    providerCommentsByPath: {
+      'review-base.txt': [
+        {
+          id: 'github-review-thread-smoke-1',
+          source: 'github',
+          path: 'review-base.txt',
+          side: 'new',
+          lineNumber: 2,
+          body: 'Provider inline review from GitHub',
+          author: 'Grace',
+          url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1',
+          resolved: false,
+          outdated: false,
+          createdAt: '2026-05-25T12:00:00Z'
+        }
+      ]
     }
   }
 }
