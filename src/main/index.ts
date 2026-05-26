@@ -10506,6 +10506,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const previewArtifactTabChecks = {};
               const notebookReadOnlyControlChecks = {};
               const notebookOutputRenderingChecks = {};
+              const notebookCellDisclosureChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
@@ -10618,6 +10619,23 @@ function runAutomatedFocusedSurfaceSmoke(
                     const outputContainer = document.querySelector('[data-testid="notebook-preview-outputs"]');
                     const streamOutput = document.querySelector('[data-notebook-output-type="stream"]');
                     const jsonOutput = document.querySelector('[data-notebook-output-type="json"]');
+                    const notebookCells = [...document.querySelectorAll('[data-testid="notebook-preview-cell"]')];
+                    const firstNotebookCell = notebookCells[0];
+                    const firstNotebookSummary = firstNotebookCell instanceof HTMLDetailsElement
+                      ? firstNotebookCell.querySelector('summary.notebook-preview-cell-header')
+                      : null;
+                    notebookCellDisclosureChecks[testId] =
+                      notebookCells.length >= 2 &&
+                      notebookCells.every((cell) =>
+                        cell instanceof HTMLDetailsElement &&
+                        cell.open &&
+                        cell.getAttribute('data-notebook-cell-disclosure') === 'true' &&
+                        cell.querySelector('summary.notebook-preview-cell-header') instanceof HTMLElement &&
+                        cell.querySelector('.notebook-preview-cell-body') instanceof HTMLElement
+                      ) &&
+                      firstNotebookSummary instanceof HTMLElement &&
+                      firstNotebookSummary.querySelector('.notebook-preview-cell-disclosure-icon') instanceof HTMLElement &&
+                      firstNotebookSummary.textContent?.includes('Cell 1') === true;
                     notebookOutputRenderingChecks[testId] =
                       outputContainer instanceof HTMLElement &&
                       Number(outputContainer.getAttribute('data-notebook-output-count') ?? '0') >= 2 &&
@@ -11285,6 +11303,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
                 filesNotebookReadOnlyControlsWorks: Boolean(notebookReadOnlyControlChecks['workspace-notebook-preview']),
                 filesNotebookOutputRenderingWorks: Boolean(notebookOutputRenderingChecks['workspace-notebook-preview']),
+                filesNotebookCellDisclosureWorks: Boolean(notebookCellDisclosureChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks

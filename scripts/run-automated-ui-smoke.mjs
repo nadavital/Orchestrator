@@ -1204,6 +1204,7 @@ child.on('exit', (code) => {
           filesNotebookPreview: result.filesNotebookPreviewWorks === true,
           filesNotebookReadOnlyControls: result.filesNotebookReadOnlyControlsWorks === true,
           filesNotebookOutputRendering: result.filesNotebookOutputRenderingWorks === true,
+          filesNotebookCellDisclosure: result.filesNotebookCellDisclosureWorks === true,
           filesBinaryPreview: result.filesBinaryPreviewWorks === true,
           filesFallbackNoticeShared: result.filesFallbackNoticeSharedWorks === true,
           filesNoResults: result.filesNoResultsWorks === true,

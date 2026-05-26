@@ -147,25 +147,40 @@ function NotebookPreview({
       {notebook.valid ? (
         <div className="notebook-preview-list min-h-0 flex-1 overflow-auto">
           {notebook.cells.slice(0, 40).map((cell, index) => (
-            <section className="notebook-preview-cell" key={index}>
-              <div className="notebook-preview-cell-header">
-                <Badge tone="neutral">{cell.type}</Badge>
-                <span>Cell {index + 1}</span>
-                {cell.outputs.length > 0 && <span>{cell.outputs.length} outputs</span>}
+            <details
+              className="notebook-preview-cell"
+              data-testid="notebook-preview-cell"
+              data-notebook-cell-disclosure="true"
+              key={index}
+              open
+            >
+              <summary className="notebook-preview-cell-header">
+                <span className="notebook-preview-cell-disclosure-icon">
+                  <Icon name="chevronRight" size={12} />
+                </span>
+                <span className="notebook-preview-cell-title">
+                  <Badge tone="neutral">{cell.type}</Badge>
+                  <span>Cell {index + 1}</span>
+                </span>
+                <span className="notebook-preview-cell-meta">
+                  {cell.outputs.length > 0 && <span>{cell.outputs.length} outputs</span>}
+                </span>
+              </summary>
+              <div className="notebook-preview-cell-body">
+                <pre>{cell.source || 'Empty cell'}</pre>
+                {cell.outputs.length > 0 && (
+                  <div
+                    className="notebook-preview-outputs"
+                    data-testid="notebook-preview-outputs"
+                    data-notebook-output-count={cell.outputs.length}
+                  >
+                    {cell.outputs.slice(0, 20).map((output, outputIndex) => (
+                      <NotebookCellOutput key={outputIndex} output={output} outputIndex={outputIndex} />
+                    ))}
+                  </div>
+                )}
               </div>
-              <pre>{cell.source || 'Empty cell'}</pre>
-              {cell.outputs.length > 0 && (
-                <div
-                  className="notebook-preview-outputs"
-                  data-testid="notebook-preview-outputs"
-                  data-notebook-output-count={cell.outputs.length}
-                >
-                  {cell.outputs.slice(0, 20).map((output, outputIndex) => (
-                    <NotebookCellOutput key={outputIndex} output={output} outputIndex={outputIndex} />
-                  ))}
-                </div>
-              )}
-            </section>
+            </details>
           ))}
           {notebook.cells.length > 40 && (
             <div className="file-preview-note">First 40 cells shown.</div>
