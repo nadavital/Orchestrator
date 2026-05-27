@@ -929,6 +929,17 @@ interface SlidesPreviewPayload {
   truncated?: boolean
 }
 
+function spreadsheetColumnLabel(index: number): string {
+  let value = index + 1
+  let label = ''
+  while (value > 0) {
+    const remainder = (value - 1) % 26
+    label = String.fromCharCode(65 + remainder) + label
+    value = Math.floor((value - 1) / 26)
+  }
+  return label
+}
+
 function SpreadsheetArtifactPreview({
   absolutePath,
   entry,
@@ -944,11 +955,23 @@ function SpreadsheetArtifactPreview({
   const sheets = payload?.sheets ?? []
   const [activeSheetIndex, setActiveSheetIndex] = useState(0)
   const [zoomPercent, setZoomPercent] = useState(100)
+  const [activeCell, setActiveCell] = useState({ row: 0, column: 0 })
   const activeSheet = sheets[activeSheetIndex] ?? null
   const sheetCount = sheets.length
+  const maxColumnCount = activeSheet
+    ? Math.max(1, ...activeSheet.rows.map((row) => row.length))
+    : 1
+  const activeCellRow = activeSheet ? Math.min(activeCell.row, Math.max(0, activeSheet.rows.length - 1)) : 0
+  const activeCellColumn = activeSheet ? Math.min(activeCell.column, Math.max(0, maxColumnCount - 1)) : 0
+  const activeCellAddress = `${spreadsheetColumnLabel(activeCellColumn)}${activeCellRow + 1}`
+  const activeCellValue = activeSheet?.rows[activeCellRow]?.[activeCellColumn] ?? ''
   useEffect(() => {
     setActiveSheetIndex((index) => Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
   }, [sheetCount])
+  const selectSheet = (index: number): void => {
+    setActiveSheetIndex(Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
+    setActiveCell({ row: 0, column: 0 })
+  }
   const zoomOut = (): void => {
     setZoomPercent((zoom) => Math.max(50, zoom - 25))
   }
@@ -966,6 +989,8 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-active-sheet-index={activeSheetIndex + 1}
       data-spreadsheet-active-sheet-name={activeSheet?.name ?? ''}
       data-spreadsheet-preview-zoom-percent={zoomPercent}
+      data-spreadsheet-active-cell-address={activeSheet ? activeCellAddress : ''}
+      data-spreadsheet-active-cell-value={activeSheet ? activeCellValue : ''}
     >
       <ArtifactPreviewHeader
         artifactType="XLSX"
@@ -984,7 +1009,7 @@ function SpreadsheetArtifactPreview({
                   variant="toolbar"
                   disabled={activeSheetIndex <= 0}
                   dataTestId="workspace-spreadsheet-preview-sheet-previous"
-                  onClick={() => { setActiveSheetIndex((index) => Math.max(0, index - 1)) }}
+                  onClick={() => { selectSheet(activeSheetIndex - 1) }}
                 />
                 <span className="file-preview-page-indicator" data-testid="workspace-spreadsheet-preview-sheet-indicator">
                   {activeSheetIndex + 1}/{Math.max(1, sheetCount)}
@@ -996,7 +1021,7 @@ function SpreadsheetArtifactPreview({
                   variant="toolbar"
                   disabled={activeSheetIndex >= sheetCount - 1}
                   dataTestId="workspace-spreadsheet-preview-sheet-next"
-                  onClick={() => { setActiveSheetIndex((index) => Math.min(sheetCount - 1, index + 1)) }}
+                  onClick={() => { selectSheet(activeSheetIndex + 1) }}
                 />
               </span>
             )
@@ -1056,18 +1081,85 @@ function SpreadsheetArtifactPreview({
                 <Icon name="file" size={14} />
                 <span>{activeSheet.name}</span>
               </div>
+              <div
+                className="workspace-spreadsheet-formula-bar"
+                data-testid="workspace-spreadsheet-formula-bar"
+                data-spreadsheet-active-cell-address={activeCellAddress}
+                data-spreadsheet-active-cell-value={activeCellValue}
+              >
+                <span
+                  className="workspace-spreadsheet-cell-address"
+                  data-testid="workspace-spreadsheet-active-cell-address"
+                >
+                  {activeCellAddress}
+                </span>
+                <input
+                  className="workspace-spreadsheet-formula-value"
+                  data-testid="workspace-spreadsheet-active-cell-value"
+                  aria-label="Active cell value"
+                  readOnly
+                  value={activeCellValue}
+                />
+              </div>
               <div className="workspace-spreadsheet-table-wrap">
                 <table
                   className="workspace-spreadsheet-table"
                   data-testid="workspace-spreadsheet-preview-table"
                   style={{ fontSize: `${Math.max(10, Math.min(18, 12 * (zoomPercent / 100)))}px` }}
                 >
+                  <thead>
+                    <tr>
+                      <th className="workspace-spreadsheet-corner" scope="col" aria-label="Workbook grid corner" />
+                      {Array.from({ length: maxColumnCount }, (_, columnIndex) => (
+                        <th
+                          key={columnIndex}
+                          className="workspace-spreadsheet-column-header"
+                          data-testid="workspace-spreadsheet-column-header"
+                          data-spreadsheet-column-label={spreadsheetColumnLabel(columnIndex)}
+                          scope="col"
+                        >
+                          {spreadsheetColumnLabel(columnIndex)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
                   <tbody>
                     {activeSheet.rows.map((row, rowIndex) => (
                       <tr key={rowIndex}>
-                        {row.map((cell, cellIndex) => (
-                          <td key={cellIndex}>{cell}</td>
-                        ))}
+                        <th
+                          className="workspace-spreadsheet-row-header"
+                          data-testid="workspace-spreadsheet-row-header"
+                          data-spreadsheet-row-label={rowIndex + 1}
+                          scope="row"
+                        >
+                          {rowIndex + 1}
+                        </th>
+                        {Array.from({ length: maxColumnCount }, (_, cellIndex) => {
+                          const cell = row[cellIndex] ?? ''
+                          const cellAddress = `${spreadsheetColumnLabel(cellIndex)}${rowIndex + 1}`
+                          const isActive = rowIndex === activeCellRow && cellIndex === activeCellColumn
+                          return (
+                            <td
+                              key={cellIndex}
+                              data-active={isActive ? 'true' : 'false'}
+                              data-spreadsheet-cell-address={cellAddress}
+                            >
+                              <button
+                                type="button"
+                                className="workspace-spreadsheet-cell-button"
+                                data-testid="workspace-spreadsheet-cell"
+                                data-spreadsheet-cell-address={cellAddress}
+                                data-spreadsheet-cell-value={cell}
+                                data-active={isActive ? 'true' : 'false'}
+                                aria-label={`${cellAddress} ${cell}`.trim()}
+                                onClick={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
+                                onFocus={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
+                              >
+                                {cell}
+                              </button>
+                            </td>
+                          )
+                        })}
                       </tr>
                     ))}
                   </tbody>
@@ -1094,7 +1186,7 @@ function SpreadsheetArtifactPreview({
                     data-active={index === activeSheetIndex ? 'true' : 'false'}
                     role="tab"
                     aria-selected={index === activeSheetIndex}
-                    onClick={() => { setActiveSheetIndex(index) }}
+                    onClick={() => { selectSheet(index) }}
                   >
                     <span>{sheet.name}</span>
                   </button>

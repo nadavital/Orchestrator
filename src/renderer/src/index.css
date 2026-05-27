@@ -4584,6 +4584,42 @@
     gap: 8px;
   }
 
+  .workspace-spreadsheet-formula-bar {
+    display: grid;
+    min-height: 30px;
+    grid-template-columns: minmax(44px, auto) minmax(0, 1fr);
+    align-items: stretch;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--surface-bg);
+  }
+
+  .workspace-spreadsheet-cell-address {
+    display: inline-flex;
+    min-width: 44px;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid var(--border-subtle);
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    padding: 0 8px;
+  }
+
+  .workspace-spreadsheet-formula-value {
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 28px;
+    outline: none;
+    padding: 0 9px;
+  }
+
   .workspace-spreadsheet-table-wrap {
     min-width: 0;
     overflow: auto;
@@ -4600,27 +4636,80 @@
     line-height: 1.35;
   }
 
+  .workspace-spreadsheet-table th {
+    border-right: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    font-weight: 650;
+    text-align: center;
+    user-select: none;
+  }
+
+  .workspace-spreadsheet-corner,
+  .workspace-spreadsheet-row-header {
+    width: 38px;
+    min-width: 38px;
+  }
+
+  .workspace-spreadsheet-column-header {
+    height: 26px;
+    min-width: 88px;
+    padding: 4px 8px;
+  }
+
+  .workspace-spreadsheet-row-header {
+    padding: 4px 7px;
+    font-variant-numeric: tabular-nums;
+  }
+
   .workspace-spreadsheet-table td {
+    position: relative;
     max-width: 220px;
     border-right: 1px solid var(--border-subtle);
     border-bottom: 1px solid var(--border-subtle);
-    padding: 6px 8px;
+    padding: 0;
     color: var(--text-primary);
     overflow-wrap: anywhere;
     vertical-align: top;
   }
 
-  .workspace-spreadsheet-table tr:first-child td {
-    background: var(--control-bg);
-    color: var(--text-secondary);
-    font-weight: 650;
+  .workspace-spreadsheet-cell-button {
+    display: block;
+    width: 100%;
+    min-height: 29px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    padding: 6px 8px;
+    text-align: left;
   }
 
-  .workspace-spreadsheet-table td:last-child {
+  .workspace-spreadsheet-cell-button:hover,
+  .workspace-spreadsheet-cell-button:focus-visible {
+    background: var(--control-bg);
+    outline: none;
+  }
+
+  .workspace-spreadsheet-table td[data-active='true']::after {
+    position: absolute;
+    inset: -1px;
+    border: 2px solid var(--accent);
+    border-radius: 2px;
+    content: '';
+    pointer-events: none;
+  }
+
+  .workspace-spreadsheet-table td:last-child,
+  .workspace-spreadsheet-table th:last-child {
     border-right: 0;
   }
 
-  .workspace-spreadsheet-table tr:last-child td {
+  .workspace-spreadsheet-table tr:last-child td,
+  .workspace-spreadsheet-table tr:last-child th {
     border-bottom: 0;
   }
 

@@ -10945,6 +10945,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
               const spreadsheetSheetTabChecks = {};
+              const spreadsheetActiveCellChecks = {};
               const slidesRendererChecks = {};
               const slidesControlChecks = {};
               const previewTargets = [
@@ -11374,6 +11375,12 @@ function runAutomatedFocusedSurfaceSmoke(
                     const zoomControls = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-controls"]');
                     const zoomIndicator = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-indicator"]');
                     const zoomIn = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-in"]');
+                    const formulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const activeCellAddress = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-address"]');
+                    const activeCellValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    const columnHeaders = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-column-header"]')];
+                    const rowHeaders = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-row-header"]')];
+                    const alphaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A2"]');
                     spreadsheetRendererChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-preview-rendered') === 'true' &&
@@ -11417,6 +11424,46 @@ function runAutomatedFocusedSurfaceSmoke(
                       zoomIndicator.textContent?.trim() === '100%' &&
                       zoomIn instanceof HTMLButtonElement &&
                       !zoomIn.disabled;
+                    const initialActiveCellWorks =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-cell-address') === 'A1' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-cell-value') === 'Name' &&
+                      formulaBar instanceof HTMLElement &&
+                      formulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'A1' &&
+                      formulaBar.getAttribute('data-spreadsheet-active-cell-value') === 'Name' &&
+                      activeCellAddress instanceof HTMLElement &&
+                      activeCellAddress.textContent?.trim() === 'A1' &&
+                      activeCellValue instanceof HTMLInputElement &&
+                      activeCellValue.value === 'Name' &&
+                      columnHeaders.length >= 3 &&
+                      columnHeaders[0] instanceof HTMLElement &&
+                      columnHeaders[0].textContent?.trim() === 'A' &&
+                      columnHeaders[1] instanceof HTMLElement &&
+                      columnHeaders[1].textContent?.trim() === 'B' &&
+                      rowHeaders.length >= 2 &&
+                      rowHeaders[0] instanceof HTMLElement &&
+                      rowHeaders[0].textContent?.trim() === '1' &&
+                      alphaCell instanceof HTMLButtonElement &&
+                      alphaCell.getAttribute('data-spreadsheet-cell-value') === 'Alpha';
+                    if (alphaCell instanceof HTMLButtonElement) {
+                      alphaCell.click();
+                      await sleep(120);
+                    }
+                    const selectedSpreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const selectedFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const selectedCellValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    const selectedAlphaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A2"]');
+                    const cellSelectionWorks =
+                      selectedSpreadsheetPreview instanceof HTMLElement &&
+                      selectedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-address') === 'A2' &&
+                      selectedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-value') === 'Alpha' &&
+                      selectedFormulaBar instanceof HTMLElement &&
+                      selectedFormulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'A2' &&
+                      selectedFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === 'Alpha' &&
+                      selectedCellValue instanceof HTMLInputElement &&
+                      selectedCellValue.value === 'Alpha' &&
+                      selectedAlphaCell instanceof HTMLButtonElement &&
+                      selectedAlphaCell.getAttribute('data-active') === 'true';
                     if (nextSheet instanceof HTMLButtonElement) {
                       nextSheet.click();
                       await sleep(160);
@@ -11430,6 +11477,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     const advancedSheetTabButtons = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-preview-sheet-tab"]')];
                     const advancedSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet"]');
                     const advancedTable = document.querySelector('[data-testid="workspace-spreadsheet-preview-table"]');
+                    const advancedFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const advancedCellValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    const totalCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B2"]');
                     const sheetNavigationWorks =
                       advancedSpreadsheetPreview instanceof HTMLElement &&
                       advancedSpreadsheetPreview.getAttribute('data-spreadsheet-active-sheet-index') === '2' &&
@@ -11451,6 +11501,30 @@ function runAutomatedFocusedSurfaceSmoke(
                       advancedSheet.getAttribute('data-spreadsheet-sheet-name') === 'Totals' &&
                       advancedTable instanceof HTMLTableElement &&
                       advancedTable.textContent?.includes('Gamma') === true;
+                    const sheetResetActiveCellWorks =
+                      advancedSpreadsheetPreview instanceof HTMLElement &&
+                      advancedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-address') === 'A1' &&
+                      advancedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-value') === 'Metric' &&
+                      advancedFormulaBar instanceof HTMLElement &&
+                      advancedFormulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'A1' &&
+                      advancedFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === 'Metric' &&
+                      advancedCellValue instanceof HTMLInputElement &&
+                      advancedCellValue.value === 'Metric' &&
+                      totalCell instanceof HTMLButtonElement &&
+                      totalCell.getAttribute('data-spreadsheet-cell-value') === '5';
+                    if (totalCell instanceof HTMLButtonElement) {
+                      totalCell.click();
+                      await sleep(120);
+                    }
+                    const selectedTotalsPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const selectedTotalsFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const totalsSelectionWorks =
+                      selectedTotalsPreview instanceof HTMLElement &&
+                      selectedTotalsPreview.getAttribute('data-spreadsheet-active-cell-address') === 'B2' &&
+                      selectedTotalsPreview.getAttribute('data-spreadsheet-active-cell-value') === '5' &&
+                      selectedTotalsFormulaBar instanceof HTMLElement &&
+                      selectedTotalsFormulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'B2' &&
+                      selectedTotalsFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === '5';
                     const advancedZoomIn = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-in"]');
                     if (advancedZoomIn instanceof HTMLButtonElement) {
                       advancedZoomIn.click();
@@ -11499,6 +11573,11 @@ function runAutomatedFocusedSurfaceSmoke(
                       initialSpreadsheetControls &&
                       sheetNavigationWorks &&
                       sheetTabsWork;
+                    spreadsheetActiveCellChecks[testId] =
+                      initialActiveCellWorks &&
+                      cellSelectionWorks &&
+                      sheetResetActiveCellWorks &&
+                      totalsSelectionWorks;
                   }
                   if (testId === 'workspace-slides-preview') {
                     const slidesPreview = document.querySelector('[data-testid="workspace-slides-preview"]');
@@ -12531,6 +12610,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSpreadsheetControlsWorks: Boolean(spreadsheetControlChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetSheetTabsWorks: Boolean(spreadsheetSheetTabChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetActiveCellWorks: Boolean(spreadsheetActiveCellChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSpreadsheetSlidesArtifactBoundaryWorks:
                   Boolean(previewChecks.filesSpreadsheetPreviewWorks) &&
