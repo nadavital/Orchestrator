@@ -7047,6 +7047,16 @@ Verification: `node -c scripts/run-codex-side-panel-comparison.mjs`, `git diff -
 
 Remaining: exact live Codex pixel spacing, OS focus behavior, and panel animation timing still require nonblank live Codex screenshot or video evidence.
 
+### 2026-05-27 - Live Codex Window-Capture Diagnostics
+
+Codex evidence: live Codex pixel/timing proof is still the highest-value missing evidence for exact header/panel visual parity. Full-screen `screencapture` can return a black PNG in this environment, and Computer Use cannot inspect `com.openai.codex`.
+
+Implemented: enhanced `scripts/run-codex-side-panel-comparison.mjs --capture-live-codex` to discover visible Codex windows through CoreGraphics, then attempt three capture strategies in order: window id, discovered window bounds as a region, and full-screen fallback. The report now records the discovered Codex window list, every capture command, per-method exit status/stderr, selected method, and nonblank image metrics. If a nonblank window or region capture succeeds, it is copied to `/private/tmp/codex-current-screen.png` so the existing comparison rows can use it as live file evidence.
+
+Verification: `node -c scripts/run-codex-side-panel-comparison.mjs` passed. Elevated `npm run compare:codex-side-panels -- --capture-live-codex --no-fail` passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, and `needsProof=0`; report `/Users/nadav/Desktop/Orchestrator/tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-27T04:31:15.939Z`. The run found one visible Codex window (`id=39726`, bounds `0,30,1384,1320`), but window capture failed with `could not create image from window`, region capture failed with `could not create image from rect`, and the full-screen fallback remained black (`nonBlank=false`, `nonBlack=0`, `lumaStdDev=0`, `colors=1`).
+
+Remaining: exact live Codex pixel spacing, OS focus behavior, and panel animation timing still require a nonblank live screenshot or video path. This slice improves the evidence trail and future capture fallback but does not claim pixel-level parity.
+
 ### 2026-05-27 - Browser Settings Host Page
 
 Codex evidence: `tmp/codex-app-assets/browser-use-settings-DMAxxI2Y.js` exposes a Browser settings surface with browsing-data controls, approval/history copy, domain policy lists, and built-in Browser control language. This is a Settings-level surface, not only Browser panel chrome.

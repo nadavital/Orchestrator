@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as asar from '@electron/asar'
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { join, relative, resolve } from 'path'
 import { spawnSync } from 'child_process'
 import { fileURLToPath, pathToFileURL } from 'url'
@@ -123,22 +123,139 @@ function captureLiveCodexScreenshot(outputPath) {
       reason: 'screencapture is only available on macOS'
     }
   }
-  const result = spawnSync('screencapture', ['-x', outputPath], {
+  const windows = discoverLiveCodexWindows()
+  const attempts = []
+  const primaryWindow = windows.windows?.[0] ?? null
+  if (primaryWindow?.id) {
+    attempts.push(runCodexScreenshotAttempt({
+      method: 'window',
+      commandArgs: ['-x', `-l${primaryWindow.id}`],
+      outputPath: outputPath.replace(/\.png$/i, '-window.png'),
+      window: primaryWindow
+    }))
+  }
+  if (primaryWindow?.bounds) {
+    const bounds = primaryWindow.bounds
+    attempts.push(runCodexScreenshotAttempt({
+      method: 'region',
+      commandArgs: ['-x', `-R${bounds.x},${bounds.y},${bounds.width},${bounds.height}`],
+      outputPath: outputPath.replace(/\.png$/i, '-region.png'),
+      window: primaryWindow
+    }))
+  }
+  attempts.push(runCodexScreenshotAttempt({
+    method: 'screen',
+    commandArgs: ['-x'],
+    outputPath
+  }))
+
+  const selected = attempts.find((attempt) => attempt.image?.nonBlank === true) ??
+    attempts.find((attempt) => attempt.available === true) ??
+    attempts[attempts.length - 1]
+  if (selected?.available && selected.outputPath !== outputPath) {
+    copyFileSync(selected.outputPath, outputPath)
+  }
+  const image = existsSync(outputPath) ? inspectImageEvidence(outputPath) : null
+  return {
+    attempted: true,
+    command: selected?.command ?? `screencapture -x ${outputPath}`,
+    selectedMethod: selected?.method ?? 'screen',
+    windows,
+    attempts,
+    outputPath,
+    exitCode: selected?.exitCode ?? null,
+    error: selected?.error ?? null,
+    stdout: selected?.stdout ?? '',
+    stderr: selected?.stderr ?? '',
+    available: existsSync(outputPath),
+    image
+  }
+}
+
+function runCodexScreenshotAttempt({ method, commandArgs, outputPath, window = null }) {
+  const result = spawnSync('screencapture', [...commandArgs, outputPath], {
     cwd: root,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe']
   })
   const image = existsSync(outputPath) ? inspectImageEvidence(outputPath) : null
   return {
-    attempted: true,
-    command: `screencapture -x ${outputPath}`,
+    method,
+    command: `screencapture ${[...commandArgs, outputPath].join(' ')}`,
     outputPath,
+    window,
     exitCode: result.status,
     error: result.error ? result.error.message : null,
     stdout: result.stdout,
     stderr: result.stderr,
     available: existsSync(outputPath),
     image
+  }
+}
+
+function discoverLiveCodexWindows() {
+  const swiftScript = `
+import CoreGraphics
+import Foundation
+
+let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+var rows: [[String: Any]] = []
+for window in list {
+  let owner = window[kCGWindowOwnerName as String] as? String ?? ""
+  if !owner.localizedCaseInsensitiveContains("Codex") { continue }
+  let bounds = window[kCGWindowBounds as String] as? [String: Any] ?? [:]
+  rows.append([
+    "id": window[kCGWindowNumber as String] as? Int ?? 0,
+    "owner": owner,
+    "name": window[kCGWindowName as String] as? String ?? "",
+    "pid": window[kCGWindowOwnerPID as String] as? Int ?? 0,
+    "layer": window[kCGWindowLayer as String] as? Int ?? 0,
+    "alpha": window[kCGWindowAlpha as String] as? Double ?? 0,
+    "bounds": [
+      "x": bounds["X"] as? Int ?? 0,
+      "y": bounds["Y"] as? Int ?? 0,
+      "width": bounds["Width"] as? Int ?? 0,
+      "height": bounds["Height"] as? Int ?? 0
+    ]
+  ])
+}
+let data = try JSONSerialization.data(withJSONObject: rows, options: [])
+print(String(data: data, encoding: .utf8) ?? "[]")
+`
+  const cacheDir = join(root, 'tmp', 'swift-module-cache')
+  mkdirSync(cacheDir, { recursive: true })
+  const result = spawnSync('swift', ['-e', swiftScript], {
+    cwd: root,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      CLANG_MODULE_CACHE_PATH: cacheDir
+    },
+    stdio: ['ignore', 'pipe', 'pipe']
+  })
+  let windows = []
+  try {
+    windows = JSON.parse(result.stdout || '[]')
+      .filter((window) => window?.id && window?.bounds?.width > 0 && window?.bounds?.height > 0)
+      .sort((left, right) => {
+        const leftLayer = Number(left.layer ?? 0)
+        const rightLayer = Number(right.layer ?? 0)
+        if (leftLayer !== rightLayer) return leftLayer - rightLayer
+        const leftArea = Number(left.bounds.width ?? 0) * Number(left.bounds.height ?? 0)
+        const rightArea = Number(right.bounds.width ?? 0) * Number(right.bounds.height ?? 0)
+        return rightArea - leftArea
+      })
+  } catch {
+    windows = []
+  }
+  return {
+    command: 'swift -e <CoreGraphics window list>',
+    exitCode: result.status,
+    error: result.error ? result.error.message : null,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    windows
   }
 }
 
@@ -1082,12 +1199,17 @@ function summarizeImageEvidence(entry) {
 function summarizeLiveCaptureAttempt(attempt) {
   if (attempt.skipped) return `skipped (${attempt.reason})`
   const exit = attempt.exitCode == null ? 'unknown' : String(attempt.exitCode)
+  const method = attempt.selectedMethod ? `method=${attempt.selectedMethod}, ` : ''
+  const windows = Array.isArray(attempt.windows?.windows) ? `, windows=${attempt.windows.windows.length}` : ''
+  const attempts = Array.isArray(attempt.attempts)
+    ? `, attempts=${attempt.attempts.map((item) => `${item.method}:${item.exitCode ?? 'unknown'}:${item.image?.nonBlank === true ? 'nonblank' : item.available ? 'image' : 'none'}`).join('/')}`
+    : ''
   const image = attempt.image?.inspected === true
     ? `, nonBlank=${attempt.image.nonBlank}, nonBlack=${attempt.image.nonBlackRatio}, lumaStdDev=${attempt.image.luminanceStdDev}, colors=${attempt.image.colorBucketCount}`
     : attempt.image?.reason
       ? `, image=${attempt.image.reason}`
       : ''
-  return `exit=${exit}, available=${attempt.available === true}${image}`
+  return `${method}exit=${exit}, available=${attempt.available === true}${windows}${attempts}${image}`
 }
 
 function formatAge(hours) {
