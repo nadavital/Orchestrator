@@ -904,6 +904,7 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
               {REVIEW_DIFF_SOURCES.map((source, index) => {
                 const sourceSupported = isSupportedReviewDiffSource(source.id, reviewSourceSupport)
                 const sourceCount = reviewSourceCountFor(source.id, reviewSourceCounts, reviewSource, sourceFiles.length, lastTurnReviewFiles.length)
+                const unavailableReason = sourceSupported ? '' : reviewSourceUnavailableReason(source.id, reviewSourceSupport)
                 return (
                 <div key={source.id} className="contents">
                   {index > 0 && REVIEW_DIFF_SOURCES[index - 1].group !== source.group && (
@@ -913,19 +914,24 @@ export default function DiffPanel({ sessionId, workDir, embedded = false }: Prop
                     type="button"
                     role="menuitemradio"
                     className="review-source-menu-item"
-                    aria-label={source.ariaLabel}
+                    aria-label={sourceSupported ? source.ariaLabel : `${source.ariaLabel}. ${unavailableReason}`}
                     aria-checked={reviewSource === source.id}
                     aria-disabled={!sourceSupported}
                     disabled={!sourceSupported}
+                    title={sourceSupported ? source.ariaLabel : unavailableReason}
                     data-testid={`review-source-${source.id}`}
                     data-active={reviewSource === source.id ? 'true' : 'false'}
                     data-review-source-unsupported={!sourceSupported ? 'true' : 'false'}
+                    data-review-source-unavailable-reason={unavailableReason || undefined}
                     onClick={() => setReviewSource(source.id)}
                   >
                     <span className="review-source-menu-check" aria-hidden="true">
                       {reviewSource === source.id && <Icon name="check" size={12} />}
                     </span>
-                    <span className="min-w-0 flex-1 truncate">{source.label}</span>
+                    <span className="review-source-menu-label-group">
+                      <span className="review-source-menu-label">{source.label}</span>
+                      {!sourceSupported && <span className="review-source-menu-reason">{unavailableReason}</span>}
+                    </span>
                     {sourceSupported && (
                       <span
                         className="review-source-menu-count"
@@ -2380,6 +2386,15 @@ function isSupportedReviewDiffSource(value: ReviewDiffSource, support: ReviewSou
     (value === 'local' && support.hasLocalProviderSource) ||
     (value === 'worktree' && support.hasWorktreeProviderSource) ||
     (value === 'cloud' && support.hasCloudProviderSource)
+}
+
+function reviewSourceUnavailableReason(value: ReviewDiffSource, support: ReviewSourceSupport): string {
+  if (isSupportedReviewDiffSource(value, support)) return ''
+  if (value === 'last-turn') return 'No provider turn diff'
+  if (value === 'cloud') return 'Cloud review adapter missing'
+  if (value === 'local') return 'No local provider source'
+  if (value === 'worktree') return 'No provider worktree source'
+  return 'Unavailable for this review'
 }
 
 function emptyReviewSourceSupport(): ReviewSourceSupport {

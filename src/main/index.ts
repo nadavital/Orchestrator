@@ -8401,16 +8401,26 @@ function runAutomatedFocusedSurfaceSmoke(
                 document.querySelector('[data-testid="review-source-staged"]') instanceof HTMLButtonElement &&
                 document.querySelector('[data-testid="review-source-branch"]') instanceof HTMLButtonElement &&
                 document.querySelector('[data-testid="review-source-commit"]') instanceof HTMLButtonElement;
-	              const providerNativeSourceButtons = Object.fromEntries(['last-turn', 'cloud', 'local', 'worktree']
-	                .map((source) => [source, document.querySelector('[data-testid="review-source-' + source + '"]')]));
-	              const providerNativeUnavailable = (source) => {
-	                const button = providerNativeSourceButtons[source];
-	                return button instanceof HTMLButtonElement &&
-	                  button.disabled &&
-	                  button.getAttribute('aria-disabled') === 'true' &&
-	                  button.getAttribute('data-review-source-unsupported') === 'true' &&
-	                  button.textContent?.includes('Unavailable');
-	              };
+              const providerNativeSourceButtons = Object.fromEntries(['last-turn', 'cloud', 'local', 'worktree']
+                .map((source) => [source, document.querySelector('[data-testid="review-source-' + source + '"]')]));
+              const providerNativeUnavailableReason = {
+                'last-turn': 'No provider turn diff',
+                cloud: 'Cloud review adapter missing',
+                local: 'No local provider source',
+                worktree: 'No provider worktree source'
+              };
+              const providerNativeUnavailable = (source) => {
+                const expectedReason = providerNativeUnavailableReason[source];
+                const button = providerNativeSourceButtons[source];
+                return button instanceof HTMLButtonElement &&
+                  button.disabled &&
+                  button.getAttribute('aria-disabled') === 'true' &&
+                  button.getAttribute('data-review-source-unsupported') === 'true' &&
+                  button.getAttribute('data-review-source-unavailable-reason') === expectedReason &&
+                  button.textContent?.includes('Unavailable') &&
+                  button.textContent?.includes(expectedReason) &&
+                  button.scrollWidth <= button.clientWidth + 2;
+              };
 	              const localProviderSourceAvailable =
 	                providerNativeSourceButtons.local instanceof HTMLButtonElement &&
 	                !providerNativeSourceButtons.local.disabled &&
@@ -8434,11 +8444,13 @@ function runAutomatedFocusedSurfaceSmoke(
 	                localProviderSourceActive === 'local' &&
 	                localProviderSourceText.includes('review-base.txt') &&
 	                localProviderSourceText.includes('staged-source-smoke.txt');
-	              const providerNativeSourceRowsWork =
-	                providerNativeUnavailable('last-turn') &&
-	                providerNativeUnavailable('cloud') &&
-	                providerNativeUnavailable('worktree') &&
-	                localProviderSourceWorks;
+              const reviewProviderSourceUnavailableReasonsWork =
+                providerNativeUnavailable('last-turn') &&
+                providerNativeUnavailable('cloud') &&
+                providerNativeUnavailable('worktree');
+              const providerNativeSourceRowsWork =
+                reviewProviderSourceUnavailableReasonsWork &&
+                localProviderSourceWorks;
 	              const sourceBeforeUnsupportedClick = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
 	              if (providerNativeSourceButtons['last-turn'] instanceof HTMLButtonElement) {
 	                providerNativeSourceButtons['last-turn'].click();
@@ -8772,11 +8784,11 @@ function runAutomatedFocusedSurfaceSmoke(
               }
               window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
               await sleep(80);
-	              const reviewSourceModesWork =
-	                sourceButtonsAvailable &&
-	                providerNativeSourceRowsWork &&
-	                unsupportedClickKeepsSource &&
-	                lastTurnSourceWorks &&
+              const reviewSourceModesWork =
+                sourceButtonsAvailable &&
+                providerNativeSourceRowsWork &&
+                unsupportedClickKeepsSource &&
+                lastTurnSourceWorks &&
                 reviewLocalSourceCountsWork &&
                 stagedSourceActive === 'staged' &&
                 stagedSourcePersisted &&
@@ -8809,9 +8821,10 @@ function runAutomatedFocusedSurfaceSmoke(
 	                commitFileSelected &&
 	                commitSourceText.includes('branch-source-smoke.txt') &&
 	                commitSourceText.includes('branch source committed');
-	              const reviewSourceModesDebug = {
-	                sourceButtonsAvailable,
-	                providerNativeSourceRowsWork,
+              const reviewSourceModesDebug = {
+                sourceButtonsAvailable,
+                providerNativeSourceRowsWork,
+                reviewProviderSourceUnavailableReasonsWork,
 	                localProviderSourceAvailable,
 	                localProviderSourceActive,
 	                localProviderSourceWorks,
@@ -10406,8 +10419,9 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  reviewSearchWorks,
 	                  reviewSearchProjectionWorks,
                     reviewSearchContentWorks,
-	                  reviewSourceModesWork,
-	                  reviewSourceModesDebug,
+                    reviewSourceModesWork,
+                    reviewSourceModesDebug,
+                    reviewProviderSourceUnavailableReasonsWork,
 	                  reviewTranscriptCardLastTurnWorks,
 	                  reviewLastTurnGitApplyCommandWorks,
 	                  reviewLastTurnGitApplyCommandDebug,
@@ -10813,6 +10827,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewSearchWorks,
                 reviewSearchProjectionWorks,
                 reviewSourceModesWork,
+                reviewProviderSourceUnavailableReasonsWork,
                 reviewFullSourceRowsWork,
                 reviewFullSourceBlameWorks,
                 reviewLoadFullFileWorks,

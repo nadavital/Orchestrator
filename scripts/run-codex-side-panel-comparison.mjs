@@ -336,10 +336,10 @@ function buildContracts() {
         { basename: 'review-runtime-bridge-CZUIqW4U.js', terms: ['set-review-pane-snapshot-metrics-for-host', 'reviewDiffFilesTotal'] },
         { basename: 'review-header-toolbar-6CN1dM2m.js', terms: ['checks', 'reviewer'] }
       ],
-      smokeChecks: ['reviewMetadataToolbar', 'reviewMetadataFlyoutShared', 'reviewTranscriptCardLastTurn', 'reviewFileHeaderPathFirst', 'reviewLastTurnVisualState', 'reviewWorktreeProviderSource', 'reviewFullSourceBlame', 'reviewLineComments'],
+      smokeChecks: ['reviewMetadataToolbar', 'reviewMetadataFlyoutShared', 'reviewTranscriptCardLastTurn', 'reviewFileHeaderPathFirst', 'reviewLastTurnVisualState', 'reviewProviderSourceUnavailableReasons', 'reviewWorktreeProviderSource', 'reviewFullSourceBlame', 'reviewLineComments'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Fixture and local/GitHub-backed paths pass, including a direct Last turn transcript-card Review screenshot with the changed-files rail hidden, general PR and inline/threaded review comment summaries, provider comment line rendering, and GitHub review-comment commit/blame metadata. Live commented-PR proof, provider-native hosted/cloud sources, and checkpoint Undo are not live-proven.',
-      next: 'Add one real provider-backed Review source or keep the unsupported UI explicit.'
+      caveat: 'Fixture and local/GitHub-backed paths pass, including a direct Last turn transcript-card Review screenshot with the changed-files rail hidden, general PR and inline/threaded review comment summaries, provider comment line rendering, GitHub review-comment commit/blame metadata, and explicit unsupported-provider source reasons for unavailable Last turn/cloud/worktree rows. Live commented-PR proof, provider-native hosted/cloud sources, and checkpoint Undo are not live-proven.',
+      next: 'Add one real provider-backed Review source when an adapter exists.'
     },
     {
       id: 'browser-webview-lifecycle',

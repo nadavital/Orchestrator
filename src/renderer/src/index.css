@@ -2403,7 +2403,7 @@
   .review-source-menu-item {
     display: flex;
     min-width: 0;
-    min-height: 26px;
+    min-height: 28px;
     align-items: center;
     gap: 7px;
     border: 0;
@@ -2415,6 +2415,32 @@
     line-height: 18px;
     padding: 0 8px;
     text-align: left;
+  }
+
+  .review-source-menu-label-group {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+  }
+
+  .review-source-menu-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .review-source-menu-reason {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-size: 10.5px;
+    line-height: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .review-source-menu-item:hover,
