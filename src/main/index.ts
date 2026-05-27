@@ -11140,6 +11140,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentTableChecks = {};
               const documentImageChecks = {};
               const documentSectionChecks = {};
+              const documentColumnLayoutChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
               const spreadsheetSheetTabChecks = {};
@@ -11507,6 +11508,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const zoomIndicator = document.querySelector('[data-testid="workspace-document-preview-zoom-indicator"]');
                     const zoomIn = document.querySelector('[data-testid="workspace-document-preview-zoom-in"]');
                     const pageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
+                    const pageContent = document.querySelector('[data-testid="workspace-document-preview-page-content"]');
                     const documentTables = [...document.querySelectorAll('[data-testid="workspace-document-preview-table"]')];
                     const documentImages = [...document.querySelectorAll('[data-testid="workspace-document-preview-image"]')];
                     const documentHeader = document.querySelector('[data-testid="workspace-document-preview-header-text"]');
@@ -11568,6 +11570,19 @@ function runAutomatedFocusedSurfaceSmoke(
                       documentFooter instanceof HTMLElement &&
                       documentFooter.getAttribute('data-document-footer-text') === 'Document smoke footer' &&
                       documentFooter.textContent?.includes('Document smoke footer') === true;
+                    const pageContentStyle = pageContent instanceof HTMLElement ? getComputedStyle(pageContent) : null;
+                    documentColumnLayoutChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-column-count') === '2' &&
+                      pageContent instanceof HTMLElement &&
+                      pageContent.getAttribute('data-document-column-count') === '2' &&
+                      pageContent.getAttribute('data-document-column-layout') === 'true' &&
+                      pageContent.textContent?.includes('Document smoke updated') === true &&
+                      !(pageContent.textContent ?? '').includes('Document smoke header') &&
+                      !(pageContent.textContent ?? '').includes('Document smoke footer') &&
+                      pageContentStyle !== null &&
+                      pageContentStyle.columnCount === '2' &&
+                      Number.parseFloat(pageContentStyle.columnGap) >= 24;
                     if (nextPage instanceof HTMLButtonElement) {
                       nextPage.click();
                       await sleep(160);
@@ -13336,6 +13351,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesDocumentTableRenderingWorks: Boolean(documentTableChecks['workspace-document-preview']),
                 filesDocumentImageRenderingWorks: Boolean(documentImageChecks['workspace-document-preview']),
                 filesDocumentSectionMetadataWorks: Boolean(documentSectionChecks['workspace-document-preview']),
+                filesDocumentColumnLayoutWorks: Boolean(documentColumnLayoutChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSlidesShapeLayoutWorks: Boolean(slidesShapeLayoutChecks['workspace-slides-preview']),

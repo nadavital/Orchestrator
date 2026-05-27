@@ -243,47 +243,55 @@ function DocumentPreview({
                 {headerText}
               </div>
             )}
-            {visiblePage.map((block, index) => (
-              block.type === 'table'
-                ? (
-                    <table
-                      key={`table-${index}`}
-                      className="document-preview-table"
-                      data-testid={`${testId}-table`}
-                    >
-                      <tbody>
-                        {block.rows.map((row, rowIndex) => (
-                          <tr key={rowIndex}>
-                            {row.map((cell, cellIndex) => (
-                              <td key={cellIndex}>{cell}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )
-                : block.type === 'image'
+            <div
+              className="document-preview-page-content"
+              data-testid={`${testId}-page-content`}
+              data-document-column-count={columnCount}
+              data-document-column-layout={columnCount > 1 ? 'true' : 'false'}
+              style={{ '--document-preview-column-count': Math.max(1, columnCount || 1) } as CSSProperties}
+            >
+              {visiblePage.map((block, index) => (
+                block.type === 'table'
                   ? (
-                      <figure
-                        key={`image-${index}`}
-                        className="document-preview-image-block"
-                        data-testid={`${testId}-image`}
-                        data-document-image-mime-type={block.mimeType}
-                        data-document-image-alt={block.alt ?? ''}
+                      <table
+                        key={`table-${index}`}
+                        className="document-preview-table"
+                        data-testid={`${testId}-table`}
                       >
-                        <img
-                          src={block.dataUrl}
-                          alt={block.alt ?? 'Document image'}
-                          style={{
-                            width: block.width ? `${Math.min(block.width, 520)}px` : undefined,
-                            maxHeight: block.height ? `${Math.min(block.height, 360)}px` : undefined
-                          }}
-                        />
-                        {block.alt && <figcaption>{block.alt}</figcaption>}
-                      </figure>
+                        <tbody>
+                          {block.rows.map((row, rowIndex) => (
+                            <tr key={rowIndex}>
+                              {row.map((cell, cellIndex) => (
+                                <td key={cellIndex}>{cell}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     )
-                  : <p key={`paragraph-${index}`}>{block.text}</p>
-            ))}
+                  : block.type === 'image'
+                    ? (
+                        <figure
+                          key={`image-${index}`}
+                          className="document-preview-image-block"
+                          data-testid={`${testId}-image`}
+                          data-document-image-mime-type={block.mimeType}
+                          data-document-image-alt={block.alt ?? ''}
+                        >
+                          <img
+                            src={block.dataUrl}
+                            alt={block.alt ?? 'Document image'}
+                            style={{
+                              width: block.width ? `${Math.min(block.width, 520)}px` : undefined,
+                              maxHeight: block.height ? `${Math.min(block.height, 360)}px` : undefined
+                            }}
+                          />
+                          {block.alt && <figcaption>{block.alt}</figcaption>}
+                        </figure>
+                      )
+                    : <p key={`paragraph-${index}`}>{block.text}</p>
+              ))}
+            </div>
             {footerText && (
               <div
                 className="document-preview-page-footer"

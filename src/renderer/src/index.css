@@ -5804,6 +5804,16 @@
     zoom: var(--codex-docx-preview-zoom, 1);
   }
 
+  .document-preview-page-content {
+    column-count: var(--document-preview-column-count, 1);
+    column-gap: 32px;
+    column-rule: 1px solid color-mix(in srgb, var(--border-subtle) 70%, transparent);
+  }
+
+  .document-preview-page-content > * {
+    break-inside: avoid;
+  }
+
   .document-preview-body p {
     margin: 0;
     white-space: pre-wrap;
