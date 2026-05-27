@@ -11150,6 +11150,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const slidesControlChecks = {};
               const slidesShapeLayoutChecks = {};
               const slidesColorFillChecks = {};
+              const slidesImageShapeChecks = {};
               const slidesNotesChecks = {};
               const slidesThumbnailRailChecks = {};
               const previewTargets = [
@@ -11934,6 +11935,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const addSlide = document.querySelector('[data-testid="workspace-slides-preview-add-slide"]');
                     const shapeCanvas = document.querySelector('[data-testid="workspace-slides-preview-shape-canvas"]');
                     const positionedShapes = [...document.querySelectorAll('[data-testid="workspace-slides-preview-shape"]')];
+                    const positionedImageShapes = [...document.querySelectorAll('[data-testid="workspace-slides-preview-image-shape"]')];
                     slidesRendererChecks[testId] =
                       slidesPreview instanceof HTMLElement &&
                       slidesPreview.getAttribute('data-slides-preview-rendered') === 'true' &&
@@ -11950,12 +11952,12 @@ function runAutomatedFocusedSurfaceSmoke(
                     slidesShapeLayoutChecks[testId] =
                       slidesPreview instanceof HTMLElement &&
                       slidesPreview.getAttribute('data-slides-preview-stage-renderer') === 'positioned-shapes' &&
-                      slidesPreview.getAttribute('data-slides-preview-current-shape-count') === '2' &&
+                      slidesPreview.getAttribute('data-slides-preview-current-shape-count') === '3' &&
                       currentSlide instanceof HTMLElement &&
                       currentSlide.getAttribute('data-slides-stage-renderer') === 'positioned-shapes' &&
-                      currentSlide.getAttribute('data-slides-shape-count') === '2' &&
+                      currentSlide.getAttribute('data-slides-shape-count') === '3' &&
                       shapeCanvas instanceof HTMLElement &&
-                      positionedShapes.length === 2 &&
+                      positionedShapes.length === 3 &&
                       positionedShapes[0] instanceof HTMLElement &&
                       positionedShapes[0].textContent?.includes('Slides smoke updated') === true &&
                       positionedShapes[0].style.left !== '' &&
@@ -11977,6 +11979,18 @@ function runAutomatedFocusedSurfaceSmoke(
                       positionedShapes[1] instanceof HTMLElement &&
                       positionedShapes[1].getAttribute('data-slide-shape-fill-color') === '#DCFCE7' &&
                       positionedShapes[1].getAttribute('data-slide-shape-text-color') === '#166534';
+                    slidesImageShapeChecks[testId] =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-image-shape-count') === '1' &&
+                      slidesPreview.getAttribute('data-slides-preview-current-image-shape-count') === '1' &&
+                      currentSlide instanceof HTMLElement &&
+                      currentSlide.getAttribute('data-slides-image-shape-count') === '1' &&
+                      positionedShapes[2] instanceof HTMLElement &&
+                      positionedShapes[2].getAttribute('data-slide-shape-kind') === 'image' &&
+                      positionedShapes[2].getAttribute('data-slide-shape-image-mime-type') === 'image/png' &&
+                      positionedImageShapes.length === 1 &&
+                      positionedImageShapes[0] instanceof HTMLImageElement &&
+                      positionedImageShapes[0].src.startsWith('data:image/png;base64,');
                     const initialSlidesControls =
                       slidesPreview instanceof HTMLElement &&
                       slidesPreview.getAttribute('data-slides-preview-zoom-percent') === '100' &&
@@ -13126,6 +13140,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSlidesShapeLayoutWorks: Boolean(slidesShapeLayoutChecks['workspace-slides-preview']),
                 filesSlidesColorFillsWorks: Boolean(slidesColorFillChecks['workspace-slides-preview']),
+                filesSlidesImageShapesWorks: Boolean(slidesImageShapeChecks['workspace-slides-preview']),
                 filesSpreadsheetControlsWorks: Boolean(spreadsheetControlChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetSheetTabsWorks: Boolean(spreadsheetSheetTabChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetActiveCellWorks: Boolean(spreadsheetActiveCellChecks['workspace-spreadsheet-preview']),

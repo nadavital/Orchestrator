@@ -477,6 +477,12 @@ function createPptxFixture(slides) {
   const slidesWithNotes = normalizedSlides
     .map((slide, index) => ({ ...slide, index: index + 1 }))
     .filter((slide) => slide.notes.length > 0)
+  const slidesWithImages = normalizedSlides
+    .map((slide, index) => ({
+      index: index + 1,
+      images: slide.shapes.filter((shape) => shape.imageBase64).map((shape, imageIndex) => ({ shape, imageIndex: imageIndex + 1 }))
+    }))
+    .filter((slide) => slide.images.length > 0)
   const entries = [
     {
       name: '[Content_Types].xml',
@@ -484,6 +490,7 @@ function createPptxFixture(slides) {
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
   ${normalizedSlides.map((_, index) => `<Override PartName="/ppt/slides/slide${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join('\n  ')}
   ${slidesWithNotes.map((slide) => `<Override PartName="/ppt/notesSlides/notesSlide${slide.index}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"/>`).join('\n  ')}
@@ -508,7 +515,7 @@ function createPptxFixture(slides) {
     entries.push({
       name: `ppt/slides/slide${index + 1}.xml`,
       data: `<?xml version="1.0" encoding="UTF-8"?>
-<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <p:cSld>${slide.backgroundColor ? `<p:bg><p:bgPr><a:solidFill><a:srgbClr val="${escapeXml(String(slide.backgroundColor).replace(/^#/, ''))}"/></a:solidFill></p:bgPr></p:bg>` : ''}<p:spTree>
     ${(slide.shapes.length > 0 ? slide.shapes : slide.lines.map((line, lineIndex) => ({
       text: [line],
@@ -518,6 +525,10 @@ function createPptxFixture(slides) {
       cy: lineIndex === 0 ? 914400 : 685800
     }))).map((shape) => {
       const text = Array.isArray(shape.text) ? shape.text : [shape.text ?? '']
+      if (shape.imageBase64) {
+        const imageIndex = slide.shapes.filter((candidate) => candidate.imageBase64).indexOf(shape) + 1
+        return `<p:pic><p:blipFill><a:blip r:embed="rImage${imageIndex}"/></p:blipFill><p:spPr><a:xfrm><a:off x="${shape.x}" y="${shape.y}"/><a:ext cx="${shape.cx}" cy="${shape.cy}"/></a:xfrm></p:spPr></p:pic>`
+      }
       const fill = shape.fillColor ? `<a:solidFill><a:srgbClr val="${escapeXml(String(shape.fillColor).replace(/^#/, ''))}"/></a:solidFill>` : ''
       const textFill = shape.textColor ? `<a:rPr><a:solidFill><a:srgbClr val="${escapeXml(String(shape.textColor).replace(/^#/, ''))}"/></a:solidFill></a:rPr>` : ''
       return `<p:sp><p:spPr><a:xfrm><a:off x="${shape.x}" y="${shape.y}"/><a:ext cx="${shape.cx}" cy="${shape.cy}"/></a:xfrm>${fill}</p:spPr><p:txBody>${text.map((line) => `<a:p><a:r>${textFill}<a:t>${escapeXml(String(line))}</a:t></a:r></a:p>`).join('')}</p:txBody></p:sp>`
@@ -531,6 +542,7 @@ function createPptxFixture(slides) {
         data: `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../notesSlides/notesSlide${index + 1}.xml"/>
+  ${slide.shapes.filter((shape) => shape.imageBase64).map((_, imageIndex) => `<Relationship Id="rImage${imageIndex + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${index + 1}-${imageIndex + 1}.png"/>`).join('\n  ')}
 </Relationships>`
       })
       entries.push({
@@ -541,6 +553,22 @@ function createPptxFixture(slides) {
     ${slide.notes.map((line) => `<p:sp><p:txBody><a:p><a:r><a:t>${escapeXml(line)}</a:t></a:r></a:p></p:txBody></p:sp>`).join('\n    ')}
   </p:spTree></p:cSld>
 </p:notes>`
+      })
+    } else if (slide.shapes.some((shape) => shape.imageBase64)) {
+      entries.push({
+        name: `ppt/slides/_rels/slide${index + 1}.xml.rels`,
+        data: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${slide.shapes.filter((shape) => shape.imageBase64).map((_, imageIndex) => `<Relationship Id="rImage${imageIndex + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${index + 1}-${imageIndex + 1}.png"/>`).join('\n  ')}
+</Relationships>`
+      })
+    }
+  }
+  for (const slide of slidesWithImages) {
+    for (const image of slide.images) {
+      entries.push({
+        name: `ppt/media/image${slide.index}-${image.imageIndex}.png`,
+        data: Buffer.from(String(image.shape.imageBase64), 'base64')
       })
     }
   }
@@ -839,7 +867,8 @@ if (fixtureWorkspaceViews.has(captureView)) {
         backgroundColor: '#EEF6FF',
         shapes: [
           { text: ['Slides smoke updated'], x: 914400, y: 914400, cx: 10363200, cy: 914400, fillColor: '#D9EAFE', textColor: '#1D4ED8' },
-          { text: ['First slide updated'], x: 1371600, y: 2286000, cx: 9144000, cy: 685800, fillColor: '#DCFCE7', textColor: '#166534' }
+          { text: ['First slide updated'], x: 1371600, y: 2286000, cx: 9144000, cy: 685800, fillColor: '#DCFCE7', textColor: '#166534' },
+          { imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', x: 1371600, y: 3657600, cx: 1828800, cy: 914400 }
         ]
       },
       { lines: ['Second slide updated', 'Follow-up content'], notes: ['Second updated note'] }
@@ -1567,6 +1596,7 @@ child.on('exit', async (code) => {
           filesSlidesRenderer: result.filesSlidesRendererWorks === true,
           filesSlidesShapeLayout: result.filesSlidesShapeLayoutWorks === true,
           filesSlidesColorFills: result.filesSlidesColorFillsWorks === true,
+          filesSlidesImageShapes: result.filesSlidesImageShapesWorks === true,
           filesSpreadsheetControls: result.filesSpreadsheetControlsWorks === true,
           filesSpreadsheetSheetTabs: result.filesSpreadsheetSheetTabsWorks === true,
           filesSpreadsheetActiveCell: result.filesSpreadsheetActiveCellWorks === true,
@@ -1771,6 +1801,7 @@ child.on('exit', async (code) => {
         filesSlidesRenderer: captureView !== 'inspector' || result.filesSlidesRendererWorks === true,
         filesSlidesShapeLayout: captureView !== 'inspector' || result.filesSlidesShapeLayoutWorks === true,
         filesSlidesColorFills: captureView !== 'inspector' || result.filesSlidesColorFillsWorks === true,
+        filesSlidesImageShapes: captureView !== 'inspector' || result.filesSlidesImageShapesWorks === true,
         filesSpreadsheetControls: captureView !== 'inspector' || result.filesSpreadsheetControlsWorks === true,
         filesSpreadsheetSheetTabs: captureView !== 'inspector' || result.filesSpreadsheetSheetTabsWorks === true,
         filesSpreadsheetActiveCell: captureView !== 'inspector' || result.filesSpreadsheetActiveCellWorks === true,

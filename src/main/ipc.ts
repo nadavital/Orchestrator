@@ -68,6 +68,8 @@ interface SlidePreviewShape {
   height: number
   fillColor?: string
   textColor?: string
+  imageDataUrl?: string
+  imageMimeType?: string
 }
 
 interface DocumentPreviewParagraphBlock {
@@ -423,7 +425,7 @@ function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number;
     const text = [...xml.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g)]
       .map((match) => decodeXmlText(match[1] ?? '').trim())
       .filter(Boolean)
-    const shapes = extractSlideShapes(xml)
+    const shapes = extractSlideShapes(xml, archive, name)
     if (text.length > 12) truncated = true
     slides.push({
       index: index + 1,
@@ -442,7 +444,14 @@ function extractSlideBackgroundColor(xml: string): string | undefined {
   return backgroundXml ? extractSolidFillColor(backgroundXml) : undefined
 }
 
-function extractSlideShapes(xml: string): SlidePreviewShape[] {
+function extractSlideShapes(xml: string, archive: Buffer, slidePath: string): SlidePreviewShape[] {
+  return [
+    ...extractSlideTextShapes(xml),
+    ...extractSlidePictureShapes(xml, archive, slidePath)
+  ].slice(0, 24)
+}
+
+function extractSlideTextShapes(xml: string): SlidePreviewShape[] {
   return [...xml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)]
     .slice(0, 24)
     .flatMap((match) => {
@@ -451,25 +460,76 @@ function extractSlideShapes(xml: string): SlidePreviewShape[] {
         .map((textMatch) => decodeXmlText(textMatch[1] ?? '').trim())
         .filter(Boolean)
       if (text.length === 0) return []
-      const transform = /<a:xfrm[\s\S]*?<a:off\b([^>]*)\/>[\s\S]*?<a:ext\b([^>]*)\/>[\s\S]*?<\/a:xfrm>/.exec(shapeXml)
-      if (!transform) return []
-      const off = transform[1] ?? ''
-      const ext = transform[2] ?? ''
-      const x = numberAttribute(off, 'x')
-      const y = numberAttribute(off, 'y')
-      const width = numberAttribute(ext, 'cx')
-      const height = numberAttribute(ext, 'cy')
-      if ([x, y, width, height].some((value) => value === null) || width === 0 || height === 0) return []
+      const frame = extractSlideShapeFrame(shapeXml)
+      if (!frame) return []
       return [{
         text,
-        x: Math.max(0, Math.min(100, ((x ?? 0) / 12_192_000) * 100)),
-        y: Math.max(0, Math.min(100, ((y ?? 0) / 6_858_000) * 100)),
-        width: Math.max(1, Math.min(100, ((width ?? 0) / 12_192_000) * 100)),
-        height: Math.max(1, Math.min(100, ((height ?? 0) / 6_858_000) * 100)),
+        ...frame,
         fillColor: extractShapeFillColor(shapeXml),
         textColor: extractTextFillColor(shapeXml)
       }]
     })
+}
+
+function extractSlidePictureShapes(xml: string, archive: Buffer, slidePath: string): SlidePreviewShape[] {
+  const relationships = extractZipRelationships(archive, slidePath)
+  return [...xml.matchAll(/<p:pic\b[\s\S]*?<\/p:pic>/g)]
+    .slice(0, 12)
+    .flatMap((match) => {
+      const pictureXml = match[0] ?? ''
+      const embedId = /\b(?:r:)?embed="([^"]+)"/.exec(pictureXml)?.[1] ?? ''
+      const target = relationships.get(embedId)
+      if (!target) return []
+      const image = readZipEntry(archive, target)
+      const mimeType = imageMimeTypeForPath(target)
+      const frame = extractSlideShapeFrame(pictureXml)
+      if (!image || !mimeType || !frame || image.byteLength > 250_000) return []
+      return [{
+        text: [],
+        ...frame,
+        imageDataUrl: `data:${mimeType};base64,${image.toString('base64')}`,
+        imageMimeType: mimeType
+      }]
+    })
+}
+
+function extractSlideShapeFrame(xml: string): Pick<SlidePreviewShape, 'x' | 'y' | 'width' | 'height'> | null {
+  const transform = /<a:xfrm[\s\S]*?<a:off\b([^>]*)\/>[\s\S]*?<a:ext\b([^>]*)\/>[\s\S]*?<\/a:xfrm>/.exec(xml)
+  if (!transform) return null
+  const off = transform[1] ?? ''
+  const ext = transform[2] ?? ''
+  const x = numberAttribute(off, 'x')
+  const y = numberAttribute(off, 'y')
+  const width = numberAttribute(ext, 'cx')
+  const height = numberAttribute(ext, 'cy')
+  if ([x, y, width, height].some((value) => value === null) || width === 0 || height === 0) return null
+  return {
+    x: Math.max(0, Math.min(100, ((x ?? 0) / 12_192_000) * 100)),
+    y: Math.max(0, Math.min(100, ((y ?? 0) / 6_858_000) * 100)),
+    width: Math.max(1, Math.min(100, ((width ?? 0) / 12_192_000) * 100)),
+    height: Math.max(1, Math.min(100, ((height ?? 0) / 6_858_000) * 100))
+  }
+}
+
+function extractZipRelationships(archive: Buffer, partPath: string): Map<string, string> {
+  const relsXml = readZipEntry(archive, zipRelationshipPathForPart(partPath))?.toString('utf8') ?? ''
+  const relationships = new Map<string, string>()
+  for (const match of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
+    const tag = match[0] ?? ''
+    const id = /\bId="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (id && target) relationships.set(id, resolveZipRelationshipTarget(partPath, target))
+  }
+  return relationships
+}
+
+function imageMimeTypeForPath(path: string): string | null {
+  const extension = extname(path).toLowerCase()
+  if (extension === '.png') return 'image/png'
+  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg'
+  if (extension === '.gif') return 'image/gif'
+  if (extension === '.webp') return 'image/webp'
+  return null
 }
 
 function extractShapeFillColor(xml: string): string | undefined {

@@ -937,7 +937,7 @@ interface SlidesPreviewPayload {
     text: string[]
     notes?: string
     backgroundColor?: string
-    shapes?: Array<{ text: string[]; x: number; y: number; width: number; height: number; fillColor?: string; textColor?: string }>
+    shapes?: Array<{ text: string[]; x: number; y: number; width: number; height: number; fillColor?: string; textColor?: string; imageDataUrl?: string; imageMimeType?: string }>
   }>
   truncated?: boolean
 }
@@ -1435,6 +1435,7 @@ function SlidesArtifactPreview({
   const notesCount = slides.filter((slide) => slide.notes?.trim()).length
   const currentSlideNotes = currentSlide?.notes?.trim() ?? ''
   const shapeCount = slides.reduce((count, slide) => count + (slide.shapes?.length ?? 0), 0)
+  const imageShapeCount = slides.reduce((count, slide) => count + (slide.shapes?.filter((shape) => shape.imageDataUrl).length ?? 0), 0)
   const colorFillCount = slides.reduce((count, slide) => (
     count +
     (slide.backgroundColor ? 1 : 0) +
@@ -1461,6 +1462,8 @@ function SlidesArtifactPreview({
       data-slides-preview-add-slide="read-only"
       data-slides-preview-shape-count={shapeCount}
       data-slides-preview-current-shape-count={currentSlide?.shapes?.length ?? 0}
+      data-slides-preview-image-shape-count={imageShapeCount}
+      data-slides-preview-current-image-shape-count={currentSlide?.shapes?.filter((shape) => shape.imageDataUrl).length ?? 0}
       data-slides-preview-stage-renderer={shapeCount > 0 ? 'positioned-shapes' : 'text-outline'}
       data-slides-preview-color-fill-count={colorFillCount}
       data-slides-preview-current-background-color={currentSlide?.backgroundColor ?? ''}
@@ -1568,6 +1571,7 @@ function SlidesArtifactPreview({
                   data-slide-index={currentSlide.index}
                   data-slides-stage-renderer={(currentSlide.shapes?.length ?? 0) > 0 ? 'positioned-shapes' : 'text-outline'}
                   data-slides-shape-count={currentSlide.shapes?.length ?? 0}
+                  data-slides-image-shape-count={currentSlide.shapes?.filter((shape) => shape.imageDataUrl).length ?? 0}
                   data-slides-background-color={currentSlide.backgroundColor ?? ''}
                   style={{ fontSize: `${Math.max(10, Math.min(18, 13 * (effectiveZoomPercent / 100)))}px` }}
                 >
@@ -1585,8 +1589,10 @@ function SlidesArtifactPreview({
                           className="workspace-slide-positioned-shape"
                           data-testid="workspace-slides-preview-shape"
                           data-slide-shape-index={index + 1}
+                          data-slide-shape-kind={shape.imageDataUrl ? 'image' : 'text'}
                           data-slide-shape-fill-color={shape.fillColor ?? ''}
                           data-slide-shape-text-color={shape.textColor ?? ''}
+                          data-slide-shape-image-mime-type={shape.imageMimeType ?? ''}
                           style={{
                             left: `${shape.x}%`,
                             top: `${shape.y}%`,
@@ -1596,7 +1602,15 @@ function SlidesArtifactPreview({
                             ...(shape.textColor ? { color: shape.textColor } : {})
                           }}
                         >
-                          {shape.text.map((line, lineIndex) => (
+                          {shape.imageDataUrl ? (
+                            <img
+                              src={shape.imageDataUrl}
+                              alt=""
+                              className="workspace-slide-positioned-image"
+                              data-testid="workspace-slides-preview-image-shape"
+                              draggable={false}
+                            />
+                          ) : shape.text.map((line, lineIndex) => (
                             lineIndex === 0 && index === 0
                               ? <h3 key={lineIndex}>{line}</h3>
                               : <p key={lineIndex}>{line}</p>
@@ -1732,9 +1746,11 @@ function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | nu
               width: clampPercent(Number(shape?.width ?? 0), 1),
               height: clampPercent(Number(shape?.height ?? 0), 1),
               fillColor: normalizeHexColor(shape?.fillColor),
-              textColor: normalizeHexColor(shape?.textColor)
+              textColor: normalizeHexColor(shape?.textColor),
+              imageDataUrl: normalizeImageDataUrl(shape?.imageDataUrl),
+              imageMimeType: normalizeImageMimeType(shape?.imageMimeType)
             }))
-            .filter((shape) => shape.text.length > 0 && shape.width > 0 && shape.height > 0)
+            .filter((shape) => (shape.text.length > 0 || shape.imageDataUrl) && shape.width > 0 && shape.height > 0)
           : []
       }))
     if (slides.length === 0) return null
@@ -1750,6 +1766,16 @@ function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | nu
 function normalizeHexColor(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   return /^#[0-9A-Fa-f]{6}$/.test(value) ? value.toUpperCase() : undefined
+}
+
+function normalizeImageDataUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  return /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(value) ? value : undefined
+}
+
+function normalizeImageMimeType(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  return ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(value) ? value : undefined
 }
 
 function clampPercent(value: number, minimum = 0): number {
