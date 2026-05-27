@@ -11241,6 +11241,7 @@ function runAutomatedFocusedSurfaceSmoke(
 	              const spreadsheetChartChecks = {};
 	              const spreadsheetChartPlotChecks = {};
 	              const spreadsheetDrawingChecks = {};
+	              const spreadsheetSparklineChecks = {};
 	              const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11894,6 +11895,10 @@ function runAutomatedFocusedSurfaceSmoke(
 	                    const shapeDrawing = document.querySelector('[data-testid="workspace-spreadsheet-drawing"][data-spreadsheet-drawing-kind="shape"]');
 	                    const imageDrawing = document.querySelector('[data-testid="workspace-spreadsheet-drawing"][data-spreadsheet-drawing-kind="image"]');
 	                    const imageDrawingImg = imageDrawing instanceof HTMLElement ? imageDrawing.querySelector('[data-testid="workspace-spreadsheet-drawing-image"]') : null;
+	                    const spreadsheetSparklines = document.querySelector('[data-testid="workspace-spreadsheet-sparklines"]');
+	                    const sparklineCards = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-sparkline"]')];
+	                    const firstSparkline = document.querySelector('[data-testid="workspace-spreadsheet-sparkline"][data-spreadsheet-sparkline-target-cell="F2"]');
+	                    const firstSparklineSvg = firstSparkline instanceof HTMLElement ? firstSparkline.querySelector('[data-testid="workspace-spreadsheet-sparkline-svg"]') : null;
 	                    const chartPreview = document.querySelector('[data-testid="workspace-spreadsheet-chart-preview"]');
                     const chartPlot = document.querySelector('[data-testid="workspace-spreadsheet-chart-plot"]');
                     const chartSvg = document.querySelector('[data-testid="workspace-spreadsheet-chart-svg"]');
@@ -12237,6 +12242,22 @@ function runAutomatedFocusedSurfaceSmoke(
 	                      imageDrawing.getAttribute('data-spreadsheet-drawing-anchor-column') === 'F' &&
 	                      imageDrawingImg instanceof HTMLElement &&
 	                      imageDrawingImg.getAttribute('src')?.startsWith('data:image/png;base64,') === true;
+	                    spreadsheetSparklineChecks[testId] =
+	                      spreadsheetPreview instanceof HTMLElement &&
+	                      spreadsheetPreview.getAttribute('data-spreadsheet-sparkline-count') === '1' &&
+	                      spreadsheetSparklines instanceof HTMLElement &&
+	                      spreadsheetSparklines.getAttribute('data-spreadsheet-sparkline-count') === '1' &&
+	                      sparklineCards.length === 1 &&
+	                      firstSparkline instanceof HTMLElement &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-type') === 'line' &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-target-cell') === 'F2' &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-source-range') === 'Smoke data!G2:J2' &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-values') === '5|7|9|11' &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-markers') === 'true' &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-rendered') === 'true' &&
+	                      firstSparklineSvg instanceof SVGElement &&
+	                      firstSparklineSvg.getAttribute('viewBox') === '0 0 96 32' &&
+	                      firstSparkline.textContent?.includes('F2') === true;
 	                    if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13717,6 +13738,7 @@ function runAutomatedFocusedSurfaceSmoke(
 	                filesSpreadsheetChartsWorks: Boolean(spreadsheetChartChecks['workspace-spreadsheet-preview']),
 	                filesSpreadsheetChartPlotWorks: Boolean(spreadsheetChartPlotChecks['workspace-spreadsheet-preview']),
 	                filesSpreadsheetDrawingsWorks: Boolean(spreadsheetDrawingChecks['workspace-spreadsheet-preview']),
+	                filesSpreadsheetSparklinesWorks: Boolean(spreadsheetSparklineChecks['workspace-spreadsheet-preview']),
 	                filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),

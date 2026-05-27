@@ -928,10 +928,12 @@ interface SpreadsheetPreviewPayload {
     tables?: SpreadsheetPreviewTable[]
     charts?: SpreadsheetPreviewChart[]
     drawings?: SpreadsheetPreviewDrawing[]
+    sparklines?: SpreadsheetPreviewSparkline[]
     conditionalFormatCount?: number
     dataValidationCount?: number
     commentCount?: number
     drawingCount?: number
+    sparklineCount?: number
     columnWidths?: Array<number | undefined>
     rowHeights?: Array<number | undefined>
     freezePanes?: SpreadsheetFreezePanes
@@ -998,6 +1000,14 @@ interface SpreadsheetPreviewDrawing {
   toColumn?: number
   imageDataUrl?: string
   imageMimeType?: string
+}
+
+interface SpreadsheetPreviewSparkline {
+  type: 'line' | 'column' | 'stacked'
+  targetCell: string
+  sourceRange: string
+  values: number[]
+  markers?: boolean
 }
 
 interface SpreadsheetPreviewChartDatum {
@@ -1079,10 +1089,12 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
     ...(sheet.tables ? { tables: sheet.tables.map((table) => ({ ...table })) } : {}),
     ...(sheet.charts ? { charts: sheet.charts.map((chart) => ({ ...chart })) } : {}),
     ...(sheet.drawings ? { drawings: sheet.drawings.map((drawing) => ({ ...drawing })) } : {}),
+    ...(sheet.sparklines ? { sparklines: sheet.sparklines.map((sparkline) => ({ ...sparkline, values: [...sparkline.values] })) } : {}),
     ...(sheet.conditionalFormatCount ? { conditionalFormatCount: sheet.conditionalFormatCount } : {}),
     ...(sheet.dataValidationCount ? { dataValidationCount: sheet.dataValidationCount } : {}),
     ...(sheet.commentCount ? { commentCount: sheet.commentCount } : {}),
     ...(sheet.drawingCount ? { drawingCount: sheet.drawingCount } : {}),
+    ...(sheet.sparklineCount ? { sparklineCount: sheet.sparklineCount } : {}),
     ...(sheet.columnWidths ? { columnWidths: [...sheet.columnWidths] } : {}),
     ...(sheet.rowHeights ? { rowHeights: [...sheet.rowHeights] } : {}),
     ...(sheet.freezePanes ? { freezePanes: { ...sheet.freezePanes } } : {})
@@ -1307,6 +1319,26 @@ function spreadsheetDrawingAnchorLabel(drawing: SpreadsheetPreviewDrawing): stri
   return [to ? `${from}:${to}` : from, size].filter(Boolean).join(' · ')
 }
 
+function spreadsheetSparklinePoints(values: number[]): string {
+  return spreadsheetSparklinePointData(values)
+    .map((point) => `${point.x},${point.y}`)
+    .join(' ')
+}
+
+function spreadsheetSparklinePointData(values: number[]): Array<{ x: number; y: number; value: number }> {
+  const finiteValues = values.filter((value) => Number.isFinite(value)).slice(0, 32)
+  if (finiteValues.length === 0) return []
+  const min = Math.min(...finiteValues)
+  const max = Math.max(...finiteValues)
+  const range = max - min || 1
+  return finiteValues
+    .map((value, index) => {
+      const x = finiteValues.length === 1 ? 48 : 8 + (index * 80) / (finiteValues.length - 1)
+      const y = 24 - ((value - min) / range) * 18
+      return { x: Number(x.toFixed(2)), y: Number(y.toFixed(2)), value }
+    })
+}
+
 function spreadsheetCellNumber(cell: SpreadsheetPreviewCell | undefined): number {
   const value = Number(cell?.value ?? 0)
   return Number.isFinite(value) ? value : 0
@@ -1452,6 +1484,7 @@ function SpreadsheetArtifactPreview({
   const tableCount = activeSheet?.tables?.length ?? 0
   const chartCount = activeSheet?.charts?.length ?? 0
   const drawingCount = activeSheet?.drawingCount ?? activeSheet?.drawings?.length ?? 0
+  const sparklineCount = activeSheet?.sparklineCount ?? activeSheet?.sparklines?.length ?? 0
   const conditionalFormatCount = activeSheet?.conditionalFormatCount ?? 0
   const dataValidationCount = activeSheet?.dataValidationCount ?? 0
   const commentCount = activeSheet?.commentCount ?? 0
@@ -1551,6 +1584,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-table-count={tableCount}
       data-spreadsheet-chart-count={chartCount}
       data-spreadsheet-drawing-count={drawingCount}
+      data-spreadsheet-sparkline-count={sparklineCount}
       data-spreadsheet-conditional-format-count={conditionalFormatCount}
       data-spreadsheet-data-validation-count={dataValidationCount}
       data-spreadsheet-comment-count={commentCount}
@@ -2071,6 +2105,75 @@ function SpreadsheetArtifactPreview({
                     ))}
                   </div>
                 )}
+                {(activeSheet.sparklines?.length ?? 0) > 0 && (
+                  <div
+                    className="workspace-spreadsheet-sparklines"
+                    data-testid="workspace-spreadsheet-sparklines"
+                    data-spreadsheet-sparkline-count={activeSheet.sparklines?.length ?? 0}
+                  >
+                    {activeSheet.sparklines?.map((sparkline, index) => {
+                      const pointData = spreadsheetSparklinePointData(sparkline.values)
+                      const points = spreadsheetSparklinePoints(sparkline.values)
+                      return (
+                        <div
+                          key={`${sparkline.targetCell}-${sparkline.sourceRange}-${index}`}
+                          className="workspace-spreadsheet-sparkline-card"
+                          data-testid="workspace-spreadsheet-sparkline"
+                          data-spreadsheet-sparkline-type={sparkline.type}
+                          data-spreadsheet-sparkline-target-cell={sparkline.targetCell}
+                          data-spreadsheet-sparkline-source-range={sparkline.sourceRange}
+                          data-spreadsheet-sparkline-values={sparkline.values.join('|')}
+                          data-spreadsheet-sparkline-markers={sparkline.markers ? 'true' : 'false'}
+                          data-spreadsheet-sparkline-rendered={points ? 'true' : 'false'}
+                        >
+                          <svg
+                            className="workspace-spreadsheet-sparkline-svg"
+                            data-testid="workspace-spreadsheet-sparkline-svg"
+                            viewBox="0 0 96 32"
+                            role="img"
+                            aria-label={`${sparkline.targetCell} sparkline`}
+                          >
+                            <line className="workspace-spreadsheet-sparkline-axis" x1="8" y1="26" x2="88" y2="26" />
+                            {points && sparkline.type === 'line' && (
+                              <polyline className="workspace-spreadsheet-sparkline-line" points={points} />
+                            )}
+                            {pointData.map((point, valueIndex) => {
+                              const barHeight = Math.max(2, 26 - point.y)
+                              if (sparkline.type !== 'line') {
+                                return (
+                                  <rect
+                                    key={`${sparkline.targetCell}-${valueIndex}`}
+                                    className="workspace-spreadsheet-sparkline-bar"
+                                    x={point.x - 4}
+                                    y={26 - barHeight}
+                                    width="8"
+                                    height={barHeight}
+                                    rx="2"
+                                  />
+                                )
+                              }
+                              return sparkline.markers ? (
+                                <circle
+                                  key={`${sparkline.targetCell}-${valueIndex}`}
+                                  className="workspace-spreadsheet-sparkline-marker"
+                                  cx={point.x}
+                                  cy={point.y}
+                                  r="2.4"
+                                />
+                              ) : null
+                            })}
+                          </svg>
+                          <div className="workspace-spreadsheet-sparkline-body">
+                            <div className="workspace-spreadsheet-sparkline-title">{sparkline.targetCell}</div>
+                            <div className="workspace-spreadsheet-sparkline-meta">
+                              {sparkline.type} · {sparkline.sourceRange}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
                 {(activeSheet.charts?.length ?? 0) > 0 && (
                   <div className="workspace-spreadsheet-charts" data-testid="workspace-spreadsheet-chart-preview-list">
                     {activeSheet.charts?.map((chart, index) => {
@@ -2511,6 +2614,9 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
         drawings: Array.isArray(sheet.drawings)
           ? sheet.drawings.map((drawing) => normalizeSpreadsheetDrawing(drawing)).filter((drawing): drawing is SpreadsheetPreviewDrawing => Boolean(drawing))
           : undefined,
+        sparklines: Array.isArray(sheet.sparklines)
+          ? sheet.sparklines.map((sparkline) => normalizeSpreadsheetSparkline(sparkline)).filter((sparkline): sparkline is SpreadsheetPreviewSparkline => Boolean(sparkline))
+          : undefined,
         conditionalFormatCount: typeof sheet.conditionalFormatCount === 'number' && sheet.conditionalFormatCount > 0
           ? Math.min(24, Math.floor(sheet.conditionalFormatCount))
           : undefined,
@@ -2522,6 +2628,9 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
           : undefined,
         drawingCount: typeof sheet.drawingCount === 'number' && sheet.drawingCount > 0
           ? Math.min(24, Math.floor(sheet.drawingCount))
+          : undefined,
+        sparklineCount: typeof sheet.sparklineCount === 'number' && sheet.sparklineCount > 0
+          ? Math.min(24, Math.floor(sheet.sparklineCount))
           : undefined,
         columnWidths: Array.isArray(sheet.columnWidths)
           ? normalizeSpreadsheetDimensionArray(sheet.columnWidths, 48, 320, 12)
@@ -2765,6 +2874,39 @@ function normalizeSpreadsheetDrawing(value: unknown): SpreadsheetPreviewDrawing 
     ...(toColumn !== undefined ? { toColumn } : {}),
     ...(imageDataUrl ? { imageDataUrl } : {}),
     ...(typeof candidate.imageMimeType === 'string' && candidate.imageMimeType.startsWith('image/') ? { imageMimeType: candidate.imageMimeType.slice(0, 40) } : {})
+  }
+}
+
+function normalizeSpreadsheetSparkline(value: unknown): SpreadsheetPreviewSparkline | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as {
+    type?: unknown
+    targetCell?: unknown
+    sourceRange?: unknown
+    values?: unknown
+    markers?: unknown
+  }
+  const rawType = typeof candidate.type === 'string' ? candidate.type.toLowerCase() : 'line'
+  const type: SpreadsheetPreviewSparkline['type'] = rawType === 'column' || rawType === 'stacked' ? rawType : 'line'
+  const targetCell = typeof candidate.targetCell === 'string'
+    ? candidate.targetCell.replace(/\$/g, '').trim().toUpperCase()
+    : ''
+  const sourceRange = typeof candidate.sourceRange === 'string'
+    ? candidate.sourceRange.replace(/\$/g, '').trim()
+    : ''
+  if (!/^[A-Z]{1,3}\d+$/.test(targetCell) || !sourceRange) return null
+  const values = Array.isArray(candidate.values)
+    ? candidate.values
+      .map((item) => Number(item))
+      .filter((item) => Number.isFinite(item))
+      .slice(0, 32)
+    : []
+  return {
+    type,
+    targetCell,
+    sourceRange,
+    values,
+    ...(candidate.markers === true ? { markers: true } : {})
   }
 }
 

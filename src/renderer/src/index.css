@@ -5049,6 +5049,7 @@
   }
 
   .workspace-spreadsheet-drawings,
+  .workspace-spreadsheet-sparklines,
   .workspace-spreadsheet-charts {
     display: grid;
     min-width: 0;
@@ -5057,6 +5058,7 @@
   }
 
   .workspace-spreadsheet-drawing-card,
+  .workspace-spreadsheet-sparkline-card,
   .workspace-spreadsheet-chart-card {
     min-width: 0;
     overflow: hidden;
@@ -5072,6 +5074,58 @@
     grid-template-columns: 56px minmax(0, 1fr);
     gap: 9px;
     align-items: center;
+  }
+
+  .workspace-spreadsheet-sparkline-card {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 9px;
+    align-items: center;
+  }
+
+  .workspace-spreadsheet-sparkline-svg {
+    display: block;
+    width: 96px;
+    height: 32px;
+  }
+
+  .workspace-spreadsheet-sparkline-axis {
+    stroke: var(--border-subtle);
+    stroke-width: 1;
+  }
+
+  .workspace-spreadsheet-sparkline-line {
+    fill: none;
+    stroke: color-mix(in srgb, var(--accent) 78%, var(--text-primary));
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+  }
+
+  .workspace-spreadsheet-sparkline-marker,
+  .workspace-spreadsheet-sparkline-bar {
+    fill: color-mix(in srgb, var(--accent) 74%, var(--surface-bg));
+  }
+
+  .workspace-spreadsheet-sparkline-body {
+    min-width: 0;
+  }
+
+  .workspace-spreadsheet-sparkline-title {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-spreadsheet-sparkline-meta {
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .workspace-spreadsheet-drawing-preview {

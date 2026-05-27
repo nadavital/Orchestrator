@@ -626,6 +626,18 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     const dataValidationXml = dataValidationItems.length > 0
       ? `<dataValidations count="${dataValidationItems.length}">${dataValidationItems.join('')}</dataValidations>`
       : ''
+    const sparklineItems = (sheet.sparklines ?? [])
+      .map((sparkline) => {
+        const targetCell = String(sparkline?.targetCell ?? '').replace(/\$/g, '').toUpperCase()
+        const sourceRange = String(sparkline?.sourceRange ?? '').replace(/\$/g, '')
+        if (!/^[A-Z]{1,3}\d+$/.test(targetCell) || !sourceRange) return ''
+        return `<x14:sparkline><xm:f>${escapeXml(sourceRange)}</xm:f><xm:sqref>${escapeXml(targetCell)}</xm:sqref></x14:sparkline>`
+      })
+      .filter(Boolean)
+    const sparklineType = String(sheet.sparklines?.[0]?.type ?? 'line').toLowerCase()
+    const sparklineXml = sparklineItems.length > 0
+      ? `<extLst><ext uri="{05C60535-1F16-4fd2-B633-F4F36F0B64E0}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:sparklineGroups xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><x14:sparklineGroup type="${escapeXml(['column', 'stacked'].includes(sparklineType) ? sparklineType : 'line')}" displayEmptyCellsAs="gap"${sheet.sparklines?.some((sparkline) => sparkline?.markers === true) ? ' markers="1"' : ''}><x14:colorSeries rgb="FF2563EB"/><x14:sparklines>${sparklineItems.join('')}</x14:sparklines></x14:sparklineGroup></x14:sparklineGroups></ext></extLst>`
+      : ''
     const comments = (sheet.comments ?? [])
       .map((comment) => ({
         ref: String(comment?.ref ?? '').toUpperCase(),
@@ -838,6 +850,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   ${tableEntries.length > 0 ? `<tableParts count="${tableEntries.length}">${tableEntries.map((table) => `<tablePart r:id="${table.relId}"/>`).join('')}</tableParts>` : ''}
   ${chartEntries.map((chart) => `<drawing r:id="${chart.relId}"/>`).join('\n  ')}
   ${drawingEntries.map((drawing) => `<drawing r:id="${drawing.relId}"/>`).join('\n  ')}
+  ${sparklineXml}
 </worksheet>`
       }
     })
@@ -1381,10 +1394,15 @@ if (fixtureWorkspaceViews.has(captureView)) {
             { value: 'Count', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
             { value: 'Status', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
             '',
-            'Updated'
+            'Updated',
+            '',
+            'Trend 1',
+            'Trend 2',
+            'Trend 3',
+            'Trend 4'
           ],
-          ['Alpha', '2', { value: 'Updated', fillColor: '#DCFCE7', textColor: '#166534' }, '', 'New'],
-          ['Beta', '3', { value: 'New', fillColor: '#F5F3FF', textColor: '#6D28D9' }, '', 'Blocked'],
+          ['Alpha', '2', { value: 'Updated', fillColor: '#DCFCE7', textColor: '#166534' }, '', 'New', '', '5', '7', '9', '11'],
+          ['Beta', '3', { value: 'New', fillColor: '#F5F3FF', textColor: '#6D28D9' }, '', 'Blocked', '', '3', '4', '6', '8'],
           [{ value: 'Merged updated note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, ''],
           [{ value: 'Wrapped centered updated note for alignment proof', fillColor: '#F0F9FF', textColor: '#075985', borderColor: '#2563EB', wrapText: true, horizontalAlignment: 'center', verticalAlignment: 'middle' }, '', '']
         ],
@@ -1406,6 +1424,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
           comments: [{ ref: 'B3', author: 'Ava Reviewer', text: 'Confirm beta count before export.' }],
           tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
           charts: [{ title: 'Status Count Chart', type: 'bar', sourceRange: 'Smoke data!B1:B3' }],
+          sparklines: [{ type: 'line', targetCell: 'F2', sourceRange: 'Smoke data!G2:J2', markers: true }],
           drawings: [
             { kind: 'shape', name: 'Workbook shape callout', description: 'Workbook smoke shape', text: 'Workbook shape callout', geometry: 'upArrow', row: 1, col: 5, rowOffsetPx: 6, colOffsetPx: 4, widthPx: 170, heightPx: 92, fillColor: '#2563EB', lineColor: '#1D4ED8' },
             { kind: 'image', name: 'Workbook image', alt: 'Workbook smoke embedded image', row: 3, col: 5, rowOffsetPx: 8, colOffsetPx: 96, widthPx: 44, heightPx: 44, imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==' }
@@ -2198,6 +2217,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetCharts: result.filesSpreadsheetChartsWorks === true,
           filesSpreadsheetChartPlot: result.filesSpreadsheetChartPlotWorks === true,
           filesSpreadsheetDrawings: result.filesSpreadsheetDrawingsWorks === true,
+          filesSpreadsheetSparklines: result.filesSpreadsheetSparklinesWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -2433,6 +2453,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetCharts: captureView !== 'inspector' || result.filesSpreadsheetChartsWorks === true,
         filesSpreadsheetChartPlot: captureView !== 'inspector' || result.filesSpreadsheetChartPlotWorks === true,
         filesSpreadsheetDrawings: captureView !== 'inspector' || result.filesSpreadsheetDrawingsWorks === true,
+        filesSpreadsheetSparklines: captureView !== 'inspector' || result.filesSpreadsheetSparklinesWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,

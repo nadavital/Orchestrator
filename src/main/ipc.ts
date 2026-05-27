@@ -72,10 +72,12 @@ interface SpreadsheetPreviewSheet {
   tables?: SpreadsheetPreviewTable[]
   charts?: SpreadsheetPreviewChart[]
   drawings?: SpreadsheetPreviewDrawing[]
+  sparklines?: SpreadsheetPreviewSparkline[]
   conditionalFormatCount?: number
   dataValidationCount?: number
   commentCount?: number
   drawingCount?: number
+  sparklineCount?: number
   columnWidths?: Array<number | undefined>
   rowHeights?: Array<number | undefined>
   freezePanes?: SpreadsheetFreezePanes
@@ -125,6 +127,14 @@ interface SpreadsheetPreviewDrawing {
   toColumn?: number
   imageDataUrl?: string
   imageMimeType?: string
+}
+
+interface SpreadsheetPreviewSparkline {
+  type: 'line' | 'column' | 'stacked'
+  targetCell: string
+  sourceRange: string
+  values: number[]
+  markers?: boolean
 }
 
 interface SpreadsheetPreviewConditionalFormat {
@@ -912,6 +922,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     const tables = extractWorksheetTables(xml, archive, sheet.path)
     const charts = extractWorksheetCharts(xml, archive, sheet.path)
     const drawings = extractWorksheetDrawings(xml, archive, sheet.path)
+    const sparklines = extractWorksheetSparklines(xml, parsed.rows, sheet.name)
     const conditionalFormats = extractWorksheetConditionalFormats(xml)
     applyWorksheetConditionalFormats(parsed.rows, conditionalFormats)
     const dataValidations = extractWorksheetDataValidations(xml, parsed.rows, sheet.name)
@@ -928,6 +939,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
       ...(tables.length > 0 ? { tables } : {}),
       ...(charts.length > 0 ? { charts } : {}),
       ...(drawings.length > 0 ? { drawings, drawingCount: drawings.length } : {}),
+      ...(sparklines.length > 0 ? { sparklines, sparklineCount: sparklines.length } : {}),
       ...(conditionalFormats.length > 0 ? { conditionalFormatCount: conditionalFormats.length } : {}),
       ...(dataValidations.length > 0 ? { dataValidationCount: dataValidations.length } : {}),
       ...(comments.length > 0 ? { commentCount: comments.length } : {}),
@@ -1344,6 +1356,71 @@ function extractWorksheetDrawings(xml: string, archive: Buffer, sheetPath: strin
     const drawingRelationships = extractZipRelationshipsFromXml(drawingRelsXml, drawingPath)
     return extractSpreadsheetDrawingAnchors(drawingXml, archive, drawingRelationships)
   }).slice(0, 16)
+}
+
+function extractWorksheetSparklines(xml: string, rows: SpreadsheetPreviewCell[][], sheetName: string): SpreadsheetPreviewSparkline[] {
+  return [...xml.matchAll(/<(?:x14:)?sparklineGroup\b([^>]*)>([\s\S]*?)<\/(?:x14:)?sparklineGroup>/g)]
+    .slice(0, 8)
+    .flatMap((groupMatch) => {
+      const attributes = groupMatch[1] ?? ''
+      const groupXml = groupMatch[2] ?? ''
+      const rawType = /\btype="([^"]+)"/i.exec(attributes)?.[1]?.toLowerCase() ?? 'line'
+      const type: SpreadsheetPreviewSparkline['type'] = rawType === 'column' || rawType === 'stacked' ? rawType : 'line'
+      const markers = /\bmarkers="(?:1|true)"/i.test(attributes)
+      return [...groupXml.matchAll(/<(?:x14:)?sparkline\b[\s\S]*?<\/(?:x14:)?sparkline>/g)]
+        .slice(0, 24)
+        .flatMap((sparklineMatch) => {
+          const sparklineXml = sparklineMatch[0] ?? ''
+          const formula = decodeXmlText(/<(?:xm:)?f(?:\s[^>]*)?>([\s\S]*?)<\/(?:xm:)?f>/.exec(sparklineXml)?.[1] ?? '').trim()
+          const targetCell = decodeXmlText(/<(?:xm:)?sqref(?:\s[^>]*)?>([\s\S]*?)<\/(?:xm:)?sqref>/.exec(sparklineXml)?.[1] ?? '')
+            .replace(/\$/g, '')
+            .trim()
+            .split(/\s+/)[0]
+            ?.toUpperCase() ?? ''
+          const source = spreadsheetSparklineSourceRange(formula, sheetName)
+          if (!targetCell || !/^[A-Z]{1,3}\d+$/.test(targetCell) || !source) return []
+          const values = source.localRange ? spreadsheetValuesForRange(source.localRange, rows) : []
+          return [{
+            type,
+            targetCell,
+            sourceRange: source.displayRange,
+            values,
+            ...(markers ? { markers: true } : {})
+          }]
+        })
+    })
+    .slice(0, 24)
+}
+
+function spreadsheetSparklineSourceRange(formula: string, sheetName: string): { displayRange: string; localRange?: string } | null {
+  const normalized = formula.replace(/\$/g, '').trim()
+  if (!normalized) return null
+  const sheetMatch = /^(?:'([^']+)'|([^!]+))!(.+)$/.exec(normalized)
+  const ref = (sheetMatch ? sheetMatch[3] : normalized).toUpperCase()
+  if (!spreadsheetRangePosition(ref)) return null
+  const refSheetName = sheetMatch?.[1] ?? sheetMatch?.[2]
+  const displayRange = refSheetName ? `${refSheetName}!${ref}` : ref
+  return {
+    displayRange,
+    ...(refSheetName && refSheetName !== sheetName ? {} : { localRange: ref })
+  }
+}
+
+function spreadsheetValuesForRange(ref: string, rows: SpreadsheetPreviewCell[][]): number[] {
+  const range = spreadsheetRangePosition(ref)
+  if (!range) return []
+  const values: number[] = []
+  for (let rowIndex = range.startRow; rowIndex <= range.endRow; rowIndex += 1) {
+    const row = rows[rowIndex] ?? []
+    for (let columnIndex = range.startColumn; columnIndex <= range.endColumn; columnIndex += 1) {
+      const rawValue = row[columnIndex]?.value?.trim() ?? ''
+      if (!rawValue) continue
+      const value = Number(rawValue)
+      if (Number.isFinite(value)) values.push(value)
+      if (values.length >= 32) return values
+    }
+  }
+  return values
 }
 
 function extractSpreadsheetDrawingAnchors(xml: string, archive: Buffer, relationships: Map<string, string>): SpreadsheetPreviewDrawing[] {
