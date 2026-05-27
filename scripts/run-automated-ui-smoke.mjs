@@ -612,6 +612,14 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     const dataValidationXml = dataValidationItems.length > 0
       ? `<dataValidations count="${dataValidationItems.length}">${dataValidationItems.join('')}</dataValidations>`
       : ''
+    const comments = (sheet.comments ?? [])
+      .map((comment) => ({
+        ref: String(comment?.ref ?? '').toUpperCase(),
+        author: String(comment?.author ?? 'Codex Smoke').trim() || 'Codex Smoke',
+        text: String(comment?.text ?? '').trim()
+      }))
+      .filter((comment) => /^[A-Z]+\d+$/.test(comment.ref) && comment.text)
+      .slice(0, 24)
     const tableEntries = (sheet.tables ?? [])
       .map((table, tableIndex) => {
         const ref = String(table?.ref ?? '').toUpperCase()
@@ -681,6 +689,22 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
         }
       })
       .filter(Boolean)
+    const commentRelId = comments.length > 0 ? `rId${tableEntries.length + chartEntries.length + 1}` : ''
+    const commentEntry = comments.length > 0
+      ? {
+          name: `xl/comments/comment${sheetIndex + 1}.xml`,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml',
+          data: `<?xml version="1.0" encoding="UTF-8"?>
+<comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <authors>${[...new Set(comments.map((comment) => comment.author))].map((author) => `<author>${escapeXml(author)}</author>`).join('')}</authors>
+  <commentList>${comments.map((comment) => {
+    const authors = [...new Set(comments.map((item) => item.author))]
+    const authorId = Math.max(0, authors.indexOf(comment.author))
+    return `<comment ref="${escapeXml(comment.ref)}" authorId="${authorId}"><text><r><t>${escapeXml(comment.text)}</t></r></text></comment>`
+  }).join('')}</commentList>
+</comments>`
+        }
+      : null
     const columnXml = Array.isArray(sheet.columnWidths)
       ? sheet.columnWidths
           .map((width, columnIndex) => {
@@ -730,13 +754,14 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     }).join('\n      ')
     return {
       name: `xl/worksheets/sheet${sheetIndex + 1}.xml`,
-      relationship: tableEntries.length > 0 || chartEntries.length > 0
+      relationship: tableEntries.length > 0 || chartEntries.length > 0 || commentEntry
         ? {
             name: `xl/worksheets/_rels/sheet${sheetIndex + 1}.xml.rels`,
             data: `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   ${tableEntries.map((table) => `<Relationship Id="${table.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="${table.target}"/>`).join('\n  ')}
   ${chartEntries.map((chart) => `<Relationship Id="${chart.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="${chart.target}"/>`).join('\n  ')}
+  ${commentEntry ? `<Relationship Id="${commentRelId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment${sheetIndex + 1}.xml"/>` : ''}
 </Relationships>`
           }
         : null,
@@ -746,6 +771,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
         { name: chart.drawingPath, data: chart.drawingData, contentType: 'application/vnd.openxmlformats-officedocument.drawing+xml' },
         { name: chart.drawingRelsPath, data: chart.drawingRelationshipData }
       ]),
+      commentEntry,
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"${tableEntries.length > 0 || chartEntries.length > 0 ? ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' : ''}>
   ${paneXml}
@@ -765,12 +791,16 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     { name: entry.name, data: entry.data },
     ...(entry.relationship ? [entry.relationship] : []),
     ...entry.tableEntries,
-    ...entry.chartEntries
+    ...entry.chartEntries,
+    ...(entry.commentEntry ? [entry.commentEntry] : [])
   ])
   const tableContentTypeOverrides = worksheetEntries.flatMap((entry) => entry.tableEntries)
   const chartContentTypeOverrides = worksheetEntries
     .flatMap((entry) => entry.chartEntries)
     .filter((entry) => entry.contentType)
+  const commentContentTypeOverrides = worksheetEntries
+    .map((entry) => entry.commentEntry)
+    .filter(Boolean)
   return createStoredZip([
     {
       name: '[Content_Types].xml',
@@ -782,6 +812,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   ${workbookSheets.map((_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('\n  ')}
   ${tableContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`).join('\n  ')}
   ${chartContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="${entry.contentType}"/>`).join('\n  ')}
+  ${commentContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="${entry.contentType}"/>`).join('\n  ')}
   <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 </Types>`
@@ -1288,6 +1319,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         freezePanes: { rows: 1, columns: 1 },
         conditionalFormats: [{ sqref: 'B2:B3', colors: ['#FEE2E2', '#DCFCE7'] }],
         dataValidations: [{ sqref: 'C2:C3', sourceRange: '$E$1:$E$3', allowBlank: true }],
+        comments: [{ ref: 'B3', author: 'Ava Reviewer', text: 'Confirm beta count before export.' }],
         tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
         charts: [{ title: 'Status Count Chart', type: 'bar', sourceRange: 'Smoke data!B1:B3' }],
         merges: ['A4:B4']
@@ -2070,6 +2102,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetDataValidation: result.filesSpreadsheetDataValidationWorks === true,
           filesSpreadsheetDataValidationOverlay: result.filesSpreadsheetDataValidationOverlayWorks === true,
           filesSpreadsheetDataValidationRange: result.filesSpreadsheetDataValidationRangeWorks === true,
+          filesSpreadsheetComments: result.filesSpreadsheetCommentsWorks === true,
           filesSpreadsheetBorders: result.filesSpreadsheetBordersWorks === true,
           filesSpreadsheetCharts: result.filesSpreadsheetChartsWorks === true,
           filesSpreadsheetChartPlot: result.filesSpreadsheetChartPlotWorks === true,
@@ -2300,6 +2333,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetDataValidation: captureView !== 'inspector' || result.filesSpreadsheetDataValidationWorks === true,
         filesSpreadsheetDataValidationOverlay: captureView !== 'inspector' || result.filesSpreadsheetDataValidationOverlayWorks === true,
         filesSpreadsheetDataValidationRange: captureView !== 'inspector' || result.filesSpreadsheetDataValidationRangeWorks === true,
+        filesSpreadsheetComments: captureView !== 'inspector' || result.filesSpreadsheetCommentsWorks === true,
         filesSpreadsheetBorders: captureView !== 'inspector' || result.filesSpreadsheetBordersWorks === true,
         filesSpreadsheetCharts: captureView !== 'inspector' || result.filesSpreadsheetChartsWorks === true,
         filesSpreadsheetChartPlot: captureView !== 'inspector' || result.filesSpreadsheetChartPlotWorks === true,

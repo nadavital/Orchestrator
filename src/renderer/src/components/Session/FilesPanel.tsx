@@ -929,6 +929,7 @@ interface SpreadsheetPreviewPayload {
     charts?: SpreadsheetPreviewChart[]
     conditionalFormatCount?: number
     dataValidationCount?: number
+    commentCount?: number
     columnWidths?: Array<number | undefined>
     rowHeights?: Array<number | undefined>
     freezePanes?: SpreadsheetFreezePanes
@@ -942,6 +943,7 @@ interface SpreadsheetPreviewCell {
   fillColor?: string
   conditionalFillColor?: string
   dataValidation?: SpreadsheetPreviewDataValidation
+  comment?: SpreadsheetPreviewCellComment
   borderColor?: string
   textColor?: string
   bold?: boolean
@@ -987,6 +989,11 @@ interface SpreadsheetPreviewDataValidation {
   values?: string[]
   sourceRange?: string
   allowBlank?: boolean
+}
+
+interface SpreadsheetPreviewCellComment {
+  author?: string
+  text: string
 }
 
 interface SpreadsheetFreezePanes {
@@ -1037,13 +1044,15 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
       ...cell,
       ...(cell.dataValidation
         ? { dataValidation: { ...cell.dataValidation, values: cell.dataValidation.values ? [...cell.dataValidation.values] : undefined } }
-        : {})
+        : {}),
+      ...(cell.comment ? { comment: { ...cell.comment } } : {})
     }))),
     ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {}),
     ...(sheet.tables ? { tables: sheet.tables.map((table) => ({ ...table })) } : {}),
     ...(sheet.charts ? { charts: sheet.charts.map((chart) => ({ ...chart })) } : {}),
     ...(sheet.conditionalFormatCount ? { conditionalFormatCount: sheet.conditionalFormatCount } : {}),
     ...(sheet.dataValidationCount ? { dataValidationCount: sheet.dataValidationCount } : {}),
+    ...(sheet.commentCount ? { commentCount: sheet.commentCount } : {}),
     ...(sheet.columnWidths ? { columnWidths: [...sheet.columnWidths] } : {}),
     ...(sheet.rowHeights ? { rowHeights: [...sheet.rowHeights] } : {}),
     ...(sheet.freezePanes ? { freezePanes: { ...sheet.freezePanes } } : {})
@@ -1400,6 +1409,14 @@ function SpreadsheetArtifactPreview({
   const chartCount = activeSheet?.charts?.length ?? 0
   const conditionalFormatCount = activeSheet?.conditionalFormatCount ?? 0
   const dataValidationCount = activeSheet?.dataValidationCount ?? 0
+  const commentCount = activeSheet?.commentCount ?? 0
+  const commentCells = activeSheet
+    ? activeSheet.rows.flatMap((row, rowIndex) =>
+        row
+          .map((cell, columnIndex) => ({ cell, address: `${spreadsheetColumnLabel(columnIndex)}${rowIndex + 1}` }))
+          .filter((entry): entry is { cell: SpreadsheetPreviewCell & { comment: SpreadsheetPreviewCellComment }; address: string } => Boolean(entry.cell.comment))
+      )
+    : []
   const borderCellCount = activeSheet
     ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.borderColor)).length, 0)
     : 0
@@ -1490,6 +1507,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-chart-count={chartCount}
       data-spreadsheet-conditional-format-count={conditionalFormatCount}
       data-spreadsheet-data-validation-count={dataValidationCount}
+      data-spreadsheet-comment-count={commentCount}
       data-spreadsheet-border-cell-count={borderCellCount}
       data-spreadsheet-sized-column-count={sizedColumnCount}
       data-spreadsheet-sized-row-count={sizedRowCount}
@@ -1713,6 +1731,7 @@ function SpreadsheetArtifactPreview({
                           const hasTableFilterButton = isTableHeaderCell && tableCell?.table.showFilterButton === true
                           const hasDataValidationButton = cell.dataValidation?.type === 'list'
                           const dataValidationValues = cell.dataValidation?.values ?? []
+                          const hasComment = Boolean(cell.comment?.text)
                           const isValidationOverlayOpen = Boolean(
                             hasDataValidationButton &&
                             validationOverlay?.row === rowIndex &&
@@ -1733,7 +1752,7 @@ function SpreadsheetArtifactPreview({
                             textAlign: cellHorizontalAlignment,
                             boxShadow: cell.borderColor ? `inset 0 0 0 1px ${cell.borderColor}` : undefined
                           }
-                          if (cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment || isTableHeaderCell || hasDataValidationButton) {
+                          if (cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment || isTableHeaderCell || hasDataValidationButton || hasComment) {
                             cellStyle.display = 'flex'
                             cellStyle.alignItems = spreadsheetAlignItems(cellVerticalAlignment)
                             cellStyle.justifyContent = isTableHeaderCell || hasDataValidationButton ? 'space-between' : spreadsheetJustifyContent(cellHorizontalAlignment)
@@ -1795,6 +1814,8 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-data-validation-values={cell.dataValidation?.values?.join('|') ?? ''}
                                 data-spreadsheet-cell-data-validation-source-range={cell.dataValidation?.sourceRange ?? ''}
                                 data-spreadsheet-cell-data-validation-allow-blank={cell.dataValidation?.allowBlank ? 'true' : 'false'}
+                                data-spreadsheet-cell-comment-author={cell.comment?.author ?? ''}
+                                data-spreadsheet-cell-comment-text={cell.comment?.text ?? ''}
                                 data-spreadsheet-cell-merge-rowspan={merge?.rowSpan ?? 1}
                                 data-spreadsheet-cell-merge-colspan={merge?.colSpan ?? 1}
                                 data-spreadsheet-cell-column-width={activeSheet.columnWidths?.[cellIndex] ?? ''}
@@ -1823,6 +1844,9 @@ function SpreadsheetArtifactPreview({
                                 )}
                                 {hasDataValidationButton && (
                                   <span className="workspace-spreadsheet-validation-button" data-testid="workspace-spreadsheet-validation-button" aria-hidden="true">v</span>
+                                )}
+                                {hasComment && (
+                                  <span className="workspace-spreadsheet-comment-indicator" data-testid="workspace-spreadsheet-comment-indicator" aria-hidden="true" />
                                 )}
                               </button>
                               {isValidationOverlayOpen && (
@@ -1974,6 +1998,30 @@ function SpreadsheetArtifactPreview({
                       </div>
                     )
                   })}
+                </div>
+              )}
+              {commentCells.length > 0 && (
+                <div
+                  className="workspace-spreadsheet-comments"
+                  data-testid="workspace-spreadsheet-comments"
+                  data-spreadsheet-comment-count={commentCells.length}
+                >
+                  {commentCells.map(({ cell, address }) => (
+                    <div
+                      key={address}
+                      className="workspace-spreadsheet-comment-card"
+                      data-testid="workspace-spreadsheet-comment"
+                      data-spreadsheet-comment-address={address}
+                      data-spreadsheet-comment-author={cell.comment.author ?? ''}
+                      data-spreadsheet-comment-text={cell.comment.text}
+                    >
+                      <div className="workspace-spreadsheet-comment-meta">
+                        <span>{address}</span>
+                        {cell.comment.author ? <span>{cell.comment.author}</span> : null}
+                      </div>
+                      <div className="workspace-spreadsheet-comment-text">{cell.comment.text}</div>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
@@ -2323,6 +2371,9 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
         dataValidationCount: typeof sheet.dataValidationCount === 'number' && sheet.dataValidationCount > 0
           ? Math.min(24, Math.floor(sheet.dataValidationCount))
           : undefined,
+        commentCount: typeof sheet.commentCount === 'number' && sheet.commentCount > 0
+          ? Math.min(24, Math.floor(sheet.commentCount))
+          : undefined,
         columnWidths: Array.isArray(sheet.columnWidths)
           ? normalizeSpreadsheetDimensionArray(sheet.columnWidths, 48, 320, 12)
           : undefined,
@@ -2350,6 +2401,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       fillColor?: unknown
       conditionalFillColor?: unknown
       dataValidation?: unknown
+      comment?: unknown
       borderColor?: unknown
       textColor?: unknown
       bold?: unknown
@@ -2369,6 +2421,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       ...(fillColor ? { fillColor } : {}),
       ...(conditionalFillColor ? { conditionalFillColor } : {}),
       ...(normalizeSpreadsheetDataValidation(candidate.dataValidation) ? { dataValidation: normalizeSpreadsheetDataValidation(candidate.dataValidation) } : {}),
+      ...(normalizeSpreadsheetCellComment(candidate.comment) ? { comment: normalizeSpreadsheetCellComment(candidate.comment) } : {}),
       ...(borderColor ? { borderColor } : {}),
       ...(textColor ? { textColor } : {}),
       ...(candidate.bold === true ? { bold: true } : {}),
@@ -2378,6 +2431,18 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
     }
   }
   return { value: String(cell ?? '') }
+}
+
+function normalizeSpreadsheetCellComment(value: unknown): SpreadsheetPreviewCellComment | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as { author?: unknown; text?: unknown }
+  const text = typeof candidate.text === 'string' ? candidate.text.trim().slice(0, 240) : ''
+  if (!text) return undefined
+  const author = typeof candidate.author === 'string' ? candidate.author.trim().slice(0, 80) : ''
+  return {
+    ...(author ? { author } : {}),
+    text
+  }
 }
 
 function normalizeSpreadsheetDataValidation(value: unknown): SpreadsheetPreviewDataValidation | undefined {

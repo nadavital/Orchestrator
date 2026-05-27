@@ -7387,6 +7387,16 @@ Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run
 
 Remaining: this covers local same-sheet range-backed list validation only. Cross-sheet validation ranges, named ranges, custom validation formulas, prompts/errors, persisted workbook validation edits, provider-backed workbook metadata, and full Codex Popcorn workbook canvas fidelity remain open.
 
+### 2026-05-27 - XLSX Cell Comment Rendering
+
+Codex evidence: `tmp/codex-app-assets/PopcornElectronWorkbookPanel-TofX9KRG.js` creates workbook comment threads with `comments.addThread` on individual cells and ranges in the Popcorn workbook fixture. After the range-backed validation slice, Orchestrator still ignored local XLSX comment relationships and showed no workbook comment indicators or read-only comment text in the Files artifact preview.
+
+Implemented: Orchestrator now follows worksheet relationships to classic XLSX comments parts, reads bounded authors/comment text from `xl/comments/comment*.xml`, attaches comment metadata to matching preview cells, exposes sheet and cell comment attributes, renders a compact cell corner indicator, and shows read-only comment cards below the workbook grid. The focused XLSX smoke fixture now writes a real comments part and gates `B3` comment author/text rendering as `filesSpreadsheetComments=true`.
+
+Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, and `pnpm exec tsc --noEmit` passed. Focused `node scripts/run-automated-ui-smoke.mjs --files` first hit the expected sandbox `listen EPERM 127.0.0.1`; the elevated rerun passed with `filesSpreadsheetComments=true`, `filesSpreadsheetDataValidationRange=true`, `filesSpreadsheetDataValidationOverlay=true`, `filesSpreadsheetChartPlot=true`, and the existing Files artifact checks. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779907036301.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779907036301.png`. The full dev visual manifest was refreshed at `2026-05-27T18:43:17.676Z` with 27 captures and no failures, and `filesSpreadsheetComments=true` in the Files capture. `node scripts/run-codex-side-panel-comparison.mjs --full --no-fail` passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, `needsProof=0`, and `remainingParityGaps=18`; report `/Users/nadav/Desktop/Orchestrator/tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-27T18:43:24.999Z`.
+
+Remaining: this covers local read-only classic XLSX cell comments only. Threaded replies, resolved state, range comment anchoring, editing, provider-backed workbook annotation metadata, and full Codex Popcorn workbook canvas fidelity remain open.
+
 ### 2026-05-27 - XLSX Freeze-Line Handles
 
 Codex evidence: `tmp/codex-app-assets/PopcornElectronWorkbookPanel-TofX9KRG.js` renders explicit Popcorn freeze affordances including `popcorn-freeze-column-line`, `popcorn-freeze-row-line`, `popcorn-freeze-column-handle`, and `popcorn-freeze-row-handle`. After the freeze-pane rendering slice, Orchestrator had sticky frozen rows/columns but no visible freeze-line handles, so frozen panes looked static rather than Codex-like workbook viewport controls.

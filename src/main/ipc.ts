@@ -56,6 +56,7 @@ interface SpreadsheetPreviewCell {
   fillColor?: string
   conditionalFillColor?: string
   dataValidation?: SpreadsheetPreviewDataValidation
+  comment?: SpreadsheetPreviewCellComment
   borderColor?: string
   textColor?: string
   bold?: boolean
@@ -72,6 +73,7 @@ interface SpreadsheetPreviewSheet {
   charts?: SpreadsheetPreviewChart[]
   conditionalFormatCount?: number
   dataValidationCount?: number
+  commentCount?: number
   columnWidths?: Array<number | undefined>
   rowHeights?: Array<number | undefined>
   freezePanes?: SpreadsheetFreezePanes
@@ -117,6 +119,17 @@ interface SpreadsheetPreviewDataValidation {
   values?: string[]
   sourceRange?: string
   allowBlank?: boolean
+}
+
+interface SpreadsheetPreviewCellComment {
+  author?: string
+  text: string
+}
+
+interface SpreadsheetPreviewCellCommentRange extends SpreadsheetPreviewCellComment {
+  ref: string
+  row: number
+  column: number
 }
 
 interface SpreadsheetPreviewDataValidationRange extends SpreadsheetPreviewDataValidation {
@@ -872,6 +885,8 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     applyWorksheetConditionalFormats(parsed.rows, conditionalFormats)
     const dataValidations = extractWorksheetDataValidations(xml, parsed.rows, sheet.name)
     applyWorksheetDataValidations(parsed.rows, dataValidations)
+    const comments = extractWorksheetComments(archive, sheet.path)
+    applyWorksheetComments(parsed.rows, comments)
     const columnWidths = extractWorksheetColumnWidths(xml)
     const rowHeights = extractWorksheetRowHeights(xml)
     const freezePanes = extractWorksheetFreezePanes(xml)
@@ -883,6 +898,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
       ...(charts.length > 0 ? { charts } : {}),
       ...(conditionalFormats.length > 0 ? { conditionalFormatCount: conditionalFormats.length } : {}),
       ...(dataValidations.length > 0 ? { dataValidationCount: dataValidations.length } : {}),
+      ...(comments.length > 0 ? { commentCount: comments.length } : {}),
       ...(columnWidths.some((width) => width !== undefined) ? { columnWidths } : {}),
       ...(rowHeights.some((height) => height !== undefined) ? { rowHeights } : {}),
       ...(freezePanes ? { freezePanes } : {})
@@ -1290,6 +1306,55 @@ function extractZipRelationshipsFromXml(xml: string, partPath: string): Map<stri
   return relationships
 }
 
+function extractWorksheetComments(archive: Buffer, sheetPath: string): SpreadsheetPreviewCellCommentRange[] {
+  const relsXml = readZipEntry(archive, zipRelationshipPathForPart(sheetPath))?.toString('utf8') ?? ''
+  const commentPaths: string[] = []
+  for (const match of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
+    const tag = match[0] ?? ''
+    const type = /\bType="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (target && type.endsWith('/comments')) commentPaths.push(resolveZipRelationshipTarget(sheetPath, target))
+  }
+  return commentPaths
+    .slice(0, 4)
+    .flatMap((commentPath) => {
+      const xml = readZipEntry(archive, commentPath)?.toString('utf8') ?? ''
+      if (!xml) return []
+      const authors = [...xml.matchAll(/<author(?:\s[^>]*)?>([\s\S]*?)<\/author>/g)]
+        .map((match) => decodeXmlText(match[1] ?? '').trim())
+      return [...xml.matchAll(/<comment\b([^>]*)>([\s\S]*?)<\/comment>/g)]
+        .slice(0, 24)
+        .flatMap((match) => {
+          const attributes = match[1] ?? ''
+          const body = match[2] ?? ''
+          const ref = /\bref="([^"]+)"/.exec(attributes)?.[1]?.toUpperCase() ?? ''
+          const position = spreadsheetCellPosition(ref)
+          if (!position || position.row >= 24 || position.column >= 12) return []
+          const authorIndex = Number(/\bauthorId="([^"]+)"/.exec(attributes)?.[1] ?? Number.NaN)
+          const author = Number.isFinite(authorIndex) ? authors[authorIndex] : undefined
+          const text = extractSpreadsheetCommentText(body)
+          if (!text) return []
+          return [{
+            ref,
+            row: position.row,
+            column: position.column,
+            ...(author ? { author } : {}),
+            text
+          }]
+        })
+    })
+}
+
+function extractSpreadsheetCommentText(xml: string): string {
+  return [...xml.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)]
+    .map((match) => decodeXmlText(match[1] ?? '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 240)
+}
+
 function extractSpreadsheetChartTitle(xml: string): string {
   const titleXml = /<c:title\b[\s\S]*?<\/c:title>/.exec(xml)?.[0] ?? ''
   const text = extractXmlText(titleXml).trim()
@@ -1509,6 +1574,17 @@ function applyWorksheetDataValidations(rows: SpreadsheetPreviewCell[][], validat
           ...(validation.allowBlank ? { allowBlank: true } : {})
         }
       }
+    }
+  }
+}
+
+function applyWorksheetComments(rows: SpreadsheetPreviewCell[][], comments: SpreadsheetPreviewCellCommentRange[]): void {
+  for (const comment of comments) {
+    const cell = rows[comment.row]?.[comment.column]
+    if (!cell) continue
+    cell.comment = {
+      ...(comment.author ? { author: comment.author } : {}),
+      text: comment.text
     }
   }
 }

@@ -11191,6 +11191,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetDataValidationChecks = {};
               const spreadsheetDataValidationOverlayChecks = {};
               const spreadsheetDataValidationRangeChecks = {};
+              const spreadsheetCommentChecks = {};
               const spreadsheetBorderChecks = {};
               const spreadsheetChartChecks = {};
               const spreadsheetChartPlotChecks = {};
@@ -11819,6 +11820,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     const alphaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A2"]');
                     const alphaCountCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B2"]');
                     const betaCountCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B3"]');
+                    const betaCountCommentIndicator = betaCountCell?.querySelector('[data-testid="workspace-spreadsheet-comment-indicator"]');
+                    const spreadsheetComments = document.querySelector('[data-testid="workspace-spreadsheet-comments"]');
+                    const betaCountComment = document.querySelector('[data-testid="workspace-spreadsheet-comment"][data-spreadsheet-comment-address="B3"]');
                     const tableFilterButton = headerNameCell?.querySelector('[data-testid="workspace-spreadsheet-filter-button"]');
                     const updatedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
                     const statusValidationButton = updatedStatusCell?.querySelector('[data-testid="workspace-spreadsheet-validation-button"]');
@@ -12020,6 +12024,20 @@ function runAutomatedFocusedSurfaceSmoke(
                       betaCountCell.getAttribute('data-spreadsheet-cell-value') === '3' &&
                       betaCountCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '#DCFCE7' &&
                       getComputedStyle(betaCountCell).backgroundColor === 'rgb(220, 252, 231)';
+                    spreadsheetCommentChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-comment-count') === '1' &&
+                      betaCountCell instanceof HTMLButtonElement &&
+                      betaCountCell.getAttribute('data-spreadsheet-cell-comment-author') === 'Ava Reviewer' &&
+                      betaCountCell.getAttribute('data-spreadsheet-cell-comment-text') === 'Confirm beta count before export.' &&
+                      betaCountCommentIndicator instanceof HTMLElement &&
+                      spreadsheetComments instanceof HTMLElement &&
+                      spreadsheetComments.getAttribute('data-spreadsheet-comment-count') === '1' &&
+                      betaCountComment instanceof HTMLElement &&
+                      betaCountComment.getAttribute('data-spreadsheet-comment-author') === 'Ava Reviewer' &&
+                      betaCountComment.getAttribute('data-spreadsheet-comment-text') === 'Confirm beta count before export.' &&
+                      betaCountComment.textContent?.includes('B3') === true &&
+                      betaCountComment.textContent?.includes('Confirm beta count before export.') === true;
                     spreadsheetDataValidationChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-data-validation-count') === '1' &&
@@ -13592,6 +13610,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetDataValidationWorks: Boolean(spreadsheetDataValidationChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetDataValidationOverlayWorks: Boolean(spreadsheetDataValidationOverlayChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetDataValidationRangeWorks: Boolean(spreadsheetDataValidationRangeChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetCommentsWorks: Boolean(spreadsheetCommentChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetBordersWorks: Boolean(spreadsheetBorderChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetChartsWorks: Boolean(spreadsheetChartChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetChartPlotWorks: Boolean(spreadsheetChartPlotChecks['workspace-spreadsheet-preview']),

@@ -4844,6 +4844,7 @@
 
   .workspace-spreadsheet-cell-button {
     display: block;
+    position: relative;
     width: 100%;
     min-height: 29px;
     border: 0;
@@ -4875,6 +4876,17 @@
     color: var(--text-tertiary);
     font-size: 10px;
     line-height: 1;
+  }
+
+  .workspace-spreadsheet-comment-indicator {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-top: 8px solid color-mix(in srgb, var(--accent) 82%, var(--surface-bg));
+    border-left: 8px solid transparent;
+    pointer-events: none;
   }
 
   .workspace-spreadsheet-cell-button:hover,
@@ -5070,6 +5082,41 @@
   .workspace-spreadsheet-chart-label {
     fill: var(--text-tertiary);
     font-size: 9px;
+  }
+
+  .workspace-spreadsheet-comments {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+  }
+
+  .workspace-spreadsheet-comment-card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    padding: 8px 10px;
+  }
+
+  .workspace-spreadsheet-comment-meta {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .workspace-spreadsheet-comment-text {
+    margin-top: 4px;
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.4;
   }
 
   .workspace-spreadsheet-sheet-tabs {
