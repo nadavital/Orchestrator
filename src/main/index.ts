@@ -12233,7 +12233,18 @@ function runAutomatedFocusedSurfaceSmoke(
                       spreadsheetPreview.getAttribute('data-spreadsheet-border-cell-count') === '1' &&
                       alignedWrappedCell instanceof HTMLButtonElement &&
                       alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-color') === '#2563EB' &&
-                      getComputedStyle(alignedWrappedCell).boxShadow.includes('rgb(37, 99, 235)');
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-top-color') === '#DC2626' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-top-style') === 'double' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-right-color') === '#16A34A' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-right-style') === 'dashed' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-bottom-color') === '#2563EB' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-bottom-style') === 'thick' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-left-color') === '#7C3AED' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-left-style') === 'dotted' &&
+                      getComputedStyle(alignedWrappedCell).borderTopStyle === 'double' &&
+                      getComputedStyle(alignedWrappedCell).borderRightStyle === 'dashed' &&
+                      getComputedStyle(alignedWrappedCell).borderBottomWidth === '3px' &&
+                      getComputedStyle(alignedWrappedCell).borderLeftStyle === 'dotted';
                     spreadsheetChartChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-chart-count') === '1' &&

@@ -949,11 +949,24 @@ interface SpreadsheetPreviewCell {
   dataValidation?: SpreadsheetPreviewDataValidation
   comment?: SpreadsheetPreviewCellComment
   borderColor?: string
+  borders?: SpreadsheetCellBorders
   textColor?: string
   bold?: boolean
   wrapText?: boolean
   horizontalAlignment?: 'left' | 'center' | 'right'
   verticalAlignment?: 'top' | 'middle' | 'bottom'
+}
+
+interface SpreadsheetCellBorder {
+  color?: string
+  style?: 'thin' | 'medium' | 'thick' | 'dashed' | 'dotted' | 'double'
+}
+
+interface SpreadsheetCellBorders {
+  top?: SpreadsheetCellBorder
+  right?: SpreadsheetCellBorder
+  bottom?: SpreadsheetCellBorder
+  left?: SpreadsheetCellBorder
 }
 
 interface SpreadsheetPreviewMerge {
@@ -1087,7 +1100,8 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
       ...(cell.dataValidation
         ? { dataValidation: { ...cell.dataValidation, values: cell.dataValidation.values ? [...cell.dataValidation.values] : undefined } }
         : {}),
-      ...(cell.comment ? { comment: { ...cell.comment } } : {})
+      ...(cell.comment ? { comment: { ...cell.comment } } : {}),
+      ...(cell.borders ? { borders: cloneSpreadsheetBorders(cell.borders) } : {})
     }))),
     ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {}),
     ...(sheet.tables ? { tables: sheet.tables.map((table) => ({ ...table })) } : {}),
@@ -1103,6 +1117,15 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
     ...(sheet.rowHeights ? { rowHeights: [...sheet.rowHeights] } : {}),
     ...(sheet.freezePanes ? { freezePanes: { ...sheet.freezePanes } } : {})
   }))
+}
+
+function cloneSpreadsheetBorders(borders: SpreadsheetCellBorders): SpreadsheetCellBorders {
+  return {
+    ...(borders.top ? { top: { ...borders.top } } : {}),
+    ...(borders.right ? { right: { ...borders.right } } : {}),
+    ...(borders.bottom ? { bottom: { ...borders.bottom } } : {}),
+    ...(borders.left ? { left: { ...borders.left } } : {})
+  }
 }
 
 function updateSpreadsheetCell(
@@ -1428,6 +1451,28 @@ function spreadsheetJustifyContent(alignment: 'left' | 'center' | 'right'): CSSP
   return 'flex-start'
 }
 
+function spreadsheetBorderStyles(borders: SpreadsheetCellBorders | undefined): CSSProperties {
+  if (!borders) return {}
+  return {
+    ...(borders.top ? { borderTop: spreadsheetCssBorder(borders.top) } : {}),
+    ...(borders.right ? { borderRight: spreadsheetCssBorder(borders.right) } : {}),
+    ...(borders.bottom ? { borderBottom: spreadsheetCssBorder(borders.bottom) } : {}),
+    ...(borders.left ? { borderLeft: spreadsheetCssBorder(borders.left) } : {})
+  }
+}
+
+function spreadsheetCssBorder(border: SpreadsheetCellBorder): string {
+  const width = border.style === 'thick'
+    ? 3
+    : border.style === 'medium' || border.style === 'double'
+      ? 2
+      : 1
+  const style = border.style === 'dashed' || border.style === 'dotted' || border.style === 'double'
+    ? border.style
+    : 'solid'
+  return `${width}px ${style} ${border.color ?? '#64748B'}`
+}
+
 function SpreadsheetArtifactPreview({
   absolutePath,
   entry,
@@ -1479,7 +1524,7 @@ function SpreadsheetArtifactPreview({
   const activeValidation = activeCellData?.dataValidation
   const activeValidationHasMessage = Boolean(activeValidation?.promptTitle || activeValidation?.prompt || activeValidation?.errorTitle || activeValidation?.error)
   const styledCellCount = activeSheet
-    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.conditionalFillColor || cell.borderColor || cell.textColor || cell.bold || cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
+    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.conditionalFillColor || cell.borderColor || cell.borders || cell.textColor || cell.bold || cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
     : 0
   const alignedCellCount = activeSheet
     ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
@@ -1500,7 +1545,7 @@ function SpreadsheetArtifactPreview({
       )
     : []
   const borderCellCount = activeSheet
-    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.borderColor)).length, 0)
+    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.borderColor || cell.borders)).length, 0)
     : 0
   const sizedColumnCount = activeSheet?.columnWidths?.filter((width) => width !== undefined).length ?? 0
   const sizedRowCount = activeSheet?.rowHeights?.filter((height) => height !== undefined).length ?? 0
@@ -1861,7 +1906,8 @@ function SpreadsheetArtifactPreview({
                             minHeight: rowHeight,
                             whiteSpace: cell.wrapText ? 'normal' : 'nowrap',
                             textAlign: cellHorizontalAlignment,
-                            boxShadow: cell.borderColor ? `inset 0 0 0 1px ${cell.borderColor}` : undefined
+                            boxShadow: !cell.borders && cell.borderColor ? `inset 0 0 0 1px ${cell.borderColor}` : undefined,
+                            ...spreadsheetBorderStyles(cell.borders)
                           }
                           if (cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment || isTableHeaderCell || hasDataValidationButton || hasComment) {
                             cellStyle.display = 'flex'
@@ -1909,6 +1955,14 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-fill-color={cell.fillColor ?? ''}
                                 data-spreadsheet-cell-conditional-fill-color={cell.conditionalFillColor ?? ''}
                                 data-spreadsheet-cell-border-color={cell.borderColor ?? ''}
+                                data-spreadsheet-cell-border-top-color={cell.borders?.top?.color ?? ''}
+                                data-spreadsheet-cell-border-top-style={cell.borders?.top?.style ?? ''}
+                                data-spreadsheet-cell-border-right-color={cell.borders?.right?.color ?? ''}
+                                data-spreadsheet-cell-border-right-style={cell.borders?.right?.style ?? ''}
+                                data-spreadsheet-cell-border-bottom-color={cell.borders?.bottom?.color ?? ''}
+                                data-spreadsheet-cell-border-bottom-style={cell.borders?.bottom?.style ?? ''}
+                                data-spreadsheet-cell-border-left-color={cell.borders?.left?.color ?? ''}
+                                data-spreadsheet-cell-border-left-style={cell.borders?.left?.style ?? ''}
                                 data-spreadsheet-cell-text-color={cell.textColor ?? ''}
                                 data-spreadsheet-cell-bold={cell.bold ? 'true' : 'false'}
                                 data-spreadsheet-cell-wrap-text={cell.wrapText ? 'true' : 'false'}
@@ -2675,6 +2729,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       dataValidation?: unknown
       comment?: unknown
       borderColor?: unknown
+      borders?: unknown
       textColor?: unknown
       bold?: unknown
       wrapText?: unknown
@@ -2684,6 +2739,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
     const fillColor = normalizeSpreadsheetColor(candidate.fillColor)
     const conditionalFillColor = normalizeSpreadsheetColor(candidate.conditionalFillColor)
     const borderColor = normalizeSpreadsheetColor(candidate.borderColor)
+    const borders = normalizeSpreadsheetBorders(candidate.borders)
     const textColor = normalizeSpreadsheetColor(candidate.textColor)
     const horizontalAlignment = normalizeSpreadsheetHorizontalAlignment(candidate.horizontalAlignment)
     const verticalAlignment = normalizeSpreadsheetVerticalAlignment(candidate.verticalAlignment)
@@ -2695,6 +2751,7 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
       ...(normalizeSpreadsheetDataValidation(candidate.dataValidation) ? { dataValidation: normalizeSpreadsheetDataValidation(candidate.dataValidation) } : {}),
       ...(normalizeSpreadsheetCellComment(candidate.comment) ? { comment: normalizeSpreadsheetCellComment(candidate.comment) } : {}),
       ...(borderColor ? { borderColor } : {}),
+      ...(borders ? { borders } : {}),
       ...(textColor ? { textColor } : {}),
       ...(candidate.bold === true ? { bold: true } : {}),
       ...(candidate.wrapText === true ? { wrapText: true } : {}),
@@ -2723,6 +2780,35 @@ function normalizeSpreadsheetCellComment(value: unknown): SpreadsheetPreviewCell
     ...(candidate.resolved === true ? { resolved: true } : {}),
     ...(candidate.threaded === true ? { threaded: true } : {})
   }
+}
+
+function normalizeSpreadsheetBorders(value: unknown): SpreadsheetCellBorders | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as Record<string, unknown>
+  const borders: SpreadsheetCellBorders = {}
+  for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+    const border = normalizeSpreadsheetBorder(candidate[side])
+    if (border) borders[side] = border
+  }
+  return Object.keys(borders).length > 0 ? borders : undefined
+}
+
+function normalizeSpreadsheetBorder(value: unknown): SpreadsheetCellBorder | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as { color?: unknown; style?: unknown }
+  const color = normalizeSpreadsheetColor(candidate.color)
+  const style = normalizeSpreadsheetBorderStyle(candidate.style)
+  if (!color && !style) return undefined
+  return {
+    ...(color ? { color } : {}),
+    ...(style ? { style } : {})
+  }
+}
+
+function normalizeSpreadsheetBorderStyle(value: unknown): SpreadsheetCellBorder['style'] | undefined {
+  return value === 'thin' || value === 'medium' || value === 'thick' || value === 'dashed' || value === 'dotted' || value === 'double'
+    ? value
+    : undefined
 }
 
 function normalizeSpreadsheetDataValidation(value: unknown): SpreadsheetPreviewDataValidation | undefined {

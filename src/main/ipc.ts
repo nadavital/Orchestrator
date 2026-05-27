@@ -58,6 +58,7 @@ interface SpreadsheetPreviewCell {
   dataValidation?: SpreadsheetPreviewDataValidation
   comment?: SpreadsheetPreviewCellComment
   borderColor?: string
+  borders?: SpreadsheetCellBorders
   textColor?: string
   bold?: boolean
   wrapText?: boolean
@@ -195,11 +196,24 @@ interface SpreadsheetFreezePanes {
 interface SpreadsheetCellStyle {
   fillColor?: string
   borderColor?: string
+  borders?: SpreadsheetCellBorders
   textColor?: string
   bold?: boolean
   wrapText?: boolean
   horizontalAlignment?: 'left' | 'center' | 'right'
   verticalAlignment?: 'top' | 'middle' | 'bottom'
+}
+
+interface SpreadsheetCellBorder {
+  color?: string
+  style?: 'thin' | 'medium' | 'thick' | 'dashed' | 'dotted' | 'double'
+}
+
+interface SpreadsheetCellBorders {
+  top?: SpreadsheetCellBorder
+  right?: SpreadsheetCellBorder
+  bottom?: SpreadsheetCellBorder
+  left?: SpreadsheetCellBorder
 }
 
 interface SlidePreviewShape {
@@ -2091,7 +2105,7 @@ function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {
     }
   })
   const fills = [...xml.matchAll(/<fill\b[\s\S]*?<\/fill>/g)].map((match) => extractSpreadsheetColor(match[0] ?? ''))
-  const borders = [...xml.matchAll(/<border\b[\s\S]*?<\/border>/g)].map((match) => extractSpreadsheetBorderColor(match[0] ?? ''))
+  const borders = [...xml.matchAll(/<border\b[\s\S]*?<\/border>/g)].map((match) => extractSpreadsheetBorders(match[0] ?? ''))
   return [...xml.matchAll(/<cellXfs\b[\s\S]*?<\/cellXfs>/g)][0]?.[0]
     ?.match(/<xf\b[^>]*\/>|<xf\b[^>]*>[\s\S]*?<\/xf>/g)
     ?.map((xfXml) => {
@@ -2105,10 +2119,12 @@ function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {
       const borderId = numberAttribute(attributes, 'borderId') ?? 0
       const font = fonts[fontId] ?? {}
       const fillColor = fills[fillId]
-      const borderColor = borders[borderId]
+      const border = borders[borderId]
+      const borderColor = spreadsheetRepresentativeBorderColor(border)
       return {
         ...(fillColor ? { fillColor } : {}),
         ...(borderColor ? { borderColor } : {}),
+        ...(border ? { borders: border } : {}),
         ...(font.textColor ? { textColor: font.textColor } : {}),
         ...(font.bold ? { bold: true } : {}),
         ...(wrapText ? { wrapText: true } : {}),
@@ -2138,9 +2154,32 @@ function extractSpreadsheetDifferentialStyles(xml: string): SpreadsheetCellStyle
     }) ?? []
 }
 
-function extractSpreadsheetBorderColor(xml: string): string | undefined {
-  const side = /<(?:left|right|top|bottom)\b[^>]*\bstyle="[^"]+"[\s\S]*?<\/(?:left|right|top|bottom)>/.exec(xml)?.[0] ?? ''
-  return side ? extractSpreadsheetColor(side) ?? '#64748B' : undefined
+function extractSpreadsheetBorders(xml: string): SpreadsheetCellBorders | undefined {
+  const borders: SpreadsheetCellBorders = {}
+  for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+    const sideXml = new RegExp(`<${side}\\b([^>]*)>([\\s\\S]*?)<\\/${side}>`).exec(xml)
+    const selfClosingSide = sideXml ? null : new RegExp(`<${side}\\b([^>]*)\\/>`).exec(xml)
+    const attributes = sideXml?.[1] ?? selfClosingSide?.[1] ?? ''
+    const style = spreadsheetBorderStyle(attributes)
+    if (!style) continue
+    const body = sideXml?.[0] ?? selfClosingSide?.[0] ?? ''
+    borders[side] = {
+      style,
+      color: extractSpreadsheetColor(body) ?? '#64748B'
+    }
+  }
+  return Object.keys(borders).length > 0 ? borders : undefined
+}
+
+function spreadsheetBorderStyle(attributes: string): SpreadsheetCellBorder['style'] {
+  const value = /\bstyle="([^"]+)"/.exec(attributes)?.[1]
+  if (value === 'medium' || value === 'thick' || value === 'dashed' || value === 'dotted' || value === 'double') return value
+  if (value === 'thin' || value === 'hair' || value === 'dashDot' || value === 'dashDotDot' || value === 'slantDashDot') return 'thin'
+  return undefined
+}
+
+function spreadsheetRepresentativeBorderColor(borders: SpreadsheetCellBorders | undefined): string | undefined {
+  return borders?.bottom?.color ?? borders?.top?.color ?? borders?.right?.color ?? borders?.left?.color
 }
 
 function spreadsheetCellStyle(attributes: string, styles: SpreadsheetCellStyle[]): SpreadsheetCellStyle {
