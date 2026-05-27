@@ -5007,16 +5007,20 @@
   }
 
   .workspace-spreadsheet-chart-card {
-    display: flex;
     min-width: 0;
-    align-items: center;
-    gap: 8px;
     overflow: hidden;
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     background: var(--control-bg);
     color: var(--text-secondary);
     padding: 8px 10px;
+  }
+
+  .workspace-spreadsheet-chart-header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
   }
 
   .workspace-spreadsheet-chart-title {
@@ -5034,6 +5038,38 @@
     font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .workspace-spreadsheet-chart-plot {
+    margin-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 8px;
+  }
+
+  .workspace-spreadsheet-chart-svg {
+    display: block;
+    width: 100%;
+    height: 104px;
+  }
+
+  .workspace-spreadsheet-chart-axis {
+    stroke: var(--border-strong);
+    stroke-width: 1;
+  }
+
+  .workspace-spreadsheet-chart-bar {
+    fill: color-mix(in srgb, var(--accent) 76%, var(--surface-bg));
+  }
+
+  .workspace-spreadsheet-chart-value {
+    fill: var(--text-secondary);
+    font-size: 9px;
+    font-weight: 650;
+  }
+
+  .workspace-spreadsheet-chart-label {
+    fill: var(--text-tertiary);
+    font-size: 9px;
   }
 
   .workspace-spreadsheet-sheet-tabs {

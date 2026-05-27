@@ -11192,6 +11192,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetDataValidationOverlayChecks = {};
               const spreadsheetBorderChecks = {};
               const spreadsheetChartChecks = {};
+              const spreadsheetChartPlotChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11835,6 +11836,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     const freezeRowLine = document.querySelector('[data-testid="workspace-spreadsheet-freeze-row-line"]');
                     const freezeRowHandle = document.querySelector('[data-testid="workspace-spreadsheet-freeze-row-handle"]');
                     const chartPreview = document.querySelector('[data-testid="workspace-spreadsheet-chart-preview"]');
+                    const chartPlot = document.querySelector('[data-testid="workspace-spreadsheet-chart-plot"]');
+                    const chartSvg = document.querySelector('[data-testid="workspace-spreadsheet-chart-svg"]');
+                    const chartBars = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-chart-bar"]')];
                     spreadsheetRendererChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-preview-rendered') === 'true' &&
@@ -12082,6 +12086,24 @@ function runAutomatedFocusedSurfaceSmoke(
                       chartPreview.getAttribute('data-spreadsheet-chart-source-range') === 'Smoke data!B1:B3' &&
                       chartPreview.textContent?.includes('Status Count Chart') === true &&
                       chartPreview.textContent?.includes('Bar') === true;
+                    spreadsheetChartPlotChecks[testId] =
+                      spreadsheetChartChecks[testId] === true &&
+                      chartPreview instanceof HTMLElement &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-rendered') === 'true' &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-datum-count') === '2' &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-max-value') === '3' &&
+                      chartPlot instanceof HTMLElement &&
+                      chartPlot.getAttribute('data-spreadsheet-chart-labels') === 'Alpha|Beta' &&
+                      chartPlot.getAttribute('data-spreadsheet-chart-values') === '2|3' &&
+                      chartSvg instanceof SVGElement &&
+                      chartSvg.getAttribute('viewBox') === '0 0 220 104' &&
+                      chartBars.length === 2 &&
+                      chartBars[0] instanceof SVGRectElement &&
+                      chartBars[0].getAttribute('data-spreadsheet-chart-datum-label') === 'Alpha' &&
+                      chartBars[0].getAttribute('data-spreadsheet-chart-datum-value') === '2' &&
+                      chartBars[1] instanceof SVGRectElement &&
+                      chartBars[1].getAttribute('data-spreadsheet-chart-datum-label') === 'Beta' &&
+                      chartBars[1].getAttribute('data-spreadsheet-chart-datum-value') === '3';
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13557,6 +13579,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetDataValidationOverlayWorks: Boolean(spreadsheetDataValidationOverlayChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetBordersWorks: Boolean(spreadsheetBorderChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetChartsWorks: Boolean(spreadsheetChartChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetChartPlotWorks: Boolean(spreadsheetChartPlotChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),

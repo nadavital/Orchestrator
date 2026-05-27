@@ -976,6 +976,12 @@ interface SpreadsheetPreviewChart {
   sourceRange?: string
 }
 
+interface SpreadsheetPreviewChartDatum {
+  label: string
+  value: number
+  address: string
+}
+
 interface SpreadsheetPreviewDataValidation {
   type: 'list'
   values?: string[]
@@ -1196,6 +1202,58 @@ function spreadsheetFormulaValues(reference: string, cellsByAddress: Map<string,
     }
   }
   return values
+}
+
+function parseSpreadsheetRangeRef(ref: string | undefined, sheetName: string): { startColumn: number; endColumn: number; startRow: number; endRow: number } | null {
+  if (!ref) return null
+  const trimmed = ref.trim()
+  const sheetMatch = /^(?:'([^']+)'|([^!]+))!(.+)$/.exec(trimmed)
+  const rangeRef = sheetMatch ? sheetMatch[3] : trimmed
+  const refSheetName = sheetMatch?.[1] ?? sheetMatch?.[2]
+  if (refSheetName && refSheetName !== sheetName) return null
+  const rangeMatch = /^([A-Z]{1,3})(\d+)(?::([A-Z]{1,3})(\d+))?$/i.exec(rangeRef)
+  if (!rangeMatch) return null
+  const startColumn = spreadsheetColumnIndex(rangeMatch[1].toUpperCase())
+  const endColumn = spreadsheetColumnIndex((rangeMatch[3] ?? rangeMatch[1]).toUpperCase())
+  const startRow = Math.max(0, Number(rangeMatch[2]) - 1)
+  const endRow = Math.max(0, Number(rangeMatch[4] ?? rangeMatch[2]) - 1)
+  return {
+    startColumn: Math.min(startColumn, endColumn),
+    endColumn: Math.max(startColumn, endColumn),
+    startRow: Math.min(startRow, endRow),
+    endRow: Math.max(startRow, endRow)
+  }
+}
+
+function spreadsheetChartData(
+  sheet: SpreadsheetPreviewPayload['sheets'][number],
+  chart: SpreadsheetPreviewChart
+): SpreadsheetPreviewChartDatum[] {
+  const range = parseSpreadsheetRangeRef(chart.sourceRange, sheet.name)
+  if (!range) return []
+  const rows: SpreadsheetPreviewChartDatum[] = []
+  for (let rowIndex = range.startRow; rowIndex <= range.endRow; rowIndex += 1) {
+    const row = sheet.rows[rowIndex] ?? []
+    let valueColumn = -1
+    let value = 0
+    for (let columnIndex = range.startColumn; columnIndex <= range.endColumn; columnIndex += 1) {
+      const candidate = Number(row[columnIndex]?.value ?? '')
+      if (Number.isFinite(candidate)) {
+        valueColumn = columnIndex
+        value = candidate
+        break
+      }
+    }
+    if (valueColumn < 0) continue
+    const labelCell = valueColumn > 0 ? row[valueColumn - 1] : undefined
+    const label = labelCell?.value?.trim() || `${spreadsheetColumnLabel(valueColumn)}${rowIndex + 1}`
+    rows.push({
+      label,
+      value,
+      address: `${spreadsheetColumnLabel(valueColumn)}${rowIndex + 1}`
+    })
+  }
+  return rows.slice(0, 12)
 }
 
 function spreadsheetCellNumber(cell: SpreadsheetPreviewCell | undefined): number {
@@ -1846,22 +1904,74 @@ function SpreadsheetArtifactPreview({
               </div>
               {(activeSheet.charts?.length ?? 0) > 0 && (
                 <div className="workspace-spreadsheet-charts" data-testid="workspace-spreadsheet-chart-preview-list">
-                  {activeSheet.charts?.map((chart, index) => (
-                    <div
-                      key={`${chart.title}-${index}`}
-                      className="workspace-spreadsheet-chart-card"
-                      data-testid="workspace-spreadsheet-chart-preview"
-                      data-spreadsheet-chart-title={chart.title}
-                      data-spreadsheet-chart-type={chart.type}
-                      data-spreadsheet-chart-source-range={chart.sourceRange ?? ''}
-                    >
-                      <Icon name="usage" size={14} />
-                      <div className="min-w-0">
-                        <div className="workspace-spreadsheet-chart-title">{chart.title}</div>
-                        <div className="workspace-spreadsheet-chart-meta">{chart.type}{chart.sourceRange ? ` · ${chart.sourceRange}` : ''}</div>
+                  {activeSheet.charts?.map((chart, index) => {
+                    const chartData = spreadsheetChartData(activeSheet, chart)
+                    const chartMax = Math.max(1, ...chartData.map((datum) => datum.value))
+                    return (
+                      <div
+                        key={`${chart.title}-${index}`}
+                        className="workspace-spreadsheet-chart-card"
+                        data-testid="workspace-spreadsheet-chart-preview"
+                        data-spreadsheet-chart-title={chart.title}
+                        data-spreadsheet-chart-type={chart.type}
+                        data-spreadsheet-chart-source-range={chart.sourceRange ?? ''}
+                        data-spreadsheet-chart-rendered={chartData.length > 0 ? 'true' : 'false'}
+                        data-spreadsheet-chart-datum-count={chartData.length}
+                        data-spreadsheet-chart-max-value={chartMax}
+                      >
+                        <div className="workspace-spreadsheet-chart-header">
+                          <Icon name="usage" size={14} />
+                          <div className="min-w-0">
+                            <div className="workspace-spreadsheet-chart-title">{chart.title}</div>
+                            <div className="workspace-spreadsheet-chart-meta">{chart.type}{chart.sourceRange ? ` · ${chart.sourceRange}` : ''}</div>
+                          </div>
+                        </div>
+                        {chartData.length > 0 && (
+                          <div
+                            className="workspace-spreadsheet-chart-plot"
+                            data-testid="workspace-spreadsheet-chart-plot"
+                            data-spreadsheet-chart-labels={chartData.map((datum) => datum.label).join('|')}
+                            data-spreadsheet-chart-values={chartData.map((datum) => String(datum.value)).join('|')}
+                          >
+                            <svg
+                              className="workspace-spreadsheet-chart-svg"
+                              data-testid="workspace-spreadsheet-chart-svg"
+                              viewBox="0 0 220 104"
+                              role="img"
+                              aria-label={`${chart.title} chart`}
+                            >
+                              <line className="workspace-spreadsheet-chart-axis" x1="24" y1="84" x2="212" y2="84" />
+                              <line className="workspace-spreadsheet-chart-axis" x1="24" y1="12" x2="24" y2="84" />
+                              {chartData.map((datum, datumIndex) => {
+                                const barWidth = Math.max(14, Math.min(32, 132 / Math.max(1, chartData.length)))
+                                const gap = Math.max(10, (164 - chartData.length * barWidth) / Math.max(1, chartData.length + 1))
+                                const barHeight = Math.max(2, Math.round((datum.value / chartMax) * 64))
+                                const x = 30 + gap + datumIndex * (barWidth + gap)
+                                const y = 84 - barHeight
+                                return (
+                                  <g key={datum.address} data-spreadsheet-chart-datum-address={datum.address}>
+                                    <rect
+                                      className="workspace-spreadsheet-chart-bar"
+                                      data-testid="workspace-spreadsheet-chart-bar"
+                                      data-spreadsheet-chart-datum-label={datum.label}
+                                      data-spreadsheet-chart-datum-value={datum.value}
+                                      x={x}
+                                      y={y}
+                                      width={barWidth}
+                                      height={barHeight}
+                                      rx="3"
+                                    />
+                                    <text className="workspace-spreadsheet-chart-value" x={x + barWidth / 2} y={Math.max(10, y - 4)} textAnchor="middle">{datum.value}</text>
+                                    <text className="workspace-spreadsheet-chart-label" x={x + barWidth / 2} y="98" textAnchor="middle">{datum.label}</text>
+                                  </g>
+                                )
+                              })}
+                            </svg>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </section>

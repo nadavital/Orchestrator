@@ -7367,6 +7367,16 @@ Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run
 
 Remaining: this covers local read-only chart metadata and placeholder cards only. Full interactive chart canvas rendering, chart editing, chart thumbnails/selection, persisted workbook edits, provider-backed chart metadata, and full Codex Popcorn workbook canvas fidelity remain open.
 
+### 2026-05-27 - XLSX Chart Plot Rendering
+
+Codex evidence: `tmp/codex-app-assets/PopcornElectronWorkbookPanel-TofX9KRG.js` includes `charts.add` in the Popcorn workbook fixture. After chart metadata extraction, Orchestrator still rendered charts as metadata-only cards, so users could not visually inspect chart data in the Files artifact preview.
+
+Implemented: Orchestrator now derives bounded chart data from the chart `sourceRange` and active worksheet values, renders a compact local SVG bar plot under the chart card, and exposes chart-rendered/datum-count/max-value plus label/value attributes for smoke proof. The renderer keeps this as read-only local preview behavior and falls back to the metadata card if source data cannot be resolved.
+
+Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, and `pnpm exec tsc --noEmit` passed. Focused `node scripts/run-automated-ui-smoke.mjs --files` first hit the expected sandbox `listen EPERM 127.0.0.1`; the elevated rerun passed with `filesSpreadsheetChartPlot=true`, `filesSpreadsheetCharts=true`, `filesSpreadsheetDataValidationOverlay=true`, and the existing Files artifact checks. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779904871855.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779904871855.png`. The full dev visual manifest was refreshed at `2026-05-27T18:07:34.771Z` with 27 captures and no failures, and `filesSpreadsheetChartPlot=true` in the Files capture. `node scripts/run-codex-side-panel-comparison.mjs --full --no-fail` passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, `needsProof=0`, and `remainingParityGaps=18`; report `/Users/nadav/Desktop/Orchestrator/tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-27T18:07:42.140Z`.
+
+Remaining: this covers local read-only chart plot rendering only. Interactive chart canvas behavior, chart selection/editing, multiple series, thumbnails, persisted workbook edits, provider-backed chart metadata, and full Codex Popcorn workbook canvas fidelity remain open.
+
 ### 2026-05-27 - XLSX Freeze-Line Handles
 
 Codex evidence: `tmp/codex-app-assets/PopcornElectronWorkbookPanel-TofX9KRG.js` renders explicit Popcorn freeze affordances including `popcorn-freeze-column-line`, `popcorn-freeze-row-line`, `popcorn-freeze-column-handle`, and `popcorn-freeze-row-handle`. After the freeze-pane rendering slice, Orchestrator had sticky frozen rows/columns but no visible freeze-line handles, so frozen panes looked static rather than Codex-like workbook viewport controls.
