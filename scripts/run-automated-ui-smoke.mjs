@@ -1674,6 +1674,7 @@ child.on('exit', async (code) => {
         sessionRowsSharedPrimitive: result.sessionRowsUseSharedPrimitive === true,
         projectHeadersCompact: result.projectHeadersCompact === true,
         projectHeadersSharedPrimitive: result.projectHeadersUseSharedPrimitive === true,
+        chatsHeaderTextFirst: result.chatsHeaderTextFirst === true,
         emptyProjectNewChatCompact: result.emptyProjectNewChatCompact === true,
         emptyProjectNewChatSharedPrimitive: result.emptyProjectNewChatUsesSharedPrimitive === true,
         sidebarSectionChromeCompact: result.sidebarSectionChromeCompact === true,

@@ -16954,6 +16954,15 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 header.querySelector('.sidebar-list-row-label') instanceof HTMLElement &&
                 header.querySelector('.sidebar-list-row-trailing') instanceof HTMLElement
               ));
+            const chatsHeader = document.querySelector('[data-testid="sidebar-projectless-chats-header"]');
+            const chatsHeaderTextFirst =
+              chatsHeader instanceof HTMLElement &&
+              chatsHeader.classList.contains('sidebar-list-row') &&
+              chatsHeader.classList.contains('sidebar-list-row-section') &&
+              chatsHeader.querySelector('.sidebar-projectless-chat-mark') === null &&
+              chatsHeader.querySelector('.sidebar-list-row-label')?.textContent?.trim() === 'Chats' &&
+              chatsHeader.querySelector('.sidebar-list-row-content') instanceof HTMLElement &&
+              chatsHeader.querySelector('.sidebar-list-row-detail') instanceof HTMLElement;
             const emptyProjectNewChatRows = [...document.querySelectorAll('[data-testid="project-empty-new-chat"]')]
               .filter((row) => row instanceof HTMLElement);
             const emptyProjectNewChatCompact =
@@ -18560,6 +18569,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sessionRowsUseSharedPrimitive,
               projectHeadersCompact,
               projectHeadersUseSharedPrimitive,
+              chatsHeaderTextFirst,
               emptyProjectNewChatCompact,
               emptyProjectNewChatUsesSharedPrimitive,
               sidebarSectionChromeCompact,

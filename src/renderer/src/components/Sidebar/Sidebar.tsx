@@ -1082,12 +1082,9 @@ function SidebarProjectlessChatsGroup({
         size="section"
         onClick={onToggle}
         leading={(
-          <>
-            <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
-              <IconChevron />
-            </span>
-            <span className="sidebar-projectless-chat-mark" aria-hidden="true" />
-          </>
+          <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+            <IconChevron />
+          </span>
         )}
         label="Chats"
         detail={`${sessions.length}`}
