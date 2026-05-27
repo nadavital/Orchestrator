@@ -7,6 +7,7 @@ import type { WorkspaceSearchEntry, WorkspaceSearchResult } from '../../types'
 import { useSessionStore } from '../../store/sessions'
 import { Badge, Button, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelHeader, PanelNotice, PanelToolbar, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
+import ArtifactZoomControls from './ArtifactZoomControls'
 import StructuredDataPreview, { ArtifactOpenOptions, ArtifactPreviewHeader, stripArtifactExtension, type PreviewHeaderAction } from './StructuredDataPreview'
 import WorkbenchTree, { WorkbenchTreeMessage, type WorkbenchTreeRow } from './WorkbenchTree'
 
@@ -929,8 +930,6 @@ interface SlidesPreviewPayload {
   truncated?: boolean
 }
 
-const OFFICE_ZOOM_OPTIONS = [50, 75, 100, 125, 150, 200] as const
-
 function spreadsheetColumnLabel(index: number): string {
   let value = index + 1
   let label = ''
@@ -940,132 +939,6 @@ function spreadsheetColumnLabel(index: number): string {
     value = Math.floor((value - 1) / 26)
   }
   return label
-}
-
-function OfficeArtifactZoomControls({
-  fitToWidth,
-  kind,
-  maxZoom = 200,
-  minZoom = 50,
-  onFitToWidthChange,
-  onZoomPercentChange,
-  testId,
-  zoomPercent
-}: {
-  fitToWidth: boolean
-  kind: 'spreadsheet' | 'slides'
-  maxZoom?: number
-  minZoom?: number
-  onFitToWidthChange: (fit: boolean) => void
-  onZoomPercentChange: (zoom: number) => void
-  testId: string
-  zoomPercent: number
-}): JSX.Element {
-  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null)
-  const closeMenu = (): void => setMenuStyle(null)
-  const selectZoom = (zoom: number): void => {
-    onFitToWidthChange(false)
-    onZoomPercentChange(zoom)
-    closeMenu()
-  }
-  const selectFit = (): void => {
-    onFitToWidthChange(true)
-    closeMenu()
-  }
-  const zoomOut = (): void => {
-    onFitToWidthChange(false)
-    onZoomPercentChange(Math.max(minZoom, zoomPercent - 25))
-  }
-  const zoomIn = (): void => {
-    onFitToWidthChange(false)
-    onZoomPercentChange(Math.min(maxZoom, zoomPercent + 25))
-  }
-  const specificDataAttributes = kind === 'spreadsheet'
-    ? {
-        'data-spreadsheet-zoom-percent': zoomPercent,
-        'data-spreadsheet-zoom-fit': fitToWidth ? 'true' : 'false'
-      }
-    : {
-        'data-slides-zoom-percent': zoomPercent,
-        'data-slides-zoom-fit': fitToWidth ? 'true' : 'false'
-      }
-  return (
-    <span
-      className="file-preview-zoom-controls"
-      data-testid={`${testId}-zoom-controls`}
-      data-office-zoom-menu="true"
-      data-office-zoom-percent={zoomPercent}
-      data-office-zoom-fit={fitToWidth ? 'true' : 'false'}
-      {...specificDataAttributes}
-    >
-      <IconButton
-        icon="zoomOut"
-        label="Zoom out"
-        size="sm"
-        variant="toolbar"
-        disabled={zoomPercent <= minZoom}
-        dataTestId={`${testId}-zoom-out`}
-        onClick={zoomOut}
-      />
-      <button
-        type="button"
-        className="file-preview-zoom-menu-trigger"
-        data-testid={`${testId}-zoom-indicator`}
-        data-office-zoom-trigger="true"
-        aria-haspopup="menu"
-        aria-expanded={menuStyle ? 'true' : 'false'}
-        aria-label="Zoom options"
-        onClick={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect()
-          setMenuStyle({
-            position: 'fixed',
-            left: Math.max(8, Math.min(rect.left, window.innerWidth - 180)),
-            top: Math.min(rect.bottom + 6, window.innerHeight - 260),
-            width: 160,
-            zIndex: 110
-          })
-        }}
-      >
-        <span>{fitToWidth ? 'Fit' : `${zoomPercent}%`}</span>
-        <Icon name="chevronDown" size={11} />
-      </button>
-      <IconButton
-        icon="zoomIn"
-        label="Zoom in"
-        size="sm"
-        variant="toolbar"
-        disabled={zoomPercent >= maxZoom}
-        dataTestId={`${testId}-zoom-in`}
-        onClick={zoomIn}
-      />
-      {menuStyle && (
-        <MenuSurface
-          data-testid={`${testId}-zoom-menu`}
-          onClose={closeMenu}
-          style={menuStyle}
-        >
-          <MenuSection dataTestId={`${testId}-zoom-menu-section`}>
-            <MenuSectionLabel>Zoom</MenuSectionLabel>
-            {OFFICE_ZOOM_OPTIONS.map((option) => (
-              <MenuItem
-                key={option}
-                icon={!fitToWidth && zoomPercent === option ? 'check' : undefined}
-                label={`${option}%`}
-                dataTestId={`${testId}-zoom-option-${option}`}
-                onClick={() => selectZoom(option)}
-              />
-            ))}
-            <MenuItem
-              icon={fitToWidth ? 'check' : undefined}
-              label="Zoom to fit"
-              dataTestId={`${testId}-zoom-fit`}
-              onClick={selectFit}
-            />
-          </MenuSection>
-        </MenuSurface>
-      )}
-    </span>
-  )
 }
 
 function SpreadsheetArtifactPreview({
@@ -1159,7 +1032,7 @@ function SpreadsheetArtifactPreview({
             data-artifact-open-options="true"
           >
             {payload && (
-              <OfficeArtifactZoomControls
+              <ArtifactZoomControls
                 fitToWidth={fitToWidth}
                 kind="spreadsheet"
                 onFitToWidthChange={setFitToWidth}
@@ -1396,7 +1269,7 @@ function SlidesArtifactPreview({
             data-artifact-open-options="true"
           >
             {payload && (
-              <OfficeArtifactZoomControls
+              <ArtifactZoomControls
                 fitToWidth={fitToWidth}
                 kind="slides"
                 onFitToWidthChange={setFitToWidth}
@@ -1564,8 +1437,10 @@ function PdfPreview({
   const pageCount = Math.max(1, Math.floor(preview.pageCount ?? 1))
   const [currentPage, setCurrentPage] = useState(1)
   const [zoomPercent, setZoomPercent] = useState(100)
+  const [fitToWidth, setFitToWidth] = useState(false)
   const [invertColors, setInvertColors] = useState(false)
   const [presentationMode, setPresentationMode] = useState(false)
+  const effectiveZoomPercent = fitToWidth ? 'page-fit' : zoomPercent
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount))
   }, [pageCount])
@@ -1575,12 +1450,6 @@ function PdfPreview({
   const goToNextPage = (): void => {
     setCurrentPage((page) => Math.min(pageCount, page + 1))
   }
-  const zoomOut = (): void => {
-    setZoomPercent((zoom) => Math.max(50, zoom - 25))
-  }
-  const zoomIn = (): void => {
-    setZoomPercent((zoom) => Math.min(200, zoom + 25))
-  }
   return (
     <div
       className="file-structured-preview workspace-pdf-preview flex h-full min-h-0 flex-col overflow-hidden"
@@ -1589,6 +1458,7 @@ function PdfPreview({
       data-pdf-preview-page-count={pageCount}
       data-pdf-preview-current-page={currentPage}
       data-pdf-preview-zoom-percent={zoomPercent}
+      data-pdf-preview-zoom-fit={fitToWidth ? 'true' : 'false'}
       data-pdf-preview-invert-colors={invertColors ? 'true' : 'false'}
       data-pdf-preview-presentation-mode={presentationMode ? 'true' : 'false'}
     >
@@ -1599,7 +1469,7 @@ function PdfPreview({
           invertColors={invertColors}
           pageCount={pageCount}
           title={title}
-          zoomPercent={zoomPercent}
+          zoomPercent={effectiveZoomPercent}
           onClose={() => { setPresentationMode(false) }}
           onPageChange={setCurrentPage}
         />
@@ -1641,7 +1511,7 @@ function PdfPreview({
               <span
                 className="file-preview-header-actions"
                 data-testid="workspace-pdf-preview-actions"
-                data-preview-controls="copy-path pdf-page-navigation pdf-zoom pdf-invert-colors pdf-presentation open-options"
+                data-preview-controls="copy-path pdf-page-navigation pdf-zoom pdf-zoom-fit pdf-invert-colors pdf-presentation open-options"
                 data-artifact-open-options="true"
               >
                 <IconButton
@@ -1653,33 +1523,14 @@ function PdfPreview({
                   dataTestId="workspace-pdf-preview-invert-colors"
                   onClick={() => { setInvertColors((value) => !value) }}
                 />
-                <span
-                  className="file-preview-zoom-controls"
-                  data-testid="workspace-pdf-preview-zoom-controls"
-                  data-pdf-zoom-percent={zoomPercent}
-                >
-                  <IconButton
-                    icon="zoomOut"
-                    label="Zoom out"
-                    size="sm"
-                    variant="toolbar"
-                    disabled={zoomPercent <= 50}
-                    dataTestId="workspace-pdf-preview-zoom-out"
-                    onClick={zoomOut}
-                  />
-                  <span className="file-preview-zoom-indicator" data-testid="workspace-pdf-preview-zoom-indicator">
-                    {zoomPercent}%
-                  </span>
-                  <IconButton
-                    icon="zoomIn"
-                    label="Zoom in"
-                    size="sm"
-                    variant="toolbar"
-                    disabled={zoomPercent >= 200}
-                    dataTestId="workspace-pdf-preview-zoom-in"
-                    onClick={zoomIn}
-                  />
-                </span>
+                <ArtifactZoomControls
+                  fitToWidth={fitToWidth}
+                  kind="pdf"
+                  onFitToWidthChange={setFitToWidth}
+                  onZoomPercentChange={setZoomPercent}
+                  testId="workspace-pdf-preview"
+                  zoomPercent={zoomPercent}
+                />
                 <IconButton
                   icon="maximize"
                   label="Present"
@@ -1696,7 +1547,7 @@ function PdfPreview({
           />
           <iframe
             title={entry.name}
-            src={pdfPreviewUrl(absolutePath, currentPage, zoomPercent)}
+            src={pdfPreviewUrl(absolutePath, currentPage, effectiveZoomPercent)}
             className={`min-h-0 flex-1 border-0 ${invertColors ? 'workspace-pdf-preview-frame-inverted' : ''}`}
             data-testid="workspace-pdf-preview-frame"
             data-pdf-invert-colors={invertColors ? 'true' : 'false'}
@@ -1722,7 +1573,7 @@ function PdfPresentationMode({
   invertColors: boolean
   pageCount: number
   title: string
-  zoomPercent: number
+  zoomPercent: number | 'page-fit'
   onClose: () => void
   onPageChange: (page: number) => void
 }): JSX.Element {
@@ -1833,7 +1684,7 @@ function PdfPresentationMode({
   )
 }
 
-function pdfPreviewUrl(path: string, page: number, zoomPercent: number): string {
+function pdfPreviewUrl(path: string, page: number, zoomPercent: number | 'page-fit'): string {
   return `${fileUrl(path)}#page=${page}&zoom=${zoomPercent}`
 }
 

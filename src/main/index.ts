@@ -11141,6 +11141,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetSheetTabChecks = {};
               const spreadsheetActiveCellChecks = {};
               const officeZoomMenuChecks = {};
+              const documentPdfZoomMenuChecks = {};
               const slidesRendererChecks = {};
               const slidesControlChecks = {};
               const slidesNotesChecks = {};
@@ -11493,6 +11494,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       pageControls instanceof HTMLElement &&
                       pageControls.getAttribute('data-document-current-page') === '1' &&
                       pageControls.getAttribute('data-document-page-count') === '2' &&
+                      documentPreview.getAttribute('data-document-preview-zoom-fit') === 'false' &&
                       pageIndicator instanceof HTMLElement &&
                       pageIndicator.textContent?.trim() === '1/2' &&
                       previousPage instanceof HTMLButtonElement &&
@@ -11501,6 +11503,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       !nextPage.disabled &&
                       zoomControls instanceof HTMLElement &&
                       zoomControls.getAttribute('data-document-zoom-percent') === '100' &&
+                      zoomControls.getAttribute('data-artifact-zoom-menu') === 'true' &&
                       zoomIndicator instanceof HTMLElement &&
                       zoomIndicator.textContent?.trim() === '100%' &&
                       zoomIn instanceof HTMLButtonElement &&
@@ -11546,12 +11549,41 @@ function runAutomatedFocusedSurfaceSmoke(
                       zoomedPreview instanceof HTMLElement &&
                       zoomedPreview.getAttribute('data-document-preview-current-page') === '2' &&
                       zoomedPreview.getAttribute('data-document-preview-zoom-percent') === '125' &&
+                      zoomedPreview.getAttribute('data-document-preview-zoom-fit') === 'false' &&
                       zoomedControls instanceof HTMLElement &&
                       zoomedControls.getAttribute('data-document-zoom-percent') === '125' &&
+                      zoomedControls.getAttribute('data-document-zoom-fit') === 'false' &&
                       zoomedIndicator instanceof HTMLElement &&
                       zoomedIndicator.textContent?.trim() === '125%' &&
                       zoomedPageBody instanceof HTMLElement &&
                       window.getComputedStyle(zoomedPageBody).fontSize === '16.25px';
+                    if (zoomedIndicator instanceof HTMLButtonElement) {
+                      zoomedIndicator.click();
+                      await sleep(120);
+                    }
+                    const documentZoomMenu = document.querySelector('[data-testid="workspace-document-preview-zoom-menu"]');
+                    const documentZoomFit = document.querySelector('[data-testid="workspace-document-preview-zoom-fit"]');
+                    const documentZoomOptions = [...document.querySelectorAll('[data-testid^="workspace-document-preview-zoom-option-"]')];
+                    if (documentZoomFit instanceof HTMLButtonElement) {
+                      documentZoomFit.click();
+                      await sleep(120);
+                    }
+                    const fittedDocumentPreview = document.querySelector('[data-testid="workspace-document-preview"]');
+                    const fittedDocumentControls = document.querySelector('[data-testid="workspace-document-preview-zoom-controls"]');
+                    const fittedDocumentIndicator = document.querySelector('[data-testid="workspace-document-preview-zoom-indicator"]');
+                    documentPdfZoomMenuChecks['workspace-document-preview'] =
+                      documentZoomMenu instanceof HTMLElement &&
+                      documentZoomOptions.length >= 6 &&
+                      documentZoomOptions.some((option) => option.textContent?.trim() === '50%') &&
+                      documentZoomOptions.some((option) => option.textContent?.trim() === '200%') &&
+                      documentZoomFit instanceof HTMLButtonElement &&
+                      documentZoomFit.textContent?.includes('Zoom to fit') === true &&
+                      fittedDocumentPreview instanceof HTMLElement &&
+                      fittedDocumentPreview.getAttribute('data-document-preview-zoom-fit') === 'true' &&
+                      fittedDocumentControls instanceof HTMLElement &&
+                      fittedDocumentControls.getAttribute('data-document-zoom-fit') === 'true' &&
+                      fittedDocumentIndicator instanceof HTMLButtonElement &&
+                      fittedDocumentIndicator.textContent?.trim() === 'Fit';
                     documentPageControlChecks[testId] =
                       initialDocumentControls &&
                       pageNavigationWorks &&
@@ -11950,6 +11982,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       advancedSlidesNotes;
                   }
                   if (testId === 'workspace-pdf-preview') {
+                    const pdfPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
                     const pageControls = document.querySelector('[data-testid="workspace-pdf-preview-page-controls"]');
                     const pageIndicator = document.querySelector('[data-testid="workspace-pdf-preview-page-indicator"]');
                     const previousPage = document.querySelector('[data-testid="workspace-pdf-preview-page-previous"]');
@@ -11962,6 +11995,8 @@ function runAutomatedFocusedSurfaceSmoke(
                       pageControls instanceof HTMLElement &&
                       pageControls.getAttribute('data-pdf-current-page') === '1' &&
                       pageControls.getAttribute('data-pdf-page-count') === '2' &&
+                      pdfPreview instanceof HTMLElement &&
+                      pdfPreview.getAttribute('data-pdf-preview-zoom-fit') === 'false' &&
                       pageIndicator instanceof HTMLElement &&
                       pageIndicator.textContent?.trim() === '1/2' &&
                       previousPage instanceof HTMLButtonElement &&
@@ -11970,6 +12005,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       !nextPage.disabled &&
                       zoomControls instanceof HTMLElement &&
                       zoomControls.getAttribute('data-pdf-zoom-percent') === '100' &&
+                      zoomControls.getAttribute('data-artifact-zoom-menu') === 'true' &&
                       zoomIndicator instanceof HTMLElement &&
                       zoomIndicator.textContent?.trim() === '100%' &&
                       zoomIn instanceof HTMLButtonElement &&
@@ -12014,8 +12050,10 @@ function runAutomatedFocusedSurfaceSmoke(
                       zoomedPreview instanceof HTMLElement &&
                       zoomedPreview.getAttribute('data-pdf-preview-current-page') === '2' &&
                       zoomedPreview.getAttribute('data-pdf-preview-zoom-percent') === '125' &&
+                      zoomedPreview.getAttribute('data-pdf-preview-zoom-fit') === 'false' &&
                       zoomedControls instanceof HTMLElement &&
                       zoomedControls.getAttribute('data-pdf-zoom-percent') === '125' &&
+                      zoomedControls.getAttribute('data-pdf-zoom-fit') === 'false' &&
                       zoomedIndicator instanceof HTMLElement &&
                       zoomedIndicator.textContent?.trim() === '125%' &&
                       zoomedFrame instanceof HTMLIFrameElement &&
@@ -12105,6 +12143,37 @@ function runAutomatedFocusedSurfaceSmoke(
                       exitedPreview.getAttribute('data-pdf-preview-presentation-mode') === 'false' &&
                       exitedFrame instanceof HTMLIFrameElement &&
                       exitedFrame.src.includes('#page=2&zoom=125');
+                    const exitedZoomIndicator = document.querySelector('[data-testid="workspace-pdf-preview-zoom-indicator"]');
+                    if (exitedZoomIndicator instanceof HTMLButtonElement) {
+                      exitedZoomIndicator.click();
+                      await sleep(120);
+                    }
+                    const pdfZoomMenu = document.querySelector('[data-testid="workspace-pdf-preview-zoom-menu"]');
+                    const pdfZoomFit = document.querySelector('[data-testid="workspace-pdf-preview-zoom-fit"]');
+                    const pdfZoomOptions = [...document.querySelectorAll('[data-testid^="workspace-pdf-preview-zoom-option-"]')];
+                    if (pdfZoomFit instanceof HTMLButtonElement) {
+                      pdfZoomFit.click();
+                      await sleep(160);
+                    }
+                    const fittedPdfPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const fittedPdfControls = document.querySelector('[data-testid="workspace-pdf-preview-zoom-controls"]');
+                    const fittedPdfIndicator = document.querySelector('[data-testid="workspace-pdf-preview-zoom-indicator"]');
+                    const fittedPdfFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    documentPdfZoomMenuChecks['workspace-pdf-preview'] =
+                      pdfZoomMenu instanceof HTMLElement &&
+                      pdfZoomOptions.length >= 6 &&
+                      pdfZoomOptions.some((option) => option.textContent?.trim() === '50%') &&
+                      pdfZoomOptions.some((option) => option.textContent?.trim() === '200%') &&
+                      pdfZoomFit instanceof HTMLButtonElement &&
+                      pdfZoomFit.textContent?.includes('Zoom to fit') === true &&
+                      fittedPdfPreview instanceof HTMLElement &&
+                      fittedPdfPreview.getAttribute('data-pdf-preview-zoom-fit') === 'true' &&
+                      fittedPdfControls instanceof HTMLElement &&
+                      fittedPdfControls.getAttribute('data-pdf-zoom-fit') === 'true' &&
+                      fittedPdfIndicator instanceof HTMLButtonElement &&
+                      fittedPdfIndicator.textContent?.trim() === 'Fit' &&
+                      fittedPdfFrame instanceof HTMLIFrameElement &&
+                      fittedPdfFrame.src.includes('#page=2&zoom=page-fit');
                     pdfPreviewControlChecks[testId] =
                       initialPdfControls &&
                       pageNavigationWorks &&
@@ -12893,6 +12962,9 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesOfficeZoomMenuWorks:
                   Boolean(officeZoomMenuChecks['workspace-spreadsheet-preview']) &&
                   Boolean(officeZoomMenuChecks['workspace-slides-preview']),
+                filesDocumentPdfZoomMenuWorks:
+                  Boolean(documentPdfZoomMenuChecks['workspace-document-preview']) &&
+                  Boolean(documentPdfZoomMenuChecks['workspace-pdf-preview']),
                 filesSpreadsheetSlidesArtifactBoundaryWorks:
                   Boolean(previewChecks.filesSpreadsheetPreviewWorks) &&
                   Boolean(previewChecks.filesSlidesPreviewWorks) &&

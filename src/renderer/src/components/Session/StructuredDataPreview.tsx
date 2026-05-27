@@ -5,6 +5,7 @@ import type { FilePreviewResult } from '../../env'
 import { Badge, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelToolbar } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import type { IconName } from '../shared/Icon'
+import ArtifactZoomControls from './ArtifactZoomControls'
 
 export interface PreviewHeaderAction {
   id: string
@@ -88,15 +89,11 @@ function DocumentPreview({
   const pageCount = Math.max(1, pages.length)
   const [currentPage, setCurrentPage] = useState(1)
   const [zoomPercent, setZoomPercent] = useState(100)
+  const [fitToWidth, setFitToWidth] = useState(false)
+  const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount))
   }, [pageCount])
-  const zoomOut = (): void => {
-    setZoomPercent((zoom) => Math.max(50, zoom - 25))
-  }
-  const zoomIn = (): void => {
-    setZoomPercent((zoom) => Math.min(200, zoom + 25))
-  }
   const openFileAction = actions?.find((action) => action.id === 'open-file')
   const revealFileAction = actions?.find((action) => action.id === 'reveal-file')
   const visibleActions = openFileAction && revealFileAction
@@ -106,6 +103,7 @@ function DocumentPreview({
     ...visibleActions.map((action) => action.id),
     'docx-page-navigation',
     'docx-zoom',
+    'docx-zoom-fit',
     ...(openFileAction && revealFileAction ? ['open-options'] : [])
   ].join(' ')
   const visiblePage = pages[currentPage - 1] ?? []
@@ -116,6 +114,7 @@ function DocumentPreview({
       data-document-preview-page-count={pageCount}
       data-document-preview-current-page={currentPage}
       data-document-preview-zoom-percent={zoomPercent}
+      data-document-preview-zoom-fit={fitToWidth ? 'true' : 'false'}
     >
       <ArtifactPreviewHeader
         artifactType={statusLabel ? `DOC · ${statusLabel}` : 'DOC'}
@@ -156,33 +155,14 @@ function DocumentPreview({
             data-preview-controls={previewControls}
             data-artifact-open-options={openFileAction && revealFileAction ? 'true' : undefined}
           >
-            <span
-              className="file-preview-zoom-controls"
-              data-testid={`${testId}-zoom-controls`}
-              data-document-zoom-percent={zoomPercent}
-            >
-              <IconButton
-                icon="zoomOut"
-                label="Zoom out"
-                size="sm"
-                variant="toolbar"
-                disabled={zoomPercent <= 50}
-                dataTestId={`${testId}-zoom-out`}
-                onClick={zoomOut}
-              />
-              <span className="file-preview-zoom-indicator" data-testid={`${testId}-zoom-indicator`}>
-                {zoomPercent}%
-              </span>
-              <IconButton
-                icon="zoomIn"
-                label="Zoom in"
-                size="sm"
-                variant="toolbar"
-                disabled={zoomPercent >= 200}
-                dataTestId={`${testId}-zoom-in`}
-                onClick={zoomIn}
-              />
-            </span>
+            <ArtifactZoomControls
+              fitToWidth={fitToWidth}
+              kind="document"
+              onFitToWidthChange={setFitToWidth}
+              onZoomPercentChange={setZoomPercent}
+              testId={testId}
+              zoomPercent={zoomPercent}
+            />
             {visibleActions.map((action) => (
               <IconButton
                 key={action.id}
@@ -220,13 +200,14 @@ function DocumentPreview({
         className="document-preview-body min-h-0 flex-1 overflow-auto"
         data-testid={`${testId}-body`}
         data-document-preview-zoom-percent={zoomPercent}
+        data-document-preview-zoom-fit={fitToWidth ? 'true' : 'false'}
       >
         {paragraphs.length > 0 ? (
           <section
             className="document-preview-page"
             data-testid={`${testId}-page`}
             data-document-page-number={currentPage}
-            style={{ fontSize: `${Math.max(10, Math.min(22, 13 * (zoomPercent / 100)))}px` }}
+            style={{ fontSize: `${Math.max(10, Math.min(22, 13 * (effectiveZoomPercent / 100)))}px` }}
           >
             {visiblePage.map((paragraph, index) => (
               <p key={index}>{paragraph}</p>
