@@ -985,6 +985,7 @@ interface SpreadsheetPreviewChartDatum {
 interface SpreadsheetPreviewDataValidation {
   type: 'list'
   values?: string[]
+  sourceRange?: string
   allowBlank?: boolean
 }
 
@@ -1792,6 +1793,7 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-table-filter-button={hasTableFilterButton ? 'true' : 'false'}
                                 data-spreadsheet-cell-data-validation-type={cell.dataValidation?.type ?? ''}
                                 data-spreadsheet-cell-data-validation-values={cell.dataValidation?.values?.join('|') ?? ''}
+                                data-spreadsheet-cell-data-validation-source-range={cell.dataValidation?.sourceRange ?? ''}
                                 data-spreadsheet-cell-data-validation-allow-blank={cell.dataValidation?.allowBlank ? 'true' : 'false'}
                                 data-spreadsheet-cell-merge-rowspan={merge?.rowSpan ?? 1}
                                 data-spreadsheet-cell-merge-colspan={merge?.colSpan ?? 1}
@@ -2380,14 +2382,18 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
 
 function normalizeSpreadsheetDataValidation(value: unknown): SpreadsheetPreviewDataValidation | undefined {
   if (!value || typeof value !== 'object') return undefined
-  const candidate = value as { type?: unknown; values?: unknown; allowBlank?: unknown }
+  const candidate = value as { type?: unknown; values?: unknown; sourceRange?: unknown; allowBlank?: unknown }
   if (candidate.type !== 'list') return undefined
   const values = Array.isArray(candidate.values)
     ? candidate.values.map((item) => String(item)).filter(Boolean).slice(0, 24)
     : undefined
+  const sourceRange = typeof candidate.sourceRange === 'string' && candidate.sourceRange.trim()
+    ? candidate.sourceRange.trim().toUpperCase()
+    : undefined
   return {
     type: 'list',
     ...(values && values.length > 0 ? { values } : {}),
+    ...(sourceRange ? { sourceRange } : {}),
     ...(candidate.allowBlank === true ? { allowBlank: true } : {})
   }
 }

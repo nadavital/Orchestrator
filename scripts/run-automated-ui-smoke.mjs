@@ -598,9 +598,15 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
         const values = Array.isArray(validation?.values)
           ? validation.values.map((value) => String(value ?? '').trim()).filter(Boolean).slice(0, 24)
           : []
-        if (values.length === 0) return ''
+        const formula1 = typeof validation?.formula1 === 'string' && validation.formula1.trim()
+          ? validation.formula1.trim()
+          : typeof validation?.sourceRange === 'string' && validation.sourceRange.trim()
+            ? validation.sourceRange.trim()
+            : ''
+        if (values.length === 0 && !formula1) return ''
         const allowBlank = validation?.allowBlank === true ? ' allowBlank="1"' : ''
-        return `<dataValidation type="list"${allowBlank} showErrorMessage="1" sqref="${escapeXml(sqref)}"><formula1>"${values.map(escapeXml).join(',')}"</formula1></dataValidation>`
+        const formulaXml = formula1 || `"${values.join(',')}"`
+        return `<dataValidation type="list"${allowBlank} showErrorMessage="1" sqref="${escapeXml(sqref)}"><formula1>${escapeXml(formulaXml)}</formula1></dataValidation>`
       })
       .filter(Boolean)
     const dataValidationXml = dataValidationItems.length > 0
@@ -1268,18 +1274,20 @@ if (fixtureWorkspaceViews.has(captureView)) {
           [
             { value: 'Name', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
             { value: 'Count', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
-            { value: 'Status', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true }
+            { value: 'Status', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
+            '',
+            'Updated'
           ],
-          ['Alpha', '2', { value: 'Updated', fillColor: '#DCFCE7', textColor: '#166534' }],
-          ['Beta', '3', { value: 'New', fillColor: '#F5F3FF', textColor: '#6D28D9' }],
+          ['Alpha', '2', { value: 'Updated', fillColor: '#DCFCE7', textColor: '#166534' }, '', 'New'],
+          ['Beta', '3', { value: 'New', fillColor: '#F5F3FF', textColor: '#6D28D9' }, '', 'Blocked'],
           [{ value: 'Merged updated note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, ''],
           [{ value: 'Wrapped centered updated note for alignment proof', fillColor: '#F0F9FF', textColor: '#075985', borderColor: '#2563EB', wrapText: true, horizontalAlignment: 'center', verticalAlignment: 'middle' }, '', '']
         ],
-        columnWidths: [12, 24, 14],
+        columnWidths: [12, 24, 14, 8, 16],
         rowHeights: [20, 20, 20, 42, 52],
         freezePanes: { rows: 1, columns: 1 },
         conditionalFormats: [{ sqref: 'B2:B3', colors: ['#FEE2E2', '#DCFCE7'] }],
-        dataValidations: [{ sqref: 'C2:C3', values: ['Updated', 'New', 'Blocked'], allowBlank: true }],
+        dataValidations: [{ sqref: 'C2:C3', sourceRange: '$E$1:$E$3', allowBlank: true }],
         tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
         charts: [{ title: 'Status Count Chart', type: 'bar', sourceRange: 'Smoke data!B1:B3' }],
         merges: ['A4:B4']
@@ -2061,6 +2069,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetConditionalFormatting: result.filesSpreadsheetConditionalFormattingWorks === true,
           filesSpreadsheetDataValidation: result.filesSpreadsheetDataValidationWorks === true,
           filesSpreadsheetDataValidationOverlay: result.filesSpreadsheetDataValidationOverlayWorks === true,
+          filesSpreadsheetDataValidationRange: result.filesSpreadsheetDataValidationRangeWorks === true,
           filesSpreadsheetBorders: result.filesSpreadsheetBordersWorks === true,
           filesSpreadsheetCharts: result.filesSpreadsheetChartsWorks === true,
           filesSpreadsheetChartPlot: result.filesSpreadsheetChartPlotWorks === true,
@@ -2290,6 +2299,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetConditionalFormatting: captureView !== 'inspector' || result.filesSpreadsheetConditionalFormattingWorks === true,
         filesSpreadsheetDataValidation: captureView !== 'inspector' || result.filesSpreadsheetDataValidationWorks === true,
         filesSpreadsheetDataValidationOverlay: captureView !== 'inspector' || result.filesSpreadsheetDataValidationOverlayWorks === true,
+        filesSpreadsheetDataValidationRange: captureView !== 'inspector' || result.filesSpreadsheetDataValidationRangeWorks === true,
         filesSpreadsheetBorders: captureView !== 'inspector' || result.filesSpreadsheetBordersWorks === true,
         filesSpreadsheetCharts: captureView !== 'inspector' || result.filesSpreadsheetChartsWorks === true,
         filesSpreadsheetChartPlot: captureView !== 'inspector' || result.filesSpreadsheetChartPlotWorks === true,

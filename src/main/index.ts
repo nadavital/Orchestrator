@@ -11190,6 +11190,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetConditionalFormattingChecks = {};
               const spreadsheetDataValidationChecks = {};
               const spreadsheetDataValidationOverlayChecks = {};
+              const spreadsheetDataValidationRangeChecks = {};
               const spreadsheetBorderChecks = {};
               const spreadsheetChartChecks = {};
               const spreadsheetChartPlotChecks = {};
@@ -11821,6 +11822,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     const tableFilterButton = headerNameCell?.querySelector('[data-testid="workspace-spreadsheet-filter-button"]');
                     const updatedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
                     const statusValidationButton = updatedStatusCell?.querySelector('[data-testid="workspace-spreadsheet-validation-button"]');
+                    const validationSourceFirstCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="E1"]');
+                    const validationSourceSecondCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="E2"]');
+                    const validationSourceThirdCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="E3"]');
                     const mergedNoteCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A4"]');
                     const mergedNoteTableCell = mergedNoteCell?.closest('td');
                     const coveredMergedCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B4"]');
@@ -11929,7 +11933,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       !(coveredMergedCell instanceof HTMLButtonElement);
                     spreadsheetSizingChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
-                      spreadsheetPreview.getAttribute('data-spreadsheet-sized-column-count') === '3' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-sized-column-count') === '5' &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-sized-row-count') === '5' &&
                       wideColumnHeader instanceof HTMLElement &&
                       wideColumnHeader.getAttribute('data-spreadsheet-column-width') === '173' &&
@@ -12026,6 +12030,16 @@ function runAutomatedFocusedSurfaceSmoke(
                       updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-allow-blank') === 'true' &&
                       statusValidationButton instanceof HTMLElement &&
                       statusValidationButton.textContent?.trim() === 'v';
+                    spreadsheetDataValidationRangeChecks[testId] =
+                      spreadsheetDataValidationChecks[testId] &&
+                      updatedStatusCell instanceof HTMLButtonElement &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-source-range') === 'E1:E3' &&
+                      validationSourceFirstCell instanceof HTMLButtonElement &&
+                      validationSourceFirstCell.getAttribute('data-spreadsheet-cell-value') === 'Updated' &&
+                      validationSourceSecondCell instanceof HTMLButtonElement &&
+                      validationSourceSecondCell.getAttribute('data-spreadsheet-cell-value') === 'New' &&
+                      validationSourceThirdCell instanceof HTMLButtonElement &&
+                      validationSourceThirdCell.getAttribute('data-spreadsheet-cell-value') === 'Blocked';
                     if (updatedStatusCell instanceof HTMLButtonElement) {
                       updatedStatusCell.click();
                       await sleep(120);
@@ -13577,6 +13591,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetConditionalFormattingWorks: Boolean(spreadsheetConditionalFormattingChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetDataValidationWorks: Boolean(spreadsheetDataValidationChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetDataValidationOverlayWorks: Boolean(spreadsheetDataValidationOverlayChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetDataValidationRangeWorks: Boolean(spreadsheetDataValidationRangeChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetBordersWorks: Boolean(spreadsheetBorderChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetChartsWorks: Boolean(spreadsheetChartChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetChartPlotWorks: Boolean(spreadsheetChartPlotChecks['workspace-spreadsheet-preview']),

@@ -115,6 +115,7 @@ interface SpreadsheetPreviewConditionalFormat {
 interface SpreadsheetPreviewDataValidation {
   type: 'list'
   values?: string[]
+  sourceRange?: string
   allowBlank?: boolean
 }
 
@@ -869,7 +870,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     const charts = extractWorksheetCharts(xml, archive, sheet.path)
     const conditionalFormats = extractWorksheetConditionalFormats(xml)
     applyWorksheetConditionalFormats(parsed.rows, conditionalFormats)
-    const dataValidations = extractWorksheetDataValidations(xml)
+    const dataValidations = extractWorksheetDataValidations(xml, parsed.rows, sheet.name)
     applyWorksheetDataValidations(parsed.rows, dataValidations)
     const columnWidths = extractWorksheetColumnWidths(xml)
     const rowHeights = extractWorksheetRowHeights(xml)
@@ -1416,7 +1417,7 @@ function spreadsheetRangePosition(ref: string): { startRow: number; startColumn:
   }
 }
 
-function extractWorksheetDataValidations(xml: string): SpreadsheetPreviewDataValidationRange[] {
+function extractWorksheetDataValidations(xml: string, rows: SpreadsheetPreviewCell[][], sheetName: string): SpreadsheetPreviewDataValidationRange[] {
   return [...xml.matchAll(/<dataValidation\b([^>]*)>([\s\S]*?)<\/dataValidation>/g)]
     .slice(0, 12)
     .flatMap((match) => {
@@ -1425,7 +1426,7 @@ function extractWorksheetDataValidations(xml: string): SpreadsheetPreviewDataVal
       if (!/\btype="list"/.test(attributes)) return []
       const sqref = /\bsqref="([^"]+)"/.exec(attributes)?.[1] ?? ''
       if (!sqref) return []
-      const values = spreadsheetDataValidationListValues(body)
+      const list = spreadsheetDataValidationListValues(body, rows, sheetName)
       const allowBlank = /\ballowBlank="(?:1|true)"/i.test(attributes)
       return sqref
         .split(/\s+/)
@@ -1440,7 +1441,8 @@ function extractWorksheetDataValidations(xml: string): SpreadsheetPreviewDataVal
             rowSpan: range.endRow - range.startRow + 1,
             colSpan: range.endColumn - range.startColumn + 1,
             type: 'list' as const,
-            ...(values.length > 0 ? { values } : {}),
+            ...(list.values.length > 0 ? { values: list.values } : {}),
+            ...(list.sourceRange ? { sourceRange: list.sourceRange } : {}),
             ...(allowBlank ? { allowBlank: true } : {})
           }]
         })
@@ -1453,15 +1455,43 @@ function extractWorksheetDataValidations(xml: string): SpreadsheetPreviewDataVal
     }))
 }
 
-function spreadsheetDataValidationListValues(xml: string): string[] {
+function spreadsheetDataValidationListValues(xml: string, rows: SpreadsheetPreviewCell[][], sheetName: string): { values: string[]; sourceRange?: string } {
   const formula = decodeXmlText(/<formula1(?:\s[^>]*)?>([\s\S]*?)<\/formula1>/.exec(xml)?.[1] ?? '').trim()
   const inlineList = /^"([\s\S]*)"$/.exec(formula)?.[1]
-  if (!inlineList) return []
-  return inlineList
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .slice(0, 24)
+  if (inlineList) {
+    return {
+      values: inlineList
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .slice(0, 24)
+    }
+  }
+  const sourceRange = spreadsheetDataValidationSourceRange(formula, sheetName)
+  if (!sourceRange) return { values: [] }
+  const range = spreadsheetRangePosition(sourceRange)
+  if (!range) return { values: [] }
+  const values: string[] = []
+  for (let rowIndex = range.startRow; rowIndex <= range.endRow; rowIndex += 1) {
+    const row = rows[rowIndex] ?? []
+    for (let columnIndex = range.startColumn; columnIndex <= range.endColumn; columnIndex += 1) {
+      const value = row[columnIndex]?.value?.trim()
+      if (value) values.push(value)
+      if (values.length >= 24) return { values, sourceRange }
+    }
+  }
+  return { values, sourceRange }
+}
+
+function spreadsheetDataValidationSourceRange(formula: string, sheetName: string): string | null {
+  const normalized = formula.replace(/\$/g, '').trim()
+  if (!normalized) return null
+  const sheetMatch = /^(?:'([^']+)'|([^!]+))!(.+)$/.exec(normalized)
+  const ref = sheetMatch ? sheetMatch[3] : normalized
+  const refSheetName = sheetMatch?.[1] ?? sheetMatch?.[2]
+  if (refSheetName && refSheetName !== sheetName) return null
+  const upperRef = ref.toUpperCase()
+  return spreadsheetRangePosition(upperRef) ? upperRef : null
 }
 
 function applyWorksheetDataValidations(rows: SpreadsheetPreviewCell[][], validations: SpreadsheetPreviewDataValidationRange[]): void {
@@ -1475,6 +1505,7 @@ function applyWorksheetDataValidations(rows: SpreadsheetPreviewCell[][], validat
         cell.dataValidation = {
           type: validation.type,
           ...(validation.values ? { values: validation.values } : {}),
+          ...(validation.sourceRange ? { sourceRange: validation.sourceRange } : {}),
           ...(validation.allowBlank ? { allowBlank: true } : {})
         }
       }

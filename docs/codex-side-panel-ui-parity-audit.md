@@ -7377,6 +7377,16 @@ Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run
 
 Remaining: this covers local read-only chart plot rendering only. Interactive chart canvas behavior, chart selection/editing, multiple series, thumbnails, persisted workbook edits, provider-backed chart metadata, and full Codex Popcorn workbook canvas fidelity remain open.
 
+### 2026-05-27 - XLSX Range-Backed List Validation
+
+Codex evidence: `tmp/codex-app-assets/PopcornElectronWorkbookPanel-TofX9KRG.js` exposes Popcorn workbook `dataValidation` behavior and `popcorn-data-validation-overlay`. After the local option-overlay slice, Orchestrator handled inline list formulas but did not resolve list options from a same-sheet worksheet range, which is a common XLSX validation shape behind Codex's richer workbook model.
+
+Implemented: Orchestrator now parses list validation `formula1` references such as `$E$1:$E$3`, normalizes same-sheet source ranges, resolves bounded row-major option values from the active worksheet, preserves the source range in preview metadata, exposes it on rendered cells, and keeps the existing option overlay/select flow working from the resolved values. The focused XLSX smoke fixture now uses a real same-sheet validation source range instead of only inline quoted options.
+
+Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, and `pnpm exec tsc --noEmit` passed. Focused `node scripts/run-automated-ui-smoke.mjs --files` first hit the expected sandbox `listen EPERM 127.0.0.1`; the elevated rerun passed with `filesSpreadsheetDataValidationRange=true`, `filesSpreadsheetDataValidationOverlay=true`, `filesSpreadsheetChartPlot=true`, and the existing Files artifact checks. Evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779905764899.json`; screenshot `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779905764899.png`. The full dev visual manifest was refreshed at `2026-05-27T18:25:56.903Z` with 27 captures and no failures, and `filesSpreadsheetDataValidationRange=true` in the Files capture. `node scripts/run-codex-side-panel-comparison.mjs --full --no-fail` passed with `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, `needsProof=0`, and `remainingParityGaps=18`; report `/Users/nadav/Desktop/Orchestrator/tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-27T18:26:02.550Z`.
+
+Remaining: this covers local same-sheet range-backed list validation only. Cross-sheet validation ranges, named ranges, custom validation formulas, prompts/errors, persisted workbook validation edits, provider-backed workbook metadata, and full Codex Popcorn workbook canvas fidelity remain open.
+
 ### 2026-05-27 - XLSX Freeze-Line Handles
 
 Codex evidence: `tmp/codex-app-assets/PopcornElectronWorkbookPanel-TofX9KRG.js` renders explicit Popcorn freeze affordances including `popcorn-freeze-column-line`, `popcorn-freeze-row-line`, `popcorn-freeze-column-handle`, and `popcorn-freeze-row-handle`. After the freeze-pane rendering slice, Orchestrator had sticky frozen rows/columns but no visible freeze-line handles, so frozen panes looked static rather than Codex-like workbook viewport controls.
