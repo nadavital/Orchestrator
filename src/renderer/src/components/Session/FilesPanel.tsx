@@ -1045,6 +1045,7 @@ function SpreadsheetArtifactPreview({
       />
       <div className="workspace-office-preview-body" data-testid="workspace-spreadsheet-preview-body">
         {activeSheet ? (
+          <>
             <section
               className="workspace-spreadsheet-sheet"
               data-testid="workspace-spreadsheet-preview-sheet"
@@ -1073,6 +1074,42 @@ function SpreadsheetArtifactPreview({
                 </table>
               </div>
             </section>
+            <div
+              className="workspace-spreadsheet-sheet-tabs"
+              data-testid="workspace-spreadsheet-preview-sheet-tabs"
+              data-spreadsheet-sheet-tab-count={sheetCount}
+              data-spreadsheet-active-sheet-tab={activeSheet.name}
+              role="tablist"
+              aria-label="Workbook sheets"
+            >
+              <div className="workspace-spreadsheet-sheet-tabs-scroll" data-testid="workspace-spreadsheet-preview-sheet-tabs-scroll">
+                {sheets.map((sheet, index) => (
+                  <button
+                    key={sheet.name || index}
+                    type="button"
+                    className="workspace-spreadsheet-sheet-tab"
+                    data-testid="workspace-spreadsheet-preview-sheet-tab"
+                    data-spreadsheet-sheet-tab-index={index + 1}
+                    data-spreadsheet-sheet-tab-name={sheet.name}
+                    data-active={index === activeSheetIndex ? 'true' : 'false'}
+                    role="tab"
+                    aria-selected={index === activeSheetIndex}
+                    onClick={() => { setActiveSheetIndex(index) }}
+                  >
+                    <span>{sheet.name}</span>
+                  </button>
+                ))}
+              </div>
+              <IconButton
+                icon="plus"
+                label="Add sheet unavailable in read-only preview"
+                size="sm"
+                variant="toolbar"
+                disabled
+                dataTestId="workspace-spreadsheet-preview-add-sheet"
+              />
+            </div>
+          </>
         ) : (
           <ArtifactPreviewUnavailableBody size={preview.size ?? entry.size ?? 0} />
         )}

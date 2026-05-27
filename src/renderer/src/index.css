@@ -4624,6 +4624,54 @@
     border-bottom: 0;
   }
 
+  .workspace-spreadsheet-sheet-tabs {
+    display: flex;
+    min-height: 34px;
+    align-items: center;
+    gap: 6px;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 8px;
+  }
+
+  .workspace-spreadsheet-sheet-tabs-scroll {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .workspace-spreadsheet-sheet-tab {
+    display: inline-flex;
+    min-width: 72px;
+    max-width: 160px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px 6px 0 0;
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.2;
+    padding: 6px 10px;
+  }
+
+  .workspace-spreadsheet-sheet-tab span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-spreadsheet-sheet-tab[data-active='true'] {
+    border-color: var(--border-strong);
+    background: var(--surface-bg);
+    color: var(--text-primary);
+    font-weight: 650;
+  }
+
   .workspace-slides-outline {
     display: flex;
     min-width: 0;

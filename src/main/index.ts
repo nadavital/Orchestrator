@@ -10944,6 +10944,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentPageControlChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
+              const spreadsheetSheetTabChecks = {};
               const slidesRendererChecks = {};
               const slidesControlChecks = {};
               const previewTargets = [
@@ -11367,6 +11368,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     const sheetIndicator = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-indicator"]');
                     const previousSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-previous"]');
                     const nextSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-next"]');
+                    const sheetTabs = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tabs"]');
+                    const sheetTabButtons = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-preview-sheet-tab"]')];
+                    const addSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-add-sheet"]');
                     const zoomControls = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-controls"]');
                     const zoomIndicator = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-indicator"]');
                     const zoomIn = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-in"]');
@@ -11394,6 +11398,19 @@ function runAutomatedFocusedSurfaceSmoke(
                       previousSheet.disabled &&
                       nextSheet instanceof HTMLButtonElement &&
                       !nextSheet.disabled &&
+                      sheetTabs instanceof HTMLElement &&
+                      sheetTabs.getAttribute('data-spreadsheet-sheet-tab-count') === '2' &&
+                      sheetTabs.getAttribute('data-spreadsheet-active-sheet-tab') === 'Smoke data' &&
+                      sheetTabButtons.length === 2 &&
+                      sheetTabButtons[0] instanceof HTMLButtonElement &&
+                      sheetTabButtons[0].getAttribute('data-active') === 'true' &&
+                      sheetTabButtons[0].getAttribute('aria-selected') === 'true' &&
+                      sheetTabButtons[0].textContent?.trim() === 'Smoke data' &&
+                      sheetTabButtons[1] instanceof HTMLButtonElement &&
+                      sheetTabButtons[1].getAttribute('data-active') === 'false' &&
+                      sheetTabButtons[1].textContent?.trim() === 'Totals' &&
+                      addSheet instanceof HTMLButtonElement &&
+                      addSheet.disabled &&
                       zoomControls instanceof HTMLElement &&
                       zoomControls.getAttribute('data-spreadsheet-zoom-percent') === '100' &&
                       zoomIndicator instanceof HTMLElement &&
@@ -11409,6 +11426,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     const advancedSheetIndicator = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-indicator"]');
                     const advancedPreviousSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-previous"]');
                     const advancedNextSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-next"]');
+                    const advancedSheetTabs = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tabs"]');
+                    const advancedSheetTabButtons = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-preview-sheet-tab"]')];
                     const advancedSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet"]');
                     const advancedTable = document.querySelector('[data-testid="workspace-spreadsheet-preview-table"]');
                     const sheetNavigationWorks =
@@ -11423,6 +11442,11 @@ function runAutomatedFocusedSurfaceSmoke(
                       !advancedPreviousSheet.disabled &&
                       advancedNextSheet instanceof HTMLButtonElement &&
                       advancedNextSheet.disabled &&
+                      advancedSheetTabs instanceof HTMLElement &&
+                      advancedSheetTabs.getAttribute('data-spreadsheet-active-sheet-tab') === 'Totals' &&
+                      advancedSheetTabButtons[1] instanceof HTMLButtonElement &&
+                      advancedSheetTabButtons[1].getAttribute('data-active') === 'true' &&
+                      advancedSheetTabButtons[1].getAttribute('aria-selected') === 'true' &&
                       advancedSheet instanceof HTMLElement &&
                       advancedSheet.getAttribute('data-spreadsheet-sheet-name') === 'Totals' &&
                       advancedTable instanceof HTMLTableElement &&
@@ -11446,10 +11470,35 @@ function runAutomatedFocusedSurfaceSmoke(
                       zoomedSpreadsheetIndicator.textContent?.trim() === '125%' &&
                       zoomedTable instanceof HTMLTableElement &&
                       window.getComputedStyle(zoomedTable).fontSize === '15px';
+                    const firstSheetTab = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tab"][data-spreadsheet-sheet-tab-index="1"]');
+                    if (firstSheetTab instanceof HTMLButtonElement) {
+                      firstSheetTab.click();
+                      await sleep(160);
+                    }
+                    const tabbedSpreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const tabbedSheetTabs = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tabs"]');
+                    const tabbedFirstSheetTab = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tab"][data-spreadsheet-sheet-tab-index="1"]');
+                    const tabbedSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet"]');
+                    const sheetTabsWork =
+                      tabbedSpreadsheetPreview instanceof HTMLElement &&
+                      tabbedSpreadsheetPreview.getAttribute('data-spreadsheet-active-sheet-index') === '1' &&
+                      tabbedSpreadsheetPreview.getAttribute('data-spreadsheet-active-sheet-name') === 'Smoke data' &&
+                      tabbedSheetTabs instanceof HTMLElement &&
+                      tabbedSheetTabs.getAttribute('data-spreadsheet-sheet-tab-count') === '2' &&
+                      tabbedSheetTabs.getAttribute('data-spreadsheet-active-sheet-tab') === 'Smoke data' &&
+                      tabbedFirstSheetTab instanceof HTMLButtonElement &&
+                      tabbedFirstSheetTab.getAttribute('data-active') === 'true' &&
+                      tabbedFirstSheetTab.getAttribute('aria-selected') === 'true' &&
+                      tabbedSheet instanceof HTMLElement &&
+                      tabbedSheet.getAttribute('data-spreadsheet-sheet-name') === 'Smoke data';
                     spreadsheetControlChecks[testId] =
                       initialSpreadsheetControls &&
                       sheetNavigationWorks &&
                       spreadsheetZoomWorks;
+                    spreadsheetSheetTabChecks[testId] =
+                      initialSpreadsheetControls &&
+                      sheetNavigationWorks &&
+                      sheetTabsWork;
                   }
                   if (testId === 'workspace-slides-preview') {
                     const slidesPreview = document.querySelector('[data-testid="workspace-slides-preview"]');
@@ -12481,6 +12530,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSpreadsheetControlsWorks: Boolean(spreadsheetControlChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetSheetTabsWorks: Boolean(spreadsheetSheetTabChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSpreadsheetSlidesArtifactBoundaryWorks:
                   Boolean(previewChecks.filesSpreadsheetPreviewWorks) &&
