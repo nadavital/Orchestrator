@@ -471,17 +471,17 @@ function buildContracts() {
         { basename: 'browser-sidebar-manager-ivre5jEI.js', terms: ['iphone-15-pro-max', 'pixel-8', 'surface-pro-7', 'iphone-se', '4096'] }
       ],
       sourceEvidence: [
-        { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['iPhone 15 Pro Max', 'Pixel 8', 'Surface Pro 7', 'iPhone SE', 'desktop4k'] }
+        { path: 'src/renderer/src/components/Session/BrowserPanel.tsx', terms: ['Responsive', '4K', 'Laptop L', 'Surface Pro 7', 'Samsung Galaxy S24 Ultra', 'iPhone SE', 'desktop4k'] }
       ],
-      smokeChecks: ['browserCaptureGeometry', 'browserVisibleGeometry'],
+      smokeChecks: ['browserDevicePresetCatalog', 'browserCaptureGeometry', 'browserVisibleGeometry'],
       statusWhenCovered: 'aligned',
-      caveat: 'Bundle/code dimensions match; live label/order comparison can still catch presentation differences.',
-      next: 'Keep lower priority unless live UI comparison shows ordering or label drift.',
+      caveat: 'Bundle/code preset order, labels, dimensions, and visible geometry match the extracted Codex browser sidebar/device-toolbar chunks; live menu styling and timing can still catch presentation differences.',
+      next: 'Keep lower priority unless live UI comparison shows styling or interaction timing drift.',
       openIssues: [
         {
           category: 'live-codex-ui',
-          issue: 'Browser preset label/order presentation has not been live screenshot-compared.',
-          requiredEvidence: 'Live Codex Browser preset menu screenshot.'
+          issue: 'Browser preset menu styling and interaction timing have not been live screenshot-compared.',
+          requiredEvidence: 'Live Codex Browser preset menu screenshot or interaction capture.'
         }
       ]
     },

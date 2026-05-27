@@ -120,21 +120,20 @@ type BrowserManagerBridgeWindow = typeof window & {
   __orchestratorSetBrowserManagerState?: (detail: BrowserManagerBridgeDetail) => void
 }
 
-const VIEWPORT_PRESETS: Array<{ mode: BrowserDeviceMode; label: string; group: 'Responsive' | 'Phone' | 'Tablet' | 'Desktop' }> = [
-  { mode: 'desktop', label: 'Responsive', group: 'Responsive' },
-  { mode: 'mobile', label: 'iPhone 15 Pro', group: 'Phone' },
-  { mode: 'iphoneSe', label: 'iPhone SE', group: 'Phone' },
-  { mode: 'iphone15ProMax', label: 'iPhone 15 Pro Max', group: 'Phone' },
-  { mode: 'pixel', label: 'Pixel 8', group: 'Phone' },
-  { mode: 'galaxyS24Ultra', label: 'Galaxy S24 Ultra', group: 'Phone' },
-  { mode: 'ipadMini', label: 'iPad Mini', group: 'Tablet' },
-  { mode: 'ipad', label: 'iPad Air', group: 'Tablet' },
-  { mode: 'surfaceDuo', label: 'Surface Duo', group: 'Tablet' },
-  { mode: 'surfacePro7', label: 'Surface Pro 7', group: 'Tablet' },
-  { mode: 'laptop', label: 'Laptop', group: 'Desktop' },
-  { mode: 'laptopLarge', label: 'Laptop L', group: 'Desktop' },
-  { mode: 'desktop4k', label: '4K', group: 'Desktop' },
-  { mode: 'custom', label: 'Custom', group: 'Responsive' }
+const VIEWPORT_PRESETS: Array<{ mode: BrowserDeviceMode; label: string }> = [
+  { mode: 'desktop', label: 'Responsive' },
+  { mode: 'desktop4k', label: '4K' },
+  { mode: 'laptopLarge', label: 'Laptop L' },
+  { mode: 'laptop', label: 'Laptop' },
+  { mode: 'surfacePro7', label: 'Surface Pro 7' },
+  { mode: 'ipad', label: 'iPad Air' },
+  { mode: 'ipadMini', label: 'iPad Mini' },
+  { mode: 'surfaceDuo', label: 'Surface Duo' },
+  { mode: 'iphone15ProMax', label: 'iPhone 15 Pro Max' },
+  { mode: 'pixel', label: 'Pixel 8' },
+  { mode: 'mobile', label: 'iPhone 15 Pro' },
+  { mode: 'galaxyS24Ultra', label: 'Samsung Galaxy S24 Ultra' },
+  { mode: 'iphoneSe', label: 'iPhone SE' }
 ]
 
 const BROWSER_INSPECTOR_TABS: Array<{ mode: BrowserInspectorMode; label: string; icon: Parameters<typeof Icon>[0]['name'] }> = [
@@ -1773,15 +1772,10 @@ export default function BrowserPanel({
                 className="rounded-md px-2 py-0.5 text-xs outline-none"
                 style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
               >
-                {(['Responsive', 'Phone', 'Tablet', 'Desktop'] as const).map((group) => (
-                  <optgroup key={group} label={group}>
-                    {VIEWPORT_PRESETS
-                      .filter((preset) => preset.group === group)
-                      .map((preset) => (
-                        <option key={preset.mode} value={preset.mode}>{preset.label}</option>
-                      ))}
-                  </optgroup>
+                {VIEWPORT_PRESETS.map((preset) => (
+                  <option key={preset.mode} value={preset.mode}>{preset.label}</option>
                 ))}
+                {workbench.deviceMode === 'custom' && <option value="custom">Custom</option>}
               </select>
               {workbench.deviceMode === 'custom' && (
                 <>

@@ -14051,6 +14051,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             let browserVisibleGeometryWorks = false;
             if (browserViewportModeSelect instanceof HTMLSelectElement) {
               const optionLabels = [...browserViewportModeSelect.options].map((option) => option.textContent?.trim() ?? '');
+              const expectedPresetLabels = ['Responsive', '4K', 'Laptop L', 'Laptop', 'Surface Pro 7', 'iPad Air', 'iPad Mini', 'Surface Duo', 'iPhone 15 Pro Max', 'Pixel 8', 'iPhone 15 Pro', 'Samsung Galaxy S24 Ultra', 'iPhone SE'];
               browserViewportModeSelect.value = 'galaxyS24Ultra';
               browserViewportModeSelect.dispatchEvent(new Event('change', { bubbles: true }));
               for (let index = 0; index < 20; index += 1) {
@@ -14065,8 +14066,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const presetStageHeight = Number(browserWebviewManagerAfterPreset?.getAttribute('data-browser-manager-visible-stage-height') ?? '0');
               const presetVisualHeight = Number(browserWebviewManagerAfterPreset?.getAttribute('data-browser-manager-visible-height') ?? '0');
               browserDevicePresetCatalogWorks =
-                ['iPhone SE', 'iPhone 15 Pro', 'iPhone 15 Pro Max', 'Pixel 8', 'Galaxy S24 Ultra', 'iPad Mini', 'iPad Air', 'Surface Duo', 'Surface Pro 7', 'Laptop', 'Laptop L', '4K']
-                  .every((label) => optionLabels.includes(label)) &&
+                optionLabels.join('|') === expectedPresetLabels.join('|') &&
                 browserPanelAfterPreset?.getAttribute('data-browser-device-mode') === 'galaxyS24Ultra' &&
                 Number(browserPanelAfterPreset?.getAttribute('data-browser-viewport-width') ?? '0') === 384 &&
                 Number(browserPanelAfterPreset?.getAttribute('data-browser-viewport-height') ?? '0') === 824;
