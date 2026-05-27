@@ -22,6 +22,26 @@ This file is the current comparison ledger for the side-panel parity goal. It se
 
 Scope note: "side panel" in the comparison matrix means the right-side Workbench panel unless a row explicitly says Bottom panel, Left sidebar, or Settings.
 
+## Product Priority Phases
+
+The current product priority is daily coding usability first, Codex-derived artifact depth second. Codex remains a useful reference for app-shell maturity, but Orchestrator should not treat Codex as a permanent product roadmap or block original Orchestrator workflows on pixel-for-pixel parity.
+
+Phase 1 work should focus on the surfaces that make Orchestrator usable as a high-quality coding app every day:
+
+- App shell, header, left sidebar, right Workbench side panel, bottom panel, and their shared focus/route/window behavior.
+- Main chat thread readability, streaming/tool-call/error states, long-thread behavior, and continuation/retry ergonomics.
+- Composer attachment/context/model/permission controls, keyboard behavior, submit/stop states, and side-chat composer consistency.
+- Inspector/context panels that help coding workflows directly, including useful empty/loading states and clear relationships to the selected thread, browser, review, files, or runtime event.
+- Settings as a durable app surface for provider/account/runtime/browser/shell preferences, with clear unavailable states only where real adapters are missing.
+- Review, Browser, Terminal, Files source tabs, and Side Chat as practical coding workflow surfaces, not only Codex comparison rows.
+
+Phase 2 keeps the deeper document/artifact renderer backlog visible without letting it lead the current work:
+
+- Full DOCX layout fidelity, style inheritance, pagination, revision/comment threading, and editing hooks.
+- Full XLSX/PPTX canvas fidelity, advanced workbook/slide editing, chart/object selection, persisted edits, and deeper Popcorn-equivalent behavior.
+- Full PDF canvas rendering, provider-backed annotations, and artifact metadata beyond the current lightweight controls.
+- Provider-backed artifact comments/blame/metadata once providers expose useful data.
+
 ## Evidence Used
 
 - Codex app bundle: `/Applications/Codex.app/Contents/Resources/app.asar`, `CFBundleShortVersionString=26.519.41501`.

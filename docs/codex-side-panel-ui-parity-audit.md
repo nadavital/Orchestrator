@@ -50,6 +50,26 @@ That split causes the visible problems:
 - The Chat Sidebar has some Codex-like bits, but it lacks Codex's richer grouping model, connection/projectless/cloud/pending-worktree organization, custom sections, server-backed pinned state, and action set.
 - Settings and modal windows are still a large Orchestrator-specific modal rather than Codex-style settings pages built from shared `SettingsPage`, `SettingsSurface`, `SettingsGroup`, and `SettingsRow` primitives.
 
+## Product Priority Reframe
+
+The current goal is no longer "keep closing every Codex parity gap in whatever order is easiest to verify." The goal is to make Orchestrator a day-to-day coding app that feels coherent, reliable, and high quality, while keeping Codex as one quality reference for mature shell behavior.
+
+Phase 1 is coding-workflow usability:
+
+- Keep polishing the side-panel system: left sidebar, right Workbench panel, Review, Browser, Files/source tabs, Side Chat, bottom Terminal, header interaction, focus routing, tab lifecycle, and window/route behavior.
+- Audit and improve the main chat thread: message hierarchy, streaming and tool-call states, user input/approval cards, error recovery, long-thread readability, retry/continue behavior, and empty/loading states.
+- Audit and improve the composer: attachments, context entry, provider/model/permission controls, keyboard behavior, side-chat consistency, submit/stop states, disabled states, and clear error handling.
+- Audit and improve the inspector/context panel model: what each panel is for, how selection/context flows into it, and whether it helps coding workflows directly.
+- Make Settings a durable app surface rather than a catch-all modal: provider/account/runtime/browser/shell preferences, app personalization, unavailable states backed by real adapter boundaries, and route/window behavior.
+- Keep Browser, Review, Terminal, Files source tabs, and Settings work tied to real coding workflows instead of only screenshot or bundle parity.
+
+Phase 2 keeps lower-priority artifact depth visible without letting it drive current execution:
+
+- Full DOCX layout fidelity, style inheritance, pagination, revision/comment threading, hit-rects, and editing hooks.
+- Full XLSX/PPTX Popcorn-equivalent canvas behavior, persisted edits, advanced workbook/slide editing, chart/object selection, and deeper formula/object fidelity.
+- Full PDF canvas rendering and provider-backed annotations.
+- Provider-backed artifact comments/blame/metadata when useful provider contracts exist.
+
 ## Agent Handoff Notes
 
 This audit is sufficient to start a long-running implementation agent, but it is not a final parity certificate. A future agent should treat it as the source of truth for what to build, then re-open the current local Codex bundle and capture fresh Orchestrator screenshots before marking any slice complete.
