@@ -906,13 +906,13 @@ function artifactPreviewActions(
     {
       id: 'open-file',
       icon: 'external',
-      label: 'Open file',
+      label: 'Open',
       onClick: () => { void window.api.fs.openPath(absolutePath) }
     },
     {
       id: 'reveal-file',
       icon: 'folder',
-      label: 'Reveal file',
+      label: 'Open in folder',
       onClick: () => { void window.api.fs.showInFolder(absolutePath) }
     }
   )

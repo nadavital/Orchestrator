@@ -11053,9 +11053,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     openOptionsMenu instanceof HTMLElement &&
                     openOptionsMenu.textContent?.includes('Open') === true &&
                     openOptionsOpenFile instanceof HTMLButtonElement &&
-                    openOptionsOpenFile.textContent?.includes('Open file') === true &&
+                    openOptionsOpenFile.textContent?.trim() === 'Open' &&
                     openOptionsRevealFile instanceof HTMLButtonElement &&
-                    openOptionsRevealFile.textContent?.includes('Reveal file') === true;
+                    openOptionsRevealFile.textContent?.includes('Open in folder') === true;
                   if (openOptionsMenu instanceof HTMLElement) {
                     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
                     await sleep(80);
