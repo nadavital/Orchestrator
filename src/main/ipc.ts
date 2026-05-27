@@ -159,6 +159,9 @@ interface DocumentPreviewParagraphBlock {
   listKind?: 'bullet' | 'ordered'
   listLevel?: number
   listMarker?: string
+  reviewKind?: 'insertion' | 'deletion'
+  reviewAuthor?: string
+  reviewDate?: string
 }
 
 interface DocumentPreviewTableBlock {
@@ -205,6 +208,7 @@ interface DocumentPreviewPayload {
   footnoteCount?: number
   comments?: DocumentPreviewComment[]
   commentCount?: number
+  reviewMarkCount?: number
   headerText?: string
   footerText?: string
   sectionCount?: number
@@ -479,6 +483,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
   const shapeBlocks = extractDocxShapeBlocks(body)
   const footnotes = extractDocxFootnotes(body, archive)
   const comments = extractDocxComments(body, archive)
+  let reviewMarkCount = 0
   for (const match of body.matchAll(/<w:(p|tbl)\b[\s\S]*?<\/w:\1>/g)) {
     const tag = match[1]
     const blockXml = match[0] ?? ''
@@ -492,7 +497,9 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     }
     if (blockXml.includes('<wps:wsp')) continue
     const text = extractDocxParagraphText(blockXml)
-    if (text) blocks.push({ type: 'paragraph', text, ...extractDocxParagraphList(blockXml, numbering) })
+    const reviewMark = extractDocxParagraphReviewMark(blockXml)
+    if (reviewMark.reviewKind) reviewMarkCount += 1
+    if (text) blocks.push({ type: 'paragraph', text, ...extractDocxParagraphList(blockXml, numbering), ...reviewMark })
     const imageBlocks = extractDocxImageBlocks(blockXml, archive, relationships)
     if (imageBlocks.length > 0) {
       blocks.push(...imageBlocks)
@@ -514,6 +521,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     ...(shapeCount > 0 ? { shapeCount } : {}),
     ...(footnotes.length > 0 ? { footnotes, footnoteCount: footnotes.length } : {}),
     ...(comments.length > 0 ? { comments, commentCount: comments.length } : {}),
+    ...(reviewMarkCount > 0 ? { reviewMarkCount } : {}),
     ...sections
   }
 }
@@ -617,13 +625,29 @@ function extractDocxParagraphList(xml: string, numbering: Map<string, DocxNumber
 }
 
 function extractDocxParagraphText(xml: string): string {
-  const parts = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:footnoteReference\b[^>]*\bw:id="([^"]+)"[^>]*(?:\/>|><\/w:footnoteReference>)|<w:commentReference\b[^>]*\bw:id="([^"]+)"[^>]*(?:\/>|><\/w:commentReference>)|<w:tab\s*\/>|<w:br\s*\/>/g)]
+  const parts = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:delText(?:\s[^>]*)?>([\s\S]*?)<\/w:delText>|<w:footnoteReference\b[^>]*\bw:id="([^"]+)"[^>]*(?:\/>|><\/w:footnoteReference>)|<w:commentReference\b[^>]*\bw:id="([^"]+)"[^>]*(?:\/>|><\/w:commentReference>)|<w:tab\s*\/>|<w:br\s*\/>/g)]
   return parts.map((match) => {
     if (match[1] !== undefined) return decodeXmlText(match[1] ?? '')
-    if (match[2] !== undefined) return `[${match[2] ?? ''}]`
-    if (match[3] !== undefined) return `[comment ${match[3] ?? ''}]`
+    if (match[2] !== undefined) return decodeXmlText(match[2] ?? '')
+    if (match[3] !== undefined) return `[${match[3] ?? ''}]`
+    if (match[4] !== undefined) return `[comment ${match[4] ?? ''}]`
     return match[0].startsWith('<w:tab') ? '\t' : '\n'
   }).join('').trim()
+}
+
+function extractDocxParagraphReviewMark(xml: string): Pick<DocumentPreviewParagraphBlock, 'reviewKind' | 'reviewAuthor' | 'reviewDate'> {
+  const insertionAttributes = /<w:ins\b([^>]*)>/.exec(xml)?.[1]
+  const deletionAttributes = /<w:del\b([^>]*)>/.exec(xml)?.[1]
+  const reviewKind = insertionAttributes !== undefined ? 'insertion' : deletionAttributes !== undefined ? 'deletion' : undefined
+  const attributes = insertionAttributes ?? deletionAttributes ?? ''
+  if (!reviewKind) return {}
+  const author = decodeXmlText(/\b(?:w:)?author="([^"]*)"/.exec(attributes)?.[1] ?? '').trim()
+  const date = decodeXmlText(/\b(?:w:)?date="([^"]*)"/.exec(attributes)?.[1] ?? '').trim()
+  return {
+    reviewKind,
+    ...(author ? { reviewAuthor: author } : {}),
+    ...(date ? { reviewDate: date } : {})
+  }
 }
 
 function extractDocxFootnotes(xml: string, archive: Buffer): DocumentPreviewFootnote[] {

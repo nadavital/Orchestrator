@@ -41,7 +41,7 @@ interface NotebookCell {
 }
 
 type DocumentPreviewBlock =
-  | { type: 'paragraph'; text: string; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string }
+  | { type: 'paragraph'; text: string; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string; reviewKind?: 'insertion' | 'deletion'; reviewAuthor?: string; reviewDate?: string }
   | { type: 'table'; rows: string[][] }
   | { type: 'image'; dataUrl: string; mimeType: string; alt?: string; width?: number; height?: number }
   | { type: 'shape'; text: string; geometry?: string; fillColor?: string; lineColor?: string }
@@ -105,6 +105,7 @@ function DocumentPreview({
   const footnoteCount = preview.document?.footnoteCount ?? footnotes.length
   const comments = normalizeDocumentComments(preview.document?.comments)
   const commentCount = preview.document?.commentCount ?? comments.length
+  const reviewMarkCount = Math.max(0, Math.floor(Number(preview.document?.reviewMarkCount ?? documentBlocks.filter((block) => block.type === 'paragraph' && block.reviewKind).length)))
   const headerText = typeof preview.document?.headerText === 'string' ? preview.document.headerText.trim() : ''
   const footerText = typeof preview.document?.footerText === 'string' ? preview.document.footerText.trim() : ''
   const sectionCount = Math.max(0, Math.floor(Number(preview.document?.sectionCount ?? 0)))
@@ -140,6 +141,7 @@ function DocumentPreview({
       data-document-preview-shape-count={shapeCount}
       data-document-preview-footnote-count={footnoteCount}
       data-document-preview-comment-count={commentCount}
+      data-document-preview-review-mark-count={reviewMarkCount}
       data-document-preview-header-text={headerText}
       data-document-preview-footer-text={footerText}
       data-document-preview-section-count={sectionCount}
@@ -227,6 +229,7 @@ function DocumentPreview({
         {shapeCount > 0 && <span>{shapeCount.toLocaleString()} {shapeCount === 1 ? 'shape' : 'shapes'}</span>}
         {footnoteCount > 0 && <span>{footnoteCount.toLocaleString()} {footnoteCount === 1 ? 'footnote' : 'footnotes'}</span>}
         {commentCount > 0 && <span>{commentCount.toLocaleString()} {commentCount === 1 ? 'comment' : 'comments'}</span>}
+        {reviewMarkCount > 0 && <span>{reviewMarkCount.toLocaleString()} {reviewMarkCount === 1 ? 'revision' : 'revisions'}</span>}
         {sectionCount > 0 && <span>{sectionCount.toLocaleString()} {sectionCount === 1 ? 'section' : 'sections'}</span>}
         {columnCount > 1 && <span>{columnCount.toLocaleString()} columns</span>}
         <span>{pageCount.toLocaleString()} pages</span>
@@ -318,7 +321,21 @@ function DocumentPreview({
                             <span>{block.text}</span>
                           </aside>
                         )
-                      : block.listKind
+                      : block.reviewKind
+                        ? (
+                            <p
+                              key={`paragraph-${index}`}
+                              className={`document-preview-review-mark document-preview-review-mark-${block.reviewKind}`}
+                              data-testid={`${testId}-review-mark`}
+                              data-document-review-kind={block.reviewKind}
+                              data-document-review-author={block.reviewAuthor ?? ''}
+                              data-document-review-date={block.reviewDate ?? ''}
+                            >
+                              <span className="document-preview-review-marker">{block.reviewKind === 'insertion' ? 'Inserted' : 'Deleted'}</span>
+                              <span>{block.text}</span>
+                            </p>
+                          )
+                        : block.listKind
                         ? (
                             <p
                               key={`paragraph-${index}`}
@@ -425,10 +442,14 @@ function normalizeDocumentBlocks(blocks: DocumentPreviewBlock[] | undefined, par
         const listKind = block.listKind === 'bullet' || block.listKind === 'ordered' ? block.listKind : undefined
         const listLevel = Math.max(0, Math.min(8, Math.floor(Number(block.listLevel ?? 0) || 0)))
         const listMarker = String(block.listMarker ?? '').trim().slice(0, 8)
+        const reviewKind = block.reviewKind === 'insertion' || block.reviewKind === 'deletion' ? block.reviewKind : undefined
+        const reviewAuthor = String(block.reviewAuthor ?? '').trim().slice(0, 80)
+        const reviewDate = String(block.reviewDate ?? '').trim().slice(0, 40)
         return {
           type: 'paragraph' as const,
           text: String(block.text ?? '').trim(),
-          ...(listKind ? { listKind, listLevel, listMarker: listMarker || (listKind === 'bullet' ? '\u2022' : '1.') } : {})
+          ...(listKind ? { listKind, listLevel, listMarker: listMarker || (listKind === 'bullet' ? '\u2022' : '1.') } : {}),
+          ...(reviewKind ? { reviewKind, ...(reviewAuthor ? { reviewAuthor } : {}), ...(reviewDate ? { reviewDate } : {}) } : {})
         }
       })
       .filter((block) => {

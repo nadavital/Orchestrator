@@ -5979,6 +5979,32 @@
     line-height: 1.4;
   }
 
+  .document-preview-review-mark {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 8px;
+    margin: 0;
+    border-inline-start: 2px solid var(--accent);
+    padding-inline-start: 8px;
+  }
+
+  .document-preview-review-mark + .document-preview-review-mark {
+    margin-top: 6px;
+  }
+
+  .document-preview-review-marker {
+    align-self: start;
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .document-preview-review-mark-deletion {
+    color: var(--text-secondary);
+    text-decoration: line-through;
+  }
+
   .document-preview-empty {
     color: var(--text-tertiary);
   }

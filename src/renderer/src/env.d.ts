@@ -88,7 +88,7 @@ export interface FilePreviewResult {
   text?: string
   document?: {
     blocks: Array<
-      | { type: 'paragraph'; text: string; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string }
+      | { type: 'paragraph'; text: string; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string; reviewKind?: 'insertion' | 'deletion'; reviewAuthor?: string; reviewDate?: string }
       | { type: 'table'; rows: string[][] }
       | { type: 'image'; dataUrl: string; mimeType: string; alt?: string; width?: number; height?: number }
       | { type: 'shape'; text: string; geometry?: string; fillColor?: string; lineColor?: string }
@@ -100,6 +100,7 @@ export interface FilePreviewResult {
     footnoteCount?: number
     comments?: Array<{ id: string; text: string; author?: string }>
     commentCount?: number
+    reviewMarkCount?: number
     headerText?: string
     footerText?: string
     sectionCount?: number

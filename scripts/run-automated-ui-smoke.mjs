@@ -410,6 +410,13 @@ function createDocxFixture(blocks, options = {}) {
       const id = comment?.id ?? '1'
       return `<w:p><w:commentRangeStart w:id="${id}"/><w:r><w:t>${escapeXml(String(block.text ?? 'Document comment reference'))}</w:t></w:r><w:commentRangeEnd w:id="${id}"/><w:r><w:commentReference w:id="${id}"/></w:r></w:p>`
     }
+    if (block && typeof block === 'object' && block.reviewKind) {
+      const kind = block.reviewKind === 'deletion' ? 'del' : 'ins'
+      const textTag = kind === 'del' ? 'delText' : 't'
+      const author = escapeXml(String(block.reviewAuthor ?? 'Codex Smoke'))
+      const date = escapeXml(String(block.reviewDate ?? '2026-05-27T00:00:00Z'))
+      return `<w:p><w:${kind} w:id="12" w:author="${author}" w:date="${date}"><w:r><w:${textTag}>${escapeXml(String(block.text ?? 'Document review mark text'))}</w:${textTag}></w:r></w:${kind}></w:p>`
+    }
     if (block && typeof block === 'object' && block.listKind) {
       const listKind = block.listKind === 'bullet' ? 'bullet' : 'ordered'
       const numId = listKind === 'bullet' ? '7' : '8'
@@ -1228,7 +1235,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     { shapeText: 'Document smoke shape callout', geometry: 'roundRect', fillColor: '#E0F2FE', lineColor: '#38BDF8' },
     { text: 'Document smoke comment reference', commentText: 'Document smoke comment text', commentAuthor: 'Codex Smoke' },
     'Document smoke appendix',
-    'Document smoke closing note'
+    { text: 'Document smoke inserted review text', reviewKind: 'insertion', reviewAuthor: 'Codex Smoke', reviewDate: '2026-05-27T00:00:00Z' }
     ], { headerText: 'Document smoke header', footerText: 'Document smoke footer', columnCount: 2 }))
     writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), createXlsxFixture({
       sheets: [
@@ -2003,6 +2010,7 @@ child.on('exit', async (code) => {
           filesDocumentShapeRendering: result.filesDocumentShapeRenderingWorks === true,
           filesDocumentFootnotes: result.filesDocumentFootnotesWorks === true,
           filesDocumentComments: result.filesDocumentCommentsWorks === true,
+          filesDocumentReviewMarks: result.filesDocumentReviewMarksWorks === true,
           filesDocumentListRendering: result.filesDocumentListRenderingWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
@@ -2226,6 +2234,7 @@ child.on('exit', async (code) => {
         filesDocumentShapeRendering: captureView !== 'inspector' || result.filesDocumentShapeRenderingWorks === true,
         filesDocumentFootnotes: captureView !== 'inspector' || result.filesDocumentFootnotesWorks === true,
         filesDocumentComments: captureView !== 'inspector' || result.filesDocumentCommentsWorks === true,
+        filesDocumentReviewMarks: captureView !== 'inspector' || result.filesDocumentReviewMarksWorks === true,
         filesDocumentListRendering: captureView !== 'inspector' || result.filesDocumentListRenderingWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,

@@ -11144,6 +11144,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentShapeChecks = {};
               const documentFootnoteChecks = {};
               const documentCommentChecks = {};
+              const documentReviewMarkChecks = {};
               const documentListChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
@@ -11622,6 +11623,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const advancedPageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
                     const documentShapes = [...document.querySelectorAll('[data-testid="workspace-document-preview-shape"]')];
                     const documentListItems = [...document.querySelectorAll('[data-testid="workspace-document-preview-list-item"]')];
+                    const documentReviewMarks = [...document.querySelectorAll('[data-testid="workspace-document-preview-review-mark"]')];
                     documentFootnoteChecks[testId] =
                       Boolean(documentFootnoteChecks[testId]) &&
                       advancedPageBody instanceof HTMLElement &&
@@ -11637,6 +11639,17 @@ function runAutomatedFocusedSurfaceSmoke(
                       Boolean(documentCommentChecks[testId]) &&
                       advancedPageBody instanceof HTMLElement &&
                       advancedPageBody.textContent?.includes('Document smoke comment reference[comment 1]') === true;
+                    documentReviewMarkChecks[testId] =
+                      advancedPreview instanceof HTMLElement &&
+                      advancedPreview.getAttribute('data-document-preview-review-mark-count') === '1' &&
+                      advancedPageBody instanceof HTMLElement &&
+                      documentReviewMarks.length === 1 &&
+                      documentReviewMarks[0] instanceof HTMLElement &&
+                      documentReviewMarks[0].getAttribute('data-document-review-kind') === 'insertion' &&
+                      documentReviewMarks[0].getAttribute('data-document-review-author') === 'Codex Smoke' &&
+                      documentReviewMarks[0].getAttribute('data-document-review-date') === '2026-05-27T00:00:00Z' &&
+                      documentReviewMarks[0].textContent?.includes('Inserted') === true &&
+                      documentReviewMarks[0].textContent?.includes('Document smoke inserted review text') === true;
                     const pageNavigationWorks =
                       advancedPreview instanceof HTMLElement &&
                       advancedPreview.getAttribute('data-document-preview-page-count') === '2' &&
@@ -13413,6 +13426,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesDocumentShapeRenderingWorks: Boolean(documentShapeChecks['workspace-document-preview']),
                 filesDocumentFootnotesWorks: Boolean(documentFootnoteChecks['workspace-document-preview']),
                 filesDocumentCommentsWorks: Boolean(documentCommentChecks['workspace-document-preview']),
+                filesDocumentReviewMarksWorks: Boolean(documentReviewMarkChecks['workspace-document-preview']),
                 filesDocumentListRenderingWorks: Boolean(documentListChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
