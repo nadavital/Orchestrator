@@ -61,6 +61,15 @@ interface SpreadsheetPreviewCell {
 interface SpreadsheetPreviewSheet {
   name: string
   rows: SpreadsheetPreviewCell[][]
+  merges?: SpreadsheetPreviewMerge[]
+}
+
+interface SpreadsheetPreviewMerge {
+  ref: string
+  startRow: number
+  startColumn: number
+  rowSpan: number
+  colSpan: number
 }
 
 interface SpreadsheetCellStyle {
@@ -467,7 +476,8 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     if (!xml) continue
     const parsed = extractWorksheetRows(xml, sharedStrings, styles)
     truncated ||= parsed.truncated
-    sheets.push({ name: sheet.name, rows: parsed.rows })
+    const merges = extractWorksheetMerges(xml)
+    sheets.push({ name: sheet.name, rows: parsed.rows, ...(merges.length > 0 ? { merges } : {}) })
   }
   if (worksheetEntries.length > 6) truncated = true
   return sheets.length > 0 ? { sheets, truncated } : null
@@ -742,6 +752,33 @@ function extractWorksheetRows(xml: string, sharedStrings: string[], styles: Spre
   return { rows, truncated }
 }
 
+function extractWorksheetMerges(xml: string): SpreadsheetPreviewMerge[] {
+  return [...xml.matchAll(/<mergeCell\b[^>]*ref="([^"]+)"[^>]*\/>/g)]
+    .slice(0, 24)
+    .flatMap((match) => {
+      const ref = (match[1] ?? '').toUpperCase()
+      const [startAddress, endAddress] = ref.split(':')
+      const start = spreadsheetCellPosition(startAddress)
+      const end = spreadsheetCellPosition(endAddress ?? startAddress)
+      if (!start || !end) return []
+      const startRow = Math.min(start.row, end.row)
+      const endRow = Math.max(start.row, end.row)
+      const startColumn = Math.min(start.column, end.column)
+      const endColumn = Math.max(start.column, end.column)
+      const rowSpan = endRow - startRow + 1
+      const colSpan = endColumn - startColumn + 1
+      if (rowSpan <= 1 && colSpan <= 1) return []
+      if (startRow >= 24 || startColumn >= 12) return []
+      return [{
+        ref,
+        startRow,
+        startColumn,
+        rowSpan: Math.min(rowSpan, 24 - startRow),
+        colSpan: Math.min(colSpan, 12 - startColumn)
+      }]
+    })
+}
+
 function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {
   if (!xml) return []
   const fonts = [...xml.matchAll(/<font\b[\s\S]*?<\/font>/g)].map((match) => {
@@ -785,6 +822,15 @@ function spreadsheetColumnIndex(address: string): number {
   let value = 0
   for (const letter of letters) value = value * 26 + (letter.charCodeAt(0) - 64)
   return Math.max(0, value - 1)
+}
+
+function spreadsheetCellPosition(address: string | undefined): { row: number; column: number } | null {
+  if (!address) return null
+  const match = /^([A-Z]+)(\d+)$/i.exec(address.trim())
+  if (!match) return null
+  const row = Number(match[2]) - 1
+  const column = spreadsheetColumnIndex(match[1])
+  return Number.isFinite(row) && row >= 0 && column >= 0 ? { row, column } : null
 }
 
 function evaluateWorksheetFormulas(rows: SpreadsheetPreviewCell[][], cellsByAddress: Map<string, SpreadsheetPreviewCell>): void {

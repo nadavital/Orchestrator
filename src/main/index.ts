@@ -11144,6 +11144,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetSheetTabChecks = {};
               const spreadsheetActiveCellChecks = {};
               const spreadsheetStyleChecks = {};
+              const spreadsheetMergeChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11646,6 +11647,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     const headerNameCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A1"]');
                     const alphaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A2"]');
                     const updatedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
+                    const mergedNoteCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A4"]');
+                    const mergedNoteTableCell = mergedNoteCell?.closest('td');
+                    const coveredMergedCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B4"]');
                     spreadsheetRendererChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-preview-rendered') === 'true' &&
@@ -11723,6 +11727,17 @@ function runAutomatedFocusedSurfaceSmoke(
                       updatedStatusCell.getAttribute('data-spreadsheet-cell-text-color') === '#166534' &&
                       getComputedStyle(updatedStatusCell).backgroundColor === 'rgb(220, 252, 231)' &&
                       getComputedStyle(updatedStatusCell).color === 'rgb(22, 101, 52)';
+                    spreadsheetMergeChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-merge-count') === '1' &&
+                      mergedNoteCell instanceof HTMLButtonElement &&
+                      mergedNoteCell.getAttribute('data-spreadsheet-cell-value') === 'Merged updated note' &&
+                      mergedNoteCell.getAttribute('data-spreadsheet-cell-merge-ref') === 'A4:B4' &&
+                      mergedNoteCell.getAttribute('data-spreadsheet-cell-merge-rowspan') === '1' &&
+                      mergedNoteCell.getAttribute('data-spreadsheet-cell-merge-colspan') === '2' &&
+                      mergedNoteTableCell instanceof HTMLTableCellElement &&
+                      mergedNoteTableCell.colSpan === 2 &&
+                      !(coveredMergedCell instanceof HTMLButtonElement);
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13175,6 +13190,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetActiveCellWorks: Boolean(spreadsheetActiveCellChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEvaluationWorks: Boolean(spreadsheetFormulaChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetCellStylesWorks: Boolean(spreadsheetStyleChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetMergedCellsWorks: Boolean(spreadsheetMergeChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),

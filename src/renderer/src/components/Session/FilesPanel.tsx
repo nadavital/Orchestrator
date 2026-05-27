@@ -921,7 +921,7 @@ function artifactPreviewActions(
 }
 
 interface SpreadsheetPreviewPayload {
-  sheets: Array<{ name: string; rows: SpreadsheetPreviewCell[][] }>
+  sheets: Array<{ name: string; rows: SpreadsheetPreviewCell[][]; merges?: SpreadsheetPreviewMerge[] }>
   truncated?: boolean
 }
 
@@ -931,6 +931,14 @@ interface SpreadsheetPreviewCell {
   fillColor?: string
   textColor?: string
   bold?: boolean
+}
+
+interface SpreadsheetPreviewMerge {
+  ref: string
+  startRow: number
+  startColumn: number
+  rowSpan: number
+  colSpan: number
 }
 
 interface SlidesPreviewPayload {
@@ -972,7 +980,8 @@ function spreadsheetColumnIndex(address: string): number {
 function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): SpreadsheetPreviewPayload['sheets'] {
   return sheets.map((sheet) => ({
     name: sheet.name,
-    rows: sheet.rows.map((row) => row.map((cell) => ({ ...cell })))
+    rows: sheet.rows.map((row) => row.map((cell) => ({ ...cell }))),
+    ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {})
   }))
 }
 
@@ -1126,6 +1135,24 @@ function formatSpreadsheetNumber(value: number): string {
   return String(Number(value.toFixed(8)))
 }
 
+function spreadsheetMergeLookup(merges: SpreadsheetPreviewMerge[]): {
+  starts: Map<string, SpreadsheetPreviewMerge>
+  covered: Set<string>
+} {
+  const starts = new Map<string, SpreadsheetPreviewMerge>()
+  const covered = new Set<string>()
+  for (const merge of merges) {
+    starts.set(`${merge.startRow}:${merge.startColumn}`, merge)
+    for (let row = merge.startRow; row < merge.startRow + merge.rowSpan; row += 1) {
+      for (let column = merge.startColumn; column < merge.startColumn + merge.colSpan; column += 1) {
+        if (row === merge.startRow && column === merge.startColumn) continue
+        covered.add(`${row}:${column}`)
+      }
+    }
+  }
+  return { starts, covered }
+}
+
 function SpreadsheetArtifactPreview({
   absolutePath,
   entry,
@@ -1149,8 +1176,9 @@ function SpreadsheetArtifactPreview({
   const activeSheet = sheets[activeSheetIndex] ?? null
   const sheetCount = sheets.length
   const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
+  const activeSheetMergeLookup = useMemo(() => spreadsheetMergeLookup(activeSheet?.merges ?? []), [activeSheet?.merges])
   const maxColumnCount = activeSheet
-    ? Math.max(1, ...activeSheet.rows.map((row) => row.length))
+    ? Math.max(1, ...activeSheet.rows.map((row) => row.length), ...(activeSheet.merges ?? []).map((merge) => merge.startColumn + merge.colSpan))
     : 1
   const activeCellRow = activeSheet ? Math.min(activeCell.row, Math.max(0, activeSheet.rows.length - 1)) : 0
   const activeCellColumn = activeSheet ? Math.min(activeCell.column, Math.max(0, maxColumnCount - 1)) : 0
@@ -1161,6 +1189,7 @@ function SpreadsheetArtifactPreview({
   const styledCellCount = activeSheet
     ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.textColor || cell.bold)).length, 0)
     : 0
+  const mergeCount = activeSheet?.merges?.length ?? 0
   useEffect(() => {
     setActiveSheetIndex((index) => Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
   }, [sheetCount])
@@ -1199,6 +1228,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-active-cell-value={activeSheet ? activeCellValue : ''}
       data-spreadsheet-active-cell-formula={activeSheet ? activeCellFormula : ''}
       data-spreadsheet-style-cell-count={styledCellCount}
+      data-spreadsheet-merge-count={mergeCount}
       data-spreadsheet-editable="local-preview"
       data-spreadsheet-edit-count={editCount}
     >
@@ -1345,14 +1375,19 @@ function SpreadsheetArtifactPreview({
                           {rowIndex + 1}
                         </th>
                         {Array.from({ length: maxColumnCount }, (_, cellIndex) => {
+                          if (activeSheetMergeLookup.covered.has(`${rowIndex}:${cellIndex}`)) return null
                           const cell = row[cellIndex] ?? { value: '' }
                           const cellAddress = `${spreadsheetColumnLabel(cellIndex)}${rowIndex + 1}`
                           const isActive = rowIndex === activeCellRow && cellIndex === activeCellColumn
+                          const merge = activeSheetMergeLookup.starts.get(`${rowIndex}:${cellIndex}`)
                           return (
                             <td
                               key={cellIndex}
                               data-active={isActive ? 'true' : 'false'}
                               data-spreadsheet-cell-address={cellAddress}
+                              data-spreadsheet-cell-merge-ref={merge?.ref ?? ''}
+                              colSpan={merge?.colSpan}
+                              rowSpan={merge?.rowSpan}
                             >
                               <button
                                 type="button"
@@ -1365,6 +1400,9 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-fill-color={cell.fillColor ?? ''}
                                 data-spreadsheet-cell-text-color={cell.textColor ?? ''}
                                 data-spreadsheet-cell-bold={cell.bold ? 'true' : 'false'}
+                                data-spreadsheet-cell-merge-ref={merge?.ref ?? ''}
+                                data-spreadsheet-cell-merge-rowspan={merge?.rowSpan ?? 1}
+                                data-spreadsheet-cell-merge-colspan={merge?.colSpan ?? 1}
                                 data-active={isActive ? 'true' : 'false'}
                                 aria-label={`${cellAddress} ${cell.value}`.trim()}
                                 style={{
@@ -1716,7 +1754,10 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
         name: sheet.name,
         rows: sheet.rows
           .filter((row) => Array.isArray(row))
-          .map((row) => row.map((cell) => normalizeSpreadsheetPreviewCell(cell)))
+          .map((row) => row.map((cell) => normalizeSpreadsheetPreviewCell(cell))),
+        merges: Array.isArray(sheet.merges)
+          ? sheet.merges.map((merge) => normalizeSpreadsheetMerge(merge)).filter((merge): merge is SpreadsheetPreviewMerge => Boolean(merge))
+          : undefined
       }))
       .filter((sheet) => sheet.rows.length > 0)
     if (sheets.length === 0) return null
@@ -1743,6 +1784,30 @@ function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell 
     }
   }
   return { value: String(cell ?? '') }
+}
+
+function normalizeSpreadsheetMerge(value: unknown): SpreadsheetPreviewMerge | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as { ref?: unknown; startRow?: unknown; startColumn?: unknown; rowSpan?: unknown; colSpan?: unknown }
+  const startRow = normalizeSpreadsheetSpanNumber(candidate.startRow, 0, 23)
+  const startColumn = normalizeSpreadsheetSpanNumber(candidate.startColumn, 0, 11)
+  const rowSpan = normalizeSpreadsheetSpanNumber(candidate.rowSpan, 1, 24)
+  const colSpan = normalizeSpreadsheetSpanNumber(candidate.colSpan, 1, 12)
+  if (startRow === null || startColumn === null || rowSpan === null || colSpan === null) return null
+  if (rowSpan <= 1 && colSpan <= 1) return null
+  return {
+    ref: typeof candidate.ref === 'string' && candidate.ref.trim() ? candidate.ref.trim().toUpperCase() : `${spreadsheetColumnLabel(startColumn)}${startRow + 1}:${spreadsheetColumnLabel(startColumn + colSpan - 1)}${startRow + rowSpan}`,
+    startRow,
+    startColumn,
+    rowSpan,
+    colSpan
+  }
+}
+
+function normalizeSpreadsheetSpanNumber(value: unknown, min: number, max: number): number | null {
+  const number = typeof value === 'number' ? value : Number(value)
+  if (!Number.isInteger(number) || number < min || number > max) return null
+  return number
 }
 
 function normalizeSpreadsheetColor(value: unknown): string | undefined {

@@ -437,6 +437,9 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     return index
   }
   const worksheetEntries = workbookSheets.map((sheet, sheetIndex) => {
+    const mergeRefs = (sheet.merges ?? [])
+      .map((merge) => typeof merge === 'string' ? merge : merge?.ref)
+      .filter((merge) => typeof merge === 'string' && /^[A-Z]+\d+:[A-Z]+\d+$/i.test(merge))
     const cellXml = sheet.rows.map((row, rowIndex) => {
       const cells = row.map((rawValue, columnIndex) => {
         const formula = rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)
@@ -471,6 +474,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   <sheetData>
       ${cellXml}
   </sheetData>
+  ${mergeRefs.length > 0 ? `<mergeCells count="${mergeRefs.length}">${mergeRefs.map((merge) => `<mergeCell ref="${escapeXml(merge.toUpperCase())}"/>`).join('')}</mergeCells>` : ''}
 </worksheet>`
     }
   })
@@ -814,8 +818,10 @@ if (fixtureWorkspaceViews.has(captureView)) {
             { value: 'Count', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
             { value: 'Status', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true }
           ],
-          ['Alpha', '1', { value: 'Baseline', fillColor: '#FEF3C7', textColor: '#92400E' }]
-        ]
+          ['Alpha', '1', { value: 'Baseline', fillColor: '#FEF3C7', textColor: '#92400E' }],
+          [{ value: 'Merged baseline note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, '']
+        ],
+        merges: ['A3:B3']
       },
       {
         sheetName: 'Totals',
@@ -926,15 +932,17 @@ if (fixtureWorkspaceViews.has(captureView)) {
         {
           sheetName: 'Smoke data',
           rows: [
-            [
-              { value: 'Name', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
-              { value: 'Count', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
-              { value: 'Status', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true }
-            ],
-            ['Alpha', '2', { value: 'Updated', fillColor: '#DCFCE7', textColor: '#166534' }],
-            ['Beta', '3', { value: 'New', fillColor: '#F5F3FF', textColor: '#6D28D9' }]
-          ]
-        },
+          [
+            { value: 'Name', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
+            { value: 'Count', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
+            { value: 'Status', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true }
+          ],
+          ['Alpha', '2', { value: 'Updated', fillColor: '#DCFCE7', textColor: '#166534' }],
+          ['Beta', '3', { value: 'New', fillColor: '#F5F3FF', textColor: '#6D28D9' }],
+          [{ value: 'Merged updated note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, '']
+        ],
+        merges: ['A4:B4']
+      },
         {
           sheetName: 'Totals',
           rows: [
@@ -1691,6 +1699,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetActiveCell: result.filesSpreadsheetActiveCellWorks === true,
           filesSpreadsheetFormulaEvaluation: result.filesSpreadsheetFormulaEvaluationWorks === true,
           filesSpreadsheetCellStyles: result.filesSpreadsheetCellStylesWorks === true,
+          filesSpreadsheetMergedCells: result.filesSpreadsheetMergedCellsWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -1898,6 +1907,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetActiveCell: captureView !== 'inspector' || result.filesSpreadsheetActiveCellWorks === true,
         filesSpreadsheetFormulaEvaluation: captureView !== 'inspector' || result.filesSpreadsheetFormulaEvaluationWorks === true,
         filesSpreadsheetCellStyles: captureView !== 'inspector' || result.filesSpreadsheetCellStylesWorks === true,
+        filesSpreadsheetMergedCells: captureView !== 'inspector' || result.filesSpreadsheetMergedCellsWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,
