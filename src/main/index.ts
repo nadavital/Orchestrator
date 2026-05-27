@@ -11147,6 +11147,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetMergeChecks = {};
               const spreadsheetSizingChecks = {};
               const spreadsheetFreezePaneChecks = {};
+              const spreadsheetAlignmentChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11653,6 +11654,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const mergedNoteCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A4"]');
                     const mergedNoteTableCell = mergedNoteCell?.closest('td');
                     const coveredMergedCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B4"]');
+                    const alignedWrappedCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A5"]');
                     const wideColumnHeader = document.querySelector('[data-testid="workspace-spreadsheet-column-header"][data-spreadsheet-column-label="B"]');
                     const tallRowHeader = document.querySelector('[data-testid="workspace-spreadsheet-row-header"][data-spreadsheet-row-label="4"]');
                     const frozenColumnHeader = document.querySelector('[data-testid="workspace-spreadsheet-column-header"][data-spreadsheet-column-label="A"]');
@@ -11748,7 +11750,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     spreadsheetSizingChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-sized-column-count') === '3' &&
-                      spreadsheetPreview.getAttribute('data-spreadsheet-sized-row-count') === '4' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-sized-row-count') === '5' &&
                       wideColumnHeader instanceof HTMLElement &&
                       wideColumnHeader.getAttribute('data-spreadsheet-column-width') === '173' &&
                       Math.round(wideColumnHeader.getBoundingClientRect().width) >= 160 &&
@@ -11774,6 +11776,19 @@ function runAutomatedFocusedSurfaceSmoke(
                       getComputedStyle(headerNameTableCell).position === 'sticky' &&
                       alphaCell instanceof HTMLButtonElement &&
                       alphaCell.getAttribute('data-spreadsheet-cell-frozen-column') === 'true';
+                    spreadsheetAlignmentChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      Number(spreadsheetPreview.getAttribute('data-spreadsheet-aligned-cell-count') ?? '0') >= 1 &&
+                      alignedWrappedCell instanceof HTMLButtonElement &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-value') === 'Wrapped centered updated note for alignment proof' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-wrap-text') === 'true' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-horizontal-alignment') === 'center' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-vertical-alignment') === 'middle' &&
+                      getComputedStyle(alignedWrappedCell).display === 'flex' &&
+                      getComputedStyle(alignedWrappedCell).whiteSpace === 'normal' &&
+                      getComputedStyle(alignedWrappedCell).textAlign === 'center' &&
+                      getComputedStyle(alignedWrappedCell).alignItems === 'center' &&
+                      getComputedStyle(alignedWrappedCell).justifyContent === 'center';
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13229,6 +13244,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetMergedCellsWorks: Boolean(spreadsheetMergeChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetSizingWorks: Boolean(spreadsheetSizingChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFreezePanesWorks: Boolean(spreadsheetFreezePaneChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetAlignmentWorks: Boolean(spreadsheetAlignmentChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),

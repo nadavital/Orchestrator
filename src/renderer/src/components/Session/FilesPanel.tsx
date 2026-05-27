@@ -938,6 +938,9 @@ interface SpreadsheetPreviewCell {
   fillColor?: string
   textColor?: string
   bold?: boolean
+  wrapText?: boolean
+  horizontalAlignment?: 'left' | 'center' | 'right'
+  verticalAlignment?: 'top' | 'middle' | 'bottom'
 }
 
 interface SpreadsheetPreviewMerge {
@@ -1174,6 +1177,18 @@ function spreadsheetDimensionOffset(values: Array<number | undefined> | undefine
   return offset
 }
 
+function spreadsheetAlignItems(alignment: 'top' | 'middle' | 'bottom'): CSSProperties['alignItems'] {
+  if (alignment === 'middle') return 'center'
+  if (alignment === 'bottom') return 'flex-end'
+  return 'flex-start'
+}
+
+function spreadsheetJustifyContent(alignment: 'left' | 'center' | 'right'): CSSProperties['justifyContent'] {
+  if (alignment === 'center') return 'center'
+  if (alignment === 'right') return 'flex-end'
+  return 'flex-start'
+}
+
 function SpreadsheetArtifactPreview({
   absolutePath,
   entry,
@@ -1208,7 +1223,10 @@ function SpreadsheetArtifactPreview({
   const activeCellValue = activeCellData?.value ?? ''
   const activeCellFormula = activeCellData?.formula ?? ''
   const styledCellCount = activeSheet
-    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.textColor || cell.bold)).length, 0)
+    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.textColor || cell.bold || cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
+    : 0
+  const alignedCellCount = activeSheet
+    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
     : 0
   const mergeCount = activeSheet?.merges?.length ?? 0
   const sizedColumnCount = activeSheet?.columnWidths?.filter((width) => width !== undefined).length ?? 0
@@ -1253,6 +1271,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-active-cell-value={activeSheet ? activeCellValue : ''}
       data-spreadsheet-active-cell-formula={activeSheet ? activeCellFormula : ''}
       data-spreadsheet-style-cell-count={styledCellCount}
+      data-spreadsheet-aligned-cell-count={alignedCellCount}
       data-spreadsheet-merge-count={mergeCount}
       data-spreadsheet-sized-column-count={sizedColumnCount}
       data-spreadsheet-sized-row-count={sizedRowCount}
@@ -1455,13 +1474,29 @@ function SpreadsheetArtifactPreview({
                         {Array.from({ length: maxColumnCount }, (_, cellIndex) => {
                           if (activeSheetMergeLookup.covered.has(`${rowIndex}:${cellIndex}`)) return null
                           const cell = row[cellIndex] ?? { value: '' }
-	                          const cellAddress = `${spreadsheetColumnLabel(cellIndex)}${rowIndex + 1}`
-	                          const isActive = rowIndex === activeCellRow && cellIndex === activeCellColumn
-	                          const merge = activeSheetMergeLookup.starts.get(`${rowIndex}:${cellIndex}`)
+                          const cellAddress = `${spreadsheetColumnLabel(cellIndex)}${rowIndex + 1}`
+                          const isActive = rowIndex === activeCellRow && cellIndex === activeCellColumn
+                          const merge = activeSheetMergeLookup.starts.get(`${rowIndex}:${cellIndex}`)
                           const frozenColumnLeft = cellIndex < frozenColumnCount
                             ? 38 + spreadsheetDimensionOffset(activeSheet.columnWidths, cellIndex, 88)
                             : undefined
                           const isFrozenCell = rowIndex < frozenRowCount || cellIndex < frozenColumnCount
+                          const cellHorizontalAlignment = cell.horizontalAlignment ?? 'left'
+                          const cellVerticalAlignment = cell.verticalAlignment ?? 'top'
+                          const cellStyle: CSSProperties = {
+                            backgroundColor: cell.fillColor,
+                            color: cell.textColor,
+                            fontWeight: cell.bold ? 700 : undefined,
+                            minHeight: rowHeight,
+                            whiteSpace: cell.wrapText ? 'normal' : 'nowrap',
+                            textAlign: cellHorizontalAlignment
+                          }
+                          if (cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment) {
+                            cellStyle.display = 'flex'
+                            cellStyle.alignItems = spreadsheetAlignItems(cellVerticalAlignment)
+                            cellStyle.justifyContent = spreadsheetJustifyContent(cellHorizontalAlignment)
+                            cellStyle.height = '100%'
+                          }
                           return (
                             <td
                               key={cellIndex}
@@ -1479,7 +1514,8 @@ function SpreadsheetArtifactPreview({
                                 zIndex: rowIndex < frozenRowCount && cellIndex < frozenColumnCount ? 4 : isFrozenCell ? 3 : undefined,
                                 width: activeSheet.columnWidths?.[cellIndex],
                                 minWidth: activeSheet.columnWidths?.[cellIndex],
-                                height: rowHeight
+                                height: rowHeight,
+                                verticalAlign: cellVerticalAlignment
                               }}
                               colSpan={merge?.colSpan}
                               rowSpan={merge?.rowSpan}
@@ -1495,6 +1531,9 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-fill-color={cell.fillColor ?? ''}
                                 data-spreadsheet-cell-text-color={cell.textColor ?? ''}
                                 data-spreadsheet-cell-bold={cell.bold ? 'true' : 'false'}
+                                data-spreadsheet-cell-wrap-text={cell.wrapText ? 'true' : 'false'}
+                                data-spreadsheet-cell-horizontal-alignment={cell.horizontalAlignment ?? ''}
+                                data-spreadsheet-cell-vertical-alignment={cell.verticalAlignment ?? ''}
                                 data-spreadsheet-cell-merge-ref={merge?.ref ?? ''}
                                 data-spreadsheet-cell-merge-rowspan={merge?.rowSpan ?? 1}
                                 data-spreadsheet-cell-merge-colspan={merge?.colSpan ?? 1}
@@ -1504,12 +1543,7 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-frozen-column={cellIndex < frozenColumnCount ? 'true' : 'false'}
                                 data-active={isActive ? 'true' : 'false'}
                                 aria-label={`${cellAddress} ${cell.value}`.trim()}
-                                style={{
-                                  backgroundColor: cell.fillColor,
-                                  color: cell.textColor,
-                                  fontWeight: cell.bold ? 700 : undefined,
-                                  minHeight: rowHeight
-                                }}
+                                style={cellStyle}
                                 onClick={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
                                 onFocus={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
                               >
@@ -1880,18 +1914,42 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
 
 function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell {
   if (cell && typeof cell === 'object') {
-    const candidate = cell as { value?: unknown; formula?: unknown; fillColor?: unknown; textColor?: unknown; bold?: unknown }
+    const candidate = cell as {
+      value?: unknown
+      formula?: unknown
+      fillColor?: unknown
+      textColor?: unknown
+      bold?: unknown
+      wrapText?: unknown
+      horizontalAlignment?: unknown
+      verticalAlignment?: unknown
+    }
     const fillColor = normalizeSpreadsheetColor(candidate.fillColor)
     const textColor = normalizeSpreadsheetColor(candidate.textColor)
+    const horizontalAlignment = normalizeSpreadsheetHorizontalAlignment(candidate.horizontalAlignment)
+    const verticalAlignment = normalizeSpreadsheetVerticalAlignment(candidate.verticalAlignment)
     return {
       value: String(candidate.value ?? ''),
       ...(typeof candidate.formula === 'string' && candidate.formula ? { formula: candidate.formula } : {}),
       ...(fillColor ? { fillColor } : {}),
       ...(textColor ? { textColor } : {}),
-      ...(candidate.bold === true ? { bold: true } : {})
+      ...(candidate.bold === true ? { bold: true } : {}),
+      ...(candidate.wrapText === true ? { wrapText: true } : {}),
+      ...(horizontalAlignment ? { horizontalAlignment } : {}),
+      ...(verticalAlignment ? { verticalAlignment } : {})
     }
   }
   return { value: String(cell ?? '') }
+}
+
+function normalizeSpreadsheetHorizontalAlignment(value: unknown): SpreadsheetPreviewCell['horizontalAlignment'] {
+  if (value === 'left' || value === 'center' || value === 'right') return value
+  return undefined
+}
+
+function normalizeSpreadsheetVerticalAlignment(value: unknown): SpreadsheetPreviewCell['verticalAlignment'] {
+  if (value === 'top' || value === 'middle' || value === 'bottom') return value
+  return undefined
 }
 
 function normalizeSpreadsheetMerge(value: unknown): SpreadsheetPreviewMerge | null {

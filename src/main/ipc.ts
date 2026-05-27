@@ -56,6 +56,9 @@ interface SpreadsheetPreviewCell {
   fillColor?: string
   textColor?: string
   bold?: boolean
+  wrapText?: boolean
+  horizontalAlignment?: 'left' | 'center' | 'right'
+  verticalAlignment?: 'top' | 'middle' | 'bottom'
 }
 
 interface SpreadsheetPreviewSheet {
@@ -84,6 +87,9 @@ interface SpreadsheetCellStyle {
   fillColor?: string
   textColor?: string
   bold?: boolean
+  wrapText?: boolean
+  horizontalAlignment?: 'left' | 'center' | 'right'
+  verticalAlignment?: 'top' | 'middle' | 'bottom'
 }
 
 interface SlidePreviewShape {
@@ -853,16 +859,24 @@ function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {
   })
   const fills = [...xml.matchAll(/<fill\b[\s\S]*?<\/fill>/g)].map((match) => extractSpreadsheetColor(match[0] ?? ''))
   return [...xml.matchAll(/<cellXfs\b[\s\S]*?<\/cellXfs>/g)][0]?.[0]
-    ?.match(/<xf\b[^>]*\/>/g)
-    ?.map((tag) => {
-      const fontId = numberAttribute(tag, 'fontId') ?? 0
-      const fillId = numberAttribute(tag, 'fillId') ?? 0
+    ?.match(/<xf\b[^>]*\/>|<xf\b[^>]*>[\s\S]*?<\/xf>/g)
+    ?.map((xfXml) => {
+      const attributes = /<xf\b([^>]*)/.exec(xfXml)?.[1] ?? ''
+      const alignmentAttributes = /<alignment\b([^>]*)\/>/.exec(xfXml)?.[1] ?? ''
+      const horizontalAlignment = spreadsheetHorizontalAlignment(alignmentAttributes)
+      const verticalAlignment = spreadsheetVerticalAlignment(alignmentAttributes)
+      const wrapText = /\bwrapText="(?:1|true)"/i.test(alignmentAttributes)
+      const fontId = numberAttribute(attributes, 'fontId') ?? 0
+      const fillId = numberAttribute(attributes, 'fillId') ?? 0
       const font = fonts[fontId] ?? {}
       const fillColor = fills[fillId]
       return {
         ...(fillColor ? { fillColor } : {}),
         ...(font.textColor ? { textColor: font.textColor } : {}),
-        ...(font.bold ? { bold: true } : {})
+        ...(font.bold ? { bold: true } : {}),
+        ...(wrapText ? { wrapText: true } : {}),
+        ...(horizontalAlignment ? { horizontalAlignment } : {}),
+        ...(verticalAlignment ? { verticalAlignment } : {})
       }
     }) ?? []
 }
@@ -877,6 +891,19 @@ function extractSpreadsheetColor(xml: string): string | undefined {
   const tag = /<(?:fgColor|color)\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
   const rgb = /\brgb="([A-Fa-f0-9]{6,8})"/.exec(tag)?.[1]
   if (rgb) return `#${rgb.slice(-6).toUpperCase()}`
+  return undefined
+}
+
+function spreadsheetHorizontalAlignment(attributes: string): 'left' | 'center' | 'right' | undefined {
+  const value = /\bhorizontal="([^"]+)"/.exec(attributes)?.[1]
+  if (value === 'left' || value === 'center' || value === 'right') return value
+  return undefined
+}
+
+function spreadsheetVerticalAlignment(attributes: string): 'top' | 'middle' | 'bottom' | undefined {
+  const value = /\bvertical="([^"]+)"/.exec(attributes)?.[1]
+  if (value === 'top' || value === 'bottom') return value
+  if (value === 'center') return 'middle'
   return undefined
 }
 

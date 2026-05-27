@@ -424,7 +424,10 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     const style = {
       ...(rawValue.fillColor ? { fillColor: String(rawValue.fillColor).toUpperCase() } : {}),
       ...(rawValue.textColor ? { textColor: String(rawValue.textColor).toUpperCase() } : {}),
-      ...(rawValue.bold === true ? { bold: true } : {})
+      ...(rawValue.bold === true ? { bold: true } : {}),
+      ...(rawValue.wrapText === true ? { wrapText: true } : {}),
+      ...(['left', 'center', 'right'].includes(rawValue.horizontalAlignment) ? { horizontalAlignment: rawValue.horizontalAlignment } : {}),
+      ...(['top', 'middle', 'bottom'].includes(rawValue.verticalAlignment) ? { verticalAlignment: rawValue.verticalAlignment } : {})
     }
     const key = JSON.stringify(style)
     if (key === '{}') return 0
@@ -560,7 +563,17 @@ function createXlsxStylesXml(cellStyles) {
       ? `<fill><patternFill patternType="solid"><fgColor rgb="FF${String(style.fillColor).replace(/^#/, '')}"/><bgColor indexed="64"/></patternFill></fill>`
       : '<fill><patternFill patternType="none"/></fill>')
   ]
-  const cellXfs = cellStyles.map((style, index) => `<xf numFmtId="0" fontId="${index}" fillId="${index > 0 && style.fillColor ? index + 1 : 0}" borderId="0" xfId="0"${style.fillColor ? ' applyFill="1"' : ''}${style.bold || style.textColor ? ' applyFont="1"' : ''}/>`)
+  const cellXfs = cellStyles.map((style, index) => {
+    const alignmentAttributes = [
+      style.horizontalAlignment ? `horizontal="${style.horizontalAlignment}"` : '',
+      style.verticalAlignment ? `vertical="${style.verticalAlignment === 'middle' ? 'center' : style.verticalAlignment}"` : '',
+      style.wrapText ? 'wrapText="1"' : ''
+    ].filter(Boolean).join(' ')
+    const xfAttributes = `numFmtId="0" fontId="${index}" fillId="${index > 0 && style.fillColor ? index + 1 : 0}" borderId="0" xfId="0"${style.fillColor ? ' applyFill="1"' : ''}${style.bold || style.textColor ? ' applyFont="1"' : ''}${alignmentAttributes ? ' applyAlignment="1"' : ''}`
+    return alignmentAttributes
+      ? `<xf ${xfAttributes}><alignment ${alignmentAttributes}/></xf>`
+      : `<xf ${xfAttributes}/>`
+  })
   return `<?xml version="1.0" encoding="UTF-8"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <fonts count="${fonts.length}">${fonts.join('')}</fonts>
@@ -841,10 +854,11 @@ if (fixtureWorkspaceViews.has(captureView)) {
             { value: 'Status', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true }
           ],
           ['Alpha', '1', { value: 'Baseline', fillColor: '#FEF3C7', textColor: '#92400E' }],
-          [{ value: 'Merged baseline note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, '']
+          [{ value: 'Merged baseline note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, ''],
+          [{ value: 'Wrapped baseline note for alignment proof', fillColor: '#F0F9FF', textColor: '#075985', wrapText: true, horizontalAlignment: 'center', verticalAlignment: 'middle' }, '', '']
         ],
         columnWidths: [12, 24, 14],
-        rowHeights: [20, 20, 38],
+        rowHeights: [20, 20, 38, 52],
         freezePanes: { rows: 1, columns: 1 },
         merges: ['A3:B3']
       },
@@ -964,10 +978,11 @@ if (fixtureWorkspaceViews.has(captureView)) {
           ],
           ['Alpha', '2', { value: 'Updated', fillColor: '#DCFCE7', textColor: '#166534' }],
           ['Beta', '3', { value: 'New', fillColor: '#F5F3FF', textColor: '#6D28D9' }],
-          [{ value: 'Merged updated note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, '']
+          [{ value: 'Merged updated note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, ''],
+          [{ value: 'Wrapped centered updated note for alignment proof', fillColor: '#F0F9FF', textColor: '#075985', wrapText: true, horizontalAlignment: 'center', verticalAlignment: 'middle' }, '', '']
         ],
         columnWidths: [12, 24, 14],
-        rowHeights: [20, 20, 20, 42],
+        rowHeights: [20, 20, 20, 42, 52],
         freezePanes: { rows: 1, columns: 1 },
         merges: ['A4:B4']
       },
@@ -1730,6 +1745,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetMergedCells: result.filesSpreadsheetMergedCellsWorks === true,
           filesSpreadsheetSizing: result.filesSpreadsheetSizingWorks === true,
           filesSpreadsheetFreezePanes: result.filesSpreadsheetFreezePanesWorks === true,
+          filesSpreadsheetAlignment: result.filesSpreadsheetAlignmentWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -1940,6 +1956,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetMergedCells: captureView !== 'inspector' || result.filesSpreadsheetMergedCellsWorks === true,
         filesSpreadsheetSizing: captureView !== 'inspector' || result.filesSpreadsheetSizingWorks === true,
         filesSpreadsheetFreezePanes: captureView !== 'inspector' || result.filesSpreadsheetFreezePanesWorks === true,
+        filesSpreadsheetAlignment: captureView !== 'inspector' || result.filesSpreadsheetAlignmentWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,
