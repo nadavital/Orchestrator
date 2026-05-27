@@ -428,9 +428,10 @@ function createWindow(): BrowserWindow {
     sessionManager.refreshRecoverableStatuses()
   })
 
+  const webContentsId = win.webContents.id
   win.on('closed', () => {
     appWindows.delete(win)
-    menuCommandAvailabilityByWindow.delete(win.webContents.id)
+    menuCommandAvailabilityByWindow.delete(webContentsId)
     if (mainWindow === win) {
       mainWindow = [...appWindows].find((candidate) => !candidate.isDestroyed()) ?? null
     }

@@ -900,23 +900,32 @@ child.stdout.on('data', (chunk) => { log += chunk.toString() })
 child.stderr.on('data', (chunk) => { log += chunk.toString() })
 
 const timeoutMs = Number.parseInt(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_TIMEOUT_MS ?? '90000', 10)
+const lateOutputGraceMs = Number.parseInt(
+  process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_LATE_OUTPUT_GRACE_MS ?? (runInstalled ? '15000' : '1000'),
+  10
+)
 const timeout = setTimeout(() => {
   child.kill('SIGTERM')
+  browserSmokeServer?.close()
   console.error('Automated UI smoke timed out.')
   console.error(log.slice(-4000))
   process.exit(1)
 }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 90_000)
 
-child.on('exit', (code) => {
-  browserSmokeServer?.close()
+child.on('exit', async (code) => {
   clearTimeout(timeout)
   if (!existsSync(outputPath)) {
-    console.error('Automated UI smoke did not produce an output file.')
-    console.error(log.slice(-4000))
-    process.exit(code ?? 1)
+    await waitForFile(outputPath, lateOutputGraceMs)
+    if (!existsSync(outputPath)) {
+      browserSmokeServer?.close()
+      console.error('Automated UI smoke did not produce an output file.')
+      console.error(log.slice(-4000))
+      process.exit(code ?? 1)
+    }
   }
 
   const report = JSON.parse(readFileSync(outputPath, 'utf8'))
+  browserSmokeServer?.close()
   if (!report.ok) {
     console.error(JSON.stringify(report, null, 2))
     process.exit(1)
@@ -1878,4 +1887,18 @@ function installedLaunchCommand() {
     process.exit(1)
   }
   return { bin: executable, args: [] }
+}
+
+function waitForFile(filePath, timeoutMs) {
+  const deadline = Date.now() + (Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 0)
+  return new Promise((resolveWait) => {
+    const check = () => {
+      if (existsSync(filePath) || Date.now() >= deadline) {
+        resolveWait()
+        return
+      }
+      setTimeout(check, 100)
+    }
+    check()
+  })
 }
