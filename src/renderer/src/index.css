@@ -4798,11 +4798,12 @@
   }
 
   .workspace-spreadsheet-table {
-    width: 100%;
-    min-width: 360px;
+    width: max-content;
+    min-width: max(100%, 360px);
     border-collapse: collapse;
     font-size: 12px;
     line-height: 1.35;
+    table-layout: fixed;
   }
 
   .workspace-spreadsheet-table th {

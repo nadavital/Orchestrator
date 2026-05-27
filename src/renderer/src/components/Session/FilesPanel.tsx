@@ -921,7 +921,13 @@ function artifactPreviewActions(
 }
 
 interface SpreadsheetPreviewPayload {
-  sheets: Array<{ name: string; rows: SpreadsheetPreviewCell[][]; merges?: SpreadsheetPreviewMerge[] }>
+  sheets: Array<{
+    name: string
+    rows: SpreadsheetPreviewCell[][]
+    merges?: SpreadsheetPreviewMerge[]
+    columnWidths?: Array<number | undefined>
+    rowHeights?: Array<number | undefined>
+  }>
   truncated?: boolean
 }
 
@@ -981,7 +987,9 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
   return sheets.map((sheet) => ({
     name: sheet.name,
     rows: sheet.rows.map((row) => row.map((cell) => ({ ...cell }))),
-    ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {})
+    ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {}),
+    ...(sheet.columnWidths ? { columnWidths: [...sheet.columnWidths] } : {}),
+    ...(sheet.rowHeights ? { rowHeights: [...sheet.rowHeights] } : {})
   }))
 }
 
@@ -1190,6 +1198,8 @@ function SpreadsheetArtifactPreview({
     ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.textColor || cell.bold)).length, 0)
     : 0
   const mergeCount = activeSheet?.merges?.length ?? 0
+  const sizedColumnCount = activeSheet?.columnWidths?.filter((width) => width !== undefined).length ?? 0
+  const sizedRowCount = activeSheet?.rowHeights?.filter((height) => height !== undefined).length ?? 0
   useEffect(() => {
     setActiveSheetIndex((index) => Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
   }, [sheetCount])
@@ -1229,6 +1239,8 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-active-cell-formula={activeSheet ? activeCellFormula : ''}
       data-spreadsheet-style-cell-count={styledCellCount}
       data-spreadsheet-merge-count={mergeCount}
+      data-spreadsheet-sized-column-count={sizedColumnCount}
+      data-spreadsheet-sized-row-count={sizedRowCount}
       data-spreadsheet-editable="local-preview"
       data-spreadsheet-edit-count={editCount}
     >
@@ -1347,6 +1359,21 @@ function SpreadsheetArtifactPreview({
                   data-testid="workspace-spreadsheet-preview-table"
                   style={{ fontSize: `${Math.max(10, Math.min(18, 12 * (effectiveZoomPercent / 100)))}px` }}
                 >
+                  <colgroup>
+                    <col style={{ width: 38, minWidth: 38 }} />
+                    {Array.from({ length: maxColumnCount }, (_, columnIndex) => {
+                      const width = activeSheet.columnWidths?.[columnIndex]
+                      return (
+                        <col
+                          key={columnIndex}
+                          data-testid="workspace-spreadsheet-column-size"
+                          data-spreadsheet-column-label={spreadsheetColumnLabel(columnIndex)}
+                          data-spreadsheet-column-width={width ?? ''}
+                          style={{ width: width ?? undefined, minWidth: width ?? undefined }}
+                        />
+                      )
+                    })}
+                  </colgroup>
                   <thead>
                     <tr>
                       <th className="workspace-spreadsheet-corner" scope="col" aria-label="Workbook grid corner" />
@@ -1356,6 +1383,11 @@ function SpreadsheetArtifactPreview({
                           className="workspace-spreadsheet-column-header"
                           data-testid="workspace-spreadsheet-column-header"
                           data-spreadsheet-column-label={spreadsheetColumnLabel(columnIndex)}
+                          data-spreadsheet-column-width={activeSheet.columnWidths?.[columnIndex] ?? ''}
+                          style={{
+                            width: activeSheet.columnWidths?.[columnIndex],
+                            minWidth: activeSheet.columnWidths?.[columnIndex]
+                          }}
                           scope="col"
                         >
                           {spreadsheetColumnLabel(columnIndex)}
@@ -1364,12 +1396,19 @@ function SpreadsheetArtifactPreview({
                     </tr>
                   </thead>
                   <tbody>
-                    {activeSheet.rows.map((row, rowIndex) => (
-                      <tr key={rowIndex}>
+                    {activeSheet.rows.map((row, rowIndex) => {
+                      const rowHeight = activeSheet.rowHeights?.[rowIndex]
+                      return (
+                      <tr
+                        key={rowIndex}
+                        data-spreadsheet-row-height={rowHeight ?? ''}
+                        style={{ height: rowHeight }}
+                      >
                         <th
                           className="workspace-spreadsheet-row-header"
                           data-testid="workspace-spreadsheet-row-header"
                           data-spreadsheet-row-label={rowIndex + 1}
+                          data-spreadsheet-row-height={rowHeight ?? ''}
                           scope="row"
                         >
                           {rowIndex + 1}
@@ -1386,6 +1425,13 @@ function SpreadsheetArtifactPreview({
                               data-active={isActive ? 'true' : 'false'}
                               data-spreadsheet-cell-address={cellAddress}
                               data-spreadsheet-cell-merge-ref={merge?.ref ?? ''}
+                              data-spreadsheet-column-width={activeSheet.columnWidths?.[cellIndex] ?? ''}
+                              data-spreadsheet-row-height={rowHeight ?? ''}
+                              style={{
+                                width: activeSheet.columnWidths?.[cellIndex],
+                                minWidth: activeSheet.columnWidths?.[cellIndex],
+                                height: rowHeight
+                              }}
                               colSpan={merge?.colSpan}
                               rowSpan={merge?.rowSpan}
                             >
@@ -1403,12 +1449,15 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-merge-ref={merge?.ref ?? ''}
                                 data-spreadsheet-cell-merge-rowspan={merge?.rowSpan ?? 1}
                                 data-spreadsheet-cell-merge-colspan={merge?.colSpan ?? 1}
+                                data-spreadsheet-cell-column-width={activeSheet.columnWidths?.[cellIndex] ?? ''}
+                                data-spreadsheet-cell-row-height={rowHeight ?? ''}
                                 data-active={isActive ? 'true' : 'false'}
                                 aria-label={`${cellAddress} ${cell.value}`.trim()}
                                 style={{
                                   backgroundColor: cell.fillColor,
                                   color: cell.textColor,
-                                  fontWeight: cell.bold ? 700 : undefined
+                                  fontWeight: cell.bold ? 700 : undefined,
+                                  minHeight: rowHeight
                                 }}
                                 onClick={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
                                 onFocus={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
@@ -1419,7 +1468,8 @@ function SpreadsheetArtifactPreview({
                           )
                         })}
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1757,6 +1807,12 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
           .map((row) => row.map((cell) => normalizeSpreadsheetPreviewCell(cell))),
         merges: Array.isArray(sheet.merges)
           ? sheet.merges.map((merge) => normalizeSpreadsheetMerge(merge)).filter((merge): merge is SpreadsheetPreviewMerge => Boolean(merge))
+          : undefined,
+        columnWidths: Array.isArray(sheet.columnWidths)
+          ? normalizeSpreadsheetDimensionArray(sheet.columnWidths, 48, 320, 12)
+          : undefined,
+        rowHeights: Array.isArray(sheet.rowHeights)
+          ? normalizeSpreadsheetDimensionArray(sheet.rowHeights, 22, 180, 24)
           : undefined
       }))
       .filter((sheet) => sheet.rows.length > 0)
@@ -1808,6 +1864,14 @@ function normalizeSpreadsheetSpanNumber(value: unknown, min: number, max: number
   const number = typeof value === 'number' ? value : Number(value)
   if (!Number.isInteger(number) || number < min || number > max) return null
   return number
+}
+
+function normalizeSpreadsheetDimensionArray(values: unknown[], min: number, max: number, limit: number): Array<number | undefined> {
+  return values.slice(0, limit).map((value) => {
+    const number = typeof value === 'number' ? value : Number(value)
+    if (!Number.isFinite(number) || number < min || number > max) return undefined
+    return Math.round(number)
+  })
 }
 
 function normalizeSpreadsheetColor(value: unknown): string | undefined {

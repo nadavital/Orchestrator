@@ -62,6 +62,8 @@ interface SpreadsheetPreviewSheet {
   name: string
   rows: SpreadsheetPreviewCell[][]
   merges?: SpreadsheetPreviewMerge[]
+  columnWidths?: Array<number | undefined>
+  rowHeights?: Array<number | undefined>
 }
 
 interface SpreadsheetPreviewMerge {
@@ -477,7 +479,15 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     const parsed = extractWorksheetRows(xml, sharedStrings, styles)
     truncated ||= parsed.truncated
     const merges = extractWorksheetMerges(xml)
-    sheets.push({ name: sheet.name, rows: parsed.rows, ...(merges.length > 0 ? { merges } : {}) })
+    const columnWidths = extractWorksheetColumnWidths(xml)
+    const rowHeights = extractWorksheetRowHeights(xml)
+    sheets.push({
+      name: sheet.name,
+      rows: parsed.rows,
+      ...(merges.length > 0 ? { merges } : {}),
+      ...(columnWidths.some((width) => width !== undefined) ? { columnWidths } : {}),
+      ...(rowHeights.some((height) => height !== undefined) ? { rowHeights } : {})
+    })
   }
   if (worksheetEntries.length > 6) truncated = true
   return sheets.length > 0 ? { sheets, truncated } : null
@@ -646,6 +656,13 @@ function numberAttribute(attributes: string, name: string): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function decimalAttribute(attributes: string, name: string): number | null {
+  const value = new RegExp(`\\b${name}="(-?\\d+(?:\\.\\d+)?)"`).exec(attributes)?.[1]
+  if (value === undefined) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 function extractSlideNotes(archive: Buffer, slidePath: string, slideIndex: number): string {
   const relsXml = readZipEntry(archive, zipRelationshipPathForPart(slidePath))?.toString('utf8') ?? ''
   let notesPath = ''
@@ -777,6 +794,36 @@ function extractWorksheetMerges(xml: string): SpreadsheetPreviewMerge[] {
         colSpan: Math.min(colSpan, 12 - startColumn)
       }]
     })
+}
+
+function extractWorksheetColumnWidths(xml: string): Array<number | undefined> {
+  const widths: Array<number | undefined> = []
+  for (const match of xml.matchAll(/<col\b([^>]*)\/>/g)) {
+    const attributes = match[1] ?? ''
+    const min = numberAttribute(attributes, 'min')
+    const max = numberAttribute(attributes, 'max')
+    const width = decimalAttribute(attributes, 'width')
+    if (min === null || max === null || width === null) continue
+    const start = Math.max(0, min - 1)
+    const end = Math.min(11, max - 1)
+    const pixels = Math.max(48, Math.min(320, Math.round(width * 7 + 5)))
+    for (let index = start; index <= end; index += 1) widths[index] = pixels
+  }
+  return widths.slice(0, 12)
+}
+
+function extractWorksheetRowHeights(xml: string): Array<number | undefined> {
+  const heights: Array<number | undefined> = []
+  for (const match of xml.matchAll(/<row\b([^>]*)>/g)) {
+    const attributes = match[1] ?? ''
+    const row = numberAttribute(attributes, 'r')
+    const height = decimalAttribute(attributes, 'ht')
+    if (row === null || height === null) continue
+    const index = row - 1
+    if (index < 0 || index >= 24) continue
+    heights[index] = Math.max(22, Math.min(180, Math.round(height * 96 / 72)))
+  }
+  return heights.slice(0, 24)
 }
 
 function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {

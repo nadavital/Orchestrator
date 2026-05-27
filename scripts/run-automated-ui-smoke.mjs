@@ -440,7 +440,21 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     const mergeRefs = (sheet.merges ?? [])
       .map((merge) => typeof merge === 'string' ? merge : merge?.ref)
       .filter((merge) => typeof merge === 'string' && /^[A-Z]+\d+:[A-Z]+\d+$/i.test(merge))
+    const columnXml = Array.isArray(sheet.columnWidths)
+      ? sheet.columnWidths
+          .map((width, columnIndex) => {
+            const number = Number(width)
+            if (!Number.isFinite(number) || number <= 0) return ''
+            return `<col min="${columnIndex + 1}" max="${columnIndex + 1}" width="${String(number)}" customWidth="1"/>`
+          })
+          .filter(Boolean)
+          .join('')
+      : ''
     const cellXml = sheet.rows.map((row, rowIndex) => {
+      const rowHeight = Number(sheet.rowHeights?.[rowIndex])
+      const rowAttributes = Number.isFinite(rowHeight) && rowHeight > 0
+        ? ` r="${rowIndex + 1}" ht="${String(rowHeight)}" customHeight="1"`
+        : ` r="${rowIndex + 1}"`
       const cells = row.map((rawValue, columnIndex) => {
         const formula = rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)
           ? String(rawValue.formula ?? '').replace(/^=/, '')
@@ -465,12 +479,13 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
         }
         return `<c r="${columnName(columnIndex)}${rowIndex + 1}" t="s"${styleAttribute}><v>${index}</v></c>`
       }).join('')
-      return `<row r="${rowIndex + 1}">${cells}</row>`
+      return `<row${rowAttributes}>${cells}</row>`
     }).join('\n      ')
     return {
       name: `xl/worksheets/sheet${sheetIndex + 1}.xml`,
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  ${columnXml ? `<cols>${columnXml}</cols>` : ''}
   <sheetData>
       ${cellXml}
   </sheetData>
@@ -821,6 +836,8 @@ if (fixtureWorkspaceViews.has(captureView)) {
           ['Alpha', '1', { value: 'Baseline', fillColor: '#FEF3C7', textColor: '#92400E' }],
           [{ value: 'Merged baseline note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, '']
         ],
+        columnWidths: [12, 24, 14],
+        rowHeights: [20, 20, 38],
         merges: ['A3:B3']
       },
       {
@@ -941,6 +958,8 @@ if (fixtureWorkspaceViews.has(captureView)) {
           ['Beta', '3', { value: 'New', fillColor: '#F5F3FF', textColor: '#6D28D9' }],
           [{ value: 'Merged updated note', fillColor: '#E0F2FE', textColor: '#075985', bold: true }, '']
         ],
+        columnWidths: [12, 24, 14],
+        rowHeights: [20, 20, 20, 42],
         merges: ['A4:B4']
       },
         {
@@ -1700,6 +1719,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetFormulaEvaluation: result.filesSpreadsheetFormulaEvaluationWorks === true,
           filesSpreadsheetCellStyles: result.filesSpreadsheetCellStylesWorks === true,
           filesSpreadsheetMergedCells: result.filesSpreadsheetMergedCellsWorks === true,
+          filesSpreadsheetSizing: result.filesSpreadsheetSizingWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -1908,6 +1928,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetFormulaEvaluation: captureView !== 'inspector' || result.filesSpreadsheetFormulaEvaluationWorks === true,
         filesSpreadsheetCellStyles: captureView !== 'inspector' || result.filesSpreadsheetCellStylesWorks === true,
         filesSpreadsheetMergedCells: captureView !== 'inspector' || result.filesSpreadsheetMergedCellsWorks === true,
+        filesSpreadsheetSizing: captureView !== 'inspector' || result.filesSpreadsheetSizingWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,

@@ -11145,6 +11145,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetActiveCellChecks = {};
               const spreadsheetStyleChecks = {};
               const spreadsheetMergeChecks = {};
+              const spreadsheetSizingChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11650,6 +11651,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     const mergedNoteCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A4"]');
                     const mergedNoteTableCell = mergedNoteCell?.closest('td');
                     const coveredMergedCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B4"]');
+                    const wideColumnHeader = document.querySelector('[data-testid="workspace-spreadsheet-column-header"][data-spreadsheet-column-label="B"]');
+                    const tallRowHeader = document.querySelector('[data-testid="workspace-spreadsheet-row-header"][data-spreadsheet-row-label="4"]');
                     spreadsheetRendererChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-preview-rendered') === 'true' &&
@@ -11738,6 +11741,18 @@ function runAutomatedFocusedSurfaceSmoke(
                       mergedNoteTableCell instanceof HTMLTableCellElement &&
                       mergedNoteTableCell.colSpan === 2 &&
                       !(coveredMergedCell instanceof HTMLButtonElement);
+                    spreadsheetSizingChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-sized-column-count') === '3' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-sized-row-count') === '4' &&
+                      wideColumnHeader instanceof HTMLElement &&
+                      wideColumnHeader.getAttribute('data-spreadsheet-column-width') === '173' &&
+                      Math.round(wideColumnHeader.getBoundingClientRect().width) >= 160 &&
+                      tallRowHeader instanceof HTMLElement &&
+                      tallRowHeader.getAttribute('data-spreadsheet-row-height') === '56' &&
+                      Math.round(tallRowHeader.getBoundingClientRect().height) >= 50 &&
+                      mergedNoteCell instanceof HTMLButtonElement &&
+                      mergedNoteCell.getAttribute('data-spreadsheet-cell-row-height') === '56';
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13191,6 +13206,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetFormulaEvaluationWorks: Boolean(spreadsheetFormulaChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetCellStylesWorks: Boolean(spreadsheetStyleChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetMergedCellsWorks: Boolean(spreadsheetMergeChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetSizingWorks: Boolean(spreadsheetSizingChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
