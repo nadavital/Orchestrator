@@ -11137,6 +11137,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const notebookRichOutputItemChromeChecks = {};
               const pdfPresentationModeChecks = {};
               const documentPageControlChecks = {};
+              const documentTableChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
               const spreadsheetSheetTabChecks = {};
@@ -11490,6 +11491,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const zoomIndicator = document.querySelector('[data-testid="workspace-document-preview-zoom-indicator"]');
                     const zoomIn = document.querySelector('[data-testid="workspace-document-preview-zoom-in"]');
                     const pageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
+                    const documentTables = [...document.querySelectorAll('[data-testid="workspace-document-preview-table"]')];
                     const initialDocumentControls =
                       documentPreview instanceof HTMLElement &&
                       documentPreview.getAttribute('data-document-preview-page-count') === '2' &&
@@ -11515,6 +11517,16 @@ function runAutomatedFocusedSurfaceSmoke(
                       pageBody instanceof HTMLElement &&
                       pageBody.getAttribute('data-document-page-number') === '1' &&
                       pageBody.textContent?.includes('Document smoke updated') === true;
+                    documentTableChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-renderer') === 'codex-page-surface' &&
+                      documentPreview.getAttribute('data-document-preview-table-count') === '1' &&
+                      documentPreview.getAttribute('data-document-preview-block-count') === '9' &&
+                      pageBody instanceof HTMLElement &&
+                      pageBody.classList.contains('codex-docx-preview') &&
+                      pageBody.textContent?.includes('Updated table') === true &&
+                      documentTables.length === 1 &&
+                      documentTables[0]?.textContent?.includes('Metric') === true;
                     if (nextPage instanceof HTMLButtonElement) {
                       nextPage.click();
                       await sleep(160);
@@ -11549,6 +11561,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const zoomedControls = document.querySelector('[data-testid="workspace-document-preview-zoom-controls"]');
                     const zoomedIndicator = document.querySelector('[data-testid="workspace-document-preview-zoom-indicator"]');
                     const zoomedPageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
+                    const zoomedDocumentBody = document.querySelector('[data-testid="workspace-document-preview-body"]');
                     const zoomControlsWork =
                       zoomedPreview instanceof HTMLElement &&
                       zoomedPreview.getAttribute('data-document-preview-current-page') === '2' &&
@@ -11560,7 +11573,9 @@ function runAutomatedFocusedSurfaceSmoke(
                       zoomedIndicator instanceof HTMLElement &&
                       zoomedIndicator.textContent?.trim() === '125%' &&
                       zoomedPageBody instanceof HTMLElement &&
-                      window.getComputedStyle(zoomedPageBody).fontSize === '16.25px';
+                      zoomedPageBody.classList.contains('codex-docx-preview') &&
+                      zoomedDocumentBody instanceof HTMLElement &&
+                      zoomedDocumentBody.style.getPropertyValue('--codex-docx-preview-zoom') === '1.25';
                     if (zoomedIndicator instanceof HTMLButtonElement) {
                       zoomedIndicator.click();
                       await sleep(120);
@@ -13072,6 +13087,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesPdfPresentationModeWorks: Boolean(pdfPresentationModeChecks['workspace-pdf-preview']),
                 filesPdfAnnotationsWorks: Boolean(pdfAnnotationChecks['workspace-pdf-preview']),
                 filesDocumentPageControlsWorks: Boolean(documentPageControlChecks['workspace-document-preview']),
+                filesDocumentTableRenderingWorks: Boolean(documentTableChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSpreadsheetControlsWorks: Boolean(spreadsheetControlChecks['workspace-spreadsheet-preview']),

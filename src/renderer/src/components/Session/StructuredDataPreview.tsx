@@ -40,6 +40,10 @@ interface NotebookCell {
   outputs: NotebookOutput[]
 }
 
+type DocumentPreviewBlock =
+  | { type: 'paragraph'; text: string }
+  | { type: 'table'; rows: string[][] }
+
 export default function StructuredDataPreview({ name, preview, testId, statusLabel, actions }: Props): JSX.Element {
   if (preview.kind === 'document') {
     return <DocumentPreview name={name} preview={preview} testId={testId} statusLabel={statusLabel} actions={actions} />
@@ -84,13 +88,15 @@ function DocumentPreview({
   actions?: PreviewHeaderAction[]
 }): JSX.Element {
   const paragraphs = (preview.text ?? '').split(/\n{2,}/).filter((paragraph) => paragraph.trim())
+  const documentBlocks = normalizeDocumentBlocks(preview.document?.blocks, paragraphs)
   const title = stripArtifactExtension(name, 'docx')
-  const pages = useMemo(() => chunkDocumentParagraphs(paragraphs.slice(0, 80)), [paragraphs])
+  const pages = useMemo(() => chunkDocumentBlocks(documentBlocks.slice(0, 80)), [documentBlocks])
   const pageCount = Math.max(1, pages.length)
   const [currentPage, setCurrentPage] = useState(1)
   const [zoomPercent, setZoomPercent] = useState(100)
   const [fitToWidth, setFitToWidth] = useState(false)
   const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
+  const tableCount = preview.document?.tableCount ?? documentBlocks.filter((block) => block.type === 'table').length
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount))
   }, [pageCount])
@@ -115,6 +121,9 @@ function DocumentPreview({
       data-document-preview-current-page={currentPage}
       data-document-preview-zoom-percent={zoomPercent}
       data-document-preview-zoom-fit={fitToWidth ? 'true' : 'false'}
+      data-document-preview-renderer="codex-page-surface"
+      data-document-preview-block-count={documentBlocks.length}
+      data-document-preview-table-count={tableCount}
     >
       <ArtifactPreviewHeader
         artifactType={statusLabel ? `DOC · ${statusLabel}` : 'DOC'}
@@ -193,6 +202,7 @@ function DocumentPreview({
       )}
       <div className="file-preview-meta-strip">
         <span>{paragraphs.length.toLocaleString()} paragraphs</span>
+        {tableCount > 0 && <span>{tableCount.toLocaleString()} {tableCount === 1 ? 'table' : 'tables'}</span>}
         <span>{pageCount.toLocaleString()} pages</span>
         <span>{formatBytes(preview.size ?? 0)}</span>
       </div>
@@ -201,16 +211,35 @@ function DocumentPreview({
         data-testid={`${testId}-body`}
         data-document-preview-zoom-percent={zoomPercent}
         data-document-preview-zoom-fit={fitToWidth ? 'true' : 'false'}
+        data-document-preview-panel="docx-preview-panel"
+        style={{ '--codex-docx-preview-zoom': `${effectiveZoomPercent / 100}` } as CSSProperties}
       >
-        {paragraphs.length > 0 ? (
+        {documentBlocks.length > 0 ? (
           <section
-            className="document-preview-page"
+            className="document-preview-page codex-docx-preview"
             data-testid={`${testId}-page`}
             data-document-page-number={currentPage}
-            style={{ fontSize: `${Math.max(10, Math.min(22, 13 * (effectiveZoomPercent / 100)))}px` }}
           >
-            {visiblePage.map((paragraph, index) => (
-              <p key={index}>{paragraph}</p>
+            {visiblePage.map((block, index) => (
+              block.type === 'table'
+                ? (
+                    <table
+                      key={`table-${index}`}
+                      className="document-preview-table"
+                      data-testid={`${testId}-table`}
+                    >
+                      <tbody>
+                        {block.rows.map((row, rowIndex) => (
+                          <tr key={rowIndex}>
+                            {row.map((cell, cellIndex) => (
+                              <td key={cellIndex}>{cell}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
+                : <p key={`paragraph-${index}`}>{block.text}</p>
             ))}
           </section>
         ) : (
@@ -221,11 +250,42 @@ function DocumentPreview({
   )
 }
 
-function chunkDocumentParagraphs(paragraphs: string[]): string[][] {
-  if (paragraphs.length === 0) return [[]]
-  const chunks: string[][] = []
-  for (let index = 0; index < paragraphs.length; index += 6) {
-    chunks.push(paragraphs.slice(index, index + 6))
+function normalizeDocumentBlocks(blocks: DocumentPreviewBlock[] | undefined, paragraphs: string[]): DocumentPreviewBlock[] {
+  if (Array.isArray(blocks) && blocks.length > 0) {
+    return blocks
+      .map((block) => {
+        if (block.type === 'table') {
+          return {
+            type: 'table' as const,
+            rows: block.rows
+              .map((row) => row.map((cell) => String(cell ?? '')))
+              .filter((row) => row.some((cell) => cell.trim()))
+          }
+        }
+        return { type: 'paragraph' as const, text: String(block.text ?? '').trim() }
+      })
+      .filter((block) => block.type === 'table' ? block.rows.length > 0 : block.text.length > 0)
+  }
+  return paragraphs.map((paragraph) => ({ type: 'paragraph', text: paragraph }))
+}
+
+function chunkDocumentBlocks(blocks: DocumentPreviewBlock[]): DocumentPreviewBlock[][] {
+  if (blocks.length === 0) return [[]]
+  const chunks: DocumentPreviewBlock[][] = []
+  let current: DocumentPreviewBlock[] = []
+  let units = 0
+  for (const block of blocks) {
+    const blockUnits = block.type === 'table' ? Math.max(2, Math.ceil(block.rows.length / 3)) : 1
+    if (current.length > 0 && units + blockUnits > 6) {
+      chunks.push(current)
+      current = []
+      units = 0
+    }
+    current.push(block)
+    units += blockUnits
+  }
+  if (current.length > 0) {
+    chunks.push(current)
   }
   return chunks
 }

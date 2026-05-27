@@ -5624,6 +5624,10 @@
     padding: 28px 32px;
   }
 
+  .document-preview-page.codex-docx-preview {
+    zoom: var(--codex-docx-preview-zoom, 1);
+  }
+
   .document-preview-body p {
     margin: 0;
     white-space: pre-wrap;
@@ -5632,6 +5636,28 @@
 
   .document-preview-body p + p {
     margin-top: 12px;
+  }
+
+  .document-preview-table {
+    width: 100%;
+    margin: 14px 0;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .document-preview-table td {
+    min-width: 72px;
+    border: 1px solid var(--border-subtle);
+    padding: 7px 9px;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .document-preview-table tr:first-child td {
+    background: color-mix(in srgb, var(--control-bg) 70%, var(--surface-bg));
+    color: var(--text-secondary);
+    font-weight: 600;
   }
 
   .document-preview-empty {

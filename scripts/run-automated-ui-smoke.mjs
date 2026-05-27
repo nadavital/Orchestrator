@@ -349,11 +349,19 @@ if (captureView === 'capabilities') {
   writeFileSync(join(smokeCommandDir, 'orchestrator-smoke.md'), '# Orchestrator smoke command\n\nRun the smoke fixture.\n')
 }
 
-function createDocxFixture(paragraphs) {
+function createDocxFixture(blocks) {
+  const blockXml = blocks.map((block) => {
+    if (block && typeof block === 'object' && Array.isArray(block.rows)) {
+      return `<w:tbl>
+        ${block.rows.map((row) => `<w:tr>${row.map((cell) => `<w:tc><w:p><w:r><w:t>${escapeXml(String(cell))}</w:t></w:r></w:p></w:tc>`).join('')}</w:tr>`).join('\n        ')}
+      </w:tbl>`
+    }
+    return `<w:p><w:r><w:t>${escapeXml(String(block))}</w:t></w:r></w:p>`
+  }).join('\n    ')
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
-    ${paragraphs.map((paragraph) => `<w:p><w:r><w:t>${escapeXml(paragraph)}</w:t></w:r></w:p>`).join('\n    ')}
+    ${blockXml}
   </w:body>
 </w:document>`
   return createStoredZip([
@@ -673,6 +681,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
   writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
     'Document smoke baseline',
     'This verifies DOCX text preview in the inspector.',
+    { rows: [['Metric', 'Value'], ['Rows', '2'], ['Status', 'Baseline table']] },
     'Document smoke baseline section alpha',
     'Document smoke baseline section beta',
     'Document smoke baseline section gamma',
@@ -782,11 +791,12 @@ if (fixtureWorkspaceViews.has(captureView)) {
     writeFileSync(join(workspaceDir, 'table-preview-smoke.csv'), 'name,count,status\nalpha,2,updated\nbeta,3,new\n')
     writeFileSync(join(workspaceDir, 'pdf-preview-smoke.pdf'), createPdfFixture(['PDF preview smoke updated', 'PDF preview smoke second page updated']))
     writeFileSync(join(workspaceDir, 'document-preview-smoke.docx'), createDocxFixture([
-      'Document smoke updated',
-      'This verifies DOCX text preview in the inspector.',
-      'Document smoke section alpha',
-      'Document smoke section beta',
-      'Document smoke section gamma',
+    'Document smoke updated',
+    'This verifies DOCX text preview in the inspector.',
+    { rows: [['Metric', 'Value'], ['Rows', '2'], ['Status', 'Updated table']] },
+    'Document smoke section alpha',
+    'Document smoke section beta',
+    'Document smoke section gamma',
       'Document smoke section delta',
       'Document smoke appendix',
       'Document smoke closing note'
@@ -1531,6 +1541,7 @@ child.on('exit', async (code) => {
           filesPdfAnnotations: result.filesPdfAnnotationsWorks === true,
           filesDocumentPreview: result.filesDocumentPreviewWorks === true,
           filesDocumentPageControls: result.filesDocumentPageControlsWorks === true,
+          filesDocumentTableRendering: result.filesDocumentTableRenderingWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
           filesSpreadsheetRenderer: result.filesSpreadsheetRendererWorks === true,
@@ -1732,6 +1743,7 @@ child.on('exit', async (code) => {
         filesPdfAnnotations: captureView !== 'inspector' || result.filesPdfAnnotationsWorks === true,
         filesDocumentPreview: captureView !== 'inspector' || result.filesDocumentPreviewWorks === true,
         filesDocumentPageControls: captureView !== 'inspector' || result.filesDocumentPageControlsWorks === true,
+        filesDocumentTableRendering: captureView !== 'inspector' || result.filesDocumentTableRenderingWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
         filesSpreadsheetRenderer: captureView !== 'inspector' || result.filesSpreadsheetRendererWorks === true,

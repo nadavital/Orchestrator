@@ -86,6 +86,13 @@ export interface FilePreviewResult {
   size?: number
   pageCount?: number
   text?: string
+  document?: {
+    blocks: Array<
+      | { type: 'paragraph'; text: string }
+      | { type: 'table'; rows: string[][] }
+    >
+    tableCount: number
+  }
   truncated: boolean
 }
 

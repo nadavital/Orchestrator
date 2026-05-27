@@ -37,7 +37,7 @@ type FilePreviewResult =
   | { kind: 'json'; size: number; text: string; truncated: boolean }
   | { kind: 'csv'; size: number; text: string; truncated: boolean }
   | { kind: 'notebook'; size: number; text: string; truncated: boolean }
-  | { kind: 'document'; size: number; text: string; truncated: boolean }
+  | { kind: 'document'; size: number; text: string; truncated: boolean; document?: DocumentPreviewPayload }
   | { kind: 'pdf'; size: number; pageCount?: number; truncated: boolean }
   | { kind: 'spreadsheet' | 'slides'; size: number; text?: string; truncated: boolean }
   | { kind: 'image' | 'html' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
@@ -58,6 +58,23 @@ interface SpreadsheetPreviewCell {
 interface SpreadsheetPreviewSheet {
   name: string
   rows: SpreadsheetPreviewCell[][]
+}
+
+interface DocumentPreviewParagraphBlock {
+  type: 'paragraph'
+  text: string
+}
+
+interface DocumentPreviewTableBlock {
+  type: 'table'
+  rows: string[][]
+}
+
+type DocumentPreviewBlock = DocumentPreviewParagraphBlock | DocumentPreviewTableBlock
+
+interface DocumentPreviewPayload {
+  blocks: DocumentPreviewBlock[]
+  tableCount: number
 }
 
 interface BrowserAssetRequest {
@@ -225,13 +242,20 @@ function previewDocxFile(filePath: string, size: number): FilePreviewResult {
   const documentXml = readZipEntry(archive, 'word/document.xml')
   if (!documentXml) return { kind: 'unreadable', size, truncated: false }
 
-  const text = extractDocxText(documentXml.toString('utf8'))
+  const document = extractDocxPreview(documentXml.toString('utf8'))
+  const text = document.blocks
+    .flatMap((block) => block.type === 'paragraph'
+      ? [block.text]
+      : block.rows.map((row) => row.join('\t')))
+    .filter(Boolean)
+    .join('\n\n')
   if (!text.trim()) return { kind: 'document', size, text: '', truncated: false }
   return {
     kind: 'document',
     size,
     text: text.length > FILE_PREVIEW_LIMIT ? text.slice(0, FILE_PREVIEW_LIMIT) : text,
-    truncated: text.length > FILE_PREVIEW_LIMIT
+    truncated: text.length > FILE_PREVIEW_LIMIT,
+    document
   }
 }
 
@@ -307,19 +331,46 @@ function findEndOfCentralDirectory(archive: Buffer): number {
   return -1
 }
 
-function extractDocxText(xml: string): string {
-  const paragraphs = xml.match(/<w:p[\s\S]*?<\/w:p>/g) ?? [xml]
-  return paragraphs
-    .map((paragraph) => {
-      const normalized = paragraph
-        .replace(/<w:tab\s*\/>/g, '\t')
-        .replace(/<w:br\s*\/>/g, '\n')
-      const textRuns = [...normalized.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
-      return textRuns.map((match) => decodeXmlText(match[1] ?? '')).join('')
-    })
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean)
-    .join('\n\n')
+function extractDocxPreview(xml: string): DocumentPreviewPayload {
+  const body = /<w:body[\s\S]*?>([\s\S]*?)<\/w:body>/.exec(xml)?.[1] ?? xml
+  const blocks: DocumentPreviewBlock[] = []
+  let tableCount = 0
+  for (const match of body.matchAll(/<w:(p|tbl)\b[\s\S]*?<\/w:\1>/g)) {
+    const tag = match[1]
+    const blockXml = match[0] ?? ''
+    if (tag === 'tbl') {
+      const rows = extractDocxTableRows(blockXml)
+      if (rows.length > 0) {
+        blocks.push({ type: 'table', rows })
+        tableCount += 1
+      }
+      continue
+    }
+    const text = extractDocxParagraphText(blockXml)
+    if (text) blocks.push({ type: 'paragraph', text })
+  }
+  if (blocks.length === 0) {
+    const text = extractDocxParagraphText(xml)
+    if (text) blocks.push({ type: 'paragraph', text })
+  }
+  return { blocks: blocks.slice(0, 80), tableCount }
+}
+
+function extractDocxTableRows(xml: string): string[][] {
+  return [...xml.matchAll(/<w:tr[\s\S]*?<\/w:tr>/g)]
+    .slice(0, 20)
+    .map((rowMatch) => [...(rowMatch[0] ?? '').matchAll(/<w:tc[\s\S]*?<\/w:tc>/g)]
+      .slice(0, 10)
+      .map((cellMatch) => extractDocxParagraphText(cellMatch[0] ?? '')))
+    .filter((row) => row.some((cell) => cell.trim()))
+}
+
+function extractDocxParagraphText(xml: string): string {
+  const normalized = xml
+    .replace(/<w:tab\s*\/>/g, '\t')
+    .replace(/<w:br\s*\/>/g, '\n')
+  const textRuns = [...normalized.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
+  return textRuns.map((match) => decodeXmlText(match[1] ?? '')).join('').trim()
 }
 
 function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPreviewSheet[]; truncated: boolean } | null {

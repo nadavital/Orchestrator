@@ -52,9 +52,16 @@ interface ChromeTheme {
 }
 
 interface FilePreviewResult {
-  kind: 'text' | 'markdown' | 'json' | 'csv' | 'notebook' | 'document' | 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary' | 'missing' | 'unreadable'
+  kind: 'text' | 'markdown' | 'json' | 'csv' | 'notebook' | 'document' | 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'spreadsheet' | 'slides' | 'binary' | 'missing' | 'unreadable'
   size?: number
   text?: string
+  document?: {
+    blocks: Array<
+      | { type: 'paragraph'; text: string }
+      | { type: 'table'; rows: string[][] }
+    >
+    tableCount: number
+  }
   truncated: boolean
 }
 
