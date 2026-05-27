@@ -613,12 +613,10 @@
   .content-shell {
     background: var(--color-token-main-surface-primary);
     border-left: 0;
-    border-top-left-radius: var(--radius-lg);
-    border-bottom-left-radius: var(--radius-lg);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
     overflow: hidden;
-    box-shadow:
-      0 0 0 0.5px var(--border-strong),
-      0 2px 4px -1px rgba(15, 23, 42, 0.08);
+    box-shadow: none;
   }
 
   .composer-toolbar {

@@ -1211,7 +1211,10 @@ export default function App(): JSX.Element {
         isCollapsed={leftSidebarCollapsed}
         onToggleSidebar={() => setLeftSidebarCollapsed((collapsed) => !collapsed)}
       />
-      <section className="content-shell main-surface flex-1 flex flex-col min-w-0 min-h-0">
+      <section
+        className="content-shell main-surface flex-1 flex flex-col min-w-0 min-h-0"
+        data-app-shell-main-content-frame="codex-continuous"
+      >
         {showSettings ? (
           <MotionView viewKey={`settings:${settingsSection}`} className="flex flex-col overflow-hidden">
             <SettingsPage

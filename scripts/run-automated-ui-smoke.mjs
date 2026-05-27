@@ -1903,6 +1903,7 @@ child.on('exit', async (code) => {
           rightPanelSharedLayoutController: result.rightPanelSharedLayoutControllerWorks === true,
           rightPanelHeaderSeam: result.rightPanelHeaderSeamWorks === true,
           headerPanelSharedBand: result.headerPanelSharedBandWorks === true,
+          mainContentFrameContinuous: result.mainContentFrameContinuousWorks === true,
           headerMetadataTooltipOnly: result.headerMetadataTooltipOnlyWorks === true,
           headerActionChromeCompact: result.headerActionChromeCompactWorks === true,
           rightPanelMaterialSolid: result.rightPanelMaterialSolidWorks === true,

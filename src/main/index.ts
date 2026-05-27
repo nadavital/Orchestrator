@@ -5838,10 +5838,12 @@ function runAutomatedFocusedSurfaceSmoke(
               const sessionTitlebar = document.querySelector('[data-testid="session-titlebar"]');
               const sessionMainRow = document.querySelector('[data-testid="session-main-row"]');
               const sessionPrimaryContent = document.querySelector('[data-testid="session-primary-content"]');
+              const mainContentFrame = document.querySelector('[data-app-shell-main-content-frame="codex-continuous"]');
               const rightPanelChrome = document.querySelector('[data-testid="workbench-panel-tabbar"]')?.closest('.workbench-panel-chrome');
               const titlebarRect = sessionTitlebar instanceof HTMLElement ? sessionTitlebar.getBoundingClientRect() : null;
               const mainRowRectForSeam = sessionMainRow instanceof HTMLElement ? sessionMainRow.getBoundingClientRect() : null;
               const primaryRectForSeam = sessionPrimaryContent instanceof HTMLElement ? sessionPrimaryContent.getBoundingClientRect() : null;
+              const mainContentFrameStyle = mainContentFrame instanceof HTMLElement ? getComputedStyle(mainContentFrame) : null;
               const rightPanelRectForSeam = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
               const rightPanelShellRectForSeam = rightPanelShell instanceof HTMLElement ? rightPanelShell.getBoundingClientRect() : null;
               const rightPanelChromeRectForSeam = rightPanelChrome instanceof HTMLElement ? rightPanelChrome.getBoundingClientRect() : null;
@@ -5896,8 +5898,18 @@ function runAutomatedFocusedSurfaceSmoke(
                 titlebarHeight: titlebarRect?.height ?? null,
                 rightPanelChromeHeight: rightPanelChromeRectForSeam?.height ?? null,
                 sidebarDragSpacerHeight: sidebarDragSpacerRectForBand?.height ?? null,
-                sidebarPrimaryActionTopOffset: firstPrimaryActionRectForBand && sidebarRectForBand ? firstPrimaryActionRectForBand.top - sidebarRectForBand.top : null
+                sidebarPrimaryActionTopOffset: firstPrimaryActionRectForBand && sidebarRectForBand ? firstPrimaryActionRectForBand.top - sidebarRectForBand.top : null,
+                mainContentFrameTopLeftRadius: mainContentFrameStyle?.borderTopLeftRadius ?? null,
+                mainContentFrameBottomLeftRadius: mainContentFrameStyle?.borderBottomLeftRadius ?? null,
+                mainContentFrameShadow: mainContentFrameStyle?.boxShadow ?? null
               };
+              const mainContentFrameContinuousWorks =
+                mainContentFrame instanceof HTMLElement &&
+                mainContentFrame.getAttribute('data-app-shell-main-content-frame') === 'codex-continuous' &&
+                mainContentFrameStyle !== null &&
+                Number.parseFloat(mainContentFrameStyle.borderTopLeftRadius || '0') <= 0.5 &&
+                Number.parseFloat(mainContentFrameStyle.borderBottomLeftRadius || '0') <= 0.5 &&
+                (mainContentFrameStyle.boxShadow === 'none' || mainContentFrameStyle.boxShadow === '');
               const headerPanelSharedBandWorks =
                 titlebarRect !== null &&
                 rightPanelChromeRectForSeam !== null &&
@@ -5912,7 +5924,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 Math.abs(sidebarDragSpacerRectForBand.height - shellHeaderHeightToken) <= 1 &&
                 Math.abs(titlebarRect.top - rightPanelChromeRectForSeam.top) <= 2 &&
                 firstPrimaryActionRectForBand.top >= sidebarRectForBand.top + shellHeaderHeightToken - 1 &&
-                firstPrimaryActionRectForBand.top <= sidebarRectForBand.top + shellHeaderHeightToken + 8;
+                firstPrimaryActionRectForBand.top <= sidebarRectForBand.top + shellHeaderHeightToken + 8 &&
+                mainContentFrameContinuousWorks;
               const rightPanelHeaderSeamWorks =
                 titlebarRect !== null &&
                 mainRowRectForSeam !== null &&
@@ -7032,6 +7045,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelHeaderSeamDebug,
                 headerPanelSharedBandWorks,
                 headerPanelSharedBandDebug,
+                mainContentFrameContinuousWorks,
                 headerMetadataTooltipOnlyWorks,
                 headerActionChromeCompactWorks,
                 rightPanelMaterialSolidWorks,

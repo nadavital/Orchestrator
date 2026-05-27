@@ -272,6 +272,8 @@ function buildContracts() {
       captureIds: ['chat-sidebar', 'header', 'transcript-narrow', 'workbench-right-panel', 'files', 'browser', 'review-last-turn', 'review-core', 'terminal-bottom-panel', 'multi-window-focus'],
       codexAssets: [
         { basename: 'app-shell-state-HP0T5lEX.js', terms: ['app-shell:right-panel-width:v2', 'app-shell-bottom-panel-launcher-visible'] },
+        { basename: 'app-shell-BJK30dyj.css', terms: ['app-shell-main-content-viewport', 'app-shell-main-content-frame'] },
+        { basename: 'app-shell-Bh-lgoQk.js', terms: ['bg-token-main-surface-primary'] },
         { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['terminal-panel'] }
       ],
       fileEvidence: [
@@ -283,9 +285,9 @@ function buildContracts() {
           imageNonBlank: true
         }
       ],
-      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'filesHeaderPanelSeam', 'browserHeaderPanelSeam', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent', 'secondWindowCreated', 'secondWindowNavigated', 'pendingNavigationConsumedOnce', 'pendingNavigationWindowScoped', 'loadedDeepLinkDoesNotLeavePendingNavigation', 'firstWindowBrowserFocusArea', 'firstWindowBrowserMenuEnabled', 'secondWindowBrowserMenuDisabled', 'backgroundWindowMenuDoesNotClobberFocusedWindow', 'activeWindowAfterRefocus', 'focusSwitchRestoresFirstWindowMenu', 'menuCommandRoutedToFocusedWindow'],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'mainContentFrameContinuous', 'filesHeaderPanelSeam', 'browserHeaderPanelSeam', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent', 'secondWindowCreated', 'secondWindowNavigated', 'pendingNavigationConsumedOnce', 'pendingNavigationWindowScoped', 'loadedDeepLinkDoesNotLeavePendingNavigation', 'firstWindowBrowserFocusArea', 'firstWindowBrowserMenuEnabled', 'secondWindowBrowserMenuDisabled', 'backgroundWindowMenuDoesNotClobberFocusedWindow', 'activeWindowAfterRefocus', 'focusSwitchRestoresFirstWindowMenu', 'menuCommandRoutedToFocusedWindow'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, focused Files/Browser/Review panel placement in that band, compact profile/debug badge behavior, compact titlebar toolbar actions, solid panel material, bottom-panel target size, shell attachment, window-scoped pending navigation, loaded-window deep-link handoff, and app-owned multi-window menu command routing; exact live Codex pixel spacing, OS focus behavior, and animation timing still need live screenshots.',
+      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, a continuous non-card main content frame, focused Files/Browser/Review panel placement in that band, compact profile/debug badge behavior, compact titlebar toolbar actions, solid panel material, bottom-panel target size, shell attachment, window-scoped pending navigation, loaded-window deep-link handoff, and app-owned multi-window menu command routing; exact live Codex pixel spacing, OS focus behavior, and animation timing still need live screenshots.',
       next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Files, Browser, Review, Workbench, or bottom-panel shell layout.',
       openIssues: [
         {
