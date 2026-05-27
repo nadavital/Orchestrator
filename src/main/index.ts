@@ -11189,6 +11189,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetTableChecks = {};
               const spreadsheetConditionalFormattingChecks = {};
               const spreadsheetDataValidationChecks = {};
+              const spreadsheetDataValidationMessageChecks = {};
               const spreadsheetDataValidationOverlayChecks = {};
               const spreadsheetDataValidationRangeChecks = {};
               const spreadsheetCommentChecks = {};
@@ -12046,6 +12047,12 @@ function runAutomatedFocusedSurfaceSmoke(
                       updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-type') === 'list' &&
                       updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-values') === 'Updated|New|Blocked' &&
                       updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-allow-blank') === 'true' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-show-input-message') === 'true' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-prompt-title') === 'Status' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-prompt') === 'Pick one of the supported statuses.' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-show-error-message') === 'true' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-error-title') === 'Unsupported status' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-error') === 'Use Updated, New, or Blocked.' &&
                       statusValidationButton instanceof HTMLElement &&
                       statusValidationButton.textContent?.trim() === 'v';
                     spreadsheetDataValidationRangeChecks[testId] =
@@ -12062,9 +12069,25 @@ function runAutomatedFocusedSurfaceSmoke(
                       updatedStatusCell.click();
                       await sleep(120);
                     }
+                    const validationMessage = document.querySelector('[data-testid="workspace-spreadsheet-validation-message"]');
                     const validationOverlay = document.querySelector('[data-testid="workspace-spreadsheet-data-validation-overlay"]');
                     const validationOptions = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-data-validation-option"]')];
                     const blockedValidationOption = validationOptions.find((option) => option instanceof HTMLButtonElement && option.getAttribute('data-spreadsheet-data-validation-option') === 'Blocked');
+                    spreadsheetDataValidationMessageChecks[testId] =
+                      spreadsheetDataValidationChecks[testId] &&
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-data-validation-prompt-title') === 'Status' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-data-validation-prompt') === 'Pick one of the supported statuses.' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-data-validation-error-title') === 'Unsupported status' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-data-validation-error') === 'Use Updated, New, or Blocked.' &&
+                      validationMessage instanceof HTMLElement &&
+                      validationMessage.getAttribute('data-spreadsheet-data-validation-prompt-title') === 'Status' &&
+                      validationMessage.getAttribute('data-spreadsheet-data-validation-prompt') === 'Pick one of the supported statuses.' &&
+                      validationMessage.getAttribute('data-spreadsheet-data-validation-error-title') === 'Unsupported status' &&
+                      validationMessage.getAttribute('data-spreadsheet-data-validation-error') === 'Use Updated, New, or Blocked.' &&
+                      validationMessage.textContent?.includes('Status') === true &&
+                      validationMessage.textContent?.includes('Pick one of the supported statuses.') === true &&
+                      validationMessage.textContent?.includes('Unsupported status') === true;
                     const overlayOpenedWorks =
                       validationOverlay instanceof HTMLElement &&
                       spreadsheetPreview instanceof HTMLElement &&
@@ -12073,6 +12096,11 @@ function runAutomatedFocusedSurfaceSmoke(
                       validationOverlay.getAttribute('data-spreadsheet-data-validation-address') === 'C2' &&
                       validationOverlay.getAttribute('data-spreadsheet-data-validation-value') === 'Updated' &&
                       validationOverlay.getAttribute('data-spreadsheet-data-validation-options') === 'Updated|New|Blocked' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-prompt-title') === 'Status' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-prompt') === 'Pick one of the supported statuses.' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-error-title') === 'Unsupported status' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-error') === 'Use Updated, New, or Blocked.' &&
+                      validationOverlay.textContent?.includes('Pick one of the supported statuses.') === true &&
                       validationOptions.length === 3 &&
                       validationOptions.some((option) =>
                         option instanceof HTMLButtonElement &&
@@ -13608,6 +13636,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetTablesWorks: Boolean(spreadsheetTableChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetConditionalFormattingWorks: Boolean(spreadsheetConditionalFormattingChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetDataValidationWorks: Boolean(spreadsheetDataValidationChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetDataValidationMessagesWorks: Boolean(spreadsheetDataValidationMessageChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetDataValidationOverlayWorks: Boolean(spreadsheetDataValidationOverlayChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetDataValidationRangeWorks: Boolean(spreadsheetDataValidationRangeChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetCommentsWorks: Boolean(spreadsheetCommentChecks['workspace-spreadsheet-preview']),

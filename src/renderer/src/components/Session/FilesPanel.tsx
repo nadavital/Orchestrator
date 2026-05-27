@@ -989,6 +989,12 @@ interface SpreadsheetPreviewDataValidation {
   values?: string[]
   sourceRange?: string
   allowBlank?: boolean
+  showInputMessage?: boolean
+  promptTitle?: string
+  prompt?: string
+  showErrorMessage?: boolean
+  errorTitle?: string
+  error?: string
 }
 
 interface SpreadsheetPreviewCellComment {
@@ -1398,6 +1404,8 @@ function SpreadsheetArtifactPreview({
   const validationOverlayAddress = validationOverlay
     ? `${spreadsheetColumnLabel(validationOverlay.column)}${validationOverlay.row + 1}`
     : ''
+  const activeValidation = activeCellData?.dataValidation
+  const activeValidationHasMessage = Boolean(activeValidation?.promptTitle || activeValidation?.prompt || activeValidation?.errorTitle || activeValidation?.error)
   const styledCellCount = activeSheet
     ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.conditionalFillColor || cell.borderColor || cell.textColor || cell.bold || cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
     : 0
@@ -1519,6 +1527,10 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-data-validation-overlay-open={validationOverlayCell?.dataValidation?.type === 'list' ? 'true' : 'false'}
       data-spreadsheet-data-validation-overlay-address={validationOverlayCell?.dataValidation?.type === 'list' ? validationOverlayAddress : ''}
       data-spreadsheet-data-validation-overlay-value={validationOverlayCell?.dataValidation?.type === 'list' ? validationOverlayCell.value : ''}
+      data-spreadsheet-active-data-validation-prompt-title={activeValidation?.promptTitle ?? ''}
+      data-spreadsheet-active-data-validation-prompt={activeValidation?.prompt ?? ''}
+      data-spreadsheet-active-data-validation-error-title={activeValidation?.errorTitle ?? ''}
+      data-spreadsheet-active-data-validation-error={activeValidation?.error ?? ''}
     >
       <ArtifactPreviewHeader
         artifactType="XLSX"
@@ -1629,6 +1641,29 @@ function SpreadsheetArtifactPreview({
                   Apply
                 </Button>
               </div>
+              {activeValidationHasMessage && (
+                <div
+                  className="workspace-spreadsheet-validation-message"
+                  data-testid="workspace-spreadsheet-validation-message"
+                  data-spreadsheet-data-validation-prompt-title={activeValidation?.promptTitle ?? ''}
+                  data-spreadsheet-data-validation-prompt={activeValidation?.prompt ?? ''}
+                  data-spreadsheet-data-validation-error-title={activeValidation?.errorTitle ?? ''}
+                  data-spreadsheet-data-validation-error={activeValidation?.error ?? ''}
+                >
+                  {(activeValidation?.promptTitle || activeValidation?.prompt) && (
+                    <div className="workspace-spreadsheet-validation-message-block" data-spreadsheet-validation-message-kind="input">
+                      {activeValidation.promptTitle ? <div className="workspace-spreadsheet-validation-message-title">{activeValidation.promptTitle}</div> : null}
+                      {activeValidation.prompt ? <div className="workspace-spreadsheet-validation-message-body">{activeValidation.prompt}</div> : null}
+                    </div>
+                  )}
+                  {(activeValidation?.errorTitle || activeValidation?.error) && (
+                    <div className="workspace-spreadsheet-validation-message-block" data-spreadsheet-validation-message-kind="error">
+                      {activeValidation.errorTitle ? <div className="workspace-spreadsheet-validation-message-title">{activeValidation.errorTitle}</div> : null}
+                      {activeValidation.error ? <div className="workspace-spreadsheet-validation-message-body">{activeValidation.error}</div> : null}
+                    </div>
+                  )}
+                </div>
+              )}
               <div
                 ref={tableWrapRef}
                 className="workspace-spreadsheet-table-wrap"
@@ -1814,6 +1849,12 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-data-validation-values={cell.dataValidation?.values?.join('|') ?? ''}
                                 data-spreadsheet-cell-data-validation-source-range={cell.dataValidation?.sourceRange ?? ''}
                                 data-spreadsheet-cell-data-validation-allow-blank={cell.dataValidation?.allowBlank ? 'true' : 'false'}
+                                data-spreadsheet-cell-data-validation-show-input-message={cell.dataValidation?.showInputMessage ? 'true' : 'false'}
+                                data-spreadsheet-cell-data-validation-prompt-title={cell.dataValidation?.promptTitle ?? ''}
+                                data-spreadsheet-cell-data-validation-prompt={cell.dataValidation?.prompt ?? ''}
+                                data-spreadsheet-cell-data-validation-show-error-message={cell.dataValidation?.showErrorMessage ? 'true' : 'false'}
+                                data-spreadsheet-cell-data-validation-error-title={cell.dataValidation?.errorTitle ?? ''}
+                                data-spreadsheet-cell-data-validation-error={cell.dataValidation?.error ?? ''}
                                 data-spreadsheet-cell-comment-author={cell.comment?.author ?? ''}
                                 data-spreadsheet-cell-comment-text={cell.comment?.text ?? ''}
                                 data-spreadsheet-cell-merge-rowspan={merge?.rowSpan ?? 1}
@@ -1856,9 +1897,19 @@ function SpreadsheetArtifactPreview({
                                   data-spreadsheet-data-validation-address={cellAddress}
                                   data-spreadsheet-data-validation-value={cell.value}
                                   data-spreadsheet-data-validation-options={dataValidationValues.join('|')}
+                                  data-spreadsheet-data-validation-prompt-title={cell.dataValidation?.promptTitle ?? ''}
+                                  data-spreadsheet-data-validation-prompt={cell.dataValidation?.prompt ?? ''}
+                                  data-spreadsheet-data-validation-error-title={cell.dataValidation?.errorTitle ?? ''}
+                                  data-spreadsheet-data-validation-error={cell.dataValidation?.error ?? ''}
                                   role="listbox"
                                   aria-label={`${cellAddress} data validation options`}
                                 >
+                                  {(cell.dataValidation?.promptTitle || cell.dataValidation?.prompt) && (
+                                    <div className="workspace-spreadsheet-data-validation-message" data-spreadsheet-validation-message-kind="input">
+                                      {cell.dataValidation.promptTitle ? <div className="workspace-spreadsheet-data-validation-message-title">{cell.dataValidation.promptTitle}</div> : null}
+                                      {cell.dataValidation.prompt ? <div className="workspace-spreadsheet-data-validation-message-body">{cell.dataValidation.prompt}</div> : null}
+                                    </div>
+                                  )}
                                   {dataValidationValues.map((value) => (
                                     <button
                                       key={value}
@@ -2447,7 +2498,18 @@ function normalizeSpreadsheetCellComment(value: unknown): SpreadsheetPreviewCell
 
 function normalizeSpreadsheetDataValidation(value: unknown): SpreadsheetPreviewDataValidation | undefined {
   if (!value || typeof value !== 'object') return undefined
-  const candidate = value as { type?: unknown; values?: unknown; sourceRange?: unknown; allowBlank?: unknown }
+  const candidate = value as {
+    type?: unknown
+    values?: unknown
+    sourceRange?: unknown
+    allowBlank?: unknown
+    showInputMessage?: unknown
+    promptTitle?: unknown
+    prompt?: unknown
+    showErrorMessage?: unknown
+    errorTitle?: unknown
+    error?: unknown
+  }
   if (candidate.type !== 'list') return undefined
   const values = Array.isArray(candidate.values)
     ? candidate.values.map((item) => String(item)).filter(Boolean).slice(0, 24)
@@ -2455,12 +2517,28 @@ function normalizeSpreadsheetDataValidation(value: unknown): SpreadsheetPreviewD
   const sourceRange = typeof candidate.sourceRange === 'string' && candidate.sourceRange.trim()
     ? candidate.sourceRange.trim().toUpperCase()
     : undefined
+  const promptTitle = normalizeBoundedSpreadsheetText(candidate.promptTitle, 80)
+  const prompt = normalizeBoundedSpreadsheetText(candidate.prompt, 180)
+  const errorTitle = normalizeBoundedSpreadsheetText(candidate.errorTitle, 80)
+  const error = normalizeBoundedSpreadsheetText(candidate.error, 180)
   return {
     type: 'list',
     ...(values && values.length > 0 ? { values } : {}),
     ...(sourceRange ? { sourceRange } : {}),
-    ...(candidate.allowBlank === true ? { allowBlank: true } : {})
+    ...(candidate.allowBlank === true ? { allowBlank: true } : {}),
+    ...(candidate.showInputMessage === true ? { showInputMessage: true } : {}),
+    ...(promptTitle ? { promptTitle } : {}),
+    ...(prompt ? { prompt } : {}),
+    ...(candidate.showErrorMessage === true ? { showErrorMessage: true } : {}),
+    ...(errorTitle ? { errorTitle } : {}),
+    ...(error ? { error } : {})
   }
+}
+
+function normalizeBoundedSpreadsheetText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const text = value.trim().replace(/\s+/g, ' ').slice(0, maxLength)
+  return text || undefined
 }
 
 function normalizeSpreadsheetHorizontalAlignment(value: unknown): SpreadsheetPreviewCell['horizontalAlignment'] {

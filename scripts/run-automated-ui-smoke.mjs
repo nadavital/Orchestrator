@@ -605,8 +605,22 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
             : ''
         if (values.length === 0 && !formula1) return ''
         const allowBlank = validation?.allowBlank === true ? ' allowBlank="1"' : ''
+        const showInputMessage = validation?.showInputMessage === true ? ' showInputMessage="1"' : ''
+        const showErrorMessage = validation?.showErrorMessage === true ? ' showErrorMessage="1"' : ''
+        const promptTitle = typeof validation?.promptTitle === 'string' && validation.promptTitle.trim()
+          ? ` promptTitle="${escapeXml(validation.promptTitle.trim())}"`
+          : ''
+        const prompt = typeof validation?.prompt === 'string' && validation.prompt.trim()
+          ? ` prompt="${escapeXml(validation.prompt.trim())}"`
+          : ''
+        const errorTitle = typeof validation?.errorTitle === 'string' && validation.errorTitle.trim()
+          ? ` errorTitle="${escapeXml(validation.errorTitle.trim())}"`
+          : ''
+        const error = typeof validation?.error === 'string' && validation.error.trim()
+          ? ` error="${escapeXml(validation.error.trim())}"`
+          : ''
         const formulaXml = formula1 || `"${values.join(',')}"`
-        return `<dataValidation type="list"${allowBlank} showErrorMessage="1" sqref="${escapeXml(sqref)}"><formula1>${escapeXml(formulaXml)}</formula1></dataValidation>`
+        return `<dataValidation type="list"${allowBlank}${showInputMessage}${promptTitle}${prompt}${showErrorMessage}${errorTitle}${error} sqref="${escapeXml(sqref)}"><formula1>${escapeXml(formulaXml)}</formula1></dataValidation>`
       })
       .filter(Boolean)
     const dataValidationXml = dataValidationItems.length > 0
@@ -1318,7 +1332,17 @@ if (fixtureWorkspaceViews.has(captureView)) {
         rowHeights: [20, 20, 20, 42, 52],
         freezePanes: { rows: 1, columns: 1 },
         conditionalFormats: [{ sqref: 'B2:B3', colors: ['#FEE2E2', '#DCFCE7'] }],
-        dataValidations: [{ sqref: 'C2:C3', sourceRange: '$E$1:$E$3', allowBlank: true }],
+        dataValidations: [{
+          sqref: 'C2:C3',
+          sourceRange: '$E$1:$E$3',
+          allowBlank: true,
+          showInputMessage: true,
+          promptTitle: 'Status',
+          prompt: 'Pick one of the supported statuses.',
+          showErrorMessage: true,
+          errorTitle: 'Unsupported status',
+          error: 'Use Updated, New, or Blocked.'
+        }],
         comments: [{ ref: 'B3', author: 'Ava Reviewer', text: 'Confirm beta count before export.' }],
         tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
         charts: [{ title: 'Status Count Chart', type: 'bar', sourceRange: 'Smoke data!B1:B3' }],
@@ -2100,6 +2124,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetTables: result.filesSpreadsheetTablesWorks === true,
           filesSpreadsheetConditionalFormatting: result.filesSpreadsheetConditionalFormattingWorks === true,
           filesSpreadsheetDataValidation: result.filesSpreadsheetDataValidationWorks === true,
+          filesSpreadsheetDataValidationMessages: result.filesSpreadsheetDataValidationMessagesWorks === true,
           filesSpreadsheetDataValidationOverlay: result.filesSpreadsheetDataValidationOverlayWorks === true,
           filesSpreadsheetDataValidationRange: result.filesSpreadsheetDataValidationRangeWorks === true,
           filesSpreadsheetComments: result.filesSpreadsheetCommentsWorks === true,
@@ -2331,6 +2356,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetTables: captureView !== 'inspector' || result.filesSpreadsheetTablesWorks === true,
         filesSpreadsheetConditionalFormatting: captureView !== 'inspector' || result.filesSpreadsheetConditionalFormattingWorks === true,
         filesSpreadsheetDataValidation: captureView !== 'inspector' || result.filesSpreadsheetDataValidationWorks === true,
+        filesSpreadsheetDataValidationMessages: captureView !== 'inspector' || result.filesSpreadsheetDataValidationMessagesWorks === true,
         filesSpreadsheetDataValidationOverlay: captureView !== 'inspector' || result.filesSpreadsheetDataValidationOverlayWorks === true,
         filesSpreadsheetDataValidationRange: captureView !== 'inspector' || result.filesSpreadsheetDataValidationRangeWorks === true,
         filesSpreadsheetComments: captureView !== 'inspector' || result.filesSpreadsheetCommentsWorks === true,

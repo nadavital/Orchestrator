@@ -4878,6 +4878,37 @@
     line-height: 1;
   }
 
+  .workspace-spreadsheet-validation-message {
+    display: grid;
+    gap: 6px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--surface-bg) 86%, var(--control-bg));
+    color: var(--text-secondary);
+    padding: 8px 10px;
+  }
+
+  .workspace-spreadsheet-validation-message-block,
+  .workspace-spreadsheet-data-validation-message {
+    min-width: 0;
+  }
+
+  .workspace-spreadsheet-validation-message-title,
+  .workspace-spreadsheet-data-validation-message-title {
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.25;
+  }
+
+  .workspace-spreadsheet-validation-message-body,
+  .workspace-spreadsheet-data-validation-message-body {
+    margin-top: 2px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
   .workspace-spreadsheet-comment-indicator {
     position: absolute;
     top: 0;
@@ -4908,6 +4939,12 @@
     background: var(--surface-bg);
     box-shadow: var(--shadow-menu);
     padding: 3px;
+  }
+
+  .workspace-spreadsheet-data-validation-message {
+    margin: 2px 2px 4px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 5px 5px 7px;
   }
 
   .workspace-spreadsheet-data-validation-option {

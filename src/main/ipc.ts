@@ -119,6 +119,12 @@ interface SpreadsheetPreviewDataValidation {
   values?: string[]
   sourceRange?: string
   allowBlank?: boolean
+  showInputMessage?: boolean
+  promptTitle?: string
+  prompt?: string
+  showErrorMessage?: boolean
+  errorTitle?: string
+  error?: string
 }
 
 interface SpreadsheetPreviewCellComment {
@@ -1493,6 +1499,12 @@ function extractWorksheetDataValidations(xml: string, rows: SpreadsheetPreviewCe
       if (!sqref) return []
       const list = spreadsheetDataValidationListValues(body, rows, sheetName)
       const allowBlank = /\ballowBlank="(?:1|true)"/i.test(attributes)
+      const showInputMessage = /\bshowInputMessage="(?:1|true)"/i.test(attributes)
+      const showErrorMessage = /\bshowErrorMessage="(?:1|true)"/i.test(attributes)
+      const promptTitle = boundedSpreadsheetAttribute(attributes, 'promptTitle', 80)
+      const prompt = boundedSpreadsheetAttribute(attributes, 'prompt', 180)
+      const errorTitle = boundedSpreadsheetAttribute(attributes, 'errorTitle', 80)
+      const error = boundedSpreadsheetAttribute(attributes, 'error', 180)
       return sqref
         .split(/\s+/)
         .filter(Boolean)
@@ -1508,7 +1520,13 @@ function extractWorksheetDataValidations(xml: string, rows: SpreadsheetPreviewCe
             type: 'list' as const,
             ...(list.values.length > 0 ? { values: list.values } : {}),
             ...(list.sourceRange ? { sourceRange: list.sourceRange } : {}),
-            ...(allowBlank ? { allowBlank: true } : {})
+            ...(allowBlank ? { allowBlank: true } : {}),
+            ...(showInputMessage ? { showInputMessage: true } : {}),
+            ...(promptTitle ? { promptTitle } : {}),
+            ...(prompt ? { prompt } : {}),
+            ...(showErrorMessage ? { showErrorMessage: true } : {}),
+            ...(errorTitle ? { errorTitle } : {}),
+            ...(error ? { error } : {})
           }]
         })
     })
@@ -1518,6 +1536,11 @@ function extractWorksheetDataValidations(xml: string, rows: SpreadsheetPreviewCe
       rowSpan: Math.min(validation.rowSpan, 24 - validation.startRow),
       colSpan: Math.min(validation.colSpan, 12 - validation.startColumn)
     }))
+}
+
+function boundedSpreadsheetAttribute(attributes: string, name: string, maxLength: number): string {
+  const value = new RegExp(`\\b${escapeRegExp(name)}="([^"]*)"`).exec(attributes)?.[1] ?? ''
+  return decodeXmlText(value).trim().replace(/\s+/g, ' ').slice(0, maxLength)
 }
 
 function spreadsheetDataValidationListValues(xml: string, rows: SpreadsheetPreviewCell[][], sheetName: string): { values: string[]; sourceRange?: string } {
@@ -1571,7 +1594,13 @@ function applyWorksheetDataValidations(rows: SpreadsheetPreviewCell[][], validat
           type: validation.type,
           ...(validation.values ? { values: validation.values } : {}),
           ...(validation.sourceRange ? { sourceRange: validation.sourceRange } : {}),
-          ...(validation.allowBlank ? { allowBlank: true } : {})
+          ...(validation.allowBlank ? { allowBlank: true } : {}),
+          ...(validation.showInputMessage ? { showInputMessage: true } : {}),
+          ...(validation.promptTitle ? { promptTitle: validation.promptTitle } : {}),
+          ...(validation.prompt ? { prompt: validation.prompt } : {}),
+          ...(validation.showErrorMessage ? { showErrorMessage: true } : {}),
+          ...(validation.errorTitle ? { errorTitle: validation.errorTitle } : {}),
+          ...(validation.error ? { error: validation.error } : {})
         }
       }
     }
