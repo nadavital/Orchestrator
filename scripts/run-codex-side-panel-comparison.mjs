@@ -102,6 +102,8 @@ console.log(JSON.stringify({
   liveCaptureAttempt,
   smokeManifestPath: manifestPath,
   statusCounts: summary.statusCounts,
+  optionalFileEvidenceFailureCount: summary.optionalFileEvidenceFailures.length,
+  optionalFileEvidenceFailures: summary.optionalFileEvidenceFailures,
   mismatchCount: summary.statusCounts.mismatch ?? 0,
   blockedCount: summary.statusCounts.blocked ?? 0,
   needsSmokeCount: summary.statusCounts['needs-smoke'] ?? 0,
@@ -870,6 +872,20 @@ function evaluateSmokeEvidence(contract, manifest) {
 function summarizeRows(rows, manifest) {
   const statusCounts = {}
   for (const row of rows) statusCounts[row.status] = (statusCounts[row.status] ?? 0) + 1
+  const optionalFileEvidenceFailures = []
+  for (const row of rows) {
+    for (const file of row.file?.files ?? []) {
+      if (file.required === true || file.passed === true) continue
+      optionalFileEvidenceFailures.push({
+        rowId: row.id,
+        area: row.area,
+        path: file.path,
+        label: file.label,
+        available: file.available,
+        reason: summarizeFileEvidenceFailure(file)
+      })
+    }
+  }
   const smokeFailureKinds = {}
   for (const capture of manifest?.captures ?? []) {
     if (capture.ok === true) continue
@@ -878,10 +894,31 @@ function summarizeRows(rows, manifest) {
   }
   return {
     statusCounts,
+    optionalFileEvidenceFailures,
     smokeCaptures: manifest?.captures?.length ?? 0,
     smokeFailures: manifest?.failed ?? [],
     smokeFailureKinds
   }
+}
+
+function summarizeFileEvidenceFailure(file) {
+  if (!file.available) return 'missing'
+  if (file.minBytes != null && Number(file.size ?? 0) < file.minBytes) return `too small: ${file.size} < ${file.minBytes} bytes`
+  if (file.maxAgeHours != null && Number(file.ageHours ?? 0) > file.maxAgeHours) return `stale: ${formatAge(file.ageHours)} old`
+  if (file.imageNonBlank === true && file.image?.nonBlank !== true) {
+    if (file.image?.reason) return `image not usable: ${file.image.reason}`
+    const nonBlack = file.image?.nonBlackRatio
+    const luma = file.image?.luminanceStdDev
+    if (typeof nonBlack === 'number' || typeof luma === 'number') {
+      return `image blank: nonBlack=${formatMetric(nonBlack)}, lumaStdDev=${formatMetric(luma)}`
+    }
+    return 'image blank'
+  }
+  return 'failed evidence check'
+}
+
+function formatMetric(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? String(Number(value.toFixed(6))) : 'unknown'
 }
 
 function writeHeaderPanelContactSheet(report) {
@@ -1127,6 +1164,10 @@ function renderMarkdown(report) {
   lines.push(`- Smoke captures: ${report.summary.smokeCaptures}`)
   lines.push(`- Smoke failures: ${report.summary.smokeFailures.length === 0 ? 'none' : report.summary.smokeFailures.join(', ')}`)
   lines.push(`- Smoke failure kinds: ${formatStatusCounts(report.summary.smokeFailureKinds)}`)
+  lines.push(`- Optional file evidence failures: ${report.summary.optionalFileEvidenceFailures.length === 0 ? 'none' : report.summary.optionalFileEvidenceFailures.length}`)
+  for (const failure of report.summary.optionalFileEvidenceFailures) {
+    lines.push(`  - ${failure.area}: ${failure.label} (${failure.reason})`)
+  }
   if (report.liveCaptureAttempt) {
     lines.push(`- Live Codex capture: ${summarizeLiveCaptureAttempt(report.liveCaptureAttempt)}`)
   }
