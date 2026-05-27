@@ -11142,6 +11142,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetActiveCellChecks = {};
               const slidesRendererChecks = {};
               const slidesControlChecks = {};
+              const slidesNotesChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
@@ -11784,11 +11785,14 @@ function runAutomatedFocusedSurfaceSmoke(
                     const zoomControls = document.querySelector('[data-testid="workspace-slides-preview-zoom-controls"]');
                     const zoomIndicator = document.querySelector('[data-testid="workspace-slides-preview-zoom-indicator"]');
                     const zoomIn = document.querySelector('[data-testid="workspace-slides-preview-zoom-in"]');
+                    const notesPanel = document.querySelector('[data-testid="workspace-slides-preview-notes-panel"]');
+                    const notesTextarea = document.querySelector('[data-testid="workspace-slides-preview-notes"]');
                     slidesRendererChecks[testId] =
                       slidesPreview instanceof HTMLElement &&
                       slidesPreview.getAttribute('data-slides-preview-rendered') === 'true' &&
                       slidesPreview.getAttribute('data-slides-preview-slide-count') === '2' &&
                       slidesPreview.getAttribute('data-slides-preview-current-slide') === '1' &&
+                      slidesPreview.getAttribute('data-slides-preview-notes-count') === '2' &&
                       currentSlide instanceof HTMLElement &&
                       currentSlide.getAttribute('data-slide-index') === '1' &&
                       currentSlide.textContent?.includes('Slides smoke updated') === true &&
@@ -11814,6 +11818,13 @@ function runAutomatedFocusedSurfaceSmoke(
                       zoomIndicator.textContent?.trim() === '100%' &&
                       zoomIn instanceof HTMLButtonElement &&
                       !zoomIn.disabled;
+                    const initialSlidesNotes =
+                      notesPanel instanceof HTMLElement &&
+                      notesPanel.getAttribute('data-slides-notes-current-slide') === '1' &&
+                      notesPanel.getAttribute('data-slides-notes-empty') === 'false' &&
+                      notesTextarea instanceof HTMLTextAreaElement &&
+                      notesTextarea.readOnly &&
+                      notesTextarea.value.includes('Updated speaker note');
                     if (nextSlide instanceof HTMLButtonElement) {
                       nextSlide.click();
                       await sleep(160);
@@ -11825,9 +11836,12 @@ function runAutomatedFocusedSurfaceSmoke(
                     const advancedNextSlide = document.querySelector('[data-testid="workspace-slides-preview-slide-next"]');
                     const advancedCurrentSlide = document.querySelector('[data-testid="workspace-slides-preview-current-slide"]');
                     const activeThumbnail = document.querySelector('[data-testid="workspace-slides-preview-thumbnail"][data-active="true"]');
+                    const advancedNotesPanel = document.querySelector('[data-testid="workspace-slides-preview-notes-panel"]');
+                    const advancedNotesTextarea = document.querySelector('[data-testid="workspace-slides-preview-notes"]');
                     const slideNavigationWorks =
                       advancedSlidesPreview instanceof HTMLElement &&
                       advancedSlidesPreview.getAttribute('data-slides-preview-current-slide') === '2' &&
+                      advancedSlidesPreview.getAttribute('data-slides-preview-current-notes') === 'Second updated note' &&
                       advancedSlideControls instanceof HTMLElement &&
                       advancedSlideControls.getAttribute('data-slides-current-slide') === '2' &&
                       advancedSlideIndicator instanceof HTMLElement &&
@@ -11842,6 +11856,13 @@ function runAutomatedFocusedSurfaceSmoke(
                       advancedCurrentSlide.textContent?.includes('Follow-up content') === true &&
                       activeThumbnail instanceof HTMLElement &&
                       activeThumbnail.getAttribute('data-slide-index') === '2';
+                    const advancedSlidesNotes =
+                      advancedNotesPanel instanceof HTMLElement &&
+                      advancedNotesPanel.getAttribute('data-slides-notes-current-slide') === '2' &&
+                      advancedNotesPanel.getAttribute('data-slides-notes-empty') === 'false' &&
+                      advancedNotesTextarea instanceof HTMLTextAreaElement &&
+                      advancedNotesTextarea.readOnly &&
+                      advancedNotesTextarea.value.includes('Second updated note');
                     const advancedZoomIn = document.querySelector('[data-testid="workspace-slides-preview-zoom-in"]');
                     if (advancedZoomIn instanceof HTMLButtonElement) {
                       advancedZoomIn.click();
@@ -11865,6 +11886,9 @@ function runAutomatedFocusedSurfaceSmoke(
                       initialSlidesControls &&
                       slideNavigationWorks &&
                       slidesZoomWorks;
+                    slidesNotesChecks[testId] =
+                      initialSlidesNotes &&
+                      advancedSlidesNotes;
                   }
                   if (testId === 'workspace-pdf-preview') {
                     const pageControls = document.querySelector('[data-testid="workspace-pdf-preview-page-controls"]');
@@ -12806,6 +12830,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetSheetTabsWorks: Boolean(spreadsheetSheetTabChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetActiveCellWorks: Boolean(spreadsheetActiveCellChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
+                filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
                 filesSpreadsheetSlidesArtifactBoundaryWorks:
                   Boolean(previewChecks.filesSpreadsheetPreviewWorks) &&
                   Boolean(previewChecks.filesSlidesPreviewWorks) &&

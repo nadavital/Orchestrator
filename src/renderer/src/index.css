@@ -4815,6 +4815,30 @@
     padding-bottom: 2px;
   }
 
+  .workspace-slides-notes-panel {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--surface-bg);
+    padding: 10px;
+  }
+
+  .workspace-slides-notes-textarea {
+    min-height: 74px;
+    resize: vertical;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--control-bg);
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.45;
+    outline: none;
+    padding: 8px 9px;
+  }
+
   .workspace-slide-thumbnail {
     display: grid;
     width: 124px;

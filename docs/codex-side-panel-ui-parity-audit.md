@@ -6842,6 +6842,16 @@ Verification: `pnpm exec tsc --noEmit`, `node -c scripts/run-automated-ui-smoke.
 
 Remaining: this closes the read-only workbook selection/formula-bar chrome gap for local XLSX previews. It does not implement editable workbook behavior, formula editing/evaluation, comments, annotations, full Popcorn renderer fidelity, or provider-backed artifact metadata.
 
+### 2026-05-27 - PPTX Speaker Notes Preview
+
+Codex evidence: `tmp/codex-app-assets/PopcornElectronPresentationPanel-DNKOkXvp.js` exposes `popcorn-presentation-notes-panel` and `popcorn-presentation-notes` alongside the existing presentation page navigation, zoom, and thumbnail primitives. That makes slide speaker notes a concrete Popcorn presentation surface, not a generic future artifact-renderer wish.
+
+Implemented: Orchestrator now extracts PPTX note-slide relationships from local OOXML archives and passes per-slide notes through the slides preview payload. The PPTX artifact preview renders a read-only `Speaker notes` panel when notes exist, keeps the current slide's notes synchronized with slide navigation, and exposes smoke attributes for note count/current-note state. The smoke PPTX fixture now creates related `ppt/notesSlides/notesSlideN.xml` parts and gates the behavior with `filesSlidesSpeakerNotes=true`; the comparison Files row requires that gate and now checks the Codex presentation bundle for the notes-panel terms.
+
+Verification: `node -c scripts/run-automated-ui-smoke.mjs`, `node -c scripts/run-codex-side-panel-comparison.mjs`, and `pnpm exec tsc --noEmit` passed. Focused `node scripts/run-automated-ui-smoke.mjs --files` first hit the expected sandbox `listen EPERM 127.0.0.1`; the elevated rerun passed with `filesSlidesSpeakerNotes=true`, `filesSlidesControls=true`, and the existing Files artifact checks. Evidence JSON: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779863145747.json`; screenshot: `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-files-1779863145747.png`. Elevated `npm run compare:codex-side-panels -- --run-smoke --full --no-fail` passed with 27 captures, `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, and `needsProof=0`; manifest created at `2026-05-27T06:33:16.625Z`; report created at `2026-05-27T06:33:16.884Z`.
+
+Remaining: this closes the local read-only PPTX speaker-notes preview gap. It does not implement full Popcorn slide canvas fidelity, editing hooks, annotations, comments, or provider-backed artifact metadata.
+
 ### 2026-05-26 - Header/Panel Interaction Gate Refresh
 
 Codex evidence: the current live screenshot path for the dedicated header/panel comparison row is still `/private/tmp/codex-current-screen.png`, but the latest comparison flags that file as stale/incomplete because the captured PNG is effectively blank. Bundle evidence still supports the shared shell model through `app-shell-state-HP0T5lEX.js` and `thread-page-bottom-panel-state-D1Lz0U4Y.js`.

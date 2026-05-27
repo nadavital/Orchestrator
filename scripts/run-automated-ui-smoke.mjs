@@ -451,6 +451,12 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
 }
 
 function createPptxFixture(slides) {
+  const normalizedSlides = slides.map((slide) => Array.isArray(slide)
+    ? { lines: slide, notes: [] }
+    : { lines: slide.lines ?? [], notes: slide.notes ?? [] })
+  const slidesWithNotes = normalizedSlides
+    .map((slide, index) => ({ ...slide, index: index + 1 }))
+    .filter((slide) => slide.notes.length > 0)
   const entries = [
     {
       name: '[Content_Types].xml',
@@ -459,7 +465,8 @@ function createPptxFixture(slides) {
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
-  ${slides.map((_, index) => `<Override PartName="/ppt/slides/slide${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join('\n  ')}
+  ${normalizedSlides.map((_, index) => `<Override PartName="/ppt/slides/slide${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join('\n  ')}
+  ${slidesWithNotes.map((slide) => `<Override PartName="/ppt/notesSlides/notesSlide${slide.index}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"/>`).join('\n  ')}
 </Types>`
     },
     {
@@ -473,20 +480,38 @@ function createPptxFixture(slides) {
       name: 'ppt/presentation.xml',
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <p:sldIdLst>${slides.map((_, index) => `<p:sldId id="${256 + index}" r:id="rId${index + 1}"/>`).join('')}</p:sldIdLst>
+  <p:sldIdLst>${normalizedSlides.map((_, index) => `<p:sldId id="${256 + index}" r:id="rId${index + 1}"/>`).join('')}</p:sldIdLst>
 </p:presentation>`
     }
   ]
-  for (const [index, slide] of slides.entries()) {
+  for (const [index, slide] of normalizedSlides.entries()) {
     entries.push({
       name: `ppt/slides/slide${index + 1}.xml`,
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
   <p:cSld><p:spTree>
-    ${slide.map((line) => `<p:sp><p:txBody><a:p><a:r><a:t>${escapeXml(line)}</a:t></a:r></a:p></p:txBody></p:sp>`).join('\n    ')}
+    ${slide.lines.map((line) => `<p:sp><p:txBody><a:p><a:r><a:t>${escapeXml(line)}</a:t></a:r></a:p></p:txBody></p:sp>`).join('\n    ')}
   </p:spTree></p:cSld>
 </p:sld>`
     })
+    if (slide.notes.length > 0) {
+      entries.push({
+        name: `ppt/slides/_rels/slide${index + 1}.xml.rels`,
+        data: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../notesSlides/notesSlide${index + 1}.xml"/>
+</Relationships>`
+      })
+      entries.push({
+        name: `ppt/notesSlides/notesSlide${index + 1}.xml`,
+        data: `<?xml version="1.0" encoding="UTF-8"?>
+<p:notes xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    ${slide.notes.map((line) => `<p:sp><p:txBody><a:p><a:r><a:t>${escapeXml(line)}</a:t></a:r></a:p></p:txBody></p:sp>`).join('\n    ')}
+  </p:spTree></p:cSld>
+</p:notes>`
+      })
+    }
   }
   return createStoredZip(entries)
 }
@@ -662,8 +687,8 @@ if (fixtureWorkspaceViews.has(captureView)) {
     ]
   }))
   writeFileSync(join(workspaceDir, 'slides-preview-smoke.pptx'), createPptxFixture([
-    ['Slides smoke baseline', 'First slide baseline'],
-    ['Second slide baseline', 'Follow-up content']
+    { lines: ['Slides smoke baseline', 'First slide baseline'], notes: ['Baseline speaker note'] },
+    { lines: ['Second slide baseline', 'Follow-up content'], notes: ['Second baseline note'] }
   ]))
   writeFileSync(
     join(workspaceDir, 'image-preview-smoke.png'),
@@ -775,8 +800,8 @@ if (fixtureWorkspaceViews.has(captureView)) {
       ]
     }))
     writeFileSync(join(workspaceDir, 'slides-preview-smoke.pptx'), createPptxFixture([
-      ['Slides smoke updated', 'First slide updated'],
-      ['Second slide updated', 'Follow-up content']
+      { lines: ['Slides smoke updated', 'First slide updated'], notes: ['Updated speaker note'] },
+      { lines: ['Second slide updated', 'Follow-up content'], notes: ['Second updated note'] }
     ]))
     writeFileSync(
       join(workspaceDir, 'image-preview-smoke.png'),
@@ -1500,6 +1525,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetSheetTabs: result.filesSpreadsheetSheetTabsWorks === true,
           filesSpreadsheetActiveCell: result.filesSpreadsheetActiveCellWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
+          filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
           filesSpreadsheetSlidesArtifactBoundary: result.filesSpreadsheetSlidesArtifactBoundaryWorks === true,
           filesNotebookPreview: result.filesNotebookPreviewWorks === true,
           filesNotebookReadOnlyControls: result.filesNotebookReadOnlyControlsWorks === true,
@@ -1694,6 +1720,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetSheetTabs: captureView !== 'inspector' || result.filesSpreadsheetSheetTabsWorks === true,
         filesSpreadsheetActiveCell: captureView !== 'inspector' || result.filesSpreadsheetActiveCellWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
+        filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,
         filesSpreadsheetSlidesArtifactBoundary: captureView !== 'inspector' || result.filesSpreadsheetSlidesArtifactBoundaryWorks === true,
         filesArtifactOpenOptions: captureView !== 'inspector' || result.filesArtifactOpenOptionsWorks === true,
         filesNotebookPreview: captureView !== 'inspector' || result.filesNotebookPreviewWorks === true,

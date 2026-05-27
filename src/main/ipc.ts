@@ -338,7 +338,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: Array<{ name: str
   return sheets.length > 0 ? { sheets, truncated } : null
 }
 
-function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number; title: string; text: string[] }>; truncated: boolean } | null {
+function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number; title: string; text: string[]; notes: string }>; truncated: boolean } | null {
   const entries = listZipEntries(archive)
   const slideNames = entries
     .map((entry) => entry.name)
@@ -356,10 +356,50 @@ function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number;
     slides.push({
       index: index + 1,
       title: text[0] ?? `Slide ${index + 1}`,
-      text: text.slice(1, 12)
+      text: text.slice(1, 12),
+      notes: extractSlideNotes(archive, name, index + 1)
     })
   }
   return slides.length > 0 ? { slides, truncated } : null
+}
+
+function extractSlideNotes(archive: Buffer, slidePath: string, slideIndex: number): string {
+  const relsXml = readZipEntry(archive, zipRelationshipPathForPart(slidePath))?.toString('utf8') ?? ''
+  let notesPath = ''
+  for (const match of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
+    const tag = match[0] ?? ''
+    const type = /\bType="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (type.endsWith('/notesSlide') && target) {
+      notesPath = resolveZipRelationshipTarget(slidePath, target)
+      break
+    }
+  }
+  const fallbackPath = `ppt/notesSlides/notesSlide${slideIndex}.xml`
+  const xml = readZipEntry(archive, notesPath)?.toString('utf8') ?? readZipEntry(archive, fallbackPath)?.toString('utf8') ?? ''
+  return extractXmlText(xml).trim()
+}
+
+function zipRelationshipPathForPart(partPath: string): string {
+  const parts = partPath.split('/')
+  const fileName = parts.pop() ?? ''
+  return [...parts, '_rels', `${fileName}.rels`].filter(Boolean).join('/')
+}
+
+function resolveZipRelationshipTarget(sourcePartPath: string, target: string): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return ''
+  if (target.startsWith('/')) return target.replace(/^\/+/, '')
+  const parts = sourcePartPath.split('/')
+  parts.pop()
+  for (const segment of target.split('/')) {
+    if (!segment || segment === '.') continue
+    if (segment === '..') {
+      parts.pop()
+      continue
+    }
+    parts.push(segment)
+  }
+  return parts.join('/')
 }
 
 function extractSpreadsheetSharedStrings(xml: string): string[] {

@@ -925,7 +925,7 @@ interface SpreadsheetPreviewPayload {
 }
 
 interface SlidesPreviewPayload {
-  slides: Array<{ index: number; title: string; text: string[] }>
+  slides: Array<{ index: number; title: string; text: string[]; notes?: string }>
   truncated?: boolean
 }
 
@@ -1227,6 +1227,8 @@ function SlidesArtifactPreview({
   const [zoomPercent, setZoomPercent] = useState(100)
   const slideCount = slides.length
   const currentSlide = slides[currentSlideIndex] ?? null
+  const notesCount = slides.filter((slide) => slide.notes?.trim()).length
+  const currentSlideNotes = currentSlide?.notes?.trim() ?? ''
   useEffect(() => {
     setCurrentSlideIndex((index) => Math.min(Math.max(index, 0), Math.max(0, slideCount - 1)))
   }, [slideCount])
@@ -1246,6 +1248,8 @@ function SlidesArtifactPreview({
       data-slides-preview-slide-count={slideCount}
       data-slides-preview-current-slide={currentSlideIndex + 1}
       data-slides-preview-zoom-percent={zoomPercent}
+      data-slides-preview-notes-count={notesCount}
+      data-slides-preview-current-notes={currentSlideNotes}
     >
       <ArtifactPreviewHeader
         artifactType="PPTX"
@@ -1340,6 +1344,26 @@ function SlidesArtifactPreview({
                 ))}
               </div>
             </section>
+            {notesCount > 0 && (
+              <section
+                className="workspace-slides-notes-panel"
+                data-testid="workspace-slides-preview-notes-panel"
+                data-slides-notes-current-slide={currentSlide.index}
+                data-slides-notes-empty={currentSlideNotes ? 'false' : 'true'}
+              >
+                <div className="workspace-office-section-heading">
+                  <Icon name="file" size={14} />
+                  <span>Speaker notes</span>
+                </div>
+                <textarea
+                  className="workspace-slides-notes-textarea"
+                  data-testid="workspace-slides-preview-notes"
+                  placeholder="No speaker notes"
+                  readOnly
+                  value={currentSlideNotes}
+                />
+              </section>
+            )}
             <div className="workspace-slides-thumbnail-strip" data-testid="workspace-slides-preview-thumbnails">
               {slides.map((slide, index) => (
                 <button
@@ -1430,7 +1454,8 @@ function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | nu
       .map((slide) => ({
         index: slide.index,
         title: slide.title,
-        text: slide.text.map((line) => String(line))
+        text: slide.text.map((line) => String(line)),
+        notes: typeof slide.notes === 'string' ? slide.notes : ''
       }))
     if (slides.length === 0) return null
     return {
