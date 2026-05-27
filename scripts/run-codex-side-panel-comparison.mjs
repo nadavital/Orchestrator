@@ -1288,6 +1288,7 @@ function renderMarkdown(report) {
   lines.push('')
   lines.push('- Reuse latest smoke manifest: `npm run compare:codex-side-panels`')
   lines.push('- Regenerate full side-panel smoke first: `npm run compare:codex-side-panels -- --run-smoke --full`')
+  lines.push('- Reproduce one visual capture: `node scripts/run-side-panel-visual-inventory.mjs --full --only terminal-behavior --out tmp/terminal-repro`')
   lines.push('- Regenerate from the packaged temp app: `npm run compare:codex-side-panels -- --run-smoke --full --packaged`')
   lines.push('- Regenerate from `/Applications/Orchestrator.app` with an isolated profile: `npm run compare:codex-side-panels -- --run-smoke --full --installed`')
   lines.push('- Attempt a fresh live Codex screenshot before comparing: `npm run compare:codex-side-panels -- --capture-live-codex --no-fail`')

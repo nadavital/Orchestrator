@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url'
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const outDir = resolve(readArg('--out') ?? join(root, 'tmp', 'side-panel-visual-inventory'))
 const full = process.argv.includes('--full')
+const onlyIds = new Set((readArg('--only') ?? '').split(',').map((item) => item.trim()).filter(Boolean))
 const appMode = process.argv.includes('--installed') ? 'installed' : process.argv.includes('--packaged') ? 'packaged' : 'dev'
 if (process.argv.includes('--installed') && process.argv.includes('--packaged')) {
   console.error('Use either --packaged or --installed, not both.')
@@ -47,15 +48,28 @@ const fullViews = [
   { id: 'transcript-narrow', surface: 'Transcript / Main Shell', state: 'narrow width', flag: '--transcript-layout' }
 ]
 
-const views = full ? [...coreViews, ...fullViews] : coreViews
+const allViews = full ? [...coreViews, ...fullViews] : coreViews
+const views = onlyIds.size > 0
+  ? allViews.filter((view) => onlyIds.has(view.id) || onlyIds.has(view.flag.replace(/^--/, '')))
+  : allViews
+if (views.length === 0) {
+  console.error(JSON.stringify({
+    error: 'No visual-inventory views matched --only',
+    only: [...onlyIds],
+    available: allViews.map((view) => view.id)
+  }, null, 2))
+  process.exit(1)
+}
 mkdirSync(outDir, { recursive: true })
 
 const captures = []
-for (const view of views) {
+for (const [viewIndex, view] of views.entries()) {
   const args = ['scripts/run-automated-ui-smoke.mjs', view.flag]
   if (appMode === 'packaged') args.push('--packaged')
   if (appMode === 'installed') args.push('--installed')
   const startedAt = new Date().toISOString()
+  const startedMs = Date.now()
+  console.error(`[visual-inventory] ${viewIndex + 1}/${views.length} start ${view.id} ${view.flag}`)
   const result = await runSmokeCapture(args)
   const logPath = join(outDir, `${view.id}.log`)
   writeFileSync(logPath, `${result.stdout}\n${result.stderr}`)
@@ -87,6 +101,8 @@ for (const view of views) {
     logPath,
     checks
   })
+  const latestCapture = captures[captures.length - 1]
+  console.error(`[visual-inventory] ${viewIndex + 1}/${views.length} done ${view.id} ok=${latestCapture.ok} exit=${latestCapture.exitCode ?? 'null'} elapsedMs=${Date.now() - startedMs}`)
 }
 
 const failed = captures.filter((capture) => !capture.ok)
