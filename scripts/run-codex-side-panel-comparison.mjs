@@ -13,12 +13,15 @@ const smokeOutDir = resolve(readArg('--smoke-out') ?? defaultSmokeDir)
 const runSmoke = process.argv.includes('--run-smoke')
 const fullSmoke = process.argv.includes('--full') || process.argv.includes('--full-smoke')
 const noFail = process.argv.includes('--no-fail')
+const captureLiveCodex = process.argv.includes('--capture-live-codex')
 const manifestPath = resolve(readArg('--manifest') ?? join(smokeOutDir, 'manifest.json'))
 const codexAsarPath = resolve(readArg('--codex-asar') ?? '/Applications/Codex.app/Contents/Resources/app.asar')
+const liveCodexScreenshotPath = '/private/tmp/codex-current-screen.png'
 
 function main() {
 mkdirSync(outDir, { recursive: true })
 
+const liveCaptureAttempt = captureLiveCodex ? captureLiveCodexScreenshot(liveCodexScreenshotPath) : null
 let smokeRun = null
 if (runSmoke) {
   const args = ['run', 'smoke:visual:side-panels', '--', '--out', smokeOutDir]
@@ -55,6 +58,7 @@ const report = {
   smokeManifestPath: manifestPath,
   smokeManifestAvailable: manifest !== null,
   smokeRun,
+  liveCaptureAttempt,
   summary,
   rows,
   captures: (manifest?.captures ?? []).map((capture) => ({
@@ -87,6 +91,7 @@ console.log(JSON.stringify({
   markdownPath,
   jsonPath,
   headerPanelContactSheetPath: report.artifacts.headerPanelContactSheetPath,
+  liveCaptureAttempt,
   smokeManifestPath: manifestPath,
   statusCounts: summary.statusCounts,
   mismatchCount: summary.statusCounts.mismatch ?? 0,
@@ -98,6 +103,35 @@ console.log(JSON.stringify({
 }, null, 2))
 
 process.exit(noFail ? 0 : exitCode)
+}
+
+function captureLiveCodexScreenshot(outputPath) {
+  if (process.platform !== 'darwin') {
+    return {
+      attempted: true,
+      command: `screencapture -x ${outputPath}`,
+      exitCode: null,
+      skipped: true,
+      reason: 'screencapture is only available on macOS'
+    }
+  }
+  const result = spawnSync('screencapture', ['-x', outputPath], {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe']
+  })
+  const image = existsSync(outputPath) ? inspectImageEvidence(outputPath) : null
+  return {
+    attempted: true,
+    command: `screencapture -x ${outputPath}`,
+    outputPath,
+    exitCode: result.status,
+    error: result.error ? result.error.message : null,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    available: existsSync(outputPath),
+    image
+  }
 }
 
 function buildContracts() {
@@ -113,7 +147,7 @@ function buildContracts() {
       ],
       fileEvidence: [
         {
-          path: '/private/tmp/codex-current-screen.png',
+          path: liveCodexScreenshotPath,
           label: 'live Codex shell screenshot',
           minBytes: 100000,
           maxAgeHours: 72,
@@ -137,7 +171,7 @@ function buildContracts() {
       ],
       fileEvidence: [
         {
-          path: '/private/tmp/codex-current-screen.png',
+          path: liveCodexScreenshotPath,
           label: 'live Codex right-panel/header screenshot',
           minBytes: 100000,
           maxAgeHours: 72,
@@ -712,7 +746,7 @@ function summarizeRows(rows, manifest) {
 function writeHeaderPanelContactSheet(report) {
   const row = report.rows.find((entry) => entry.id === 'app-shell-header-panel-interaction')
   const outputPath = join(outDir, 'header-panel-contact-sheet.html')
-  const liveScreenshot = row?.file?.files?.find((entry) => entry.path === '/private/tmp/codex-current-screen.png') ?? null
+  const liveScreenshot = row?.file?.files?.find((entry) => entry.path === liveCodexScreenshotPath) ?? null
   const captureIds = ['chat-sidebar', 'header', 'transcript-narrow', 'workbench-right-panel', 'files', 'browser', 'review-last-turn', 'review-core', 'terminal-bottom-panel']
   const captures = captureIds.map((id) => {
     const capture = report.captures.find((entry) => entry.id === id)
@@ -938,6 +972,7 @@ function renderMarkdown(report) {
   lines.push('')
   lines.push('- Reuse latest smoke manifest: `npm run compare:codex-side-panels`')
   lines.push('- Regenerate full side-panel smoke first: `npm run compare:codex-side-panels -- --run-smoke --full`')
+  lines.push('- Attempt a fresh live Codex screenshot before comparing: `npm run compare:codex-side-panels -- --capture-live-codex --no-fail`')
   lines.push('- Generate the report without failing the shell on known mismatches: `npm run compare:codex-side-panels -- --no-fail`')
   lines.push('- Custom output: `npm run compare:codex-side-panels -- --out tmp/my-comparison --smoke-out tmp/my-smoke --run-smoke --full`')
   lines.push('')
@@ -948,6 +983,9 @@ function renderMarkdown(report) {
   lines.push(`- Smoke captures: ${report.summary.smokeCaptures}`)
   lines.push(`- Smoke failures: ${report.summary.smokeFailures.length === 0 ? 'none' : report.summary.smokeFailures.join(', ')}`)
   lines.push(`- Smoke failure kinds: ${formatStatusCounts(report.summary.smokeFailureKinds)}`)
+  if (report.liveCaptureAttempt) {
+    lines.push(`- Live Codex capture: ${summarizeLiveCaptureAttempt(report.liveCaptureAttempt)}`)
+  }
   lines.push(`- Status counts: ${Object.entries(report.summary.statusCounts).map(([key, value]) => `${key}=${value}`).join(', ')}`)
   lines.push(`- Header/panel contact sheet: ${relative(root, report.artifacts.headerPanelContactSheetPath)}`)
   lines.push('')
@@ -1028,6 +1066,17 @@ function summarizeImageEvidence(entry) {
   if (entry.image == null) return ', image not inspected'
   if (entry.image.inspected !== true) return `, image failed: ${entry.image.reason ?? 'not inspected'}`
   return `, nonBlack=${entry.image.nonBlackRatio}, lumaStdDev=${entry.image.luminanceStdDev}, colors=${entry.image.colorBucketCount}`
+}
+
+function summarizeLiveCaptureAttempt(attempt) {
+  if (attempt.skipped) return `skipped (${attempt.reason})`
+  const exit = attempt.exitCode == null ? 'unknown' : String(attempt.exitCode)
+  const image = attempt.image?.inspected === true
+    ? `, nonBlank=${attempt.image.nonBlank}, nonBlack=${attempt.image.nonBlackRatio}, lumaStdDev=${attempt.image.luminanceStdDev}, colors=${attempt.image.colorBucketCount}`
+    : attempt.image?.reason
+      ? `, image=${attempt.image.reason}`
+      : ''
+  return `exit=${exit}, available=${attempt.available === true}${image}`
 }
 
 function formatAge(hours) {
