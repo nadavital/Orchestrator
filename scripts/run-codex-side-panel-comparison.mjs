@@ -140,7 +140,7 @@ function buildContracts() {
       id: 'app-shell-header-panel-interaction',
       area: 'Header and panel interaction',
       scope: 'Left sidebar, main header, right Files/Browser/Review/Workbench side panel, bottom panel',
-      captureIds: ['chat-sidebar', 'header', 'transcript-narrow', 'workbench-right-panel', 'files', 'browser', 'review-last-turn', 'review-core', 'terminal-bottom-panel'],
+      captureIds: ['chat-sidebar', 'header', 'transcript-narrow', 'workbench-right-panel', 'files', 'browser', 'review-last-turn', 'review-core', 'terminal-bottom-panel', 'multi-window-focus'],
       codexAssets: [
         { basename: 'app-shell-state-HP0T5lEX.js', terms: ['app-shell:right-panel-width:v2', 'app-shell-bottom-panel-launcher-visible'] },
         { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['terminal-panel'] }
@@ -154,9 +154,9 @@ function buildContracts() {
           imageNonBlank: true
         }
       ],
-      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'filesHeaderPanelSeam', 'browserHeaderPanelSeam', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent'],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'filesHeaderPanelSeam', 'browserHeaderPanelSeam', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent', 'secondWindowCreated', 'secondWindowNavigated', 'pendingNavigationConsumedOnce', 'firstWindowBrowserFocusArea', 'firstWindowBrowserMenuEnabled', 'secondWindowBrowserMenuDisabled', 'backgroundWindowMenuDoesNotClobberFocusedWindow', 'activeWindowAfterRefocus', 'focusSwitchRestoresFirstWindowMenu', 'menuCommandRoutedToFocusedWindow'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, focused Files/Browser/Review panel placement in that band, compact profile/debug badge behavior, compact titlebar toolbar actions, solid panel material, bottom-panel target size, and shell attachment; exact live Codex pixel spacing and animation timing still need live screenshots.',
+      caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, focused Files/Browser/Review panel placement in that band, compact profile/debug badge behavior, compact titlebar toolbar actions, solid panel material, bottom-panel target size, shell attachment, and app-owned multi-window menu command routing; exact live Codex pixel spacing, OS focus behavior, and animation timing still need live screenshots.',
       next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Files, Browser, Review, Workbench, or bottom-panel shell layout.'
     },
     {
@@ -747,7 +747,7 @@ function writeHeaderPanelContactSheet(report) {
   const row = report.rows.find((entry) => entry.id === 'app-shell-header-panel-interaction')
   const outputPath = join(outDir, 'header-panel-contact-sheet.html')
   const liveScreenshot = row?.file?.files?.find((entry) => entry.path === liveCodexScreenshotPath) ?? null
-  const captureIds = ['chat-sidebar', 'header', 'transcript-narrow', 'workbench-right-panel', 'files', 'browser', 'review-last-turn', 'review-core', 'terminal-bottom-panel']
+  const captureIds = ['chat-sidebar', 'header', 'transcript-narrow', 'workbench-right-panel', 'files', 'browser', 'review-last-turn', 'review-core', 'terminal-bottom-panel', 'multi-window-focus']
   const captures = captureIds.map((id) => {
     const capture = report.captures.find((entry) => entry.id === id)
     const smokeCapture = row?.smoke?.captures?.find((entry) => entry.id === id)

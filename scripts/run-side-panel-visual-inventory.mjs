@@ -31,6 +31,7 @@ const fullViews = [
   { id: 'review-source', surface: 'Review', state: 'source mode', flag: '--diff-source' },
   { id: 'review-preview', surface: 'Review', state: 'rich preview and binary', flag: '--diff-preview' },
   { id: 'terminal-behavior', surface: 'Terminal Bottom Panel', state: 'transfer behavior and shortcuts', flag: '--terminal' },
+  { id: 'multi-window-focus', surface: 'App Shell / Window Lifecycle', state: 'multi-window focus and menu command routing', flag: '--multi-window-focus' },
   { id: 'settings-providers', surface: 'Settings', state: 'provider settings', flag: '--settings-providers' },
   { id: 'side-chat', surface: 'Workbench Side Chat', state: 'side chat tabs and composer', flag: '--side-chat' },
   { id: 'plan', surface: 'Plan Panel', state: 'plan rows and agent tab', flag: '--plan' },
