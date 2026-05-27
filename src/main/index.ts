@@ -41,6 +41,7 @@ let mainWindow: BrowserWindow | null = null
 const appWindows = new Set<BrowserWindow>()
 const guardedBrowserSessions = new WeakSet<Session>()
 const menuCommandAvailabilityByWindow = new Map<number, AppCommandAvailability>()
+const pendingNavigationByWindow = new Map<number, OrchestratorDeepLinkNavigation>()
 let pendingNavigation: OrchestratorDeepLinkNavigation | null = null
 let automatedMultiWindowFocusSmokeStarted = false
 
@@ -70,9 +71,13 @@ function focusWindowForNavigation(): BrowserWindow | null {
 function navigateFromDeeplink(rawUrl: string): void {
   const navigation = parseOrchestratorDeepLink(rawUrl, APP_DEEPLINK_PROTOCOL)
   if (!navigation) return
-  pendingNavigation = navigation
   const target = focusWindowForNavigation()
-  if (!target) return
+  if (!target) {
+    pendingNavigation = navigation
+    return
+  }
+  pendingNavigationByWindow.set(target.webContents.id, navigation)
+  pendingNavigation = null
   if (navigation.kind === 'session') {
     safeWindowSend(target, 'app:navigate-session', navigation.sessionId)
   } else {
@@ -81,11 +86,18 @@ function navigateFromDeeplink(rawUrl: string): void {
 }
 
 function openSessionInNewWindow(sessionId: string): void {
-  pendingNavigation = { kind: 'session', sessionId }
-  createWindow()
+  const win = createWindow()
+  pendingNavigationByWindow.set(win.webContents.id, { kind: 'session', sessionId })
 }
 
-function consumePendingNavigation(): OrchestratorDeepLinkNavigation | null {
+function consumePendingNavigation(win: BrowserWindow | null): OrchestratorDeepLinkNavigation | null {
+  if (win && !win.isDestroyed()) {
+    const windowNavigation = pendingNavigationByWindow.get(win.webContents.id)
+    if (windowNavigation) {
+      pendingNavigationByWindow.delete(win.webContents.id)
+      return windowNavigation
+    }
+  }
   const navigation = pendingNavigation
   pendingNavigation = null
   return navigation
@@ -432,6 +444,7 @@ function createWindow(): BrowserWindow {
   win.on('closed', () => {
     appWindows.delete(win)
     menuCommandAvailabilityByWindow.delete(webContentsId)
+    pendingNavigationByWindow.delete(webContentsId)
     if (mainWindow === win) {
       mainWindow = [...appWindows].find((candidate) => !candidate.isDestroyed()) ?? null
     }
@@ -15168,13 +15181,15 @@ function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: strin
               firstBrowserMenu = await window.api.app.getMenuCommandState('focus-browser-address-bar');
             }
             await window.api.app.openSessionWindow(session.id);
+            const openerPendingAfterOpen = await window.api.app.consumePendingNavigation();
             return {
               profile,
               sessionId: session.id,
               firstActiveSessionTitle: document.querySelector('[data-testid="active-session-title"]')?.textContent?.trim() ?? '',
               firstActiveFocusArea: document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') ?? '',
               firstBrowserInputFocused: document.activeElement === input,
-              firstBrowserMenuEnabledBeforeOpen: firstBrowserMenu?.enabled === true
+              firstBrowserMenuEnabledBeforeOpen: firstBrowserMenu?.enabled === true,
+              openerPendingAfterOpen
             };
           })()
         `)
@@ -15312,6 +15327,7 @@ function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: strin
             secondWindowCreated: true,
             secondWindowNavigated: secondResult.secondActiveSessionId === firstResult.sessionId,
             pendingNavigationConsumedOnce: secondResult.pendingAfterLoad === null,
+            pendingNavigationWindowScoped: firstResult.openerPendingAfterOpen === null,
             firstWindowBrowserFocusArea: firstResult.firstActiveFocusArea === 'right-panel' && firstResult.firstBrowserInputFocused === true,
             firstWindowBrowserMenuEnabled: firstResult.firstBrowserMenuEnabledBeforeOpen === true,
             secondWindowBrowserMenuDisabled: secondResult.secondBrowserMenuEnabled === false,
@@ -19342,7 +19358,7 @@ app.whenReady().then(async () => {
   installRendererRouteProtocol()
 
   registerIpcHandlers(ipcMain)
-  ipcMain.handle('app:consumePendingNavigation', () => consumePendingNavigation())
+  ipcMain.handle('app:consumePendingNavigation', (event) => consumePendingNavigation(BrowserWindow.fromWebContents(event.sender)))
   ipcMain.handle('app:openSessionWindow', (_, sessionId: string) => {
     if (!sessionManager.get(sessionId)) throw new Error(`Session ${sessionId} not found`)
     openSessionInNewWindow(sessionId)

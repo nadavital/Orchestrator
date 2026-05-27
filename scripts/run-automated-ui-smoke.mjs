@@ -953,6 +953,7 @@ child.on('exit', async (code) => {
         secondWindowCreated: result.secondWindowCreated === true,
         secondWindowNavigated: result.secondWindowNavigated === true,
         pendingNavigationConsumedOnce: result.pendingNavigationConsumedOnce === true,
+        pendingNavigationWindowScoped: result.pendingNavigationWindowScoped === true,
         firstWindowBrowserFocusArea: result.firstWindowBrowserFocusArea === true,
         firstWindowBrowserMenuEnabled: result.firstWindowBrowserMenuEnabled === true,
         secondWindowBrowserMenuDisabled: result.secondWindowBrowserMenuDisabled === true,
