@@ -417,6 +417,25 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   const workbookSheets = sheets ?? [{ sheetName, rows }]
   const sharedStrings = []
   const sharedStringIndex = new Map()
+  const cellStyles = [{}]
+  const cellStyleIndex = new Map([['{}', 0]])
+  const styleIndexFor = (rawValue) => {
+    if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) return 0
+    const style = {
+      ...(rawValue.fillColor ? { fillColor: String(rawValue.fillColor).toUpperCase() } : {}),
+      ...(rawValue.textColor ? { textColor: String(rawValue.textColor).toUpperCase() } : {}),
+      ...(rawValue.bold === true ? { bold: true } : {})
+    }
+    const key = JSON.stringify(style)
+    if (key === '{}') return 0
+    let index = cellStyleIndex.get(key)
+    if (index === undefined) {
+      index = cellStyles.length
+      cellStyleIndex.set(key, index)
+      cellStyles.push(style)
+    }
+    return index
+  }
   const worksheetEntries = workbookSheets.map((sheet, sheetIndex) => {
     const cellXml = sheet.rows.map((row, rowIndex) => {
       const cells = row.map((rawValue, columnIndex) => {
@@ -426,11 +445,13 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
         const value = rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)
           ? rawValue.value
           : rawValue
+        const styleIndex = styleIndexFor(rawValue)
+        const styleAttribute = styleIndex > 0 ? ` s="${styleIndex}"` : ''
         if (formula) {
           const cachedValue = value === undefined || value === null || value === ''
             ? ''
             : `<v>${escapeXml(String(value))}</v>`
-          return `<c r="${columnName(columnIndex)}${rowIndex + 1}"><f>${escapeXml(formula)}</f>${cachedValue}</c>`
+          return `<c r="${columnName(columnIndex)}${rowIndex + 1}"${styleAttribute}><f>${escapeXml(formula)}</f>${cachedValue}</c>`
         }
         const key = String(value)
         let index = sharedStringIndex.get(key)
@@ -439,7 +460,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
           sharedStringIndex.set(key, index)
           sharedStrings.push(key)
         }
-        return `<c r="${columnName(columnIndex)}${rowIndex + 1}" t="s"><v>${index}</v></c>`
+        return `<c r="${columnName(columnIndex)}${rowIndex + 1}" t="s"${styleAttribute}><v>${index}</v></c>`
       }).join('')
       return `<row r="${rowIndex + 1}">${cells}</row>`
     }).join('\n      ')
@@ -463,6 +484,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   ${workbookSheets.map((_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('\n  ')}
   <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 </Types>`
     },
     {
@@ -478,6 +500,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   ${workbookSheets.map((_, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`).join('\n  ')}
   <Relationship Id="rId${workbookSheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+  <Relationship Id="rId${workbookSheets.length + 2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`
     },
     {
@@ -494,8 +517,33 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   ${sharedStrings.map((value) => `<si><t>${escapeXml(value)}</t></si>`).join('\n  ')}
 </sst>`
     },
+    {
+      name: 'xl/styles.xml',
+      data: createXlsxStylesXml(cellStyles)
+    },
     ...worksheetEntries
   ])
+}
+
+function createXlsxStylesXml(cellStyles) {
+  const fonts = cellStyles.map((style) => `<font>${style.bold ? '<b/>' : ''}${style.textColor ? `<color rgb="FF${String(style.textColor).replace(/^#/, '')}"/>` : ''}<sz val="11"/><name val="Arial"/></font>`)
+  const fills = [
+    '<fill><patternFill patternType="none"/></fill>',
+    '<fill><patternFill patternType="gray125"/></fill>',
+    ...cellStyles.slice(1).map((style) => style.fillColor
+      ? `<fill><patternFill patternType="solid"><fgColor rgb="FF${String(style.fillColor).replace(/^#/, '')}"/><bgColor indexed="64"/></patternFill></fill>`
+      : '<fill><patternFill patternType="none"/></fill>')
+  ]
+  const cellXfs = cellStyles.map((style, index) => `<xf numFmtId="0" fontId="${index}" fillId="${index > 0 && style.fillColor ? index + 1 : 0}" borderId="0" xfId="0"${style.fillColor ? ' applyFill="1"' : ''}${style.bold || style.textColor ? ' applyFont="1"' : ''}/>`)
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="${fonts.length}">${fonts.join('')}</fonts>
+  <fills count="${fills.length}">${fills.join('')}</fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="${cellXfs.length}">${cellXfs.join('')}</cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`
 }
 
 function createPptxFixture(slides) {
@@ -761,8 +809,12 @@ if (fixtureWorkspaceViews.has(captureView)) {
       {
         sheetName: 'Smoke data',
         rows: [
-          ['Name', 'Count', 'Status'],
-          ['Alpha', '1', 'Baseline']
+          [
+            { value: 'Name', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
+            { value: 'Count', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
+            { value: 'Status', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true }
+          ],
+          ['Alpha', '1', { value: 'Baseline', fillColor: '#FEF3C7', textColor: '#92400E' }]
         ]
       },
       {
@@ -874,17 +926,24 @@ if (fixtureWorkspaceViews.has(captureView)) {
         {
           sheetName: 'Smoke data',
           rows: [
-            ['Name', 'Count', 'Status'],
-            ['Alpha', '2', 'Updated'],
-            ['Beta', '3', 'New']
+            [
+              { value: 'Name', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
+              { value: 'Count', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true },
+              { value: 'Status', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true }
+            ],
+            ['Alpha', '2', { value: 'Updated', fillColor: '#DCFCE7', textColor: '#166534' }],
+            ['Beta', '3', { value: 'New', fillColor: '#F5F3FF', textColor: '#6D28D9' }]
           ]
         },
         {
           sheetName: 'Totals',
           rows: [
-            ['Metric', 'Value'],
+            [
+              { value: 'Metric', fillColor: '#E5E7EB', bold: true },
+              { value: 'Value', fillColor: '#E5E7EB', bold: true }
+            ],
             ['Updated total', '5'],
-            ['Formula total', { formula: 'B2+2' }]
+            ['Formula total', { formula: 'B2+2', fillColor: '#FEF3C7', textColor: '#92400E', bold: true }]
           ]
         }
       ]
@@ -1631,6 +1690,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetSheetTabs: result.filesSpreadsheetSheetTabsWorks === true,
           filesSpreadsheetActiveCell: result.filesSpreadsheetActiveCellWorks === true,
           filesSpreadsheetFormulaEvaluation: result.filesSpreadsheetFormulaEvaluationWorks === true,
+          filesSpreadsheetCellStyles: result.filesSpreadsheetCellStylesWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -1837,6 +1897,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetSheetTabs: captureView !== 'inspector' || result.filesSpreadsheetSheetTabsWorks === true,
         filesSpreadsheetActiveCell: captureView !== 'inspector' || result.filesSpreadsheetActiveCellWorks === true,
         filesSpreadsheetFormulaEvaluation: captureView !== 'inspector' || result.filesSpreadsheetFormulaEvaluationWorks === true,
+        filesSpreadsheetCellStyles: captureView !== 'inspector' || result.filesSpreadsheetCellStylesWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,

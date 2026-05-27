@@ -53,11 +53,20 @@ interface ZipEntryRecord {
 interface SpreadsheetPreviewCell {
   value: string
   formula?: string
+  fillColor?: string
+  textColor?: string
+  bold?: boolean
 }
 
 interface SpreadsheetPreviewSheet {
   name: string
   rows: SpreadsheetPreviewCell[][]
+}
+
+interface SpreadsheetCellStyle {
+  fillColor?: string
+  textColor?: string
+  bold?: boolean
 }
 
 interface SlidePreviewShape {
@@ -440,6 +449,7 @@ function docxImageAlt(attributes: string): string | undefined {
 function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPreviewSheet[]; truncated: boolean } | null {
   const entries = listZipEntries(archive)
   const sharedStrings = extractSpreadsheetSharedStrings(readZipEntry(archive, 'xl/sharedStrings.xml')?.toString('utf8') ?? '')
+  const styles = extractSpreadsheetStyles(readZipEntry(archive, 'xl/styles.xml')?.toString('utf8') ?? '')
   const workbookXml = readZipEntry(archive, 'xl/workbook.xml')?.toString('utf8') ?? ''
   const relationshipsXml = readZipEntry(archive, 'xl/_rels/workbook.xml.rels')?.toString('utf8') ?? ''
   const sheetTargets = extractWorkbookSheetTargets(workbookXml, relationshipsXml)
@@ -455,7 +465,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
   for (const sheet of worksheetEntries.slice(0, 6)) {
     const xml = readZipEntry(archive, sheet.path)?.toString('utf8') ?? ''
     if (!xml) continue
-    const parsed = extractWorksheetRows(xml, sharedStrings)
+    const parsed = extractWorksheetRows(xml, sharedStrings, styles)
     truncated ||= parsed.truncated
     sheets.push({ name: sheet.name, rows: parsed.rows })
   }
@@ -689,7 +699,7 @@ function extractWorkbookSheetTargets(workbookXml: string, relationshipsXml: stri
     })
 }
 
-function extractWorksheetRows(xml: string, sharedStrings: string[]): { rows: SpreadsheetPreviewCell[][]; truncated: boolean } {
+function extractWorksheetRows(xml: string, sharedStrings: string[], styles: SpreadsheetCellStyle[]): { rows: SpreadsheetPreviewCell[][]; truncated: boolean } {
   const rows: SpreadsheetPreviewCell[][] = []
   const cellsByAddress = new Map<string, SpreadsheetPreviewCell>()
   let truncated = false
@@ -704,6 +714,8 @@ function extractWorksheetRows(xml: string, sharedStrings: string[]): { rows: Spr
       while (cells.length < columnIndex) cells.push({ value: '' })
       const formula = decodeXmlText(/<f(?:\s[^>]*)?>([\s\S]*?)<\/f>/.exec(cellXml)?.[1] ?? '').trim()
       const cell: SpreadsheetPreviewCell = { value: '' }
+      const style = spreadsheetCellStyle(attributes, styles)
+      Object.assign(cell, style)
       if (formula) cell.formula = formula.startsWith('=') ? formula : `=${formula}`
       if (type === 's') {
         const index = Number(/<v>([\s\S]*?)<\/v>/.exec(cellXml)?.[1] ?? -1)
@@ -728,6 +740,44 @@ function extractWorksheetRows(xml: string, sharedStrings: string[]): { rows: Spr
   }
   evaluateWorksheetFormulas(rows, cellsByAddress)
   return { rows, truncated }
+}
+
+function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {
+  if (!xml) return []
+  const fonts = [...xml.matchAll(/<font\b[\s\S]*?<\/font>/g)].map((match) => {
+    const fontXml = match[0] ?? ''
+    return {
+      bold: /<b(?:\s[^>]*)?\/>/.test(fontXml),
+      textColor: extractSpreadsheetColor(fontXml)
+    }
+  })
+  const fills = [...xml.matchAll(/<fill\b[\s\S]*?<\/fill>/g)].map((match) => extractSpreadsheetColor(match[0] ?? ''))
+  return [...xml.matchAll(/<cellXfs\b[\s\S]*?<\/cellXfs>/g)][0]?.[0]
+    ?.match(/<xf\b[^>]*\/>/g)
+    ?.map((tag) => {
+      const fontId = numberAttribute(tag, 'fontId') ?? 0
+      const fillId = numberAttribute(tag, 'fillId') ?? 0
+      const font = fonts[fontId] ?? {}
+      const fillColor = fills[fillId]
+      return {
+        ...(fillColor ? { fillColor } : {}),
+        ...(font.textColor ? { textColor: font.textColor } : {}),
+        ...(font.bold ? { bold: true } : {})
+      }
+    }) ?? []
+}
+
+function spreadsheetCellStyle(attributes: string, styles: SpreadsheetCellStyle[]): SpreadsheetCellStyle {
+  const styleIndex = numberAttribute(attributes, 's')
+  if (styleIndex === null) return {}
+  return styles[styleIndex] ?? {}
+}
+
+function extractSpreadsheetColor(xml: string): string | undefined {
+  const tag = /<(?:fgColor|color)\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
+  const rgb = /\brgb="([A-Fa-f0-9]{6,8})"/.exec(tag)?.[1]
+  if (rgb) return `#${rgb.slice(-6).toUpperCase()}`
+  return undefined
 }
 
 function spreadsheetColumnIndex(address: string): number {

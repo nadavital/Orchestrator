@@ -928,6 +928,9 @@ interface SpreadsheetPreviewPayload {
 interface SpreadsheetPreviewCell {
   value: string
   formula?: string
+  fillColor?: string
+  textColor?: string
+  bold?: boolean
 }
 
 interface SlidesPreviewPayload {
@@ -987,9 +990,10 @@ function updateSpreadsheetCell(
   const row = sheet.rows[rowIndex]
   while (row.length <= columnIndex) row.push({ value: '' })
   const trimmed = input.trim()
+  const existingCell = row[columnIndex] ?? { value: '' }
   row[columnIndex] = trimmed.startsWith('=')
-    ? { value: '', formula: trimmed }
-    : { value: input }
+    ? { ...existingCell, value: '', formula: trimmed }
+    : { ...existingCell, value: input, formula: undefined }
   return recalculateSpreadsheetSheets(nextSheets)
 }
 
@@ -1154,6 +1158,9 @@ function SpreadsheetArtifactPreview({
   const activeCellData = activeSheet?.rows[activeCellRow]?.[activeCellColumn] ?? null
   const activeCellValue = activeCellData?.value ?? ''
   const activeCellFormula = activeCellData?.formula ?? ''
+  const styledCellCount = activeSheet
+    ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.textColor || cell.bold)).length, 0)
+    : 0
   useEffect(() => {
     setActiveSheetIndex((index) => Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
   }, [sheetCount])
@@ -1191,6 +1198,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-active-cell-address={activeSheet ? activeCellAddress : ''}
       data-spreadsheet-active-cell-value={activeSheet ? activeCellValue : ''}
       data-spreadsheet-active-cell-formula={activeSheet ? activeCellFormula : ''}
+      data-spreadsheet-style-cell-count={styledCellCount}
       data-spreadsheet-editable="local-preview"
       data-spreadsheet-edit-count={editCount}
     >
@@ -1354,8 +1362,16 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-value={cell.value}
                                 data-spreadsheet-cell-formula={cell.formula ?? ''}
                                 data-spreadsheet-cell-kind={cell.formula ? 'formula' : 'value'}
+                                data-spreadsheet-cell-fill-color={cell.fillColor ?? ''}
+                                data-spreadsheet-cell-text-color={cell.textColor ?? ''}
+                                data-spreadsheet-cell-bold={cell.bold ? 'true' : 'false'}
                                 data-active={isActive ? 'true' : 'false'}
                                 aria-label={`${cellAddress} ${cell.value}`.trim()}
+                                style={{
+                                  backgroundColor: cell.fillColor,
+                                  color: cell.textColor,
+                                  fontWeight: cell.bold ? 700 : undefined
+                                }}
                                 onClick={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
                                 onFocus={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
                               >
@@ -1715,13 +1731,24 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
 
 function normalizeSpreadsheetPreviewCell(cell: unknown): SpreadsheetPreviewCell {
   if (cell && typeof cell === 'object') {
-    const candidate = cell as { value?: unknown; formula?: unknown }
+    const candidate = cell as { value?: unknown; formula?: unknown; fillColor?: unknown; textColor?: unknown; bold?: unknown }
+    const fillColor = normalizeSpreadsheetColor(candidate.fillColor)
+    const textColor = normalizeSpreadsheetColor(candidate.textColor)
     return {
       value: String(candidate.value ?? ''),
-      ...(typeof candidate.formula === 'string' && candidate.formula ? { formula: candidate.formula } : {})
+      ...(typeof candidate.formula === 'string' && candidate.formula ? { formula: candidate.formula } : {}),
+      ...(fillColor ? { fillColor } : {}),
+      ...(textColor ? { textColor } : {}),
+      ...(candidate.bold === true ? { bold: true } : {})
     }
   }
   return { value: String(cell ?? '') }
+}
+
+function normalizeSpreadsheetColor(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const match = /^#([A-Fa-f0-9]{6})$/.exec(value.trim())
+  return match ? `#${match[1].toUpperCase()}` : undefined
 }
 
 function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | null {

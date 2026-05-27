@@ -11143,6 +11143,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetControlChecks = {};
               const spreadsheetSheetTabChecks = {};
               const spreadsheetActiveCellChecks = {};
+              const spreadsheetStyleChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11642,7 +11643,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     const activeCellValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
                     const columnHeaders = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-column-header"]')];
                     const rowHeaders = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-row-header"]')];
+                    const headerNameCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A1"]');
                     const alphaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A2"]');
+                    const updatedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
                     spreadsheetRendererChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-preview-rendered') === 'true' &&
@@ -11707,6 +11710,19 @@ function runAutomatedFocusedSurfaceSmoke(
                       rowHeaders[0].textContent?.trim() === '1' &&
                       alphaCell instanceof HTMLButtonElement &&
                       alphaCell.getAttribute('data-spreadsheet-cell-value') === 'Alpha';
+                    spreadsheetStyleChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      Number(spreadsheetPreview.getAttribute('data-spreadsheet-style-cell-count') ?? '0') >= 5 &&
+                      headerNameCell instanceof HTMLButtonElement &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-fill-color') === '#DBEAFE' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-text-color') === '#1D4ED8' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-bold') === 'true' &&
+                      ['700', 'bold'].includes(getComputedStyle(headerNameCell).fontWeight) &&
+                      updatedStatusCell instanceof HTMLButtonElement &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-fill-color') === '#DCFCE7' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-text-color') === '#166534' &&
+                      getComputedStyle(updatedStatusCell).backgroundColor === 'rgb(220, 252, 231)' &&
+                      getComputedStyle(updatedStatusCell).color === 'rgb(22, 101, 52)';
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13158,6 +13174,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetSheetTabsWorks: Boolean(spreadsheetSheetTabChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetActiveCellWorks: Boolean(spreadsheetActiveCellChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEvaluationWorks: Boolean(spreadsheetFormulaChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetCellStylesWorks: Boolean(spreadsheetStyleChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
