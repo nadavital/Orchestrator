@@ -472,8 +472,8 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
 
 function createPptxFixture(slides) {
   const normalizedSlides = slides.map((slide) => Array.isArray(slide)
-    ? { lines: slide, notes: [], shapes: [] }
-    : { lines: slide.lines ?? [], notes: slide.notes ?? [], shapes: slide.shapes ?? [] })
+    ? { lines: slide, notes: [], shapes: [], backgroundColor: null }
+    : { lines: slide.lines ?? [], notes: slide.notes ?? [], shapes: slide.shapes ?? [], backgroundColor: slide.backgroundColor ?? null })
   const slidesWithNotes = normalizedSlides
     .map((slide, index) => ({ ...slide, index: index + 1 }))
     .filter((slide) => slide.notes.length > 0)
@@ -509,7 +509,7 @@ function createPptxFixture(slides) {
       name: `ppt/slides/slide${index + 1}.xml`,
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-  <p:cSld><p:spTree>
+  <p:cSld>${slide.backgroundColor ? `<p:bg><p:bgPr><a:solidFill><a:srgbClr val="${escapeXml(String(slide.backgroundColor).replace(/^#/, ''))}"/></a:solidFill></p:bgPr></p:bg>` : ''}<p:spTree>
     ${(slide.shapes.length > 0 ? slide.shapes : slide.lines.map((line, lineIndex) => ({
       text: [line],
       x: lineIndex === 0 ? 914400 : 1371600,
@@ -518,7 +518,9 @@ function createPptxFixture(slides) {
       cy: lineIndex === 0 ? 914400 : 685800
     }))).map((shape) => {
       const text = Array.isArray(shape.text) ? shape.text : [shape.text ?? '']
-      return `<p:sp><p:spPr><a:xfrm><a:off x="${shape.x}" y="${shape.y}"/><a:ext cx="${shape.cx}" cy="${shape.cy}"/></a:xfrm></p:spPr><p:txBody>${text.map((line) => `<a:p><a:r><a:t>${escapeXml(String(line))}</a:t></a:r></a:p>`).join('')}</p:txBody></p:sp>`
+      const fill = shape.fillColor ? `<a:solidFill><a:srgbClr val="${escapeXml(String(shape.fillColor).replace(/^#/, ''))}"/></a:solidFill>` : ''
+      const textFill = shape.textColor ? `<a:rPr><a:solidFill><a:srgbClr val="${escapeXml(String(shape.textColor).replace(/^#/, ''))}"/></a:solidFill></a:rPr>` : ''
+      return `<p:sp><p:spPr><a:xfrm><a:off x="${shape.x}" y="${shape.y}"/><a:ext cx="${shape.cx}" cy="${shape.cy}"/></a:xfrm>${fill}</p:spPr><p:txBody>${text.map((line) => `<a:p><a:r>${textFill}<a:t>${escapeXml(String(line))}</a:t></a:r></a:p>`).join('')}</p:txBody></p:sp>`
     }).join('\n    ')}
   </p:spTree></p:cSld>
 </p:sld>`
@@ -717,7 +719,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     ]
   }))
   writeFileSync(join(workspaceDir, 'slides-preview-smoke.pptx'), createPptxFixture([
-    { lines: ['Slides smoke baseline', 'First slide baseline'], notes: ['Baseline speaker note'] },
+    { lines: ['Slides smoke baseline', 'First slide baseline'], notes: ['Baseline speaker note'], backgroundColor: '#F4F8FF' },
     { lines: ['Second slide baseline', 'Follow-up content'], notes: ['Second baseline note'] }
   ]))
   writeFileSync(
@@ -831,7 +833,15 @@ if (fixtureWorkspaceViews.has(captureView)) {
       ]
     }))
     writeFileSync(join(workspaceDir, 'slides-preview-smoke.pptx'), createPptxFixture([
-      { lines: ['Slides smoke updated', 'First slide updated'], notes: ['Updated speaker note'] },
+      {
+        lines: ['Slides smoke updated', 'First slide updated'],
+        notes: ['Updated speaker note'],
+        backgroundColor: '#EEF6FF',
+        shapes: [
+          { text: ['Slides smoke updated'], x: 914400, y: 914400, cx: 10363200, cy: 914400, fillColor: '#D9EAFE', textColor: '#1D4ED8' },
+          { text: ['First slide updated'], x: 1371600, y: 2286000, cx: 9144000, cy: 685800, fillColor: '#DCFCE7', textColor: '#166534' }
+        ]
+      },
       { lines: ['Second slide updated', 'Follow-up content'], notes: ['Second updated note'] }
     ]))
     writeFileSync(
@@ -1556,6 +1566,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetRenderer: result.filesSpreadsheetRendererWorks === true,
           filesSlidesRenderer: result.filesSlidesRendererWorks === true,
           filesSlidesShapeLayout: result.filesSlidesShapeLayoutWorks === true,
+          filesSlidesColorFills: result.filesSlidesColorFillsWorks === true,
           filesSpreadsheetControls: result.filesSpreadsheetControlsWorks === true,
           filesSpreadsheetSheetTabs: result.filesSpreadsheetSheetTabsWorks === true,
           filesSpreadsheetActiveCell: result.filesSpreadsheetActiveCellWorks === true,
@@ -1759,6 +1770,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetRenderer: captureView !== 'inspector' || result.filesSpreadsheetRendererWorks === true,
         filesSlidesRenderer: captureView !== 'inspector' || result.filesSlidesRendererWorks === true,
         filesSlidesShapeLayout: captureView !== 'inspector' || result.filesSlidesShapeLayoutWorks === true,
+        filesSlidesColorFills: captureView !== 'inspector' || result.filesSlidesColorFillsWorks === true,
         filesSpreadsheetControls: captureView !== 'inspector' || result.filesSpreadsheetControlsWorks === true,
         filesSpreadsheetSheetTabs: captureView !== 'inspector' || result.filesSpreadsheetSheetTabsWorks === true,
         filesSpreadsheetActiveCell: captureView !== 'inspector' || result.filesSpreadsheetActiveCellWorks === true,

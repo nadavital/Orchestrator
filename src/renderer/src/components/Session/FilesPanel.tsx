@@ -936,7 +936,8 @@ interface SlidesPreviewPayload {
     title: string
     text: string[]
     notes?: string
-    shapes?: Array<{ text: string[]; x: number; y: number; width: number; height: number }>
+    backgroundColor?: string
+    shapes?: Array<{ text: string[]; x: number; y: number; width: number; height: number; fillColor?: string; textColor?: string }>
   }>
   truncated?: boolean
 }
@@ -1434,6 +1435,11 @@ function SlidesArtifactPreview({
   const notesCount = slides.filter((slide) => slide.notes?.trim()).length
   const currentSlideNotes = currentSlide?.notes?.trim() ?? ''
   const shapeCount = slides.reduce((count, slide) => count + (slide.shapes?.length ?? 0), 0)
+  const colorFillCount = slides.reduce((count, slide) => (
+    count +
+    (slide.backgroundColor ? 1 : 0) +
+    (slide.shapes?.filter((shape) => shape.fillColor || shape.textColor).length ?? 0)
+  ), 0)
   const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
   useEffect(() => {
     setCurrentSlideIndex((index) => Math.min(Math.max(index, 0), Math.max(0, slideCount - 1)))
@@ -1456,6 +1462,8 @@ function SlidesArtifactPreview({
       data-slides-preview-shape-count={shapeCount}
       data-slides-preview-current-shape-count={currentSlide?.shapes?.length ?? 0}
       data-slides-preview-stage-renderer={shapeCount > 0 ? 'positioned-shapes' : 'text-outline'}
+      data-slides-preview-color-fill-count={colorFillCount}
+      data-slides-preview-current-background-color={currentSlide?.backgroundColor ?? ''}
     >
       <ArtifactPreviewHeader
         artifactType="PPTX"
@@ -1560,22 +1568,32 @@ function SlidesArtifactPreview({
                   data-slide-index={currentSlide.index}
                   data-slides-stage-renderer={(currentSlide.shapes?.length ?? 0) > 0 ? 'positioned-shapes' : 'text-outline'}
                   data-slides-shape-count={currentSlide.shapes?.length ?? 0}
+                  data-slides-background-color={currentSlide.backgroundColor ?? ''}
                   style={{ fontSize: `${Math.max(10, Math.min(18, 13 * (effectiveZoomPercent / 100)))}px` }}
                 >
                   <div className="workspace-slide-preview-number">{currentSlide.index}</div>
                   {(currentSlide.shapes?.length ?? 0) > 0 ? (
-                    <div className="workspace-slide-positioned-canvas" data-testid="workspace-slides-preview-shape-canvas">
+                    <div
+                      className="workspace-slide-positioned-canvas"
+                      data-testid="workspace-slides-preview-shape-canvas"
+                      data-slides-canvas-background-color={currentSlide.backgroundColor ?? ''}
+                      style={currentSlide.backgroundColor ? { backgroundColor: currentSlide.backgroundColor } : undefined}
+                    >
                       {currentSlide.shapes?.map((shape, index) => (
                         <div
                           key={index}
                           className="workspace-slide-positioned-shape"
                           data-testid="workspace-slides-preview-shape"
                           data-slide-shape-index={index + 1}
+                          data-slide-shape-fill-color={shape.fillColor ?? ''}
+                          data-slide-shape-text-color={shape.textColor ?? ''}
                           style={{
                             left: `${shape.x}%`,
                             top: `${shape.y}%`,
                             width: `${shape.width}%`,
-                            height: `${shape.height}%`
+                            height: `${shape.height}%`,
+                            ...(shape.fillColor ? { backgroundColor: shape.fillColor } : {}),
+                            ...(shape.textColor ? { color: shape.textColor } : {})
                           }}
                         >
                           {shape.text.map((line, lineIndex) => (
@@ -1704,6 +1722,7 @@ function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | nu
         title: slide.title,
         text: slide.text.map((line) => String(line)),
         notes: typeof slide.notes === 'string' ? slide.notes : '',
+        backgroundColor: normalizeHexColor(slide.backgroundColor),
         shapes: Array.isArray(slide.shapes)
           ? slide.shapes
             .map((shape) => ({
@@ -1711,7 +1730,9 @@ function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | nu
               x: clampPercent(Number(shape?.x ?? 0)),
               y: clampPercent(Number(shape?.y ?? 0)),
               width: clampPercent(Number(shape?.width ?? 0), 1),
-              height: clampPercent(Number(shape?.height ?? 0), 1)
+              height: clampPercent(Number(shape?.height ?? 0), 1),
+              fillColor: normalizeHexColor(shape?.fillColor),
+              textColor: normalizeHexColor(shape?.textColor)
             }))
             .filter((shape) => shape.text.length > 0 && shape.width > 0 && shape.height > 0)
           : []
@@ -1724,6 +1745,11 @@ function parseSlidesPreview(text: string | undefined): SlidesPreviewPayload | nu
   } catch {
     return null
   }
+}
+
+function normalizeHexColor(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  return /^#[0-9A-Fa-f]{6}$/.test(value) ? value.toUpperCase() : undefined
 }
 
 function clampPercent(value: number, minimum = 0): number {

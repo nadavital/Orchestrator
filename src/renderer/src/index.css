@@ -4993,6 +4993,8 @@
     color: #111111;
     line-height: 1.25;
     overflow-wrap: anywhere;
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    border-radius: 3px;
     padding: 4px 6px;
   }
 

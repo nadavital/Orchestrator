@@ -11149,6 +11149,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const slidesRendererChecks = {};
               const slidesControlChecks = {};
               const slidesShapeLayoutChecks = {};
+              const slidesColorFillChecks = {};
               const slidesNotesChecks = {};
               const slidesThumbnailRailChecks = {};
               const previewTargets = [
@@ -11959,6 +11960,23 @@ function runAutomatedFocusedSurfaceSmoke(
                       positionedShapes[0].textContent?.includes('Slides smoke updated') === true &&
                       positionedShapes[0].style.left !== '' &&
                       positionedShapes[0].style.top !== '';
+                    slidesColorFillChecks[testId] =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-color-fill-count') === '3' &&
+                      slidesPreview.getAttribute('data-slides-preview-current-background-color') === '#EEF6FF' &&
+                      currentSlide instanceof HTMLElement &&
+                      currentSlide.getAttribute('data-slides-background-color') === '#EEF6FF' &&
+                      shapeCanvas instanceof HTMLElement &&
+                      shapeCanvas.getAttribute('data-slides-canvas-background-color') === '#EEF6FF' &&
+                      window.getComputedStyle(shapeCanvas).backgroundColor === 'rgb(238, 246, 255)' &&
+                      positionedShapes[0] instanceof HTMLElement &&
+                      positionedShapes[0].getAttribute('data-slide-shape-fill-color') === '#D9EAFE' &&
+                      positionedShapes[0].getAttribute('data-slide-shape-text-color') === '#1D4ED8' &&
+                      window.getComputedStyle(positionedShapes[0]).backgroundColor === 'rgb(217, 234, 254)' &&
+                      window.getComputedStyle(positionedShapes[0]).color === 'rgb(29, 78, 216)' &&
+                      positionedShapes[1] instanceof HTMLElement &&
+                      positionedShapes[1].getAttribute('data-slide-shape-fill-color') === '#DCFCE7' &&
+                      positionedShapes[1].getAttribute('data-slide-shape-text-color') === '#166534';
                     const initialSlidesControls =
                       slidesPreview instanceof HTMLElement &&
                       slidesPreview.getAttribute('data-slides-preview-zoom-percent') === '100' &&
@@ -13107,6 +13125,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSlidesShapeLayoutWorks: Boolean(slidesShapeLayoutChecks['workspace-slides-preview']),
+                filesSlidesColorFillsWorks: Boolean(slidesColorFillChecks['workspace-slides-preview']),
                 filesSpreadsheetControlsWorks: Boolean(spreadsheetControlChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetSheetTabsWorks: Boolean(spreadsheetSheetTabChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetActiveCellWorks: Boolean(spreadsheetActiveCellChecks['workspace-spreadsheet-preview']),

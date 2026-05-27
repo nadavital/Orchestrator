@@ -66,6 +66,8 @@ interface SlidePreviewShape {
   y: number
   width: number
   height: number
+  fillColor?: string
+  textColor?: string
 }
 
 interface DocumentPreviewParagraphBlock {
@@ -407,13 +409,13 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
   return sheets.length > 0 ? { sheets, truncated } : null
 }
 
-function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number; title: string; text: string[]; notes: string; shapes: SlidePreviewShape[] }>; truncated: boolean } | null {
+function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number; title: string; text: string[]; notes: string; shapes: SlidePreviewShape[]; backgroundColor?: string }>; truncated: boolean } | null {
   const entries = listZipEntries(archive)
   const slideNames = entries
     .map((entry) => entry.name)
     .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
     .sort(naturalCompare)
-  const slides: Array<{ index: number; title: string; text: string[]; notes: string; shapes: SlidePreviewShape[] }> = []
+  const slides: Array<{ index: number; title: string; text: string[]; notes: string; shapes: SlidePreviewShape[]; backgroundColor?: string }> = []
   let truncated = slideNames.length > 12
   for (const [index, name] of slideNames.slice(0, 12).entries()) {
     const xml = readZipEntry(archive, name)?.toString('utf8') ?? ''
@@ -428,10 +430,16 @@ function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number;
       title: text[0] ?? `Slide ${index + 1}`,
       text: text.slice(1, 12),
       notes: extractSlideNotes(archive, name, index + 1),
-      shapes
+      shapes,
+      backgroundColor: extractSlideBackgroundColor(xml)
     })
   }
   return slides.length > 0 ? { slides, truncated } : null
+}
+
+function extractSlideBackgroundColor(xml: string): string | undefined {
+  const backgroundXml = /<p:bg\b[\s\S]*?<\/p:bg>/.exec(xml)?.[0] ?? ''
+  return backgroundXml ? extractSolidFillColor(backgroundXml) : undefined
 }
 
 function extractSlideShapes(xml: string): SlidePreviewShape[] {
@@ -457,9 +465,46 @@ function extractSlideShapes(xml: string): SlidePreviewShape[] {
         x: Math.max(0, Math.min(100, ((x ?? 0) / 12_192_000) * 100)),
         y: Math.max(0, Math.min(100, ((y ?? 0) / 6_858_000) * 100)),
         width: Math.max(1, Math.min(100, ((width ?? 0) / 12_192_000) * 100)),
-        height: Math.max(1, Math.min(100, ((height ?? 0) / 6_858_000) * 100))
+        height: Math.max(1, Math.min(100, ((height ?? 0) / 6_858_000) * 100)),
+        fillColor: extractShapeFillColor(shapeXml),
+        textColor: extractTextFillColor(shapeXml)
       }]
     })
+}
+
+function extractShapeFillColor(xml: string): string | undefined {
+  const shapeProperties = /<p:spPr\b[\s\S]*?<\/p:spPr>/.exec(xml)?.[0] ?? ''
+  return shapeProperties ? extractSolidFillColor(shapeProperties) : undefined
+}
+
+function extractTextFillColor(xml: string): string | undefined {
+  const runProperties = /<a:rPr\b[\s\S]*?<\/a:rPr>/.exec(xml)?.[0] ?? ''
+  return runProperties ? extractSolidFillColor(runProperties) : undefined
+}
+
+function extractSolidFillColor(xml: string): string | undefined {
+  const solidFill = /<a:solidFill\b[\s\S]*?<\/a:solidFill>/.exec(xml)?.[0] ?? ''
+  const srgb = /\ba:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/.exec(solidFill)?.[1]
+  if (srgb) return `#${srgb.toUpperCase()}`
+  const scheme = /\ba:schemeClr\b[^>]*\bval="([^"]+)"/.exec(solidFill)?.[1]
+  if (!scheme) return undefined
+  return schemeColorFallback(scheme)
+}
+
+function schemeColorFallback(value: string): string | undefined {
+  const colors: Record<string, string> = {
+    accent1: '#4472C4',
+    accent2: '#ED7D31',
+    accent3: '#A5A5A5',
+    accent4: '#FFC000',
+    accent5: '#5B9BD5',
+    accent6: '#70AD47',
+    bg1: '#FFFFFF',
+    bg2: '#000000',
+    tx1: '#000000',
+    tx2: '#FFFFFF'
+  }
+  return colors[value]
 }
 
 function numberAttribute(attributes: string, name: string): number | null {
