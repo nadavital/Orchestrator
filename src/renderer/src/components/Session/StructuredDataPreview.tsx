@@ -44,6 +44,7 @@ type DocumentPreviewBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'table'; rows: string[][] }
   | { type: 'image'; dataUrl: string; mimeType: string; alt?: string; width?: number; height?: number }
+  | { type: 'shape'; text: string; geometry?: string; fillColor?: string; lineColor?: string }
 
 export default function StructuredDataPreview({ name, preview, testId, statusLabel, actions }: Props): JSX.Element {
   if (preview.kind === 'document') {
@@ -99,6 +100,7 @@ function DocumentPreview({
   const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
   const tableCount = preview.document?.tableCount ?? documentBlocks.filter((block) => block.type === 'table').length
   const imageCount = preview.document?.imageCount ?? documentBlocks.filter((block) => block.type === 'image').length
+  const shapeCount = preview.document?.shapeCount ?? documentBlocks.filter((block) => block.type === 'shape').length
   const headerText = typeof preview.document?.headerText === 'string' ? preview.document.headerText.trim() : ''
   const footerText = typeof preview.document?.footerText === 'string' ? preview.document.footerText.trim() : ''
   const sectionCount = Math.max(0, Math.floor(Number(preview.document?.sectionCount ?? 0)))
@@ -131,6 +133,7 @@ function DocumentPreview({
       data-document-preview-block-count={documentBlocks.length}
       data-document-preview-table-count={tableCount}
       data-document-preview-image-count={imageCount}
+      data-document-preview-shape-count={shapeCount}
       data-document-preview-header-text={headerText}
       data-document-preview-footer-text={footerText}
       data-document-preview-section-count={sectionCount}
@@ -215,6 +218,7 @@ function DocumentPreview({
         <span>{paragraphs.length.toLocaleString()} paragraphs</span>
         {tableCount > 0 && <span>{tableCount.toLocaleString()} {tableCount === 1 ? 'table' : 'tables'}</span>}
         {imageCount > 0 && <span>{imageCount.toLocaleString()} {imageCount === 1 ? 'image' : 'images'}</span>}
+        {shapeCount > 0 && <span>{shapeCount.toLocaleString()} {shapeCount === 1 ? 'shape' : 'shapes'}</span>}
         {sectionCount > 0 && <span>{sectionCount.toLocaleString()} {sectionCount === 1 ? 'section' : 'sections'}</span>}
         {columnCount > 1 && <span>{columnCount.toLocaleString()} columns</span>}
         <span>{pageCount.toLocaleString()} pages</span>
@@ -289,7 +293,24 @@ function DocumentPreview({
                           {block.alt && <figcaption>{block.alt}</figcaption>}
                         </figure>
                       )
-                    : <p key={`paragraph-${index}`}>{block.text}</p>
+                    : block.type === 'shape'
+                      ? (
+                          <aside
+                            key={`shape-${index}`}
+                            className="document-preview-shape-block"
+                            data-testid={`${testId}-shape`}
+                            data-document-shape-geometry={block.geometry ?? ''}
+                            data-document-shape-fill-color={block.fillColor ?? ''}
+                            data-document-shape-line-color={block.lineColor ?? ''}
+                            style={{
+                              '--document-shape-fill-color': block.fillColor ?? undefined,
+                              '--document-shape-line-color': block.lineColor ?? undefined
+                            } as CSSProperties}
+                          >
+                            <span>{block.text}</span>
+                          </aside>
+                        )
+                      : <p key={`paragraph-${index}`}>{block.text}</p>
               ))}
             </div>
             {footerText && (
@@ -330,6 +351,15 @@ function normalizeDocumentBlocks(blocks: DocumentPreviewBlock[] | undefined, par
             alt: String(block.alt ?? '').trim() || undefined,
             width: normalizeDocumentImageDimension(block.width),
             height: normalizeDocumentImageDimension(block.height)
+          }
+        }
+        if (block.type === 'shape') {
+          return {
+            type: 'shape' as const,
+            text: String(block.text ?? '').trim(),
+            geometry: normalizeDocumentShapeToken(block.geometry),
+            fillColor: normalizeDocumentColor(block.fillColor),
+            lineColor: normalizeDocumentColor(block.lineColor)
           }
         }
         return { type: 'paragraph' as const, text: String(block.text ?? '').trim() }
@@ -375,6 +405,16 @@ function normalizeDocumentImageMimeType(value: unknown): string {
 function normalizeDocumentImageDimension(value: unknown): number | undefined {
   const number = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(number) && number > 0 ? Math.max(24, Math.min(720, Math.round(number))) : undefined
+}
+
+function normalizeDocumentShapeToken(value: unknown): string | undefined {
+  const text = String(value ?? '').trim()
+  return /^[a-zA-Z0-9_-]{1,48}$/.test(text) ? text : undefined
+}
+
+function normalizeDocumentColor(value: unknown): string | undefined {
+  const text = String(value ?? '').trim()
+  return /^#[0-9A-Fa-f]{6}$/.test(text) ? text.toUpperCase() : undefined
 }
 
 function NotebookPreview({

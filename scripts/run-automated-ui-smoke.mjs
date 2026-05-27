@@ -372,6 +372,26 @@ function createDocxFixture(blocks, options = {}) {
         </a:graphicData></a:graphic>
       </wp:inline></w:drawing></w:r></w:p>`
     }
+    if (block && typeof block === 'object' && block.shapeText) {
+      const shapeText = escapeXml(String(block.shapeText))
+      const geometry = escapeXml(String(block.geometry ?? 'roundRect'))
+      const fillColor = escapeXml(String(block.fillColor ?? 'E0F2FE').replace(/^#/, '').toUpperCase())
+      const lineColor = escapeXml(String(block.lineColor ?? '38BDF8').replace(/^#/, '').toUpperCase())
+      return `<w:p><w:r><w:drawing><wp:inline>
+        <wp:extent cx="2667000" cy="1600200"/>
+        <wp:docPr id="42" name="Shape 1" descr="${shapeText}"/>
+        <a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+          <wps:wsp>
+            <wps:spPr>
+              <a:prstGeom prst="${geometry}"><a:avLst/></a:prstGeom>
+              <a:solidFill><a:srgbClr val="${fillColor}"/></a:solidFill>
+              <a:ln><a:solidFill><a:srgbClr val="${lineColor}"/></a:solidFill></a:ln>
+            </wps:spPr>
+            <wps:txbx><w:txbxContent><w:p><w:r><w:t>${shapeText}</w:t></w:r></w:p></w:txbxContent></wps:txbx>
+          </wps:wsp>
+        </a:graphicData></a:graphic>
+      </wp:inline></w:drawing></w:r></w:p>`
+    }
     return `<w:p><w:r><w:t>${escapeXml(String(block))}</w:t></w:r></w:p>`
   }).join('\n    ')
   const headerText = String(options.headerText ?? '').trim()
@@ -381,7 +401,7 @@ function createDocxFixture(blocks, options = {}) {
     ? `<w:sectPr>${headerText ? '<w:headerReference w:type="default" r:id="rHeader1"/>' : ''}${footerText ? '<w:footerReference w:type="default" r:id="rFooter1"/>' : ''}${columnCount > 1 ? `<w:cols w:num="${columnCount}"/>` : ''}</w:sectPr>`
     : ''
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
   <w:body>
     ${blockXml}
     ${sectionXml}
@@ -1022,7 +1042,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     { rows: [['Metric', 'Value'], ['Rows', '2'], ['Status', 'Baseline table']] },
     'Document smoke baseline section alpha',
     'Document smoke baseline section beta',
-    'Document smoke baseline section gamma',
+    { shapeText: 'Document smoke shape baseline', geometry: 'roundRect', fillColor: '#E0F2FE', lineColor: '#38BDF8' },
     'Document smoke baseline section delta',
     'Document smoke baseline appendix',
     'Document smoke baseline closing note'
@@ -1149,7 +1169,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
     { imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mNkYPj/HwADAgH/akqSVAAAAABJRU5ErkJggg==', alt: 'Document smoke embedded image', cx: 914400, cy: 914400 },
     'Document smoke section alpha',
     'Document smoke section beta',
-    'Document smoke section gamma',
+    { shapeText: 'Document smoke shape callout', geometry: 'roundRect', fillColor: '#E0F2FE', lineColor: '#38BDF8' },
       'Document smoke section delta',
       'Document smoke appendix',
       'Document smoke closing note'
@@ -1924,6 +1944,7 @@ child.on('exit', async (code) => {
           filesDocumentImageRendering: result.filesDocumentImageRenderingWorks === true,
           filesDocumentSectionMetadata: result.filesDocumentSectionMetadataWorks === true,
           filesDocumentColumnLayout: result.filesDocumentColumnLayoutWorks === true,
+          filesDocumentShapeRendering: result.filesDocumentShapeRenderingWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
           filesSpreadsheetRenderer: result.filesSpreadsheetRendererWorks === true,
@@ -2143,6 +2164,7 @@ child.on('exit', async (code) => {
         filesDocumentImageRendering: captureView !== 'inspector' || result.filesDocumentImageRenderingWorks === true,
         filesDocumentSectionMetadata: captureView !== 'inspector' || result.filesDocumentSectionMetadataWorks === true,
         filesDocumentColumnLayout: captureView !== 'inspector' || result.filesDocumentColumnLayoutWorks === true,
+        filesDocumentShapeRendering: captureView !== 'inspector' || result.filesDocumentShapeRenderingWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,
         filesSpreadsheetRenderer: captureView !== 'inspector' || result.filesSpreadsheetRendererWorks === true,

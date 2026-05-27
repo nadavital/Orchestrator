@@ -11141,6 +11141,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentImageChecks = {};
               const documentSectionChecks = {};
               const documentColumnLayoutChecks = {};
+              const documentShapeChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
               const spreadsheetSheetTabChecks = {};
@@ -11593,6 +11594,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const advancedPreviousPage = document.querySelector('[data-testid="workspace-document-preview-page-previous"]');
                     const advancedNextPage = document.querySelector('[data-testid="workspace-document-preview-page-next"]');
                     const advancedPageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
+                    const documentShapes = [...document.querySelectorAll('[data-testid="workspace-document-preview-shape"]')];
                     const pageNavigationWorks =
                       advancedPreview instanceof HTMLElement &&
                       advancedPreview.getAttribute('data-document-preview-page-count') === '2' &&
@@ -11608,6 +11610,20 @@ function runAutomatedFocusedSurfaceSmoke(
                       advancedPageBody instanceof HTMLElement &&
                       advancedPageBody.getAttribute('data-document-page-number') === '2' &&
                       advancedPageBody.textContent?.includes('Document smoke appendix') === true;
+                    const shapeStyle = documentShapes[0] instanceof HTMLElement ? getComputedStyle(documentShapes[0]) : null;
+                    documentShapeChecks[testId] =
+                      advancedPreview instanceof HTMLElement &&
+                      advancedPreview.getAttribute('data-document-preview-shape-count') === '1' &&
+                      advancedPageBody instanceof HTMLElement &&
+                      advancedPageBody.classList.contains('codex-docx-preview') &&
+                      documentShapes.length === 1 &&
+                      documentShapes[0] instanceof HTMLElement &&
+                      documentShapes[0].getAttribute('data-document-shape-geometry') === 'roundRect' &&
+                      documentShapes[0].getAttribute('data-document-shape-fill-color') === '#E0F2FE' &&
+                      documentShapes[0].getAttribute('data-document-shape-line-color') === '#38BDF8' &&
+                      documentShapes[0].textContent?.includes('Document smoke shape callout') === true &&
+                      shapeStyle !== null &&
+                      Number.parseFloat(shapeStyle.borderRadius) >= 8;
                     const advancedZoomIn = document.querySelector('[data-testid="workspace-document-preview-zoom-in"]');
                     if (advancedZoomIn instanceof HTMLButtonElement) {
                       advancedZoomIn.click();
@@ -13352,6 +13368,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesDocumentImageRenderingWorks: Boolean(documentImageChecks['workspace-document-preview']),
                 filesDocumentSectionMetadataWorks: Boolean(documentSectionChecks['workspace-document-preview']),
                 filesDocumentColumnLayoutWorks: Boolean(documentColumnLayoutChecks['workspace-document-preview']),
+                filesDocumentShapeRenderingWorks: Boolean(documentShapeChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
                 filesSlidesShapeLayoutWorks: Boolean(slidesShapeLayoutChecks['workspace-slides-preview']),

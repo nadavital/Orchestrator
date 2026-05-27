@@ -172,12 +172,21 @@ interface DocumentPreviewImageBlock {
   height?: number
 }
 
-type DocumentPreviewBlock = DocumentPreviewParagraphBlock | DocumentPreviewTableBlock | DocumentPreviewImageBlock
+interface DocumentPreviewShapeBlock {
+  type: 'shape'
+  text: string
+  geometry?: string
+  fillColor?: string
+  lineColor?: string
+}
+
+type DocumentPreviewBlock = DocumentPreviewParagraphBlock | DocumentPreviewTableBlock | DocumentPreviewImageBlock | DocumentPreviewShapeBlock
 
 interface DocumentPreviewPayload {
   blocks: DocumentPreviewBlock[]
   tableCount: number
   imageCount: number
+  shapeCount?: number
   headerText?: string
   footerText?: string
   sectionCount?: number
@@ -445,8 +454,10 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
   const blocks: DocumentPreviewBlock[] = []
   let tableCount = 0
   let imageCount = 0
+  let shapeCount = 0
   const relationships = extractZipRelationships(archive, 'word/document.xml')
   const sections = extractDocxSections(body, archive, relationships)
+  const shapeBlocks = extractDocxShapeBlocks(body)
   for (const match of body.matchAll(/<w:(p|tbl)\b[\s\S]*?<\/w:\1>/g)) {
     const tag = match[1]
     const blockXml = match[0] ?? ''
@@ -458,6 +469,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
       }
       continue
     }
+    if (blockXml.includes('<wps:wsp')) continue
     const text = extractDocxParagraphText(blockXml)
     if (text) blocks.push({ type: 'paragraph', text })
     const imageBlocks = extractDocxImageBlocks(blockXml, archive, relationships)
@@ -465,6 +477,10 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
       blocks.push(...imageBlocks)
       imageCount += imageBlocks.length
     }
+  }
+  if (shapeBlocks.length > 0) {
+    blocks.push(...shapeBlocks)
+    shapeCount += shapeBlocks.length
   }
   if (blocks.length === 0) {
     const text = extractDocxParagraphText(xml)
@@ -474,6 +490,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     blocks: blocks.slice(0, 80),
     tableCount,
     imageCount,
+    ...(shapeCount > 0 ? { shapeCount } : {}),
     ...sections
   }
 }
@@ -551,6 +568,29 @@ function extractDocxImageBlocks(xml: string, archive: Buffer, relationships: Map
         height: height ? Math.max(24, Math.round(height / 9_525)) : undefined
       }]
     })
+}
+
+function extractDocxShapeBlocks(xml: string): DocumentPreviewShapeBlock[] {
+  return [...xml.matchAll(/<wps:wsp\b[\s\S]*?<\/wps:wsp>/g)]
+    .slice(0, 8)
+    .map((match) => {
+      const shapeXml = match[0] ?? ''
+      const text = extractDocxParagraphText(shapeXml)
+      if (!text) return null
+      const geometry = /<a:prstGeom\b[^>]*\bprst="([^"]+)"/.exec(shapeXml)?.[1]
+      const shapeProperties = /<wps:spPr\b[\s\S]*?<\/wps:spPr>/.exec(shapeXml)?.[0] ?? shapeXml
+      const lineProperties = /<a:ln\b[\s\S]*?<\/a:ln>/.exec(shapeXml)?.[0] ?? ''
+      const fillColor = extractSolidFillColor(shapeProperties)
+      const lineColor = extractSolidFillColor(lineProperties)
+      return {
+        type: 'shape' as const,
+        text,
+        ...(geometry ? { geometry } : {}),
+        ...(fillColor ? { fillColor } : {}),
+        ...(lineColor ? { lineColor } : {})
+      }
+    })
+    .filter((block): block is DocumentPreviewShapeBlock => block !== null)
 }
 
 function docxImageAlt(attributes: string): string | undefined {

@@ -5893,6 +5893,26 @@
     overflow-wrap: anywhere;
   }
 
+  .document-preview-shape-block {
+    display: flex;
+    min-height: 86px;
+    margin: 16px 0;
+    border: 1px solid var(--document-shape-line-color, var(--border-subtle));
+    border-radius: 10px;
+    background: var(--document-shape-fill-color, color-mix(in srgb, var(--control-bg) 72%, var(--surface-bg)));
+    color: var(--text-primary);
+    align-items: center;
+    justify-content: center;
+    padding: 14px 16px;
+    text-align: center;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .document-preview-shape-block span {
+    max-width: 100%;
+  }
+
   .document-preview-empty {
     color: var(--text-tertiary);
   }
