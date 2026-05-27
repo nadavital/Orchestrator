@@ -67,6 +67,8 @@ interface FilePreviewResult {
     shapeCount?: number
     footnotes?: Array<{ id: string; text: string }>
     footnoteCount?: number
+    comments?: Array<{ id: string; text: string; author?: string }>
+    commentCount?: number
     headerText?: string
     footerText?: string
     sectionCount?: number

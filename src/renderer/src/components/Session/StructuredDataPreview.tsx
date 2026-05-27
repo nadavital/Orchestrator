@@ -103,6 +103,8 @@ function DocumentPreview({
   const shapeCount = preview.document?.shapeCount ?? documentBlocks.filter((block) => block.type === 'shape').length
   const footnotes = normalizeDocumentFootnotes(preview.document?.footnotes)
   const footnoteCount = preview.document?.footnoteCount ?? footnotes.length
+  const comments = normalizeDocumentComments(preview.document?.comments)
+  const commentCount = preview.document?.commentCount ?? comments.length
   const headerText = typeof preview.document?.headerText === 'string' ? preview.document.headerText.trim() : ''
   const footerText = typeof preview.document?.footerText === 'string' ? preview.document.footerText.trim() : ''
   const sectionCount = Math.max(0, Math.floor(Number(preview.document?.sectionCount ?? 0)))
@@ -137,6 +139,7 @@ function DocumentPreview({
       data-document-preview-image-count={imageCount}
       data-document-preview-shape-count={shapeCount}
       data-document-preview-footnote-count={footnoteCount}
+      data-document-preview-comment-count={commentCount}
       data-document-preview-header-text={headerText}
       data-document-preview-footer-text={footerText}
       data-document-preview-section-count={sectionCount}
@@ -223,6 +226,7 @@ function DocumentPreview({
         {imageCount > 0 && <span>{imageCount.toLocaleString()} {imageCount === 1 ? 'image' : 'images'}</span>}
         {shapeCount > 0 && <span>{shapeCount.toLocaleString()} {shapeCount === 1 ? 'shape' : 'shapes'}</span>}
         {footnoteCount > 0 && <span>{footnoteCount.toLocaleString()} {footnoteCount === 1 ? 'footnote' : 'footnotes'}</span>}
+        {commentCount > 0 && <span>{commentCount.toLocaleString()} {commentCount === 1 ? 'comment' : 'comments'}</span>}
         {sectionCount > 0 && <span>{sectionCount.toLocaleString()} {sectionCount === 1 ? 'section' : 'sections'}</span>}
         {columnCount > 1 && <span>{columnCount.toLocaleString()} columns</span>}
         <span>{pageCount.toLocaleString()} pages</span>
@@ -350,6 +354,25 @@ function DocumentPreview({
                 ))}
               </aside>
             )}
+            {comments.length > 0 && (
+              <aside
+                className="document-preview-comments"
+                data-testid={`${testId}-comments`}
+                data-document-comment-count={comments.length}
+              >
+                {comments.map((comment) => (
+                  <p
+                    key={comment.id}
+                    data-testid={`${testId}-comment`}
+                    data-document-comment-id={comment.id}
+                    data-document-comment-author={comment.author ?? ''}
+                  >
+                    <span className="document-preview-comment-marker">{comment.id}</span>
+                    <span>{comment.author ? `${comment.author}: ${comment.text}` : comment.text}</span>
+                  </p>
+                ))}
+              </aside>
+            )}
             {footerText && (
               <div
                 className="document-preview-page-footer"
@@ -471,6 +494,19 @@ function normalizeDocumentFootnotes(value: unknown): Array<{ id: string; text: s
       return id && text ? { id, text } : null
     })
     .filter((footnote): footnote is { id: string; text: string } => footnote !== null)
+}
+
+function normalizeDocumentComments(value: unknown): Array<{ id: string; text: string; author?: string }> {
+  if (!Array.isArray(value)) return []
+  return value
+    .slice(0, 12)
+    .map((comment) => {
+      const id = String((comment as { id?: unknown }).id ?? '').trim()
+      const text = String((comment as { text?: unknown }).text ?? '').trim()
+      const author = String((comment as { author?: unknown }).author ?? '').trim()
+      return id && text ? { id, text, ...(author ? { author } : {}) } : null
+    })
+    .filter((comment): comment is { id: string; text: string; author?: string } => comment !== null)
 }
 
 function NotebookPreview({

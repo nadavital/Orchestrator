@@ -188,6 +188,12 @@ interface DocumentPreviewFootnote {
   text: string
 }
 
+interface DocumentPreviewComment {
+  id: string
+  text: string
+  author?: string
+}
+
 type DocumentPreviewBlock = DocumentPreviewParagraphBlock | DocumentPreviewTableBlock | DocumentPreviewImageBlock | DocumentPreviewShapeBlock
 
 interface DocumentPreviewPayload {
@@ -197,6 +203,8 @@ interface DocumentPreviewPayload {
   shapeCount?: number
   footnotes?: DocumentPreviewFootnote[]
   footnoteCount?: number
+  comments?: DocumentPreviewComment[]
+  commentCount?: number
   headerText?: string
   footerText?: string
   sectionCount?: number
@@ -470,6 +478,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
   const sections = extractDocxSections(body, archive, relationships)
   const shapeBlocks = extractDocxShapeBlocks(body)
   const footnotes = extractDocxFootnotes(body, archive)
+  const comments = extractDocxComments(body, archive)
   for (const match of body.matchAll(/<w:(p|tbl)\b[\s\S]*?<\/w:\1>/g)) {
     const tag = match[1]
     const blockXml = match[0] ?? ''
@@ -504,6 +513,7 @@ function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayloa
     imageCount,
     ...(shapeCount > 0 ? { shapeCount } : {}),
     ...(footnotes.length > 0 ? { footnotes, footnoteCount: footnotes.length } : {}),
+    ...(comments.length > 0 ? { comments, commentCount: comments.length } : {}),
     ...sections
   }
 }
@@ -607,10 +617,11 @@ function extractDocxParagraphList(xml: string, numbering: Map<string, DocxNumber
 }
 
 function extractDocxParagraphText(xml: string): string {
-  const parts = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:footnoteReference\b[^>]*\bw:id="([^"]+)"[^>]*(?:\/>|><\/w:footnoteReference>)|<w:tab\s*\/>|<w:br\s*\/>/g)]
+  const parts = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:footnoteReference\b[^>]*\bw:id="([^"]+)"[^>]*(?:\/>|><\/w:footnoteReference>)|<w:commentReference\b[^>]*\bw:id="([^"]+)"[^>]*(?:\/>|><\/w:commentReference>)|<w:tab\s*\/>|<w:br\s*\/>/g)]
   return parts.map((match) => {
     if (match[1] !== undefined) return decodeXmlText(match[1] ?? '')
     if (match[2] !== undefined) return `[${match[2] ?? ''}]`
+    if (match[3] !== undefined) return `[comment ${match[3] ?? ''}]`
     return match[0].startsWith('<w:tab') ? '\t' : '\n'
   }).join('').trim()
 }
@@ -630,6 +641,24 @@ function extractDocxFootnotes(xml: string, archive: Buffer): DocumentPreviewFoot
       return text ? { id, text } : null
     })
     .filter((footnote): footnote is DocumentPreviewFootnote => footnote !== null)
+}
+
+function extractDocxComments(xml: string, archive: Buffer): DocumentPreviewComment[] {
+  const referenceIds = [...new Set([...xml.matchAll(/<w:commentReference\b[^>]*\bw:id="([^"]+)"/g)]
+    .map((match) => match[1] ?? '')
+    .filter(Boolean))]
+  if (referenceIds.length === 0) return []
+  const commentsXml = readZipEntry(archive, 'word/comments.xml')?.toString('utf8') ?? ''
+  if (!commentsXml) return []
+  return referenceIds
+    .slice(0, 12)
+    .map((id) => {
+      const commentXml = new RegExp(`<w:comment\\b[^>]*\\bw:id="${escapeRegExp(id)}"[\\s\\S]*?<\\/w:comment>`).exec(commentsXml)?.[0] ?? ''
+      const author = commentXml ? decodeXmlText(/\bw:author="([^"]*)"/.exec(commentXml)?.[1] ?? '').trim() : ''
+      const text = commentXml ? extractDocxParagraphText(commentXml) : ''
+      return text ? { id, text, ...(author ? { author } : {}) } : null
+    })
+    .filter((comment): comment is DocumentPreviewComment => comment !== null)
 }
 
 function escapeRegExp(value: string): string {

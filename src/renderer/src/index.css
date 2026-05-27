@@ -5953,6 +5953,32 @@
     line-height: 1.4;
   }
 
+  .document-preview-comments {
+    margin-top: 14px;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 10px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .document-preview-comments p {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 6px;
+    margin: 0;
+  }
+
+  .document-preview-comments p + p {
+    margin-top: 6px;
+  }
+
+  .document-preview-comment-marker {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
   .document-preview-empty {
     color: var(--text-tertiary);
   }

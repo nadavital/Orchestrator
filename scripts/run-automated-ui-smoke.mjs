@@ -356,6 +356,9 @@ function createDocxFixture(blocks, options = {}) {
   const footnoteBlocks = blocks
     .filter((block) => block && typeof block === 'object' && block.footnoteText)
     .map((block, index) => ({ block, id: String(index + 2) }))
+  const commentBlocks = blocks
+    .filter((block) => block && typeof block === 'object' && block.commentText)
+    .map((block, index) => ({ block, id: String(index + 1) }))
   const listBlocks = blocks
     .filter((block) => block && typeof block === 'object' && block.listKind)
   const blockXml = blocks.map((block) => {
@@ -401,6 +404,11 @@ function createDocxFixture(blocks, options = {}) {
       const footnote = footnoteBlocks.find((item) => item.block === block)
       const id = footnote?.id ?? '2'
       return `<w:p><w:r><w:t>${escapeXml(String(block.text ?? 'Document footnote reference'))}</w:t></w:r><w:r><w:footnoteReference w:id="${id}"/></w:r></w:p>`
+    }
+    if (block && typeof block === 'object' && block.commentText) {
+      const comment = commentBlocks.find((item) => item.block === block)
+      const id = comment?.id ?? '1'
+      return `<w:p><w:commentRangeStart w:id="${id}"/><w:r><w:t>${escapeXml(String(block.text ?? 'Document comment reference'))}</w:t></w:r><w:commentRangeEnd w:id="${id}"/><w:r><w:commentReference w:id="${id}"/></w:r></w:p>`
     }
     if (block && typeof block === 'object' && block.listKind) {
       const listKind = block.listKind === 'bullet' ? 'bullet' : 'ordered'
@@ -452,6 +460,14 @@ function createDocxFixture(blocks, options = {}) {
 </w:numbering>`
       }]
     : []
+  const commentsEntry = commentBlocks.length > 0
+    ? [{
+        name: 'word/comments.xml',
+        data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  ${commentBlocks.map((comment) => `<w:comment w:id="${comment.id}" w:author="${escapeXml(String(comment.block.commentAuthor ?? 'Codex Smoke'))}"><w:p><w:r><w:t>${escapeXml(String(comment.block.commentText))}</w:t></w:r></w:p></w:comment>`).join('\n  ')}
+</w:comments>`
+      }]
+    : []
   return createStoredZip([
     {
       name: '[Content_Types].xml',
@@ -464,6 +480,7 @@ function createDocxFixture(blocks, options = {}) {
   ${headerText ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : ''}
   ${footerText ? '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' : ''}
   ${listBlocks.length > 0 ? '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' : ''}
+  ${commentBlocks.length > 0 ? '<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' : ''}
 </Types>`
     },
     {
@@ -486,6 +503,7 @@ function createDocxFixture(blocks, options = {}) {
     ...headerFooterEntries,
     ...footnotesEntry,
     ...numberingEntry,
+    ...commentsEntry,
     ...imageBlocks.map((image) => ({
       name: `word/media/document-image-${image.index}.png`,
       data: Buffer.from(String(image.block.imageBase64), 'base64')
@@ -1208,9 +1226,9 @@ if (fixtureWorkspaceViews.has(captureView)) {
     { text: 'Document smoke bullet list item', listKind: 'bullet' },
     { text: 'Document smoke footnote reference', footnoteText: 'Document smoke footnote text' },
     { shapeText: 'Document smoke shape callout', geometry: 'roundRect', fillColor: '#E0F2FE', lineColor: '#38BDF8' },
-      'Document smoke section delta',
-      'Document smoke appendix',
-      'Document smoke closing note'
+    { text: 'Document smoke comment reference', commentText: 'Document smoke comment text', commentAuthor: 'Codex Smoke' },
+    'Document smoke appendix',
+    'Document smoke closing note'
     ], { headerText: 'Document smoke header', footerText: 'Document smoke footer', columnCount: 2 }))
     writeFileSync(join(workspaceDir, 'spreadsheet-preview-smoke.xlsx'), createXlsxFixture({
       sheets: [
@@ -1984,6 +2002,7 @@ child.on('exit', async (code) => {
           filesDocumentColumnLayout: result.filesDocumentColumnLayoutWorks === true,
           filesDocumentShapeRendering: result.filesDocumentShapeRenderingWorks === true,
           filesDocumentFootnotes: result.filesDocumentFootnotesWorks === true,
+          filesDocumentComments: result.filesDocumentCommentsWorks === true,
           filesDocumentListRendering: result.filesDocumentListRenderingWorks === true,
           filesSpreadsheetPreview: result.filesSpreadsheetPreviewWorks === true,
           filesSlidesPreview: result.filesSlidesPreviewWorks === true,
@@ -2206,6 +2225,7 @@ child.on('exit', async (code) => {
         filesDocumentColumnLayout: captureView !== 'inspector' || result.filesDocumentColumnLayoutWorks === true,
         filesDocumentShapeRendering: captureView !== 'inspector' || result.filesDocumentShapeRenderingWorks === true,
         filesDocumentFootnotes: captureView !== 'inspector' || result.filesDocumentFootnotesWorks === true,
+        filesDocumentComments: captureView !== 'inspector' || result.filesDocumentCommentsWorks === true,
         filesDocumentListRendering: captureView !== 'inspector' || result.filesDocumentListRenderingWorks === true,
         filesSpreadsheetPreview: captureView !== 'inspector' || result.filesSpreadsheetPreviewWorks === true,
         filesSlidesPreview: captureView !== 'inspector' || result.filesSlidesPreviewWorks === true,

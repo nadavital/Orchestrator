@@ -11143,6 +11143,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const documentColumnLayoutChecks = {};
               const documentShapeChecks = {};
               const documentFootnoteChecks = {};
+              const documentCommentChecks = {};
               const documentListChecks = {};
               const spreadsheetRendererChecks = {};
               const spreadsheetControlChecks = {};
@@ -11516,6 +11517,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     const documentImages = [...document.querySelectorAll('[data-testid="workspace-document-preview-image"]')];
                     const documentFootnotes = document.querySelector('[data-testid="workspace-document-preview-footnotes"]');
                     const documentFootnoteItems = [...document.querySelectorAll('[data-testid="workspace-document-preview-footnote"]')];
+                    const documentComments = document.querySelector('[data-testid="workspace-document-preview-comments"]');
+                    const documentCommentItems = [...document.querySelectorAll('[data-testid="workspace-document-preview-comment"]')];
                     const documentHeader = document.querySelector('[data-testid="workspace-document-preview-header-text"]');
                     const documentFooter = document.querySelector('[data-testid="workspace-document-preview-footer-text"]');
                     const initialDocumentControls =
@@ -11597,6 +11600,16 @@ function runAutomatedFocusedSurfaceSmoke(
                       documentFootnoteItems[0] instanceof HTMLElement &&
                       documentFootnoteItems[0].getAttribute('data-document-footnote-id') === '2' &&
                       documentFootnoteItems[0].textContent?.includes('Document smoke footnote text') === true;
+                    documentCommentChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-comment-count') === '1' &&
+                      documentComments instanceof HTMLElement &&
+                      documentComments.getAttribute('data-document-comment-count') === '1' &&
+                      documentCommentItems.length === 1 &&
+                      documentCommentItems[0] instanceof HTMLElement &&
+                      documentCommentItems[0].getAttribute('data-document-comment-id') === '1' &&
+                      documentCommentItems[0].getAttribute('data-document-comment-author') === 'Codex Smoke' &&
+                      documentCommentItems[0].textContent?.includes('Document smoke comment text') === true;
                     if (nextPage instanceof HTMLButtonElement) {
                       nextPage.click();
                       await sleep(160);
@@ -11620,6 +11633,10 @@ function runAutomatedFocusedSurfaceSmoke(
                       documentListItems[0].getAttribute('data-document-list-kind') === 'bullet' &&
                       documentListItems[0].getAttribute('data-document-list-level') === '0' &&
                       documentListItems[0].textContent?.includes('Document smoke bullet list item') === true;
+                    documentCommentChecks[testId] =
+                      Boolean(documentCommentChecks[testId]) &&
+                      advancedPageBody instanceof HTMLElement &&
+                      advancedPageBody.textContent?.includes('Document smoke comment reference[comment 1]') === true;
                     const pageNavigationWorks =
                       advancedPreview instanceof HTMLElement &&
                       advancedPreview.getAttribute('data-document-preview-page-count') === '2' &&
@@ -13395,6 +13412,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesDocumentColumnLayoutWorks: Boolean(documentColumnLayoutChecks['workspace-document-preview']),
                 filesDocumentShapeRenderingWorks: Boolean(documentShapeChecks['workspace-document-preview']),
                 filesDocumentFootnotesWorks: Boolean(documentFootnoteChecks['workspace-document-preview']),
+                filesDocumentCommentsWorks: Boolean(documentCommentChecks['workspace-document-preview']),
                 filesDocumentListRenderingWorks: Boolean(documentListChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),

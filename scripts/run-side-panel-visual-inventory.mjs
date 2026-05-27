@@ -125,6 +125,19 @@ function runSmokeCapture(args) {
     let timedOut = false
     let settled = false
     let killTimer = null
+    const settle = (code, signal, error = null) => {
+      if (settled) return
+      settled = true
+      if (timeout) clearTimeout(timeout)
+      if (killTimer) clearTimeout(killTimer)
+      resolveCapture({
+        status: code,
+        signal,
+        error,
+        stdout,
+        stderr
+      })
+    }
     const timeoutMs = Number.isFinite(smokeTimeoutMs) && smokeTimeoutMs > 0 ? smokeTimeoutMs : null
     const timeout = timeoutMs == null
       ? null
@@ -141,24 +154,13 @@ function runSmokeCapture(args) {
       stderr += chunk.toString()
     })
     child.on('error', (error) => {
-      if (settled) return
-      settled = true
-      if (timeout) clearTimeout(timeout)
-      if (killTimer) clearTimeout(killTimer)
-      resolveCapture({ status: null, signal: null, error, stdout, stderr })
+      settle(null, null, error)
+    })
+    child.on('exit', (code, signal) => {
+      settle(code, signal, timedOut ? { code: 'ETIMEDOUT' } : null)
     })
     child.on('close', (code, signal) => {
-      if (settled) return
-      settled = true
-      if (timeout) clearTimeout(timeout)
-      if (killTimer) clearTimeout(killTimer)
-      resolveCapture({
-        status: code,
-        signal,
-        error: timedOut ? { code: 'ETIMEDOUT' } : null,
-        stdout,
-        stderr
-      })
+      settle(code, signal, timedOut ? { code: 'ETIMEDOUT' } : null)
     })
   })
 }
