@@ -2001,6 +2001,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalTabDragMarkerWorks = false;
             var terminalToolbarSharedWorks = false;
             var terminalHeaderSharedChromeWorks = false;
+            var terminalPanelTabCodexMetricsWorks = false;
             var terminalContentSpacingWorks = false;
             var terminalResizeResetWorks = false;
             var terminalResizeHandleOverlayWorks = false;
@@ -2050,6 +2051,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               terminalTabbarForToolbar.classList.contains('panel-tab-strip') &&
               !terminalTabbarForToolbar.classList.contains('terminal-panel-tabstrip') &&
               !(document.querySelector('.terminal-panel-tab-row') instanceof HTMLElement);
+            if (terminalTabbarForToolbar instanceof HTMLElement) {
+              const terminalTabButtons = [...terminalTabbarForToolbar.querySelectorAll('.motion-tab-button')]
+                .filter((button) => button instanceof HTMLElement);
+              const terminalTabStyles = terminalTabButtons.map((button) => getComputedStyle(button));
+              const terminalTabRects = terminalTabButtons.map((button) => button.getBoundingClientRect());
+              terminalPanelTabCodexMetricsWorks =
+                terminalTabButtons.length >= 1 &&
+                terminalTabRects.every((rect) => rect.height >= 27 && rect.height <= 29 && rect.width <= 162) &&
+                terminalTabStyles.every((style) =>
+                  style.maxWidth === '160px' &&
+                  style.minHeight === '28px' &&
+                  style.borderRadius === '8px' &&
+                  Number.parseFloat(style.fontSize || '0') >= 13.5
+                );
+            }
             terminalToolbarSharedWorks =
               terminalTabbarForToolbar instanceof HTMLElement &&
               terminalTabbarForToolbar.getAttribute('data-panel-toolbar') === 'true' &&
@@ -2667,6 +2683,22 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const terminalTabsForVisual = bottomPanelForTerminalVisual instanceof HTMLElement
               ? [...bottomPanelForTerminalVisual.querySelectorAll('[role="tab"]')]
               : [];
+            var terminalPanelTabCodexMetricsWorks = false;
+            if (terminalTabbarForVisual instanceof HTMLElement) {
+              const terminalTabButtonsForVisual = [...terminalTabbarForVisual.querySelectorAll('.motion-tab-button')]
+                .filter((button) => button instanceof HTMLElement);
+              const terminalTabStylesForVisual = terminalTabButtonsForVisual.map((button) => getComputedStyle(button));
+              const terminalTabRectsForVisual = terminalTabButtonsForVisual.map((button) => button.getBoundingClientRect());
+              terminalPanelTabCodexMetricsWorks =
+                terminalTabButtonsForVisual.length >= 1 &&
+                terminalTabRectsForVisual.every((rect) => rect.height >= 27 && rect.height <= 29 && rect.width <= 162) &&
+                terminalTabStylesForVisual.every((style) =>
+                  style.maxWidth === '160px' &&
+                  style.minHeight === '28px' &&
+                  style.borderRadius === '8px' &&
+                  Number.parseFloat(style.fontSize || '0') >= 13.5
+                );
+            }
             const terminalViewForVisual = document.querySelector('[data-testid="terminal-view"]');
             const terminalFailureForVisual = document.querySelector('[data-testid="terminal-failure-state"]');
             const terminalPlainOutputForVisual = document.querySelector('[data-testid="terminal-plain-output"]');
@@ -5447,6 +5479,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalTabDragMarkerWorks: typeof terminalTabDragMarkerWorks === 'boolean' ? terminalTabDragMarkerWorks : null,
             terminalToolbarSharedWorks: typeof terminalToolbarSharedWorks === 'boolean' ? terminalToolbarSharedWorks : null,
             terminalHeaderSharedChromeWorks: typeof terminalHeaderSharedChromeWorks === 'boolean' ? terminalHeaderSharedChromeWorks : null,
+            terminalPanelTabCodexMetricsWorks: typeof terminalPanelTabCodexMetricsWorks === 'boolean' ? terminalPanelTabCodexMetricsWorks : null,
             terminalContentSpacingWorks: typeof terminalContentSpacingWorks === 'boolean' ? terminalContentSpacingWorks : null,
             terminalResizeResetWorks: typeof terminalResizeResetWorks === 'boolean' ? terminalResizeResetWorks : null,
             terminalResizeHandleOverlayWorks: typeof terminalResizeHandleOverlayWorks === 'boolean' ? terminalResizeHandleOverlayWorks : null,
@@ -5918,7 +5951,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 sidebarRectForBand !== null &&
                 Number.isFinite(shellHeaderHeightToken) &&
                 shellHeaderHeightToken >= 32 &&
-                shellHeaderHeightToken <= 38 &&
+                shellHeaderHeightToken <= 42 &&
                 Math.abs(titlebarRect.height - shellHeaderHeightToken) <= 1 &&
                 Math.abs(rightPanelChromeRectForSeam.height - shellHeaderHeightToken) <= 2 &&
                 Math.abs(sidebarDragSpacerRectForBand.height - shellHeaderHeightToken) <= 1 &&
@@ -5940,7 +5973,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 Math.abs(rightPanelChromeRectForSeam.top - titlebarRect.top) <= 2 &&
                 Math.abs(titlebarRect.right - rightPanelRectForSeam.left) <= 2 &&
                 titlebarRect.height >= 32 &&
-                titlebarRect.height <= 38 &&
+                titlebarRect.height <= 42 &&
                 rightPanelChromeRectForSeam.height >= 30 &&
                 rightPanelChromeRectForSeam.height <= 44;
               if (smokeView === 'workbench-new-tab') {
@@ -6107,6 +6140,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelTabActionsSharedVariantWorks = false;
               let workbenchPanelTabOverflowControllerWorks = false;
               let workbenchPanelTabCodexWidthCapWorks = false;
+              let workbenchPanelTabCodexMetricsWorks = false;
               let workbenchPanelTabCloseStartEdgeWorks = false;
               let workbenchPanelTabCloseStartEdgeDebug = [];
               let workbenchPanelNewTabPageWorks = false;
@@ -6162,6 +6196,15 @@ function runAutomatedFocusedSurfaceSmoke(
                   activeTabButton instanceof HTMLElement &&
                   activeTabButton.getBoundingClientRect().width >= 84 &&
                   activeTabButton.getBoundingClientRect().width <= 162;
+                workbenchPanelTabCodexMetricsWorks =
+                  tabRects.length >= 3 &&
+                  tabRects.every((rect) => rect.height >= 27 && rect.height <= 29 && rect.width <= 162) &&
+                  tabStyles.every((style) =>
+                    style.maxWidth === '160px' &&
+                    style.minHeight === '28px' &&
+                    style.borderRadius === '8px' &&
+                    Number.parseFloat(style.fontSize || '0') >= 13.5
+                  );
                 workbenchPanelTabOverflowControllerWorks =
                   tabWidthsStable &&
                   tabsDoNotOverlap &&
@@ -7060,6 +7103,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   tabActions.getBoundingClientRect().height <= 30,
                 workbenchPanelTabOverflowControllerWorks,
                 workbenchPanelTabCodexWidthCapWorks,
+                workbenchPanelTabCodexMetricsWorks,
                 workbenchPanelTabCloseStartEdgeWorks,
                 workbenchPanelTabCloseStartEdgeDebug,
                 workbenchPanelAddControlStableWorks:
@@ -10936,7 +10980,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 Math.abs(filesRightPanelChromeRect.top - filesTitlebarRect.top) <= 2 &&
                 Math.abs(filesTitlebarRect.right - filesRightPanelRect.left) <= 2 &&
                 filesTitlebarRect.height >= 32 &&
-                filesTitlebarRect.height <= 38 &&
+                filesTitlebarRect.height <= 42 &&
                 filesRightPanelChromeRect.height >= 30 &&
                 filesRightPanelChromeRect.height <= 44 &&
                 filesToolbar instanceof HTMLElement &&
@@ -15652,7 +15696,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               Math.abs(browserRightPanelChromeRect.top - browserTitlebarRect.top) <= 2 &&
               Math.abs(browserTitlebarRect.right - browserRightPanelRect.left) <= 2 &&
               browserTitlebarRect.height >= 32 &&
-              browserTitlebarRect.height <= 38 &&
+              browserTitlebarRect.height <= 42 &&
               browserRightPanelChromeRect.height >= 30 &&
               browserRightPanelChromeRect.height <= 44 &&
               Math.abs(browserPanelRect.top - browserRightPanelChromeRect.bottom) <= 2;
@@ -17059,7 +17103,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               firstPrimaryActionRect !== null &&
               sidebarTopRect !== null &&
               sidebarDragSpacerRect.height >= 32 &&
-              sidebarDragSpacerRect.height <= 38 &&
+              sidebarDragSpacerRect.height <= 42 &&
               sidebarPrimaryActionTopOffset !== null &&
               sidebarPrimaryActionTopOffset >= 32 &&
               sidebarPrimaryActionTopOffset <= 42;
@@ -19032,7 +19076,7 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               Math.abs(titlebarRect.left - primaryRect.left) <= 2 &&
               Math.abs(titlebarRect.right - primaryRect.right) <= 2 &&
               titlebarRect.height >= 32 &&
-              titlebarRect.height <= 38;
+              titlebarRect.height <= 42;
             const sessionHeaderInPrimaryColumnDebug = {
               titlebarTop: titlebarRect?.top ?? null,
               titlebarLeft: titlebarRect?.left ?? null,

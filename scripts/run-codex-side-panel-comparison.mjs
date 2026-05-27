@@ -273,7 +273,7 @@ function buildContracts() {
       codexAssets: [
         { basename: 'app-shell-state-HP0T5lEX.js', terms: ['app-shell:right-panel-width:v2', 'app-shell-bottom-panel-launcher-visible'] },
         { basename: 'app-shell-BJK30dyj.css', terms: ['app-shell-main-content-viewport', 'app-shell-main-content-frame'] },
-        { basename: 'app-shell-Bh-lgoQk.js', terms: ['bg-token-main-surface-primary'] },
+        { basename: 'app-shell-Bh-lgoQk.js', terms: ['h-7', 'rounded-lg', 'px-2 py-1', 'text-sm', 'bg-token-main-surface-primary'] },
         { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['terminal-panel'] }
       ],
       fileEvidence: [
@@ -285,7 +285,7 @@ function buildContracts() {
           imageNonBlank: true
         }
       ],
-      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'mainContentFrameContinuous', 'filesHeaderPanelSeam', 'browserHeaderPanelSeam', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent', 'secondWindowCreated', 'secondWindowNavigated', 'pendingNavigationConsumedOnce', 'pendingNavigationWindowScoped', 'loadedDeepLinkDoesNotLeavePendingNavigation', 'firstWindowBrowserFocusArea', 'firstWindowBrowserMenuEnabled', 'secondWindowBrowserMenuDisabled', 'backgroundWindowMenuDoesNotClobberFocusedWindow', 'activeWindowAfterRefocus', 'focusSwitchRestoresFirstWindowMenu', 'menuCommandRoutedToFocusedWindow'],
+      smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'mainContentFrameContinuous', 'filesHeaderPanelSeam', 'browserHeaderPanelSeam', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'workbenchPanelTabCodexMetrics', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalPanelTabCodexMetrics', 'terminalVisualHealthyContent', 'secondWindowCreated', 'secondWindowNavigated', 'pendingNavigationConsumedOnce', 'pendingNavigationWindowScoped', 'loadedDeepLinkDoesNotLeavePendingNavigation', 'firstWindowBrowserFocusArea', 'firstWindowBrowserMenuEnabled', 'secondWindowBrowserMenuDisabled', 'backgroundWindowMenuDoesNotClobberFocusedWindow', 'activeWindowAfterRefocus', 'focusSwitchRestoresFirstWindowMenu', 'menuCommandRoutedToFocusedWindow'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, a continuous non-card main content frame, focused Files/Browser/Review panel placement in that band, compact profile/debug badge behavior, compact titlebar toolbar actions, solid panel material, bottom-panel target size, shell attachment, window-scoped pending navigation, loaded-window deep-link handoff, and app-owned multi-window menu command routing; exact live Codex pixel spacing, OS focus behavior, and animation timing still need live screenshots.',
       next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Files, Browser, Review, Workbench, or bottom-panel shell layout.',
@@ -305,7 +305,7 @@ function buildContracts() {
       codexAssets: [
         { basename: 'thread-side-panel-tabs-CVr2AbYP.js', terms: ['app-shell-tab-controller', 'right-panel-composer-overlay', 'browser-sidebar-command'] },
         { basename: 'app-shell-tab-controller-B2eCi4Le.js', terms: ['activeTab$', 'tabs$'] },
-        { basename: 'app-shell-Bh-lgoQk.js', terms: ['start-0', 'codex.tabs.closeNamed'] }
+        { basename: 'app-shell-Bh-lgoQk.js', terms: ['h-7', 'rounded-lg', 'px-2 py-1', 'text-sm', 'start-0', 'codex.tabs.closeNamed'] }
       ],
       fileEvidence: [
         {
@@ -316,7 +316,7 @@ function buildContracts() {
           imageNonBlank: true
         }
       ],
-      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'rightPanelTransferUnsupportedBoundary', 'rightPanelPanelOpenCloseTelemetry', 'workbenchPanelTabOverflowController', 'workbenchPanelTabCodexWidthCap', 'workbenchPanelTabCloseStartEdge', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance'],
+      smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'rightPanelTransferUnsupportedBoundary', 'rightPanelPanelOpenCloseTelemetry', 'workbenchPanelTabOverflowController', 'workbenchPanelTabCodexWidthCap', 'workbenchPanelTabCodexMetrics', 'workbenchPanelTabCloseStartEdge', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, start-edge tab close chrome, shared context-menu sections, explicit unsupported transfer boundaries for Review/Files/Browser, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
       next: 'Use focused right-panel smoke for regressions; do not call exact timing complete without live Codex comparison.',
@@ -494,9 +494,10 @@ function buildContracts() {
       captureIds: ['terminal-bottom-panel', 'terminal-behavior'],
       codexAssets: [
         { basename: 'thread-page-bottom-panel-state-D1Lz0U4Y.js', terms: ['Terminal {index}', 'terminal-panel', 'terminal.tabs.title'] },
+        { basename: 'app-shell-Bh-lgoQk.js', terms: ['h-7', 'rounded-lg', 'px-2 py-1', 'text-sm'] },
         { basename: 'terminal-service-BsiZiRKt.js', terms: ['conversationSessions', 'sessionSnapshots', 'terminal-create'] }
       ],
-      smokeChecks: ['terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent', 'terminalSharedTransferModel', 'terminalMoveToRightPanel', 'terminalMoveBackToBottom'],
+      smokeChecks: ['terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalPanelTabCodexMetrics', 'terminalVisualHealthyContent', 'terminalSharedTransferModel', 'terminalMoveToRightPanel', 'terminalMoveBackToBottom'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Terminal behavior, solid bottom-panel material, Codex-bundle-aligned 280 px default shell size, right/bottom shared transfer model, move to right panel, move back to bottom panel, and screenshot are covered; exact Codex open-close timing is not live-proven.',
       next: 'Compare live panel animation timing when app UI access is available.',

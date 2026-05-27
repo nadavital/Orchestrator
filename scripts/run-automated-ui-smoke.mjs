@@ -2064,6 +2064,7 @@ child.on('exit', async (code) => {
           rightPanelTabActionsSharedVariant: result.rightPanelTabActionsSharedVariantWorks === true,
           workbenchPanelTabOverflowController: result.workbenchPanelTabOverflowControllerWorks === true,
           workbenchPanelTabCodexWidthCap: result.workbenchPanelTabCodexWidthCapWorks === true,
+          workbenchPanelTabCodexMetrics: result.workbenchPanelTabCodexMetricsWorks === true,
           rightPanelMenuCommandState: result.rightPanelMenuCommandStateWorks === true,
           rightPanelFindShortcutRouting: result.rightPanelFindShortcutRoutingWorks === true,
           rightPanelBrowserCommandRouting: result.rightPanelBrowserCommandRoutingWorks === true,
@@ -2238,6 +2239,7 @@ child.on('exit', async (code) => {
           terminalPanelMaterialSolid: result.terminalVisualPanelMaterialSolidWorks === true,
           terminalBottomPanelSizeDecomposition: result.terminalBottomPanelSizeDecompositionWorks === true,
           terminalVisualTabs: result.terminalVisualTabsWork === true,
+          terminalPanelTabCodexMetrics: result.terminalPanelTabCodexMetricsWorks === true,
           terminalVisualToolbar: result.terminalVisualToolbarWorks === true,
           terminalVisualHealthyContent: result.terminalVisualHealthyContentWorks === true
         }
@@ -2258,6 +2260,7 @@ child.on('exit', async (code) => {
           terminalTabDragMarker: result.terminalTabDragMarkerWorks === true,
           terminalToolbarShared: result.terminalToolbarSharedWorks === true,
           terminalHeaderSharedChrome: result.terminalHeaderSharedChromeWorks === true,
+          terminalPanelTabCodexMetrics: result.terminalPanelTabCodexMetricsWorks === true,
           terminalContentSpacing: result.terminalContentSpacingWorks === true,
           terminalResizeReset: result.terminalResizeResetWorks === true,
           terminalResizeHandleOverlay: result.terminalResizeHandleOverlayWorks === true,
