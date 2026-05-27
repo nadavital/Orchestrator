@@ -104,6 +104,8 @@ console.log(JSON.stringify({
   statusCounts: summary.statusCounts,
   optionalFileEvidenceFailureCount: summary.optionalFileEvidenceFailures.length,
   optionalFileEvidenceFailures: summary.optionalFileEvidenceFailures,
+  remainingParityGapCount: summary.remainingParityGaps.length,
+  remainingParityGapCounts: summary.remainingParityGapCounts,
   mismatchCount: summary.statusCounts.mismatch ?? 0,
   blockedCount: summary.statusCounts.blocked ?? 0,
   needsSmokeCount: summary.statusCounts['needs-smoke'] ?? 0,
@@ -284,7 +286,14 @@ function buildContracts() {
       smokeChecks: ['sidebarTopInsetCodexLike', 'sessionHeaderInPrimaryColumn', 'rightPanelHeaderSeam', 'headerPanelSharedBand', 'filesHeaderPanelSeam', 'browserHeaderPanelSeam', 'headerMetadataTooltipOnly', 'profileBadgeCompact', 'headerActionChromeCompact', 'rightPanelMaterialSolid', 'terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent', 'secondWindowCreated', 'secondWindowNavigated', 'pendingNavigationConsumedOnce', 'pendingNavigationWindowScoped', 'loadedDeepLinkDoesNotLeavePendingNavigation', 'firstWindowBrowserFocusArea', 'firstWindowBrowserMenuEnabled', 'secondWindowBrowserMenuDisabled', 'backgroundWindowMenuDoesNotClobberFocusedWindow', 'activeWindowAfterRefocus', 'focusSwitchRestoresFirstWindowMenu', 'menuCommandRoutedToFocusedWindow'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Smoke covers Orchestrator panel/header geometry, primary-column header ownership, a shared header band across sidebar/main/right-panel chrome, focused Files/Browser/Review panel placement in that band, compact profile/debug badge behavior, compact titlebar toolbar actions, solid panel material, bottom-panel target size, shell attachment, window-scoped pending navigation, loaded-window deep-link handoff, and app-owned multi-window menu command routing; exact live Codex pixel spacing, OS focus behavior, and animation timing still need live screenshots.',
-      next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Files, Browser, Review, Workbench, or bottom-panel shell layout.'
+      next: 'Keep header/panel interaction as a first-class contract whenever moving sidebar, Files, Browser, Review, Workbench, or bottom-panel shell layout.',
+      openIssues: [
+        {
+          category: 'live-codex-ui',
+          issue: 'Exact Codex header/sidebar/right-panel/bottom-panel pixel spacing, OS focus behavior, and animation timing are not proven by current black live screenshots.',
+          requiredEvidence: 'Nonblank live Codex screenshot or side-by-side UI capture with this row still green.'
+        }
+      ]
     },
     {
       id: 'right-side-workbench-shell',
@@ -308,7 +317,14 @@ function buildContracts() {
       smokeChecks: ['rightPanelSharedAnimationController', 'rightPanelSharedLayoutController', 'rightPanelHeaderSeam', 'rightPanelMaterialSolid', 'rightPanelContextMenuSharedSections', 'rightPanelTransferUnsupportedBoundary', 'rightPanelPanelOpenCloseTelemetry', 'workbenchPanelTabOverflowController', 'workbenchPanelTabCloseStartEdge', 'workbenchPanelNewTabPage', 'workbenchNewTabSingleAddAffordance'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Smoke covers Orchestrator shell behavior, tab overflow/no-collapse behavior, start-edge tab close chrome, shared context-menu sections, explicit unsupported transfer boundaries for Review/Files/Browser, and app-shell tab controller structure; exact live Codex spacing and animation timing still need live UI evidence.',
-      next: 'Use focused right-panel smoke for regressions; do not call exact timing complete without live Codex comparison.'
+      next: 'Use focused right-panel smoke for regressions; do not call exact timing complete without live Codex comparison.',
+      openIssues: [
+        {
+          category: 'live-codex-ui',
+          issue: 'Exact Workbench/right-panel spacing and open/close animation timing are fixture-covered but not live-proven.',
+          requiredEvidence: 'Nonblank live Codex right-panel/header capture or timing trace.'
+        }
+      ]
     },
     {
       id: 'global-thread-find',
@@ -327,7 +343,14 @@ function buildContracts() {
       smokeChecks: ['rightPanelFindShortcutRouting', 'reviewSearchContent'],
       statusWhenCovered: 'aligned',
       caveat: 'Smoke now proves the shared content-search-input, chat/diff scope toggle, Review diff-domain search integration, and Browser find routing. Exact live Codex keyboard/focus timing still needs side-by-side UI comparison.',
-      next: 'Keep this as a regression contract and use live Codex comparison only for spacing, animation, and focus timing polish.'
+      next: 'Keep this as a regression contract and use live Codex comparison only for spacing, animation, and focus timing polish.',
+      openIssues: [
+        {
+          category: 'live-codex-ui',
+          issue: 'Global find keyboard focus and animation timing are behavior-smoke-covered but not live side-by-side-proven.',
+          requiredEvidence: 'Live Codex keyboard/focus comparison while opening and switching chat/diff find scopes.'
+        }
+      ]
     },
     {
       id: 'review-provider-metadata',
@@ -341,7 +364,24 @@ function buildContracts() {
       smokeChecks: ['reviewMetadataToolbar', 'reviewMetadataFlyoutShared', 'reviewTranscriptCardLastTurn', 'reviewFileHeaderPathFirst', 'reviewLastTurnVisualState', 'reviewProviderSourceUnavailableReasons', 'reviewWorktreeProviderSource', 'reviewFullSourceBlame', 'reviewLineComments'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Fixture and local/GitHub-backed paths pass, including a direct Last turn transcript-card Review screenshot with the changed-files rail hidden, general PR and inline/threaded review comment summaries, provider comment line rendering, GitHub review-comment commit/blame metadata, and explicit unsupported-provider source reasons for unavailable Last turn/cloud/worktree rows. Live commented-PR proof, provider-native hosted/cloud sources, and checkpoint Undo are not live-proven.',
-      next: 'Add one real provider-backed Review source when an adapter exists.'
+      next: 'Add one real provider-backed Review source when an adapter exists.',
+      openIssues: [
+        {
+          category: 'provider-adapter',
+          issue: 'Provider-native hosted/cloud Review sources are unavailable beyond explicit unsupported rows.',
+          requiredEvidence: 'A provider event or API that supplies hosted/cloud Review source data.'
+        },
+        {
+          category: 'provider-proof',
+          issue: 'Live commented-PR Review proof is not present in the current installed comparison.',
+          requiredEvidence: 'Live provider-backed PR/comment session fixture or authenticated adapter proof.'
+        },
+        {
+          category: 'provider-adapter',
+          issue: 'Checkpoint Undo is not workspace-restoring through the current provider path.',
+          requiredEvidence: 'Provider checkpoint id plus workspace/git restore semantics, not only thread rollback.'
+        }
+      ]
     },
     {
       id: 'browser-webview-lifecycle',
@@ -401,7 +441,29 @@ function buildContracts() {
       smokeChecks: ['browserWebviewManagerBoundary', 'browserHiddenWebviewContainment', 'browserForkDomTransfer', 'browserUseNoMutation', 'browserManagerStateBridge', 'browserClientToolBridge', 'browserClientToolActions', 'browserClientToolScreenshot', 'browserClientToolAdvancedActions', 'browserPersistedPolicyDefaults'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Synthetic manager events, UI boundaries, Browser renderer loopback, persisted Browser Use policy defaults in the right Browser panel, installed-app smoke proof, and live Codex app-server real browser_open/browser_read/browser_click/browser_type/browser_screenshot/browser_fill/browser_key/browser_select/browser_check/browser_scroll tool requests pass; native browser-use event streaming is still separate.',
-      next: 'Keep unavailable runtime boundaries explicit; expand only when native browser-use events, image-content screenshot semantics, provider design-change application, or live pixel/timing evidence becomes available.'
+      next: 'Keep unavailable runtime boundaries explicit; expand only when native browser-use events, image-content screenshot semantics, provider design-change application, or live pixel/timing evidence becomes available.',
+      openIssues: [
+        {
+          category: 'runtime-signal',
+          issue: 'Native browser-use event streaming is not exposed by the tested live Codex app-server path.',
+          requiredEvidence: 'Live runtime events for browser-use state, viewport, capture surface, cursor, or route capture.'
+        },
+        {
+          category: 'browser-agent',
+          issue: 'Browser screenshot returns text metadata and artifact paths, but image-content screenshot semantics are not live-proven.',
+          requiredEvidence: 'Provider/client contract for returning screenshot image content directly.'
+        },
+        {
+          category: 'provider-adapter',
+          issue: 'Provider design-change application through Browser remains unimplemented.',
+          requiredEvidence: 'Provider event/API describing design-change application targets and expected side effects.'
+        },
+        {
+          category: 'live-codex-ui',
+          issue: 'Exact Browser panel pixel spacing and timing remain unverified without live UI evidence.',
+          requiredEvidence: 'Nonblank live Codex Browser panel capture.'
+        }
+      ]
     },
     {
       id: 'browser-device-presets',
@@ -417,7 +479,14 @@ function buildContracts() {
       smokeChecks: ['browserCaptureGeometry', 'browserVisibleGeometry'],
       statusWhenCovered: 'aligned',
       caveat: 'Bundle/code dimensions match; live label/order comparison can still catch presentation differences.',
-      next: 'Keep lower priority unless live UI comparison shows ordering or label drift.'
+      next: 'Keep lower priority unless live UI comparison shows ordering or label drift.',
+      openIssues: [
+        {
+          category: 'live-codex-ui',
+          issue: 'Browser preset label/order presentation has not been live screenshot-compared.',
+          requiredEvidence: 'Live Codex Browser preset menu screenshot.'
+        }
+      ]
     },
     {
       id: 'terminal-bottom-panel',
@@ -431,7 +500,14 @@ function buildContracts() {
       smokeChecks: ['terminalPanelMaterialSolid', 'terminalBottomPanelSizeDecomposition', 'terminalVisualHealthyContent', 'terminalSharedTransferModel', 'terminalMoveToRightPanel', 'terminalMoveBackToBottom'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Terminal behavior, solid bottom-panel material, Codex-bundle-aligned 280 px default shell size, right/bottom shared transfer model, move to right panel, move back to bottom panel, and screenshot are covered; exact Codex open-close timing is not live-proven.',
-      next: 'Compare live panel animation timing when app UI access is available.'
+      next: 'Compare live panel animation timing when app UI access is available.',
+      openIssues: [
+        {
+          category: 'live-codex-ui',
+          issue: 'Terminal bottom-panel open/close animation timing is not live-proven.',
+          requiredEvidence: 'Live Codex terminal bottom-panel open/close timing capture at comparable window sizes.'
+        }
+      ]
     },
     {
       id: 'files-file-source-tabs',
@@ -454,7 +530,24 @@ function buildContracts() {
       smokeChecks: ['filesContentSearch', 'fileSourceSearch', 'filesActionMenuSharedSections', 'workbenchFileTabActionMenuSharedSections', 'workbenchFileTabCodexActionLabels', 'workbenchFileTabCodexActionCluster', 'filesArtifactHeaderTitleType', 'filesArtifactPreviewControls', 'filesArtifactOpenOptions', 'filesPdfPreviewControls', 'filesPdfPresentationMode', 'filesDocumentPageControls', 'filesSpreadsheetSlidesArtifactBoundary', 'filesSpreadsheetRenderer', 'filesSlidesRenderer', 'filesSpreadsheetControls', 'filesSpreadsheetSheetTabs', 'filesSpreadsheetActiveCell', 'filesSlidesControls', 'filesNotebookReadOnlyControls', 'filesNotebookOutputRendering', 'filesNotebookCellDisclosure', 'filesNotebookExecutionCount', 'filesNotebookCellMetadata', 'filesNotebookOutputSummaries', 'filesNotebookRawOutputDisclosure', 'filesNotebookCodeSnippet', 'filesNotebookCellSpacing', 'filesNotebookOutputChrome', 'filesNotebookOutputItemChrome', 'filesNotebookRichOutputItemChrome', 'reviewFullSourceRows', 'reviewFullSourceBlame'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Local file/source behavior is covered, including Codex-style Workbench file-source action labels and compact options/open action cluster, shared content-search-input source find, Codex-style artifact header title/type splitting for PDF/DOCX/IPYNB/XLSX/PPTX previews, Codex-style artifact Open/options header controls, local PDF page/zoom/invert-color controls and presentation mode, local DOCX page/zoom controls, lightweight XLSX workbook and PPTX slide outline rendering, local XLSX sheet/zoom controls plus Codex-like workbook sheet tabs and read-only active-cell/formula-bar chrome, local PPTX slide/zoom/thumbnail controls, read-only notebook artifact controls, basic notebook output rendering, Codex-style notebook cell disclosure shells, notebook execution-count labels, notebook metadata titles/descriptions, notebook output summary markdown, raw-output disclosures, text/plain-before-JSON notebook MIME precedence, Python-titled notebook code snippets, Codex-like notebook cell spacing/width, Codex-like notebook output/source chrome, Codex-like stream/text output item chrome, and separate markdown/error/image notebook item chrome. Full XLSX/PPTX/PDF/DOCX artifact renderer fidelity, editable workbook behavior, PDF canvas/annotation rendering, and provider-backed comments/blame/artifact metadata remain incomplete.',
-      next: 'Prioritize real artifact renderer controls/rendering or provider metadata, not more local tree styling.'
+      next: 'Prioritize real artifact renderer controls/rendering or provider metadata, not more local tree styling.',
+      openIssues: [
+        {
+          category: 'renderer-fidelity',
+          issue: 'Full XLSX/PPTX/PDF/DOCX artifact renderer fidelity is incomplete beyond lightweight local preview controls.',
+          requiredEvidence: 'Renderer fixtures or provider artifacts that exercise Codex-equivalent workbook, slide, PDF canvas/annotation, and DOCX layout behavior.'
+        },
+        {
+          category: 'renderer-fidelity',
+          issue: 'Editable workbook behavior and formula evaluation/editing are not implemented.',
+          requiredEvidence: 'A scoped editable workbook contract; otherwise keep XLSX previews read-only.'
+        },
+        {
+          category: 'provider-adapter',
+          issue: 'Provider-backed comments, blame, and artifact metadata remain incomplete for Files/source tabs.',
+          requiredEvidence: 'Provider metadata adapter or live source event supplying those fields.'
+        }
+      ]
     },
     {
       id: 'settings-host-scope',
@@ -465,7 +558,24 @@ function buildContracts() {
       smokeChecks: ['settingsHostContext', 'settingsHostAdapterBoundary', 'settingsPersonalizationHostBoundary', 'settingsContentLayout', 'settingsBrowserPage', 'settingsBrowserSurface', 'settingsBrowserModule', 'settingsBrowserPolicyPersistence'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Host-scoped unavailable states are explicit, and the Browser Settings page exposes real host-scoped in-app Browser data clearing plus persisted Browser Use approval/history/download/upload and domain-policy defaults. Real remote-host adapters, Codex Personalization data, and provider-backed Browser Use adapters remain incomplete.',
-      next: 'Add host adapters only where provider data exists; deepen Browser Use settings only when a provider or browser-use runtime exposes more policy state.'
+      next: 'Add host adapters only where provider data exists; deepen Browser Use settings only when a provider or browser-use runtime exposes more policy state.',
+      openIssues: [
+        {
+          category: 'provider-adapter',
+          issue: 'Real remote-host Settings adapters are not implemented.',
+          requiredEvidence: 'Remote-host provider data and mutations for settings surfaces.'
+        },
+        {
+          category: 'provider-adapter',
+          issue: 'Codex Personalization data is not available in Orchestrator host scope.',
+          requiredEvidence: 'Provider-backed personalization data contract.'
+        },
+        {
+          category: 'provider-adapter',
+          issue: 'Provider-backed Browser Use settings beyond persisted local defaults are not implemented.',
+          requiredEvidence: 'Browser-use runtime or provider policy state beyond approval/history/download/upload/domain defaults.'
+        }
+      ]
     },
     {
       id: 'chat-sidebar-provider-state',
@@ -476,7 +586,19 @@ function buildContracts() {
       smokeChecks: ['providerPinnedMetadata', 'sidebarProviderPinBoundary', 'providerWorktreeMetadata', 'sidebarConnectionGrouping', 'sidebarPinnedDragReorder', 'sidebarRowDensityCodexLike', 'sessionRowsTextFirst', 'sidebarPinnedRowsTextFirst', 'sidebarFooterCollapseAffordance'],
       statusWhenCovered: 'fixture-covered',
       caveat: 'Provider thread-list projection, local pin order, Codex-compact row density, text-first session rows, and the footer collapse affordance are covered. Provider-projected pinned rows are now read-only at the Sidebar action boundary because live provider pin set/list mutation is still blocked through the current app-server bridge.',
-      next: 'Add real provider pin set/list adapters only when a provider exposes a safe mutation API; keep future sidebar spacing changes gated by the density check.'
+      next: 'Add real provider pin set/list adapters only when a provider exposes a safe mutation API; keep future sidebar spacing changes gated by the density check.',
+      openIssues: [
+        {
+          category: 'provider-adapter',
+          issue: 'Provider-projected pinned rows remain read-only because live provider pin set/list mutation is unavailable.',
+          requiredEvidence: 'Safe provider pin set/list mutation API or app-server bridge event.'
+        },
+        {
+          category: 'live-codex-ui',
+          issue: 'Future sidebar spacing changes still need fresh live Codex screenshots before overriding the compact density contract.',
+          requiredEvidence: 'Fresh nonblank Codex sidebar screenshot showing row spacing or order drift.'
+        }
+      ]
     }
   ]
 }
@@ -499,7 +621,8 @@ function evaluateContract(contract, manifest, codexAssets, sourceCache, artifact
     file,
     smoke,
     caveat: contract.caveat,
-    next: contract.next
+    next: contract.next,
+    openIssues: contract.openIssues ?? []
   }
 }
 
@@ -892,9 +1015,26 @@ function summarizeRows(rows, manifest) {
     const kind = capture.failureKind ?? 'unknown'
     smokeFailureKinds[kind] = (smokeFailureKinds[kind] ?? 0) + 1
   }
+  const remainingParityGaps = []
+  const remainingParityGapCounts = {}
+  for (const row of rows) {
+    for (const issue of row.openIssues ?? []) {
+      const category = issue.category ?? 'uncategorized'
+      remainingParityGapCounts[category] = (remainingParityGapCounts[category] ?? 0) + 1
+      remainingParityGaps.push({
+        rowId: row.id,
+        area: row.area,
+        category,
+        issue: issue.issue,
+        requiredEvidence: issue.requiredEvidence
+      })
+    }
+  }
   return {
     statusCounts,
     optionalFileEvidenceFailures,
+    remainingParityGaps,
+    remainingParityGapCounts,
     smokeCaptures: manifest?.captures?.length ?? 0,
     smokeFailures: manifest?.failed ?? [],
     smokeFailureKinds
@@ -1168,12 +1308,29 @@ function renderMarkdown(report) {
   for (const failure of report.summary.optionalFileEvidenceFailures) {
     lines.push(`  - ${failure.area}: ${failure.label} (${failure.reason})`)
   }
+  lines.push(`- Remaining parity gaps: ${report.summary.remainingParityGaps.length === 0 ? 'none' : report.summary.remainingParityGaps.length}`)
+  lines.push(`- Remaining parity gap categories: ${formatStatusCounts(report.summary.remainingParityGapCounts)}`)
   if (report.liveCaptureAttempt) {
     lines.push(`- Live Codex capture: ${summarizeLiveCaptureAttempt(report.liveCaptureAttempt)}`)
   }
   lines.push(`- Status counts: ${Object.entries(report.summary.statusCounts).map(([key, value]) => `${key}=${value}`).join(', ')}`)
   lines.push(`- Header/panel contact sheet: ${relative(root, report.artifacts.headerPanelContactSheetPath)}`)
   lines.push('')
+  if (report.summary.remainingParityGaps.length > 0) {
+    lines.push('## Remaining Parity Gaps')
+    lines.push('')
+    lines.push('| Area | Category | Gap | Required evidence |')
+    lines.push('| --- | --- | --- | --- |')
+    for (const gap of report.summary.remainingParityGaps) {
+      lines.push([
+        gap.area,
+        gap.category,
+        gap.issue,
+        gap.requiredEvidence
+      ].map(markdownCell).join(' | ').replace(/^/, '| ').replace(/$/, ' |'))
+    }
+    lines.push('')
+  }
   lines.push('## Comparison Matrix')
   lines.push('')
   lines.push('| Area | Scope | Status | Codex Evidence | Live Evidence | Orchestrator Smoke | Next |')
