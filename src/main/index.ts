@@ -68,6 +68,15 @@ function focusWindowForNavigation(): BrowserWindow | null {
   return target
 }
 
+function setPendingNavigationForLoadingWindow(win: BrowserWindow, navigation: OrchestratorDeepLinkNavigation): void {
+  if (win.isDestroyed()) return
+  if (win.webContents.isLoading()) {
+    pendingNavigationByWindow.set(win.webContents.id, navigation)
+    return
+  }
+  pendingNavigationByWindow.delete(win.webContents.id)
+}
+
 function navigateFromDeeplink(rawUrl: string): void {
   const navigation = parseOrchestratorDeepLink(rawUrl, APP_DEEPLINK_PROTOCOL)
   if (!navigation) return
@@ -76,7 +85,7 @@ function navigateFromDeeplink(rawUrl: string): void {
     pendingNavigation = navigation
     return
   }
-  pendingNavigationByWindow.set(target.webContents.id, navigation)
+  setPendingNavigationForLoadingWindow(target, navigation)
   pendingNavigation = null
   if (navigation.kind === 'session') {
     safeWindowSend(target, 'app:navigate-session', navigation.sessionId)
@@ -15307,6 +15316,18 @@ function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: strin
             };
           })()
         `)
+        navigateFromDeeplink('orchestrator://threads/' + encodeURIComponent(firstResult.sessionId))
+        await sleep(260)
+        const loadedDeepLinkResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const activeRow = document.querySelector('[data-session-id][aria-current="page"]');
+            const pendingAfterLoadedDeepLink = await window.api.app.consumePendingNavigation();
+            return {
+              loadedDeepLinkActiveSessionId: activeRow?.getAttribute('data-session-id') ?? '',
+              pendingAfterLoadedDeepLink
+            };
+          })()
+        `)
 
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
@@ -15321,6 +15342,7 @@ function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: strin
             ...backgroundMenuResult,
             ...firstBeforeMenuCommand,
             ...firstAfterFocus,
+            ...loadedDeepLinkResult,
             focusedWindowAfterRefocus: BrowserWindow.getFocusedWindow() === win,
             activeWindowAfterRefocus: activeAppWindow() === win,
             windowCountAfterOpen: BrowserWindow.getAllWindows().filter((candidate) => !candidate.isDestroyed()).length,
@@ -15328,6 +15350,8 @@ function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: strin
             secondWindowNavigated: secondResult.secondActiveSessionId === firstResult.sessionId,
             pendingNavigationConsumedOnce: secondResult.pendingAfterLoad === null,
             pendingNavigationWindowScoped: firstResult.openerPendingAfterOpen === null,
+            loadedDeepLinkDoesNotLeavePendingNavigation: loadedDeepLinkResult.loadedDeepLinkActiveSessionId === firstResult.sessionId &&
+              loadedDeepLinkResult.pendingAfterLoadedDeepLink === null,
             firstWindowBrowserFocusArea: firstResult.firstActiveFocusArea === 'right-panel' && firstResult.firstBrowserInputFocused === true,
             firstWindowBrowserMenuEnabled: firstResult.firstBrowserMenuEnabledBeforeOpen === true,
             secondWindowBrowserMenuDisabled: secondResult.secondBrowserMenuEnabled === false,
