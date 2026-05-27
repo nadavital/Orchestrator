@@ -11189,6 +11189,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetTableChecks = {};
               const spreadsheetConditionalFormattingChecks = {};
               const spreadsheetDataValidationChecks = {};
+              const spreadsheetDataValidationOverlayChecks = {};
               const spreadsheetBorderChecks = {};
               const spreadsheetChartChecks = {};
               const spreadsheetFormulaChecks = {};
@@ -12021,6 +12022,51 @@ function runAutomatedFocusedSurfaceSmoke(
                       updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-allow-blank') === 'true' &&
                       statusValidationButton instanceof HTMLElement &&
                       statusValidationButton.textContent?.trim() === 'v';
+                    if (updatedStatusCell instanceof HTMLButtonElement) {
+                      updatedStatusCell.click();
+                      await sleep(120);
+                    }
+                    const validationOverlay = document.querySelector('[data-testid="workspace-spreadsheet-data-validation-overlay"]');
+                    const validationOptions = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-data-validation-option"]')];
+                    const blockedValidationOption = validationOptions.find((option) => option instanceof HTMLButtonElement && option.getAttribute('data-spreadsheet-data-validation-option') === 'Blocked');
+                    const overlayOpenedWorks =
+                      validationOverlay instanceof HTMLElement &&
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-data-validation-overlay-open') === 'true' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-data-validation-overlay-address') === 'C2' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-address') === 'C2' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-value') === 'Updated' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-options') === 'Updated|New|Blocked' &&
+                      validationOptions.length === 3 &&
+                      validationOptions.some((option) =>
+                        option instanceof HTMLButtonElement &&
+                        option.getAttribute('data-spreadsheet-data-validation-option') === 'Updated' &&
+                        option.getAttribute('data-selected') === 'true'
+                      ) &&
+                      blockedValidationOption instanceof HTMLButtonElement;
+                    if (blockedValidationOption instanceof HTMLButtonElement) {
+                      blockedValidationOption.click();
+                      await sleep(160);
+                    }
+                    const changedSpreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const changedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
+                    const changedFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const changedCellValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    spreadsheetDataValidationOverlayChecks[testId] =
+                      overlayOpenedWorks &&
+                      changedSpreadsheetPreview instanceof HTMLElement &&
+                      changedSpreadsheetPreview.getAttribute('data-spreadsheet-data-validation-overlay-open') === 'false' &&
+                      changedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-address') === 'C2' &&
+                      changedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-value') === 'Blocked' &&
+                      Number(changedSpreadsheetPreview.getAttribute('data-spreadsheet-edit-count') ?? '0') >= 1 &&
+                      changedStatusCell instanceof HTMLButtonElement &&
+                      changedStatusCell.getAttribute('data-spreadsheet-cell-value') === 'Blocked' &&
+                      changedStatusCell.textContent?.includes('Blocked') === true &&
+                      changedFormulaBar instanceof HTMLElement &&
+                      changedFormulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'C2' &&
+                      changedFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === 'Blocked' &&
+                      changedCellValue instanceof HTMLInputElement &&
+                      changedCellValue.value === 'Blocked';
                     spreadsheetBorderChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-border-cell-count') === '1' &&
@@ -12144,6 +12190,9 @@ function runAutomatedFocusedSurfaceSmoke(
                       selectedFormulaCell.getAttribute('data-spreadsheet-cell-formula') === '=B2+2' &&
                       selectedFormulaCell.getAttribute('data-spreadsheet-cell-kind') === 'formula';
                     const formulaApply = document.querySelector('[data-testid="workspace-spreadsheet-formula-apply"]');
+                    const formulaEditCountBefore = selectedFormulaPreview instanceof HTMLElement
+                      ? Number(selectedFormulaPreview.getAttribute('data-spreadsheet-edit-count') ?? '0')
+                      : 0;
                     if (selectedFormulaValue instanceof HTMLInputElement) {
                       setNativeValue(selectedFormulaValue, '=B2+3');
                       selectedFormulaValue.dispatchEvent(new Event('input', { bubbles: true }));
@@ -12159,12 +12208,12 @@ function runAutomatedFocusedSurfaceSmoke(
                       formulaApply instanceof HTMLButtonElement &&
                       editedFormulaPreview instanceof HTMLElement &&
                       editedFormulaPreview.getAttribute('data-spreadsheet-editable') === 'local-preview' &&
-                      editedFormulaPreview.getAttribute('data-spreadsheet-edit-count') === '1' &&
+                      Number(editedFormulaPreview.getAttribute('data-spreadsheet-edit-count') ?? '0') === formulaEditCountBefore + 1 &&
                       editedFormulaPreview.getAttribute('data-spreadsheet-active-cell-address') === 'B3' &&
                       editedFormulaPreview.getAttribute('data-spreadsheet-active-cell-value') === '8' &&
                       editedFormulaPreview.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+3' &&
                       editedFormulaFormulaBar instanceof HTMLElement &&
-                      editedFormulaFormulaBar.getAttribute('data-spreadsheet-edit-count') === '1' &&
+                      Number(editedFormulaFormulaBar.getAttribute('data-spreadsheet-edit-count') ?? '0') === formulaEditCountBefore + 1 &&
                       editedFormulaFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === '8' &&
                       editedFormulaFormulaBar.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+3' &&
                       editedFormulaValue instanceof HTMLInputElement &&
@@ -13505,6 +13554,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetTablesWorks: Boolean(spreadsheetTableChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetConditionalFormattingWorks: Boolean(spreadsheetConditionalFormattingChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetDataValidationWorks: Boolean(spreadsheetDataValidationChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetDataValidationOverlayWorks: Boolean(spreadsheetDataValidationOverlayChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetBordersWorks: Boolean(spreadsheetBorderChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetChartsWorks: Boolean(spreadsheetChartChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),

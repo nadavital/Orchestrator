@@ -1026,7 +1026,12 @@ function spreadsheetColumnIndex(address: string): number {
 function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): SpreadsheetPreviewPayload['sheets'] {
   return sheets.map((sheet) => ({
     name: sheet.name,
-    rows: sheet.rows.map((row) => row.map((cell) => ({ ...cell }))),
+    rows: sheet.rows.map((row) => row.map((cell) => ({
+      ...cell,
+      ...(cell.dataValidation
+        ? { dataValidation: { ...cell.dataValidation, values: cell.dataValidation.values ? [...cell.dataValidation.values] : undefined } }
+        : {})
+    }))),
     ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {}),
     ...(sheet.tables ? { tables: sheet.tables.map((table) => ({ ...table })) } : {}),
     ...(sheet.charts ? { charts: sheet.charts.map((chart) => ({ ...chart })) } : {}),
@@ -1297,6 +1302,7 @@ function SpreadsheetArtifactPreview({
   const [fitToWidth, setFitToWidth] = useState(false)
   const [activeCell, setActiveCell] = useState({ row: 0, column: 0 })
   const [formulaDraft, setFormulaDraft] = useState('')
+  const [validationOverlay, setValidationOverlay] = useState<{ row: number; column: number } | null>(null)
   const [editCount, setEditCount] = useState(0)
   const tableWrapRef = useRef<HTMLDivElement>(null)
   const activeSheet = sheets[activeSheetIndex] ?? null
@@ -1318,6 +1324,12 @@ function SpreadsheetArtifactPreview({
   const activeCellData = activeSheet?.rows[activeCellRow]?.[activeCellColumn] ?? null
   const activeCellValue = activeCellData?.value ?? ''
   const activeCellFormula = activeCellData?.formula ?? ''
+  const validationOverlayCell = validationOverlay && activeSheet
+    ? activeSheet.rows[validationOverlay.row]?.[validationOverlay.column] ?? null
+    : null
+  const validationOverlayAddress = validationOverlay
+    ? `${spreadsheetColumnLabel(validationOverlay.column)}${validationOverlay.row + 1}`
+    : ''
   const styledCellCount = activeSheet
     ? activeSheet.rows.reduce((count, row) => count + row.filter((cell) => Boolean(cell.fillColor || cell.conditionalFillColor || cell.borderColor || cell.textColor || cell.bold || cell.wrapText || cell.horizontalAlignment || cell.verticalAlignment)).length, 0)
     : 0
@@ -1345,6 +1357,7 @@ function SpreadsheetArtifactPreview({
     setSheets(initialSheets)
     setActiveSheetIndex(0)
     setActiveCell({ row: 0, column: 0 })
+    setValidationOverlay(null)
     setEditCount(0)
   }, [initialSheets])
   useEffect(() => {
@@ -1353,11 +1366,20 @@ function SpreadsheetArtifactPreview({
   const selectSheet = (index: number): void => {
     setActiveSheetIndex(Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
     setActiveCell({ row: 0, column: 0 })
+    setValidationOverlay(null)
   }
   const commitFormulaDraft = (nextInput = formulaDraft): void => {
     if (!activeSheet) return
     if (nextInput === (activeCellFormula || activeCellValue)) return
     setSheets((items) => updateSpreadsheetCell(items, activeSheetIndex, activeCellRow, activeCellColumn, nextInput))
+    setValidationOverlay(null)
+    setEditCount((count) => count + 1)
+  }
+  const applyDataValidationValue = (rowIndex: number, columnIndex: number, value: string): void => {
+    if (!activeSheet) return
+    setActiveCell({ row: rowIndex, column: columnIndex })
+    setSheets((items) => updateSpreadsheetCell(items, activeSheetIndex, rowIndex, columnIndex, value))
+    setValidationOverlay(null)
     setEditCount((count) => count + 1)
   }
   const freezeCountFromPointer = (axis: 'row' | 'column', clientX: number, clientY: number): number => {
@@ -1417,6 +1439,9 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-freeze-handles="true"
       data-spreadsheet-editable="local-preview"
       data-spreadsheet-edit-count={editCount}
+      data-spreadsheet-data-validation-overlay-open={validationOverlayCell?.dataValidation?.type === 'list' ? 'true' : 'false'}
+      data-spreadsheet-data-validation-overlay-address={validationOverlayCell?.dataValidation?.type === 'list' ? validationOverlayAddress : ''}
+      data-spreadsheet-data-validation-overlay-value={validationOverlayCell?.dataValidation?.type === 'list' ? validationOverlayCell.value : ''}
     >
       <ArtifactPreviewHeader
         artifactType="XLSX"
@@ -1628,6 +1653,12 @@ function SpreadsheetArtifactPreview({
                           const isTableBandedCell = tableCell?.isBandedRow === true
                           const hasTableFilterButton = isTableHeaderCell && tableCell?.table.showFilterButton === true
                           const hasDataValidationButton = cell.dataValidation?.type === 'list'
+                          const dataValidationValues = cell.dataValidation?.values ?? []
+                          const isValidationOverlayOpen = Boolean(
+                            hasDataValidationButton &&
+                            validationOverlay?.row === rowIndex &&
+                            validationOverlay.column === cellIndex
+                          )
                           const frozenColumnLeft = cellIndex < frozenColumnCount
                             ? 38 + spreadsheetDimensionOffset(activeSheet.columnWidths, cellIndex, 88)
                             : undefined
@@ -1713,8 +1744,18 @@ function SpreadsheetArtifactPreview({
                                 data-active={isActive ? 'true' : 'false'}
                                 aria-label={`${cellAddress} ${cell.value}`.trim()}
                                 style={cellStyle}
-                                onClick={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
+                                onClick={() => {
+                                  setActiveCell({ row: rowIndex, column: cellIndex })
+                                  setValidationOverlay(hasDataValidationButton ? { row: rowIndex, column: cellIndex } : null)
+                                }}
                                 onFocus={() => { setActiveCell({ row: rowIndex, column: cellIndex }) }}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Escape') setValidationOverlay(null)
+                                  if ((event.key === 'Enter' || event.key === ' ') && hasDataValidationButton) {
+                                    event.preventDefault()
+                                    setValidationOverlay({ row: rowIndex, column: cellIndex })
+                                  }
+                                }}
                               >
                                 <span className="workspace-spreadsheet-cell-content">{cell.value}</span>
                                 {hasTableFilterButton && (
@@ -1724,6 +1765,33 @@ function SpreadsheetArtifactPreview({
                                   <span className="workspace-spreadsheet-validation-button" data-testid="workspace-spreadsheet-validation-button" aria-hidden="true">v</span>
                                 )}
                               </button>
+                              {isValidationOverlayOpen && (
+                                <div
+                                  className="workspace-spreadsheet-data-validation-overlay"
+                                  data-testid="workspace-spreadsheet-data-validation-overlay"
+                                  data-spreadsheet-data-validation-address={cellAddress}
+                                  data-spreadsheet-data-validation-value={cell.value}
+                                  data-spreadsheet-data-validation-options={dataValidationValues.join('|')}
+                                  role="listbox"
+                                  aria-label={`${cellAddress} data validation options`}
+                                >
+                                  {dataValidationValues.map((value) => (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      className="workspace-spreadsheet-data-validation-option"
+                                      data-testid="workspace-spreadsheet-data-validation-option"
+                                      data-spreadsheet-data-validation-option={value}
+                                      data-selected={value === cell.value ? 'true' : 'false'}
+                                      role="option"
+                                      aria-selected={value === cell.value}
+                                      onClick={() => { applyDataValidationValue(rowIndex, cellIndex, value) }}
+                                    >
+                                      {value}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </td>
                           )
                         })}
