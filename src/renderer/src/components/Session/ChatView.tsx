@@ -56,6 +56,20 @@ const USER_MESSAGE_COLLAPSE_MIN_BREAK = 980
 const TRANSCRIPT_RENDER_CHUNK = 40
 const TRANSCRIPT_LAZY_LOAD_TOP_THRESHOLD = 360
 const TRANSCRIPT_VIRTUAL_OVERSCAN = 900
+const EMPTY_STATE_SUGGESTIONS = [
+  {
+    label: 'Review this branch',
+    prompt: 'Review the current branch and call out the highest-impact correctness, usability, and test gaps.'
+  },
+  {
+    label: 'Fix a flaky test',
+    prompt: 'Find the likely cause of the flaky test, make the smallest safe fix, and run the targeted test that proves it.'
+  },
+  {
+    label: 'Plan the next slice',
+    prompt: 'Inspect the current app state and propose the next small implementation slice with the exact validation it should pass.'
+  }
+]
 
 type DiffUpdatedRunEvent = Extract<SessionRunEventRecord['event'], { type: 'diff.updated' }>
 type ProviderCheckpointUndoStatus = 'not-applicable' | 'missing-checkpoint' | 'unsupported'
@@ -604,6 +618,11 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
 
   if (session.messages.length === 0 && session.status !== 'running') {
     const promptTarget = projectName ?? 'this project'
+    const applyEmptyStateSuggestion = (prompt: string): void => {
+      window.dispatchEvent(new CustomEvent('orchestrator:add-composer-text', {
+        detail: { text: prompt }
+      }))
+    }
     return (
       <div
         data-testid="chat-empty-state"
@@ -625,18 +644,23 @@ function ChatViewContent({ session }: { session: Session }): JSX.Element {
             Start with a goal, a bug, a branch, or a file you want to understand.
           </div>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {['Review this branch', 'Fix a flaky test', 'Plan the next slice'].map((suggestion) => (
-              <span
-                key={suggestion}
+            {EMPTY_STATE_SUGGESTIONS.map((suggestion) => (
+              <button
+                type="button"
+                key={suggestion.label}
+                data-testid="chat-empty-state-suggestion"
+                data-suggestion-label={suggestion.label}
+                onClick={() => applyEmptyStateSuggestion(suggestion.prompt)}
                 className="rounded-full border px-3 py-1 text-[12px]"
                 style={{
                   borderColor: 'var(--border-subtle)',
                   background: 'var(--surface-bg)',
-                  color: 'var(--text-secondary)'
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer'
                 }}
               >
-                {suggestion}
-              </span>
+                {suggestion.label}
+              </button>
             ))}
           </div>
           <div className="mt-8 text-left">

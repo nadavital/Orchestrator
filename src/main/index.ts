@@ -4467,6 +4467,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               Boolean(attachmentOnlyRow) &&
               Boolean(attachmentOnlyRowAfterSwitch) &&
               attachmentLabels().some((label) => label.includes('attachment-only.txt'));
+            const emptyStateSuggestion = document.querySelector('[data-testid="chat-empty-state-suggestion"]');
+            if (emptyStateSuggestion instanceof HTMLButtonElement) {
+              emptyStateSuggestion.click();
+              await sleep(160);
+            }
+            var composerEmptySuggestionFillsDraft =
+              emptyStateSuggestion instanceof HTMLButtonElement &&
+              textareaValue()?.includes('Review the current branch') === true;
             const composerDropShell = document.querySelector('[data-testid="composer-shell"]');
             var composerDropOverlayWorks = false;
             var composerDragDropAttachmentWorks = false;
@@ -5608,6 +5616,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             composerAgentMenuClosedWithOutsideClick: typeof composerAgentMenuClosedWithOutsideClick === 'boolean' ? composerAgentMenuClosedWithOutsideClick : null,
             composerAgentFocusReturned: typeof composerAgentFocusReturned === 'boolean' ? composerAgentFocusReturned : null,
             composerToolbarResponsiveWorks: typeof composerToolbarResponsiveWorks === 'boolean' ? composerToolbarResponsiveWorks : null,
+            composerEmptySuggestionFillsDraft: typeof composerEmptySuggestionFillsDraft === 'boolean' ? composerEmptySuggestionFillsDraft : null,
             composerDraftsPerChat: typeof composerDraftsPerChat === 'boolean' ? composerDraftsPerChat : null,
             composerDraftClearedOnSwitch: typeof composerDraftClearedOnSwitch === 'boolean' ? composerDraftClearedOnSwitch : null,
             composerFirstDraftRestored: typeof composerFirstDraftRestored === 'boolean' ? composerFirstDraftRestored : null,
