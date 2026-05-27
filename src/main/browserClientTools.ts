@@ -3,8 +3,10 @@ import type { IpcMain } from 'electron'
 import { safeWindowSend } from './safeWebContents'
 export {
   BROWSER_CLIENT_TOOL_NAMESPACE,
+  BROWSER_CLIENT_TOOL_CLICK,
   BROWSER_CLIENT_TOOL_OPEN,
   BROWSER_CLIENT_TOOL_READ,
+  BROWSER_CLIENT_TOOL_TYPE,
   browserClientDynamicTools,
   isBrowserClientDynamicTool
 } from './browserClientToolSpecs'

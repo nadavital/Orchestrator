@@ -12,8 +12,10 @@ const { PROVIDERS, providerSpawnEnv, resolveProviderCommand } = await import(pro
 const browserToolSpecsModulePath = join(repoRoot, 'out-test/src/main/browserClientToolSpecs.js')
 const {
   BROWSER_CLIENT_TOOL_NAMESPACE,
+  BROWSER_CLIENT_TOOL_CLICK,
   BROWSER_CLIENT_TOOL_OPEN,
   BROWSER_CLIENT_TOOL_READ,
+  BROWSER_CLIENT_TOOL_TYPE,
   browserClientDynamicTools,
   isBrowserClientDynamicTool
 } = await import(browserToolSpecsModulePath)
@@ -37,6 +39,8 @@ const dynamicToolName = 'browser_bridge_status'
 const dynamicToolFullName = `${dynamicToolNamespace}.${dynamicToolName}`
 const browserOpenFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_OPEN}`
 const browserReadFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_READ}`
+const browserClickFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_CLICK}`
+const browserTypeFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_TYPE}`
 const defaultPrompt = enableRealBrowserToolProof
   ? [
       'This is a live Orchestrator/Codex app-server Browser dynamic client-tool proof.',
@@ -44,8 +48,11 @@ const defaultPrompt = enableRealBrowserToolProof
       'Do not run shell commands.',
       `First call the dynamic client tool named ${browserOpenFullName} with this URL: ${browserProofUrl}`,
       `Then call the dynamic client tool named ${browserReadFullName}.`,
+      `Then call ${browserClickFullName} for the Target button. You may use the nodeId returned by ${BROWSER_CLIENT_TOOL_READ}, or use the visible text "Target button".`,
+      `Then call ${browserTypeFullName} for the Smoke input with text LIVE_TYPE_OK. You may use the nodeId returned by ${BROWSER_CLIENT_TOOL_READ}, or use targetText "Smoke input".`,
+      `Then call ${browserReadFullName} one more time.`,
       `After both tools return, reply with exactly ${expectedToken}.`,
-      `If either tool is not available, reply with exactly ${noBrowserToken}.`
+      `If any tool is not available, reply with exactly ${noBrowserToken}.`
     ]
   : enableDynamicToolProof
   ? [
@@ -185,14 +192,18 @@ try {
     request.paramsPreview.includes(`"namespace":"${BROWSER_CLIENT_TOOL_NAMESPACE}"`) &&
     (
       request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_OPEN}"`) ||
-      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_READ}"`)
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_READ}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CLICK}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_TYPE}"`)
     )
   )
   const calledBrowserOpen = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_OPEN}"`))
   const calledBrowserRead = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_READ}"`))
+  const calledBrowserClick = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CLICK}"`))
+  const calledBrowserType = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_TYPE}"`))
 
-  if (enableRealBrowserToolProof && calledBrowserOpen && calledBrowserRead && assistantSawOk) {
-    finish(true, 'live Codex app-server requested real Browser dynamic tools and completed browser_open/browser_read round trip')
+  if (enableRealBrowserToolProof && calledBrowserOpen && calledBrowserRead && calledBrowserClick && calledBrowserType && assistantSawOk) {
+    finish(true, 'live Codex app-server requested real Browser dynamic tools and completed browser_open/browser_read/browser_click/browser_type round trip')
   } else if (enableRealBrowserToolProof && realBrowserToolCalls.length > 0) {
     finish(false, `real Browser tool call observed but required open/read calls or expected assistant token were missing: ${assistantText.trim()}`)
   } else if (enableRealBrowserToolProof) {
@@ -352,7 +363,13 @@ function preview(value) {
 function browserToolProofResponse(tool, args) {
   const record = args && typeof args === 'object' && !Array.isArray(args) ? args : {}
   const url = typeof record.url === 'string' && record.url.length > 0 ? record.url : browserProofUrl
-  const action = tool === BROWSER_CLIENT_TOOL_OPEN ? 'open' : 'read'
+  const action = tool === BROWSER_CLIENT_TOOL_OPEN
+    ? 'open'
+    : tool === BROWSER_CLIENT_TOOL_CLICK
+      ? 'click'
+      : tool === BROWSER_CLIENT_TOOL_TYPE
+        ? 'type'
+        : 'read'
   return {
     contentItems: [{
       type: 'inputText',
@@ -361,7 +378,14 @@ function browserToolProofResponse(tool, args) {
         action,
         url,
         title: 'Orchestrator Browser Proof',
-        visibleStructure: 'ORCHESTRATOR_BROWSER_PROOF_PAGE'
+        visibleStructure: 'ORCHESTRATOR_BROWSER_PROOF_PAGE\n<button>Target button</button>\n<input aria-label="Smoke input" value="LIVE_TYPE_OK">',
+        targets: [
+          { index: 1, nodeId: 'node-1', tagName: 'button', visibleText: 'Target button', preview: 'button · Target button', selector: '#target-button' },
+          { index: 2, nodeId: 'node-2', tagName: 'input', ariaName: 'Smoke input', preview: 'input · Smoke input', selector: 'input[aria-label="Smoke input"]' }
+        ],
+        targetAction: tool === BROWSER_CLIENT_TOOL_CLICK || tool === BROWSER_CLIENT_TOOL_TYPE
+          ? { ok: true, action }
+          : undefined
       })
     }],
     success: true

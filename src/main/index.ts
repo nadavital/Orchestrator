@@ -14262,6 +14262,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               }
             };
             let browserClientToolBridgeWorks = false;
+            let browserClientToolActionsWork = false;
             if (activeSmokeSession) {
               const readResponse = await window.api.browser.runClientToolSmoke({
                 sessionId: activeSmokeSession.id,
@@ -14277,6 +14278,32 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 arguments: { url: smokeBaseUrl }
               });
               const openPayload = parseClientToolPayload(openResponse);
+              const clickResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_click',
+                arguments: { text: 'Target button' }
+              });
+              const clickPayload = parseClientToolPayload(clickResponse);
+              const typeResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_type',
+                arguments: { targetText: 'Smoke input', text: 'CLIENT_TYPE_OK' }
+              });
+              const typePayload = parseClientToolPayload(typeResponse);
+              browserClientToolActionsWork =
+                clickResponse?.success === true &&
+                typeResponse?.success === true &&
+                clickPayload.ok === true &&
+                typePayload.ok === true &&
+                clickPayload.action === 'click' &&
+                typePayload.action === 'type' &&
+                clickPayload.targetAction?.ok === true &&
+                clickPayload.targetAction?.pageState?.clicked === 'yes' &&
+                typePayload.targetAction?.ok === true &&
+                typePayload.targetAction?.target?.value?.includes('CLIENT_TYPE_OK') === true &&
+                typePayload.targetAction?.pageState?.inputValue?.includes('CLIENT_TYPE_OK') === true;
               browserClientToolBridgeWorks =
                 readResponse?.success === true &&
                 openResponse?.success === true &&
@@ -14284,6 +14311,9 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 openPayload.ok === true &&
                 readPayload.action === 'read' &&
                 openPayload.action === 'open' &&
+                browserClientToolActionsWork &&
+                Array.isArray(openPayload.targets) &&
+                openPayload.targets.some((target) => target?.visibleText === 'Target button') &&
                 typeof readPayload.visibleStructure === 'string' &&
                 readPayload.visibleStructure.includes('Browser') &&
                 typeof openPayload.visibleStructure === 'string' &&
@@ -14911,6 +14941,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserViewportResetWorks,
               browserManagerStateBridgeWorks,
               browserClientToolBridgeWorks,
+              browserClientToolActionsWork,
               browserCaptureGeometryWorks,
               browserUseNoMutationWorks,
               browserCacheReloadWorks,

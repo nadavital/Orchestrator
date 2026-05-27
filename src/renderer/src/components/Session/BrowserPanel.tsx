@@ -94,6 +94,13 @@ interface BrowserCommentRegion {
 type BrowserCommentIntent = 'comment' | 'design-tweak'
 
 type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'read' | 'scroll'
+interface BrowserClientToolActionResult {
+  ok: boolean
+  action: string
+  error?: string
+  target?: BrowserTargetReadResult | null
+  targetCount?: number
+}
 type BrowserClearDataKind = 'all' | 'cache' | 'cookies' | 'siteData'
 type BrowserInspectorMode = BrowserWorkbenchState['inspectorMode']
 type BrowserManagerBridgeEvent = CustomEvent<{
@@ -1008,12 +1015,20 @@ export default function BrowserPanel({
     const resolvedUrl = webview?.getURL?.() || currentUrl || activeBrowserTab(workbenchRef.current).url || ''
     const resolvedTitle = webview?.getTitle?.() || title || activeBrowserTab(workbenchRef.current).title || ''
     let visibleStructure = domSnapshot
+    let targets = visibleTargets
     if (webview && resolvedUrl && resolvedUrl !== 'about:blank') {
       try {
-        visibleStructure = await webview.executeJavaScript<string>(DOM_SNAPSHOT_SCRIPT)
+        const [nextVisibleStructure, nextTargets] = await Promise.all([
+          webview.executeJavaScript<string>(DOM_SNAPSHOT_SCRIPT),
+          webview.executeJavaScript<VisibleTarget[]>(VISIBLE_TARGETS_SCRIPT, true)
+        ])
+        visibleStructure = nextVisibleStructure
+        targets = Array.isArray(nextTargets) ? nextTargets : []
         setDomSnapshot(visibleStructure)
+        setVisibleTargets(targets)
       } catch {
         visibleStructure = ''
+        targets = []
       }
     }
     return {
@@ -1023,7 +1038,17 @@ export default function BrowserPanel({
       visible: workbenchRef.current.visible,
       loading: isLoading,
       error,
-      visibleStructure: visibleStructure.trim().slice(0, 6000)
+      visibleStructure: visibleStructure.trim().slice(0, 6000),
+      targets: targets.slice(0, 30).map((target, index) => ({
+        index: index + 1,
+        nodeId: target.nodeId,
+        tagName: target.tagName,
+        role: target.role,
+        ariaName: target.ariaName,
+        visibleText: target.visibleText,
+        preview: target.preview,
+        selector: target.selector.primary
+      }))
     }
   }
 
@@ -1042,11 +1067,101 @@ export default function BrowserPanel({
     })
   }
 
+  const runBrowserClientToolAction = async (
+    webview: WebviewElement,
+    action: 'click' | 'type',
+    args: Record<string, unknown>
+  ): Promise<BrowserClientToolActionResult> => {
+    const scriptArgs = {
+      action,
+      nodeId: typeof args.nodeId === 'string' ? args.nodeId : null,
+      selector: typeof args.selector === 'string' ? args.selector : null,
+      text: typeof args.text === 'string' ? args.text : '',
+      targetText: typeof args.targetText === 'string'
+        ? args.targetText
+        : typeof args.text === 'string' && action === 'click'
+          ? args.text
+          : null,
+      index: typeof args.index === 'number' ? args.index : null
+    }
+    return webview.executeJavaScript<BrowserClientToolActionResult>(`
+      (() => {
+        const args = ${JSON.stringify(scriptArgs)};
+        const visible = (element) => {
+          if (!(element instanceof HTMLElement)) return false;
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        };
+        const labelFor = (element) => {
+          const aria = element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || '';
+          const text = (element.innerText || element.textContent || element.value || '').replace(/\\s+/g, ' ').trim();
+          return [aria, text].filter(Boolean).join(' ').trim();
+        };
+        const readTarget = (element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          const disabled = element.disabled === true || element.getAttribute('aria-disabled') === 'true';
+          return {
+            tagName: element.tagName.toLowerCase(),
+            role: element.getAttribute('role'),
+            ariaName: element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || null,
+            text: (element.innerText || element.textContent || '').replace(/\\s+/g, ' ').trim() || null,
+            value: 'value' in element ? String(element.value || '') : null,
+            href: element instanceof HTMLAnchorElement ? element.href : null,
+            checked: element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio') ? element.checked : null,
+            enabled: !disabled,
+            visible: style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0,
+            selector: element.dataset.orchestratorNodeId ? '[data-orchestrator-node-id="' + element.dataset.orchestratorNodeId + '"]' : null
+          };
+        };
+        const targets = Array.isArray(window.__orchestratorBrowserTargets) ? window.__orchestratorBrowserTargets : [];
+        const normalizedTargetText = String(args.targetText || '').trim().toLowerCase();
+        let element = null;
+        if (args.nodeId) element = document.querySelector('[data-orchestrator-node-id="' + String(args.nodeId).replace(/"/g, '\\"') + '"]');
+        if (!element && args.selector) {
+          try { element = document.querySelector(args.selector); } catch {}
+        }
+        if (!element && Number.isFinite(args.index) && args.index > 0) {
+          const target = targets[Math.floor(args.index) - 1];
+          if (target?.nodeId) element = document.querySelector('[data-orchestrator-node-id="' + target.nodeId + '"]');
+        }
+        if (!element && normalizedTargetText) {
+          const candidates = [...document.querySelectorAll('a[href], button, input, textarea, select, [role="button"], [role="link"], [tabindex], [contenteditable="true"]')];
+          element = candidates.find((candidate) => visible(candidate) && labelFor(candidate).toLowerCase().includes(normalizedTargetText)) || null;
+        }
+        const pageState = () => ({
+          clicked: document.body?.dataset?.clicked || null,
+          inputValue: document.body?.dataset?.inputValue || null
+        });
+        if (!(element instanceof HTMLElement) || !visible(element)) {
+          return { ok: false, action: args.action, error: 'Target not found or not visible.', targetCount: targets.length };
+        }
+        element.focus();
+        if (args.action === 'type') {
+          if (!args.text) return { ok: false, action: args.action, error: 'browser_type requires text.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          if ('value' in element) {
+            element.value = String(element.value || '') + args.text;
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+            element.dispatchEvent(new Event('change', { bubbles: true }));
+          } else {
+            document.execCommand('insertText', false, args.text);
+          }
+        } else {
+          element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+          element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+          element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        }
+        return { ok: true, action: args.action, target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+      })()
+    `, true)
+  }
+
   const handleBrowserClientToolCall = async (call: BrowserClientToolCall): Promise<void> => {
     const expectedSessionId = sessionIdFromBrowserHost(hostId)
     if (!expectedSessionId || call.sessionId !== expectedSessionId) return
     if (call.namespace !== 'orchestrator') return
-    if (call.tool !== 'browser_open' && call.tool !== 'browser_read') return
+    if (call.tool !== 'browser_open' && call.tool !== 'browser_read' && call.tool !== 'browser_click' && call.tool !== 'browser_type') return
     if (handledClientToolRequestIdsRef.current.has(call.requestId)) return
     handledClientToolRequestIdsRef.current.add(call.requestId)
 
@@ -1069,6 +1184,23 @@ export default function BrowserPanel({
       }
 
       const webview = await waitForActiveWebview(webviewRef, 1000)
+      if ((call.tool === 'browser_click' || call.tool === 'browser_type') && webview) {
+        await webview.executeJavaScript<VisibleTarget[]>(VISIBLE_TARGETS_SCRIPT, true)
+        const actionResult = await runBrowserClientToolAction(webview, call.tool === 'browser_click' ? 'click' : 'type', call.arguments)
+        if (actionResult.ok) {
+          await waitForWebviewSettled(webview, 1200)
+        }
+        answerBrowserClientTool(call, actionResult.ok, {
+          ...(await browserClientToolSnapshot(webview)),
+          action: call.tool === 'browser_click' ? 'click' : 'type',
+          targetAction: actionResult
+        })
+        return
+      }
+      if (call.tool === 'browser_click' || call.tool === 'browser_type') {
+        answerBrowserClientTool(call, false, { ok: false, error: 'Browser page is not available for interaction.' })
+        return
+      }
       answerBrowserClientTool(call, true, {
         ...(await browserClientToolSnapshot(webview)),
         action: 'read'
