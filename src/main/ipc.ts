@@ -64,6 +64,7 @@ interface SpreadsheetPreviewSheet {
   merges?: SpreadsheetPreviewMerge[]
   columnWidths?: Array<number | undefined>
   rowHeights?: Array<number | undefined>
+  freezePanes?: SpreadsheetFreezePanes
 }
 
 interface SpreadsheetPreviewMerge {
@@ -72,6 +73,11 @@ interface SpreadsheetPreviewMerge {
   startColumn: number
   rowSpan: number
   colSpan: number
+}
+
+interface SpreadsheetFreezePanes {
+  rows: number
+  columns: number
 }
 
 interface SpreadsheetCellStyle {
@@ -481,12 +487,14 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     const merges = extractWorksheetMerges(xml)
     const columnWidths = extractWorksheetColumnWidths(xml)
     const rowHeights = extractWorksheetRowHeights(xml)
+    const freezePanes = extractWorksheetFreezePanes(xml)
     sheets.push({
       name: sheet.name,
       rows: parsed.rows,
       ...(merges.length > 0 ? { merges } : {}),
       ...(columnWidths.some((width) => width !== undefined) ? { columnWidths } : {}),
-      ...(rowHeights.some((height) => height !== undefined) ? { rowHeights } : {})
+      ...(rowHeights.some((height) => height !== undefined) ? { rowHeights } : {}),
+      ...(freezePanes ? { freezePanes } : {})
     })
   }
   if (worksheetEntries.length > 6) truncated = true
@@ -824,6 +832,14 @@ function extractWorksheetRowHeights(xml: string): Array<number | undefined> {
     heights[index] = Math.max(22, Math.min(180, Math.round(height * 96 / 72)))
   }
   return heights.slice(0, 24)
+}
+
+function extractWorksheetFreezePanes(xml: string): SpreadsheetFreezePanes | null {
+  const paneTag = /<pane\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
+  if (!paneTag || !/\bstate="frozen(?:Split)?"/i.test(paneTag)) return null
+  const rows = Math.max(0, Math.min(6, Math.round(decimalAttribute(paneTag, 'ySplit') ?? 0)))
+  const columns = Math.max(0, Math.min(6, Math.round(decimalAttribute(paneTag, 'xSplit') ?? 0)))
+  return rows > 0 || columns > 0 ? { rows, columns } : null
 }
 
 function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {

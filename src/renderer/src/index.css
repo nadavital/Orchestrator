@@ -4844,6 +4844,10 @@
     vertical-align: top;
   }
 
+  .workspace-spreadsheet-table td[style*='sticky'] {
+    background: var(--surface-bg);
+  }
+
   .workspace-spreadsheet-cell-button {
     display: block;
     width: 100%;

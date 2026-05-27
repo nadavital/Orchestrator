@@ -450,6 +450,12 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
           .filter(Boolean)
           .join('')
       : ''
+    const frozenRows = Math.max(0, Math.min(6, Number(sheet.freezePanes?.rows ?? 0) || 0))
+    const frozenColumns = Math.max(0, Math.min(6, Number(sheet.freezePanes?.columns ?? 0) || 0))
+    const topLeftCell = `${columnName(frozenColumns)}${frozenRows + 1}`
+    const paneXml = frozenRows > 0 || frozenColumns > 0
+      ? `<sheetViews><sheetView workbookViewId="0"><pane${frozenColumns > 0 ? ` xSplit="${frozenColumns}"` : ''}${frozenRows > 0 ? ` ySplit="${frozenRows}"` : ''} topLeftCell="${topLeftCell}" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>`
+      : ''
     const cellXml = sheet.rows.map((row, rowIndex) => {
       const rowHeight = Number(sheet.rowHeights?.[rowIndex])
       const rowAttributes = Number.isFinite(rowHeight) && rowHeight > 0
@@ -485,6 +491,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
       name: `xl/worksheets/sheet${sheetIndex + 1}.xml`,
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  ${paneXml}
   ${columnXml ? `<cols>${columnXml}</cols>` : ''}
   <sheetData>
       ${cellXml}
@@ -838,6 +845,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         ],
         columnWidths: [12, 24, 14],
         rowHeights: [20, 20, 38],
+        freezePanes: { rows: 1, columns: 1 },
         merges: ['A3:B3']
       },
       {
@@ -960,6 +968,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         ],
         columnWidths: [12, 24, 14],
         rowHeights: [20, 20, 20, 42],
+        freezePanes: { rows: 1, columns: 1 },
         merges: ['A4:B4']
       },
         {
@@ -1720,6 +1729,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetCellStyles: result.filesSpreadsheetCellStylesWorks === true,
           filesSpreadsheetMergedCells: result.filesSpreadsheetMergedCellsWorks === true,
           filesSpreadsheetSizing: result.filesSpreadsheetSizingWorks === true,
+          filesSpreadsheetFreezePanes: result.filesSpreadsheetFreezePanesWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -1929,6 +1939,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetCellStyles: captureView !== 'inspector' || result.filesSpreadsheetCellStylesWorks === true,
         filesSpreadsheetMergedCells: captureView !== 'inspector' || result.filesSpreadsheetMergedCellsWorks === true,
         filesSpreadsheetSizing: captureView !== 'inspector' || result.filesSpreadsheetSizingWorks === true,
+        filesSpreadsheetFreezePanes: captureView !== 'inspector' || result.filesSpreadsheetFreezePanesWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,

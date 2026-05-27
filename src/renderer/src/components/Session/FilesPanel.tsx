@@ -927,6 +927,7 @@ interface SpreadsheetPreviewPayload {
     merges?: SpreadsheetPreviewMerge[]
     columnWidths?: Array<number | undefined>
     rowHeights?: Array<number | undefined>
+    freezePanes?: SpreadsheetFreezePanes
   }>
   truncated?: boolean
 }
@@ -945,6 +946,11 @@ interface SpreadsheetPreviewMerge {
   startColumn: number
   rowSpan: number
   colSpan: number
+}
+
+interface SpreadsheetFreezePanes {
+  rows: number
+  columns: number
 }
 
 interface SlidesPreviewPayload {
@@ -989,7 +995,8 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
     rows: sheet.rows.map((row) => row.map((cell) => ({ ...cell }))),
     ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {}),
     ...(sheet.columnWidths ? { columnWidths: [...sheet.columnWidths] } : {}),
-    ...(sheet.rowHeights ? { rowHeights: [...sheet.rowHeights] } : {})
+    ...(sheet.rowHeights ? { rowHeights: [...sheet.rowHeights] } : {}),
+    ...(sheet.freezePanes ? { freezePanes: { ...sheet.freezePanes } } : {})
   }))
 }
 
@@ -1161,6 +1168,12 @@ function spreadsheetMergeLookup(merges: SpreadsheetPreviewMerge[]): {
   return { starts, covered }
 }
 
+function spreadsheetDimensionOffset(values: Array<number | undefined> | undefined, index: number, fallback: number): number {
+  let offset = 0
+  for (let itemIndex = 0; itemIndex < index; itemIndex += 1) offset += values?.[itemIndex] ?? fallback
+  return offset
+}
+
 function SpreadsheetArtifactPreview({
   absolutePath,
   entry,
@@ -1200,6 +1213,8 @@ function SpreadsheetArtifactPreview({
   const mergeCount = activeSheet?.merges?.length ?? 0
   const sizedColumnCount = activeSheet?.columnWidths?.filter((width) => width !== undefined).length ?? 0
   const sizedRowCount = activeSheet?.rowHeights?.filter((height) => height !== undefined).length ?? 0
+  const frozenRowCount = activeSheet?.freezePanes?.rows ?? 0
+  const frozenColumnCount = activeSheet?.freezePanes?.columns ?? 0
   useEffect(() => {
     setActiveSheetIndex((index) => Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
   }, [sheetCount])
@@ -1241,6 +1256,8 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-merge-count={mergeCount}
       data-spreadsheet-sized-column-count={sizedColumnCount}
       data-spreadsheet-sized-row-count={sizedRowCount}
+      data-spreadsheet-frozen-row-count={frozenRowCount}
+      data-spreadsheet-frozen-column-count={frozenColumnCount}
       data-spreadsheet-editable="local-preview"
       data-spreadsheet-edit-count={editCount}
     >
@@ -1376,7 +1393,12 @@ function SpreadsheetArtifactPreview({
                   </colgroup>
                   <thead>
                     <tr>
-                      <th className="workspace-spreadsheet-corner" scope="col" aria-label="Workbook grid corner" />
+                      <th
+                        className="workspace-spreadsheet-corner"
+                        scope="col"
+                        aria-label="Workbook grid corner"
+                        style={{ position: 'sticky', left: 0, top: 0, zIndex: 6 }}
+                      />
                       {Array.from({ length: maxColumnCount }, (_, columnIndex) => (
                         <th
                           key={columnIndex}
@@ -1384,9 +1406,16 @@ function SpreadsheetArtifactPreview({
                           data-testid="workspace-spreadsheet-column-header"
                           data-spreadsheet-column-label={spreadsheetColumnLabel(columnIndex)}
                           data-spreadsheet-column-width={activeSheet.columnWidths?.[columnIndex] ?? ''}
+                          data-spreadsheet-column-frozen={columnIndex < frozenColumnCount ? 'true' : 'false'}
                           style={{
+                            position: 'sticky',
+                            top: 0,
+                            left: columnIndex < frozenColumnCount
+                              ? 38 + spreadsheetDimensionOffset(activeSheet.columnWidths, columnIndex, 88)
+                              : undefined,
                             width: activeSheet.columnWidths?.[columnIndex],
-                            minWidth: activeSheet.columnWidths?.[columnIndex]
+                            minWidth: activeSheet.columnWidths?.[columnIndex],
+                            zIndex: columnIndex < frozenColumnCount ? 5 : 4
                           }}
                           scope="col"
                         >
@@ -1398,6 +1427,9 @@ function SpreadsheetArtifactPreview({
                   <tbody>
                     {activeSheet.rows.map((row, rowIndex) => {
                       const rowHeight = activeSheet.rowHeights?.[rowIndex]
+                      const frozenRowTop = rowIndex < frozenRowCount
+                        ? 26 + spreadsheetDimensionOffset(activeSheet.rowHeights, rowIndex, 29)
+                        : undefined
                       return (
                       <tr
                         key={rowIndex}
@@ -1409,6 +1441,13 @@ function SpreadsheetArtifactPreview({
                           data-testid="workspace-spreadsheet-row-header"
                           data-spreadsheet-row-label={rowIndex + 1}
                           data-spreadsheet-row-height={rowHeight ?? ''}
+                          data-spreadsheet-row-frozen={rowIndex < frozenRowCount ? 'true' : 'false'}
+                          style={{
+                            position: 'sticky',
+                            left: 0,
+                            top: frozenRowTop,
+                            zIndex: rowIndex < frozenRowCount ? 5 : 3
+                          }}
                           scope="row"
                         >
                           {rowIndex + 1}
@@ -1416,9 +1455,13 @@ function SpreadsheetArtifactPreview({
                         {Array.from({ length: maxColumnCount }, (_, cellIndex) => {
                           if (activeSheetMergeLookup.covered.has(`${rowIndex}:${cellIndex}`)) return null
                           const cell = row[cellIndex] ?? { value: '' }
-                          const cellAddress = `${spreadsheetColumnLabel(cellIndex)}${rowIndex + 1}`
-                          const isActive = rowIndex === activeCellRow && cellIndex === activeCellColumn
-                          const merge = activeSheetMergeLookup.starts.get(`${rowIndex}:${cellIndex}`)
+	                          const cellAddress = `${spreadsheetColumnLabel(cellIndex)}${rowIndex + 1}`
+	                          const isActive = rowIndex === activeCellRow && cellIndex === activeCellColumn
+	                          const merge = activeSheetMergeLookup.starts.get(`${rowIndex}:${cellIndex}`)
+                          const frozenColumnLeft = cellIndex < frozenColumnCount
+                            ? 38 + spreadsheetDimensionOffset(activeSheet.columnWidths, cellIndex, 88)
+                            : undefined
+                          const isFrozenCell = rowIndex < frozenRowCount || cellIndex < frozenColumnCount
                           return (
                             <td
                               key={cellIndex}
@@ -1427,7 +1470,13 @@ function SpreadsheetArtifactPreview({
                               data-spreadsheet-cell-merge-ref={merge?.ref ?? ''}
                               data-spreadsheet-column-width={activeSheet.columnWidths?.[cellIndex] ?? ''}
                               data-spreadsheet-row-height={rowHeight ?? ''}
+                              data-spreadsheet-cell-frozen-row={rowIndex < frozenRowCount ? 'true' : 'false'}
+                              data-spreadsheet-cell-frozen-column={cellIndex < frozenColumnCount ? 'true' : 'false'}
                               style={{
+                                position: isFrozenCell ? 'sticky' : undefined,
+                                top: rowIndex < frozenRowCount ? frozenRowTop : undefined,
+                                left: frozenColumnLeft,
+                                zIndex: rowIndex < frozenRowCount && cellIndex < frozenColumnCount ? 4 : isFrozenCell ? 3 : undefined,
                                 width: activeSheet.columnWidths?.[cellIndex],
                                 minWidth: activeSheet.columnWidths?.[cellIndex],
                                 height: rowHeight
@@ -1451,6 +1500,8 @@ function SpreadsheetArtifactPreview({
                                 data-spreadsheet-cell-merge-colspan={merge?.colSpan ?? 1}
                                 data-spreadsheet-cell-column-width={activeSheet.columnWidths?.[cellIndex] ?? ''}
                                 data-spreadsheet-cell-row-height={rowHeight ?? ''}
+                                data-spreadsheet-cell-frozen-row={rowIndex < frozenRowCount ? 'true' : 'false'}
+                                data-spreadsheet-cell-frozen-column={cellIndex < frozenColumnCount ? 'true' : 'false'}
                                 data-active={isActive ? 'true' : 'false'}
                                 aria-label={`${cellAddress} ${cell.value}`.trim()}
                                 style={{
@@ -1813,7 +1864,8 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
           : undefined,
         rowHeights: Array.isArray(sheet.rowHeights)
           ? normalizeSpreadsheetDimensionArray(sheet.rowHeights, 22, 180, 24)
-          : undefined
+          : undefined,
+        freezePanes: normalizeSpreadsheetFreezePanes(sheet.freezePanes)
       }))
       .filter((sheet) => sheet.rows.length > 0)
     if (sheets.length === 0) return null
@@ -1858,6 +1910,15 @@ function normalizeSpreadsheetMerge(value: unknown): SpreadsheetPreviewMerge | nu
     rowSpan,
     colSpan
   }
+}
+
+function normalizeSpreadsheetFreezePanes(value: unknown): SpreadsheetFreezePanes | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as { rows?: unknown; columns?: unknown }
+  const rows = normalizeSpreadsheetSpanNumber(candidate.rows, 0, 6)
+  const columns = normalizeSpreadsheetSpanNumber(candidate.columns, 0, 6)
+  if (rows === null || columns === null || (rows === 0 && columns === 0)) return undefined
+  return { rows, columns }
 }
 
 function normalizeSpreadsheetSpanNumber(value: unknown, min: number, max: number): number | null {

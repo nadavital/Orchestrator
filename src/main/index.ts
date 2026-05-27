@@ -11146,6 +11146,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetStyleChecks = {};
               const spreadsheetMergeChecks = {};
               const spreadsheetSizingChecks = {};
+              const spreadsheetFreezePaneChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11646,6 +11647,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const columnHeaders = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-column-header"]')];
                     const rowHeaders = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-row-header"]')];
                     const headerNameCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A1"]');
+                    const headerNameTableCell = headerNameCell?.closest('td');
                     const alphaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A2"]');
                     const updatedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
                     const mergedNoteCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A4"]');
@@ -11653,6 +11655,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     const coveredMergedCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B4"]');
                     const wideColumnHeader = document.querySelector('[data-testid="workspace-spreadsheet-column-header"][data-spreadsheet-column-label="B"]');
                     const tallRowHeader = document.querySelector('[data-testid="workspace-spreadsheet-row-header"][data-spreadsheet-row-label="4"]');
+                    const frozenColumnHeader = document.querySelector('[data-testid="workspace-spreadsheet-column-header"][data-spreadsheet-column-label="A"]');
+                    const frozenRowHeader = document.querySelector('[data-testid="workspace-spreadsheet-row-header"][data-spreadsheet-row-label="1"]');
                     spreadsheetRendererChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-preview-rendered') === 'true' &&
@@ -11753,6 +11757,23 @@ function runAutomatedFocusedSurfaceSmoke(
                       Math.round(tallRowHeader.getBoundingClientRect().height) >= 50 &&
                       mergedNoteCell instanceof HTMLButtonElement &&
                       mergedNoteCell.getAttribute('data-spreadsheet-cell-row-height') === '56';
+                    spreadsheetFreezePaneChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-frozen-row-count') === '1' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-frozen-column-count') === '1' &&
+                      frozenColumnHeader instanceof HTMLElement &&
+                      frozenColumnHeader.getAttribute('data-spreadsheet-column-frozen') === 'true' &&
+                      getComputedStyle(frozenColumnHeader).position === 'sticky' &&
+                      frozenRowHeader instanceof HTMLElement &&
+                      frozenRowHeader.getAttribute('data-spreadsheet-row-frozen') === 'true' &&
+                      getComputedStyle(frozenRowHeader).position === 'sticky' &&
+                      headerNameCell instanceof HTMLButtonElement &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-frozen-row') === 'true' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-frozen-column') === 'true' &&
+                      headerNameTableCell instanceof HTMLElement &&
+                      getComputedStyle(headerNameTableCell).position === 'sticky' &&
+                      alphaCell instanceof HTMLButtonElement &&
+                      alphaCell.getAttribute('data-spreadsheet-cell-frozen-column') === 'true';
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13207,6 +13228,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetCellStylesWorks: Boolean(spreadsheetStyleChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetMergedCellsWorks: Boolean(spreadsheetMergeChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetSizingWorks: Boolean(spreadsheetSizingChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetFreezePanesWorks: Boolean(spreadsheetFreezePaneChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
