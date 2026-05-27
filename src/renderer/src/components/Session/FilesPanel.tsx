@@ -952,6 +952,169 @@ function spreadsheetColumnLabel(index: number): string {
   return label
 }
 
+function spreadsheetColumnIndex(address: string): number {
+  const letters = /^[A-Z]+/.exec(address.toUpperCase())?.[0] ?? ''
+  let value = 0
+  for (const letter of letters) value = value * 26 + (letter.charCodeAt(0) - 64)
+  return Math.max(0, value - 1)
+}
+
+function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): SpreadsheetPreviewPayload['sheets'] {
+  return sheets.map((sheet) => ({
+    name: sheet.name,
+    rows: sheet.rows.map((row) => row.map((cell) => ({ ...cell })))
+  }))
+}
+
+function updateSpreadsheetCell(
+  sheets: SpreadsheetPreviewPayload['sheets'],
+  sheetIndex: number,
+  rowIndex: number,
+  columnIndex: number,
+  input: string
+): SpreadsheetPreviewPayload['sheets'] {
+  const nextSheets = cloneSpreadsheetSheets(sheets)
+  const sheet = nextSheets[sheetIndex]
+  if (!sheet) return nextSheets
+  while (sheet.rows.length <= rowIndex) sheet.rows.push([])
+  const row = sheet.rows[rowIndex]
+  while (row.length <= columnIndex) row.push({ value: '' })
+  const trimmed = input.trim()
+  row[columnIndex] = trimmed.startsWith('=')
+    ? { value: '', formula: trimmed }
+    : { value: input }
+  return recalculateSpreadsheetSheets(nextSheets)
+}
+
+function recalculateSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): SpreadsheetPreviewPayload['sheets'] {
+  return sheets.map((sheet) => {
+    const cellsByAddress = new Map<string, SpreadsheetPreviewCell>()
+    sheet.rows.forEach((row, rowIndex) => {
+      row.forEach((cell, columnIndex) => {
+        cellsByAddress.set(`${spreadsheetColumnLabel(columnIndex)}${rowIndex + 1}`, cell)
+      })
+    })
+    const rows = sheet.rows.map((row) => row.map((cell) => {
+      if (!cell.formula) return { ...cell }
+      const computed = evaluateSpreadsheetFormula(cell.formula, cellsByAddress)
+      return {
+        ...cell,
+        value: computed === null ? cell.value : formatSpreadsheetNumber(computed)
+      }
+    }))
+    return { ...sheet, rows }
+  })
+}
+
+function evaluateSpreadsheetFormula(formula: string, cellsByAddress: Map<string, SpreadsheetPreviewCell>): number | null {
+  const expression = formula.replace(/^=/, '').trim()
+  const sumMatch = /^SUM\(([^)]+)\)$/i.exec(expression)
+  if (sumMatch) {
+    return sumMatch[1]
+      .split(',')
+      .flatMap((part) => spreadsheetFormulaValues(part.trim(), cellsByAddress))
+      .reduce((total, value) => total + value, 0)
+  }
+  const arithmetic = expression.replace(/\b[A-Z]{1,3}\d+\b/g, (address) => {
+    return String(spreadsheetCellNumber(cellsByAddress.get(address.toUpperCase())))
+  })
+  if (!/^[\d+\-*/().\s]+$/.test(arithmetic)) return null
+  return parseSpreadsheetArithmetic(arithmetic)
+}
+
+function parseSpreadsheetArithmetic(expression: string): number | null {
+  let index = 0
+  const skipSpace = (): void => {
+    while (/\s/.test(expression[index] ?? '')) index += 1
+  }
+  const parseNumber = (): number | null => {
+    skipSpace()
+    const match = /^\d+(?:\.\d+)?/.exec(expression.slice(index))
+    if (!match) return null
+    index += match[0].length
+    return Number(match[0])
+  }
+  const parseFactor = (): number | null => {
+    skipSpace()
+    const char = expression[index]
+    if (char === '+') {
+      index += 1
+      return parseFactor()
+    }
+    if (char === '-') {
+      index += 1
+      const value = parseFactor()
+      return value === null ? null : -value
+    }
+    if (char === '(') {
+      index += 1
+      const value = parseExpression()
+      skipSpace()
+      if (expression[index] !== ')') return null
+      index += 1
+      return value
+    }
+    return parseNumber()
+  }
+  const parseTerm = (): number | null => {
+    let value = parseFactor()
+    if (value === null) return null
+    while (true) {
+      skipSpace()
+      const operator = expression[index]
+      if (operator !== '*' && operator !== '/') break
+      index += 1
+      const right = parseFactor()
+      if (right === null) return null
+      value = operator === '*' ? value * right : value / right
+    }
+    return value
+  }
+  const parseExpression = (): number | null => {
+    let value = parseTerm()
+    if (value === null) return null
+    while (true) {
+      skipSpace()
+      const operator = expression[index]
+      if (operator !== '+' && operator !== '-') break
+      index += 1
+      const right = parseTerm()
+      if (right === null) return null
+      value = operator === '+' ? value + right : value - right
+    }
+    return value
+  }
+  const value = parseExpression()
+  skipSpace()
+  return value !== null && index === expression.length && Number.isFinite(value) ? value : null
+}
+
+function spreadsheetFormulaValues(reference: string, cellsByAddress: Map<string, SpreadsheetPreviewCell>): number[] {
+  const rangeMatch = /^([A-Z]{1,3})(\d+):([A-Z]{1,3})(\d+)$/i.exec(reference)
+  if (!rangeMatch) return [spreadsheetCellNumber(cellsByAddress.get(reference.toUpperCase()))]
+  const startColumn = spreadsheetColumnIndex(rangeMatch[1].toUpperCase())
+  const endColumn = spreadsheetColumnIndex(rangeMatch[3].toUpperCase())
+  const startRow = Number(rangeMatch[2])
+  const endRow = Number(rangeMatch[4])
+  const values: number[] = []
+  for (let row = Math.min(startRow, endRow); row <= Math.max(startRow, endRow); row += 1) {
+    for (let column = Math.min(startColumn, endColumn); column <= Math.max(startColumn, endColumn); column += 1) {
+      values.push(spreadsheetCellNumber(cellsByAddress.get(`${spreadsheetColumnLabel(column)}${row}`)))
+    }
+  }
+  return values
+}
+
+function spreadsheetCellNumber(cell: SpreadsheetPreviewCell | undefined): number {
+  const value = Number(cell?.value ?? 0)
+  return Number.isFinite(value) ? value : 0
+}
+
+function formatSpreadsheetNumber(value: number): string {
+  if (Number.isInteger(value)) return String(value)
+  return String(Number(value.toFixed(8)))
+}
+
 function SpreadsheetArtifactPreview({
   absolutePath,
   entry,
@@ -963,12 +1126,15 @@ function SpreadsheetArtifactPreview({
 }): JSX.Element {
   const title = stripArtifactExtension(stripArtifactExtension(entry.name, 'xlsx'), 'xlsm')
   const actions = artifactPreviewActions(entry, absolutePath, preview)
-  const payload = parseSpreadsheetPreview(preview.text)
-  const sheets = payload?.sheets ?? []
+  const payload = useMemo(() => parseSpreadsheetPreview(preview.text), [preview.text])
+  const initialSheets = useMemo(() => cloneSpreadsheetSheets(payload?.sheets ?? []), [payload])
+  const [sheets, setSheets] = useState(initialSheets)
   const [activeSheetIndex, setActiveSheetIndex] = useState(0)
   const [zoomPercent, setZoomPercent] = useState(100)
   const [fitToWidth, setFitToWidth] = useState(false)
   const [activeCell, setActiveCell] = useState({ row: 0, column: 0 })
+  const [formulaDraft, setFormulaDraft] = useState('')
+  const [editCount, setEditCount] = useState(0)
   const activeSheet = sheets[activeSheetIndex] ?? null
   const sheetCount = sheets.length
   const effectiveZoomPercent = fitToWidth ? 100 : zoomPercent
@@ -984,9 +1150,24 @@ function SpreadsheetArtifactPreview({
   useEffect(() => {
     setActiveSheetIndex((index) => Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
   }, [sheetCount])
+  useEffect(() => {
+    setSheets(initialSheets)
+    setActiveSheetIndex(0)
+    setActiveCell({ row: 0, column: 0 })
+    setEditCount(0)
+  }, [initialSheets])
+  useEffect(() => {
+    setFormulaDraft(activeCellFormula || activeCellValue)
+  }, [activeSheetIndex, activeCellRow, activeCellColumn, activeCellFormula, activeCellValue])
   const selectSheet = (index: number): void => {
     setActiveSheetIndex(Math.min(Math.max(index, 0), Math.max(0, sheetCount - 1)))
     setActiveCell({ row: 0, column: 0 })
+  }
+  const commitFormulaDraft = (nextInput = formulaDraft): void => {
+    if (!activeSheet) return
+    if (nextInput === (activeCellFormula || activeCellValue)) return
+    setSheets((items) => updateSpreadsheetCell(items, activeSheetIndex, activeCellRow, activeCellColumn, nextInput))
+    setEditCount((count) => count + 1)
   }
   return (
     <div
@@ -1003,6 +1184,8 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-active-cell-address={activeSheet ? activeCellAddress : ''}
       data-spreadsheet-active-cell-value={activeSheet ? activeCellValue : ''}
       data-spreadsheet-active-cell-formula={activeSheet ? activeCellFormula : ''}
+      data-spreadsheet-editable="local-preview"
+      data-spreadsheet-edit-count={editCount}
     >
       <ArtifactPreviewHeader
         artifactType="XLSX"
@@ -1081,6 +1264,7 @@ function SpreadsheetArtifactPreview({
                 data-spreadsheet-active-cell-value={activeCellValue}
                 data-spreadsheet-active-cell-formula={activeCellFormula}
                 data-spreadsheet-active-cell-kind={activeCellFormula ? 'formula' : 'value'}
+                data-spreadsheet-edit-count={editCount}
               >
                 <span
                   className="workspace-spreadsheet-cell-address"
@@ -1093,10 +1277,24 @@ function SpreadsheetArtifactPreview({
                   data-testid="workspace-spreadsheet-active-cell-value"
                   data-spreadsheet-active-cell-value={activeCellValue}
                   data-spreadsheet-active-cell-formula={activeCellFormula}
-                  aria-label="Active cell value"
-                  readOnly
-                  value={activeCellFormula || activeCellValue}
+                  aria-label="Active cell formula or value"
+                  value={formulaDraft}
+                  onChange={(event) => { setFormulaDraft(event.currentTarget.value) }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      commitFormulaDraft(event.currentTarget.value)
+                    }
+                  }}
                 />
+                <Button
+                  variant="secondary"
+                  dataTestId="workspace-spreadsheet-formula-apply"
+                  disabled={formulaDraft === (activeCellFormula || activeCellValue)}
+                  onClick={commitFormulaDraft}
+                >
+                  Apply
+                </Button>
               </div>
               <div className="workspace-spreadsheet-table-wrap">
                 <table

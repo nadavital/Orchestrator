@@ -11142,6 +11142,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetSheetTabChecks = {};
               const spreadsheetActiveCellChecks = {};
               const spreadsheetFormulaChecks = {};
+              const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
               const documentPdfZoomMenuChecks = {};
               const slidesRendererChecks = {};
@@ -11783,6 +11784,38 @@ function runAutomatedFocusedSurfaceSmoke(
                       selectedFormulaCell.getAttribute('data-spreadsheet-cell-value') === '7' &&
                       selectedFormulaCell.getAttribute('data-spreadsheet-cell-formula') === '=B2+2' &&
                       selectedFormulaCell.getAttribute('data-spreadsheet-cell-kind') === 'formula';
+                    const formulaApply = document.querySelector('[data-testid="workspace-spreadsheet-formula-apply"]');
+                    if (selectedFormulaValue instanceof HTMLInputElement) {
+                      setNativeValue(selectedFormulaValue, '=B2+3');
+                      selectedFormulaValue.dispatchEvent(new Event('input', { bubbles: true }));
+                      selectedFormulaValue.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+                      await sleep(160);
+                    }
+                    const editedFormulaPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const editedFormulaFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const editedFormulaValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    const editedFormulaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B3"]');
+                    spreadsheetFormulaEditingChecks[testId] =
+                      selectedFormulaValue instanceof HTMLInputElement &&
+                      formulaApply instanceof HTMLButtonElement &&
+                      editedFormulaPreview instanceof HTMLElement &&
+                      editedFormulaPreview.getAttribute('data-spreadsheet-editable') === 'local-preview' &&
+                      editedFormulaPreview.getAttribute('data-spreadsheet-edit-count') === '1' &&
+                      editedFormulaPreview.getAttribute('data-spreadsheet-active-cell-address') === 'B3' &&
+                      editedFormulaPreview.getAttribute('data-spreadsheet-active-cell-value') === '8' &&
+                      editedFormulaPreview.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+3' &&
+                      editedFormulaFormulaBar instanceof HTMLElement &&
+                      editedFormulaFormulaBar.getAttribute('data-spreadsheet-edit-count') === '1' &&
+                      editedFormulaFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === '8' &&
+                      editedFormulaFormulaBar.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+3' &&
+                      editedFormulaValue instanceof HTMLInputElement &&
+                      editedFormulaValue.value === '=B2+3' &&
+                      editedFormulaValue.getAttribute('data-spreadsheet-active-cell-value') === '8' &&
+                      editedFormulaValue.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+3' &&
+                      editedFormulaCell instanceof HTMLButtonElement &&
+                      editedFormulaCell.getAttribute('data-spreadsheet-cell-value') === '8' &&
+                      editedFormulaCell.getAttribute('data-spreadsheet-cell-formula') === '=B2+3' &&
+                      editedFormulaCell.getAttribute('data-spreadsheet-cell-kind') === 'formula';
                     const advancedZoomIn = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-in"]');
                     if (advancedZoomIn instanceof HTMLButtonElement) {
                       advancedZoomIn.click();
@@ -13045,6 +13078,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetSheetTabsWorks: Boolean(spreadsheetSheetTabChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetActiveCellWorks: Boolean(spreadsheetActiveCellChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEvaluationWorks: Boolean(spreadsheetFormulaChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
                 filesSlidesThumbnailRailWorks: Boolean(slidesThumbnailRailChecks['workspace-slides-preview']),
