@@ -935,6 +935,12 @@ interface SlidesPreviewPayload {
   truncated?: boolean
 }
 
+interface PdfAnnotation {
+  id: string
+  page: number
+  body: string
+}
+
 function spreadsheetColumnLabel(index: number): string {
   let value = index + 1
   let label = ''
@@ -1490,7 +1496,20 @@ function PdfPreview({
   const [fitToWidth, setFitToWidth] = useState(false)
   const [invertColors, setInvertColors] = useState(false)
   const [presentationMode, setPresentationMode] = useState(false)
+  const [annotationMode, setAnnotationMode] = useState(false)
+  const [annotationDraft, setAnnotationDraft] = useState('')
+  const [annotations, setAnnotations] = useState<PdfAnnotation[]>([])
   const effectiveZoomPercent = fitToWidth ? 'page-fit' : zoomPercent
+  const currentPageAnnotations = annotations.filter((annotation) => annotation.page === currentPage)
+  const saveAnnotation = (): void => {
+    const body = annotationDraft.trim()
+    if (!body) return
+    setAnnotations((items) => [
+      ...items,
+      { id: `pdf-annotation-${currentPage}-${Date.now()}`, page: currentPage, body }
+    ])
+    setAnnotationDraft('')
+  }
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount))
   }, [pageCount])
@@ -1511,6 +1530,9 @@ function PdfPreview({
       data-pdf-preview-zoom-fit={fitToWidth ? 'true' : 'false'}
       data-pdf-preview-invert-colors={invertColors ? 'true' : 'false'}
       data-pdf-preview-presentation-mode={presentationMode ? 'true' : 'false'}
+      data-pdf-preview-annotation-mode={annotationMode ? 'true' : 'false'}
+      data-pdf-preview-annotation-count={annotations.length}
+      data-pdf-preview-current-page-annotation-count={currentPageAnnotations.length}
     >
       {presentationMode ? (
         <PdfPresentationMode
@@ -1561,9 +1583,18 @@ function PdfPreview({
               <span
                 className="file-preview-header-actions"
                 data-testid="workspace-pdf-preview-actions"
-                data-preview-controls="copy-path pdf-page-navigation pdf-zoom pdf-zoom-fit pdf-invert-colors pdf-presentation open-options"
+                data-preview-controls="copy-path pdf-page-navigation pdf-zoom pdf-zoom-fit pdf-invert-colors pdf-annotate pdf-presentation open-options"
                 data-artifact-open-options="true"
               >
+                <IconButton
+                  active={annotationMode}
+                  icon="pencil"
+                  label={annotationMode ? 'Annotating' : 'Annotate'}
+                  size="sm"
+                  variant="toolbar"
+                  dataTestId="workspace-pdf-preview-annotate"
+                  onClick={() => { setAnnotationMode((value) => !value) }}
+                />
                 <IconButton
                   active={invertColors}
                   icon="contrast"
@@ -1595,13 +1626,77 @@ function PdfPreview({
             testId="workspace-pdf-preview"
             title={title}
           />
-          <iframe
-            title={entry.name}
-            src={pdfPreviewUrl(absolutePath, currentPage, effectiveZoomPercent)}
-            className={`min-h-0 flex-1 border-0 ${invertColors ? 'workspace-pdf-preview-frame-inverted' : ''}`}
-            data-testid="workspace-pdf-preview-frame"
-            data-pdf-invert-colors={invertColors ? 'true' : 'false'}
-          />
+          <div className="workspace-pdf-preview-body" data-testid="workspace-pdf-preview-body">
+            <iframe
+              title={entry.name}
+              src={pdfPreviewUrl(absolutePath, currentPage, effectiveZoomPercent)}
+              className={`workspace-pdf-preview-frame ${invertColors ? 'workspace-pdf-preview-frame-inverted' : ''}`}
+              data-testid="workspace-pdf-preview-frame"
+              data-pdf-invert-colors={invertColors ? 'true' : 'false'}
+            />
+            {annotationMode && (
+              <aside
+                className="workspace-pdf-annotation-layer"
+                data-testid="workspace-pdf-annotation-layer"
+                data-pdf-annotation-layer-page={currentPage}
+                data-pdf-annotation-count={annotations.length}
+                data-pdf-current-page-annotation-count={currentPageAnnotations.length}
+              >
+                <div className="workspace-pdf-annotation-header">
+                  <div>
+                    <div className="workspace-pdf-annotation-title">Annotating</div>
+                    <div className="workspace-pdf-annotation-meta">Page {currentPage} of {pageCount}</div>
+                  </div>
+                  <Badge tone="neutral">{annotations.length}</Badge>
+                </div>
+                <textarea
+                  className="workspace-pdf-annotation-input"
+                  data-testid="workspace-pdf-annotation-input"
+                  aria-label={`PDF comment for page ${currentPage}`}
+                  placeholder="Add a comment for this page"
+                  value={annotationDraft}
+                  onChange={(event) => setAnnotationDraft(event.currentTarget.value)}
+                />
+                <div className="workspace-pdf-annotation-actions">
+                  <Button
+                    variant="secondary"
+                    dataTestId="workspace-pdf-annotation-cancel"
+                    onClick={() => {
+                      setAnnotationDraft('')
+                      setAnnotationMode(false)
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    dataTestId="workspace-pdf-annotation-save"
+                    disabled={annotationDraft.trim().length === 0}
+                    onClick={saveAnnotation}
+                  >
+                    Save
+                  </Button>
+                </div>
+                <div className="workspace-pdf-annotation-list" data-testid="workspace-pdf-annotation-list">
+                  {currentPageAnnotations.length === 0 ? (
+                    <div className="workspace-pdf-annotation-empty" data-testid="workspace-pdf-annotation-empty">
+                      No comments on this page
+                    </div>
+                  ) : currentPageAnnotations.map((annotation, index) => (
+                    <article
+                      key={annotation.id}
+                      className="workspace-pdf-annotation-card"
+                      data-testid="workspace-pdf-annotation-card"
+                      data-pdf-annotation-page={annotation.page}
+                      data-pdf-annotation-index={index + 1}
+                    >
+                      <div className="workspace-pdf-annotation-card-header">Comment {index + 1}</div>
+                      <div className="workspace-pdf-annotation-card-body">{annotation.body}</div>
+                    </article>
+                  ))}
+                </div>
+              </aside>
+            )}
+          </div>
         </>
       )}
     </div>

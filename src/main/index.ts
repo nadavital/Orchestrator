@@ -11122,6 +11122,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const previewArtifactTabChecks = {};
               const previewOpenOptionsChecks = {};
               const pdfPreviewControlChecks = {};
+              const pdfAnnotationChecks = {};
               const notebookReadOnlyControlChecks = {};
               const notebookOutputRenderingChecks = {};
               const notebookCellDisclosureChecks = {};
@@ -12089,6 +12090,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const zoomedIndicator = document.querySelector('[data-testid="workspace-pdf-preview-zoom-indicator"]');
                     const zoomedFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
                     const invertButton = document.querySelector('[data-testid="workspace-pdf-preview-invert-colors"]');
+                    const annotateButton = document.querySelector('[data-testid="workspace-pdf-preview-annotate"]');
                     const zoomControlsWork =
                       zoomedPreview instanceof HTMLElement &&
                       zoomedPreview.getAttribute('data-pdf-preview-current-page') === '2' &&
@@ -12121,6 +12123,47 @@ function runAutomatedFocusedSurfaceSmoke(
                       invertedFrame.src.includes('#page=2&zoom=125') &&
                       invertedFilter !== '' &&
                       invertedFilter !== 'none';
+                    if (annotateButton instanceof HTMLButtonElement) {
+                      annotateButton.click();
+                      await sleep(160);
+                    }
+                    const annotationPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const activeAnnotateButton = document.querySelector('[data-testid="workspace-pdf-preview-annotate"]');
+                    const annotationLayer = document.querySelector('[data-testid="workspace-pdf-annotation-layer"]');
+                    const annotationInput = document.querySelector('[data-testid="workspace-pdf-annotation-input"]');
+                    const annotationSave = document.querySelector('[data-testid="workspace-pdf-annotation-save"]');
+                    if (annotationInput instanceof HTMLTextAreaElement) {
+                      setNativeValue(annotationInput, 'PDF page note from smoke');
+                      annotationInput.dispatchEvent(new Event('input', { bubbles: true }));
+                      await sleep(80);
+                    }
+                    if (annotationSave instanceof HTMLButtonElement) {
+                      annotationSave.click();
+                      await sleep(160);
+                    }
+                    const savedAnnotationPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const savedAnnotationLayer = document.querySelector('[data-testid="workspace-pdf-annotation-layer"]');
+                    const savedAnnotationCard = document.querySelector('[data-testid="workspace-pdf-annotation-card"]');
+                    const savedAnnotationList = document.querySelector('[data-testid="workspace-pdf-annotation-list"]');
+                    pdfAnnotationChecks[testId] =
+                      annotationPreview instanceof HTMLElement &&
+                      annotationPreview.getAttribute('data-pdf-preview-annotation-mode') === 'true' &&
+                      activeAnnotateButton instanceof HTMLButtonElement &&
+                      activeAnnotateButton.getAttribute('data-active') === 'true' &&
+                      annotationLayer instanceof HTMLElement &&
+                      annotationLayer.getAttribute('data-pdf-annotation-layer-page') === '2' &&
+                      annotationInput instanceof HTMLTextAreaElement &&
+                      annotationSave instanceof HTMLButtonElement &&
+                      savedAnnotationPreview instanceof HTMLElement &&
+                      savedAnnotationPreview.getAttribute('data-pdf-preview-annotation-count') === '1' &&
+                      savedAnnotationPreview.getAttribute('data-pdf-preview-current-page-annotation-count') === '1' &&
+                      savedAnnotationLayer instanceof HTMLElement &&
+                      savedAnnotationLayer.getAttribute('data-pdf-annotation-count') === '1' &&
+                      savedAnnotationLayer.getAttribute('data-pdf-current-page-annotation-count') === '1' &&
+                      savedAnnotationList instanceof HTMLElement &&
+                      savedAnnotationCard instanceof HTMLElement &&
+                      savedAnnotationCard.getAttribute('data-pdf-annotation-page') === '2' &&
+                      savedAnnotationCard.textContent?.includes('PDF page note from smoke') === true;
                     const presentationButton = document.querySelector('[data-testid="workspace-pdf-preview-presentation"]');
                     if (presentationButton instanceof HTMLButtonElement) {
                       presentationButton.click();
@@ -12994,6 +13037,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
                 filesPdfPreviewControlsWorks: Boolean(pdfPreviewControlChecks['workspace-pdf-preview']),
                 filesPdfPresentationModeWorks: Boolean(pdfPresentationModeChecks['workspace-pdf-preview']),
+                filesPdfAnnotationsWorks: Boolean(pdfAnnotationChecks['workspace-pdf-preview']),
                 filesDocumentPageControlsWorks: Boolean(documentPageControlChecks['workspace-document-preview']),
                 filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
                 filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),

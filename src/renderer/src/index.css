@@ -4609,6 +4609,112 @@
     filter: invert(1) hue-rotate(180deg);
   }
 
+  .workspace-pdf-preview-body {
+    display: grid;
+    min-height: 0;
+    flex: 1;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .workspace-pdf-preview-body:has(.workspace-pdf-annotation-layer) {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  }
+
+  .workspace-pdf-preview-frame {
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border: 0;
+  }
+
+  .workspace-pdf-annotation-layer {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    gap: 10px;
+    border-left: 1px solid var(--border-subtle);
+    background: color-mix(in srgb, var(--surface-bg) 94%, transparent);
+    padding: 12px;
+    overflow-y: auto;
+  }
+
+  .workspace-pdf-annotation-header,
+  .workspace-pdf-annotation-actions {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .workspace-pdf-annotation-title {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 16px;
+  }
+
+  .workspace-pdf-annotation-meta {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    line-height: 15px;
+  }
+
+  .workspace-pdf-annotation-input {
+    min-height: 84px;
+    resize: vertical;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--control-bg);
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.45;
+    outline: none;
+    padding: 8px 9px;
+  }
+
+  .workspace-pdf-annotation-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  .workspace-pdf-annotation-list {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .workspace-pdf-annotation-empty,
+  .workspace-pdf-annotation-card {
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--surface-bg);
+    padding: 9px;
+  }
+
+  .workspace-pdf-annotation-empty {
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+
+  .workspace-pdf-annotation-card-header {
+    margin-bottom: 5px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .workspace-pdf-annotation-card-body {
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+  }
+
   .workspace-office-preview-body {
     display: flex;
     min-height: 0;
