@@ -19033,6 +19033,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
         if (session) {
           win.webContents.send('pet:navigate', session.id)
           await new Promise((resolve) => setTimeout(resolve, 180))
+          sessionManager.updateStatus(session.id, 'waiting_for_permission')
+          await new Promise((resolve) => setTimeout(resolve, 180))
           win.webContents.send('session:raw', {
             id: session.id,
             data: '{"type":"system","subtype":"raw_event","content":"RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER"}\n'
@@ -19202,6 +19204,25 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const tableBounded = wideLayout.tableBounded;
             const tableCellsWrap = wideLayout.tableCellsWrap;
             const fileCardsBounded = fileCards.length > 0 && fileCards.every(isInsideScroller);
+            const userInputCard = document.querySelector('[data-testid="chat-user-input-card"]');
+            const userInputOptions = [...document.querySelectorAll('[data-testid="chat-user-input-card"] button')];
+            const permissionCard = document.querySelector('[data-testid="chat-permission-card"]');
+            const permissionActions = document.querySelector('[data-testid="chat-permission-actions"]');
+            const permissionButtons = [...document.querySelectorAll('[data-testid="chat-permission-actions"] button')];
+            const userInputCardWorks =
+              userInputCard instanceof HTMLElement &&
+              isInsideScroller(userInputCard) &&
+              userInputOptions.length >= 2 &&
+              userInputOptions.every((button) => button instanceof HTMLButtonElement);
+            const permissionCardWorks =
+              permissionCard instanceof HTMLElement &&
+              permissionActions instanceof HTMLElement &&
+              isInsideScroller(permissionCard) &&
+              permissionButtons.length >= 3 &&
+              permissionButtons.every((button) => button instanceof HTMLButtonElement && !button.disabled && isInsideScroller(button));
+            const permissionActionsWrap =
+              permissionActions instanceof HTMLElement &&
+              permissionActions.scrollWidth <= permissionActions.clientWidth + 2;
             const relativeProseCardSuppressed = !fileCards.some((card) => card.textContent?.includes('DefinitelyMissingRelativeReviewFile.java'));
             const absoluteMissingFileCardDisabled = fileCards.some((card) => {
               const buttons = [...card.querySelectorAll('button')];
@@ -19281,6 +19302,9 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               tableBounded,
               tableCellsWrap,
               fileCardsBounded,
+              userInputCardWorks,
+              permissionCardWorks,
+              permissionActionsWrap,
               relativeProseCardSuppressed,
               absoluteMissingFileCardDisabled,
               toolSummaryExpanded,
@@ -19314,6 +19338,17 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               await sleep(120);
               if (document.querySelector('pre') && document.querySelector('table')) break;
             }
+            let permissionCard = document.querySelector('[data-testid="chat-permission-card"]');
+            for (let index = 0; index < 10 && !(permissionCard instanceof HTMLElement); index += 1) {
+              scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * ((index + 2) / 12);
+              scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+              await sleep(120);
+              permissionCard = document.querySelector('[data-testid="chat-permission-card"]');
+            }
+            if (permissionCard instanceof HTMLElement) {
+              permissionCard.scrollIntoView({ block: 'center', inline: 'nearest' });
+              await sleep(160);
+            }
             const viewportWidth = document.documentElement.clientWidth;
             const docScrollWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
             const scrollerRect = scroller.getBoundingClientRect();
@@ -19324,6 +19359,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
             const pre = document.querySelector('pre');
             const table = document.querySelector('table');
             const tableCells = [...document.querySelectorAll('td, th')].filter((cell) => cell instanceof HTMLElement);
+            const permissionActions = document.querySelector('[data-testid="chat-permission-actions"]');
+            const permissionButtons = [...document.querySelectorAll('[data-testid="chat-permission-actions"] button')];
             return {
               transcriptFound: true,
               narrowViewportWidth: viewportWidth,
@@ -19336,6 +19373,10 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
                 const style = window.getComputedStyle(cell);
                 return style.whiteSpace === 'normal' && (style.overflowWrap === 'anywhere' || style.overflowWrap === 'break-word');
               }),
+              narrowPermissionActionsWrap: permissionActions instanceof HTMLElement &&
+                permissionActions.scrollWidth <= permissionActions.clientWidth + 2 &&
+                permissionButtons.length >= 3 &&
+                permissionButtons.every((button) => button instanceof HTMLButtonElement && isInsideScroller(button)),
               narrowRawEventsHiddenFromTranscript: !scroller.innerText.includes('RAW_TRANSCRIPT_EVENT_SHOULD_NOT_RENDER')
             };
           })()
@@ -21209,6 +21250,39 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
       ].join('\n'),
       timestamp: baseTime + 1
     },
+    {
+      id: 'transcript-layout-user-input',
+      role: 'system',
+      type: 'result',
+      content: 'Which implementation direction should this coding session take next?',
+      subtype: 'waiting_for_user',
+      timestamp: baseTime + 2,
+      userInputQuestions: [{
+        id: 'transcript-layout-choice',
+        header: 'Direction',
+        question: 'Pick the next bounded coding slice.',
+        options: [
+          { label: 'Composer', description: 'Improve prompt entry and handoff flow.' },
+          { label: 'Inspector', description: 'Improve runtime context and diagnostics.' }
+        ]
+      }]
+    },
+    {
+      id: 'transcript-layout-permission',
+      role: 'system',
+      type: 'result',
+      content: 'Allow this command to inspect the workspace?',
+      subtype: 'error_during_execution',
+      timestamp: baseTime + 3,
+      permissionDenials: [{
+        tool_name: 'Bash',
+        tool_use_id: 'transcript-layout-permission',
+        tool_input: {
+          command: 'git status --short',
+          cwd: process.env.ORCHESTRATOR_SMOKE_WORKSPACE_DIR ?? '/tmp/orchestrator-automated-ui-workspace'
+        }
+      }]
+    },
     ...Array.from({ length: 14 }, (_, index): ChatMessage => ({
       id: `transcript-layout-tool-${index + 1}`,
       role: 'assistant',
@@ -21219,7 +21293,7 @@ function seedAutomatedTranscriptLayoutSmokeSession(sessionId: string): void {
         cwd: longPath,
         description: `Layout fixture tool call ${index + 1}`
       },
-      timestamp: baseTime + 2 + index
+      timestamp: baseTime + 4 + index
     }))
   ]
 

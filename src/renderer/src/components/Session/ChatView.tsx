@@ -2176,9 +2176,15 @@ function UserInputCard({
 }): JSX.Element {
   const [answer, setAnswer] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const answerInputRef = useRef<HTMLInputElement>(null)
   const questions = msg.userInputQuestions?.length ? msg.userInputQuestions : [{ question: msg.content }]
   const requestIsActive = sessionStatus === 'waiting_for_user'
   const isAnswered = submitted || !requestIsActive
+
+  useEffect(() => {
+    if (!requestIsActive || submitted) return
+    answerInputRef.current?.focus({ preventScroll: true })
+  }, [requestIsActive, submitted])
 
   const submitAnswer = async (value: string): Promise<void> => {
     const trimmed = value.trim()
@@ -2191,6 +2197,7 @@ function UserInputCard({
     <div className="flex justify-center my-1">
       <SurfaceRow
         className="rounded-xl px-4 py-3 w-full"
+        dataTestId="chat-user-input-card"
         style={{
           maxWidth: 560,
           background: 'var(--color-surface2)',
@@ -2219,13 +2226,15 @@ function UserInputCard({
         </div>
         {!isAnswered && (
           <form
-            className="mt-3 flex gap-2"
+            className="mt-3 flex flex-wrap gap-2"
+            data-testid="chat-user-input-form"
             onSubmit={(event) => {
               event.preventDefault()
               void submitAnswer(answer)
             }}
           >
             <input
+              ref={answerInputRef}
               value={answer}
               onChange={(event) => setAnswer(event.target.value)}
               placeholder="Type an answer..."
@@ -2340,6 +2349,7 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
     <div className="flex justify-center my-1">
       <SurfaceRow
         className="rounded-xl px-4 py-3 w-full"
+        dataTestId="chat-permission-card"
         style={{
           maxWidth: 560,
           background: 'var(--color-surface2)',
@@ -2424,40 +2434,47 @@ function PermissionCard({ msg, sessionId, sessionStatus }: { msg: ResultMessage;
         </div>
         {decision === 'pending' && requestIsActive ? (
           isPlanApproval ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2" data-testid="chat-permission-actions">
               <Button
                 onClick={handleAllowOnce}
                 variant="primary"
-                className="flex-1"
+                className="min-w-[132px] flex-1"
+                dataTestId="chat-permission-allow-once"
               >
                 Approve Plan
               </Button>
               <Button
                 onClick={handleDeny}
                 variant="secondary"
-                className="px-4"
+                className="min-w-[120px] px-4"
+                dataTestId="chat-permission-deny"
               >
                 Keep Planning
               </Button>
             </div>
           ) : (
-            <div className="grid gap-2" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) auto' }}>
+            <div className="flex flex-wrap gap-2" data-testid="chat-permission-actions">
               <Button
                 onClick={handleAllowOnce}
                 variant="primary"
+                className="min-w-[112px] flex-1"
+                dataTestId="chat-permission-allow-once"
               >
                 Allow Once
               </Button>
               <Button
                 onClick={handleAllowSession}
                 variant="secondary"
+                className="min-w-[124px] flex-1"
+                dataTestId="chat-permission-allow-session"
               >
                 Allow Session
               </Button>
               <Button
                 onClick={handleDeny}
                 variant="secondary"
-                className="px-4"
+                className="min-w-[76px] px-4"
+                dataTestId="chat-permission-deny"
               >
                 Deny
               </Button>
