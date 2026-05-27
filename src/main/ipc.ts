@@ -1656,6 +1656,16 @@ function extractWorksheetConditionalFormats(xml: string, differentialStyles: Spr
             baseFormat.fillColor = fillColor
             if (style?.textColor) baseFormat.textColor = style.textColor
             if (style?.bold) baseFormat.bold = true
+          } else if (type === 'expression') {
+            const formula = decodeXmlText(/<formula>([\s\S]*?)<\/formula>/.exec(ruleBody)?.[1] ?? '').trim()
+            const dxfId = numberAttribute(ruleAttributes, 'dxfId')
+            const style = dxfId === null ? undefined : differentialStyles[dxfId]
+            const fillColor = style?.fillColor
+            if (!formula || !fillColor) return []
+            baseFormat.formula = formula
+            baseFormat.fillColor = fillColor
+            if (style?.textColor) baseFormat.textColor = style.textColor
+            if (style?.bold) baseFormat.bold = true
           } else {
             return []
           }
@@ -1686,7 +1696,7 @@ function extractWorksheetConditionalFormats(xml: string, differentialStyles: Spr
 
 function applyWorksheetConditionalFormats(rows: SpreadsheetPreviewCell[][], formats: SpreadsheetPreviewConditionalFormat[]): void {
   for (const format of formats) {
-    const cells: Array<{ cell: SpreadsheetPreviewCell; value: number }> = []
+    const cells: Array<{ cell: SpreadsheetPreviewCell; value: number; rowIndex: number; columnIndex: number }> = []
     for (let rowIndex = format.startRow; rowIndex < format.startRow + format.rowSpan; rowIndex += 1) {
       const row = rows[rowIndex]
       if (!row) continue
@@ -1694,11 +1704,11 @@ function applyWorksheetConditionalFormats(rows: SpreadsheetPreviewCell[][], form
         const cell = row[columnIndex]
         if (!cell) continue
         const value = Number(cell.value)
-        if (Number.isFinite(value)) cells.push({ cell, value })
+        if (Number.isFinite(value)) cells.push({ cell, value, rowIndex, columnIndex })
       }
     }
-    if (cells.length === 0) continue
     if (format.colors) {
+      if (cells.length === 0) continue
       const values = cells.map((item) => item.value)
       const min = Math.min(...values)
       const max = Math.max(...values)
@@ -1709,6 +1719,7 @@ function applyWorksheetConditionalFormats(rows: SpreadsheetPreviewCell[][], form
       continue
     }
     if (format.fillColor && format.operator && format.formula) {
+      if (cells.length === 0) continue
       const formulaValue = Number(format.formula.replace(/^=/, ''))
       if (!Number.isFinite(formulaValue)) continue
       for (const item of cells) {
@@ -1716,6 +1727,20 @@ function applyWorksheetConditionalFormats(rows: SpreadsheetPreviewCell[][], form
           item.cell.conditionalFillColor = format.fillColor
           if (format.textColor) item.cell.textColor = format.textColor
           if (format.bold) item.cell.bold = true
+        }
+      }
+      continue
+    }
+    if (format.fillColor && format.formula) {
+      for (let rowIndex = format.startRow; rowIndex < format.startRow + format.rowSpan; rowIndex += 1) {
+        const row = rows[rowIndex]
+        if (!row) continue
+        for (let columnIndex = format.startColumn; columnIndex < format.startColumn + format.colSpan; columnIndex += 1) {
+          const cell = row[columnIndex]
+          if (!cell || !spreadsheetExpressionRuleMatches(rows, format, rowIndex, columnIndex)) continue
+          cell.conditionalFillColor = format.fillColor
+          if (format.textColor) cell.textColor = format.textColor
+          if (format.bold) cell.bold = true
         }
       }
     }
@@ -1752,6 +1777,22 @@ function spreadsheetCellIsRuleMatches(value: number, operator: NonNullable<Sprea
     case 'notEqual':
       return value !== formulaValue
   }
+}
+
+function spreadsheetExpressionRuleMatches(rows: SpreadsheetPreviewCell[][], format: SpreadsheetPreviewConditionalFormat, rowIndex: number, columnIndex: number): boolean {
+  const expression = format.formula?.replace(/^=/, '').trim() ?? ''
+  const match = /^(\$?)([A-Z]+)(\$?)(\d+)\s*=\s*"([^"]*)"\s*$/i.exec(expression)
+  if (!match) return false
+  const columnAnchored = match[1] === '$'
+  const referenceColumn = spreadsheetColumnIndex(match[2] ?? '')
+  const rowAnchored = match[3] === '$'
+  const referenceRow = Number(match[4]) - 1
+  const expectedValue = match[5] ?? ''
+  if (!Number.isFinite(referenceRow) || referenceRow < 0) return false
+  const resolvedColumn = columnAnchored ? referenceColumn : columnIndex - format.startColumn + referenceColumn
+  const resolvedRow = rowAnchored ? referenceRow : rowIndex - format.startRow + referenceRow
+  const value = rows[resolvedRow]?.[resolvedColumn]?.value
+  return value === expectedValue
 }
 
 function spreadsheetColorScaleValue(colors: string[], position: number): string {

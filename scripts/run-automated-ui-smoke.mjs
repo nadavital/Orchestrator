@@ -603,6 +603,12 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
           if (!operator || !formula || dxfId === null) return ''
           return `<conditionalFormatting sqref="${escapeXml(sqref)}"><cfRule type="cellIs" priority="${formatIndex + 1}" operator="${operator}" dxfId="${dxfId}"><formula>${escapeXml(formula)}</formula></cfRule></conditionalFormatting>`
         }
+        if (format?.type === 'expression') {
+          const formula = String(format?.formula ?? '').trim()
+          const dxfId = differentialStyleIndexFor(format)
+          if (!formula || dxfId === null) return ''
+          return `<conditionalFormatting sqref="${escapeXml(sqref)}"><cfRule type="expression" priority="${formatIndex + 1}" dxfId="${dxfId}"><formula>${escapeXml(formula)}</formula></cfRule></conditionalFormatting>`
+        }
         const colors = Array.isArray(format?.colors) ? format.colors : []
         const normalizedColors = colors
           .map((color) => String(color ?? '').replace(/^#/, '').toUpperCase())
@@ -1446,7 +1452,8 @@ if (fixtureWorkspaceViews.has(captureView)) {
         freezePanes: { rows: 1, columns: 1 },
         conditionalFormats: [
           { sqref: 'B2:B3', colors: ['#FEE2E2', '#DCFCE7'] },
-          { type: 'cellIs', sqref: 'G2:G3', operator: 'greaterThan', formula: '4', fillColor: '#FEF3C7', textColor: '#92400E', bold: true }
+          { type: 'cellIs', sqref: 'G2:G3', operator: 'greaterThan', formula: '4', fillColor: '#FEF3C7', textColor: '#92400E', bold: true },
+          { type: 'expression', sqref: 'H2:H3', formula: '$C2="Updated"', fillColor: '#DBEAFE', textColor: '#1D4ED8', bold: true }
         ],
         dataValidations: [{
           sqref: 'C2:C3',

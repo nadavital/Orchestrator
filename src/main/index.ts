@@ -11869,6 +11869,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     const betaCountCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B3"]');
                     const highTrendCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="G2"]');
                     const lowTrendCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="G3"]');
+                    const expressionTrendCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="H2"]');
+                    const expressionTrendMissCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="H3"]');
                     const betaCountCommentIndicator = betaCountCell?.querySelector('[data-testid="workspace-spreadsheet-comment-indicator"]');
                     const spreadsheetComments = document.querySelector('[data-testid="workspace-spreadsheet-comments"]');
                     const betaCountComment = document.querySelector('[data-testid="workspace-spreadsheet-comment"][data-spreadsheet-comment-address="B3"]');
@@ -12073,7 +12075,7 @@ function runAutomatedFocusedSurfaceSmoke(
                       getComputedStyle(alphaCell).backgroundColor === 'rgb(248, 250, 252)';
                     spreadsheetConditionalFormattingChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
-                      spreadsheetPreview.getAttribute('data-spreadsheet-conditional-format-count') === '2' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-conditional-format-count') === '3' &&
                       alphaCountCell instanceof HTMLButtonElement &&
                       alphaCountCell.getAttribute('data-spreadsheet-cell-value') === '2' &&
                       alphaCountCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '#FEE2E2' &&
@@ -12091,7 +12093,17 @@ function runAutomatedFocusedSurfaceSmoke(
                       getComputedStyle(highTrendCell).color === 'rgb(146, 64, 14)' &&
                       lowTrendCell instanceof HTMLButtonElement &&
                       lowTrendCell.getAttribute('data-spreadsheet-cell-value') === '3' &&
-                      lowTrendCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '';
+                      lowTrendCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '' &&
+                      expressionTrendCell instanceof HTMLButtonElement &&
+                      expressionTrendCell.getAttribute('data-spreadsheet-cell-value') === '7' &&
+                      expressionTrendCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '#DBEAFE' &&
+                      expressionTrendCell.getAttribute('data-spreadsheet-cell-text-color') === '#1D4ED8' &&
+                      expressionTrendCell.getAttribute('data-spreadsheet-cell-bold') === 'true' &&
+                      getComputedStyle(expressionTrendCell).backgroundColor === 'rgb(219, 234, 254)' &&
+                      getComputedStyle(expressionTrendCell).color === 'rgb(29, 78, 216)' &&
+                      expressionTrendMissCell instanceof HTMLButtonElement &&
+                      expressionTrendMissCell.getAttribute('data-spreadsheet-cell-value') === '4' &&
+                      expressionTrendMissCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '';
                     spreadsheetCommentChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-comment-count') === '1' &&
