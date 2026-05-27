@@ -12208,16 +12208,30 @@ function runAutomatedFocusedSurfaceSmoke(
                 persistedSourcePreview.getAttribute('data-source-wrap') === 'false' &&
                 persistedSelectedLine instanceof HTMLElement &&
                 persistedSelectedLine.getAttribute('data-source-line-number') === '2';
-              const sourceSearchInput = document.querySelector('[data-testid="workbench-file-tab-source-search"]');
-              if (sourceSearchInput instanceof HTMLInputElement) {
-                setNativeValue(sourceSearchInput, 'review');
-                sourceSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+              const inlineSourceSearchInput = document.querySelector('[data-testid="workbench-file-tab-source-search"]');
+              const sourceFindTarget = document.querySelector('[data-testid="workbench-file-tab-open-editor"]');
+              if (sourceFindTarget instanceof HTMLElement) {
+                sourceFindTarget.focus();
+                sourceFindTarget.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'f',
+                  code: 'KeyF',
+                  metaKey: true,
+                  bubbles: true,
+                  cancelable: true
+                }));
                 await sleep(180);
               }
-              const sourceSearchCount = document.querySelector('[data-testid="workbench-file-tab-source-search-count"]');
-              const sourceSearchNext = document.querySelector('[data-testid="workbench-file-tab-source-search-next"]');
+              const sourceSharedFindInput = document.querySelector('#content-search-input');
+              if (sourceSharedFindInput instanceof HTMLInputElement) {
+                setNativeValue(sourceSharedFindInput, 'review');
+                sourceSharedFindInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(240);
+              }
+              const sourceFindBar = document.querySelector('[data-testid="thread-find-bar"]');
+              const sourceSearchNext = document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Next result"]');
               const sourcePreviewAfterSearch = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
-              const sourceSearchCountBeforeNext = sourceSearchCount instanceof HTMLElement ? sourceSearchCount.textContent ?? '' : '';
+              const sourceSearchCountBeforeNext = sourceFindBar instanceof HTMLElement ? sourceFindBar.getAttribute('data-thread-find-total-matches') ?? '' : '';
+              const sourceSearchActiveBeforeNext = sourceFindBar instanceof HTMLElement ? sourceFindBar.getAttribute('data-thread-find-active-match') ?? '' : '';
               const sourceSearchActiveLineBeforeNext = sourcePreviewAfterSearch?.getAttribute('data-source-search-active-line') ?? '';
               const firstSearchActiveRow = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-search-active="true"]');
               const firstSearchActiveRowNumber = firstSearchActiveRow instanceof HTMLElement
@@ -12230,11 +12244,17 @@ function runAutomatedFocusedSurfaceSmoke(
               const sourceFileTabAfterSearchNext = document.querySelector('[data-testid="workbench-file-tab"]');
               const sourcePreviewAfterSearchNext = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
               const secondSearchActiveRow = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-search-active="true"]');
-              const sourceSearchClear = document.querySelector('[data-testid="workbench-file-tab-source-search-clear"]');
+              const sourceFindBarAfterNext = document.querySelector('[data-testid="thread-find-bar"]');
+              const sourceSearchClose = document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Close find"]');
               const fileSourceSearchWorks =
-                sourceSearchInput instanceof HTMLInputElement &&
-                sourceSearchCount instanceof HTMLElement &&
-                sourceSearchCountBeforeNext === '1/2' &&
+                !(inlineSourceSearchInput instanceof HTMLElement) &&
+                sourceFindTarget instanceof HTMLElement &&
+                sourceSharedFindInput instanceof HTMLInputElement &&
+                document.activeElement === sourceSharedFindInput &&
+                sourceFindBar instanceof HTMLElement &&
+                sourceFindBar.getAttribute('data-thread-find-domain') === 'diff' &&
+                sourceSearchCountBeforeNext === '2' &&
+                sourceSearchActiveBeforeNext === '1' &&
                 sourcePreviewAfterSearch instanceof HTMLElement &&
                 sourcePreviewAfterSearch.getAttribute('data-source-search-query') === 'review' &&
                 sourcePreviewAfterSearch.getAttribute('data-source-search-match-count') === '2' &&
@@ -12243,6 +12263,9 @@ function runAutomatedFocusedSurfaceSmoke(
                 firstSearchActiveRowNumber === '1' &&
                 sourceSearchNext instanceof HTMLButtonElement &&
                 sourceSearchNext.disabled === false &&
+                sourceFindBarAfterNext instanceof HTMLElement &&
+                sourceFindBarAfterNext.getAttribute('data-thread-find-total-matches') === '2' &&
+                sourceFindBarAfterNext.getAttribute('data-thread-find-active-match') === '2' &&
                 sourceFileTabAfterSearchNext instanceof HTMLElement &&
                 sourceFileTabAfterSearchNext.getAttribute('data-file-tab-source-search-query') === 'review' &&
                 sourceFileTabAfterSearchNext.getAttribute('data-file-tab-source-search-count') === '2' &&
@@ -12252,7 +12275,11 @@ function runAutomatedFocusedSurfaceSmoke(
                 sourcePreviewAfterSearchNext.getAttribute('data-source-search-active-line') === '2' &&
                 secondSearchActiveRow instanceof HTMLElement &&
                 secondSearchActiveRow.getAttribute('data-source-line-number') === '2' &&
-                sourceSearchClear instanceof HTMLButtonElement;
+                sourceSearchClose instanceof HTMLButtonElement;
+              if (sourceSearchClose instanceof HTMLButtonElement) {
+                sourceSearchClose.click();
+                await sleep(120);
+              }
               await openPanelTab('files', 'Files');
               await sleep(160);
               const largeSourceSearch = document.querySelector('[data-testid="workspace-file-search"]');

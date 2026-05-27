@@ -466,6 +466,7 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
         {effectiveFilePath && (
           <FileTabPanel
             workDir={session.workDir}
+            sessionId={session.id}
             filePath={effectiveFilePath}
             fileHost={effectiveFileTab?.fileHost}
             tabId={effectiveTab ?? 'files'}

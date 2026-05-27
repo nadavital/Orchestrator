@@ -319,10 +319,6 @@ export default function App(): JSX.Element {
     window.dispatchEvent(new CustomEvent('orchestrator:open-transcript-search'))
   }, [])
 
-  const openSourceFileSearch = useCallback((): void => {
-    window.dispatchEvent(new CustomEvent('orchestrator:focus-workbench-source-search'))
-  }, [])
-
   const openBrowserFind = useCallback((): void => {
     window.dispatchEvent(new CustomEvent('orchestrator:focus-browser-find'))
   }, [])
@@ -439,13 +435,13 @@ export default function App(): JSX.Element {
       return
     }
     if (target === 'source-file') {
-      openSourceFileSearch()
+      openThreadFind('diff')
       return
     }
     if (target === 'browser-page') {
       openBrowserFind()
     }
-  }, [openBrowserFind, openSourceFileSearch, openThreadFind, resolveCurrentPanelFindTarget])
+  }, [openBrowserFind, openThreadFind, resolveCurrentPanelFindTarget])
 
   const openBrowserTabCommand = useCallback((): void => {
     const { activeSessionId, uiState, addTerminalTab, moveTerminalTabToRight } = useSessionStore.getState()
