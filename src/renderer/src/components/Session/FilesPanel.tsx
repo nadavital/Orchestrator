@@ -1240,6 +1240,8 @@ function SlidesArtifactPreview({
       data-slides-preview-zoom-fit={fitToWidth ? 'true' : 'false'}
       data-slides-preview-notes-count={notesCount}
       data-slides-preview-current-notes={currentSlideNotes}
+      data-slides-preview-thumbnail-rail={payload ? 'codex-left' : 'none'}
+      data-slides-preview-add-slide="read-only"
     >
       <ArtifactPreviewHeader
         artifactType="PPTX"
@@ -1301,55 +1303,78 @@ function SlidesArtifactPreview({
       <div className="workspace-office-preview-body" data-testid="workspace-slides-preview-body">
         {currentSlide ? (
           <>
-            <section
-              className="workspace-slide-stage"
-              data-testid="workspace-slides-preview-current-slide"
-              data-slide-index={currentSlide.index}
-              style={{ fontSize: `${Math.max(10, Math.min(18, 13 * (effectiveZoomPercent / 100)))}px` }}
+            <div
+              className="workspace-slides-editor-shell"
+              data-testid="workspace-slides-preview-editor-shell"
+              data-slides-editor-shell="codex-thumbnail-rail"
             >
-              <div className="workspace-slide-preview-number">{currentSlide.index}</div>
-              <div className="workspace-slide-preview-content">
-                <h3>{currentSlide.title}</h3>
-                {currentSlide.text.map((line, index) => (
-                  <p key={index}>{line}</p>
-                ))}
-              </div>
-            </section>
-            {notesCount > 0 && (
-              <section
-                className="workspace-slides-notes-panel"
-                data-testid="workspace-slides-preview-notes-panel"
-                data-slides-notes-current-slide={currentSlide.index}
-                data-slides-notes-empty={currentSlideNotes ? 'false' : 'true'}
+              <aside
+                className="workspace-slides-thumbnail-rail"
+                data-testid="workspace-slides-preview-thumbnail-rail"
+                data-slides-thumbnail-rail-placement="left"
               >
-                <div className="workspace-office-section-heading">
-                  <Icon name="file" size={14} />
-                  <span>Speaker notes</span>
+                <div className="workspace-slides-thumbnail-strip" data-testid="workspace-slides-preview-thumbnails">
+                  {slides.map((slide, index) => (
+                    <button
+                      key={slide.index}
+                      type="button"
+                      className="workspace-slide-thumbnail"
+                      data-testid="workspace-slides-preview-thumbnail"
+                      data-active={index === currentSlideIndex ? 'true' : 'false'}
+                      data-slide-index={slide.index}
+                      onClick={() => { setCurrentSlideIndex(index) }}
+                    >
+                      <span>{slide.index}</span>
+                      <strong>{slide.title}</strong>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="workspace-slide-add-thumbnail"
+                    data-testid="workspace-slides-preview-add-slide"
+                    aria-label="Add slide unavailable in read-only preview"
+                    disabled
+                  >
+                    <Icon name="plus" size={14} />
+                  </button>
                 </div>
-                <textarea
-                  className="workspace-slides-notes-textarea"
-                  data-testid="workspace-slides-preview-notes"
-                  placeholder="No speaker notes"
-                  readOnly
-                  value={currentSlideNotes}
-                />
-              </section>
-            )}
-            <div className="workspace-slides-thumbnail-strip" data-testid="workspace-slides-preview-thumbnails">
-              {slides.map((slide, index) => (
-                <button
-                  key={slide.index}
-                  type="button"
-                  className="workspace-slide-thumbnail"
-                  data-testid="workspace-slides-preview-thumbnail"
-                  data-active={index === currentSlideIndex ? 'true' : 'false'}
-                  data-slide-index={slide.index}
-                  onClick={() => { setCurrentSlideIndex(index) }}
+              </aside>
+              <div className="workspace-slides-main-panel" data-testid="workspace-slides-preview-main-panel">
+                <section
+                  className="workspace-slide-stage"
+                  data-testid="workspace-slides-preview-current-slide"
+                  data-slide-index={currentSlide.index}
+                  style={{ fontSize: `${Math.max(10, Math.min(18, 13 * (effectiveZoomPercent / 100)))}px` }}
                 >
-                  <span>{slide.index}</span>
-                  <strong>{slide.title}</strong>
-                </button>
-              ))}
+                  <div className="workspace-slide-preview-number">{currentSlide.index}</div>
+                  <div className="workspace-slide-preview-content">
+                    <h3>{currentSlide.title}</h3>
+                    {currentSlide.text.map((line, index) => (
+                      <p key={index}>{line}</p>
+                    ))}
+                  </div>
+                </section>
+                {notesCount > 0 && (
+                  <section
+                    className="workspace-slides-notes-panel"
+                    data-testid="workspace-slides-preview-notes-panel"
+                    data-slides-notes-current-slide={currentSlide.index}
+                    data-slides-notes-empty={currentSlideNotes ? 'false' : 'true'}
+                  >
+                    <div className="workspace-office-section-heading">
+                      <Icon name="file" size={14} />
+                      <span>Speaker notes</span>
+                    </div>
+                    <textarea
+                      className="workspace-slides-notes-textarea"
+                      data-testid="workspace-slides-preview-notes"
+                      placeholder="No speaker notes"
+                      readOnly
+                      value={currentSlideNotes}
+                    />
+                  </section>
+                )}
+              </div>
             </div>
             <div className="workspace-slides-outline" data-testid="workspace-slides-preview-outline">
               {slides.map((slide) => (

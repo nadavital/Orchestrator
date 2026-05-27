@@ -11146,6 +11146,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const slidesRendererChecks = {};
               const slidesControlChecks = {};
               const slidesNotesChecks = {};
+              const slidesThumbnailRailChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
@@ -11877,6 +11878,9 @@ function runAutomatedFocusedSurfaceSmoke(
                     const zoomIn = document.querySelector('[data-testid="workspace-slides-preview-zoom-in"]');
                     const notesPanel = document.querySelector('[data-testid="workspace-slides-preview-notes-panel"]');
                     const notesTextarea = document.querySelector('[data-testid="workspace-slides-preview-notes"]');
+                    const thumbnailRail = document.querySelector('[data-testid="workspace-slides-preview-thumbnail-rail"]');
+                    const editorShell = document.querySelector('[data-testid="workspace-slides-preview-editor-shell"]');
+                    const addSlide = document.querySelector('[data-testid="workspace-slides-preview-add-slide"]');
                     slidesRendererChecks[testId] =
                       slidesPreview instanceof HTMLElement &&
                       slidesPreview.getAttribute('data-slides-preview-rendered') === 'true' &&
@@ -11908,6 +11912,17 @@ function runAutomatedFocusedSurfaceSmoke(
                       zoomIndicator.textContent?.trim() === '100%' &&
                       zoomIn instanceof HTMLButtonElement &&
                       !zoomIn.disabled;
+                    slidesThumbnailRailChecks[testId] =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-thumbnail-rail') === 'codex-left' &&
+                      slidesPreview.getAttribute('data-slides-preview-add-slide') === 'read-only' &&
+                      editorShell instanceof HTMLElement &&
+                      editorShell.getAttribute('data-slides-editor-shell') === 'codex-thumbnail-rail' &&
+                      thumbnailRail instanceof HTMLElement &&
+                      thumbnailRail.getAttribute('data-slides-thumbnail-rail-placement') === 'left' &&
+                      addSlide instanceof HTMLButtonElement &&
+                      addSlide.disabled &&
+                      addSlide.getAttribute('aria-label') === 'Add slide unavailable in read-only preview';
                     const initialSlidesNotes =
                       notesPanel instanceof HTMLElement &&
                       notesPanel.getAttribute('data-slides-notes-current-slide') === '1' &&
@@ -12988,6 +13003,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetFormulaEvaluationWorks: Boolean(spreadsheetFormulaChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
+                filesSlidesThumbnailRailWorks: Boolean(slidesThumbnailRailChecks['workspace-slides-preview']),
                 filesOfficeZoomMenuWorks:
                   Boolean(officeZoomMenuChecks['workspace-spreadsheet-preview']) &&
                   Boolean(officeZoomMenuChecks['workspace-slides-preview']),
