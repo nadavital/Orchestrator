@@ -119,6 +119,8 @@ export default function TerminalPanel({ session }: TerminalPanelProps): JSX.Elem
       panel="bottom"
       surface="terminal"
       focusArea="bottom-panel"
+      telemetryActiveTab={activeTab}
+      telemetryRouteKind="local_thread"
       className={`flex flex-col ${terminalLayout.className}`.trim()}
       style={terminalLayout.style}
       data-app-shell-panel-size-controller="shared"

@@ -1387,6 +1387,7 @@ child.on('exit', async (code) => {
           rightPanelFullscreenCleanup: result.rightPanelFullscreenCleanupWorks === true,
           rightPanelTabTelemetry: result.rightPanelTabTelemetryWorks === true,
           rightPanelTabLifecycleTelemetry: result.rightPanelTabLifecycleTelemetryWorks === true,
+          rightPanelPanelOpenCloseTelemetry: result.rightPanelPanelOpenCloseTelemetryWorks === true,
           rightPanelTabWeightCalm: result.rightPanelTabWeightCalmWorks === true,
           rightPanelTabActionsSharedVariant: result.rightPanelTabActionsSharedVariantWorks === true,
           workbenchPanelTabOverflowController: result.workbenchPanelTabOverflowControllerWorks === true,

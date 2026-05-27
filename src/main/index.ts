@@ -5928,6 +5928,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelFullscreenCleanupWorks = false;
               let rightPanelTabTelemetryWorks = false;
               let rightPanelTabLifecycleTelemetryWorks = false;
+              let rightPanelPanelOpenCloseTelemetryWorks = false;
               let rightPanelTabWeightCalmWorks = false;
               let rightPanelTabActionsSharedVariantWorks = false;
               let workbenchPanelTabOverflowControllerWorks = false;
@@ -6808,6 +6809,21 @@ function runAutomatedFocusedSurfaceSmoke(
                   metric.metadata?.panelId === 'right' &&
                   typeof metric.metadata?.tabId === 'string'
                 );
+              rightPanelPanelOpenCloseTelemetryWorks =
+                rightPanelTelemetry.metrics.some((metric) =>
+                  metric.name === 'panel.closed' &&
+                  metric.metadata?.panelId === 'right' &&
+                  metric.metadata?.panelSurface === 'workbench' &&
+                  typeof metric.metadata?.activeTab === 'string' &&
+                  metric.metadata?.routeKind === 'local_thread'
+                ) &&
+                rightPanelTelemetry.metrics.some((metric) =>
+                  metric.name === 'panel.opened' &&
+                  metric.metadata?.panelId === 'right' &&
+                  metric.metadata?.panelSurface === 'workbench' &&
+                  typeof metric.metadata?.activeTab === 'string' &&
+                  metric.metadata?.routeKind === 'local_thread'
+                );
               const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
               const profileBadge = document.querySelector('[data-testid="profile-badge"]');
               const profileBadgeRect = profileBadge instanceof HTMLElement ? profileBadge.getBoundingClientRect() : null;
@@ -6886,6 +6902,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelFullscreenCleanupWorks,
                 rightPanelTabTelemetryWorks,
                 rightPanelTabLifecycleTelemetryWorks,
+                rightPanelPanelOpenCloseTelemetryWorks,
                 rightPanelTabWeightCalmWorks,
                 rightPanelTabActionsSharedVariantWorks,
                 rightPanelMenuCommandStateWorks,

@@ -348,6 +348,8 @@ function ContextSidebarContent({ session }: { session: Session }): JSX.Element |
       panel="right"
       surface="workbench"
       focusArea="right-panel"
+      telemetryActiveTab={effectiveTab}
+      telemetryRouteKind="local_thread"
       className={`workbench-panel flex ${panelLayout.className}`.trim()}
       style={panelLayout.style}
       data-app-shell-panel-size-controller="shared"

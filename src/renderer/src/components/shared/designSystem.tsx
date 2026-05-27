@@ -83,6 +83,27 @@ function recordPanelTabMetric(
   }).catch(() => undefined)
 }
 
+function recordAppShellPanelMetric(
+  name: 'panel.opened' | 'panel.closed',
+  panelId: string,
+  surface: string,
+  activeTabId: string | number | null | undefined,
+  routeKind: string | null | undefined
+): void {
+  void window.api.performance.record({
+    name,
+    surface: 'renderer',
+    startedAt: Date.now(),
+    durationMs: 0,
+    metadata: {
+      panelId,
+      panelSurface: surface,
+      activeTab: activeTabId == null ? 'none' : String(activeTabId),
+      routeKind: routeKind ?? 'local_thread'
+    }
+  }).catch(() => undefined)
+}
+
 export function announceHoverSurfaceOpen(id: string): void {
   window.dispatchEvent(new CustomEvent(hoverSurfaceOpenEvent, { detail: { id } }))
 }
@@ -729,6 +750,8 @@ export function AppShellPanel({
   panel,
   surface,
   focusArea,
+  telemetryActiveTab,
+  telemetryRouteKind = 'local_thread',
   children,
   className = '',
   style,
@@ -740,13 +763,23 @@ export function AppShellPanel({
   panel: 'right' | 'bottom'
   surface: string
   focusArea: string
+  telemetryActiveTab?: string | number | null
+  telemetryRouteKind?: string | null
   children: ReactNode
   className?: string
   style?: CSSProperties
 } & Omit<HTMLAttributes<HTMLDivElement>, 'children'>): JSX.Element {
+  const previousOpenRef = useRef(open)
   const shellBorder: CSSProperties = side === 'right'
     ? { borderLeft: '1px solid var(--border-subtle)' }
     : { borderTop: '1px solid var(--border-subtle)' }
+
+  useEffect(() => {
+    const wasOpen = previousOpenRef.current
+    previousOpenRef.current = open
+    if (wasOpen === open) return
+    recordAppShellPanelMetric(open ? 'panel.opened' : 'panel.closed', panel, surface, telemetryActiveTab, telemetryRouteKind)
+  }, [open, panel, surface, telemetryActiveTab, telemetryRouteKind])
 
   return (
     <MotionPanel
