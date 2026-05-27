@@ -8,7 +8,7 @@ import { promisify } from 'util'
 import type { Attachment, AutomationPermissionSnapshot, Session, SessionForkMode, SessionListItem, ChatMessage, ProviderRuntimeKind, ProviderSidebarSyncResult, ReviewMetadata, RunEvent, RunRequest, SessionStatus, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem } from '../types'
 import { PROVIDER_DEFS, applyAutomationPermissionSnapshot, finalizeInterruptedMessages, getDefaultPermissionMode } from '../types'
 import { gitManager } from './git'
-import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw, setCodexAppServerThreadPinnedRaw } from './providers'
+import { getProvider, PROVIDERS, providerSpawnEnv, resolveProviderBinary, resolveProviderCommand, runCodexAppServerCommandSurfaceRaw, setCodexAppServerPinnedThreadsOrderRaw, setCodexAppServerThreadPinnedRaw } from './providers'
 import type { ProviderAdapter } from './providers'
 import { providerRuntime } from './providerRuntime'
 import { eventsToMessages } from './runEvents'
@@ -19,7 +19,7 @@ import { approvalBroker } from './approvalBroker'
 import { safeWindowSend } from './safeWebContents'
 import { searchTranscriptMessages, transcriptPageForMessages } from './transcriptIndex'
 import { recordPerformanceMetric } from './performanceTelemetry'
-import { applyCodexThreadListMetadata, applyProviderPinnedThreadState, ensurePinnedSessionOrders, nextPinOrder, providerPinnedThreadKeyForSession, reorderPinnedSessions } from '../types'
+import { applyCodexThreadListMetadata, applyProviderPinnedThreadState, comparePinnedSessions, ensurePinnedSessionOrders, nextPinOrder, providerPinnedThreadKeyForSession, reorderPinnedSessions } from '../types'
 import { codexPinnedThreadKeysFromList, shouldRefreshCodexSidebarMetadataAfterRun, shouldRefreshCodexSidebarMetadataOnIdle, syncCodexSidebarThreadMetadata } from './providerSidebarSync'
 
 interface SessionStore {
@@ -71,6 +71,18 @@ function codexProviderPinThreadId(session: Session): string | null {
   if (session.provider !== 'codex') return null
   const threadId = session.providerSessionId?.trim()
   return threadId || null
+}
+
+function codexProviderPinnedThreadOrder(sessions: Session[]): string[] {
+  return sessions
+    .filter((session) => session.provider === 'codex' && session.providerPinned === true && Boolean(session.providerSessionId?.trim()))
+    .sort(comparePinnedSessions)
+    .map((session) => session.providerSessionId?.trim() ?? '')
+    .filter(Boolean)
+}
+
+function sameStringOrder(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index])
 }
 
 function defaultRuntimeForProvider(providerId: string): ProviderRuntimeKind {
@@ -965,17 +977,59 @@ export const sessionManager = {
     }
   },
 
-  reorderPinned(orderedPinnedSessionIds: string[]): void {
+  async reorderPinned(orderedPinnedSessionIds: string[]): Promise<void> {
     const sessions = ensurePinnedOrders(store.get('sessions', []))
     const nextSessions = reorderPinnedSessions(sessions, orderedPinnedSessionIds)
-    const changed = nextSessions.filter((nextSession, index) => (
+    const currentCodexProviderOrder = codexProviderPinnedThreadOrder(sessions)
+    const nextCodexProviderOrder = codexProviderPinnedThreadOrder(nextSessions)
+    let reconciledSessions = nextSessions
+    if (
+      nextCodexProviderOrder.length > 1 &&
+      !sameStringOrder(currentCodexProviderOrder, nextCodexProviderOrder)
+    ) {
+      const cwd = nextSessions.find((session) => (
+        session.provider === 'codex' &&
+        session.providerPinned === true &&
+        Boolean(session.providerSessionId?.trim())
+      ))?.workDir || process.cwd()
+      await setCodexAppServerPinnedThreadsOrderRaw(nextCodexProviderOrder, cwd)
+      try {
+        const providerThreadKeys = codexPinnedThreadKeysFromList(
+          await runCodexAppServerCommandSurfaceRaw('appserver-pinned-threads', cwd)
+        )
+        reconciledSessions = applyProviderPinnedThreadState(nextSessions, { providerId: 'codex', threadKeys: providerThreadKeys })
+      } catch {
+        reconciledSessions = nextSessions
+      }
+    }
+
+    const changed = reconciledSessions.filter((nextSession, index) => (
       nextSession.pinned !== sessions[index]?.pinned ||
-      nextSession.pinOrder !== sessions[index]?.pinOrder
+      nextSession.pinOrder !== sessions[index]?.pinOrder ||
+      nextSession.providerPinned !== sessions[index]?.providerPinned ||
+      nextSession.providerPinOrder !== sessions[index]?.providerPinOrder ||
+      nextSession.providerPinnedThreadKey !== sessions[index]?.providerPinnedThreadKey
     ))
     if (changed.length === 0) return
-    store.set('sessions', nextSessions)
+    store.set('sessions', reconciledSessions)
     for (const session of changed) {
-      send('session:pinned', { id: session.id, pinned: session.pinned === true, pinOrder: session.pinOrder })
+      const previous = sessions.find((candidate) => candidate.id === session.id)
+      if (!previous) continue
+      if (previous.pinned !== session.pinned || previous.pinOrder !== session.pinOrder) {
+        send('session:pinned', { id: session.id, pinned: session.pinned === true, pinOrder: session.pinOrder })
+      }
+      if (
+        previous.providerPinned !== session.providerPinned ||
+        previous.providerPinOrder !== session.providerPinOrder ||
+        previous.providerPinnedThreadKey !== session.providerPinnedThreadKey
+      ) {
+        send('session:updated', {
+          id: session.id,
+          providerPinned: session.providerPinned,
+          providerPinOrder: session.providerPinOrder,
+          providerPinnedThreadKey: session.providerPinnedThreadKey
+        })
+      }
     }
   },
 

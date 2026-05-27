@@ -151,12 +151,21 @@ export function reorderPinnedSessions<T extends PinOrderedSession>(
   return sessions.map((session) => {
     const pinOrder = orderById.get(session.id)
     if (pinOrder == null) return session
-    if (session.pinned === true && session.pinOrder === pinOrder) return session
-    return {
-      ...session,
-      pinned: true,
-      pinOrder
+    if (session.pinned === true) {
+      if (session.pinOrder === pinOrder) return session
+      return {
+        ...session,
+        pinOrder
+      }
     }
+    if (session.providerPinned === true) {
+      if (session.providerPinOrder === pinOrder) return session
+      return {
+        ...session,
+        providerPinOrder: pinOrder
+      }
+    }
+    return session
   })
 }
 

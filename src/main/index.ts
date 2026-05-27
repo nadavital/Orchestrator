@@ -16729,6 +16729,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               projectsSection.parentElement === chatScrollContainer &&
               getComputedStyle(chatScrollContainer).overflowY !== 'visible';
             let sidebarPinnedDragReorderWorks = false;
+            let sidebarProviderPinnedOrderPreservedWorks = false;
             if (pinnedSection instanceof HTMLElement && typeof DataTransfer !== 'undefined') {
               const pinnedRecentRow = rowFor('Sidebar pinned recent');
               const pinnedOlderRow = rowFor('Sidebar pinned older');
@@ -16760,7 +16761,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 const reorderedPinnedBlock = reorderedProjectsIndex >= 0 ? reorderedPinnedText.slice(0, reorderedProjectsIndex) : reorderedPinnedText;
                 const reorderedRecentIndex = reorderedPinnedBlock.indexOf('Sidebar pinned recent');
                 const reorderedOlderIndex = reorderedPinnedBlock.indexOf('Sidebar pinned older');
+                const reorderedProviderPinnedIndex = reorderedPinnedBlock.indexOf('Sidebar provider pinned codex');
                 const pinnedList = document.querySelector('[data-testid="sidebar-pinned-session-list"]');
+                const providerPinnedShellAfterReorder = rowFor('Sidebar provider pinned codex')?.closest('.session-row-shell');
+                const providerPinnedPinAfterReorder = providerPinnedShellAfterReorder instanceof HTMLElement
+                  ? providerPinnedShellAfterReorder.querySelector('[data-testid="session-pin-toggle"]')
+                  : null;
                 sidebarPinnedDragReorderWorks =
                   pinnedDropMarker &&
                   pinnedSection.getAttribute('data-sidebar-pinned-reorder') === 'local' &&
@@ -16768,6 +16774,17 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   reorderedRecentIndex >= 0 &&
                   reorderedOlderIndex >= 0 &&
                   reorderedRecentIndex < reorderedOlderIndex;
+                sidebarProviderPinnedOrderPreservedWorks =
+                  reorderedRecentIndex >= 0 &&
+                  reorderedOlderIndex >= 0 &&
+                  reorderedProviderPinnedIndex >= 0 &&
+                  reorderedRecentIndex < reorderedOlderIndex &&
+                  reorderedOlderIndex < reorderedProviderPinnedIndex &&
+                  providerPinnedShellAfterReorder instanceof HTMLElement &&
+                  providerPinnedShellAfterReorder.getAttribute('data-sidebar-provider-pinned') === 'true' &&
+                  providerPinnedShellAfterReorder.getAttribute('data-sidebar-pinned-thread-key') === 'remote:sidebar-provider-pinned-codex' &&
+                  providerPinnedPinAfterReorder instanceof HTMLButtonElement &&
+                  providerPinnedPinAfterReorder.getAttribute('data-sidebar-pin-boundary') === 'codex-provider';
               }
             }
             let sidebarProjectlessChatsWorks = false;
@@ -18707,6 +18724,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarProviderPinBoundaryWorks,
               pinnedSharesProjectScroll,
               sidebarPinnedDragReorderWorks,
+              sidebarProviderPinnedOrderPreservedWorks,
               sidebarProjectlessChatsWorks,
               sidebarProjectlessChatsFirstPreferenceWorks,
               providerProjectlessMetadataWorks,

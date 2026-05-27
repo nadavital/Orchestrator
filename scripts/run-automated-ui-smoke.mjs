@@ -1762,6 +1762,7 @@ child.on('exit', async (code) => {
         sidebarProviderPinBoundary: result.sidebarProviderPinBoundaryWorks === true,
         pinnedSharesProjectScroll: result.pinnedSharesProjectScroll === true,
         sidebarPinnedDragReorder: result.sidebarPinnedDragReorderWorks === true,
+        sidebarProviderPinnedOrderPreserved: result.sidebarProviderPinnedOrderPreservedWorks === true,
         sidebarProjectlessChats: result.sidebarProjectlessChatsWorks === true,
         sidebarProjectlessChatsFirstPreference: result.sidebarProjectlessChatsFirstPreferenceWorks === true,
         providerProjectlessMetadata: result.providerProjectlessMetadataWorks === true,

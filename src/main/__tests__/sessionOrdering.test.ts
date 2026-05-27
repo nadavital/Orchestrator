@@ -102,11 +102,13 @@ test('pinned sessions reorder through explicit sidebar order', () => {
     next.map((session) => [session.id, session.pinned, session.pinOrder]),
     [
       ['first', true, 2],
-      ['provider-second', true, 3],
+      ['provider-second', undefined, undefined],
       ['third', true, 1],
       ['ordinary', false, undefined]
     ]
   )
+  assert.equal(next.find((session) => session.id === 'provider-second')?.providerPinned, true)
+  assert.equal(next.find((session) => session.id === 'provider-second')?.providerPinOrder, 3)
   assert.equal(next.find((session) => session.id === 'provider-second')?.providerPinnedThreadKey, 'remote:task-2')
 })
 

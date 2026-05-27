@@ -3649,6 +3649,19 @@ export async function setCodexAppServerThreadPinnedRaw(
   return await runCodexAppServerSingleRequest(provider, binary, { method: 'set-thread-pinned', params }, cwd)
 }
 
+export async function setCodexAppServerPinnedThreadsOrderRaw(
+  threadIds: string[],
+  cwd = process.cwd()
+): Promise<unknown> {
+  const provider = getProvider('codex')
+  const binary = resolveProviderBinary(provider)
+  if (!binary) throw new Error('codex CLI is not available.')
+  return await runCodexAppServerSingleRequest(provider, binary, {
+    method: 'set-pinned-threads-order',
+    params: { threadIds }
+  }, cwd)
+}
+
 export function runProviderCommandSurface(providerId: string, surfaceId: string): ProviderCommandSurfaceResult {
   const provider = getProvider(providerId)
   const registry = providerCapabilityRegistry(provider.id)

@@ -581,20 +581,20 @@ function buildContracts() {
       scope: 'Left sidebar',
       captureIds: ['chat-sidebar'],
       codexAssetNames: ['sidebar-project-group-signals-', 'sidebar-thread-keys-', 'sidebar-thread-list-signals-', 'pinned-threads-query-', 'set-pinned-thread-'],
-      smokeChecks: ['providerPinnedMetadata', 'sidebarProviderPinBoundary', 'providerWorktreeMetadata', 'sidebarConnectionGrouping', 'sidebarPinnedDragReorder', 'sidebarRowDensityCodexLike', 'sessionRowsTextFirst', 'sidebarPinnedRowsTextFirst', 'chatsHeaderTextFirst', 'sidebarFooterCollapseAffordance'],
+      smokeChecks: ['providerPinnedMetadata', 'sidebarProviderPinBoundary', 'providerWorktreeMetadata', 'sidebarConnectionGrouping', 'sidebarPinnedDragReorder', 'sidebarProviderPinnedOrderPreserved', 'sidebarRowDensityCodexLike', 'sessionRowsTextFirst', 'sidebarPinnedRowsTextFirst', 'chatsHeaderTextFirst', 'sidebarFooterCollapseAffordance'],
       statusWhenCovered: 'fixture-covered',
-      caveat: 'Provider thread-list projection, Codex-backed pin/unpin for sessions with provider thread ids, local pin order, Codex-compact row density, text-first session rows, text-first top-level Chats section header, and the footer collapse affordance are covered. The Codex bundle exposes list-pinned-threads, set-thread-pinned, and set-pinned-threads-order, but the comparison does not run a live set-thread-pinned mutation because it would change the user\'s real Codex pinned chats.',
-      next: 'Capture a safe reversible live Codex pin/unpin proof with a disposable thread, then add provider pinned ordering through set-pinned-threads-order and non-Codex provider pin adapters when those providers expose comparable state.',
+      caveat: 'Provider thread-list projection, Codex-backed pin/unpin for sessions with provider thread ids, Codex provider pinned ordering bridge, local pin order, Codex-compact row density, text-first session rows, text-first top-level Chats section header, and the footer collapse affordance are covered. The Codex bundle exposes list-pinned-threads, set-thread-pinned, and set-pinned-threads-order, but the comparison does not run live pinned mutations because they would change the user\'s real Codex pinned chats.',
+      next: 'Capture a safe reversible live Codex pin/unpin and pinned-order proof with disposable threads, then add non-Codex provider pin adapters when those providers expose comparable state.',
       openIssues: [
         {
           category: 'provider-proof',
-          issue: 'Live Codex set-thread-pinned mutation proof is not captured in the comparison because it changes real user pin state.',
-          requiredEvidence: 'Safe reversible live pin/unpin test against a disposable Codex thread, including post-mutation list-pinned-threads state.'
+          issue: 'Live Codex pinned mutation proof is not captured in the comparison because pin and order mutations change real user pin state.',
+          requiredEvidence: 'Safe reversible live pin/unpin and reorder test against disposable Codex threads, including post-mutation list-pinned-threads state.'
         },
         {
           category: 'provider-adapter',
-          issue: 'Provider-backed pinned ordering and non-Codex provider pin adapters remain incomplete.',
-          requiredEvidence: 'set-pinned-threads-order integration for Codex plus comparable provider pin contracts for non-Codex providers.'
+          issue: 'Non-Codex provider pin adapters remain incomplete.',
+          requiredEvidence: 'Comparable provider pin list/set/order contracts for non-Codex providers.'
         },
         {
           category: 'live-codex-ui',
