@@ -33,6 +33,9 @@
     --app-shell-tab-font-weight: 500;
     --app-shell-tab-active-font-weight: 520;
     --app-shell-tab-x: 7px;
+    --app-shell-tab-max-width: 160px;
+    --app-shell-tab-content-max-width: 156px;
+    --app-shell-tab-active-min-width: 84px;
     --app-shell-action-size: 24px;
 
     --app-bg: transparent;
@@ -1318,7 +1321,7 @@
     flex: 0 0 auto;
     min-height: var(--app-shell-tab-height);
     min-width: 42px;
-    max-width: 132px;
+    max-width: var(--app-shell-tab-max-width);
     border-radius: var(--app-shell-tab-radius);
     color: var(--text-tertiary);
     padding: 0 var(--app-shell-tab-x);
@@ -1327,13 +1330,13 @@
   }
 
   .workbench-panel-tabbar .motion-tab-button:not([data-active='true']) {
-    max-width: 112px;
+    max-width: var(--app-shell-tab-max-width);
   }
 
   .workbench-panel-tabbar .motion-tab-button[data-active='true'] {
     --motion-tab-close-background: color-mix(in srgb, var(--control-bg) 62%, var(--surface-bg));
     min-width: 96px;
-    max-width: 148px;
+    max-width: var(--app-shell-tab-max-width);
     border-color: transparent;
     background: color-mix(in srgb, var(--control-bg) 62%, transparent);
     box-shadow: none;
@@ -6633,7 +6636,8 @@
     --motion-tab-close-background: var(--surface-bg);
     display: inline-flex;
     min-width: 0;
-    flex-shrink: 0;
+    max-width: var(--app-shell-tab-max-width);
+    flex: 0 0 auto;
     align-items: center;
     gap: 6px;
     min-height: var(--app-shell-tab-height);
@@ -6646,6 +6650,7 @@
     font-size: var(--app-shell-tab-font-size);
     font-weight: var(--app-shell-tab-font-weight);
     position: relative;
+    overflow: hidden;
     transition:
       background-color var(--motion-duration-edge) var(--motion-ease-standard),
       border-color var(--motion-duration-edge) var(--motion-ease-standard),
@@ -6697,6 +6702,7 @@
 
   .motion-tab-button[data-active='true'] {
     --motion-tab-close-background: color-mix(in srgb, var(--surface-bg) 72%, transparent);
+    min-width: var(--app-shell-tab-active-min-width);
     border-color: color-mix(in srgb, var(--border-subtle) 72%, transparent);
     background: color-mix(in srgb, var(--surface-bg) 72%, transparent);
     color: var(--text-primary);
@@ -6826,8 +6832,10 @@
   .panel-tab-content {
     display: inline-flex;
     min-width: 0;
+    max-width: var(--app-shell-tab-content-max-width);
     align-items: center;
     gap: 6px;
+    overflow: hidden;
     padding-right: 0;
     transition: padding-right var(--motion-duration-control) var(--motion-ease-control);
   }

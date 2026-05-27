@@ -6093,6 +6093,7 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelTabWeightCalmWorks = false;
               let rightPanelTabActionsSharedVariantWorks = false;
               let workbenchPanelTabOverflowControllerWorks = false;
+              let workbenchPanelTabCodexWidthCapWorks = false;
               let workbenchPanelTabCloseStartEdgeWorks = false;
               let workbenchPanelTabCloseStartEdgeDebug = [];
               let workbenchPanelNewTabPageWorks = false;
@@ -6141,11 +6142,21 @@ function runAutomatedFocusedSurfaceSmoke(
                 const rowCanScrollOverflow = tabRow.scrollWidth > tabRow.clientWidth + 2
                   ? tabbar.getAttribute('data-overflow-end') === 'true' || tabRow.scrollLeft > 0
                   : true;
+                const tabWidthCapWorks =
+                  tabRects.length >= 3 &&
+                  tabRects.every((rect) => rect.width <= 162) &&
+                  tabStyles.every((style) => style.maxWidth === '160px') &&
+                  activeTabButton instanceof HTMLElement &&
+                  activeTabButton.getBoundingClientRect().width >= 84 &&
+                  activeTabButton.getBoundingClientRect().width <= 162;
                 workbenchPanelTabOverflowControllerWorks =
                   tabWidthsStable &&
                   tabsDoNotOverlap &&
                   rowCanScrollOverflow &&
                   tabRow.scrollHeight <= tabRow.clientHeight + 2;
+                workbenchPanelTabCodexWidthCapWorks =
+                  tabWidthCapWorks &&
+                  workbenchPanelTabOverflowControllerWorks;
                 const closableTabs = tabButtons.filter((tab) => tab.getAttribute('data-closable') === 'true');
                 const closeButtons = closableTabs
                   .map((tab) => ({
@@ -7034,6 +7045,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   tabRow.scrollHeight <= tabRow.clientHeight + 2 &&
                   tabActions.getBoundingClientRect().height <= 30,
                 workbenchPanelTabOverflowControllerWorks,
+                workbenchPanelTabCodexWidthCapWorks,
                 workbenchPanelTabCloseStartEdgeWorks,
                 workbenchPanelTabCloseStartEdgeDebug,
                 workbenchPanelAddControlStableWorks:
