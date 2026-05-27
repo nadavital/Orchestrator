@@ -21,6 +21,33 @@ export interface CodexSidebarIdleRefreshInput {
   smokeOutput?: string | null
 }
 
+export function codexPinnedThreadKeysFromList(result: unknown): string[] {
+  const record = result && typeof result === 'object' && !Array.isArray(result)
+    ? result as Record<string, unknown>
+    : null
+  const values = Array.isArray(record?.threadIds)
+    ? record.threadIds
+    : Array.isArray(record?.threads)
+      ? record.threads.map((thread) => thread && typeof thread === 'object' ? (thread as Record<string, unknown>).id : thread)
+      : Array.isArray(record?.data)
+        ? record.data.map((thread) => thread && typeof thread === 'object' ? (thread as Record<string, unknown>).id : thread)
+        : Array.isArray(result)
+          ? result
+          : []
+
+  const seen = new Set<string>()
+  const keys: string[] = []
+  for (const value of values) {
+    const id = typeof value === 'string' ? value.trim() : ''
+    if (!id) continue
+    const key = id.includes(':') ? id : `remote:${id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    keys.push(key)
+  }
+  return keys
+}
+
 export async function syncCodexSidebarThreadMetadata(
   options: CodexSidebarThreadMetadataSyncOptions
 ): Promise<ProviderSidebarSyncResult> {

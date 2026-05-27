@@ -29,6 +29,7 @@ import { applyCapabilitySync, previewCapabilitySync } from './capabilitySync'
 import { performanceSnapshot, recordPerformanceMetric, resetPerformanceMetrics } from './performanceTelemetry'
 import { providerManifests } from './providerManifest'
 import { setBrowserSecurityPolicy } from './browserSecurityPolicy'
+import { registerBrowserClientToolIpc } from './browserClientTools'
 import { EDITOR_OPEN_TARGETS, editorCliTargets, editorFileUrl, editorOpenTarget, findExecutableCommand, normalizePreferredOpenTarget, type EditorOpenTarget } from './editorOpen'
 type FilePreviewResult =
   | { kind: 'text'; size: number; text: string; truncated: boolean }
@@ -36,9 +37,278 @@ type FilePreviewResult =
   | { kind: 'json'; size: number; text: string; truncated: boolean }
   | { kind: 'csv'; size: number; text: string; truncated: boolean }
   | { kind: 'notebook'; size: number; text: string; truncated: boolean }
-  | { kind: 'document'; size: number; text: string; truncated: boolean }
-  | { kind: 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
+  | { kind: 'document'; size: number; text: string; truncated: boolean; document?: DocumentPreviewPayload }
+  | { kind: 'pdf'; size: number; pageCount?: number; truncated: boolean }
+  | { kind: 'spreadsheet' | 'slides'; size: number; text?: string; truncated: boolean }
+  | { kind: 'image' | 'html' | 'audio' | 'video' | 'binary'; size: number; truncated: boolean }
   | { kind: 'missing' | 'unreadable'; size?: number; truncated: false }
+
+interface ZipEntryRecord {
+  name: string
+  method: number
+  compressedSize: number
+  localHeaderOffset: number
+}
+
+interface SpreadsheetPreviewCell {
+  value: string
+  formula?: string
+  fillColor?: string
+  conditionalFillColor?: string
+  dataValidation?: SpreadsheetPreviewDataValidation
+  comment?: SpreadsheetPreviewCellComment
+  borderColor?: string
+  borders?: SpreadsheetCellBorders
+  textColor?: string
+  bold?: boolean
+  wrapText?: boolean
+  horizontalAlignment?: 'left' | 'center' | 'right'
+  verticalAlignment?: 'top' | 'middle' | 'bottom'
+}
+
+interface SpreadsheetPreviewSheet {
+  name: string
+  rows: SpreadsheetPreviewCell[][]
+  merges?: SpreadsheetPreviewMerge[]
+  tables?: SpreadsheetPreviewTable[]
+  charts?: SpreadsheetPreviewChart[]
+  drawings?: SpreadsheetPreviewDrawing[]
+  sparklines?: SpreadsheetPreviewSparkline[]
+  conditionalFormatCount?: number
+  dataValidationCount?: number
+  commentCount?: number
+  drawingCount?: number
+  sparklineCount?: number
+  columnWidths?: Array<number | undefined>
+  rowHeights?: Array<number | undefined>
+  freezePanes?: SpreadsheetFreezePanes
+}
+
+interface SpreadsheetPreviewMerge {
+  ref: string
+  startRow: number
+  startColumn: number
+  rowSpan: number
+  colSpan: number
+}
+
+interface SpreadsheetPreviewTable {
+  ref: string
+  name: string
+  styleName?: string
+  startRow: number
+  startColumn: number
+  rowSpan: number
+  colSpan: number
+  showFilterButton?: boolean
+  showRowStripes?: boolean
+}
+
+interface SpreadsheetPreviewChart {
+  title: string
+  type: string
+  sourceRange?: string
+}
+
+interface SpreadsheetPreviewDrawing {
+  kind: 'shape' | 'image'
+  name?: string
+  description?: string
+  text?: string
+  geometry?: string
+  fillColor?: string
+  lineColor?: string
+  row: number
+  column: number
+  rowOffsetPx?: number
+  columnOffsetPx?: number
+  widthPx?: number
+  heightPx?: number
+  toRow?: number
+  toColumn?: number
+  imageDataUrl?: string
+  imageMimeType?: string
+}
+
+interface SpreadsheetPreviewSparkline {
+  type: 'line' | 'column' | 'stacked'
+  targetCell: string
+  sourceRange: string
+  values: number[]
+  markers?: boolean
+}
+
+interface SpreadsheetPreviewConditionalFormat {
+  ref: string
+  startRow: number
+  startColumn: number
+  rowSpan: number
+  colSpan: number
+  colors?: string[]
+  fillColor?: string
+  textColor?: string
+  bold?: boolean
+  operator?: 'greaterThan' | 'lessThan' | 'greaterThanOrEqual' | 'lessThanOrEqual' | 'equal' | 'notEqual'
+  formula?: string
+}
+
+interface SpreadsheetPreviewDataValidation {
+  type: 'list'
+  values?: string[]
+  sourceRange?: string
+  allowBlank?: boolean
+  showInputMessage?: boolean
+  promptTitle?: string
+  prompt?: string
+  showErrorMessage?: boolean
+  errorTitle?: string
+  error?: string
+}
+
+interface SpreadsheetPreviewCellComment {
+  author?: string
+  text: string
+  ref?: string
+  replyCount?: number
+  resolved?: boolean
+  threaded?: boolean
+}
+
+interface SpreadsheetPreviewCellCommentRange extends SpreadsheetPreviewCellComment {
+  ref: string
+  row: number
+  column: number
+}
+
+interface SpreadsheetPreviewDataValidationRange extends SpreadsheetPreviewDataValidation {
+  ref: string
+  startRow: number
+  startColumn: number
+  rowSpan: number
+  colSpan: number
+}
+
+interface SpreadsheetFreezePanes {
+  rows: number
+  columns: number
+}
+
+interface SpreadsheetCellStyle {
+  fillColor?: string
+  borderColor?: string
+  borders?: SpreadsheetCellBorders
+  textColor?: string
+  bold?: boolean
+  wrapText?: boolean
+  horizontalAlignment?: 'left' | 'center' | 'right'
+  verticalAlignment?: 'top' | 'middle' | 'bottom'
+}
+
+interface SpreadsheetCellBorder {
+  color?: string
+  style?: 'thin' | 'medium' | 'thick' | 'dashed' | 'dotted' | 'double'
+}
+
+interface SpreadsheetCellBorders {
+  top?: SpreadsheetCellBorder
+  right?: SpreadsheetCellBorder
+  bottom?: SpreadsheetCellBorder
+  left?: SpreadsheetCellBorder
+}
+
+interface SlidePreviewShape {
+  text: string[]
+  x: number
+  y: number
+  width: number
+  height: number
+  fillColor?: string
+  textColor?: string
+  imageDataUrl?: string
+  imageMimeType?: string
+}
+
+interface DocumentPreviewParagraphBlock {
+  type: 'paragraph'
+  text: string
+  paragraphStyle?: 'title' | 'heading1' | 'heading2'
+  textStyle?: DocumentPreviewTextStyle
+  listKind?: 'bullet' | 'ordered'
+  listLevel?: number
+  listMarker?: string
+  reviewKind?: 'insertion' | 'deletion'
+  reviewAuthor?: string
+  reviewDate?: string
+  links?: DocumentPreviewLink[]
+}
+
+interface DocumentPreviewTextStyle {
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  highlightColor?: string
+  textColor?: string
+  fontSizePt?: number
+  fontFamily?: string
+}
+
+interface DocumentPreviewLink {
+  text: string
+  url: string
+}
+
+interface DocumentPreviewTableBlock {
+  type: 'table'
+  rows: string[][]
+}
+
+interface DocumentPreviewImageBlock {
+  type: 'image'
+  dataUrl: string
+  mimeType: string
+  alt?: string
+  width?: number
+  height?: number
+}
+
+interface DocumentPreviewShapeBlock {
+  type: 'shape'
+  text: string
+  geometry?: string
+  fillColor?: string
+  lineColor?: string
+}
+
+interface DocumentPreviewFootnote {
+  id: string
+  text: string
+}
+
+interface DocumentPreviewComment {
+  id: string
+  text: string
+  author?: string
+}
+
+type DocumentPreviewBlock = DocumentPreviewParagraphBlock | DocumentPreviewTableBlock | DocumentPreviewImageBlock | DocumentPreviewShapeBlock
+
+interface DocumentPreviewPayload {
+  blocks: DocumentPreviewBlock[]
+  tableCount: number
+  imageCount: number
+  shapeCount?: number
+  footnotes?: DocumentPreviewFootnote[]
+  footnoteCount?: number
+  comments?: DocumentPreviewComment[]
+  commentCount?: number
+  reviewMarkCount?: number
+  linkCount?: number
+  styleCount?: number
+  headerText?: string
+  footerText?: string
+  sectionCount?: number
+  columnCount?: number
+}
 
 interface BrowserAssetRequest {
   inventoryId: string
@@ -64,12 +334,15 @@ interface PastedAttachmentRequest {
 }
 
 const FILE_PREVIEW_LIMIT = 80_000
+const PDF_PAGE_COUNT_LIMIT = 1_000_000
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdx'])
 const JSON_EXTENSIONS = new Set(['.json', '.jsonl'])
 const CSV_EXTENSIONS = new Set(['.csv', '.tsv'])
 const NOTEBOOK_EXTENSIONS = new Set(['.ipynb'])
 const DOCUMENT_EXTENSIONS = new Set(['.docx'])
+const SPREADSHEET_EXTENSIONS = new Set(['.xlsx', '.xlsm'])
+const SLIDES_EXTENSIONS = new Set(['.pptx'])
 const HTML_EXTENSIONS = new Set(['.html', '.htm'])
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.aiff', '.m4a', '.aac', '.flac', '.ogg'])
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.m4v', '.webm'])
@@ -108,8 +381,10 @@ function previewFile(filePath: string): FilePreviewResult {
     const size = stat.size
     const extension = extname(filePath).toLowerCase()
     if (IMAGE_EXTENSIONS.has(extension)) return { kind: 'image', size, truncated: false }
-    if (extension === '.pdf') return { kind: 'pdf', size, truncated: false }
+    if (extension === '.pdf') return previewPdfFile(filePath, size)
     if (DOCUMENT_EXTENSIONS.has(extension)) return previewDocxFile(filePath, size)
+    if (SPREADSHEET_EXTENSIONS.has(extension)) return previewSpreadsheetFile(filePath, size)
+    if (SLIDES_EXTENSIONS.has(extension)) return previewSlidesFile(filePath, size)
     if (HTML_EXTENSIONS.has(extension)) return { kind: 'html', size, truncated: false }
     if (AUDIO_EXTENSIONS.has(extension)) return { kind: 'audio', size, truncated: false }
     if (VIDEO_EXTENSIONS.has(extension)) return { kind: 'video', size, truncated: false }
@@ -168,29 +443,95 @@ function previewFile(filePath: string): FilePreviewResult {
   }
 }
 
+function previewPdfFile(filePath: string, size: number): FilePreviewResult {
+  const byteCount = Math.min(size, PDF_PAGE_COUNT_LIMIT)
+  const buffer = Buffer.alloc(byteCount)
+  const fd = openSync(filePath, 'r')
+  try {
+    readSync(fd, buffer, 0, byteCount, 0)
+  } finally {
+    closeSync(fd)
+  }
+  const pageCount = extractPdfPageCount(buffer.toString('latin1'))
+  return pageCount !== undefined
+    ? { kind: 'pdf', size, pageCount, truncated: false }
+    : { kind: 'pdf', size, truncated: false }
+}
+
+function extractPdfPageCount(text: string): number | undefined {
+  let pagesCount = 0
+  for (const match of text.matchAll(/\/Type\s*\/Pages\b[\s\S]{0,800}?\/Count\s+(\d+)/g)) {
+    const value = Number(match[1])
+    if (Number.isFinite(value) && value > pagesCount) pagesCount = value
+  }
+  if (pagesCount > 0) return pagesCount
+
+  const pageObjectCount = [...text.matchAll(/\/Type\s*\/Page\b(?!s)/g)].length
+  return pageObjectCount > 0 ? pageObjectCount : undefined
+}
+
 function previewDocxFile(filePath: string, size: number): FilePreviewResult {
   const archive = readFileSync(filePath)
   const documentXml = readZipEntry(archive, 'word/document.xml')
   if (!documentXml) return { kind: 'unreadable', size, truncated: false }
 
-  const text = extractDocxText(documentXml.toString('utf8'))
+  const document = extractDocxPreview(documentXml.toString('utf8'), archive)
+  const text = document.blocks
+    .flatMap((block) => block.type === 'paragraph'
+      ? [block.text]
+      : block.type === 'table'
+        ? block.rows.map((row) => row.join('\t'))
+        : block.type === 'image'
+          ? [`[Image${block.alt ? `: ${block.alt}` : ''}]`]
+          : [block.text])
+    .filter(Boolean)
+    .join('\n\n')
   if (!text.trim()) return { kind: 'document', size, text: '', truncated: false }
   return {
     kind: 'document',
     size,
     text: text.length > FILE_PREVIEW_LIMIT ? text.slice(0, FILE_PREVIEW_LIMIT) : text,
-    truncated: text.length > FILE_PREVIEW_LIMIT
+    truncated: text.length > FILE_PREVIEW_LIMIT,
+    document
+  }
+}
+
+function previewSpreadsheetFile(filePath: string, size: number): FilePreviewResult {
+  const archive = readFileSync(filePath)
+  const summary = extractSpreadsheetPreview(archive)
+  return {
+    kind: 'spreadsheet',
+    size,
+    text: summary ? JSON.stringify(summary) : undefined,
+    truncated: summary?.truncated === true
+  }
+}
+
+function previewSlidesFile(filePath: string, size: number): FilePreviewResult {
+  const archive = readFileSync(filePath)
+  const summary = extractSlidesPreview(archive)
+  return {
+    kind: 'slides',
+    size,
+    text: summary ? JSON.stringify(summary) : undefined,
+    truncated: summary?.truncated === true
   }
 }
 
 function readZipEntry(archive: Buffer, entryName: string): Buffer | null {
+  const entry = listZipEntries(archive).find((entry) => entry.name === entryName)
+  return entry ? readZipEntryData(archive, entry) : null
+}
+
+function listZipEntries(archive: Buffer): ZipEntryRecord[] {
   const eocdOffset = findEndOfCentralDirectory(archive)
-  if (eocdOffset < 0 || eocdOffset + 22 > archive.length) return null
+  if (eocdOffset < 0 || eocdOffset + 22 > archive.length) return []
 
   const entryCount = archive.readUInt16LE(eocdOffset + 10)
   let offset = archive.readUInt32LE(eocdOffset + 16)
+  const entries: ZipEntryRecord[] = []
   for (let index = 0; index < entryCount && offset + 46 <= archive.length; index += 1) {
-    if (archive.readUInt32LE(offset) !== 0x02014b50) return null
+    if (archive.readUInt32LE(offset) !== 0x02014b50) return []
     const method = archive.readUInt16LE(offset + 10)
     const compressedSize = archive.readUInt32LE(offset + 20)
     const nameLength = archive.readUInt16LE(offset + 28)
@@ -200,20 +541,22 @@ function readZipEntry(archive: Buffer, entryName: string): Buffer | null {
     const nameStart = offset + 46
     const nameEnd = nameStart + nameLength
     const name = archive.toString('utf8', nameStart, nameEnd)
-    if (name === entryName) {
-      if (localHeaderOffset + 30 > archive.length || archive.readUInt32LE(localHeaderOffset) !== 0x04034b50) return null
-      const localNameLength = archive.readUInt16LE(localHeaderOffset + 26)
-      const localExtraLength = archive.readUInt16LE(localHeaderOffset + 28)
-      const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength
-      const dataEnd = dataStart + compressedSize
-      if (dataEnd > archive.length) return null
-      const data = archive.subarray(dataStart, dataEnd)
-      if (method === 0) return Buffer.from(data)
-      if (method === 8) return inflateRawSync(data)
-      return null
-    }
+    entries.push({ name, method, compressedSize, localHeaderOffset })
     offset = nameEnd + extraLength + commentLength
   }
+  return entries
+}
+
+function readZipEntryData(archive: Buffer, entry: ZipEntryRecord): Buffer | null {
+  if (entry.localHeaderOffset + 30 > archive.length || archive.readUInt32LE(entry.localHeaderOffset) !== 0x04034b50) return null
+  const localNameLength = archive.readUInt16LE(entry.localHeaderOffset + 26)
+  const localExtraLength = archive.readUInt16LE(entry.localHeaderOffset + 28)
+  const dataStart = entry.localHeaderOffset + 30 + localNameLength + localExtraLength
+  const dataEnd = dataStart + entry.compressedSize
+  if (dataEnd > archive.length) return null
+  const data = archive.subarray(dataStart, dataEnd)
+  if (entry.method === 0) return Buffer.from(data)
+  if (entry.method === 8) return inflateRawSync(data)
   return null
 }
 
@@ -225,19 +568,1768 @@ function findEndOfCentralDirectory(archive: Buffer): number {
   return -1
 }
 
-function extractDocxText(xml: string): string {
-  const paragraphs = xml.match(/<w:p[\s\S]*?<\/w:p>/g) ?? [xml]
-  return paragraphs
-    .map((paragraph) => {
-      const normalized = paragraph
-        .replace(/<w:tab\s*\/>/g, '\t')
-        .replace(/<w:br\s*\/>/g, '\n')
-      const textRuns = [...normalized.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
-      return textRuns.map((match) => decodeXmlText(match[1] ?? '')).join('')
-    })
-    .map((paragraph) => paragraph.trim())
+function extractDocxPreview(xml: string, archive: Buffer): DocumentPreviewPayload {
+  const body = /<w:body[\s\S]*?>([\s\S]*?)<\/w:body>/.exec(xml)?.[1] ?? xml
+  const blocks: DocumentPreviewBlock[] = []
+  let tableCount = 0
+  let imageCount = 0
+  let shapeCount = 0
+  const relationships = extractZipRelationships(archive, 'word/document.xml')
+  const numbering = extractDocxNumbering(archive)
+  const sections = extractDocxSections(body, archive, relationships)
+  const shapeBlocks = extractDocxShapeBlocks(body)
+  const footnotes = extractDocxFootnotes(body, archive)
+  const comments = extractDocxComments(body, archive)
+  let reviewMarkCount = 0
+  let linkCount = 0
+  let styleCount = 0
+  for (const match of body.matchAll(/<w:(p|tbl)\b[\s\S]*?<\/w:\1>/g)) {
+    const tag = match[1]
+    const blockXml = match[0] ?? ''
+    if (tag === 'tbl') {
+      const rows = extractDocxTableRows(blockXml)
+      if (rows.length > 0) {
+        blocks.push({ type: 'table', rows })
+        tableCount += 1
+      }
+      continue
+    }
+    if (blockXml.includes('<wps:wsp')) continue
+    const text = extractDocxParagraphText(blockXml)
+    const reviewMark = extractDocxParagraphReviewMark(blockXml)
+    const links = extractDocxParagraphLinks(blockXml, relationships)
+    const style = extractDocxParagraphStyle(blockXml)
+    if (reviewMark.reviewKind) reviewMarkCount += 1
+    if (links.length > 0) linkCount += links.length
+    if (style.paragraphStyle || style.textStyle) styleCount += 1
+    if (text) blocks.push({ type: 'paragraph', text, ...style, ...extractDocxParagraphList(blockXml, numbering), ...reviewMark, ...(links.length > 0 ? { links } : {}) })
+    const imageBlocks = extractDocxImageBlocks(blockXml, archive, relationships)
+    if (imageBlocks.length > 0) {
+      blocks.push(...imageBlocks)
+      imageCount += imageBlocks.length
+    }
+  }
+  if (shapeBlocks.length > 0) {
+    blocks.push(...shapeBlocks)
+    shapeCount += shapeBlocks.length
+  }
+  if (blocks.length === 0) {
+    const text = extractDocxParagraphText(xml)
+    if (text) blocks.push({ type: 'paragraph', text })
+  }
+  return {
+    blocks: blocks.slice(0, 80),
+    tableCount,
+    imageCount,
+    ...(shapeCount > 0 ? { shapeCount } : {}),
+    ...(footnotes.length > 0 ? { footnotes, footnoteCount: footnotes.length } : {}),
+    ...(comments.length > 0 ? { comments, commentCount: comments.length } : {}),
+    ...(reviewMarkCount > 0 ? { reviewMarkCount } : {}),
+    ...(linkCount > 0 ? { linkCount } : {}),
+    ...(styleCount > 0 ? { styleCount } : {}),
+    ...sections
+  }
+}
+
+function extractDocxSections(xml: string, archive: Buffer, relationships: Map<string, string>): Pick<DocumentPreviewPayload, 'headerText' | 'footerText' | 'sectionCount' | 'columnCount'> {
+  const sectionXmls = [...xml.matchAll(/<w:sectPr\b[\s\S]*?<\/w:sectPr>/g)]
+    .map((match) => match[0] ?? '')
     .filter(Boolean)
-    .join('\n\n')
+  const headerRelId = sectionXmls
+    .map((section) => /<w:headerReference\b[^>]*(?:r:)?id="([^"]+)"/.exec(section)?.[1] ?? '')
+    .find(Boolean)
+  const footerRelId = sectionXmls
+    .map((section) => /<w:footerReference\b[^>]*(?:r:)?id="([^"]+)"/.exec(section)?.[1] ?? '')
+    .find(Boolean)
+  const columnCount = Math.max(
+    0,
+    ...sectionXmls.map((section) => Math.max(0, Math.round(numberAttribute(/<w:cols\b([^>]*)\/?>/.exec(section)?.[1] ?? '', 'num') ?? 0)))
+  )
+  const headerText = extractDocxRelatedText(archive, relationships, headerRelId)
+  const footerText = extractDocxRelatedText(archive, relationships, footerRelId)
+  return {
+    ...(headerText ? { headerText } : {}),
+    ...(footerText ? { footerText } : {}),
+    ...(sectionXmls.length > 0 ? { sectionCount: sectionXmls.length } : {}),
+    ...(columnCount > 0 ? { columnCount } : {})
+  }
+}
+
+function extractDocxRelatedText(archive: Buffer, relationships: Map<string, string>, relationshipId: string | undefined): string {
+  if (!relationshipId) return ''
+  const target = relationships.get(relationshipId)
+  if (!target) return ''
+  const xml = readZipEntry(archive, target)?.toString('utf8') ?? ''
+  return extractDocxParagraphText(xml)
+}
+
+function extractDocxTableRows(xml: string): string[][] {
+  return [...xml.matchAll(/<w:tr[\s\S]*?<\/w:tr>/g)]
+    .slice(0, 20)
+    .map((rowMatch) => [...(rowMatch[0] ?? '').matchAll(/<w:tc[\s\S]*?<\/w:tc>/g)]
+      .slice(0, 10)
+      .map((cellMatch) => extractDocxParagraphText(cellMatch[0] ?? '')))
+    .filter((row) => row.some((cell) => cell.trim()))
+}
+
+interface DocxNumberingLevel {
+  kind: 'bullet' | 'ordered'
+  marker: string
+}
+
+function extractDocxNumbering(archive: Buffer): Map<string, DocxNumberingLevel> {
+  const xml = readZipEntry(archive, 'word/numbering.xml')?.toString('utf8') ?? ''
+  const levelsByAbstract = new Map<string, Map<string, DocxNumberingLevel>>()
+  const levelsByNum = new Map<string, Map<string, DocxNumberingLevel>>()
+  if (!xml) return new Map()
+  for (const abstractMatch of xml.matchAll(/<w:abstractNum\b[^>]*\bw:abstractNumId="([^"]+)"[\s\S]*?<\/w:abstractNum>/g)) {
+    const abstractId = abstractMatch[1] ?? ''
+    const abstractXml = abstractMatch[0] ?? ''
+    const levels = new Map<string, DocxNumberingLevel>()
+    for (const levelMatch of abstractXml.matchAll(/<w:lvl\b[^>]*\bw:ilvl="([^"]+)"[\s\S]*?<\/w:lvl>/g)) {
+      const level = levelMatch[1] ?? '0'
+      const levelXml = levelMatch[0] ?? ''
+      const format = /<w:numFmt\b[^>]*\bw:val="([^"]+)"/.exec(levelXml)?.[1] ?? ''
+      const levelText = /<w:lvlText\b[^>]*\bw:val="([^"]*)"/.exec(levelXml)?.[1] ?? ''
+      const kind = format === 'bullet' ? 'bullet' : 'ordered'
+      levels.set(level, {
+        kind,
+        marker: decodeXmlText(levelText || (kind === 'bullet' ? '\u2022' : '%1.')).replace(/%[0-9]+/g, '1')
+      })
+    }
+    if (abstractId && levels.size > 0) levelsByAbstract.set(abstractId, levels)
+  }
+  for (const numMatch of xml.matchAll(/<w:num\b[^>]*\bw:numId="([^"]+)"[\s\S]*?<\/w:num>/g)) {
+    const numId = numMatch[1] ?? ''
+    const abstractId = /<w:abstractNumId\b[^>]*\bw:val="([^"]+)"/.exec(numMatch[0] ?? '')?.[1] ?? ''
+    const levels = abstractId ? levelsByAbstract.get(abstractId) : undefined
+    if (numId && levels) levelsByNum.set(numId, levels)
+  }
+  const numbering = new Map<string, DocxNumberingLevel>()
+  for (const [numId, levels] of levelsByNum) {
+    for (const [level, definition] of levels) {
+      numbering.set(`${numId}:${level}`, definition)
+    }
+  }
+  return numbering
+}
+
+function extractDocxParagraphList(xml: string, numbering: Map<string, DocxNumberingLevel>): Pick<DocumentPreviewParagraphBlock, 'listKind' | 'listLevel' | 'listMarker'> {
+  const numPr = /<w:numPr\b[\s\S]*?<\/w:numPr>/.exec(xml)?.[0] ?? ''
+  if (!numPr) return {}
+  const levelText = /<w:ilvl\b[^>]*\bw:val="([^"]+)"/.exec(numPr)?.[1] ?? '0'
+  const numId = /<w:numId\b[^>]*\bw:val="([^"]+)"/.exec(numPr)?.[1] ?? ''
+  const level = Math.max(0, Math.min(8, Math.floor(Number(levelText) || 0)))
+  const definition = numbering.get(`${numId}:${levelText}`) ?? numbering.get(`${numId}:0`)
+  const kind = definition?.kind ?? 'ordered'
+  return {
+    listKind: kind,
+    listLevel: level,
+    listMarker: definition?.marker || (kind === 'bullet' ? '\u2022' : '1.')
+  }
+}
+
+function extractDocxParagraphText(xml: string): string {
+  const parts = [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:delText(?:\s[^>]*)?>([\s\S]*?)<\/w:delText>|<w:footnoteReference\b[^>]*\bw:id="([^"]+)"[^>]*(?:\/>|><\/w:footnoteReference>)|<w:commentReference\b[^>]*\bw:id="([^"]+)"[^>]*(?:\/>|><\/w:commentReference>)|<w:tab\s*\/>|<w:br\s*\/>/g)]
+  return parts.map((match) => {
+    if (match[1] !== undefined) return decodeXmlText(match[1] ?? '')
+    if (match[2] !== undefined) return decodeXmlText(match[2] ?? '')
+    if (match[3] !== undefined) return `[${match[3] ?? ''}]`
+    if (match[4] !== undefined) return `[comment ${match[4] ?? ''}]`
+    return match[0].startsWith('<w:tab') ? '\t' : '\n'
+  }).join('').trim()
+}
+
+function extractDocxParagraphReviewMark(xml: string): Pick<DocumentPreviewParagraphBlock, 'reviewKind' | 'reviewAuthor' | 'reviewDate'> {
+  const insertionAttributes = /<w:ins\b([^>]*)>/.exec(xml)?.[1]
+  const deletionAttributes = /<w:del\b([^>]*)>/.exec(xml)?.[1]
+  const reviewKind = insertionAttributes !== undefined ? 'insertion' : deletionAttributes !== undefined ? 'deletion' : undefined
+  const attributes = insertionAttributes ?? deletionAttributes ?? ''
+  if (!reviewKind) return {}
+  const author = decodeXmlText(/\b(?:w:)?author="([^"]*)"/.exec(attributes)?.[1] ?? '').trim()
+  const date = decodeXmlText(/\b(?:w:)?date="([^"]*)"/.exec(attributes)?.[1] ?? '').trim()
+  return {
+    reviewKind,
+    ...(author ? { reviewAuthor: author } : {}),
+    ...(date ? { reviewDate: date } : {})
+  }
+}
+
+function extractDocxParagraphStyle(xml: string): Pick<DocumentPreviewParagraphBlock, 'paragraphStyle' | 'textStyle'> {
+  const paragraphStyleValue = decodeXmlText(/<w:pStyle\b[^>]*\bw:val="([^"]+)"/.exec(xml)?.[1] ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+  const paragraphStyle = paragraphStyleValue === 'title'
+    ? 'title'
+    : paragraphStyleValue === 'heading1'
+      ? 'heading1'
+      : paragraphStyleValue === 'heading2'
+        ? 'heading2'
+        : undefined
+  const runProperties = [...xml.matchAll(/<w:rPr\b[\s\S]*?<\/w:rPr>|<w:rPr\b[^>]*\/>/g)].map((match) => match[0] ?? '')
+  const textStyle: DocumentPreviewTextStyle = {}
+  if (runProperties.some((runProperty) => hasDocxToggleProperty(runProperty, 'b'))) textStyle.bold = true
+  if (runProperties.some((runProperty) => hasDocxToggleProperty(runProperty, 'i'))) textStyle.italic = true
+  if (runProperties.some((runProperty) => hasDocxUnderlineProperty(runProperty))) textStyle.underline = true
+  const highlightColor = runProperties.map(extractDocxHighlightColor).find((color): color is string => Boolean(color))
+  if (highlightColor) textStyle.highlightColor = highlightColor
+  const textColor = runProperties.map(extractDocxTextColor).find((color): color is string => Boolean(color))
+  if (textColor) textStyle.textColor = textColor
+  const fontSizePt = runProperties.map(extractDocxFontSizePt).find((size): size is number => typeof size === 'number')
+  if (fontSizePt) textStyle.fontSizePt = fontSizePt
+  const fontFamily = runProperties.map(extractDocxFontFamily).find((family): family is string => Boolean(family))
+  if (fontFamily) textStyle.fontFamily = fontFamily
+  return {
+    ...(paragraphStyle ? { paragraphStyle } : {}),
+    ...(Object.keys(textStyle).length > 0 ? { textStyle } : {})
+  }
+}
+
+function hasDocxToggleProperty(xml: string, name: string): boolean {
+  return [...xml.matchAll(new RegExp(`<w:${name}\\b([^>]*)\\/?>(?:<\\/w:${name}>)?`, 'g'))].some((match) => {
+    const value = /\bw:val="([^"]*)"/.exec(match[1] ?? '')?.[1]?.toLowerCase()
+    return value === undefined || !['0', 'false', 'none'].includes(value)
+  })
+}
+
+function hasDocxUnderlineProperty(xml: string): boolean {
+  return [...xml.matchAll(/<w:u\b([^>]*)\/?>(?:<\/w:u>)?/g)].some((match) => {
+    const value = /\bw:val="([^"]*)"/.exec(match[1] ?? '')?.[1]?.toLowerCase()
+    return value === undefined || !['0', 'false', 'none'].includes(value)
+  })
+}
+
+function extractDocxHighlightColor(xml: string): string | undefined {
+  const value = /<w:highlight\b[^>]*\bw:val="([^"]+)"/.exec(xml)?.[1]?.toLowerCase()
+  if (!value || value === 'none') return undefined
+  const colors: Record<string, string> = {
+    yellow: '#FEF08A',
+    green: '#BBF7D0',
+    cyan: '#BAE6FD',
+    magenta: '#FBCFE8',
+    red: '#FECACA',
+    blue: '#BFDBFE',
+    darkyellow: '#FDE68A',
+    darkgreen: '#86EFAC',
+    darkcyan: '#67E8F9',
+    darkmagenta: '#F0ABFC',
+    darkred: '#FCA5A5',
+    darkblue: '#93C5FD'
+  }
+  return colors[value] ?? undefined
+}
+
+function extractDocxTextColor(xml: string): string | undefined {
+  const value = /<w:color\b[^>]*\bw:val="([^"]+)"/.exec(xml)?.[1]?.trim()
+  if (!value || value.toLowerCase() === 'auto' || !/^[0-9a-fA-F]{6}$/.test(value)) return undefined
+  return `#${value.toUpperCase()}`
+}
+
+function extractDocxFontSizePt(xml: string): number | undefined {
+  const value = numberAttribute(/<w:sz\b([^>]*)\/?>/.exec(xml)?.[1] ?? '', 'val')
+  if (value === null) return undefined
+  return Math.max(6, Math.min(72, value / 2))
+}
+
+function extractDocxFontFamily(xml: string): string | undefined {
+  const attributes = /<w:rFonts\b([^>]*)\/?>/.exec(xml)?.[1] ?? ''
+  const value = decodeXmlText(
+    /\b(?:w:)?ascii="([^"]+)"/.exec(attributes)?.[1] ??
+    /\b(?:w:)?hAnsi="([^"]+)"/.exec(attributes)?.[1] ??
+    ''
+  ).trim()
+  if (!value || !/^[\w .,'-]{1,48}$/.test(value)) return undefined
+  return value
+}
+
+function extractDocxParagraphLinks(xml: string, relationships: Map<string, string>): DocumentPreviewLink[] {
+  return [...xml.matchAll(/<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>/g)]
+    .slice(0, 8)
+    .map((match) => {
+      const attributes = match[1] ?? ''
+      const linkXml = match[2] ?? ''
+      const relationshipId = /\b(?:r:)?id="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      const anchor = /\b(?:w:)?anchor="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      const url = relationshipId ? relationships.get(relationshipId) ?? '' : anchor ? `#${decodeXmlText(anchor)}` : ''
+      const text = extractDocxParagraphText(linkXml)
+      return text && url ? { text, url } : null
+    })
+    .filter((link): link is DocumentPreviewLink => link !== null)
+}
+
+function extractDocxFootnotes(xml: string, archive: Buffer): DocumentPreviewFootnote[] {
+  const referenceIds = [...new Set([...xml.matchAll(/<w:footnoteReference\b[^>]*\bw:id="([^"]+)"/g)]
+    .map((match) => match[1] ?? '')
+    .filter((id) => id && id !== '-1' && id !== '0'))]
+  if (referenceIds.length === 0) return []
+  const footnotesXml = readZipEntry(archive, 'word/footnotes.xml')?.toString('utf8') ?? ''
+  if (!footnotesXml) return []
+  return referenceIds
+    .slice(0, 12)
+    .map((id) => {
+      const footnoteXml = new RegExp(`<w:footnote\\b[^>]*\\bw:id="${escapeRegExp(id)}"[\\s\\S]*?<\\/w:footnote>`).exec(footnotesXml)?.[0] ?? ''
+      const text = footnoteXml ? extractDocxParagraphText(footnoteXml) : ''
+      return text ? { id, text } : null
+    })
+    .filter((footnote): footnote is DocumentPreviewFootnote => footnote !== null)
+}
+
+function extractDocxComments(xml: string, archive: Buffer): DocumentPreviewComment[] {
+  const referenceIds = [...new Set([...xml.matchAll(/<w:commentReference\b[^>]*\bw:id="([^"]+)"/g)]
+    .map((match) => match[1] ?? '')
+    .filter(Boolean))]
+  if (referenceIds.length === 0) return []
+  const commentsXml = readZipEntry(archive, 'word/comments.xml')?.toString('utf8') ?? ''
+  if (!commentsXml) return []
+  return referenceIds
+    .slice(0, 12)
+    .map((id) => {
+      const commentXml = new RegExp(`<w:comment\\b[^>]*\\bw:id="${escapeRegExp(id)}"[\\s\\S]*?<\\/w:comment>`).exec(commentsXml)?.[0] ?? ''
+      const author = commentXml ? decodeXmlText(/\bw:author="([^"]*)"/.exec(commentXml)?.[1] ?? '').trim() : ''
+      const text = commentXml ? extractDocxParagraphText(commentXml) : ''
+      return text ? { id, text, ...(author ? { author } : {}) } : null
+    })
+    .filter((comment): comment is DocumentPreviewComment => comment !== null)
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function extractDocxImageBlocks(xml: string, archive: Buffer, relationships: Map<string, string>): DocumentPreviewImageBlock[] {
+  return [...xml.matchAll(/<(?:wp:inline|wp:anchor)\b[\s\S]*?<\/(?:wp:inline|wp:anchor)>/g)]
+    .slice(0, 12)
+    .flatMap((match) => {
+      const imageXml = match[0] ?? ''
+      const embedId = /\b(?:r:)?embed="([^"]+)"/.exec(imageXml)?.[1] ?? ''
+      const target = relationships.get(embedId)
+      if (!target) return []
+      const image = readZipEntry(archive, target)
+      const mimeType = imageMimeTypeForPath(target)
+      if (!image || !mimeType || image.byteLength > 250_000) return []
+      const extent = /<wp:extent\b([^>]*)\/>/.exec(imageXml)?.[1] ?? ''
+      const width = numberAttribute(extent, 'cx')
+      const height = numberAttribute(extent, 'cy')
+      const docProperties = /<wp:docPr\b([^>]*)\/>/.exec(imageXml)?.[1] ?? ''
+      return [{
+        type: 'image' as const,
+        dataUrl: `data:${mimeType};base64,${image.toString('base64')}`,
+        mimeType,
+        alt: docxImageAlt(docProperties),
+        width: width ? Math.max(24, Math.round(width / 9_525)) : undefined,
+        height: height ? Math.max(24, Math.round(height / 9_525)) : undefined
+      }]
+    })
+}
+
+function extractDocxShapeBlocks(xml: string): DocumentPreviewShapeBlock[] {
+  return [...xml.matchAll(/<wps:wsp\b[\s\S]*?<\/wps:wsp>/g)]
+    .slice(0, 8)
+    .map((match) => {
+      const shapeXml = match[0] ?? ''
+      const text = extractDocxParagraphText(shapeXml)
+      if (!text) return null
+      const geometry = /<a:prstGeom\b[^>]*\bprst="([^"]+)"/.exec(shapeXml)?.[1]
+      const shapeProperties = /<wps:spPr\b[\s\S]*?<\/wps:spPr>/.exec(shapeXml)?.[0] ?? shapeXml
+      const lineProperties = /<a:ln\b[\s\S]*?<\/a:ln>/.exec(shapeXml)?.[0] ?? ''
+      const fillColor = extractSolidFillColor(shapeProperties)
+      const lineColor = extractSolidFillColor(lineProperties)
+      return {
+        type: 'shape' as const,
+        text,
+        ...(geometry ? { geometry } : {}),
+        ...(fillColor ? { fillColor } : {}),
+        ...(lineColor ? { lineColor } : {})
+      }
+    })
+    .filter((block): block is DocumentPreviewShapeBlock => block !== null)
+}
+
+function docxImageAlt(attributes: string): string | undefined {
+  const description = /\bdescr="([^"]*)"/.exec(attributes)?.[1]
+  const name = /\bname="([^"]*)"/.exec(attributes)?.[1]
+  const value = decodeXmlText((description || name || '').trim())
+  return value.length > 0 ? value : undefined
+}
+
+function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPreviewSheet[]; truncated: boolean } | null {
+  const entries = listZipEntries(archive)
+  const sharedStrings = extractSpreadsheetSharedStrings(readZipEntry(archive, 'xl/sharedStrings.xml')?.toString('utf8') ?? '')
+  const stylesXml = readZipEntry(archive, 'xl/styles.xml')?.toString('utf8') ?? ''
+  const styles = extractSpreadsheetStyles(stylesXml)
+  const differentialStyles = extractSpreadsheetDifferentialStyles(stylesXml)
+  const workbookXml = readZipEntry(archive, 'xl/workbook.xml')?.toString('utf8') ?? ''
+  const relationshipsXml = readZipEntry(archive, 'xl/_rels/workbook.xml.rels')?.toString('utf8') ?? ''
+  const sheetTargets = extractWorkbookSheetTargets(workbookXml, relationshipsXml)
+  const worksheetEntries = sheetTargets.length > 0
+    ? sheetTargets
+    : entries
+      .map((entry) => entry.name)
+      .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(name))
+      .sort(naturalCompare)
+      .map((path, index) => ({ name: `Sheet ${index + 1}`, path }))
+  const sheets: SpreadsheetPreviewSheet[] = []
+  let truncated = false
+  for (const sheet of worksheetEntries.slice(0, 6)) {
+    const xml = readZipEntry(archive, sheet.path)?.toString('utf8') ?? ''
+    if (!xml) continue
+    const parsed = extractWorksheetRows(xml, sharedStrings, styles)
+    truncated ||= parsed.truncated
+    const merges = extractWorksheetMerges(xml)
+    const tables = extractWorksheetTables(xml, archive, sheet.path)
+    const charts = extractWorksheetCharts(xml, archive, sheet.path)
+    const drawings = extractWorksheetDrawings(xml, archive, sheet.path)
+    const sparklines = extractWorksheetSparklines(xml, parsed.rows, sheet.name)
+    const conditionalFormats = extractWorksheetConditionalFormats(xml, differentialStyles)
+    applyWorksheetConditionalFormats(parsed.rows, conditionalFormats)
+    const dataValidations = extractWorksheetDataValidations(xml, parsed.rows, sheet.name)
+    applyWorksheetDataValidations(parsed.rows, dataValidations)
+    const comments = extractWorksheetComments(archive, sheet.path)
+    applyWorksheetComments(parsed.rows, comments)
+    const columnWidths = extractWorksheetColumnWidths(xml)
+    const rowHeights = extractWorksheetRowHeights(xml)
+    const freezePanes = extractWorksheetFreezePanes(xml)
+    sheets.push({
+      name: sheet.name,
+      rows: parsed.rows,
+      ...(merges.length > 0 ? { merges } : {}),
+      ...(tables.length > 0 ? { tables } : {}),
+      ...(charts.length > 0 ? { charts } : {}),
+      ...(drawings.length > 0 ? { drawings, drawingCount: drawings.length } : {}),
+      ...(sparklines.length > 0 ? { sparklines, sparklineCount: sparklines.length } : {}),
+      ...(conditionalFormats.length > 0 ? { conditionalFormatCount: conditionalFormats.length } : {}),
+      ...(dataValidations.length > 0 ? { dataValidationCount: dataValidations.length } : {}),
+      ...(comments.length > 0 ? { commentCount: comments.length } : {}),
+      ...(columnWidths.some((width) => width !== undefined) ? { columnWidths } : {}),
+      ...(rowHeights.some((height) => height !== undefined) ? { rowHeights } : {}),
+      ...(freezePanes ? { freezePanes } : {})
+    })
+  }
+  if (worksheetEntries.length > 6) truncated = true
+  return sheets.length > 0 ? { sheets, truncated } : null
+}
+
+function extractSlidesPreview(archive: Buffer): { slides: Array<{ index: number; title: string; text: string[]; notes: string; shapes: SlidePreviewShape[]; backgroundColor?: string }>; truncated: boolean } | null {
+  const entries = listZipEntries(archive)
+  const slideNames = entries
+    .map((entry) => entry.name)
+    .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
+    .sort(naturalCompare)
+  const slides: Array<{ index: number; title: string; text: string[]; notes: string; shapes: SlidePreviewShape[]; backgroundColor?: string }> = []
+  let truncated = slideNames.length > 12
+  for (const [index, name] of slideNames.slice(0, 12).entries()) {
+    const xml = readZipEntry(archive, name)?.toString('utf8') ?? ''
+    if (!xml) continue
+    const text = [...xml.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g)]
+      .map((match) => decodeXmlText(match[1] ?? '').trim())
+      .filter(Boolean)
+    const shapes = extractSlideShapes(xml, archive, name)
+    if (text.length > 12) truncated = true
+    slides.push({
+      index: index + 1,
+      title: text[0] ?? `Slide ${index + 1}`,
+      text: text.slice(1, 12),
+      notes: extractSlideNotes(archive, name, index + 1),
+      shapes,
+      backgroundColor: extractSlideBackgroundColor(xml)
+    })
+  }
+  return slides.length > 0 ? { slides, truncated } : null
+}
+
+function extractSlideBackgroundColor(xml: string): string | undefined {
+  const backgroundXml = /<p:bg\b[\s\S]*?<\/p:bg>/.exec(xml)?.[0] ?? ''
+  return backgroundXml ? extractSolidFillColor(backgroundXml) : undefined
+}
+
+function extractSlideShapes(xml: string, archive: Buffer, slidePath: string): SlidePreviewShape[] {
+  return [
+    ...extractSlideTextShapes(xml),
+    ...extractSlidePictureShapes(xml, archive, slidePath)
+  ].slice(0, 24)
+}
+
+function extractSlideTextShapes(xml: string): SlidePreviewShape[] {
+  return [...xml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)]
+    .slice(0, 24)
+    .flatMap((match) => {
+      const shapeXml = match[0] ?? ''
+      const text = [...shapeXml.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g)]
+        .map((textMatch) => decodeXmlText(textMatch[1] ?? '').trim())
+        .filter(Boolean)
+      if (text.length === 0) return []
+      const frame = extractSlideShapeFrame(shapeXml)
+      if (!frame) return []
+      return [{
+        text,
+        ...frame,
+        fillColor: extractShapeFillColor(shapeXml),
+        textColor: extractTextFillColor(shapeXml)
+      }]
+    })
+}
+
+function extractSlidePictureShapes(xml: string, archive: Buffer, slidePath: string): SlidePreviewShape[] {
+  const relationships = extractZipRelationships(archive, slidePath)
+  return [...xml.matchAll(/<p:pic\b[\s\S]*?<\/p:pic>/g)]
+    .slice(0, 12)
+    .flatMap((match) => {
+      const pictureXml = match[0] ?? ''
+      const embedId = /\b(?:r:)?embed="([^"]+)"/.exec(pictureXml)?.[1] ?? ''
+      const target = relationships.get(embedId)
+      if (!target) return []
+      const image = readZipEntry(archive, target)
+      const mimeType = imageMimeTypeForPath(target)
+      const frame = extractSlideShapeFrame(pictureXml)
+      if (!image || !mimeType || !frame || image.byteLength > 250_000) return []
+      return [{
+        text: [],
+        ...frame,
+        imageDataUrl: `data:${mimeType};base64,${image.toString('base64')}`,
+        imageMimeType: mimeType
+      }]
+    })
+}
+
+function extractSlideShapeFrame(xml: string): Pick<SlidePreviewShape, 'x' | 'y' | 'width' | 'height'> | null {
+  const transform = /<a:xfrm[\s\S]*?<a:off\b([^>]*)\/>[\s\S]*?<a:ext\b([^>]*)\/>[\s\S]*?<\/a:xfrm>/.exec(xml)
+  if (!transform) return null
+  const off = transform[1] ?? ''
+  const ext = transform[2] ?? ''
+  const x = numberAttribute(off, 'x')
+  const y = numberAttribute(off, 'y')
+  const width = numberAttribute(ext, 'cx')
+  const height = numberAttribute(ext, 'cy')
+  if ([x, y, width, height].some((value) => value === null) || width === 0 || height === 0) return null
+  return {
+    x: Math.max(0, Math.min(100, ((x ?? 0) / 12_192_000) * 100)),
+    y: Math.max(0, Math.min(100, ((y ?? 0) / 6_858_000) * 100)),
+    width: Math.max(1, Math.min(100, ((width ?? 0) / 12_192_000) * 100)),
+    height: Math.max(1, Math.min(100, ((height ?? 0) / 6_858_000) * 100))
+  }
+}
+
+function extractZipRelationships(archive: Buffer, partPath: string): Map<string, string> {
+  const relsXml = readZipEntry(archive, zipRelationshipPathForPart(partPath))?.toString('utf8') ?? ''
+  const relationships = new Map<string, string>()
+  for (const match of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
+    const tag = match[0] ?? ''
+    const id = /\bId="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const targetMode = /\bTargetMode="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (id && target) relationships.set(id, targetMode.toLowerCase() === 'external' ? decodeXmlText(target) : resolveZipRelationshipTarget(partPath, target))
+  }
+  return relationships
+}
+
+function imageMimeTypeForPath(path: string): string | null {
+  const extension = extname(path).toLowerCase()
+  if (extension === '.png') return 'image/png'
+  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg'
+  if (extension === '.gif') return 'image/gif'
+  if (extension === '.webp') return 'image/webp'
+  return null
+}
+
+function extractShapeFillColor(xml: string): string | undefined {
+  const shapeProperties = /<p:spPr\b[\s\S]*?<\/p:spPr>/.exec(xml)?.[0] ?? ''
+  return shapeProperties ? extractSolidFillColor(shapeProperties) : undefined
+}
+
+function extractTextFillColor(xml: string): string | undefined {
+  const runProperties = /<a:rPr\b[\s\S]*?<\/a:rPr>/.exec(xml)?.[0] ?? ''
+  return runProperties ? extractSolidFillColor(runProperties) : undefined
+}
+
+function extractSolidFillColor(xml: string): string | undefined {
+  const solidFill = /<a:solidFill\b[\s\S]*?<\/a:solidFill>/.exec(xml)?.[0] ?? ''
+  const srgb = /\ba:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/.exec(solidFill)?.[1]
+  if (srgb) return `#${srgb.toUpperCase()}`
+  const scheme = /\ba:schemeClr\b[^>]*\bval="([^"]+)"/.exec(solidFill)?.[1]
+  if (!scheme) return undefined
+  return schemeColorFallback(scheme)
+}
+
+function schemeColorFallback(value: string): string | undefined {
+  const colors: Record<string, string> = {
+    accent1: '#4472C4',
+    accent2: '#ED7D31',
+    accent3: '#A5A5A5',
+    accent4: '#FFC000',
+    accent5: '#5B9BD5',
+    accent6: '#70AD47',
+    bg1: '#FFFFFF',
+    bg2: '#000000',
+    tx1: '#000000',
+    tx2: '#FFFFFF'
+  }
+  return colors[value]
+}
+
+function numberAttribute(attributes: string, name: string): number | null {
+  const value = new RegExp(`\\b${name}="(-?\\d+)"`).exec(attributes)?.[1]
+  if (value === undefined) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function decimalAttribute(attributes: string, name: string): number | null {
+  const value = new RegExp(`\\b${name}="(-?\\d+(?:\\.\\d+)?)"`).exec(attributes)?.[1]
+  if (value === undefined) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function extractSlideNotes(archive: Buffer, slidePath: string, slideIndex: number): string {
+  const relsXml = readZipEntry(archive, zipRelationshipPathForPart(slidePath))?.toString('utf8') ?? ''
+  let notesPath = ''
+  for (const match of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
+    const tag = match[0] ?? ''
+    const type = /\bType="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (type.endsWith('/notesSlide') && target) {
+      notesPath = resolveZipRelationshipTarget(slidePath, target)
+      break
+    }
+  }
+  const fallbackPath = `ppt/notesSlides/notesSlide${slideIndex}.xml`
+  const xml = readZipEntry(archive, notesPath)?.toString('utf8') ?? readZipEntry(archive, fallbackPath)?.toString('utf8') ?? ''
+  return extractXmlText(xml).trim()
+}
+
+function zipRelationshipPathForPart(partPath: string): string {
+  const parts = partPath.split('/')
+  const fileName = parts.pop() ?? ''
+  return [...parts, '_rels', `${fileName}.rels`].filter(Boolean).join('/')
+}
+
+function resolveZipRelationshipTarget(sourcePartPath: string, target: string): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return ''
+  if (target.startsWith('/')) return target.replace(/^\/+/, '')
+  const parts = sourcePartPath.split('/')
+  parts.pop()
+  for (const segment of target.split('/')) {
+    if (!segment || segment === '.') continue
+    if (segment === '..') {
+      parts.pop()
+      continue
+    }
+    parts.push(segment)
+  }
+  return parts.join('/')
+}
+
+function extractSpreadsheetSharedStrings(xml: string): string[] {
+  if (!xml) return []
+  return [...xml.matchAll(/<si[\s\S]*?<\/si>/g)]
+    .map((match) => extractXmlText(match[0] ?? ''))
+}
+
+function extractWorkbookSheetTargets(workbookXml: string, relationshipsXml: string): Array<{ name: string; path: string }> {
+  if (!workbookXml) return []
+  const relationships = new Map<string, string>()
+  for (const match of relationshipsXml.matchAll(/<Relationship\b[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)) {
+    const target = match[2] ?? ''
+    relationships.set(match[1] ?? '', target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\/?xl\//, '')}`)
+  }
+  return [...workbookXml.matchAll(/<sheet\b[^>]*\/>/g)]
+    .map((match, index) => {
+      const tag = match[0] ?? ''
+      const relId = /\br:id="([^"]+)"/.exec(tag)?.[1] ?? ''
+      return {
+        name: decodeXmlText(/\bname="([^"]+)"/.exec(tag)?.[1] ?? `Sheet ${index + 1}`),
+        path: relationships.get(relId) ?? `xl/worksheets/sheet${index + 1}.xml`
+      }
+    })
+}
+
+function extractWorksheetRows(xml: string, sharedStrings: string[], styles: SpreadsheetCellStyle[]): { rows: SpreadsheetPreviewCell[][]; truncated: boolean } {
+  const rows: SpreadsheetPreviewCell[][] = []
+  const cellsByAddress = new Map<string, SpreadsheetPreviewCell>()
+  let truncated = false
+  for (const rowMatch of xml.matchAll(/<row\b[\s\S]*?<\/row>/g)) {
+    const cells: SpreadsheetPreviewCell[] = []
+    for (const cellMatch of (rowMatch[0] ?? '').matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
+      const attributes = cellMatch[1] ?? ''
+      const cellXml = cellMatch[2] ?? ''
+      const type = /t="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      const address = /\br="([^"]+)"/.exec(attributes)?.[1]?.toUpperCase() ?? ''
+      const columnIndex = address ? spreadsheetColumnIndex(address) : cells.length
+      while (cells.length < columnIndex) cells.push({ value: '' })
+      const formula = decodeXmlText(/<f(?:\s[^>]*)?>([\s\S]*?)<\/f>/.exec(cellXml)?.[1] ?? '').trim()
+      const cell: SpreadsheetPreviewCell = { value: '' }
+      const style = spreadsheetCellStyle(attributes, styles)
+      Object.assign(cell, style)
+      if (formula) cell.formula = formula.startsWith('=') ? formula : `=${formula}`
+      if (type === 's') {
+        const index = Number(/<v>([\s\S]*?)<\/v>/.exec(cellXml)?.[1] ?? -1)
+        cell.value = Number.isFinite(index) && index >= 0 ? sharedStrings[index] ?? '' : ''
+      } else if (type === 'inlineStr') {
+        cell.value = extractXmlText(cellXml)
+      } else {
+        cell.value = decodeXmlText(/<v>([\s\S]*?)<\/v>/.exec(cellXml)?.[1] ?? '').trim()
+      }
+      cells[columnIndex] = cell
+      if (address) cellsByAddress.set(address, cell)
+      if (cells.length >= 12) {
+        truncated = true
+        break
+      }
+    }
+    if (cells.some((cell) => cell.value || cell.formula)) rows.push(cells)
+    if (rows.length >= 24) {
+      truncated = true
+      break
+    }
+  }
+  evaluateWorksheetFormulas(rows, cellsByAddress)
+  return { rows, truncated }
+}
+
+function extractWorksheetMerges(xml: string): SpreadsheetPreviewMerge[] {
+  return [...xml.matchAll(/<mergeCell\b[^>]*ref="([^"]+)"[^>]*\/>/g)]
+    .slice(0, 24)
+    .flatMap((match) => {
+      const ref = (match[1] ?? '').toUpperCase()
+      const [startAddress, endAddress] = ref.split(':')
+      const start = spreadsheetCellPosition(startAddress)
+      const end = spreadsheetCellPosition(endAddress ?? startAddress)
+      if (!start || !end) return []
+      const startRow = Math.min(start.row, end.row)
+      const endRow = Math.max(start.row, end.row)
+      const startColumn = Math.min(start.column, end.column)
+      const endColumn = Math.max(start.column, end.column)
+      const rowSpan = endRow - startRow + 1
+      const colSpan = endColumn - startColumn + 1
+      if (rowSpan <= 1 && colSpan <= 1) return []
+      if (startRow >= 24 || startColumn >= 12) return []
+      return [{
+        ref,
+        startRow,
+        startColumn,
+        rowSpan: Math.min(rowSpan, 24 - startRow),
+        colSpan: Math.min(colSpan, 12 - startColumn)
+      }]
+    })
+}
+
+function extractWorksheetTables(xml: string, archive: Buffer, sheetPath: string): SpreadsheetPreviewTable[] {
+  const tableRelIds = [...xml.matchAll(/<tablePart\b[^>]*r:id="([^"]+)"[^>]*\/>/g)]
+    .map((match) => match[1] ?? '')
+    .filter(Boolean)
+    .slice(0, 8)
+  if (tableRelIds.length === 0) return []
+  const relsXml = readZipEntry(archive, zipRelationshipPathForPart(sheetPath))?.toString('utf8') ?? ''
+  const relationships = new Map<string, string>()
+  for (const match of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
+    const tag = match[0] ?? ''
+    const id = /\bId="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const type = /\bType="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (id && target && type.endsWith('/table')) relationships.set(id, resolveZipRelationshipTarget(sheetPath, target))
+  }
+  return tableRelIds.flatMap((relId) => {
+    const tablePath = relationships.get(relId)
+    const tableXml = tablePath ? readZipEntry(archive, tablePath)?.toString('utf8') ?? '' : ''
+    if (!tableXml) return []
+    const tableTag = /<table\b([^>]*)>/.exec(tableXml)?.[1] ?? ''
+    const ref = /\bref="([^"]+)"/.exec(tableTag)?.[1]?.toUpperCase() ?? ''
+    const [startAddress, endAddress] = ref.split(':')
+    const start = spreadsheetCellPosition(startAddress)
+    const end = spreadsheetCellPosition(endAddress ?? startAddress)
+    if (!start || !end) return []
+    const startRow = Math.min(start.row, end.row)
+    const endRow = Math.max(start.row, end.row)
+    const startColumn = Math.min(start.column, end.column)
+    const endColumn = Math.max(start.column, end.column)
+    if (startRow >= 24 || startColumn >= 12) return []
+    const styleTag = /<tableStyleInfo\b([^>]*)\/>/.exec(tableXml)?.[1] ?? ''
+    const name = decodeXmlText(
+      /\bdisplayName="([^"]+)"/.exec(tableTag)?.[1] ??
+      /\bname="([^"]+)"/.exec(tableTag)?.[1] ??
+      'Table'
+    )
+    return [{
+      ref,
+      name,
+      startRow,
+      startColumn,
+      rowSpan: Math.min(endRow - startRow + 1, 24 - startRow),
+      colSpan: Math.min(endColumn - startColumn + 1, 12 - startColumn),
+      ...(/\bname="([^"]+)"/.exec(styleTag)?.[1] ? { styleName: /\bname="([^"]+)"/.exec(styleTag)?.[1] } : {}),
+      ...(/<autoFilter\b/.test(tableXml) ? { showFilterButton: true } : {}),
+      ...(/\bshowRowStripes="1"/.test(styleTag) ? { showRowStripes: true } : {})
+    }]
+  })
+}
+
+function extractWorksheetCharts(xml: string, archive: Buffer, sheetPath: string): SpreadsheetPreviewChart[] {
+  const drawingRelIds = [...xml.matchAll(/<drawing\b[^>]*r:id="([^"]+)"[^>]*\/>/g)]
+    .map((match) => match[1] ?? '')
+    .filter(Boolean)
+    .slice(0, 4)
+  if (drawingRelIds.length === 0) return []
+  const sheetRelsXml = readZipEntry(archive, zipRelationshipPathForPart(sheetPath))?.toString('utf8') ?? ''
+  const sheetRelationships = extractZipRelationshipsFromXml(sheetRelsXml, sheetPath)
+  return drawingRelIds.flatMap((drawingRelId) => {
+    const drawingPath = sheetRelationships.get(drawingRelId)
+    if (!drawingPath) return []
+    const drawingXml = readZipEntry(archive, drawingPath)?.toString('utf8') ?? ''
+    const chartRelIds = [...drawingXml.matchAll(/<c:chart\b[^>]*r:id="([^"]+)"[^>]*\/>/g)]
+      .map((match) => match[1] ?? '')
+      .filter(Boolean)
+      .slice(0, 6)
+    if (chartRelIds.length === 0) return []
+    const drawingRelsXml = readZipEntry(archive, zipRelationshipPathForPart(drawingPath))?.toString('utf8') ?? ''
+    const drawingRelationships = extractZipRelationshipsFromXml(drawingRelsXml, drawingPath)
+    return chartRelIds.flatMap((chartRelId) => {
+      const chartPath = drawingRelationships.get(chartRelId)
+      const chartXml = chartPath ? readZipEntry(archive, chartPath)?.toString('utf8') ?? '' : ''
+      if (!chartXml) return []
+      const sourceRange = extractSpreadsheetChartSourceRange(chartXml)
+      return [{
+        title: extractSpreadsheetChartTitle(chartXml),
+        type: extractSpreadsheetChartType(chartXml),
+        ...(sourceRange ? { sourceRange } : {})
+      }]
+    })
+  }).slice(0, 8)
+}
+
+function extractWorksheetDrawings(xml: string, archive: Buffer, sheetPath: string): SpreadsheetPreviewDrawing[] {
+  const drawingRelIds = [...xml.matchAll(/<drawing\b[^>]*r:id="([^"]+)"[^>]*\/>/g)]
+    .map((match) => match[1] ?? '')
+    .filter(Boolean)
+    .slice(0, 6)
+  if (drawingRelIds.length === 0) return []
+  const sheetRelsXml = readZipEntry(archive, zipRelationshipPathForPart(sheetPath))?.toString('utf8') ?? ''
+  const sheetRelationships = extractZipRelationshipsFromXml(sheetRelsXml, sheetPath)
+  return drawingRelIds.flatMap((drawingRelId) => {
+    const drawingPath = sheetRelationships.get(drawingRelId)
+    if (!drawingPath) return []
+    const drawingXml = readZipEntry(archive, drawingPath)?.toString('utf8') ?? ''
+    if (!drawingXml) return []
+    const drawingRelsXml = readZipEntry(archive, zipRelationshipPathForPart(drawingPath))?.toString('utf8') ?? ''
+    const drawingRelationships = extractZipRelationshipsFromXml(drawingRelsXml, drawingPath)
+    return extractSpreadsheetDrawingAnchors(drawingXml, archive, drawingRelationships)
+  }).slice(0, 16)
+}
+
+function extractWorksheetSparklines(xml: string, rows: SpreadsheetPreviewCell[][], sheetName: string): SpreadsheetPreviewSparkline[] {
+  return [...xml.matchAll(/<(?:x14:)?sparklineGroup\b([^>]*)>([\s\S]*?)<\/(?:x14:)?sparklineGroup>/g)]
+    .slice(0, 8)
+    .flatMap((groupMatch) => {
+      const attributes = groupMatch[1] ?? ''
+      const groupXml = groupMatch[2] ?? ''
+      const rawType = /\btype="([^"]+)"/i.exec(attributes)?.[1]?.toLowerCase() ?? 'line'
+      const type: SpreadsheetPreviewSparkline['type'] = rawType === 'column' || rawType === 'stacked' ? rawType : 'line'
+      const markers = /\bmarkers="(?:1|true)"/i.test(attributes)
+      return [...groupXml.matchAll(/<(?:x14:)?sparkline\b[\s\S]*?<\/(?:x14:)?sparkline>/g)]
+        .slice(0, 24)
+        .flatMap((sparklineMatch) => {
+          const sparklineXml = sparklineMatch[0] ?? ''
+          const formula = decodeXmlText(/<(?:xm:)?f(?:\s[^>]*)?>([\s\S]*?)<\/(?:xm:)?f>/.exec(sparklineXml)?.[1] ?? '').trim()
+          const targetCell = decodeXmlText(/<(?:xm:)?sqref(?:\s[^>]*)?>([\s\S]*?)<\/(?:xm:)?sqref>/.exec(sparklineXml)?.[1] ?? '')
+            .replace(/\$/g, '')
+            .trim()
+            .split(/\s+/)[0]
+            ?.toUpperCase() ?? ''
+          const source = spreadsheetSparklineSourceRange(formula, sheetName)
+          if (!targetCell || !/^[A-Z]{1,3}\d+$/.test(targetCell) || !source) return []
+          const values = source.localRange ? spreadsheetValuesForRange(source.localRange, rows) : []
+          return [{
+            type,
+            targetCell,
+            sourceRange: source.displayRange,
+            values,
+            ...(markers ? { markers: true } : {})
+          }]
+        })
+    })
+    .slice(0, 24)
+}
+
+function spreadsheetSparklineSourceRange(formula: string, sheetName: string): { displayRange: string; localRange?: string } | null {
+  const normalized = formula.replace(/\$/g, '').trim()
+  if (!normalized) return null
+  const sheetMatch = /^(?:'([^']+)'|([^!]+))!(.+)$/.exec(normalized)
+  const ref = (sheetMatch ? sheetMatch[3] : normalized).toUpperCase()
+  if (!spreadsheetRangePosition(ref)) return null
+  const refSheetName = sheetMatch?.[1] ?? sheetMatch?.[2]
+  const displayRange = refSheetName ? `${refSheetName}!${ref}` : ref
+  return {
+    displayRange,
+    ...(refSheetName && refSheetName !== sheetName ? {} : { localRange: ref })
+  }
+}
+
+function spreadsheetValuesForRange(ref: string, rows: SpreadsheetPreviewCell[][]): number[] {
+  const range = spreadsheetRangePosition(ref)
+  if (!range) return []
+  const values: number[] = []
+  for (let rowIndex = range.startRow; rowIndex <= range.endRow; rowIndex += 1) {
+    const row = rows[rowIndex] ?? []
+    for (let columnIndex = range.startColumn; columnIndex <= range.endColumn; columnIndex += 1) {
+      const rawValue = row[columnIndex]?.value?.trim() ?? ''
+      if (!rawValue) continue
+      const value = Number(rawValue)
+      if (Number.isFinite(value)) values.push(value)
+      if (values.length >= 32) return values
+    }
+  }
+  return values
+}
+
+function extractSpreadsheetDrawingAnchors(xml: string, archive: Buffer, relationships: Map<string, string>): SpreadsheetPreviewDrawing[] {
+  return [...xml.matchAll(/<xdr:(?:oneCellAnchor|twoCellAnchor)\b[\s\S]*?<\/xdr:(?:oneCellAnchor|twoCellAnchor)>/g)]
+    .slice(0, 24)
+    .flatMap((match): SpreadsheetPreviewDrawing[] => {
+      const anchorXml = match[0] ?? ''
+      const anchor = extractSpreadsheetDrawingAnchor(anchorXml)
+      if (!anchor) return []
+      const shapeXml = /<xdr:sp\b[\s\S]*?<\/xdr:sp>/.exec(anchorXml)?.[0] ?? ''
+      const pictureXml = /<xdr:pic\b[\s\S]*?<\/xdr:pic>/.exec(anchorXml)?.[0] ?? ''
+      if (shapeXml) {
+        const propertiesXml = /<xdr:spPr\b[\s\S]*?<\/xdr:spPr>/.exec(shapeXml)?.[0] ?? ''
+        const text = extractXmlText(shapeXml).trim().replace(/\s+/g, ' ').slice(0, 160)
+        const name = spreadsheetDrawingName(shapeXml)
+        const description = spreadsheetDrawingDescription(shapeXml)
+        const geometry = /<a:prstGeom\b[^>]*\bprst="([^"]+)"/.exec(propertiesXml)?.[1]
+        const lineXml = /<a:ln\b[\s\S]*?<\/a:ln>/.exec(propertiesXml)?.[0] ?? ''
+        const fillColor = extractSolidFillColor(propertiesXml)
+        const lineColor = lineXml ? extractSolidFillColor(lineXml) : undefined
+        if (!text && !geometry && !name) return []
+        return [{
+          kind: 'shape' as const,
+          ...anchor,
+          ...(name ? { name } : {}),
+          ...(description ? { description } : {}),
+          ...(text ? { text } : {}),
+          ...(geometry ? { geometry } : {}),
+          ...(fillColor ? { fillColor } : {}),
+          ...(lineColor ? { lineColor } : {})
+        }]
+      }
+      if (pictureXml) {
+        const embedId = /\b(?:r:)?embed="([^"]+)"/.exec(pictureXml)?.[1] ?? ''
+        const target = relationships.get(embedId)
+        const image = target ? readZipEntry(archive, target) : null
+        const mimeType = target ? imageMimeTypeForPath(target) : null
+        const name = spreadsheetDrawingName(pictureXml)
+        const description = spreadsheetDrawingDescription(pictureXml)
+        return [{
+          kind: 'image' as const,
+          ...anchor,
+          ...(name ? { name } : {}),
+          ...(description ? { description } : {}),
+          ...(image && mimeType && image.byteLength <= 250_000 ? { imageDataUrl: `data:${mimeType};base64,${image.toString('base64')}`, imageMimeType: mimeType } : {})
+        }]
+      }
+      return []
+    })
+}
+
+function extractSpreadsheetDrawingAnchor(xml: string): Pick<SpreadsheetPreviewDrawing, 'row' | 'column' | 'rowOffsetPx' | 'columnOffsetPx' | 'widthPx' | 'heightPx' | 'toRow' | 'toColumn'> | null {
+  const fromXml = /<xdr:from\b[\s\S]*?<\/xdr:from>/.exec(xml)?.[0] ?? ''
+  if (!fromXml) return null
+  const row = spreadsheetDrawingInteger(fromXml, 'row')
+  const column = spreadsheetDrawingInteger(fromXml, 'col')
+  if (row === null || column === null) return null
+  const toXml = /<xdr:to\b[\s\S]*?<\/xdr:to>/.exec(xml)?.[0] ?? ''
+  const extXml = /<xdr:ext\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
+  const rowOffsetPx = spreadsheetDrawingEmuToPx(spreadsheetDrawingInteger(fromXml, 'rowOff') ?? 0)
+  const columnOffsetPx = spreadsheetDrawingEmuToPx(spreadsheetDrawingInteger(fromXml, 'colOff') ?? 0)
+  const toRow = toXml ? spreadsheetDrawingInteger(toXml, 'row') : null
+  const toColumn = toXml ? spreadsheetDrawingInteger(toXml, 'col') : null
+  const widthEmu = extXml ? numberAttribute(extXml, 'cx') : null
+  const heightEmu = extXml ? numberAttribute(extXml, 'cy') : null
+  const widthPx = widthEmu !== null
+    ? spreadsheetDrawingEmuToPx(widthEmu)
+    : toColumn !== null
+      ? Math.max(28, (toColumn - column) * 88)
+      : undefined
+  const heightPx = heightEmu !== null
+    ? spreadsheetDrawingEmuToPx(heightEmu)
+    : toRow !== null
+      ? Math.max(20, (toRow - row) * 29)
+      : undefined
+  return {
+    row,
+    column,
+    ...(rowOffsetPx > 0 ? { rowOffsetPx } : {}),
+    ...(columnOffsetPx > 0 ? { columnOffsetPx } : {}),
+    ...(widthPx !== undefined ? { widthPx } : {}),
+    ...(heightPx !== undefined ? { heightPx } : {}),
+    ...(toRow !== null ? { toRow } : {}),
+    ...(toColumn !== null ? { toColumn } : {})
+  }
+}
+
+function spreadsheetDrawingInteger(xml: string, tagName: string): number | null {
+  const value = new RegExp(`<xdr:${escapeRegExp(tagName)}>(-?\\d+)<\\/xdr:${escapeRegExp(tagName)}>`).exec(xml)?.[1]
+  if (value === undefined) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function spreadsheetDrawingEmuToPx(value: number): number {
+  return Math.max(0, Math.round(value / 9525))
+}
+
+function spreadsheetDrawingName(xml: string): string | undefined {
+  const attributes = /<xdr:cNvPr\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
+  const value = decodeXmlText(/\bname="([^"]*)"/.exec(attributes)?.[1] ?? '').trim()
+  return value ? value.slice(0, 80) : undefined
+}
+
+function spreadsheetDrawingDescription(xml: string): string | undefined {
+  const attributes = /<xdr:cNvPr\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
+  const value = decodeXmlText(/\bdescr="([^"]*)"/.exec(attributes)?.[1] ?? '').trim()
+  return value ? value.slice(0, 120) : undefined
+}
+
+function extractZipRelationshipsFromXml(xml: string, partPath: string): Map<string, string> {
+  const relationships = new Map<string, string>()
+  for (const match of xml.matchAll(/<Relationship\b[^>]*>/g)) {
+    const tag = match[0] ?? ''
+    const id = /\bId="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (id && target) relationships.set(id, resolveZipRelationshipTarget(partPath, target))
+  }
+  return relationships
+}
+
+function extractWorksheetComments(archive: Buffer, sheetPath: string): SpreadsheetPreviewCellCommentRange[] {
+  const relsXml = readZipEntry(archive, zipRelationshipPathForPart(sheetPath))?.toString('utf8') ?? ''
+  const commentPaths: string[] = []
+  const threadedCommentPaths: string[] = []
+  for (const match of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
+    const tag = match[0] ?? ''
+    const type = /\bType="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (target && type.endsWith('/comments')) commentPaths.push(resolveZipRelationshipTarget(sheetPath, target))
+    if (target && /threadedComment/i.test(type)) threadedCommentPaths.push(resolveZipRelationshipTarget(sheetPath, target))
+  }
+  const comments = commentPaths
+    .slice(0, 4)
+    .flatMap((commentPath) => {
+      const xml = readZipEntry(archive, commentPath)?.toString('utf8') ?? ''
+      if (!xml) return []
+      const authors = [...xml.matchAll(/<author(?:\s[^>]*)?>([\s\S]*?)<\/author>/g)]
+        .map((match) => decodeXmlText(match[1] ?? '').trim())
+      return [...xml.matchAll(/<comment\b([^>]*)>([\s\S]*?)<\/comment>/g)]
+        .slice(0, 24)
+        .flatMap((match) => {
+          const attributes = match[1] ?? ''
+          const body = match[2] ?? ''
+          const ref = /\bref="([^"]+)"/.exec(attributes)?.[1]?.toUpperCase() ?? ''
+          const position = spreadsheetCellPosition(ref)
+          if (!position || position.row >= 24 || position.column >= 12) return []
+          const authorIndex = Number(/\bauthorId="([^"]+)"/.exec(attributes)?.[1] ?? Number.NaN)
+          const author = Number.isFinite(authorIndex) ? authors[authorIndex] : undefined
+          const text = extractSpreadsheetCommentText(body)
+          if (!text) return []
+          return [{
+            ref,
+            row: position.row,
+            column: position.column,
+            ...(author ? { author } : {}),
+            text
+          }]
+        })
+    })
+  const threadedComments = extractWorksheetThreadedComments(archive, threadedCommentPaths)
+  return [...comments, ...threadedComments].slice(0, 24)
+}
+
+function extractSpreadsheetCommentText(xml: string): string {
+  return [...xml.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)]
+    .map((match) => decodeXmlText(match[1] ?? '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 240)
+}
+
+function extractWorksheetThreadedComments(archive: Buffer, threadedCommentPaths: string[]): SpreadsheetPreviewCellCommentRange[] {
+  const persons = extractSpreadsheetThreadedCommentPersons(archive)
+  return threadedCommentPaths
+    .slice(0, 4)
+    .flatMap((commentPath) => {
+      const xml = readZipEntry(archive, commentPath)?.toString('utf8') ?? ''
+      if (!xml) return []
+      const rawComments = [...xml.matchAll(/<threadedComment\b([^>]*)>([\s\S]*?)<\/threadedComment>/g)]
+        .slice(0, 48)
+        .map((match) => {
+          const attributes = match[1] ?? ''
+          const id = /\bid="([^"]+)"/.exec(attributes)?.[1] ?? ''
+          const parentId = /\bparentId="([^"]+)"/.exec(attributes)?.[1] ?? ''
+          const ref = /\bref="([^"]+)"/.exec(attributes)?.[1]?.toUpperCase() ?? ''
+          const personId = /\bpersonId="([^"]+)"/.exec(attributes)?.[1] ?? ''
+          const author = decodeXmlText(/\bauthor="([^"]*)"/.exec(attributes)?.[1] ?? '').trim() || persons.get(personId)
+          const text = extractSpreadsheetThreadedCommentText(match[2] ?? '')
+          const resolved = /\b(?:done|resolved)="(?:1|true)"/i.test(attributes)
+          return { id, parentId, ref, author, text, resolved }
+        })
+        .filter((comment) => comment.id && comment.ref && comment.text)
+      const repliesByParent = new Map<string, typeof rawComments>()
+      for (const comment of rawComments) {
+        if (!comment.parentId) continue
+        repliesByParent.set(comment.parentId, [...(repliesByParent.get(comment.parentId) ?? []), comment])
+      }
+      return rawComments
+        .filter((comment) => !comment.parentId)
+        .flatMap((comment) => {
+          const range = spreadsheetRangePosition(comment.ref)
+          if (!range || range.startRow >= 24 || range.startColumn >= 12) return []
+          const replies = repliesByParent.get(comment.id) ?? []
+          return [{
+            ref: comment.ref,
+            row: range.startRow,
+            column: range.startColumn,
+            ...(comment.author ? { author: comment.author } : {}),
+            text: comment.text,
+            threaded: true,
+            ...(replies.length > 0 ? { replyCount: replies.length } : {}),
+            ...(comment.resolved || replies.some((reply) => reply.resolved) ? { resolved: true } : {})
+          }]
+        })
+    })
+}
+
+function extractSpreadsheetThreadedCommentPersons(archive: Buffer): Map<string, string> {
+  const persons = new Map<string, string>()
+  for (const entry of listZipEntries(archive)) {
+    if (!/^xl\/persons\/person\d*\.xml$/i.test(entry.name)) continue
+    const xml = readZipEntry(archive, entry.name)?.toString('utf8') ?? ''
+    for (const match of xml.matchAll(/<person\b([^>]*)\/?>/g)) {
+      const attributes = match[1] ?? ''
+      const id = /\bid="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      const displayName = decodeXmlText(/\bdisplayName="([^"]*)"/.exec(attributes)?.[1] ?? '').trim()
+      if (id && displayName) persons.set(id, displayName)
+    }
+  }
+  return persons
+}
+
+function extractSpreadsheetThreadedCommentText(xml: string): string {
+  const text = /<text(?:\s[^>]*)?>([\s\S]*?)<\/text>/.exec(xml)?.[1] ?? ''
+  return decodeXmlText(text.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim().slice(0, 240)
+}
+
+function extractSpreadsheetChartTitle(xml: string): string {
+  const titleXml = /<c:title\b[\s\S]*?<\/c:title>/.exec(xml)?.[0] ?? ''
+  const text = extractXmlText(titleXml).trim()
+  return text || 'Chart'
+}
+
+function extractSpreadsheetChartType(xml: string): string {
+  const type = /<c:(barChart|lineChart|pieChart|scatterChart|areaChart)\b/.exec(xml)?.[1] ?? ''
+  const labels: Record<string, string> = {
+    areaChart: 'Area',
+    barChart: 'Bar',
+    lineChart: 'Line',
+    pieChart: 'Pie',
+    scatterChart: 'Scatter'
+  }
+  return labels[type] ?? 'Chart'
+}
+
+function extractSpreadsheetChartSourceRange(xml: string): string | undefined {
+  const valueRange = /<c:val\b[\s\S]*?<c:f>([\s\S]*?)<\/c:f>/.exec(xml)?.[1]
+  const formula = decodeXmlText(valueRange ?? /<c:f>([\s\S]*?)<\/c:f>/.exec(xml)?.[1] ?? '').trim()
+  if (!formula) return undefined
+  return formula.replace(/\$/g, '')
+}
+
+function extractWorksheetConditionalFormats(xml: string, differentialStyles: SpreadsheetCellStyle[] = []): SpreadsheetPreviewConditionalFormat[] {
+  return [...xml.matchAll(/<conditionalFormatting\b([^>]*)>([\s\S]*?)<\/conditionalFormatting>/g)]
+    .slice(0, 12)
+    .flatMap((match) => {
+      const attributes = match[1] ?? ''
+      const body = match[2] ?? ''
+      const sqref = /\bsqref="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      if (!sqref) return []
+      return [...body.matchAll(/<cfRule\b([^>]*)>([\s\S]*?)<\/cfRule>/g)]
+        .flatMap((ruleMatch) => {
+          const ruleAttributes = ruleMatch[1] ?? ''
+          const ruleBody = ruleMatch[2] ?? ''
+          const type = /\btype="([^"]+)"/.exec(ruleAttributes)?.[1] ?? ''
+          const baseFormat: Pick<SpreadsheetPreviewConditionalFormat, 'colors' | 'fillColor' | 'textColor' | 'bold' | 'operator' | 'formula'> = {}
+          if (type === 'colorScale') {
+            const colors = [...ruleBody.matchAll(/<color\b[^>]*\/>/g)]
+              .map((colorMatch) => extractSpreadsheetColor(colorMatch[0] ?? ''))
+              .filter((color): color is string => Boolean(color))
+              .slice(0, 3)
+            if (colors.length < 2) return []
+            baseFormat.colors = colors
+          } else if (type === 'cellIs') {
+            const operator = spreadsheetConditionalOperator(ruleAttributes)
+            const formula = decodeXmlText(/<formula>([\s\S]*?)<\/formula>/.exec(ruleBody)?.[1] ?? '').trim()
+            const dxfId = numberAttribute(ruleAttributes, 'dxfId')
+            const style = dxfId === null ? undefined : differentialStyles[dxfId]
+            const fillColor = style?.fillColor
+            if (!operator || !formula || !fillColor) return []
+            baseFormat.operator = operator
+            baseFormat.formula = formula
+            baseFormat.fillColor = fillColor
+            if (style?.textColor) baseFormat.textColor = style.textColor
+            if (style?.bold) baseFormat.bold = true
+          } else if (type === 'expression') {
+            const formula = decodeXmlText(/<formula>([\s\S]*?)<\/formula>/.exec(ruleBody)?.[1] ?? '').trim()
+            const dxfId = numberAttribute(ruleAttributes, 'dxfId')
+            const style = dxfId === null ? undefined : differentialStyles[dxfId]
+            const fillColor = style?.fillColor
+            if (!formula || !fillColor) return []
+            baseFormat.formula = formula
+            baseFormat.fillColor = fillColor
+            if (style?.textColor) baseFormat.textColor = style.textColor
+            if (style?.bold) baseFormat.bold = true
+          } else {
+            return []
+          }
+          return sqref
+            .split(/\s+/)
+            .filter(Boolean)
+            .flatMap((ref) => {
+              const range = spreadsheetRangePosition(ref.toUpperCase())
+              if (!range) return []
+              return [{
+                ref: ref.toUpperCase(),
+                startRow: range.startRow,
+                startColumn: range.startColumn,
+                rowSpan: range.endRow - range.startRow + 1,
+                colSpan: range.endColumn - range.startColumn + 1,
+                ...baseFormat
+              }]
+            })
+        })
+    })
+    .filter((format) => format.startRow < 24 && format.startColumn < 12)
+    .map((format) => ({
+      ...format,
+      rowSpan: Math.min(format.rowSpan, 24 - format.startRow),
+      colSpan: Math.min(format.colSpan, 12 - format.startColumn)
+    }))
+}
+
+function applyWorksheetConditionalFormats(rows: SpreadsheetPreviewCell[][], formats: SpreadsheetPreviewConditionalFormat[]): void {
+  for (const format of formats) {
+    const cells: Array<{ cell: SpreadsheetPreviewCell; value: number; rowIndex: number; columnIndex: number }> = []
+    for (let rowIndex = format.startRow; rowIndex < format.startRow + format.rowSpan; rowIndex += 1) {
+      const row = rows[rowIndex]
+      if (!row) continue
+      for (let columnIndex = format.startColumn; columnIndex < format.startColumn + format.colSpan; columnIndex += 1) {
+        const cell = row[columnIndex]
+        if (!cell) continue
+        const value = Number(cell.value)
+        if (Number.isFinite(value)) cells.push({ cell, value, rowIndex, columnIndex })
+      }
+    }
+    if (format.colors) {
+      if (cells.length === 0) continue
+      const values = cells.map((item) => item.value)
+      const min = Math.min(...values)
+      const max = Math.max(...values)
+      for (const item of cells) {
+        const position = max === min ? 0 : (item.value - min) / (max - min)
+        item.cell.conditionalFillColor = spreadsheetColorScaleValue(format.colors, position)
+      }
+      continue
+    }
+    if (format.fillColor && format.operator && format.formula) {
+      if (cells.length === 0) continue
+      const formulaValue = Number(format.formula.replace(/^=/, ''))
+      if (!Number.isFinite(formulaValue)) continue
+      for (const item of cells) {
+        if (spreadsheetCellIsRuleMatches(item.value, format.operator, formulaValue)) {
+          item.cell.conditionalFillColor = format.fillColor
+          if (format.textColor) item.cell.textColor = format.textColor
+          if (format.bold) item.cell.bold = true
+        }
+      }
+      continue
+    }
+    if (format.fillColor && format.formula) {
+      for (let rowIndex = format.startRow; rowIndex < format.startRow + format.rowSpan; rowIndex += 1) {
+        const row = rows[rowIndex]
+        if (!row) continue
+        for (let columnIndex = format.startColumn; columnIndex < format.startColumn + format.colSpan; columnIndex += 1) {
+          const cell = row[columnIndex]
+          if (!cell || !spreadsheetExpressionRuleMatches(rows, format, rowIndex, columnIndex)) continue
+          cell.conditionalFillColor = format.fillColor
+          if (format.textColor) cell.textColor = format.textColor
+          if (format.bold) cell.bold = true
+        }
+      }
+    }
+  }
+}
+
+function spreadsheetConditionalOperator(attributes: string): SpreadsheetPreviewConditionalFormat['operator'] {
+  const value = /\boperator="([^"]+)"/.exec(attributes)?.[1]
+  if (
+    value === 'greaterThan' ||
+    value === 'lessThan' ||
+    value === 'greaterThanOrEqual' ||
+    value === 'lessThanOrEqual' ||
+    value === 'equal' ||
+    value === 'notEqual'
+  ) {
+    return value
+  }
+  return undefined
+}
+
+function spreadsheetCellIsRuleMatches(value: number, operator: NonNullable<SpreadsheetPreviewConditionalFormat['operator']>, formulaValue: number): boolean {
+  switch (operator) {
+    case 'greaterThan':
+      return value > formulaValue
+    case 'lessThan':
+      return value < formulaValue
+    case 'greaterThanOrEqual':
+      return value >= formulaValue
+    case 'lessThanOrEqual':
+      return value <= formulaValue
+    case 'equal':
+      return value === formulaValue
+    case 'notEqual':
+      return value !== formulaValue
+  }
+}
+
+function spreadsheetExpressionRuleMatches(rows: SpreadsheetPreviewCell[][], format: SpreadsheetPreviewConditionalFormat, rowIndex: number, columnIndex: number): boolean {
+  const expression = format.formula?.replace(/^=/, '').trim() ?? ''
+  const match = /^(\$?)([A-Z]+)(\$?)(\d+)\s*=\s*"([^"]*)"\s*$/i.exec(expression)
+  if (!match) return false
+  const columnAnchored = match[1] === '$'
+  const referenceColumn = spreadsheetColumnIndex(match[2] ?? '')
+  const rowAnchored = match[3] === '$'
+  const referenceRow = Number(match[4]) - 1
+  const expectedValue = match[5] ?? ''
+  if (!Number.isFinite(referenceRow) || referenceRow < 0) return false
+  const resolvedColumn = columnAnchored ? referenceColumn : columnIndex - format.startColumn + referenceColumn
+  const resolvedRow = rowAnchored ? referenceRow : rowIndex - format.startRow + referenceRow
+  const value = rows[resolvedRow]?.[resolvedColumn]?.value
+  return value === expectedValue
+}
+
+function spreadsheetColorScaleValue(colors: string[], position: number): string {
+  if (colors.length >= 3) {
+    if (position <= 0.5) return interpolateSpreadsheetColor(colors[0], colors[1], position * 2)
+    return interpolateSpreadsheetColor(colors[1], colors[2], (position - 0.5) * 2)
+  }
+  return interpolateSpreadsheetColor(colors[0], colors[1], position)
+}
+
+function interpolateSpreadsheetColor(startColor: string, endColor: string, position: number): string {
+  const start = spreadsheetColorChannels(startColor)
+  const end = spreadsheetColorChannels(endColor)
+  const clamped = Math.max(0, Math.min(1, position))
+  return `#${start.map((channel, index) => {
+    const value = Math.round(channel + (end[index] - channel) * clamped)
+    return value.toString(16).padStart(2, '0').toUpperCase()
+  }).join('')}`
+}
+
+function spreadsheetColorChannels(color: string): [number, number, number] {
+  const hex = color.replace(/^#/, '').slice(-6)
+  return [
+    Number.parseInt(hex.slice(0, 2), 16),
+    Number.parseInt(hex.slice(2, 4), 16),
+    Number.parseInt(hex.slice(4, 6), 16)
+  ]
+}
+
+function spreadsheetRangePosition(ref: string): { startRow: number; startColumn: number; endRow: number; endColumn: number } | null {
+  const [startAddress, endAddress] = ref.split(':')
+  const start = spreadsheetCellPosition(startAddress)
+  const end = spreadsheetCellPosition(endAddress ?? startAddress)
+  if (!start || !end) return null
+  return {
+    startRow: Math.min(start.row, end.row),
+    startColumn: Math.min(start.column, end.column),
+    endRow: Math.max(start.row, end.row),
+    endColumn: Math.max(start.column, end.column)
+  }
+}
+
+function extractWorksheetDataValidations(xml: string, rows: SpreadsheetPreviewCell[][], sheetName: string): SpreadsheetPreviewDataValidationRange[] {
+  return [...xml.matchAll(/<dataValidation\b([^>]*)>([\s\S]*?)<\/dataValidation>/g)]
+    .slice(0, 12)
+    .flatMap((match) => {
+      const attributes = match[1] ?? ''
+      const body = match[2] ?? ''
+      if (!/\btype="list"/.test(attributes)) return []
+      const sqref = /\bsqref="([^"]+)"/.exec(attributes)?.[1] ?? ''
+      if (!sqref) return []
+      const list = spreadsheetDataValidationListValues(body, rows, sheetName)
+      const allowBlank = /\ballowBlank="(?:1|true)"/i.test(attributes)
+      const showInputMessage = /\bshowInputMessage="(?:1|true)"/i.test(attributes)
+      const showErrorMessage = /\bshowErrorMessage="(?:1|true)"/i.test(attributes)
+      const promptTitle = boundedSpreadsheetAttribute(attributes, 'promptTitle', 80)
+      const prompt = boundedSpreadsheetAttribute(attributes, 'prompt', 180)
+      const errorTitle = boundedSpreadsheetAttribute(attributes, 'errorTitle', 80)
+      const error = boundedSpreadsheetAttribute(attributes, 'error', 180)
+      return sqref
+        .split(/\s+/)
+        .filter(Boolean)
+        .flatMap((ref) => {
+          const range = spreadsheetRangePosition(ref.toUpperCase())
+          if (!range) return []
+          return [{
+            ref: ref.toUpperCase(),
+            startRow: range.startRow,
+            startColumn: range.startColumn,
+            rowSpan: range.endRow - range.startRow + 1,
+            colSpan: range.endColumn - range.startColumn + 1,
+            type: 'list' as const,
+            ...(list.values.length > 0 ? { values: list.values } : {}),
+            ...(list.sourceRange ? { sourceRange: list.sourceRange } : {}),
+            ...(allowBlank ? { allowBlank: true } : {}),
+            ...(showInputMessage ? { showInputMessage: true } : {}),
+            ...(promptTitle ? { promptTitle } : {}),
+            ...(prompt ? { prompt } : {}),
+            ...(showErrorMessage ? { showErrorMessage: true } : {}),
+            ...(errorTitle ? { errorTitle } : {}),
+            ...(error ? { error } : {})
+          }]
+        })
+    })
+    .filter((validation) => validation.startRow < 24 && validation.startColumn < 12)
+    .map((validation) => ({
+      ...validation,
+      rowSpan: Math.min(validation.rowSpan, 24 - validation.startRow),
+      colSpan: Math.min(validation.colSpan, 12 - validation.startColumn)
+    }))
+}
+
+function boundedSpreadsheetAttribute(attributes: string, name: string, maxLength: number): string {
+  const value = new RegExp(`\\b${escapeRegExp(name)}="([^"]*)"`).exec(attributes)?.[1] ?? ''
+  return decodeXmlText(value).trim().replace(/\s+/g, ' ').slice(0, maxLength)
+}
+
+function spreadsheetDataValidationListValues(xml: string, rows: SpreadsheetPreviewCell[][], sheetName: string): { values: string[]; sourceRange?: string } {
+  const formula = decodeXmlText(/<formula1(?:\s[^>]*)?>([\s\S]*?)<\/formula1>/.exec(xml)?.[1] ?? '').trim()
+  const inlineList = /^"([\s\S]*)"$/.exec(formula)?.[1]
+  if (inlineList) {
+    return {
+      values: inlineList
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .slice(0, 24)
+    }
+  }
+  const sourceRange = spreadsheetDataValidationSourceRange(formula, sheetName)
+  if (!sourceRange) return { values: [] }
+  const range = spreadsheetRangePosition(sourceRange)
+  if (!range) return { values: [] }
+  const values: string[] = []
+  for (let rowIndex = range.startRow; rowIndex <= range.endRow; rowIndex += 1) {
+    const row = rows[rowIndex] ?? []
+    for (let columnIndex = range.startColumn; columnIndex <= range.endColumn; columnIndex += 1) {
+      const value = row[columnIndex]?.value?.trim()
+      if (value) values.push(value)
+      if (values.length >= 24) return { values, sourceRange }
+    }
+  }
+  return { values, sourceRange }
+}
+
+function spreadsheetDataValidationSourceRange(formula: string, sheetName: string): string | null {
+  const normalized = formula.replace(/\$/g, '').trim()
+  if (!normalized) return null
+  const sheetMatch = /^(?:'([^']+)'|([^!]+))!(.+)$/.exec(normalized)
+  const ref = sheetMatch ? sheetMatch[3] : normalized
+  const refSheetName = sheetMatch?.[1] ?? sheetMatch?.[2]
+  if (refSheetName && refSheetName !== sheetName) return null
+  const upperRef = ref.toUpperCase()
+  return spreadsheetRangePosition(upperRef) ? upperRef : null
+}
+
+function applyWorksheetDataValidations(rows: SpreadsheetPreviewCell[][], validations: SpreadsheetPreviewDataValidationRange[]): void {
+  for (const validation of validations) {
+    for (let rowIndex = validation.startRow; rowIndex < validation.startRow + validation.rowSpan; rowIndex += 1) {
+      const row = rows[rowIndex]
+      if (!row) continue
+      for (let columnIndex = validation.startColumn; columnIndex < validation.startColumn + validation.colSpan; columnIndex += 1) {
+        const cell = row[columnIndex]
+        if (!cell) continue
+        cell.dataValidation = {
+          type: validation.type,
+          ...(validation.values ? { values: validation.values } : {}),
+          ...(validation.sourceRange ? { sourceRange: validation.sourceRange } : {}),
+          ...(validation.allowBlank ? { allowBlank: true } : {}),
+          ...(validation.showInputMessage ? { showInputMessage: true } : {}),
+          ...(validation.promptTitle ? { promptTitle: validation.promptTitle } : {}),
+          ...(validation.prompt ? { prompt: validation.prompt } : {}),
+          ...(validation.showErrorMessage ? { showErrorMessage: true } : {}),
+          ...(validation.errorTitle ? { errorTitle: validation.errorTitle } : {}),
+          ...(validation.error ? { error: validation.error } : {})
+        }
+      }
+    }
+  }
+}
+
+function applyWorksheetComments(rows: SpreadsheetPreviewCell[][], comments: SpreadsheetPreviewCellCommentRange[]): void {
+  for (const comment of comments) {
+    const cell = rows[comment.row]?.[comment.column]
+    if (!cell) continue
+    cell.comment = {
+      ...(comment.author ? { author: comment.author } : {}),
+      text: comment.text,
+      ...(comment.ref ? { ref: comment.ref } : {}),
+      ...(comment.replyCount ? { replyCount: comment.replyCount } : {}),
+      ...(comment.resolved ? { resolved: true } : {}),
+      ...(comment.threaded ? { threaded: true } : {})
+    }
+  }
+}
+
+function extractWorksheetColumnWidths(xml: string): Array<number | undefined> {
+  const widths: Array<number | undefined> = []
+  for (const match of xml.matchAll(/<col\b([^>]*)\/>/g)) {
+    const attributes = match[1] ?? ''
+    const min = numberAttribute(attributes, 'min')
+    const max = numberAttribute(attributes, 'max')
+    const width = decimalAttribute(attributes, 'width')
+    if (min === null || max === null || width === null) continue
+    const start = Math.max(0, min - 1)
+    const end = Math.min(11, max - 1)
+    const pixels = Math.max(48, Math.min(320, Math.round(width * 7 + 5)))
+    for (let index = start; index <= end; index += 1) widths[index] = pixels
+  }
+  return widths.slice(0, 12)
+}
+
+function extractWorksheetRowHeights(xml: string): Array<number | undefined> {
+  const heights: Array<number | undefined> = []
+  for (const match of xml.matchAll(/<row\b([^>]*)>/g)) {
+    const attributes = match[1] ?? ''
+    const row = numberAttribute(attributes, 'r')
+    const height = decimalAttribute(attributes, 'ht')
+    if (row === null || height === null) continue
+    const index = row - 1
+    if (index < 0 || index >= 24) continue
+    heights[index] = Math.max(22, Math.min(180, Math.round(height * 96 / 72)))
+  }
+  return heights.slice(0, 24)
+}
+
+function extractWorksheetFreezePanes(xml: string): SpreadsheetFreezePanes | null {
+  const paneTag = /<pane\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
+  if (!paneTag || !/\bstate="frozen(?:Split)?"/i.test(paneTag)) return null
+  const rows = Math.max(0, Math.min(6, Math.round(decimalAttribute(paneTag, 'ySplit') ?? 0)))
+  const columns = Math.max(0, Math.min(6, Math.round(decimalAttribute(paneTag, 'xSplit') ?? 0)))
+  return rows > 0 || columns > 0 ? { rows, columns } : null
+}
+
+function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {
+  if (!xml) return []
+  const fonts = [...xml.matchAll(/<font\b[\s\S]*?<\/font>/g)].map((match) => {
+    const fontXml = match[0] ?? ''
+    return {
+      bold: /<b(?:\s[^>]*)?\/>/.test(fontXml),
+      textColor: extractSpreadsheetColor(fontXml)
+    }
+  })
+  const fills = [...xml.matchAll(/<fill\b[\s\S]*?<\/fill>/g)].map((match) => extractSpreadsheetColor(match[0] ?? ''))
+  const borders = [...xml.matchAll(/<border\b[\s\S]*?<\/border>/g)].map((match) => extractSpreadsheetBorders(match[0] ?? ''))
+  return [...xml.matchAll(/<cellXfs\b[\s\S]*?<\/cellXfs>/g)][0]?.[0]
+    ?.match(/<xf\b[^>]*\/>|<xf\b[^>]*>[\s\S]*?<\/xf>/g)
+    ?.map((xfXml) => {
+      const attributes = /<xf\b([^>]*)/.exec(xfXml)?.[1] ?? ''
+      const alignmentAttributes = /<alignment\b([^>]*)\/>/.exec(xfXml)?.[1] ?? ''
+      const horizontalAlignment = spreadsheetHorizontalAlignment(alignmentAttributes)
+      const verticalAlignment = spreadsheetVerticalAlignment(alignmentAttributes)
+      const wrapText = /\bwrapText="(?:1|true)"/i.test(alignmentAttributes)
+      const fontId = numberAttribute(attributes, 'fontId') ?? 0
+      const fillId = numberAttribute(attributes, 'fillId') ?? 0
+      const borderId = numberAttribute(attributes, 'borderId') ?? 0
+      const font = fonts[fontId] ?? {}
+      const fillColor = fills[fillId]
+      const border = borders[borderId]
+      const borderColor = spreadsheetRepresentativeBorderColor(border)
+      return {
+        ...(fillColor ? { fillColor } : {}),
+        ...(borderColor ? { borderColor } : {}),
+        ...(border ? { borders: border } : {}),
+        ...(font.textColor ? { textColor: font.textColor } : {}),
+        ...(font.bold ? { bold: true } : {}),
+        ...(wrapText ? { wrapText: true } : {}),
+        ...(horizontalAlignment ? { horizontalAlignment } : {}),
+        ...(verticalAlignment ? { verticalAlignment } : {})
+      }
+    }) ?? []
+}
+
+function extractSpreadsheetDifferentialStyles(xml: string): SpreadsheetCellStyle[] {
+  if (!xml) return []
+  const dxfsXml = /<dxfs\b[\s\S]*?<\/dxfs>/.exec(xml)?.[0] ?? ''
+  if (!dxfsXml) return []
+  return dxfsXml
+    .match(/<dxf\b[^>]*\/>|<dxf\b[^>]*>[\s\S]*?<\/dxf>/g)
+    ?.map((dxfXml) => {
+      const fontXml = /<font\b[\s\S]*?<\/font>/.exec(dxfXml)?.[0] ?? ''
+      const fillXml = /<fill\b[\s\S]*?<\/fill>/.exec(dxfXml)?.[0] ?? ''
+      const fillColor = fillXml ? extractSpreadsheetColor(fillXml) : undefined
+      const textColor = fontXml ? extractSpreadsheetColor(fontXml) : undefined
+      const bold = /<b(?:\s[^>]*)?\/>/.test(fontXml)
+      return {
+        ...(fillColor ? { fillColor } : {}),
+        ...(textColor ? { textColor } : {}),
+        ...(bold ? { bold: true } : {})
+      }
+    }) ?? []
+}
+
+function extractSpreadsheetBorders(xml: string): SpreadsheetCellBorders | undefined {
+  const borders: SpreadsheetCellBorders = {}
+  for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+    const sideXml = new RegExp(`<${side}\\b([^>]*)>([\\s\\S]*?)<\\/${side}>`).exec(xml)
+    const selfClosingSide = sideXml ? null : new RegExp(`<${side}\\b([^>]*)\\/>`).exec(xml)
+    const attributes = sideXml?.[1] ?? selfClosingSide?.[1] ?? ''
+    const style = spreadsheetBorderStyle(attributes)
+    if (!style) continue
+    const body = sideXml?.[0] ?? selfClosingSide?.[0] ?? ''
+    borders[side] = {
+      style,
+      color: extractSpreadsheetColor(body) ?? '#64748B'
+    }
+  }
+  return Object.keys(borders).length > 0 ? borders : undefined
+}
+
+function spreadsheetBorderStyle(attributes: string): SpreadsheetCellBorder['style'] {
+  const value = /\bstyle="([^"]+)"/.exec(attributes)?.[1]
+  if (value === 'medium' || value === 'thick' || value === 'dashed' || value === 'dotted' || value === 'double') return value
+  if (value === 'thin' || value === 'hair' || value === 'dashDot' || value === 'dashDotDot' || value === 'slantDashDot') return 'thin'
+  return undefined
+}
+
+function spreadsheetRepresentativeBorderColor(borders: SpreadsheetCellBorders | undefined): string | undefined {
+  return borders?.bottom?.color ?? borders?.top?.color ?? borders?.right?.color ?? borders?.left?.color
+}
+
+function spreadsheetCellStyle(attributes: string, styles: SpreadsheetCellStyle[]): SpreadsheetCellStyle {
+  const styleIndex = numberAttribute(attributes, 's')
+  if (styleIndex === null) return {}
+  return styles[styleIndex] ?? {}
+}
+
+function extractSpreadsheetColor(xml: string): string | undefined {
+  const tag = /<(?:fgColor|color)\b([^>]*)\/>/.exec(xml)?.[1] ?? ''
+  const rgb = /\brgb="([A-Fa-f0-9]{6,8})"/.exec(tag)?.[1]
+  if (rgb) return `#${rgb.slice(-6).toUpperCase()}`
+  return undefined
+}
+
+function spreadsheetHorizontalAlignment(attributes: string): 'left' | 'center' | 'right' | undefined {
+  const value = /\bhorizontal="([^"]+)"/.exec(attributes)?.[1]
+  if (value === 'left' || value === 'center' || value === 'right') return value
+  return undefined
+}
+
+function spreadsheetVerticalAlignment(attributes: string): 'top' | 'middle' | 'bottom' | undefined {
+  const value = /\bvertical="([^"]+)"/.exec(attributes)?.[1]
+  if (value === 'top' || value === 'bottom') return value
+  if (value === 'center') return 'middle'
+  return undefined
+}
+
+function spreadsheetColumnIndex(address: string): number {
+  const letters = /^[A-Z]+/.exec(address)?.[0] ?? ''
+  let value = 0
+  for (const letter of letters) value = value * 26 + (letter.charCodeAt(0) - 64)
+  return Math.max(0, value - 1)
+}
+
+function spreadsheetCellPosition(address: string | undefined): { row: number; column: number } | null {
+  if (!address) return null
+  const match = /^([A-Z]+)(\d+)$/i.exec(address.trim())
+  if (!match) return null
+  const row = Number(match[2]) - 1
+  const column = spreadsheetColumnIndex(match[1])
+  return Number.isFinite(row) && row >= 0 && column >= 0 ? { row, column } : null
+}
+
+function evaluateWorksheetFormulas(rows: SpreadsheetPreviewCell[][], cellsByAddress: Map<string, SpreadsheetPreviewCell>): void {
+  for (const row of rows) {
+    for (const cell of row) {
+      if (!cell.formula) continue
+      const computed = evaluateSpreadsheetFormula(cell.formula, cellsByAddress)
+      if (computed !== null) cell.value = formatSpreadsheetNumber(computed)
+    }
+  }
+}
+
+function evaluateSpreadsheetFormula(formula: string, cellsByAddress: Map<string, SpreadsheetPreviewCell>): number | null {
+  const expression = formula.replace(/^=/, '').trim()
+  const sumMatch = /^SUM\(([^)]+)\)$/i.exec(expression)
+  if (sumMatch) {
+    return sumMatch[1]
+      .split(',')
+      .flatMap((part) => spreadsheetFormulaValues(part.trim(), cellsByAddress))
+      .reduce((total, value) => total + value, 0)
+  }
+  const arithmetic = expression.replace(/\b[A-Z]{1,3}\d+\b/g, (address) => String(spreadsheetCellNumber(cellsByAddress.get(address.toUpperCase()))))
+  if (!/^[\d+\-*/().\s]+$/.test(arithmetic)) return null
+  try {
+    const value = Function(`"use strict"; return (${arithmetic})`)() as unknown
+    return typeof value === 'number' && Number.isFinite(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
+function spreadsheetFormulaValues(reference: string, cellsByAddress: Map<string, SpreadsheetPreviewCell>): number[] {
+  const rangeMatch = /^([A-Z]{1,3})(\d+):([A-Z]{1,3})(\d+)$/i.exec(reference)
+  if (!rangeMatch) return [spreadsheetCellNumber(cellsByAddress.get(reference.toUpperCase()))]
+  const startColumn = spreadsheetColumnIndex(rangeMatch[1].toUpperCase())
+  const endColumn = spreadsheetColumnIndex(rangeMatch[3].toUpperCase())
+  const startRow = Number(rangeMatch[2])
+  const endRow = Number(rangeMatch[4])
+  const values: number[] = []
+  for (let row = Math.min(startRow, endRow); row <= Math.max(startRow, endRow); row += 1) {
+    for (let column = Math.min(startColumn, endColumn); column <= Math.max(startColumn, endColumn); column += 1) {
+      values.push(spreadsheetCellNumber(cellsByAddress.get(`${spreadsheetColumnName(column)}${row}`)))
+    }
+  }
+  return values
+}
+
+function spreadsheetColumnName(index: number): string {
+  let value = index + 1
+  let label = ''
+  while (value > 0) {
+    const remainder = (value - 1) % 26
+    label = String.fromCharCode(65 + remainder) + label
+    value = Math.floor((value - 1) / 26)
+  }
+  return label
+}
+
+function spreadsheetCellNumber(cell: SpreadsheetPreviewCell | undefined): number {
+  const value = Number(cell?.value ?? 0)
+  return Number.isFinite(value) ? value : 0
+}
+
+function formatSpreadsheetNumber(value: number): string {
+  if (Number.isInteger(value)) return String(value)
+  return String(Number(value.toFixed(8)))
+}
+
+function extractXmlText(xml: string): string {
+  return [...xml.matchAll(/<[^:>]*:?t(?:\s[^>]*)?>([\s\S]*?)<\/[^:>]*:?t>/g)]
+    .map((match) => decodeXmlText(match[1] ?? ''))
+    .join('')
+}
+
+function naturalCompare(left: string, right: string): number {
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
 }
 
 function decodeXmlText(value: string): string {
@@ -663,6 +2755,8 @@ function fencedBlock(content: string): string {
 }
 
 export function registerIpcHandlers(ipcMain: IpcMain): void {
+  registerBrowserClientToolIpc(ipcMain)
+
   // App profile
   ipcMain.handle('app:getProfile', () => getAppProfile())
 

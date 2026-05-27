@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { Attachment, Automation, AutomationRun, AutomationUpsertRequest, CapabilityCreateRequest, CapabilityCreateResult, CapabilityDeleteRequest, CapabilityMutationResult, CapabilitySyncPlan, CapabilitySyncRequest, CapabilityUpdateRequest, CodexProjectImportResult, Project, Session, SessionForkMode, SessionListItem, ChatMessage, FileChange, GitLineBlameResult, GitPathActionResult, GitRefOption, OpenPathOptions, OpenPathResult, OpenTargetAvailability, OrchestratorDeepLinkNavigation, PerformanceMetric, PerformanceSnapshot, ProviderCommandSurfaceResult, ProviderDiagnosticInfo, ProviderManifest, ProviderPermissionRuntimeContext, ProviderResourceSnapshot, ProviderRuntimeConnectionState, ProviderRuntimeDebugEvent, ProviderRuntimeInfo, ProviderSidebarSyncResult, ProviderSlashCommand, ReviewDiffSource, ReviewMetadata, SessionRunEventRecord, TerminalServiceSnapshot, TranscriptPage, TranscriptPageRequest, TranscriptSearchResult, UsageSummary, WorktreeInventoryItem, WorkspaceSearchRequest, WorkspaceSearchResult } from '../../types'
+import type { BrowserUsePolicy } from '../../types/browserUsePolicy'
 import type { AppCommandAvailability, AppMenuCommand, AppMenuCommandState, ShortcutOverrides, StableAppCommand } from '../../types/appCommands'
 
 export interface AppSettings {
@@ -30,6 +31,7 @@ export interface AppSettings {
   usePointerCursors: boolean
   reduceMotion: boolean
   shortcutOverrides: ShortcutOverrides
+  browserUsePolicy: BrowserUsePolicy
 }
 
 export interface ChromeTheme {
@@ -65,10 +67,47 @@ export interface SavedPastedAttachment {
   mimeType?: string
 }
 
+export interface BrowserClientToolCall {
+  sessionId: string
+  requestId: string
+  namespace: string | null
+  tool: string
+  arguments: Record<string, unknown>
+}
+
+export interface BrowserClientToolResponse {
+  requestId: string
+  success: boolean
+  contentItems: Array<{ type: 'inputText'; text: string }>
+}
+
 export interface FilePreviewResult {
-  kind: 'text' | 'markdown' | 'json' | 'csv' | 'notebook' | 'document' | 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'binary' | 'missing' | 'unreadable'
+  kind: 'text' | 'markdown' | 'json' | 'csv' | 'notebook' | 'document' | 'image' | 'pdf' | 'html' | 'audio' | 'video' | 'spreadsheet' | 'slides' | 'binary' | 'missing' | 'unreadable'
   size?: number
+  pageCount?: number
   text?: string
+  document?: {
+    blocks: Array<
+      | { type: 'paragraph'; text: string; paragraphStyle?: 'title' | 'heading1' | 'heading2'; textStyle?: { bold?: boolean; italic?: boolean; underline?: boolean; highlightColor?: string; textColor?: string; fontSizePt?: number; fontFamily?: string }; listKind?: 'bullet' | 'ordered'; listLevel?: number; listMarker?: string; reviewKind?: 'insertion' | 'deletion'; reviewAuthor?: string; reviewDate?: string; links?: Array<{ text: string; url: string }> }
+      | { type: 'table'; rows: string[][] }
+      | { type: 'image'; dataUrl: string; mimeType: string; alt?: string; width?: number; height?: number }
+      | { type: 'shape'; text: string; geometry?: string; fillColor?: string; lineColor?: string }
+    >
+    tableCount: number
+    imageCount?: number
+    shapeCount?: number
+    footnotes?: Array<{ id: string; text: string }>
+    footnoteCount?: number
+    comments?: Array<{ id: string; text: string; author?: string }>
+    commentCount?: number
+    reviewMarkCount?: number
+    linkCount?: number
+    styleCount?: number
+    headerText?: string
+    footerText?: string
+    sectionCount?: number
+    columnCount?: number
+  }
   truncated: boolean
 }
 
@@ -234,6 +273,14 @@ declare global {
           allowedUploadOrigins: string[]
           blockedUploadOrigins: string[]
         }>
+        onClientToolCall: (cb: (call: BrowserClientToolCall) => void) => () => void
+        answerClientToolCall: (response: BrowserClientToolResponse) => Promise<boolean>
+        runClientToolSmoke: (call: {
+          sessionId: string
+          namespace?: string | null
+          tool: string
+          arguments?: Record<string, unknown>
+        }) => Promise<{ success: boolean; contentItems: Array<{ type: 'inputText'; text: string }> }>
       }
       attachments: {
         savePastedFile: (request: { name?: string; mimeType?: string; bytes: ArrayBuffer }) => Promise<SavedPastedAttachment>

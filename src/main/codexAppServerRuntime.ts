@@ -39,9 +39,30 @@ export interface CodexAppServerRunOptions {
   provider: ProviderAdapter
   request: RunRequest
   mode: 'start' | 'resume'
+  clientDynamicToolBridge?: CodexClientDynamicToolBridge
   onRawData: (data: string) => void
   onParsedEvents: (events: RunEvent[]) => void
   onExit: () => void
+}
+
+export interface CodexClientDynamicToolCall {
+  sessionId: string
+  threadId: string | null
+  turnId: string | null
+  namespace: string | null
+  tool: string
+  arguments: JsonObject
+}
+
+export interface CodexClientDynamicToolResponse {
+  success: boolean
+  contentItems: Array<{ type: 'inputText'; text: string }>
+}
+
+export interface CodexClientDynamicToolBridge {
+  dynamicTools: JsonObject[]
+  isSupported(namespace: string | null, tool: string): boolean
+  call(call: CodexClientDynamicToolCall): Promise<CodexClientDynamicToolResponse>
 }
 
 export interface CodexAppServerRun {
@@ -252,14 +273,18 @@ class CodexAppServerSession implements CodexAppServerRun {
   private startOrResumeThread(): void {
     const request = this.options.request
     const method = this.options.mode === 'resume' && request.providerSessionId ? 'thread/resume' : 'thread/start'
+    const threadConfig = threadConfigFromRequest(request)
+    if (method === 'thread/start' && this.options.clientDynamicToolBridge?.dynamicTools.length) {
+      threadConfig.dynamicTools = this.options.clientDynamicToolBridge.dynamicTools
+    }
     const params = method === 'thread/resume'
       ? {
-          ...threadConfigFromRequest(request),
+          ...threadConfig,
           threadId: request.providerSessionId,
           excludeTurns: true
         }
       : {
-          ...threadConfigFromRequest(request),
+          ...threadConfig,
           sessionStartSource: 'startup'
         }
 
@@ -364,12 +389,21 @@ class CodexAppServerSession implements CodexAppServerRun {
       this.pendingServerRequests.set(id, { id, method, params, kind: 'mcp_elicitation' })
       this.record('Codex app-server requested MCP elicitation.', { method, severity: 'info' })
     } else if (method === 'item/tool/call') {
+      const namespace = stringValue(params.namespace)
+      const tool = stringValue(params.tool) ?? 'unknown'
+      const toolName = namespace ? `${namespace}.${tool}` : tool
+      if (this.options.clientDynamicToolBridge?.isSupported(namespace ?? null, tool)) {
+        void this.answerClientDynamicTool(id, params, namespace ?? null, tool)
+        return
+      }
       this.record('Codex app-server requested an unsupported client tool.', {
         method,
         severity: 'warning',
         code: 'unsupported-client-tool'
       })
-      this.sendError(id, -32601, 'Orchestrator does not provide client-side dynamic tools yet.')
+      const message = `Client tool unavailable: ${toolName}. Orchestrator does not provide client-side dynamic tools for this runtime yet.`
+      this.options.onParsedEvents([{ type: 'assistant.status', content: message }])
+      this.sendError(id, -32601, message)
     } else if (method === 'account/chatgptAuthTokens/refresh') {
       this.record('Codex app-server requested unsupported auth token refresh.', {
         method,
@@ -383,6 +417,49 @@ class CodexAppServerSession implements CodexAppServerRun {
         severity: 'debug',
         noisy: true
       })
+    }
+  }
+
+  private async answerClientDynamicTool(
+    id: string | number,
+    params: JsonObject,
+    namespace: string | null,
+    tool: string
+  ): Promise<void> {
+    const bridge = this.options.clientDynamicToolBridge
+    if (!bridge) return
+    const toolName = namespace ? `${namespace}.${tool}` : tool
+    this.record('Codex app-server requested a Browser client tool.', {
+      method: 'item/tool/call',
+      severity: 'info',
+      code: 'browser-client-tool'
+    })
+    this.options.onParsedEvents([
+      {
+        type: 'browser.manager_state',
+        active: true,
+        open: true,
+        turnId: stringValue(params.turnId) ?? this.turnId
+      },
+      {
+        type: 'assistant.status',
+        content: `Browser tool requested: ${toolName}`
+      }
+    ])
+    try {
+      const result = await bridge.call({
+        sessionId: this.options.sessionId,
+        threadId: stringValue(params.threadId) ?? this.threadId,
+        turnId: stringValue(params.turnId) ?? this.turnId,
+        namespace,
+        tool,
+        arguments: dynamicToolArguments(params.arguments)
+      })
+      this.sendResponse(id, result)
+    } catch (error) {
+      const message = `Browser client tool failed: ${errorMessage(error)}`
+      this.options.onParsedEvents([{ type: 'assistant.status', content: message }])
+      this.sendError(id, -32000, message)
     }
   }
 
@@ -698,6 +775,17 @@ function inputFromAttachment(attachment: Attachment): JsonObject | null {
   if (attachment.kind !== 'local_file') return null
   if (attachment.mimeType?.startsWith('image/')) return { type: 'localImage', path: attachment.path }
   return { type: 'mention', name: attachment.name, path: attachment.path }
+}
+
+function dynamicToolArguments(value: unknown): JsonObject {
+  const direct = asRecord(value)
+  if (direct) return direct
+  if (typeof value !== 'string') return {}
+  try {
+    return asRecord(JSON.parse(value)) ?? {}
+  } catch {
+    return {}
+  }
 }
 
 function latestPending(

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { DragEvent as ReactDragEvent, ReactNode } from 'react'
 import type { Project, Session, SidebarConnectionGroupIdentity } from '../../types'
-import { comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, orderProjectlessSidebarGroups, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, sidebarConnectionGroupIdentity } from '../../types'
+import { comparePinnedSessions, compareSidebarSessions, isSidebarPinnedSession, isSidebarProjectlessSession, normalizeSettingsHostId, normalizeSettingsSectionForHostKind, settingsHostOptionsFromSessions, settingsNavigationGroupsForHostKind, sidebarConnectionGroupIdentity } from '../../types'
 import { useProjectStore } from '../../store/projects'
 import type { SidebarCustomSection } from '../../store/sidebar'
 import { sidebarSessionSelectedKey, sidebarSettingsSelectedKey, useSidebarStore } from '../../store/sidebar'
@@ -20,6 +20,7 @@ const SETTINGS_SECTION_LABELS: Record<SettingsSection, string> = {
   worktrees: 'Worktrees',
   shortcuts: 'Shortcuts',
   personalization: 'Personalization',
+  browser: 'Browser',
   pets: 'Pet overlay',
   data: 'Data controls'
 }
@@ -32,6 +33,7 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSection, IconName> = {
   worktrees: 'branch',
   shortcuts: 'keyboard',
   personalization: 'book',
+  browser: 'browser',
   pets: 'sparkles',
   data: 'folder'
 }
@@ -45,7 +47,23 @@ export async function pickAndAddProject(addProject: (p: Project) => void): Promi
   return project
 }
 
-export default function Sidebar(): JSX.Element {
+interface SidebarProps {
+  onNewChat: () => void
+  onSearch: () => void
+  onOpenPlugins: () => void
+  onOpenAutomations: () => void
+  isCollapsed?: boolean
+  onToggleSidebar?: () => void
+}
+
+export default function Sidebar({
+  onNewChat,
+  onSearch,
+  onOpenPlugins,
+  onOpenAutomations,
+  isCollapsed = false,
+  onToggleSidebar
+}: SidebarProps): JSX.Element {
   const { projects, addProject, addSessionToProject, removeSessionFromProject } = useProjectStore()
   const {
     sessions,
@@ -193,9 +211,6 @@ export default function Sidebar(): JSX.Element {
         })
     return sorted.sort(compareProjectsByPin)
   }, [projects, sessionsByProject, viewMode])
-  const orderedProjectGroups = useMemo(() => (
-    orderProjectlessSidebarGroups(projectlessSessions.length > 0 ? ['projectless'] : [], visibleProjects, projectlessChatsFirst)
-  ), [projectlessChatsFirst, projectlessSessions.length, visibleProjects])
   const connectionGroups = useMemo(() => {
     const groups = new Map<string, {
       identity: SidebarConnectionGroupIdentity
@@ -246,6 +261,31 @@ export default function Sidebar(): JSX.Element {
     setActiveSession(session.id)
     setShowCapabilities(false)
     setShowSettings(false)
+  }
+
+  const openPlugins = (): void => {
+    setSelectedSidebarKey('capabilities')
+    onOpenPlugins()
+  }
+
+  const openAutomations = (): void => {
+    setSelectedSidebarKey(sidebarSettingsSelectedKey('automations'))
+    onOpenAutomations()
+  }
+
+  const handleFooterAction = (): void => {
+    if (showCapabilities) {
+      setSelectedSidebarKey(activeSessionId ? sidebarSessionSelectedKey(activeSessionId) : null)
+      setShowCapabilities(false)
+      return
+    }
+    const nextShowSettings = !showSettings
+    setSelectedSidebarKey(nextShowSettings
+      ? sidebarSettingsSelectedKey(settingsSection)
+      : activeSessionId
+        ? sidebarSessionSelectedKey(activeSessionId)
+        : null)
+    setShowSettings(nextShowSettings)
   }
 
   const handleCreateCustomSection = (name: string): void => {
@@ -598,7 +638,7 @@ export default function Sidebar(): JSX.Element {
             ))}
           </div>
         ) : (
-          visibleProjects.length === 0 && projectlessSessions.length === 0 ? (
+          visibleProjects.length === 0 ? (
             <div className="min-w-0 px-1 pt-0.5" data-testid="sidebar-project-empty-state">
               <SidebarListRow
                 icon="plus"
@@ -614,23 +654,13 @@ export default function Sidebar(): JSX.Element {
               data-testid="sidebar-project-group-list"
               data-sidebar-projectless-chats-first={projectlessChatsFirst ? 'true' : 'false'}
             >
-              {orderedProjectGroups.map((group) => (
-                group.kind === 'projectless' ? (
-                  <SidebarProjectlessChatsGroup
-                    key="projectless"
-                    sessions={projectlessSessions}
-                    collapsed={projectlessChatsCollapsed}
-                    onToggle={toggleProjectlessChatsCollapsed}
-                    renderSession={renderDraggableSession}
-                  />
-                ) : (
-                  <ProjectSection
-                    key={group.item.id}
-                    project={group.item}
-                    sessions={sessionsByProject.get(group.item.id) ?? []}
-                    renderSession={renderDraggableSession}
-                  />
-                )
+              {visibleProjects.map((project) => (
+                <ProjectSection
+                  key={project.id}
+                  project={project}
+                  sessions={sessionsByProject.get(project.id) ?? []}
+                  renderSession={renderDraggableSession}
+                />
               ))}
             </div>
           )
@@ -638,6 +668,21 @@ export default function Sidebar(): JSX.Element {
       </div>}
     </div>
   )
+
+  const renderProjectlessChatsSection = (): JSX.Element | null => {
+    if (viewMode === 'chronological' || viewMode === 'connections' || projectlessSessions.length === 0) return null
+
+    return (
+      <SidebarProjectlessChatsGroup
+        key="projectless"
+        sessions={projectlessSessions}
+        collapsed={projectlessChatsCollapsed}
+        projectlessChatsFirst={projectlessChatsFirst}
+        onToggle={toggleProjectlessChatsCollapsed}
+        renderSession={renderDraggableSession}
+      />
+    )
+  }
 
   const renderCustomSection = (section: SidebarCustomSection): JSX.Element => {
     const sectionSessions = customSectionSessions.get(section.id) ?? []
@@ -750,15 +795,45 @@ export default function Sidebar(): JSX.Element {
     )
   }
 
+  if (isCollapsed) {
+    return (
+      <aside
+        className="app-sidebar app-sidebar-collapsed app-shell-left-panel flex min-w-0 flex-col overflow-hidden shrink-0"
+        data-testid="app-sidebar"
+        data-sidebar-density="codex-compact"
+        data-sidebar-collapsed="true"
+        data-sidebar-selected-key={selectedSidebarKey ?? ''}
+      >
+        <div
+          className="shrink-0"
+          data-testid="sidebar-window-drag-spacer"
+          style={{ height: 'var(--app-shell-header-height)', WebkitAppRegion: 'drag' } as React.CSSProperties}
+        />
+        <div className="sidebar-collapsed-actions" data-testid="sidebar-collapsed-actions">
+          <IconButton icon="pencil" label="New chat" size="sm" variant="toolbar" dataTestId="sidebar-collapsed-action-new-chat" onClick={onNewChat} />
+          <IconButton icon="search" label="Search" size="sm" variant="toolbar" dataTestId="sidebar-collapsed-action-search" onClick={onSearch} />
+          <IconButton icon="extensions" label="Plugins" size="sm" variant="toolbar" active={showCapabilities} dataTestId="sidebar-collapsed-action-plugins" onClick={openPlugins} />
+          <IconButton icon="clock" label="Automations" size="sm" variant="toolbar" dataTestId="sidebar-collapsed-action-automations" onClick={openAutomations} />
+        </div>
+        <div className="sidebar-collapsed-footer" data-testid="sidebar-collapsed-footer">
+          <IconButton icon={showSettings || showCapabilities ? 'chat' : 'settings'} label={showSettings || showCapabilities ? 'Back to chats' : 'Settings'} size="sm" variant="toolbar" dataTestId="sidebar-collapsed-footer-action" onClick={handleFooterAction} />
+          <IconButton icon="panelRight" label="Expand sidebar" size="sm" variant="toolbar" dataTestId="sidebar-rail-expand-toggle" ariaExpanded={false} onClick={onToggleSidebar} />
+        </div>
+      </aside>
+    )
+  }
+
   return (
     <aside
       className="app-sidebar app-shell-left-panel flex min-w-0 flex-col overflow-hidden shrink-0"
       data-testid="app-sidebar"
+      data-sidebar-density="codex-compact"
       data-sidebar-selected-key={selectedSidebarKey ?? ''}
     >
       <div
         className="shrink-0"
-        style={{ height: 64, WebkitAppRegion: 'drag' } as React.CSSProperties}
+        data-testid="sidebar-window-drag-spacer"
+        style={{ height: 'var(--app-shell-header-height)', WebkitAppRegion: 'drag' } as React.CSSProperties}
       />
 
       {showSettings ? (
@@ -817,17 +892,36 @@ export default function Sidebar(): JSX.Element {
         </>
       ) : (
         <>
-          <div className="min-w-0 px-2.5 pb-2">
+          <div className="min-w-0 px-2.5 pb-2" data-testid="sidebar-primary-actions">
             <SidebarNavItem
-              icon="plug"
-              label="Capabilities"
+              icon="pencil"
+              label="New chat"
+              active={false}
+              dataTestId="sidebar-primary-action-new-chat"
+              onClick={onNewChat}
+            />
+            <SidebarNavItem
+              icon="search"
+              label="Search"
+              active={false}
+              dataTestId="sidebar-primary-action-search"
+              onClick={onSearch}
+            />
+            <SidebarNavItem
+              icon="extensions"
+              label="Plugins"
               active={showCapabilities}
               sidebarKey="capabilities"
-              onClick={() => {
-                setSelectedSidebarKey('capabilities')
-                setShowCapabilities(true)
-                setShowSettings(false)
-              }}
+              dataTestId="sidebar-primary-action-plugins"
+              onClick={openPlugins}
+            />
+            <SidebarNavItem
+              icon="clock"
+              label="Automations"
+              active={false}
+              sidebarKey={sidebarSettingsSelectedKey('automations')}
+              dataTestId="sidebar-primary-action-automations"
+              onClick={openAutomations}
             />
           </div>
 
@@ -839,7 +933,16 @@ export default function Sidebar(): JSX.Element {
           >
             {sectionOrder.map((section) => {
               if (section === 'pinned') return renderPinnedSection()
-              if (section === 'projects') return renderProjectsSection()
+              if (section === 'projects') {
+                const projectlessSection = renderProjectlessChatsSection()
+                return (
+                  <Fragment key="projects-and-chats">
+                    {projectlessChatsFirst ? projectlessSection : null}
+                    {renderProjectsSection()}
+                    {projectlessChatsFirst ? null : projectlessSection}
+                  </Fragment>
+                )
+              }
               const customSection = customSections.find((candidate) => `custom:${candidate.id}` === section)
               return customSection ? renderCustomSection(customSection) : null
             })}
@@ -849,27 +952,24 @@ export default function Sidebar(): JSX.Element {
 
       {/* Footer */}
       <div
-        className="shrink-0 px-2.5 py-2.5"
+        className="sidebar-footer-with-toggle shrink-0 px-2.5 py-2.5"
+        data-testid="sidebar-footer"
       >
         <SidebarListRow
-          onClick={() => {
-            if (showCapabilities) {
-              setSelectedSidebarKey(activeSessionId ? sidebarSessionSelectedKey(activeSessionId) : null)
-              setShowCapabilities(false)
-              return
-            }
-            const nextShowSettings = !showSettings
-            setSelectedSidebarKey(nextShowSettings
-              ? sidebarSettingsSelectedKey(settingsSection)
-              : activeSessionId
-                ? sidebarSessionSelectedKey(activeSessionId)
-                : null)
-            setShowSettings(nextShowSettings)
-          }}
+          onClick={handleFooterAction}
           dataTestId="sidebar-footer-action"
           icon={showSettings || showCapabilities ? 'chat' : 'settings'}
           label={showSettings || showCapabilities ? 'Back to chats' : 'Settings'}
           className="sidebar-footer-row"
+        />
+        <IconButton
+          icon="panelLeft"
+          label="Collapse sidebar"
+          size="sm"
+          variant="toolbar"
+          dataTestId="sidebar-footer-collapse-toggle"
+          ariaExpanded
+          onClick={onToggleSidebar}
         />
       </div>
       {creatingCustomSection && (
@@ -958,19 +1058,22 @@ function SidebarConnectionGroup({
 function SidebarProjectlessChatsGroup({
   sessions,
   collapsed,
+  projectlessChatsFirst,
   onToggle,
   renderSession
 }: {
   sessions: Session[]
   collapsed: boolean
+  projectlessChatsFirst: boolean
   onToggle: () => void
   renderSession?: (session: Session) => ReactNode
 }): JSX.Element {
   return (
     <div
-      className="sidebar-projectless-chats-group min-w-0"
+      className="sidebar-section sidebar-projectless-chats-group min-w-0 px-2 py-1.5"
       data-testid="sidebar-projectless-chats-section"
       data-sidebar-projectless-session-count={sessions.length}
+      data-sidebar-projectless-chats-first={projectlessChatsFirst ? 'true' : 'false'}
     >
       <SidebarListRow
         as="div"
@@ -979,12 +1082,9 @@ function SidebarProjectlessChatsGroup({
         size="section"
         onClick={onToggle}
         leading={(
-          <>
-            <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
-              <IconChevron />
-            </span>
-            <span className="sidebar-projectless-chat-mark" aria-hidden="true" />
-          </>
+          <span className="motion-chevron shrink-0" style={{ color: 'var(--text-tertiary)', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+            <IconChevron />
+          </span>
         )}
         label="Chats"
         detail={`${sessions.length}`}
@@ -1006,6 +1106,7 @@ function SidebarNavItem({
   detail,
   active,
   sidebarKey,
+  dataTestId = 'sidebar-nav-item',
   onClick
 }: {
   icon: IconName
@@ -1013,13 +1114,14 @@ function SidebarNavItem({
   detail?: string
   active: boolean
   sidebarKey?: string
+  dataTestId?: string
   onClick: () => void
 }): JSX.Element {
   return (
     <SidebarListRow
       onClick={onClick}
       active={active}
-      dataTestId="sidebar-nav-item"
+      dataTestId={dataTestId}
       dataSidebarKey={sidebarKey}
       icon={icon}
       label={label}

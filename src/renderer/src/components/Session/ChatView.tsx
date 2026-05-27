@@ -1551,9 +1551,28 @@ function ChangesReviewCard({ content, session, hideWhenEmpty = false }: { conten
   }, [expandedPath, lastTurnDiff, reviewCardSource, session.id])
 
   const openReview = (): void => {
+    if (reviewCardSource === 'last-turn') {
+      try {
+        window.localStorage.setItem(`orchestrator.review.source:${session.workDir}`, 'last-turn')
+        window.localStorage.setItem(`orchestrator.review.sidePaneVisible:${session.workDir}`, 'false')
+      } catch {
+        // Review can still open if storage is unavailable; the event below updates mounted panels.
+      }
+    }
     openRightPanelTab(session.id, 'environment')
     setShowDiff(session.id, true)
     openRightPanelTab(session.id, 'diff')
+    if (reviewCardSource === 'last-turn') {
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('orchestrator:review-open-request', {
+          detail: {
+            sessionId: session.id,
+            source: 'last-turn',
+            sidePaneVisible: false
+          }
+        }))
+      }, 0)
+    }
   }
   const providerCheckpointUndoStatus: ProviderCheckpointUndoStatus = reviewCardSource !== 'last-turn'
     ? 'not-applicable'

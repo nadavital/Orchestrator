@@ -5,6 +5,7 @@ import InputBar from './InputBar'
 import ContextSidebar from './ContextSidebar'
 import RunningAgentsStrip from './RunningAgentsStrip'
 import TerminalPanel from './TerminalPanel'
+import Titlebar from '../Titlebar'
 import { useShallow } from 'zustand/react/shallow'
 import type { Session } from '../../types'
 
@@ -72,6 +73,7 @@ function SessionPane({ sessionId }: SessionPaneProps): JSX.Element | null {
       {/* Main content row: chat + optional side panels */}
       <div className="relative flex-1 flex min-w-0 overflow-hidden" data-testid="session-main-row">
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden" data-testid="session-primary-content">
+          <Titlebar />
           <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
             <ChatView sessionId={session.id} />
           </div>

@@ -19,6 +19,7 @@ import { parsePortableTheme } from '../../../types/themeSharing'
 import Icon from './shared/Icon'
 import AppearanceSettingsPage, { defaultDarkChromeTheme, defaultLightChromeTheme, type AppearancePreset } from './Settings/AppearanceSettingsPage'
 import AutomationsSettingsPage from './Settings/AutomationsSettingsPage'
+import BrowserSettingsPage from './Settings/BrowserSettingsPage'
 import DataControlsSettingsPage from './Settings/DataControlsSettingsPage'
 import GeneralSettingsPage from './Settings/GeneralSettingsPage'
 import PetsSettingsPage from './Settings/PetsSettingsPage'
@@ -466,6 +467,12 @@ export default function SettingsPage({ section, onClose }: Props): JSX.Element {
                 />
               )}
               {effectiveSection === 'data' && <DataControlsSettingsPage />}
+              {effectiveSection === 'browser' && (
+                <BrowserSettingsPage
+                  hostId={selectedSettingsHost.id}
+                  hostLabel={selectedSettingsHost.label}
+                />
+              )}
               {effectiveSection === 'providers' && (
                 <ProvidersSettingsPage
                   defaultProvider={defaultProvider}
@@ -543,6 +550,7 @@ function settingsTitle(section: SettingsSection): string {
   if (section === 'worktrees') return 'Worktrees'
   if (section === 'shortcuts') return 'Shortcuts'
   if (section === 'personalization') return 'Personalization'
+  if (section === 'browser') return 'Browser'
   if (section === 'pets') return 'Pet overlay'
   if (section === 'data') return 'Data controls'
   return 'General'

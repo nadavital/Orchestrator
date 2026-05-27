@@ -6,7 +6,6 @@ import { hasComposerDraft, sideChatIdFromTabId, useSessionStore } from './store/
 import type { SettingsSection } from './store/sessions'
 import Sidebar from './components/Sidebar/Sidebar'
 import SessionPane from './components/Session/SessionPane'
-import Titlebar from './components/Titlebar'
 import SettingsPage from './components/SettingsModal'
 import CapabilitiesPage from './components/CapabilitiesPage'
 import DesignSystemPreview from './components/DesignSystemPreview'
@@ -46,6 +45,8 @@ const BROWSER_PANEL_COMMANDS: BrowserPanelCommand[] = [
   'browser-navigate-back',
   'browser-navigate-forward'
 ]
+
+const LEFT_SIDEBAR_COLLAPSED_KEY = 'orchestrator.leftSidebar.collapsed'
 
 function settingsRouteUrl(section: SettingsSection, hostId?: string | null): string {
   return settingsRouteUrlForLocation(section, hostId, window.location)
@@ -128,6 +129,9 @@ export default function App(): JSX.Element {
   const [shellFocusArea, setShellFocusArea] = useState<ShellFocusArea>('main')
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({})
   const [threadFindVisible, setThreadFindVisible] = useState(false)
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(() => (
+    window.localStorage.getItem(LEFT_SIDEBAR_COLLAPSED_KEY) === 'true'
+  ))
   const [threadFindDomain, setThreadFindDomain] = useState<ThreadFindDomain>('conversation')
   const [threadFindQuery, setThreadFindQuery] = useState('')
   const [threadFindStatus, setThreadFindStatus] = useState<Record<ThreadFindDomain, ThreadFindStatus>>({
@@ -138,6 +142,10 @@ export default function App(): JSX.Element {
   const shellFocusAreaRef = useRef<ShellFocusArea>('main')
   const threadFindInputRef = useRef<HTMLInputElement | null>(null)
   const deferredActiveSessionId = useDeferredValue(activeSessionId)
+
+  useEffect(() => {
+    window.localStorage.setItem(LEFT_SIDEBAR_COLLAPSED_KEY, leftSidebarCollapsed ? 'true' : 'false')
+  }, [leftSidebarCollapsed])
 
   useEffect(() => {
     const globals = window as typeof window & { __orchestratorAppCommitCount?: number }
@@ -311,10 +319,6 @@ export default function App(): JSX.Element {
     window.dispatchEvent(new CustomEvent('orchestrator:open-transcript-search'))
   }, [])
 
-  const openSourceFileSearch = useCallback((): void => {
-    window.dispatchEvent(new CustomEvent('orchestrator:focus-workbench-source-search'))
-  }, [])
-
   const openBrowserFind = useCallback((): void => {
     window.dispatchEvent(new CustomEvent('orchestrator:focus-browser-find'))
   }, [])
@@ -431,13 +435,13 @@ export default function App(): JSX.Element {
       return
     }
     if (target === 'source-file') {
-      openSourceFileSearch()
+      openThreadFind('diff')
       return
     }
     if (target === 'browser-page') {
       openBrowserFind()
     }
-  }, [openBrowserFind, openSourceFileSearch, openThreadFind, resolveCurrentPanelFindTarget])
+  }, [openBrowserFind, openThreadFind, resolveCurrentPanelFindTarget])
 
   const openBrowserTabCommand = useCallback((): void => {
     const { activeSessionId, uiState, addTerminalTab, moveTerminalTabToRight } = useSessionStore.getState()
@@ -472,6 +476,23 @@ export default function App(): JSX.Element {
     setShowCapabilities(false)
     setShowSettings(true)
   }, [setSettingsSection, setShowCapabilities, setShowSettings])
+
+  const handleSidebarNewChat = useCallback((): void => {
+    void createNewChat()
+  }, [createNewChat])
+
+  const openSidebarSearch = useCallback((): void => {
+    setCommandPaletteOpen(true)
+  }, [])
+
+  const openSidebarPlugins = useCallback((): void => {
+    setShowSettings(false)
+    setShowCapabilities(true)
+  }, [setShowCapabilities, setShowSettings])
+
+  const openSidebarAutomations = useCallback((): void => {
+    openSettings('automations')
+  }, [openSettings])
 
   const canCloseActivePanelTab = useCallback((): boolean => {
     const { activeSessionId, uiState } = useSessionStore.getState()
@@ -1182,8 +1203,18 @@ export default function App(): JSX.Element {
       onFocusCapture={(event) => updateShellFocusArea(event.target)}
       onPointerOverCapture={(event) => updateShellFocusArea(event.target)}
     >
-      <Sidebar />
-      <section className="content-shell main-surface flex-1 flex flex-col min-w-0 min-h-0">
+      <Sidebar
+        onNewChat={handleSidebarNewChat}
+        onSearch={openSidebarSearch}
+        onOpenPlugins={openSidebarPlugins}
+        onOpenAutomations={openSidebarAutomations}
+        isCollapsed={leftSidebarCollapsed}
+        onToggleSidebar={() => setLeftSidebarCollapsed((collapsed) => !collapsed)}
+      />
+      <section
+        className="content-shell main-surface flex-1 flex flex-col min-w-0 min-h-0"
+        data-app-shell-main-content-frame="codex-continuous"
+      >
         {showSettings ? (
           <MotionView viewKey={`settings:${settingsSection}`} className="flex flex-col overflow-hidden">
             <SettingsPage
@@ -1196,18 +1227,15 @@ export default function App(): JSX.Element {
             <CapabilitiesPage />
           </MotionView>
         ) : (
-          <>
-            <Titlebar />
-            <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              {deferredActiveSessionId ? (
-                <MotionView viewKey="session" animate={false} className="flex flex-col overflow-hidden">
-                  <SessionPane sessionId={deferredActiveSessionId} />
-                </MotionView>
-              ) : (
-                <EmptyState />
-              )}
-            </main>
-          </>
+          <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {deferredActiveSessionId ? (
+              <MotionView viewKey="session" animate={false} className="flex flex-col overflow-hidden">
+                <SessionPane sessionId={deferredActiveSessionId} />
+              </MotionView>
+            ) : (
+              <EmptyState />
+            )}
+          </main>
         )}
       </section>
       <ThreadFindBar

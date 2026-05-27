@@ -85,6 +85,13 @@ function SessionItem({ session }: Props): JSX.Element {
   const threadKind = sidebarThreadKind(session)
   const labelColor = sidebarLabelColor(session)
   const isPinned = isSidebarPinnedSession(session)
+  const providerPinReadOnly = session.providerPinned === true && session.pinned !== true
+  const pinBoundary = providerPinReadOnly ? 'provider-readonly' : 'local'
+  const pinActionLabel = providerPinReadOnly
+    ? 'Provider pin is read-only in Orchestrator'
+    : isPinned
+      ? 'Unpin chat locally'
+      : 'Pin chat locally'
   const rowSelectedKey = sidebarSessionSelectedKey(session.id)
 
   useEffect(() => {
@@ -208,6 +215,7 @@ function SessionItem({ session }: Props): JSX.Element {
   const togglePinned = async (event: React.MouseEvent): Promise<void> => {
     event.preventDefault()
     event.stopPropagation()
+    if (providerPinReadOnly) return
     const nextPinned = !isPinned
     const previousPinOrder = session.pinOrder
     updatePinned(session.id, nextPinned)
@@ -334,17 +342,6 @@ function SessionItem({ session }: Props): JSX.Element {
           onDoubleClick={openRename}
           onContextMenu={openMenu}
           dataSidebarKey={rowSelectedKey}
-          leading={(
-            <div className="session-item-identity-slot shrink-0">
-              <span
-                className="session-item-label-color"
-                data-testid="session-label-color"
-                aria-hidden="true"
-                data-pinned={isPinned ? 'true' : 'false'}
-                style={{ background: labelColor }}
-              />
-            </div>
-          )}
           label={(
             <div
               className="session-row-title truncate leading-4"
@@ -408,14 +405,16 @@ function SessionItem({ session }: Props): JSX.Element {
               className="surface-row-secondary session-row-actions"
               data-sidebar-row-action-slot="consolidated"
             >
-              <Tooltip label={isPinned ? 'Unpin chat' : 'Pin chat'}>
+              <Tooltip label={pinActionLabel}>
                 <button
                   type="button"
                   className="session-item-pin-button"
                   data-testid="session-pin-toggle"
-                  aria-label={isPinned ? 'Unpin chat' : 'Pin chat'}
+                  aria-label={pinActionLabel}
                   data-native-title-free="true"
                   data-pinned={isPinned ? 'true' : 'false'}
+                  data-sidebar-pin-boundary={pinBoundary}
+                  disabled={providerPinReadOnly}
                   onClick={(event) => void togglePinned(event)}
                 >
                   <Icon name="pin" size={12} />
@@ -438,7 +437,15 @@ function SessionItem({ session }: Props): JSX.Element {
           id={hoverSurfaceId}
           className="session-hover-card"
           data-testid="session-hover-card"
-          style={{ left: cardPosition.left, top: cardPosition.top }}
+          style={{
+            left: cardPosition.left,
+            top: cardPosition.top,
+            border: '0.5px solid var(--border-subtle)',
+            borderRadius: 12,
+            boxShadow: 'var(--shadow-menu)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)'
+          }}
           role="tooltip"
         >
           <div className="session-hover-card-title">{session.name}</div>

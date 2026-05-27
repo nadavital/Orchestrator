@@ -1,7 +1,9 @@
 import { spawn as ptySpawn } from 'node-pty'
 import type { IPty } from 'node-pty'
+import { BrowserWindow } from 'electron'
 import type { RunEvent, RunRequest, Session } from '../types'
 import { approvalBroker } from './approvalBroker'
+import { browserClientDynamicTools, callBrowserClientTool, isBrowserClientDynamicTool } from './browserClientTools'
 import { CodexAppServerRuntimeManager } from './codexAppServerRuntime'
 import {
   buildProviderCommandForRuntime,
@@ -128,6 +130,11 @@ export class ProviderRuntimeManager {
         provider: options.provider,
         request: options.request,
         mode: options.mode ?? 'start',
+        clientDynamicToolBridge: {
+          dynamicTools: browserClientDynamicTools,
+          isSupported: isBrowserClientDynamicTool,
+          call: (call) => callBrowserClientTool(BrowserWindow.getAllWindows(), call)
+        },
         onRawData: options.onRawData,
         onParsedEvents: options.onParsedEvents,
         onExit: options.onExit

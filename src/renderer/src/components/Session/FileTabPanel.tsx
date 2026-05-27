@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FilePreviewResult } from '../../env'
 import type { GitLineBlameResult, OpenTargetAvailability, PreferredOpenTarget } from '../../types'
 import { artifactImportKindSupportsSource, artifactTabPresentationForPath } from '../../types'
 import type { RightPanelTabId, RightPanelTabState, SourceAnnotationState } from '../../store/sessions'
-import { Badge, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelToolbar, WorkbenchSearchField } from '../shared/designSystem'
+import { Badge, IconButton, MenuItem, MenuSection, MenuSectionLabel, MenuSurface, PanelToolbar } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import { FilePreview, formatBytes, joinPath } from './FilesPanel'
 
 interface Props {
   workDir: string
+  sessionId: string
   filePath: string
   fileHost?: string
   tabId: RightPanelTabId
@@ -31,6 +32,7 @@ interface Props {
 
 export default function FileTabPanel({
   workDir,
+  sessionId,
   filePath,
   fileHost,
   tabId,
@@ -54,7 +56,6 @@ export default function FileTabPanel({
   const [preferredOpenTarget, setPreferredOpenTarget] = useState<PreferredOpenTarget>('system')
   const [openTargets, setOpenTargets] = useState<OpenTargetAvailability[]>([])
   const [fileActionsOpen, setFileActionsOpen] = useState(false)
-  const sourceSearchInputRef = useRef<HTMLInputElement | null>(null)
   const absolutePath = joinPath(workDir, filePath)
   const name = basename(filePath)
   const sourceMode = fileViewMode === 'source'
@@ -96,16 +97,6 @@ export default function FileTabPanel({
     return () => {
       cancelled = true
     }
-  }, [])
-
-  useEffect(() => {
-    const focusSourceSearch = (): void => {
-      window.requestAnimationFrame(() => {
-        sourceSearchInputRef.current?.focus({ preventScroll: true })
-      })
-    }
-    window.addEventListener('orchestrator:focus-workbench-source-search', focusSourceSearch)
-    return () => window.removeEventListener('orchestrator:focus-workbench-source-search', focusSourceSearch)
   }, [])
 
   useEffect(() => {
@@ -241,6 +232,45 @@ export default function FileTabPanel({
     updateFileTabState({ sourceSearchIndex: nextIndex })
   }
 
+  useEffect(() => {
+    const onThreadFindQuery = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string; domain?: string; query?: string }>).detail
+      if (detail?.sessionId !== sessionId || detail.domain !== 'diff') return
+      updateSourceSearchQuery(detail.query ?? '')
+    }
+    const onThreadFindStep = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string; domain?: string; direction?: number }>).detail
+      if (detail?.sessionId !== sessionId || detail.domain !== 'diff') return
+      moveSourceSearch(detail.direction === -1 ? -1 : 1)
+    }
+    const onThreadFindClose = (event: Event): void => {
+      const detail = (event as CustomEvent<{ sessionId?: string }>).detail
+      if (detail?.sessionId !== sessionId) return
+      updateFileTabState({ sourceSearchQuery: '', sourceSearchIndex: 0 })
+    }
+    window.addEventListener('orchestrator:thread-find-query', onThreadFindQuery)
+    window.addEventListener('orchestrator:thread-find-step', onThreadFindStep)
+    window.addEventListener('orchestrator:thread-find-close', onThreadFindClose)
+    return () => {
+      window.removeEventListener('orchestrator:thread-find-query', onThreadFindQuery)
+      window.removeEventListener('orchestrator:thread-find-step', onThreadFindStep)
+      window.removeEventListener('orchestrator:thread-find-close', onThreadFindClose)
+    }
+  }, [moveSourceSearch, sessionId, updateSourceSearchQuery, updateFileTabState])
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('orchestrator:thread-find-status', {
+      detail: {
+        sessionId,
+        domain: 'diff',
+        totalMatches: sourceSearchMatches.length,
+        activeMatch: sourceSearchActiveIndex >= 0 ? sourceSearchActiveIndex + 1 : 0,
+        isCapped: false,
+        activePath: sourceSearchMatches.length > 0 ? filePath : null
+      }
+    }))
+  }, [filePath, sessionId, sourceSearchActiveIndex, sourceSearchMatches.length])
+
   const addSourceAnnotation = (line: number | null): void => {
     if (line === null) return
     const existing = sourceAnnotations.find((annotation) => annotation.line === line)
@@ -294,7 +324,7 @@ export default function FileTabPanel({
     <span className="file-tab-actions-menu relative">
       <IconButton
         icon="ellipsis"
-        label="File actions"
+        label="File viewer options"
         size="sm"
         variant="toolbar"
         active={fileActionsOpen}
@@ -331,7 +361,7 @@ export default function FileTabPanel({
             />
             <MenuItem
               icon="external"
-              label={`Open file in ${openTarget.shortLabel}`}
+              label="Open in editor"
               onClick={() => { void window.api.fs.openPath(absolutePath); setFileActionsOpen(false) }}
             />
             <MenuItem
@@ -345,6 +375,7 @@ export default function FileTabPanel({
             <MenuItem
               icon={sourceMode ? 'book' : 'file'}
               label={sourceMode ? 'Show rich preview' : artifactSourceSupported ? 'View source' : 'Show source'}
+              dataTestId="workbench-file-tab-source-mode-menu-item"
               disabled={!canToggleSourceMode}
               onClick={() => {
                 updateFileTabState({ fileViewMode: sourceMode ? 'rich' : 'source' })
@@ -357,6 +388,15 @@ export default function FileTabPanel({
               disabled={!canSearchSource}
               onClick={() => {
                 updateFileTabState({ sourceBlameVisible: !sourceBlameVisible })
+                setFileActionsOpen(false)
+              }}
+            />
+            <MenuItem
+              icon="wrap"
+              label={sourceWrap ? 'Disable word wrap' : 'Enable word wrap'}
+              dataTestId="workbench-file-tab-wrap-source-menu-item"
+              onClick={() => {
+                updateFileTabState({ sourceWrap: !sourceWrap })
                 setFileActionsOpen(false)
               }}
             />
@@ -377,7 +417,7 @@ export default function FileTabPanel({
             />
             <MenuItem
               icon="external"
-              label={`Open selected line in ${openTarget.shortLabel}`}
+              label="Open selected line in editor"
               disabled={selectedSourceLine === null}
               onClick={() => { openSelectedLine(); setFileActionsOpen(false) }}
             />
@@ -424,53 +464,6 @@ export default function FileTabPanel({
           <Icon name="file" size={13} />
           <span className="min-w-0 truncate">{filePath}</span>
         </span>
-        {canSearchSource && (
-          <WorkbenchSearchField
-            value={sourceSearchQuery}
-            onChange={updateSourceSearchQuery}
-            placeholder="Search source"
-            clearLabel="Clear source search"
-            inputRef={sourceSearchInputRef}
-            dataTestId="workbench-file-tab-source-search"
-            clearDataTestId="workbench-file-tab-source-search-clear"
-            className="file-tab-source-search"
-            trailing={
-              <span className="file-tab-source-search-count" data-testid="workbench-file-tab-source-search-count">
-                {sourceSearchQuery.trim() ? `${sourceSearchActiveIndex >= 0 ? sourceSearchActiveIndex + 1 : 0}/${sourceSearchMatches.length}` : '0/0'}
-              </span>
-            }
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                moveSourceSearch(event.shiftKey ? -1 : 1)
-              }
-            }}
-          />
-        )}
-        {canSearchSource && (
-          <>
-            <IconButton
-              icon="arrowUp"
-              label="Previous source match"
-              size="sm"
-              variant="toolbar"
-              className="file-tab-source-search-nav"
-              disabled={sourceSearchMatches.length === 0}
-              dataTestId="workbench-file-tab-source-search-prev"
-              onClick={() => moveSourceSearch(-1)}
-            />
-            <IconButton
-              icon="arrowDown"
-              label="Next source match"
-              size="sm"
-              variant="toolbar"
-              className="file-tab-source-search-nav"
-              disabled={sourceSearchMatches.length === 0}
-              dataTestId="workbench-file-tab-source-search-next"
-              onClick={() => moveSourceSearch(1)}
-            />
-          </>
-        )}
         <span className="file-tab-info">
           {isPreview && <Badge tone="neutral">Preview</Badge>}
           {preview?.size !== undefined && (
@@ -515,6 +508,7 @@ export default function FileTabPanel({
             label={sourceMode ? 'Show rich preview' : artifactSourceSupported ? 'View source' : 'Show source'}
             size="sm"
             variant="toolbar"
+            className="file-tab-secondary-action"
             active={sourceMode && canToggleSourceMode}
             disabled={!canToggleSourceMode}
             dataTestId="workbench-file-tab-source-mode"
@@ -522,9 +516,10 @@ export default function FileTabPanel({
           />
           <IconButton
             icon="wrap"
-            label={sourceWrap ? 'Disable source wrap' : 'Enable source wrap'}
+            label={sourceWrap ? 'Disable word wrap' : 'Enable word wrap'}
             size="sm"
             variant="toolbar"
+            className="file-tab-secondary-action"
             active={sourceWrap}
             dataTestId="workbench-file-tab-wrap-source"
             onClick={() => updateFileTabState({ sourceWrap: !sourceWrap })}
@@ -562,7 +557,7 @@ export default function FileTabPanel({
           />
           <IconButton
             icon="external"
-            label={`Open selected line in ${openTarget.shortLabel}`}
+            label="Open selected line in editor"
             size="sm"
             variant="toolbar"
             className="file-tab-secondary-action"
@@ -581,9 +576,9 @@ export default function FileTabPanel({
             onClick={() => addSourceAnnotation(selectedSourceLine)}
           />
           <IconButton icon="copy" label="Copy path" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={copyPath} />
-          <IconButton icon="external" label={`Open file in ${openTarget.shortLabel}`} size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={() => { void window.api.fs.openPath(absolutePath) }} />
           <IconButton icon="folder" label="Reveal file" size="sm" variant="toolbar" className="file-tab-secondary-action" onClick={() => { void window.api.fs.showInFolder(absolutePath) }} />
           {fileActionsMenu}
+          <IconButton icon="external" label="Open in editor" size="sm" variant="toolbar" dataTestId="workbench-file-tab-open-editor" onClick={() => { void window.api.fs.openPath(absolutePath) }} />
         </span>
       </PanelToolbar>
       <div

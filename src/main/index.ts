@@ -41,8 +41,24 @@ let mainWindow: BrowserWindow | null = null
 const appWindows = new Set<BrowserWindow>()
 const guardedBrowserSessions = new WeakSet<Session>()
 const menuCommandAvailabilityByWindow = new Map<number, AppCommandAvailability>()
+const pendingNavigationByWindow = new Map<number, OrchestratorDeepLinkNavigation>()
 let pendingNavigation: OrchestratorDeepLinkNavigation | null = null
 let automatedMultiWindowFocusSmokeStarted = false
+
+function seedAutomatedBrowserUsePolicy(): void {
+  settingsStore.set('browserUsePolicy', {
+    approvalMode: 'alwaysAllow',
+    historyApprovalMode: 'alwaysAllow',
+    downloadApprovalMode: 'alwaysAllow',
+    uploadApprovalMode: 'alwaysAllow',
+    allowedOrigins: ['localhost', '127.0.0.1', 'example.com'],
+    blockedOrigins: ['blocked.example'],
+    allowedDownloadOrigins: ['downloads.example'],
+    blockedDownloadOrigins: [],
+    allowedUploadOrigins: ['uploads.example'],
+    blockedUploadOrigins: []
+  })
+}
 
 function activeAppWindow(): BrowserWindow | null {
   const focusedWindow = BrowserWindow.getFocusedWindow()
@@ -67,12 +83,25 @@ function focusWindowForNavigation(): BrowserWindow | null {
   return target
 }
 
+function setPendingNavigationForLoadingWindow(win: BrowserWindow, navigation: OrchestratorDeepLinkNavigation): void {
+  if (win.isDestroyed()) return
+  if (win.webContents.isLoading()) {
+    pendingNavigationByWindow.set(win.webContents.id, navigation)
+    return
+  }
+  pendingNavigationByWindow.delete(win.webContents.id)
+}
+
 function navigateFromDeeplink(rawUrl: string): void {
   const navigation = parseOrchestratorDeepLink(rawUrl, APP_DEEPLINK_PROTOCOL)
   if (!navigation) return
-  pendingNavigation = navigation
   const target = focusWindowForNavigation()
-  if (!target) return
+  if (!target) {
+    pendingNavigation = navigation
+    return
+  }
+  setPendingNavigationForLoadingWindow(target, navigation)
+  pendingNavigation = null
   if (navigation.kind === 'session') {
     safeWindowSend(target, 'app:navigate-session', navigation.sessionId)
   } else {
@@ -81,11 +110,18 @@ function navigateFromDeeplink(rawUrl: string): void {
 }
 
 function openSessionInNewWindow(sessionId: string): void {
-  pendingNavigation = { kind: 'session', sessionId }
-  createWindow()
+  const win = createWindow()
+  pendingNavigationByWindow.set(win.webContents.id, { kind: 'session', sessionId })
 }
 
-function consumePendingNavigation(): OrchestratorDeepLinkNavigation | null {
+function consumePendingNavigation(win: BrowserWindow | null): OrchestratorDeepLinkNavigation | null {
+  if (win && !win.isDestroyed()) {
+    const windowNavigation = pendingNavigationByWindow.get(win.webContents.id)
+    if (windowNavigation) {
+      pendingNavigationByWindow.delete(win.webContents.id)
+      return windowNavigation
+    }
+  }
   const navigation = pendingNavigation
   pendingNavigation = null
   return navigation
@@ -428,9 +464,11 @@ function createWindow(): BrowserWindow {
     sessionManager.refreshRecoverableStatuses()
   })
 
+  const webContentsId = win.webContents.id
   win.on('closed', () => {
     appWindows.delete(win)
-    menuCommandAvailabilityByWindow.delete(win.webContents.id)
+    menuCommandAvailabilityByWindow.delete(webContentsId)
+    pendingNavigationByWindow.delete(webContentsId)
     if (mainWindow === win) {
       mainWindow = [...appWindows].find((candidate) => !candidate.isDestroyed()) ?? null
     }
@@ -556,6 +594,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           const findButtonStartingWith = (labelPrefix) =>
             [...document.querySelectorAll('button')]
               .find((button) => buttonLabel(button).startsWith(labelPrefix));
+          const colorAlpha = (color) => {
+            const value = String(color ?? '').trim().toLowerCase();
+            if (!value || value === 'transparent') return 0;
+            const rgbaMatch = value.match(/rgba?\\(([^)]+)\\)/);
+            if (rgbaMatch) {
+              const parts = rgbaMatch[1].split(/[,/\\s]+/).filter(Boolean);
+              return parts.length >= 4 ? Number.parseFloat(parts[3]) : 1;
+            }
+            const colorMatch = value.match(/color\\([^/]+\\/\\s*([0-9.]+)\\s*\\)/);
+            if (colorMatch) return Number.parseFloat(colorMatch[1]);
+            return 1;
+          };
+          const backgroundAlpha = (element) => element instanceof HTMLElement
+            ? colorAlpha(getComputedStyle(element).backgroundColor)
+            : 0;
           const profile = await window.api.app.getProfile();
           let projects = await window.api.projects.list();
           if (projects.length === 0) {
@@ -677,8 +730,16 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               providersNavButton?.click();
               await sleep(450);
               const diagnosticsButton = document.querySelector('[data-testid="provider-diagnostics-toggle"]');
-              if (diagnosticsButton instanceof HTMLElement) diagnosticsButton.click();
-              await sleep(450);
+              if (
+                diagnosticsButton instanceof HTMLElement &&
+                diagnosticsButton.getAttribute('aria-expanded') !== 'true'
+              ) {
+                diagnosticsButton.click();
+              }
+              for (let attempts = 0; attempts < 10; attempts += 1) {
+                await sleep(150);
+                if (document.querySelector('[data-testid="provider-details-grid"]') instanceof HTMLElement) break;
+              }
               const diagnosticsSection = document.querySelector('[data-testid="provider-settings-section"]');
               const providerSettingsShell = document.querySelector('.settings-shell');
               const configEditor = document.querySelector('[data-testid="provider-config-editor"]');
@@ -928,6 +989,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 document.querySelector('[data-settings-content-scope="app"][data-settings-host-adapter="app-global"]') instanceof HTMLElement &&
                 !remoteSettingsHostNavLabels.includes('Automations') &&
                 !remoteSettingsHostNavLabels.includes('Worktrees') &&
+                !remoteSettingsHostNavLabels.includes('Browser') &&
                 !remoteSettingsHostNavLabels.includes('Data controls') &&
                 remoteSettingsHostNavLabels.includes('Shortcuts') &&
                 remoteSettingsHostNavLabels.includes('Personalization') &&
@@ -1167,6 +1229,81 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 settingsHostSelect.dispatchEvent(new Event('change', { bubbles: true }));
                 await sleep(140);
               }
+              const browserButton = document.querySelector('[data-sidebar-key="settings:browser"]') ??
+                [...document.querySelectorAll('button')]
+                  .find((button) => button.textContent?.replace(/\s+/g, ' ').trim() === 'Browser');
+              browserButton?.click();
+              await sleep(220);
+              const browserSettingsSection = document.querySelector('[data-testid="browser-settings-section"]');
+              settingsContentLayoutWorks = settingsContentLayoutWorks &&
+                settingsContentLayoutMatches('settings-content-layout-browser', 'Browser', 'built-in Browser data');
+              const browserSettingsDataSurface = document.querySelector('[data-testid="settings-browser-data-surface"]');
+              const browserSettingsPermissionsSurface = document.querySelector('[data-testid="settings-browser-permissions-surface"]');
+              const browserSettingsDomainsSurface = document.querySelector('[data-testid="settings-browser-domains-surface"]');
+              const browserSettingsApprovalSelect = document.querySelector('[data-testid="settings-browser-approval-mode"]');
+              if (browserSettingsApprovalSelect instanceof HTMLSelectElement) {
+                browserSettingsApprovalSelect.value = 'alwaysAllow';
+                browserSettingsApprovalSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(180);
+              }
+              const browserAllowedDomainInput = document.querySelector('[data-testid="settings-browser-allowedOrigins-input"]');
+              const browserAllowedDomainAdd = document.querySelector('[data-testid="settings-browser-allowedOrigins-add"]');
+              if (browserAllowedDomainInput instanceof HTMLInputElement && browserAllowedDomainAdd instanceof HTMLButtonElement) {
+                const setter = Object.getOwnPropertyDescriptor(browserAllowedDomainInput.constructor.prototype, 'value')?.set;
+                setter?.call(browserAllowedDomainInput, 'example.com');
+                browserAllowedDomainInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(80);
+                browserAllowedDomainAdd.click();
+                await sleep(180);
+              }
+              const browserSettingsClearCache = document.querySelector('[data-testid="settings-browser-clear-cache"]');
+              if (browserSettingsClearCache instanceof HTMLButtonElement) {
+                browserSettingsClearCache.click();
+                await sleep(180);
+              }
+              const browserSettingsStatus = document.querySelector('[data-testid="settings-browser-clear-status"]');
+              const browserPolicyStatus = document.querySelector('[data-testid="settings-browser-policy-status"]');
+              const browserSettingsPolicy = (await window.api.settings.get()).browserUsePolicy;
+              const browserSettingsRows = browserSettingsSection instanceof HTMLElement
+                ? [...browserSettingsSection.querySelectorAll('.settings-row')]
+                : [];
+              const browserDomainRows = browserSettingsSection instanceof HTMLElement
+                ? [...browserSettingsSection.querySelectorAll('[data-testid="settings-browser-domain-policy-row"]')]
+                : [];
+              var settingsBrowserPageWorks =
+                browserSettingsSection instanceof HTMLElement &&
+                browserSettingsSection.innerText.includes('Data') &&
+                browserSettingsSection.innerText.includes('Browsing data') &&
+                browserSettingsSection.innerText.includes('Delete cookies') &&
+                browserSettingsSection.innerText.includes('Delete site data') &&
+                browserSettingsSection.innerText.includes('Cached images and files') &&
+                browserSettingsSection.innerText.includes('Permissions') &&
+                browserSettingsSection.innerText.includes('Domains') &&
+                browserSettingsSection.innerText.includes('Always allow') &&
+                browserSettingsSection.innerText.includes('example.com') &&
+                browserSettingsStatus instanceof HTMLElement &&
+                browserSettingsStatus.textContent?.includes('Browser cache cleared') === true;
+              var settingsBrowserSurfaceWorks =
+                browserSettingsSection instanceof HTMLElement &&
+                browserSettingsSection.classList.contains('settings-page-section') &&
+                browserSettingsDataSurface instanceof HTMLElement &&
+                browserSettingsPermissionsSurface instanceof HTMLElement &&
+                browserSettingsDomainsSurface instanceof HTMLElement &&
+                browserSettingsRows.length >= 8 &&
+                browserDomainRows.length >= 6 &&
+                browserSettingsSection.querySelector('.settings-panel') === null &&
+                browserSettingsSection.querySelector('.compact-setting') === null;
+              var settingsBrowserModuleWorks =
+                browserSettingsSection instanceof HTMLElement &&
+                browserSettingsSection.closest('[data-settings-page-module="browser"]') instanceof HTMLElement;
+              var settingsBrowserPolicyPersistenceWorks =
+                browserSettingsApprovalSelect instanceof HTMLSelectElement &&
+                browserSettingsApprovalSelect.value === 'alwaysAllow' &&
+                browserPolicyStatus instanceof HTMLElement &&
+                browserPolicyStatus.textContent?.includes('Browser permissions saved') === true &&
+                browserSettingsPolicy?.approvalMode === 'alwaysAllow' &&
+                Array.isArray(browserSettingsPolicy?.allowedOrigins) &&
+                browserSettingsPolicy.allowedOrigins.includes('example.com');
               const dataButton = [...document.querySelectorAll('button')]
                 .find((button) => button.textContent?.includes('Data controls'));
               dataButton?.click();
@@ -1629,8 +1766,9 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             }
           }
           if (${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'resources' || ${JSON.stringify(process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW)} === 'capabilities') {
-            const capabilitiesButton = [...document.querySelectorAll('button')]
-              .find((button) => button.textContent?.includes('Capabilities'));
+            const capabilitiesButton = document.querySelector('[data-testid="sidebar-primary-action-plugins"]') ??
+              [...document.querySelectorAll('button')]
+                .find((button) => button.textContent?.includes('Capabilities') || button.textContent?.includes('Plugins'));
             capabilitiesButton?.click();
             await sleep(450);
             for (let index = 0; index < 20; index += 1) {
@@ -1792,6 +1930,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelRestored instanceof HTMLElement &&
               bottomPanelShell.contains(bottomPanelRestored) &&
               bottomPanelShell.getAttribute('data-app-shell-focus-area') === 'bottom-panel';
+            var terminalPanelMaterialSolidWorks =
+              bottomPanelShell instanceof HTMLElement &&
+              bottomPanelRestored instanceof HTMLElement &&
+              bottomPanelShell.getAttribute('data-app-shell-panel-material') === 'solid' &&
+              backgroundAlpha(bottomPanelShell) >= 0.99 &&
+              backgroundAlpha(bottomPanelRestored) >= 0.99;
             const bottomPanelAnimationProgress = Number(bottomPanelShell?.getAttribute('data-app-shell-panel-animation-progress') ?? '0');
             const bottomPanelAnimatedSize = Number(bottomPanelShell?.getAttribute('data-app-shell-panel-animated-size') ?? '0');
             const bottomPanelTargetSize = Number(bottomPanelShell?.getAttribute('data-app-shell-panel-target-size') ?? '0');
@@ -1818,11 +1962,12 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               bottomPanelShell instanceof HTMLElement &&
               bottomPanelRestored instanceof HTMLElement &&
               terminalTabPanelForSizing instanceof HTMLElement &&
-              bottomPanelContentHeight >= 120 &&
+              bottomPanelContentHeight >= 110 &&
               bottomPanelChromeHeight === 50 &&
-              bottomPanelDefaultHeight === 260 &&
-              bottomPanelMinHeight === 120 &&
+              bottomPanelDefaultHeight === 230 &&
+              bottomPanelMinHeight === 110 &&
               bottomPanelTotalHeight === bottomPanelContentHeight + bottomPanelChromeHeight &&
+              bottomPanelTotalHeight === 280 &&
               bottomPanelTargetSize === bottomPanelTotalHeight &&
               Number(bottomPanelShell.getAttribute('data-bottom-panel-content-height') ?? '0') === bottomPanelContentHeight &&
               Number(bottomPanelShell.getAttribute('data-bottom-panel-chrome-height') ?? '0') === bottomPanelChromeHeight &&
@@ -1856,6 +2001,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var terminalTabDragMarkerWorks = false;
             var terminalToolbarSharedWorks = false;
             var terminalHeaderSharedChromeWorks = false;
+            var terminalPanelTabCodexMetricsWorks = false;
             var terminalContentSpacingWorks = false;
             var terminalResizeResetWorks = false;
             var terminalResizeHandleOverlayWorks = false;
@@ -1905,6 +2051,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               terminalTabbarForToolbar.classList.contains('panel-tab-strip') &&
               !terminalTabbarForToolbar.classList.contains('terminal-panel-tabstrip') &&
               !(document.querySelector('.terminal-panel-tab-row') instanceof HTMLElement);
+            if (terminalTabbarForToolbar instanceof HTMLElement) {
+              const terminalTabButtons = [...terminalTabbarForToolbar.querySelectorAll('.motion-tab-button')]
+                .filter((button) => button instanceof HTMLElement);
+              const terminalTabStyles = terminalTabButtons.map((button) => getComputedStyle(button));
+              const terminalTabRects = terminalTabButtons.map((button) => button.getBoundingClientRect());
+              terminalPanelTabCodexMetricsWorks =
+                terminalTabButtons.length >= 1 &&
+                terminalTabRects.every((rect) => rect.height >= 27 && rect.height <= 29 && rect.width <= 162) &&
+                terminalTabStyles.every((style) =>
+                  style.maxWidth === '160px' &&
+                  style.minHeight === '28px' &&
+                  style.borderRadius === '8px' &&
+                  Number.parseFloat(style.fontSize || '0') >= 13.5
+                );
+            }
             terminalToolbarSharedWorks =
               terminalTabbarForToolbar instanceof HTMLElement &&
               terminalTabbarForToolbar.getAttribute('data-panel-toolbar') === 'true' &&
@@ -1999,10 +2160,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 heightAfterKeyboardReset = Number(terminalBottomHeaderAfterKeyboardReset?.getAttribute('data-bottom-panel-height') ?? '0');
                 terminalResizeKeyboardWorks =
                   terminalResizeHandleForKeyboard.getAttribute('tabindex') === '0' &&
-                  terminalResizeHandleForKeyboard.getAttribute('aria-valuemin') === '120' &&
-                  Number(terminalResizeHandleForKeyboard.getAttribute('aria-valuemax') ?? '0') >= 260 &&
+                  terminalResizeHandleForKeyboard.getAttribute('aria-valuemin') === '110' &&
+                  Number(terminalResizeHandleForKeyboard.getAttribute('aria-valuemax') ?? '0') >= 230 &&
                   Math.abs(heightAfterKeyboard - heightAfterReset) >= 8 &&
-                  Math.abs(heightAfterKeyboardReset - 260) <= 4;
+                  Math.abs(heightAfterKeyboardReset - 230) <= 4;
               }
               terminalResizeResetDebug = {
                 resizeHandleFound: true,
@@ -2025,7 +2186,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 bottomPanelTotalHeight,
                 bottomPanelTargetSize,
                 resizeDelta: heightAfterResize - heightBeforeResize,
-                resetDelta: heightAfterReset - 260,
+                resetDelta: heightAfterReset - 230,
                 handleRect: {
                   width: resizeRect.width,
                   height: resizeRect.height,
@@ -2047,7 +2208,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 terminalResizeHandle.getAttribute('data-app-shell-resize-handle') === 'true' &&
                 terminalResizeHandle.getAttribute('data-app-shell-resize-edge') === 'top' &&
                 Math.abs(heightAfterResize - heightBeforeResize) >= 24 &&
-                Math.abs(heightAfterReset - 260) <= 4;
+                Math.abs(heightAfterReset - 230) <= 4;
             } else {
               terminalResizeResetDebug = {
                 resizeHandleFound: terminalResizeHandle instanceof HTMLElement,
@@ -2417,7 +2578,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                       rightTransferSection.getAttribute('data-panel-tab-transfer-source') === 'right' &&
                       rightTransferSection.getAttribute('data-panel-tab-transfer-target') === 'bottom';
                     const moveShortcutToBottom = [...document.querySelectorAll('[role="menuitem"]')]
-                      .find((item) => item.textContent?.includes('Move terminal to bottom'));
+                      .find((item) => item.textContent?.includes('Move tab to bottom panel'));
                     if (moveShortcutToBottom instanceof HTMLButtonElement) {
                       moveShortcutToBottom.click();
                       await sleep(260);
@@ -2434,7 +2595,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   }));
                   await sleep(140);
                   const moveToBottom = [...document.querySelectorAll('[role="menuitem"]')]
-                    .find((item) => item.textContent?.includes('Move terminal to bottom'));
+                    .find((item) => item.textContent?.includes('Move tab to bottom panel'));
                   if (moveToBottom instanceof HTMLButtonElement) {
                     moveToBottom.click();
                     await sleep(260);
@@ -2522,13 +2683,66 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             const terminalTabsForVisual = bottomPanelForTerminalVisual instanceof HTMLElement
               ? [...bottomPanelForTerminalVisual.querySelectorAll('[role="tab"]')]
               : [];
+            var terminalPanelTabCodexMetricsWorks = false;
+            if (terminalTabbarForVisual instanceof HTMLElement) {
+              const terminalTabButtonsForVisual = [...terminalTabbarForVisual.querySelectorAll('.motion-tab-button')]
+                .filter((button) => button instanceof HTMLElement);
+              const terminalTabStylesForVisual = terminalTabButtonsForVisual.map((button) => getComputedStyle(button));
+              const terminalTabRectsForVisual = terminalTabButtonsForVisual.map((button) => button.getBoundingClientRect());
+              terminalPanelTabCodexMetricsWorks =
+                terminalTabButtonsForVisual.length >= 1 &&
+                terminalTabRectsForVisual.every((rect) => rect.height >= 27 && rect.height <= 29 && rect.width <= 162) &&
+                terminalTabStylesForVisual.every((style) =>
+                  style.maxWidth === '160px' &&
+                  style.minHeight === '28px' &&
+                  style.borderRadius === '8px' &&
+                  Number.parseFloat(style.fontSize || '0') >= 13.5
+                );
+            }
             const terminalViewForVisual = document.querySelector('[data-testid="terminal-view"]');
             const terminalFailureForVisual = document.querySelector('[data-testid="terminal-failure-state"]');
             const terminalPlainOutputForVisual = document.querySelector('[data-testid="terminal-plain-output"]');
+            const bottomPanelShellForVisual = bottomPanelForTerminalVisual instanceof HTMLElement
+              ? bottomPanelForTerminalVisual.closest('[data-motion-panel="bottom"][data-app-shell-panel="bottom"]')
+              : null;
             var terminalVisualPanelWorks =
               bottomPanelForTerminalVisual instanceof HTMLElement &&
               terminalViewForVisual instanceof HTMLElement &&
               Number(bottomPanelForTerminalVisual.getAttribute('data-bottom-panel-height') ?? '0') >= 120;
+            var terminalVisualPanelMaterialSolidWorks =
+              bottomPanelShellForVisual instanceof HTMLElement &&
+              bottomPanelForTerminalVisual instanceof HTMLElement &&
+              bottomPanelShellForVisual.getAttribute('data-app-shell-panel-material') === 'solid' &&
+              backgroundAlpha(bottomPanelShellForVisual) >= 0.99 &&
+              backgroundAlpha(bottomPanelForTerminalVisual) >= 0.99;
+            const bottomPanelVisualTargetSize = Number(bottomPanelShellForVisual?.getAttribute('data-app-shell-panel-target-size') ?? '0');
+            const bottomPanelVisualContentHeight = Number(bottomPanelForTerminalVisual?.getAttribute('data-bottom-panel-content-height') ?? '0');
+            const bottomPanelVisualChromeHeight = Number(bottomPanelForTerminalVisual?.getAttribute('data-bottom-panel-chrome-height') ?? '0');
+            const bottomPanelVisualTotalHeight = Number(bottomPanelForTerminalVisual?.getAttribute('data-bottom-panel-total-height') ?? '0');
+            const bottomPanelVisualDefaultHeight = Number(bottomPanelForTerminalVisual?.getAttribute('data-bottom-panel-default-height') ?? '0');
+            const bottomPanelVisualMinHeight = Number(bottomPanelForTerminalVisual?.getAttribute('data-bottom-panel-min-height') ?? '0');
+            const terminalTabPanelForVisualSizing = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="bottom"]');
+            const terminalTabPanelVisualContentHeight = Number(terminalTabPanelForVisualSizing?.getAttribute('data-bottom-panel-content-height') ?? '0');
+            const terminalTabPanelVisualChromeHeight = Number(terminalTabPanelForVisualSizing?.getAttribute('data-bottom-panel-chrome-height') ?? '0');
+            const terminalTabPanelVisualTotalHeight = Number(terminalTabPanelForVisualSizing?.getAttribute('data-bottom-panel-total-height') ?? '0');
+            var terminalBottomPanelSizeDecompositionWorks =
+              bottomPanelShellForVisual instanceof HTMLElement &&
+              bottomPanelForTerminalVisual instanceof HTMLElement &&
+              terminalTabPanelForVisualSizing instanceof HTMLElement &&
+              bottomPanelVisualContentHeight >= 110 &&
+              bottomPanelVisualChromeHeight === 50 &&
+              bottomPanelVisualDefaultHeight === 230 &&
+              bottomPanelVisualMinHeight === 110 &&
+              bottomPanelVisualTotalHeight === bottomPanelVisualContentHeight + bottomPanelVisualChromeHeight &&
+              bottomPanelVisualTotalHeight === 280 &&
+              bottomPanelVisualTargetSize === bottomPanelVisualTotalHeight &&
+              Number(bottomPanelShellForVisual.getAttribute('data-bottom-panel-content-height') ?? '0') === bottomPanelVisualContentHeight &&
+              Number(bottomPanelShellForVisual.getAttribute('data-bottom-panel-chrome-height') ?? '0') === bottomPanelVisualChromeHeight &&
+              Number(bottomPanelShellForVisual.getAttribute('data-bottom-panel-total-height') ?? '0') === bottomPanelVisualTotalHeight &&
+              terminalTabPanelVisualContentHeight === bottomPanelVisualContentHeight &&
+              terminalTabPanelVisualChromeHeight === bottomPanelVisualChromeHeight &&
+              terminalTabPanelVisualTotalHeight === bottomPanelVisualTotalHeight &&
+              Math.abs(terminalTabPanelForVisualSizing.getBoundingClientRect().height - bottomPanelVisualContentHeight) <= 2;
             var terminalVisualTabsWork =
               bottomPanelForTerminalVisual instanceof HTMLElement &&
               terminalTabsForVisual.length >= 2 &&
@@ -2801,8 +3015,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             var reviewDocumentPreviewWorks =
               documentPreviewToggle instanceof HTMLButtonElement &&
               reviewDocumentState instanceof HTMLElement &&
-              reviewDocumentState.innerText.includes('DOCX') &&
-              reviewDocumentState.innerText.includes('Document smoke updated') &&
+              (reviewDocumentState.innerText.includes('Document smoke updated') ||
+                reviewDocumentState.innerText.includes('Document smoke styled heading')) &&
               Boolean(reviewDocumentState.querySelector('.document-preview-body')) &&
               !document.querySelector('[data-testid="review-source-preview"]');
             if (diffSearch instanceof HTMLInputElement) {
@@ -3252,6 +3466,21 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                   fileTabButton.getAttribute('data-preview') === 'false' &&
                   !findButton('Pin file tab');
               }
+            }
+            if (window.api?.settings?.set) {
+              await window.api.settings.set('browserUsePolicy', {
+                approvalMode: 'alwaysAllow',
+                historyApprovalMode: 'alwaysAllow',
+                downloadApprovalMode: 'alwaysAllow',
+                uploadApprovalMode: 'alwaysAllow',
+                allowedOrigins: ['localhost', '127.0.0.1', 'example.com'],
+                blockedOrigins: ['blocked.example'],
+                allowedDownloadOrigins: ['downloads.example'],
+                blockedDownloadOrigins: [],
+                allowedUploadOrigins: ['uploads.example'],
+                blockedUploadOrigins: []
+              });
+              await sleep(160);
             }
             const browserPanelTabButton = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
             if (browserPanelTabButton instanceof HTMLElement) {
@@ -3730,9 +3959,29 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
                 await sleep(100);
               }
             }
+            for (let index = 0; index < 20; index += 1) {
+              const values = [...document.querySelectorAll('[data-testid="browser-security-pane"] .browser-policy-select select')]
+                .map((select) => select instanceof HTMLSelectElement ? select.value : '');
+              const policyText = document.querySelector('[data-testid="browser-security-pane"]')?.textContent ?? '';
+              if (
+                values.length === 4 &&
+                values.every((value) => value === 'alwaysAllow') &&
+                policyText.includes('example.com') &&
+                policyText.includes('blocked.example') &&
+                policyText.includes('downloads.example') &&
+                policyText.includes('uploads.example')
+              ) {
+                break;
+              }
+              await sleep(100);
+            }
             const browserSecurityPane = document.querySelector('[data-testid="browser-security-pane"]');
             const browserSecurityOrigin = document.querySelector('[data-testid="browser-security-origin"]');
             const browserSecurityRows = [...document.querySelectorAll('[data-testid="browser-security-policy-row"]')];
+            const browserSecurityPolicySelectValues = browserSecurityPane instanceof HTMLElement
+              ? [...browserSecurityPane.querySelectorAll('.browser-policy-select select')]
+                .map((select) => select instanceof HTMLSelectElement ? select.value : '')
+              : [];
             const browserSecurityText = browserSecurityPane instanceof HTMLElement
               ? browserSecurityPane.textContent?.toLowerCase() ?? ''
               : '';
@@ -3748,6 +3997,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
               browserSecurityText.includes('downloads') &&
               browserSecurityText.includes('uploads') &&
               browserSecurityPane.querySelectorAll('.browser-policy-select').length === 4;
+            var browserPersistedPolicyDefaultsWorks =
+              browserSecurityPane instanceof HTMLElement &&
+              browserSecurityPolicySelectValues.length === 4 &&
+              browserSecurityPolicySelectValues.every((value) => value === 'alwaysAllow') &&
+              browserSecurityText.includes('example.com') &&
+              browserSecurityText.includes('blocked.example') &&
+              browserSecurityText.includes('downloads.example') &&
+              browserSecurityText.includes('uploads.example');
             var browserSecurityPaneNoHorizontalOverflowWorks = (() => {
               const drawer = document.querySelector('.browser-inspector-drawer');
               const output = document.querySelector('[data-testid="browser-inspector-output"]');
@@ -4366,6 +4623,14 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
           const workbenchPanelInactiveLabels = workbenchPanelInactiveTabs
             .map((tab) => tab.querySelector('.panel-tab-label'))
             .filter((label) => label instanceof HTMLElement);
+          const workbenchPanelClosableTabs = [...document.querySelectorAll('[data-testid="workbench-panel-tabbar"] .motion-tab-button[data-closable="true"]')]
+            .filter((tab) => tab instanceof HTMLElement);
+          const workbenchPanelCloseButtons = workbenchPanelClosableTabs
+            .map((tab) => ({
+              tab,
+              closeButton: tab.querySelector('.motion-tab-close')
+            }))
+            .filter(({ closeButton }) => closeButton instanceof HTMLElement);
           var rightPanelMenuCommandStateWorks = false;
           var rightPanelMenuCommandStateDebug = null;
           const workbenchPanelChromeCompactWorks =
@@ -4396,6 +4661,28 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             workbenchPanelTrailingFadeStyle.backgroundImage.includes('linear-gradient') &&
             Number.parseFloat(workbenchPanelTrailingFadeStyle.width || '0') >= 16 &&
             workbenchPanelTrailingFadeStyle.pointerEvents === 'none';
+          const workbenchPanelTabCloseStartEdgeWorks =
+            workbenchPanelCloseButtons.length >= 2 &&
+            workbenchPanelCloseButtons.every(({ tab, closeButton }) => {
+              if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return false;
+              const tabRect = tab.getBoundingClientRect();
+              const closeRect = closeButton.getBoundingClientRect();
+              return closeRect.left >= tabRect.left - 1 &&
+                closeRect.left <= tabRect.left + 8 &&
+                closeRect.right < tabRect.left + tabRect.width / 2;
+            });
+          const workbenchPanelTabCloseStartEdgeDebug = workbenchPanelCloseButtons.map(({ tab, closeButton }) => {
+            if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return null;
+            const tabRect = tab.getBoundingClientRect();
+            const closeRect = closeButton.getBoundingClientRect();
+            return {
+              tabId: tab.getAttribute('data-tab-id'),
+              tabLeft: Math.round(tabRect.left),
+              tabWidth: Math.round(tabRect.width),
+              closeLeft: Math.round(closeRect.left),
+              closeRight: Math.round(closeRect.right)
+            };
+          }).filter(Boolean);
           const workbenchPanelAddControlStableWorks =
             workbenchPanelAddTabButton instanceof HTMLButtonElement &&
             workbenchPanelAddTabButton.getAttribute('aria-label') === 'Add Workbench tab' &&
@@ -4911,12 +5198,40 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             });
           let headerLongTooltipBoundedWorks = false;
           const profileBadge = document.querySelector('[data-testid="profile-badge"]');
+          const profileBadgeRect = profileBadge instanceof HTMLElement ? profileBadge.getBoundingClientRect() : null;
+          const profileBadgeCompactWorks =
+            profileBadge instanceof HTMLElement &&
+            profileBadge.getAttribute('data-profile-badge-visibility') === 'icon-only' &&
+            !((profileBadge.textContent ?? '').includes(profile.displayName)) &&
+            profileBadgeRect !== null &&
+            profileBadgeRect.width <= 32 &&
+            profileBadgeRect.height <= 32;
+          const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
+          const titlebarActionButtons = titlebarActions instanceof HTMLElement
+            ? [
+                document.querySelector('[data-testid="titlebar-chat-actions"]'),
+                document.querySelector('[data-testid="titlebar-toggle-sidebar"]'),
+                document.querySelector('[data-testid="titlebar-toggle-terminal"]')
+              ].filter((button) => button instanceof HTMLButtonElement)
+            : [];
+          const titlebarActionRects = titlebarActionButtons.map((button) => button.getBoundingClientRect());
+          const headerActionChromeCompactWorks =
+            titlebarActions instanceof HTMLElement &&
+            titlebarActions.getAttribute('data-header-panel-action-style') === 'codex-compact' &&
+            titlebarActionButtons.length === 3 &&
+            titlebarActionButtons.every((button) =>
+              button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+              button.getAttribute('data-icon-button-size') === 'sm'
+            ) &&
+            titlebarActionRects.every((rect) => rect.width <= 26 && rect.height <= 26) &&
+            profileBadgeRect !== null &&
+            profileBadgeRect.width <= 26 &&
+            profileBadgeRect.height <= 26;
           if (profileBadge instanceof HTMLElement) {
-            const badgeRect = profileBadge.getBoundingClientRect();
             profileBadge.dispatchEvent(new MouseEvent('mouseover', {
               bubbles: true,
-              clientX: badgeRect.left + badgeRect.width / 2,
-              clientY: badgeRect.top + badgeRect.height / 2
+              clientX: profileBadgeRect.left + profileBadgeRect.width / 2,
+              clientY: profileBadgeRect.top + profileBadgeRect.height / 2
             }));
             profileBadge.focus({ preventScroll: true });
             await sleep(360);
@@ -5016,6 +5331,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             nativeTitleFreeControlsWork,
             nativeTitleFreeControlLeaks,
             composerNativeTooltipsWork,
+            profileBadgeCompactWorks,
+            headerActionChromeCompactWorks,
             headerActionMenuWorks: typeof headerActionMenuWorks === 'boolean' ? headerActionMenuWorks : null,
             chatEmptyStateWorks: typeof chatEmptyStateWorks === 'boolean' ? chatEmptyStateWorks : null,
             chatEmptyStateQuietWorks: typeof chatEmptyStateQuietWorks === 'boolean' ? chatEmptyStateQuietWorks : null,
@@ -5031,6 +5348,8 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             workbenchPanelChromeCompactWorks,
             workbenchPanelChromeCompactDebug,
             workbenchPanelTrailingFadeWorks,
+            workbenchPanelTabCloseStartEdgeWorks,
+            workbenchPanelTabCloseStartEdgeDebug,
             workbenchPanelInactiveTabsCompactWorks,
             workbenchPanelInactiveTabTooltipWorks,
             diffToolbarCompactWorks,
@@ -5128,6 +5447,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             browserAssetBundleWorks: typeof browserAssetBundleWorks === 'boolean' ? browserAssetBundleWorks : null,
             browserInlineSvgInventoryWorks: typeof browserInlineSvgInventoryWorks === 'boolean' ? browserInlineSvgInventoryWorks : null,
             browserSecurityPaneWorks: typeof browserSecurityPaneWorks === 'boolean' ? browserSecurityPaneWorks : null,
+            browserPersistedPolicyDefaultsWorks: typeof browserPersistedPolicyDefaultsWorks === 'boolean' ? browserPersistedPolicyDefaultsWorks : null,
             browserSecurityPaneNoHorizontalOverflowWorks: typeof browserSecurityPaneNoHorizontalOverflowWorks === 'boolean' ? browserSecurityPaneNoHorizontalOverflowWorks : null,
             browserInspectorContainersSharedWorks: typeof browserInspectorContainersSharedWorks === 'boolean' ? browserInspectorContainersSharedWorks : null,
             browserInspectorChromeCompactWorks: typeof browserInspectorChromeCompactWorks === 'boolean' ? browserInspectorChromeCompactWorks : null,
@@ -5147,6 +5467,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             sideChatCloseWorks: typeof sideChatCloseWorks === 'boolean' ? sideChatCloseWorks : null,
             terminalTabsPersistState: typeof terminalTabsPersistState === 'boolean' ? terminalTabsPersistState : null,
             terminalShellOwnershipWorks: typeof terminalShellOwnershipWorks === 'boolean' ? terminalShellOwnershipWorks : null,
+            terminalPanelMaterialSolidWorks: typeof terminalPanelMaterialSolidWorks === 'boolean' ? terminalPanelMaterialSolidWorks : null,
             terminalSharedAnimationControllerWorks: typeof terminalSharedAnimationControllerWorks === 'boolean' ? terminalSharedAnimationControllerWorks : null,
             terminalSharedLayoutControllerWorks: typeof terminalSharedLayoutControllerWorks === 'boolean' ? terminalSharedLayoutControllerWorks : null,
             terminalBottomPanelSizeDecompositionWorks: typeof terminalBottomPanelSizeDecompositionWorks === 'boolean' ? terminalBottomPanelSizeDecompositionWorks : null,
@@ -5158,6 +5479,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalTabDragMarkerWorks: typeof terminalTabDragMarkerWorks === 'boolean' ? terminalTabDragMarkerWorks : null,
             terminalToolbarSharedWorks: typeof terminalToolbarSharedWorks === 'boolean' ? terminalToolbarSharedWorks : null,
             terminalHeaderSharedChromeWorks: typeof terminalHeaderSharedChromeWorks === 'boolean' ? terminalHeaderSharedChromeWorks : null,
+            terminalPanelTabCodexMetricsWorks: typeof terminalPanelTabCodexMetricsWorks === 'boolean' ? terminalPanelTabCodexMetricsWorks : null,
             terminalContentSpacingWorks: typeof terminalContentSpacingWorks === 'boolean' ? terminalContentSpacingWorks : null,
             terminalResizeResetWorks: typeof terminalResizeResetWorks === 'boolean' ? terminalResizeResetWorks : null,
             terminalResizeHandleOverlayWorks: typeof terminalResizeHandleOverlayWorks === 'boolean' ? terminalResizeHandleOverlayWorks : null,
@@ -5178,6 +5500,7 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             terminalThemeFontSyncWorks: typeof terminalThemeFontSyncWorks === 'boolean' ? terminalThemeFontSyncWorks : null,
             terminalThemeTokenMatrixWorks: typeof terminalThemeTokenMatrixWorks === 'boolean' ? terminalThemeTokenMatrixWorks : null,
             terminalVisualPanelWorks: typeof terminalVisualPanelWorks === 'boolean' ? terminalVisualPanelWorks : null,
+            terminalVisualPanelMaterialSolidWorks: typeof terminalVisualPanelMaterialSolidWorks === 'boolean' ? terminalVisualPanelMaterialSolidWorks : null,
             terminalVisualTabsWork: typeof terminalVisualTabsWork === 'boolean' ? terminalVisualTabsWork : null,
             terminalVisualToolbarWorks: typeof terminalVisualToolbarWorks === 'boolean' ? terminalVisualToolbarWorks : null,
             terminalVisualHealthyContentWorks: typeof terminalVisualHealthyContentWorks === 'boolean' ? terminalVisualHealthyContentWorks : null,
@@ -5215,6 +5538,10 @@ function maybeRunAutomatedUiSmoke(win: BrowserWindow): void {
             settingsDataControlsWorks: typeof settingsDataControlsWorks === 'boolean' ? settingsDataControlsWorks : null,
             settingsDataControlsSurfaceWorks: typeof settingsDataControlsSurfaceWorks === 'boolean' ? settingsDataControlsSurfaceWorks : null,
             settingsDataControlsModuleWorks: typeof settingsDataControlsModuleWorks === 'boolean' ? settingsDataControlsModuleWorks : null,
+            settingsBrowserPageWorks: typeof settingsBrowserPageWorks === 'boolean' ? settingsBrowserPageWorks : null,
+            settingsBrowserSurfaceWorks: typeof settingsBrowserSurfaceWorks === 'boolean' ? settingsBrowserSurfaceWorks : null,
+            settingsBrowserModuleWorks: typeof settingsBrowserModuleWorks === 'boolean' ? settingsBrowserModuleWorks : null,
+            settingsBrowserPolicyPersistenceWorks: typeof settingsBrowserPolicyPersistenceWorks === 'boolean' ? settingsBrowserPolicyPersistenceWorks : null,
             settingsAutomationsPageWorks: typeof settingsAutomationsPageWorks === 'boolean' ? settingsAutomationsPageWorks : null,
             settingsWorktreesPageWorks: typeof settingsWorktreesPageWorks === 'boolean' ? settingsWorktreesPageWorks : null,
             settingsWorktreesCreateWorks: typeof settingsWorktreesCreateWorks === 'boolean' ? settingsWorktreesCreateWorks : null,
@@ -5342,6 +5669,21 @@ function runAutomatedFocusedSurfaceSmoke(
             const findButtonStartingWith = (labelPrefix) =>
               [...document.querySelectorAll('button')]
                 .find((button) => buttonLabel(button).startsWith(labelPrefix));
+            const colorAlpha = (color) => {
+              const value = String(color ?? '').trim().toLowerCase();
+              if (!value || value === 'transparent') return 0;
+              const rgbaMatch = value.match(/rgba?\\(([^)]+)\\)/);
+              if (rgbaMatch) {
+                const parts = rgbaMatch[1].split(/[,/\\s]+/).filter(Boolean);
+                return parts.length >= 4 ? Number.parseFloat(parts[3]) : 1;
+              }
+              const colorMatch = value.match(/color\\([^/]+\\/\\s*([0-9.]+)\\s*\\)/);
+              if (colorMatch) return Number.parseFloat(colorMatch[1]);
+              return 1;
+            };
+            const backgroundAlpha = (element) => element instanceof HTMLElement
+              ? colorAlpha(getComputedStyle(element).backgroundColor)
+              : 0;
             const setNativeValue = (element, value) => {
               const setter = Object.getOwnPropertyDescriptor(element.constructor.prototype, 'value')?.set;
               setter?.call(element, value);
@@ -5395,11 +5737,17 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  if (await waitForRightPanelTab()) return;
 	                }
 	              }
+              const actionId = tabId === 'diff' ? 'review' : tabId;
+              const visibleNewTabAction = document.querySelector('[data-testid="workbench-new-tab-action-' + actionId + '"]');
+              if (visibleNewTabAction instanceof HTMLElement && visibleNewTabAction.getAttribute('aria-disabled') !== 'true') {
+                visibleNewTabAction.click();
+                await sleep(260);
+                return;
+              }
               const addButton = findButton('Add Workbench tab');
               if (addButton instanceof HTMLElement) {
                 addButton.click();
                 await sleep(120);
-                const actionId = tabId === 'diff' ? 'review' : tabId;
                 const newTabAction = document.querySelector('[data-testid="workbench-new-tab-action-' + actionId + '"]');
                 if (newTabAction instanceof HTMLElement && !newTabAction.hasAttribute('disabled')) {
                   newTabAction.click();
@@ -5413,11 +5761,37 @@ function runAutomatedFocusedSurfaceSmoke(
             };
 
             const runHeader = async () => {
-              const headerMetadataText = document.querySelector('[data-testid="session-header-metadata"]')?.textContent ?? '';
+              const headerMetadata = document.querySelector('[data-testid="session-header-metadata"]');
+              const headerMetadataText = headerMetadata?.textContent ?? '';
               const activeSessionTitle = document.querySelector('[data-testid="active-session-title"]');
+              const profileBadge = document.querySelector('[data-testid="profile-badge"]');
+              const profileBadgeRect = profileBadge instanceof HTMLElement ? profileBadge.getBoundingClientRect() : null;
+              const metadataRect = headerMetadata instanceof HTMLElement ? headerMetadata.getBoundingClientRect() : null;
+              const activeTitleTooltip = activeSessionTitle instanceof HTMLElement ? activeSessionTitle.getAttribute('data-tooltip-label') ?? '' : '';
               const titlebarToggleSidebar = document.querySelector('[data-testid="titlebar-toggle-sidebar"]');
               const chatActionsButton = document.querySelector('[data-testid="titlebar-chat-actions"]');
-              const headerActions = document.querySelector('[data-testid="titlebar-actions"]')?.getAttribute('data-header-actions') ?? '';
+              const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
+              const headerActions = titlebarActions?.getAttribute('data-header-actions') ?? '';
+              const titlebarActionButtons = titlebarActions instanceof HTMLElement
+                ? [
+                    document.querySelector('[data-testid="titlebar-chat-actions"]'),
+                    document.querySelector('[data-testid="titlebar-toggle-sidebar"]'),
+                    document.querySelector('[data-testid="titlebar-toggle-terminal"]')
+                  ].filter((button) => button instanceof HTMLButtonElement)
+                : [];
+              const titlebarActionRects = titlebarActionButtons.map((button) => button.getBoundingClientRect());
+              const headerActionChromeCompactWorks =
+                titlebarActions instanceof HTMLElement &&
+                titlebarActions.getAttribute('data-header-panel-action-style') === 'codex-compact' &&
+                titlebarActionButtons.length === 3 &&
+                titlebarActionButtons.every((button) =>
+                  button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  button.getAttribute('data-icon-button-size') === 'sm'
+                ) &&
+                titlebarActionRects.every((rect) => rect.width <= 26 && rect.height <= 26) &&
+                profileBadgeRect !== null &&
+                profileBadgeRect.width <= 26 &&
+                profileBadgeRect.height <= 26;
               let headerActionMenuWorks =
                 headerActions.includes('folder') &&
                 headerActions.includes('project') &&
@@ -5445,6 +5819,20 @@ function runAutomatedFocusedSurfaceSmoke(
                   headerMetadataText.includes('Automated UI Smoke') &&
                   headerMetadataText.includes('Claude') &&
                   headerMetadataText.length > 'Automated UI Smoke'.length,
+                headerMetadataTooltipOnlyWorks:
+                  headerMetadata instanceof HTMLElement &&
+                  headerMetadata.getAttribute('data-session-header-metadata-visibility') === 'tooltip-only' &&
+                  activeTitleTooltip.includes(headerMetadataText) &&
+                  metadataRect !== null &&
+                  metadataRect.width <= 2 &&
+                  metadataRect.height <= 2,
+                profileBadgeCompactWorks:
+                  profileBadge instanceof HTMLElement &&
+                  profileBadge.getAttribute('data-profile-badge-visibility') === 'icon-only' &&
+                  !((profileBadge.textContent ?? '').includes(profile.displayName)) &&
+                  profileBadgeRect !== null &&
+                  profileBadgeRect.width <= 32 &&
+                  profileBadgeRect.height <= 32,
                 headerNativeTooltipsWork: headerTooltipIds.every((testId) => {
                   const element = document.querySelector('[data-testid="' + testId + '"]');
                   return element instanceof HTMLElement &&
@@ -5457,6 +5845,7 @@ function runAutomatedFocusedSurfaceSmoke(
                   titlebarToggleSidebar instanceof HTMLButtonElement &&
                   titlebarToggleSidebar.getAttribute('aria-label') === 'Toggle sidebar' &&
                   titlebarToggleSidebar.dataset.icon === 'panelRight',
+                headerActionChromeCompactWorks,
                 headerActionMenuWorks
               };
             };
@@ -5479,6 +5868,114 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelShell.getAttribute('data-app-shell-panel-surface') === 'workbench' &&
                 rightPanelShell.getAttribute('data-app-shell-focus-area') === 'right-panel' &&
                 rightPanelShell.contains(rightPanel);
+              const sessionTitlebar = document.querySelector('[data-testid="session-titlebar"]');
+              const sessionMainRow = document.querySelector('[data-testid="session-main-row"]');
+              const sessionPrimaryContent = document.querySelector('[data-testid="session-primary-content"]');
+              const mainContentFrame = document.querySelector('[data-app-shell-main-content-frame="codex-continuous"]');
+              const rightPanelChrome = document.querySelector('[data-testid="workbench-panel-tabbar"]')?.closest('.workbench-panel-chrome');
+              const titlebarRect = sessionTitlebar instanceof HTMLElement ? sessionTitlebar.getBoundingClientRect() : null;
+              const mainRowRectForSeam = sessionMainRow instanceof HTMLElement ? sessionMainRow.getBoundingClientRect() : null;
+              const primaryRectForSeam = sessionPrimaryContent instanceof HTMLElement ? sessionPrimaryContent.getBoundingClientRect() : null;
+              const mainContentFrameStyle = mainContentFrame instanceof HTMLElement ? getComputedStyle(mainContentFrame) : null;
+              const rightPanelRectForSeam = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
+              const rightPanelShellRectForSeam = rightPanelShell instanceof HTMLElement ? rightPanelShell.getBoundingClientRect() : null;
+              const rightPanelChromeRectForSeam = rightPanelChrome instanceof HTMLElement ? rightPanelChrome.getBoundingClientRect() : null;
+              const rightPanelMaterialDebug = {
+                shellMaterial: rightPanelShell instanceof HTMLElement ? rightPanelShell.getAttribute('data-app-shell-panel-material') : null,
+                shellBackground: rightPanelShell instanceof HTMLElement ? getComputedStyle(rightPanelShell).backgroundColor : null,
+                surfaceBackground: rightPanel instanceof HTMLElement ? getComputedStyle(rightPanel).backgroundColor : null,
+                chromeBackground: rightPanelChrome instanceof HTMLElement ? getComputedStyle(rightPanelChrome).backgroundColor : null
+              };
+              const rightPanelMaterialSolidWorks =
+                rightPanel instanceof HTMLElement &&
+                rightPanelShell instanceof HTMLElement &&
+                rightPanelChrome instanceof HTMLElement &&
+                rightPanelShell.getAttribute('data-app-shell-panel-material') === 'solid' &&
+                backgroundAlpha(rightPanelShell) >= 0.99 &&
+                backgroundAlpha(rightPanel) >= 0.99 &&
+                backgroundAlpha(rightPanelChrome) >= 0.99;
+              const rightPanelHeaderSeamDebug = {
+                titlebarTop: titlebarRect?.top ?? null,
+                titlebarRight: titlebarRect?.right ?? null,
+                titlebarHeight: titlebarRect?.height ?? null,
+                mainRowTop: mainRowRectForSeam?.top ?? null,
+                primaryTop: primaryRectForSeam?.top ?? null,
+                rightPanelTop: rightPanelRectForSeam?.top ?? null,
+                rightPanelShellTop: rightPanelShellRectForSeam?.top ?? null,
+                rightPanelChromeTop: rightPanelChromeRectForSeam?.top ?? null,
+                rightPanelChromeHeight: rightPanelChromeRectForSeam?.height ?? null,
+                rightPanelLeft: rightPanelRectForSeam?.left ?? null,
+                rightPanelLayout: rightPanel instanceof HTMLElement ? rightPanel.dataset.rightPanelLayout ?? null : null
+              };
+              const sessionHeaderMetadata = document.querySelector('[data-testid="session-header-metadata"]');
+              const sessionHeaderMetadataRect = sessionHeaderMetadata instanceof HTMLElement ? sessionHeaderMetadata.getBoundingClientRect() : null;
+              const activeSessionTitleForMetadata = document.querySelector('[data-testid="active-session-title"]');
+              const headerMetadataText = sessionHeaderMetadata?.textContent ?? '';
+              const headerMetadataTooltipOnlyWorks =
+                sessionHeaderMetadata instanceof HTMLElement &&
+                activeSessionTitleForMetadata instanceof HTMLElement &&
+                sessionHeaderMetadata.getAttribute('data-session-header-metadata-visibility') === 'tooltip-only' &&
+                (activeSessionTitleForMetadata.getAttribute('data-tooltip-label') ?? '').includes(headerMetadataText) &&
+                sessionHeaderMetadataRect !== null &&
+                sessionHeaderMetadataRect.width <= 2 &&
+                sessionHeaderMetadataRect.height <= 2;
+              const sidebarDragSpacerForBand = document.querySelector('[data-testid="sidebar-window-drag-spacer"]');
+              const firstPrimaryActionForBand = document.querySelector('[data-testid="sidebar-primary-action-new-chat"]');
+              const sidebarForBand = document.querySelector('[data-testid="app-sidebar"]');
+              const sidebarDragSpacerRectForBand = sidebarDragSpacerForBand instanceof HTMLElement ? sidebarDragSpacerForBand.getBoundingClientRect() : null;
+              const firstPrimaryActionRectForBand = firstPrimaryActionForBand instanceof HTMLElement ? firstPrimaryActionForBand.getBoundingClientRect() : null;
+              const sidebarRectForBand = sidebarForBand instanceof HTMLElement ? sidebarForBand.getBoundingClientRect() : null;
+              const shellHeaderHeightToken = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-shell-header-height'));
+              const headerPanelSharedBandDebug = {
+                shellHeaderHeightToken: Number.isFinite(shellHeaderHeightToken) ? shellHeaderHeightToken : null,
+                titlebarHeight: titlebarRect?.height ?? null,
+                rightPanelChromeHeight: rightPanelChromeRectForSeam?.height ?? null,
+                sidebarDragSpacerHeight: sidebarDragSpacerRectForBand?.height ?? null,
+                sidebarPrimaryActionTopOffset: firstPrimaryActionRectForBand && sidebarRectForBand ? firstPrimaryActionRectForBand.top - sidebarRectForBand.top : null,
+                mainContentFrameTopLeftRadius: mainContentFrameStyle?.borderTopLeftRadius ?? null,
+                mainContentFrameBottomLeftRadius: mainContentFrameStyle?.borderBottomLeftRadius ?? null,
+                mainContentFrameShadow: mainContentFrameStyle?.boxShadow ?? null
+              };
+              const mainContentFrameContinuousWorks =
+                mainContentFrame instanceof HTMLElement &&
+                mainContentFrame.getAttribute('data-app-shell-main-content-frame') === 'codex-continuous' &&
+                mainContentFrameStyle !== null &&
+                Number.parseFloat(mainContentFrameStyle.borderTopLeftRadius || '0') <= 0.5 &&
+                Number.parseFloat(mainContentFrameStyle.borderBottomLeftRadius || '0') <= 0.5 &&
+                (mainContentFrameStyle.boxShadow === 'none' || mainContentFrameStyle.boxShadow === '');
+              const headerPanelSharedBandWorks =
+                titlebarRect !== null &&
+                rightPanelChromeRectForSeam !== null &&
+                sidebarDragSpacerRectForBand !== null &&
+                firstPrimaryActionRectForBand !== null &&
+                sidebarRectForBand !== null &&
+                Number.isFinite(shellHeaderHeightToken) &&
+                shellHeaderHeightToken >= 32 &&
+                shellHeaderHeightToken <= 42 &&
+                Math.abs(titlebarRect.height - shellHeaderHeightToken) <= 1 &&
+                Math.abs(rightPanelChromeRectForSeam.height - shellHeaderHeightToken) <= 2 &&
+                Math.abs(sidebarDragSpacerRectForBand.height - shellHeaderHeightToken) <= 1 &&
+                Math.abs(titlebarRect.top - rightPanelChromeRectForSeam.top) <= 2 &&
+                firstPrimaryActionRectForBand.top >= sidebarRectForBand.top + shellHeaderHeightToken - 1 &&
+                firstPrimaryActionRectForBand.top <= sidebarRectForBand.top + shellHeaderHeightToken + 8 &&
+                mainContentFrameContinuousWorks;
+              const rightPanelHeaderSeamWorks =
+                titlebarRect !== null &&
+                mainRowRectForSeam !== null &&
+                primaryRectForSeam !== null &&
+                rightPanelRectForSeam !== null &&
+                rightPanelShellRectForSeam !== null &&
+                rightPanelChromeRectForSeam !== null &&
+                Math.abs(titlebarRect.top - mainRowRectForSeam.top) <= 2 &&
+                Math.abs(primaryRectForSeam.top - mainRowRectForSeam.top) <= 2 &&
+                Math.abs(rightPanelShellRectForSeam.top - mainRowRectForSeam.top) <= 2 &&
+                Math.abs(rightPanelRectForSeam.top - mainRowRectForSeam.top) <= 2 &&
+                Math.abs(rightPanelChromeRectForSeam.top - titlebarRect.top) <= 2 &&
+                Math.abs(titlebarRect.right - rightPanelRectForSeam.left) <= 2 &&
+                titlebarRect.height >= 32 &&
+                titlebarRect.height <= 42 &&
+                rightPanelChromeRectForSeam.height >= 30 &&
+                rightPanelChromeRectForSeam.height <= 44;
               if (smokeView === 'workbench-new-tab') {
                 const addButton = document.querySelector('[data-testid="right-panel-add-tab"]');
                 if (addButton instanceof HTMLElement) {
@@ -5487,6 +5984,11 @@ function runAutomatedFocusedSurfaceSmoke(
                 }
                 const newTabPanel = document.querySelector('[data-testid="workbench-new-tab-panel"]');
                 const newTabGrid = document.querySelector('[data-testid="workbench-new-tab-action-grid"]');
+                const trailingAddButton = document.querySelector('[data-testid="right-panel-add-tab"]');
+                const activeNewTab = document.querySelector('[data-testid="workbench-panel-tabbar"] [role="tab"][data-tab-id="new-tab"][data-active="true"]');
+                const activeNewTabIcon = activeNewTab instanceof HTMLElement
+                  ? activeNewTab.querySelector('svg')
+                  : null;
                 const newTabCards = [...document.querySelectorAll('[data-workbench-new-tab-action]')]
                   .filter((card) => card instanceof HTMLElement);
                 const newTabCardIds = newTabCards
@@ -5520,6 +6022,11 @@ function runAutomatedFocusedSurfaceSmoke(
                     panelRect.height >= 240 &&
                     gridRect.width >= 240 &&
                     gridRect.height >= 120,
+                  workbenchNewTabSingleAddAffordance:
+                    trailingAddButton === null &&
+                    activeNewTab instanceof HTMLElement &&
+                    activeNewTabIcon instanceof SVGElement &&
+                    (activeNewTab.textContent ?? '').includes('New tab'),
                   workbenchNewTabActionCount: newTabCards.length,
                   workbenchNewTabNoHorizontalOverflow:
                     rightPanelRect !== null &&
@@ -5628,8 +6135,14 @@ function runAutomatedFocusedSurfaceSmoke(
               let rightPanelFullscreenCleanupWorks = false;
               let rightPanelTabTelemetryWorks = false;
               let rightPanelTabLifecycleTelemetryWorks = false;
+              let rightPanelPanelOpenCloseTelemetryWorks = false;
               let rightPanelTabWeightCalmWorks = false;
               let rightPanelTabActionsSharedVariantWorks = false;
+              let workbenchPanelTabOverflowControllerWorks = false;
+              let workbenchPanelTabCodexWidthCapWorks = false;
+              let workbenchPanelTabCodexMetricsWorks = false;
+              let workbenchPanelTabCloseStartEdgeWorks = false;
+              let workbenchPanelTabCloseStartEdgeDebug = [];
               let workbenchPanelNewTabPageWorks = false;
               let rightPanelFindShortcutRoutingWorks = false;
               let rightPanelFindShortcutRoutingDebug = {};
@@ -5657,6 +6170,78 @@ function runAutomatedFocusedSurfaceSmoke(
                   activeFontWeight > 0 &&
                   activeFontWeight <= 520 &&
                   tabCountWeights.every((weight) => weight <= 500);
+              }
+              if (tabbar instanceof HTMLElement && tabRow instanceof HTMLElement) {
+                const tabButtons = [...tabbar.querySelectorAll('.motion-tab-button')]
+                  .filter((button) => button instanceof HTMLElement);
+                const activeTabButton = tabButtons.find((button) => button.getAttribute('data-active') === 'true') ?? null;
+                const tabRects = tabButtons.map((button) => button.getBoundingClientRect());
+                const tabStyles = tabButtons.map((button) => getComputedStyle(button));
+                const tabWidthsStable = tabRects.length >= 3 &&
+                  tabRects.every((rect) => rect.width >= 38 && rect.height >= 24) &&
+                  tabStyles.every((style) => style.flexShrink === '0') &&
+                  activeTabButton instanceof HTMLElement &&
+                  activeTabButton.getBoundingClientRect().width >= 84;
+                const tabsDoNotOverlap = tabRects.every((rect, index) => {
+                  const next = tabRects[index + 1];
+                  return !next || rect.right <= next.left + 1;
+                });
+                const rowCanScrollOverflow = tabRow.scrollWidth > tabRow.clientWidth + 2
+                  ? tabbar.getAttribute('data-overflow-end') === 'true' || tabRow.scrollLeft > 0
+                  : true;
+                const tabWidthCapWorks =
+                  tabRects.length >= 3 &&
+                  tabRects.every((rect) => rect.width <= 162) &&
+                  tabStyles.every((style) => style.maxWidth === '160px') &&
+                  activeTabButton instanceof HTMLElement &&
+                  activeTabButton.getBoundingClientRect().width >= 84 &&
+                  activeTabButton.getBoundingClientRect().width <= 162;
+                workbenchPanelTabCodexMetricsWorks =
+                  tabRects.length >= 3 &&
+                  tabRects.every((rect) => rect.height >= 27 && rect.height <= 29 && rect.width <= 162) &&
+                  tabStyles.every((style) =>
+                    style.maxWidth === '160px' &&
+                    style.minHeight === '28px' &&
+                    style.borderRadius === '8px' &&
+                    Number.parseFloat(style.fontSize || '0') >= 13.5
+                  );
+                workbenchPanelTabOverflowControllerWorks =
+                  tabWidthsStable &&
+                  tabsDoNotOverlap &&
+                  rowCanScrollOverflow &&
+                  tabRow.scrollHeight <= tabRow.clientHeight + 2;
+                workbenchPanelTabCodexWidthCapWorks =
+                  tabWidthCapWorks &&
+                  workbenchPanelTabOverflowControllerWorks;
+                const closableTabs = tabButtons.filter((tab) => tab.getAttribute('data-closable') === 'true');
+                const closeButtons = closableTabs
+                  .map((tab) => ({
+                    tab,
+                    closeButton: tab.querySelector('.motion-tab-close')
+                  }))
+                  .filter(({ closeButton }) => closeButton instanceof HTMLElement);
+                workbenchPanelTabCloseStartEdgeWorks =
+                  closeButtons.length >= 2 &&
+                  closeButtons.every(({ tab, closeButton }) => {
+                    if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return false;
+                    const tabRect = tab.getBoundingClientRect();
+                    const closeRect = closeButton.getBoundingClientRect();
+                    return closeRect.left >= tabRect.left - 1 &&
+                      closeRect.left <= tabRect.left + 8 &&
+                      closeRect.right < tabRect.left + tabRect.width / 2;
+                  });
+                workbenchPanelTabCloseStartEdgeDebug = closeButtons.map(({ tab, closeButton }) => {
+                  if (!(tab instanceof HTMLElement) || !(closeButton instanceof HTMLElement)) return null;
+                  const tabRect = tab.getBoundingClientRect();
+                  const closeRect = closeButton.getBoundingClientRect();
+                  return {
+                    tabId: tab.getAttribute('data-tab-id'),
+                    tabLeft: Math.round(tabRect.left),
+                    tabWidth: Math.round(tabRect.width),
+                    closeLeft: Math.round(closeRect.left),
+                    closeRight: Math.round(closeRect.right)
+                  };
+                }).filter(Boolean);
               }
               if (tabActions instanceof HTMLElement) {
                 const actionButtons = [...tabActions.querySelectorAll('.motion-icon-button')]
@@ -5904,6 +6489,14 @@ function runAutomatedFocusedSurfaceSmoke(
                   !afterCloseTabs.includes('browser') &&
                   document.querySelector('[data-tab-id="files"]')?.closest('[role="tab"]') instanceof HTMLElement;
                 await openPanelTab('browser', 'Browser');
+                const browserTabForFallback = document.querySelector('[data-tab-id="browser"]')?.closest('[role="tab"]');
+                if (browserTabForFallback instanceof HTMLElement) {
+                  browserTabForFallback.click();
+                  for (let attempt = 0; attempt < 8; attempt += 1) {
+                    if (rightPanel.getAttribute('data-right-panel-active-tab') === 'browser') break;
+                    await sleep(80);
+                  }
+                }
                 const composerForFallback = document.querySelector('textarea');
                 if (composerForFallback instanceof HTMLElement) {
                   const beforeFallbackTabs = rightPanel.getAttribute('data-right-panel-tabs') ?? '';
@@ -6444,6 +7037,44 @@ function runAutomatedFocusedSurfaceSmoke(
                   metric.metadata?.panelId === 'right' &&
                   typeof metric.metadata?.tabId === 'string'
                 );
+              rightPanelPanelOpenCloseTelemetryWorks =
+                rightPanelTelemetry.metrics.some((metric) =>
+                  metric.name === 'panel.closed' &&
+                  metric.metadata?.panelId === 'right' &&
+                  metric.metadata?.panelSurface === 'workbench' &&
+                  typeof metric.metadata?.activeTab === 'string' &&
+                  metric.metadata?.routeKind === 'local_thread'
+                ) &&
+                rightPanelTelemetry.metrics.some((metric) =>
+                  metric.name === 'panel.opened' &&
+                  metric.metadata?.panelId === 'right' &&
+                  metric.metadata?.panelSurface === 'workbench' &&
+                  typeof metric.metadata?.activeTab === 'string' &&
+                  metric.metadata?.routeKind === 'local_thread'
+                );
+              const titlebarActions = document.querySelector('[data-testid="titlebar-actions"]');
+              const profileBadge = document.querySelector('[data-testid="profile-badge"]');
+              const profileBadgeRect = profileBadge instanceof HTMLElement ? profileBadge.getBoundingClientRect() : null;
+              const titlebarActionButtons = titlebarActions instanceof HTMLElement
+                ? [
+                    document.querySelector('[data-testid="titlebar-chat-actions"]'),
+                    document.querySelector('[data-testid="titlebar-toggle-sidebar"]'),
+                    document.querySelector('[data-testid="titlebar-toggle-terminal"]')
+                  ].filter((button) => button instanceof HTMLButtonElement)
+                : [];
+              const titlebarActionRects = titlebarActionButtons.map((button) => button.getBoundingClientRect());
+              const headerActionChromeCompactWorks =
+                titlebarActions instanceof HTMLElement &&
+                titlebarActions.getAttribute('data-header-panel-action-style') === 'codex-compact' &&
+                titlebarActionButtons.length === 3 &&
+                titlebarActionButtons.every((button) =>
+                  button.getAttribute('data-icon-button-variant') === 'toolbar' &&
+                  button.getAttribute('data-icon-button-size') === 'sm'
+                ) &&
+                titlebarActionRects.every((rect) => rect.width <= 26 && rect.height <= 26) &&
+                profileBadgeRect !== null &&
+                profileBadgeRect.width <= 26 &&
+                profileBadgeRect.height <= 26;
               return {
                 profile,
                 hasRightPanelState: rightPanel instanceof HTMLElement &&
@@ -6453,14 +7084,28 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelShellOwnershipWorks,
                 rightPanelSharedAnimationControllerWorks,
                 rightPanelSharedLayoutControllerWorks,
+                rightPanelHeaderSeamWorks,
+                rightPanelHeaderSeamDebug,
+                headerPanelSharedBandWorks,
+                headerPanelSharedBandDebug,
+                mainContentFrameContinuousWorks,
+                headerMetadataTooltipOnlyWorks,
+                headerActionChromeCompactWorks,
+                rightPanelMaterialSolidWorks,
+                rightPanelMaterialDebug,
                 workbenchPanelChromeCompactWorks:
                   rightPanel instanceof HTMLElement &&
                   tabbar instanceof HTMLElement &&
                   tabRow instanceof HTMLElement &&
                   tabActions instanceof HTMLElement &&
                   tabbar.getBoundingClientRect().height <= 42 &&
-                  tabRow.scrollWidth <= tabRow.clientWidth + 64 &&
+                  tabRow.scrollHeight <= tabRow.clientHeight + 2 &&
                   tabActions.getBoundingClientRect().height <= 30,
+                workbenchPanelTabOverflowControllerWorks,
+                workbenchPanelTabCodexWidthCapWorks,
+                workbenchPanelTabCodexMetricsWorks,
+                workbenchPanelTabCloseStartEdgeWorks,
+                workbenchPanelTabCloseStartEdgeDebug,
                 workbenchPanelAddControlStableWorks:
                   addButton instanceof HTMLButtonElement &&
                   addButton.dataset.icon === 'plus' &&
@@ -6488,6 +7133,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 rightPanelFullscreenCleanupWorks,
                 rightPanelTabTelemetryWorks,
                 rightPanelTabLifecycleTelemetryWorks,
+                rightPanelPanelOpenCloseTelemetryWorks,
                 rightPanelTabWeightCalmWorks,
                 rightPanelTabActionsSharedVariantWorks,
                 rightPanelMenuCommandStateWorks,
@@ -7707,8 +8353,9 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  documentSelected &&
 	                  documentToggleClicked &&
 	                  reviewDocumentState instanceof HTMLElement &&
-	                  reviewDocumentState.innerText.includes('DOCX') &&
-	                  reviewDocumentState.innerText.includes('Document smoke updated');
+	                  (reviewDocumentState.innerText.includes('Document smoke updated') ||
+	                    reviewDocumentState.innerText.includes('Document smoke styled heading')) &&
+	                  Boolean(reviewDocumentState.querySelector('.document-preview-body'));
 	                await setReviewPreviewMode(false);
 	                const notebookSelected = await selectReviewFile('notebook-preview-smoke', 'notebook-preview-smoke.ipynb');
 	                await waitForReviewFileContent('notebook-preview-smoke.ipynb');
@@ -7825,16 +8472,26 @@ function runAutomatedFocusedSurfaceSmoke(
                 document.querySelector('[data-testid="review-source-staged"]') instanceof HTMLButtonElement &&
                 document.querySelector('[data-testid="review-source-branch"]') instanceof HTMLButtonElement &&
                 document.querySelector('[data-testid="review-source-commit"]') instanceof HTMLButtonElement;
-	              const providerNativeSourceButtons = Object.fromEntries(['last-turn', 'cloud', 'local', 'worktree']
-	                .map((source) => [source, document.querySelector('[data-testid="review-source-' + source + '"]')]));
-	              const providerNativeUnavailable = (source) => {
-	                const button = providerNativeSourceButtons[source];
-	                return button instanceof HTMLButtonElement &&
-	                  button.disabled &&
-	                  button.getAttribute('aria-disabled') === 'true' &&
-	                  button.getAttribute('data-review-source-unsupported') === 'true' &&
-	                  button.textContent?.includes('Unavailable');
-	              };
+              const providerNativeSourceButtons = Object.fromEntries(['last-turn', 'cloud', 'local', 'worktree']
+                .map((source) => [source, document.querySelector('[data-testid="review-source-' + source + '"]')]));
+              const providerNativeUnavailableReason = {
+                'last-turn': 'No provider turn diff',
+                cloud: 'Cloud review adapter missing',
+                local: 'No local provider source',
+                worktree: 'No provider worktree source'
+              };
+              const providerNativeUnavailable = (source) => {
+                const expectedReason = providerNativeUnavailableReason[source];
+                const button = providerNativeSourceButtons[source];
+                return button instanceof HTMLButtonElement &&
+                  button.disabled &&
+                  button.getAttribute('aria-disabled') === 'true' &&
+                  button.getAttribute('data-review-source-unsupported') === 'true' &&
+                  button.getAttribute('data-review-source-unavailable-reason') === expectedReason &&
+                  button.textContent?.includes('Unavailable') &&
+                  button.textContent?.includes(expectedReason) &&
+                  button.scrollWidth <= button.clientWidth + 2;
+              };
 	              const localProviderSourceAvailable =
 	                providerNativeSourceButtons.local instanceof HTMLButtonElement &&
 	                !providerNativeSourceButtons.local.disabled &&
@@ -7858,11 +8515,13 @@ function runAutomatedFocusedSurfaceSmoke(
 	                localProviderSourceActive === 'local' &&
 	                localProviderSourceText.includes('review-base.txt') &&
 	                localProviderSourceText.includes('staged-source-smoke.txt');
-	              const providerNativeSourceRowsWork =
-	                providerNativeUnavailable('last-turn') &&
-	                providerNativeUnavailable('cloud') &&
-	                providerNativeUnavailable('worktree') &&
-	                localProviderSourceWorks;
+              const reviewProviderSourceUnavailableReasonsWork =
+                providerNativeUnavailable('last-turn') &&
+                providerNativeUnavailable('cloud') &&
+                providerNativeUnavailable('worktree');
+              const providerNativeSourceRowsWork =
+                reviewProviderSourceUnavailableReasonsWork &&
+                localProviderSourceWorks;
 	              const sourceBeforeUnsupportedClick = document.querySelector('.diff-panel-root')?.getAttribute('data-review-source') ?? '';
 	              if (providerNativeSourceButtons['last-turn'] instanceof HTMLButtonElement) {
 	                providerNativeSourceButtons['last-turn'].click();
@@ -7879,7 +8538,7 @@ function runAutomatedFocusedSurfaceSmoke(
 	              let reviewLastTurnGitApplyCommandWorks = false;
 	              let reviewLastTurnGitApplyCommandDebug = {};
 	              let reviewTranscriptCardLastTurnWorks = false;
-	              if (smokeView === 'diff-source') {
+	              if (smokeView === 'diff-source' || smokeView === 'diff-last-turn') {
 	                const smokeSessionsForLastTurn = await window.api.sessions.list();
 	                const lastTurnSmokeDiff = [
 	                  'diff --git a/review-base.txt b/review-base.txt',
@@ -7975,11 +8634,30 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  );
 	                const lastTurnReviewCardUndo = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-undo"]');
 	                const lastTurnReviewCardFile = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-file"]');
+                  const lastTurnReviewCardReview = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-review"]');
 	                if (lastTurnReviewCardFile instanceof HTMLButtonElement) {
 	                  lastTurnReviewCardFile.click();
 	                  await sleep(180);
 	                }
 	                const lastTurnReviewCardInlineDiff = lastTurnReviewCard?.querySelector('[data-testid="codex-review-card-inline-diff"]');
+                  let lastTurnReviewCardOpenWorks = false;
+                  if (lastTurnReviewCardReview instanceof HTMLButtonElement) {
+                    lastTurnReviewCardReview.click();
+                    for (let attempt = 0; attempt < 10; attempt += 1) {
+                      await sleep(100);
+                      const cardReviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+                      if (
+                        document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                        cardReviewRoot instanceof HTMLElement &&
+                        cardReviewRoot.getAttribute('data-review-source') === 'last-turn' &&
+                        cardReviewRoot.getAttribute('data-review-side-pane-visible') === 'false' &&
+                        document.querySelector('[data-testid="review-changed-files-toggle"]') instanceof HTMLButtonElement
+                      ) {
+                        lastTurnReviewCardOpenWorks = true;
+                        break;
+                      }
+                    }
+                  }
 	                reviewTranscriptCardLastTurnWorks =
 	                  lastTurnInjected &&
 	                  lastTurnReviewCard instanceof HTMLElement &&
@@ -7996,7 +8674,79 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  Number(lastTurnReviewCard.getAttribute('data-review-card-file-count') ?? '0') === 1 &&
 	                  (lastTurnReviewCard.textContent ?? '').includes('review-base.txt') &&
 	                  lastTurnReviewCardInlineDiff instanceof HTMLElement &&
-	                  (lastTurnReviewCardInlineDiff.textContent ?? '').includes('last turn smoke');
+	                  (lastTurnReviewCardInlineDiff.textContent ?? '').includes('last turn smoke') &&
+                    lastTurnReviewCardOpenWorks;
+                  const lastTurnVisualReviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+                  const lastTurnVisualSidePane = lastTurnVisualReviewRoot?.querySelector('.diff-panel-changed-files-pane');
+                  const lastTurnVisualMainPane = lastTurnVisualReviewRoot?.querySelector('.diff-panel-preview-pane');
+                  const lastTurnVisualSourceSummary = document.querySelector('[data-testid="review-source-summary"]');
+                  const lastTurnVisualChangedFilesToggle = document.querySelector('[data-testid="review-changed-files-toggle"]');
+                  const lastTurnVisualSelectedSection = lastTurnVisualReviewRoot?.querySelector('[data-testid="review-file-section"][data-review-path="review-base.txt"]');
+                  const lastTurnVisualFileHeader = lastTurnVisualSelectedSection instanceof HTMLElement
+                    ? lastTurnVisualSelectedSection.querySelector('.review-file-section-header[data-review-file-header="true"]')
+                    : null;
+                  const lastTurnVisualFilePath = lastTurnVisualFileHeader instanceof HTMLElement
+                    ? lastTurnVisualFileHeader.querySelector('.review-file-section-path')
+                    : null;
+                  const lastTurnVisualChangeIcon = lastTurnVisualFileHeader instanceof HTMLElement
+                    ? lastTurnVisualFileHeader.querySelector('.review-file-section-change-icon')
+                    : null;
+                  const lastTurnVisualHeaderRect = lastTurnVisualFileHeader instanceof HTMLElement
+                    ? lastTurnVisualFileHeader.getBoundingClientRect()
+                    : null;
+                  const lastTurnVisualPathRect = lastTurnVisualFilePath instanceof HTMLElement
+                    ? lastTurnVisualFilePath.getBoundingClientRect()
+                    : null;
+                  var reviewFileHeaderPathFirstWorks =
+                    lastTurnVisualFileHeader instanceof HTMLButtonElement &&
+                    lastTurnVisualFileHeader.getAttribute('data-review-file-header-style') === 'codex-path-first' &&
+                    lastTurnVisualFilePath instanceof HTMLElement &&
+                    (lastTurnVisualFilePath.textContent ?? '').includes('review-base.txt') &&
+                    lastTurnVisualChangeIcon instanceof HTMLElement &&
+                    lastTurnVisualChangeIcon.getAttribute('data-review-file-change-icon') === 'decorative' &&
+                    getComputedStyle(lastTurnVisualChangeIcon).display === 'none' &&
+                    lastTurnVisualHeaderRect !== null &&
+                    lastTurnVisualPathRect !== null &&
+                    lastTurnVisualPathRect.left <= lastTurnVisualHeaderRect.left + 18;
+                  var reviewLastTurnVisualStateWorks =
+                    reviewTranscriptCardLastTurnWorks &&
+                    lastTurnVisualReviewRoot instanceof HTMLElement &&
+                    lastTurnVisualReviewRoot.getAttribute('data-review-source') === 'last-turn' &&
+                    lastTurnVisualReviewRoot.getAttribute('data-review-side-pane-visible') === 'false' &&
+                    lastTurnVisualSidePane instanceof HTMLElement &&
+                    lastTurnVisualSidePane.getAttribute('data-review-side-pane-visible') === 'false' &&
+                    lastTurnVisualSidePane.getBoundingClientRect().width <= 2 &&
+                    lastTurnVisualMainPane instanceof HTMLElement &&
+                    lastTurnVisualMainPane.getBoundingClientRect().width >= 320 &&
+                    lastTurnVisualSourceSummary instanceof HTMLElement &&
+                    lastTurnVisualSourceSummary.textContent?.includes('Last turn') &&
+                    lastTurnVisualSourceSummary.getAttribute('data-review-source-summary-additions') === '1' &&
+                    lastTurnVisualSourceSummary.getAttribute('data-review-source-summary-deletions') === '0' &&
+                    lastTurnVisualSourceSummary.textContent?.includes('+1') &&
+                    lastTurnVisualChangedFilesToggle instanceof HTMLButtonElement &&
+                    lastTurnVisualSelectedSection instanceof HTMLElement &&
+                    lastTurnVisualSelectedSection.textContent?.includes('last turn smoke');
+                  if (smokeView === 'diff-last-turn') {
+                    const activeBottomPanelForLastTurnVisual = document.querySelector('[role="tabpanel"][data-app-shell-tab-panel-controller="right"]');
+                    if (activeBottomPanelForLastTurnVisual instanceof HTMLElement) {
+                      activeBottomPanelForLastTurnVisual.focus({ preventScroll: true });
+                    }
+                    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                    await sleep(420);
+                    return {
+                      profile,
+                      reviewTranscriptCardLastTurnWorks,
+                      reviewFileHeaderPathFirstWorks,
+                      reviewLastTurnVisualStateWorks
+                    };
+                  }
+                  if (lastTurnReviewCardOpenWorks) {
+                    const restoreChangedFilesPane = document.querySelector('[data-testid="review-changed-files-toggle"]');
+                    if (restoreChangedFilesPane instanceof HTMLButtonElement) {
+                      restoreChangedFilesPane.click();
+                      await sleep(180);
+                    }
+                  }
 	              }
               if (await clickReviewSource('staged')) {
                 await sleep(260);
@@ -8105,11 +8855,11 @@ function runAutomatedFocusedSurfaceSmoke(
               }
               window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
               await sleep(80);
-	              const reviewSourceModesWork =
-	                sourceButtonsAvailable &&
-	                providerNativeSourceRowsWork &&
-	                unsupportedClickKeepsSource &&
-	                lastTurnSourceWorks &&
+              const reviewSourceModesWork =
+                sourceButtonsAvailable &&
+                providerNativeSourceRowsWork &&
+                unsupportedClickKeepsSource &&
+                lastTurnSourceWorks &&
                 reviewLocalSourceCountsWork &&
                 stagedSourceActive === 'staged' &&
                 stagedSourcePersisted &&
@@ -8142,9 +8892,10 @@ function runAutomatedFocusedSurfaceSmoke(
 	                commitFileSelected &&
 	                commitSourceText.includes('branch-source-smoke.txt') &&
 	                commitSourceText.includes('branch source committed');
-	              const reviewSourceModesDebug = {
-	                sourceButtonsAvailable,
-	                providerNativeSourceRowsWork,
+              const reviewSourceModesDebug = {
+                sourceButtonsAvailable,
+                providerNativeSourceRowsWork,
+                reviewProviderSourceUnavailableReasonsWork,
 	                localProviderSourceAvailable,
 	                localProviderSourceActive,
 	                localProviderSourceWorks,
@@ -8404,6 +9155,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const providerReviewCommentCard = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-comment-card"][data-review-comment-status="provider"]');
               const providerReviewCommentBody = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-body"]');
               const providerReviewCommentMeta = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-provider-meta"]');
+              const providerReviewCommentBlame = providerReviewCommentCard?.querySelector('[data-testid="review-diff-comment-provider-blame"]');
               const reviewCommentButton = activeReviewSectionForLine?.querySelector('[data-testid="review-diff-line-add-comment"]');
               if (reviewCommentButton instanceof HTMLButtonElement) {
                 reviewCommentButton.click();
@@ -8439,10 +9191,16 @@ function runAutomatedFocusedSurfaceSmoke(
                 providerReviewCommentCard.getAttribute('data-review-comment-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
                 providerReviewCommentCard.getAttribute('data-review-comment-provider-source') === 'github' &&
                 providerReviewCommentCard.getAttribute('data-review-comment-resolved') === 'false' &&
+                providerReviewCommentCard.getAttribute('data-review-comment-blame-source') === 'github' &&
+                providerReviewCommentCard.getAttribute('data-review-comment-blame-commit') === 'abc1234def5678abc1234def5678abc1234def56' &&
+                providerReviewCommentCard.getAttribute('data-review-comment-blame-author') === 'Grace' &&
                 providerReviewCommentBody instanceof HTMLElement &&
                 providerReviewCommentBody.textContent?.includes('Provider inline review from GitHub') === true &&
                 providerReviewCommentMeta instanceof HTMLElement &&
                 providerReviewCommentMeta.textContent?.includes('Unresolved') === true &&
+                providerReviewCommentBlame instanceof HTMLElement &&
+                providerReviewCommentBlame.textContent?.includes('abc1234') === true &&
+                providerReviewCommentBlame.textContent?.includes('Grace') === true &&
                 reviewCommentCard instanceof HTMLElement &&
                 reviewCommentCard.getAttribute('data-review-comment-side') === selectedUnifiedLine.getAttribute('data-line-number-side') &&
                 reviewCommentCard.getAttribute('data-review-comment-line') === selectedUnifiedLine.getAttribute('data-line-number') &&
@@ -8964,8 +9722,9 @@ function runAutomatedFocusedSurfaceSmoke(
               const reviewDocumentPreviewWorks =
                 documentToggleClicked &&
                 reviewDocumentState instanceof HTMLElement &&
-                reviewDocumentState.innerText.includes('DOCX') &&
-                reviewDocumentState.innerText.includes('Document smoke updated');
+                (reviewDocumentState.innerText.includes('Document smoke updated') ||
+                  reviewDocumentState.innerText.includes('Document smoke styled heading')) &&
+                Boolean(reviewDocumentState.querySelector('.document-preview-body'));
               await setReviewPreviewMode(false);
               await selectReviewFile('notebook-preview-smoke', 'notebook-preview-smoke.ipynb');
               const notebookDiffFirst = !(document.querySelector('[data-testid="review-notebook-state"]') instanceof HTMLElement);
@@ -9732,8 +10491,9 @@ function runAutomatedFocusedSurfaceSmoke(
 	                  reviewSearchWorks,
 	                  reviewSearchProjectionWorks,
                     reviewSearchContentWorks,
-	                  reviewSourceModesWork,
-	                  reviewSourceModesDebug,
+                    reviewSourceModesWork,
+                    reviewSourceModesDebug,
+                    reviewProviderSourceUnavailableReasonsWork,
 	                  reviewTranscriptCardLastTurnWorks,
 	                  reviewLastTurnGitApplyCommandWorks,
 	                  reviewLastTurnGitApplyCommandDebug,
@@ -10053,13 +10813,23 @@ function runAutomatedFocusedSurfaceSmoke(
                     environmentPanel.getAttribute('data-environment-pull-request') === 'true' &&
 	                  environmentSourcesCard.textContent?.includes('Web search') === true;
 	                if (reviewTranscriptCardReviewButton instanceof HTMLButtonElement) {
+                    const reviewTranscriptCardSource = reviewTranscriptCard instanceof HTMLElement
+                      ? reviewTranscriptCard.getAttribute('data-review-card-source')
+                      : null;
 	                  reviewTranscriptCardReviewButton.click();
 	                  for (let attempt = 0; attempt < 10; attempt += 1) {
 	                    await sleep(100);
-	                    if (
-	                      document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
-	                      document.querySelector('.diff-panel-root[data-embedded="true"]') instanceof HTMLElement
-	                    ) {
+                      const cardReviewRoot = document.querySelector('.diff-panel-root[data-embedded="true"]');
+                      const reviewPanelOpened =
+                        document.querySelector('[data-testid="session-right-panel"]')?.getAttribute('data-right-panel-active-tab') === 'diff' &&
+                        cardReviewRoot instanceof HTMLElement;
+                      const reviewPanelMatchesCardSource = reviewTranscriptCardSource === 'last-turn'
+                        ? cardReviewRoot instanceof HTMLElement &&
+                          cardReviewRoot.getAttribute('data-review-source') === 'last-turn' &&
+                          cardReviewRoot.getAttribute('data-review-side-pane-visible') === 'false' &&
+                          document.querySelector('[data-testid="review-changed-files-toggle"]') instanceof HTMLButtonElement
+                        : true;
+	                    if (reviewPanelOpened && reviewPanelMatchesCardSource) {
 	                      reviewTranscriptCardActionWorks = true;
 	                      break;
 	                    }
@@ -10129,6 +10899,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 reviewSearchWorks,
                 reviewSearchProjectionWorks,
                 reviewSourceModesWork,
+                reviewProviderSourceUnavailableReasonsWork,
                 reviewFullSourceRowsWork,
                 reviewFullSourceBlameWorks,
                 reviewLoadFullFileWorks,
@@ -10179,6 +10950,41 @@ function runAutomatedFocusedSurfaceSmoke(
               const filesBody = document.querySelector('[data-testid="files-panel-body"]');
               const filesList = document.querySelector('[data-testid="files-panel-list"]');
               const filesPreview = document.querySelector('[data-testid="files-panel-preview"]');
+              const filesSessionTitlebar = document.querySelector('[data-testid="session-titlebar"]');
+              const filesSessionMainRow = document.querySelector('[data-testid="session-main-row"]');
+              const filesPrimaryContent = document.querySelector('[data-testid="session-primary-content"]');
+              const filesRightPanel = document.querySelector('[data-testid="session-right-panel"]');
+              const filesRightPanelShell = filesRightPanel instanceof HTMLElement
+                ? filesRightPanel.closest('[data-motion-panel="right"]')
+                : null;
+              const filesRightPanelChrome = document.querySelector('[data-testid="workbench-panel-tabbar"]')?.closest('.workbench-panel-chrome');
+              const filesTitlebarRect = filesSessionTitlebar instanceof HTMLElement ? filesSessionTitlebar.getBoundingClientRect() : null;
+              const filesMainRowRect = filesSessionMainRow instanceof HTMLElement ? filesSessionMainRow.getBoundingClientRect() : null;
+              const filesPrimaryRect = filesPrimaryContent instanceof HTMLElement ? filesPrimaryContent.getBoundingClientRect() : null;
+              const filesRightPanelRect = filesRightPanel instanceof HTMLElement ? filesRightPanel.getBoundingClientRect() : null;
+              const filesRightPanelShellRect = filesRightPanelShell instanceof HTMLElement ? filesRightPanelShell.getBoundingClientRect() : null;
+              const filesRightPanelChromeRect = filesRightPanelChrome instanceof HTMLElement ? filesRightPanelChrome.getBoundingClientRect() : null;
+              const filesHeaderPanelSeamWorks =
+                filesRightPanel instanceof HTMLElement &&
+                filesRightPanel.getAttribute('data-right-panel-active-tab') === 'files' &&
+                filesTitlebarRect !== null &&
+                filesMainRowRect !== null &&
+                filesPrimaryRect !== null &&
+                filesRightPanelRect !== null &&
+                filesRightPanelShellRect !== null &&
+                filesRightPanelChromeRect !== null &&
+                Math.abs(filesTitlebarRect.top - filesMainRowRect.top) <= 2 &&
+                Math.abs(filesPrimaryRect.top - filesMainRowRect.top) <= 2 &&
+                Math.abs(filesRightPanelShellRect.top - filesMainRowRect.top) <= 2 &&
+                Math.abs(filesRightPanelRect.top - filesMainRowRect.top) <= 2 &&
+                Math.abs(filesRightPanelChromeRect.top - filesTitlebarRect.top) <= 2 &&
+                Math.abs(filesTitlebarRect.right - filesRightPanelRect.left) <= 2 &&
+                filesTitlebarRect.height >= 32 &&
+                filesTitlebarRect.height <= 42 &&
+                filesRightPanelChromeRect.height >= 30 &&
+                filesRightPanelChromeRect.height <= 44 &&
+                filesToolbar instanceof HTMLElement &&
+                Math.abs(filesToolbar.getBoundingClientRect().top - filesRightPanelChromeRect.bottom) <= 2;
               const filesWorkbenchRows = () => [...document.querySelectorAll('[data-testid="files-panel-list"] [data-workbench-tree-row="true"]')]
                 .filter((row) => row instanceof HTMLElement);
               if (fileSearch instanceof HTMLInputElement) {
@@ -10257,6 +11063,8 @@ function runAutomatedFocusedSurfaceSmoke(
               let workbenchFileTabWorks = false;
               let workbenchFileTabPinWorks = false;
               let workbenchFileTabActionMenuSharedSectionsWorks = false;
+              let workbenchFileTabCodexActionLabelsWorks = false;
+              let workbenchFileTabCodexActionClusterWorks = false;
               let filesContentSearchWorks = false;
               let fileSourceLineSelectionWorks = false;
               let fileSourceWrapToggleWorks = false;
@@ -10381,14 +11189,78 @@ function runAutomatedFocusedSurfaceSmoke(
                   .some((attachment) => attachment.textContent?.includes('nested note.md'));
               const previewChecks = {};
               const previewHeaderChecks = {};
+              const previewArtifactHeaderChecks = {};
               const previewControlChecks = {};
               const previewArtifactTabChecks = {};
+              const previewOpenOptionsChecks = {};
+              const pdfPreviewControlChecks = {};
+              const pdfAnnotationChecks = {};
+              const notebookReadOnlyControlChecks = {};
+              const notebookOutputRenderingChecks = {};
+              const notebookCellDisclosureChecks = {};
+              const notebookExecutionCountChecks = {};
+              const notebookCellMetadataChecks = {};
+              const notebookOutputSummaryChecks = {};
+              const notebookRawOutputDisclosureChecks = {};
+              const notebookCodeSnippetChecks = {};
+              const notebookCellSpacingChecks = {};
+              const notebookOutputChromeChecks = {};
+              const notebookOutputItemChromeChecks = {};
+              const notebookRichOutputItemChromeChecks = {};
+              const pdfPresentationModeChecks = {};
+              const documentPageControlChecks = {};
+              const documentTableChecks = {};
+              const documentImageChecks = {};
+              const documentSectionChecks = {};
+              const documentColumnLayoutChecks = {};
+              const documentShapeChecks = {};
+              const documentFootnoteChecks = {};
+              const documentCommentChecks = {};
+              const documentReviewMarkChecks = {};
+              const documentLinkChecks = {};
+              const documentTextStyleChecks = {};
+              const documentListChecks = {};
+              const spreadsheetRendererChecks = {};
+              const spreadsheetControlChecks = {};
+              const spreadsheetSheetTabChecks = {};
+              const spreadsheetActiveCellChecks = {};
+              const spreadsheetStyleChecks = {};
+              const spreadsheetMergeChecks = {};
+              const spreadsheetSizingChecks = {};
+              const spreadsheetFreezePaneChecks = {};
+              const spreadsheetFreezeHandleChecks = {};
+              const spreadsheetAlignmentChecks = {};
+              const spreadsheetTableChecks = {};
+              const spreadsheetConditionalFormattingChecks = {};
+              const spreadsheetDataValidationChecks = {};
+              const spreadsheetDataValidationMessageChecks = {};
+              const spreadsheetDataValidationOverlayChecks = {};
+              const spreadsheetDataValidationRangeChecks = {};
+	              const spreadsheetCommentChecks = {};
+	              const spreadsheetBorderChecks = {};
+	              const spreadsheetChartChecks = {};
+	              const spreadsheetChartPlotChecks = {};
+	              const spreadsheetDrawingChecks = {};
+	              const spreadsheetSparklineChecks = {};
+	              const spreadsheetFormulaChecks = {};
+              const spreadsheetFormulaEditingChecks = {};
+              const officeZoomMenuChecks = {};
+              const documentPdfZoomMenuChecks = {};
+              const slidesRendererChecks = {};
+              const slidesControlChecks = {};
+              const slidesShapeLayoutChecks = {};
+              const slidesColorFillChecks = {};
+              const slidesImageShapeChecks = {};
+              const slidesNotesChecks = {};
+              const slidesThumbnailRailChecks = {};
               const previewTargets = [
                 ['filesHtmlPreviewWorks', 'preview-page', 'preview-page.html', 'workspace-html-preview'],
                 ['filesJsonPreviewWorks', 'data-preview-smoke', 'data-preview-smoke.json', 'workspace-json-preview'],
                 ['filesCsvPreviewWorks', 'table-preview-smoke', 'table-preview-smoke.csv', 'workspace-csv-preview'],
                 ['filesPdfPreviewWorks', 'pdf-preview-smoke', 'pdf-preview-smoke.pdf', 'workspace-pdf-preview'],
                 ['filesDocumentPreviewWorks', 'document-preview-smoke', 'document-preview-smoke.docx', 'workspace-document-preview'],
+                ['filesSpreadsheetPreviewWorks', 'spreadsheet-preview-smoke', 'spreadsheet-preview-smoke.xlsx', 'workspace-spreadsheet-preview'],
+                ['filesSlidesPreviewWorks', 'slides-preview-smoke', 'slides-preview-smoke.pptx', 'workspace-slides-preview'],
                 ['filesNotebookPreviewWorks', 'notebook-preview-smoke', 'notebook-preview-smoke.ipynb', 'workspace-notebook-preview'],
                 ['filesBinaryPreviewWorks', 'binary-preview-smoke', 'binary-preview-smoke.bin', 'workspace-binary-state']
               ];
@@ -10424,15 +11296,52 @@ function runAutomatedFocusedSurfaceSmoke(
                     header instanceof HTMLElement &&
                     header.getAttribute('data-panel-toolbar') === 'true' &&
                     header.getBoundingClientRect().height <= 34;
-                  const requiresRawCopy = testId !== 'workspace-pdf-preview';
+                  const artifactTitle = header instanceof HTMLElement
+                    ? header.querySelector('[data-artifact-preview-title]')
+                    : null;
+                  const artifactType = header instanceof HTMLElement
+                    ? header.querySelector('[data-artifact-preview-type]')
+                    : null;
+                  previewArtifactHeaderChecks[testId] =
+                    testId === 'workspace-json-preview' ||
+                    testId === 'workspace-csv-preview' ||
+                    (
+                      artifactTitle instanceof HTMLElement &&
+                      artifactType instanceof HTMLElement &&
+                      artifactTitle.textContent?.trim().length > 0 &&
+                      !/\.(pdf|docx|ipynb|xlsx|pptx)$/i.test(artifactTitle.textContent?.trim() ?? '') &&
+                      (testId === 'workspace-pdf-preview'
+                        ? artifactTitle.textContent?.trim() === 'pdf-preview-smoke' &&
+                          artifactType.textContent?.trim() === 'PDF'
+                        : true) &&
+                      (testId === 'workspace-document-preview'
+                        ? artifactTitle.textContent?.trim() === 'document-preview-smoke' &&
+                          artifactType.textContent?.trim().startsWith('DOC')
+                        : true) &&
+                      (testId === 'workspace-spreadsheet-preview'
+                        ? artifactTitle.textContent?.trim() === 'spreadsheet-preview-smoke' &&
+                          artifactType.textContent?.trim() === 'XLSX'
+                        : true) &&
+                      (testId === 'workspace-slides-preview'
+                        ? artifactTitle.textContent?.trim() === 'slides-preview-smoke' &&
+                          artifactType.textContent?.trim() === 'PPTX'
+                        : true) &&
+                      (testId === 'workspace-notebook-preview'
+                        ? artifactTitle.textContent?.trim() === 'notebook-preview-smoke' &&
+                          artifactType.textContent?.trim().startsWith('IPYNB · 3 cells')
+                        : true)
+                    );
+                  const requiresRawCopy = !['workspace-pdf-preview', 'workspace-spreadsheet-preview', 'workspace-slides-preview'].includes(testId);
                   previewControlChecks[testId] =
                     actions instanceof HTMLElement &&
                     actions.getAttribute('data-preview-controls')?.includes('copy-path') === true &&
                     (requiresRawCopy
                       ? actions.getAttribute('data-preview-controls')?.includes('copy-raw') === true
                       : actions.getAttribute('data-preview-controls')?.includes('copy-raw') !== true) &&
-                    actions.getAttribute('data-preview-controls')?.includes('open-file') === true &&
-                    actions.getAttribute('data-preview-controls')?.includes('reveal-file') === true &&
+                    actions.getAttribute('data-preview-controls')?.includes('open-options') === true &&
+                    actions.getAttribute('data-artifact-open-options') === 'true' &&
+                    document.querySelector('[data-testid="' + testId + '-action-open-primary"]') instanceof HTMLElement &&
+                    document.querySelector('[data-testid="' + testId + '-action-open-options"]') instanceof HTMLElement &&
                     actionButtons.length >= (requiresRawCopy ? 4 : 3) &&
                     actionButtons.every((button) =>
                       button instanceof HTMLElement &&
@@ -10440,6 +11349,26 @@ function runAutomatedFocusedSurfaceSmoke(
                       button.getBoundingClientRect().width === 24 &&
                       button.getBoundingClientRect().height === 24
                   );
+                  const openOptionsButton = document.querySelector('[data-testid="' + testId + '-action-open-options"]');
+                  if (openOptionsButton instanceof HTMLButtonElement) {
+                    openOptionsButton.click();
+                    await sleep(120);
+                  }
+                  const openOptionsMenu = document.querySelector('[data-testid="' + testId + '-open-options-menu"]');
+                  const openOptionsOpenFile = document.querySelector('[data-testid="' + testId + '-open-options-open-file"]');
+                  const openOptionsRevealFile = document.querySelector('[data-testid="' + testId + '-open-options-reveal-file"]');
+                  previewOpenOptionsChecks[testId] =
+                    openOptionsButton instanceof HTMLButtonElement &&
+                    openOptionsMenu instanceof HTMLElement &&
+                    openOptionsMenu.textContent?.includes('Open') === true &&
+                    openOptionsOpenFile instanceof HTMLButtonElement &&
+                    openOptionsOpenFile.textContent?.trim() === 'Open' &&
+                    openOptionsRevealFile instanceof HTMLButtonElement &&
+                    openOptionsRevealFile.textContent?.includes('Open in folder') === true;
+                  if (openOptionsMenu instanceof HTMLElement) {
+                    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                    await sleep(80);
+                  }
                   const artifactTab = document.querySelector('[data-testid="workbench-file-tab"]');
                   const controls = actions instanceof HTMLElement
                     ? actions.getAttribute('data-preview-controls') ?? ''
@@ -10468,12 +11397,1600 @@ function runAutomatedFocusedSurfaceSmoke(
                         artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'false' &&
                         !controls.includes('view-source')
                       : true) &&
+                    (testId === 'workspace-spreadsheet-preview'
+                      ? artifactTab.getAttribute('data-file-tab-artifact-type') === 'spreadsheet' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-import-kind') === 'xlsx' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'false' &&
+                        !controls.includes('view-source') &&
+                        document.querySelector('[data-testid="workspace-spreadsheet-preview-body"]') instanceof HTMLElement
+                      : true) &&
+                    (testId === 'workspace-slides-preview'
+                      ? artifactTab.getAttribute('data-file-tab-artifact-type') === 'slides' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-import-kind') === 'pptx' &&
+                        artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'false' &&
+                        !controls.includes('view-source') &&
+                        document.querySelector('[data-testid="workspace-slides-preview-body"]') instanceof HTMLElement
+                      : true) &&
                     (testId === 'workspace-notebook-preview'
                       ? artifactTab.getAttribute('data-file-tab-artifact-type') === 'notebook' &&
                         artifactTab.getAttribute('data-file-tab-artifact-import-kind') === 'ipynb' &&
                         artifactTab.getAttribute('data-file-tab-artifact-source-supported') === 'true' &&
                         controls.includes('view-source')
                       : true);
+                  if (testId === 'workspace-notebook-preview') {
+                    const readOnlyControls = document.querySelector('[data-testid="workspace-notebook-preview-readonly-controls"]');
+                    const readOnlyBadge = document.querySelector('[data-testid="workspace-notebook-preview-readonly-badge"]');
+                    const runAll = document.querySelector('[data-testid="workspace-notebook-preview-run-all-disabled"]');
+                    const restartKernel = document.querySelector('[data-testid="workspace-notebook-preview-restart-kernel-disabled"]');
+                    notebookReadOnlyControlChecks[testId] =
+                      readOnlyControls instanceof HTMLElement &&
+                      readOnlyControls.getAttribute('data-notebook-readonly-controls') === 'true' &&
+                      readOnlyBadge instanceof HTMLElement &&
+                      readOnlyBadge.textContent?.trim() === 'Read only' &&
+                      runAll instanceof HTMLButtonElement &&
+                      runAll.disabled &&
+                      runAll.getAttribute('data-notebook-readonly-control') === 'run-all' &&
+                      runAll.textContent?.includes('Run all') === true &&
+                      restartKernel instanceof HTMLButtonElement &&
+                      restartKernel.disabled &&
+                      restartKernel.getAttribute('data-notebook-readonly-control') === 'restart-kernel' &&
+                      restartKernel.textContent?.includes('Restart kernel') === true;
+                    const outputContainer = document.querySelector('[data-testid="notebook-preview-outputs"]');
+                    const notebookList = document.querySelector('.notebook-preview-list');
+                    const notebookListInner = document.querySelector('[data-testid="notebook-preview-list-inner"]');
+                    const streamOutput = document.querySelector('[data-notebook-output-type="stream"]');
+                    const textOutput = document.querySelector('[data-notebook-output-type="text"]');
+                    const outputSummaries = [...document.querySelectorAll('[data-notebook-output-summary="true"]')];
+                    const rawOutputDisclosures = [...document.querySelectorAll('[data-notebook-raw-output-disclosure="true"]')];
+                    const notebookCells = [...document.querySelectorAll('[data-testid="notebook-preview-cell"]')];
+                    const firstNotebookCell = notebookCells[0];
+                    const codeNotebookCell = notebookCells.find((cell) =>
+                      cell instanceof HTMLElement &&
+                      cell.getAttribute('data-notebook-execution-count') === '7'
+                    );
+                    const firstNotebookSummary = firstNotebookCell instanceof HTMLDetailsElement
+                      ? firstNotebookCell.querySelector('summary.notebook-preview-cell-header')
+                      : null;
+                    const codeNotebookSummary = codeNotebookCell instanceof HTMLDetailsElement
+                      ? codeNotebookCell.querySelector('summary.notebook-preview-cell-header')
+                      : null;
+                    const listStyle = notebookList instanceof HTMLElement ? getComputedStyle(notebookList) : null;
+                    const listInnerStyle = notebookListInner instanceof HTMLElement ? getComputedStyle(notebookListInner) : null;
+                    const firstCellStyle = firstNotebookCell instanceof HTMLElement ? getComputedStyle(firstNotebookCell) : null;
+                    const firstSummaryStyle = firstNotebookSummary instanceof HTMLElement ? getComputedStyle(firstNotebookSummary) : null;
+                    const firstCellSource = firstNotebookCell instanceof HTMLElement
+                      ? firstNotebookCell.querySelector('.notebook-preview-cell-source')
+                      : null;
+                    const firstCellSourceStyle = firstCellSource instanceof HTMLElement ? getComputedStyle(firstCellSource) : null;
+                    const outputContainerStyle = outputContainer instanceof HTMLElement ? getComputedStyle(outputContainer) : null;
+                    const streamOutputStyle = streamOutput instanceof HTMLElement ? getComputedStyle(streamOutput) : null;
+                    const textOutputStyle = textOutput instanceof HTMLElement ? getComputedStyle(textOutput) : null;
+                    const streamRawPre = streamOutput instanceof HTMLElement
+                      ? streamOutput.querySelector('[data-notebook-raw-output-disclosure="true"] pre')
+                      : null;
+                    const streamRawPreStyle = streamRawPre instanceof HTMLElement ? getComputedStyle(streamRawPre) : null;
+                    const codeNotebookRunButton = codeNotebookSummary instanceof HTMLElement
+                      ? codeNotebookSummary.querySelector('[data-notebook-cell-run-disabled="true"]')
+                      : null;
+                    const codeNotebookDescription = codeNotebookCell instanceof HTMLElement
+                      ? codeNotebookCell.querySelector('[data-notebook-code-description="true"]')
+                      : null;
+                    const codeNotebookSourceDisclosure = codeNotebookCell instanceof HTMLElement
+                      ? codeNotebookCell.querySelector('[data-testid="notebook-preview-code-source-disclosure"]')
+                      : null;
+                    const codeNotebookBlock = codeNotebookCell instanceof HTMLElement
+                      ? codeNotebookCell.querySelector('[data-testid="notebook-preview-code-block"]')
+                      : null;
+                    const codeNotebookTitle = codeNotebookBlock instanceof HTMLElement
+                      ? codeNotebookBlock.querySelector('[data-notebook-code-title="Python"]')
+                      : null;
+                    notebookCellDisclosureChecks[testId] =
+                      notebookCells.length >= 2 &&
+                      notebookCells.every((cell) =>
+                        cell instanceof HTMLDetailsElement &&
+                        cell.open &&
+                        cell.getAttribute('data-notebook-cell-disclosure') === 'true' &&
+                        cell.querySelector('summary.notebook-preview-cell-header') instanceof HTMLElement &&
+                        cell.querySelector('.notebook-preview-cell-body') instanceof HTMLElement
+                      ) &&
+                      firstNotebookSummary instanceof HTMLElement &&
+                      firstNotebookSummary.querySelector('.notebook-preview-cell-disclosure-icon') instanceof HTMLElement &&
+                      firstNotebookSummary.textContent?.includes('Cell 1') === true;
+                    notebookExecutionCountChecks[testId] =
+                      codeNotebookCell instanceof HTMLDetailsElement &&
+                      codeNotebookCell.getAttribute('data-notebook-cell-position') === '2 of 3' &&
+                      codeNotebookSummary instanceof HTMLElement &&
+                      codeNotebookSummary.textContent?.includes('Cell 2 of 3') === true &&
+                      codeNotebookSummary.textContent?.includes('Run 7') === true &&
+                      codeNotebookSummary.querySelector('[data-notebook-execution-count-label="7"]') instanceof HTMLElement &&
+                      codeNotebookRunButton instanceof HTMLButtonElement &&
+                      codeNotebookRunButton.disabled;
+                    notebookCellMetadataChecks[testId] =
+                      codeNotebookSummary instanceof HTMLElement &&
+                      codeNotebookSummary.textContent?.includes('Compute updated value') === true &&
+                      codeNotebookDescription instanceof HTMLElement &&
+                      codeNotebookDescription.textContent?.includes('Smoke description') === true &&
+                      codeNotebookSourceDisclosure instanceof HTMLDetailsElement &&
+                      codeNotebookSourceDisclosure.querySelector('summary')?.textContent?.includes('Code') === true &&
+                      codeNotebookSourceDisclosure.textContent?.includes('value = 2') === true;
+                    notebookCodeSnippetChecks[testId] =
+                      codeNotebookBlock instanceof HTMLElement &&
+                      codeNotebookTitle instanceof HTMLElement &&
+                      codeNotebookTitle.textContent?.trim() === 'Python' &&
+                      codeNotebookSourceDisclosure instanceof HTMLDetailsElement &&
+                      codeNotebookSourceDisclosure.querySelector('[data-testid="notebook-preview-code-block"]') === codeNotebookBlock;
+                    notebookCellSpacingChecks[testId] =
+                      notebookList instanceof HTMLElement &&
+                      notebookListInner instanceof HTMLElement &&
+                      listStyle !== null &&
+                      listInnerStyle !== null &&
+                      firstCellStyle !== null &&
+                      firstSummaryStyle !== null &&
+                      Number.parseFloat(listStyle.paddingTop) >= 16 &&
+                      Number.parseFloat(listStyle.paddingLeft) >= 16 &&
+                      listInnerStyle.display === 'flex' &&
+                      Number.parseFloat(listInnerStyle.rowGap) >= 16 &&
+                      Number.parseFloat(listInnerStyle.maxWidth) >= 760 &&
+                      Number.parseFloat(firstCellStyle.borderRadius) >= 8 &&
+                      Number.parseFloat(firstSummaryStyle.paddingLeft) >= 16 &&
+                      Number.parseFloat(firstSummaryStyle.paddingTop) >= 8;
+                    notebookOutputChromeChecks[testId] =
+                      firstCellSource instanceof HTMLElement &&
+                      outputContainer instanceof HTMLElement &&
+                      firstCellSourceStyle !== null &&
+                      outputContainerStyle !== null &&
+                      Number.parseFloat(firstCellSourceStyle.paddingLeft) >= 16 &&
+                      Number.parseFloat(firstCellSourceStyle.paddingTop) >= 12 &&
+                      Number.parseFloat(outputContainerStyle.paddingLeft) >= 16 &&
+                      Number.parseFloat(outputContainerStyle.paddingTop) >= 12 &&
+                      Number.parseFloat(outputContainerStyle.rowGap) >= 12 &&
+                      outputContainerStyle.borderTopWidth !== '0px' &&
+                      outputContainerStyle.boxShadow !== 'none';
+                    notebookOutputItemChromeChecks[testId] =
+                      streamOutput instanceof HTMLElement &&
+                      textOutput instanceof HTMLElement &&
+                      streamOutputStyle !== null &&
+                      textOutputStyle !== null &&
+                      streamRawPreStyle !== null &&
+                      Number.parseFloat(streamOutputStyle.paddingLeft) >= 12 &&
+                      streamOutputStyle.borderTopWidth === '0px' &&
+                      streamOutputStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                      Number.parseFloat(streamRawPreStyle.paddingLeft) >= 12 &&
+                      Number.parseFloat(textOutputStyle.paddingLeft) >= 12 &&
+                      textOutputStyle.borderTopWidth === '0px' &&
+                      textOutputStyle.backgroundColor !== 'rgba(0, 0, 0, 0)';
+                    notebookOutputSummaryChecks[testId] =
+                      outputSummaries.length >= 2 &&
+                      outputSummaries.some((summary) => summary.textContent?.includes('Stream summary')) &&
+                      outputSummaries.some((summary) => summary.textContent?.includes('Result summary')) &&
+                      streamOutput instanceof HTMLElement &&
+                      streamOutput.textContent?.includes('Stream summary') === true &&
+                      textOutput instanceof HTMLElement &&
+                      textOutput.textContent?.includes('Result summary') === true;
+                    notebookRawOutputDisclosureChecks[testId] =
+                      rawOutputDisclosures.length >= 2 &&
+                      rawOutputDisclosures.every((disclosure) => disclosure instanceof HTMLDetailsElement) &&
+                      rawOutputDisclosures.every((disclosure) => disclosure.querySelector('summary')?.textContent?.includes('Raw output') === true) &&
+                      streamOutput instanceof HTMLElement &&
+                      streamOutput.querySelector('[data-notebook-raw-output-disclosure="true"]') instanceof HTMLDetailsElement &&
+                      textOutput instanceof HTMLElement &&
+                      textOutput.querySelector('[data-notebook-raw-output-disclosure="true"]') instanceof HTMLDetailsElement;
+                    notebookOutputRenderingChecks[testId] =
+                      outputContainer instanceof HTMLElement &&
+                      Number(outputContainer.getAttribute('data-notebook-output-count') ?? '0') >= 2 &&
+                      streamOutput instanceof HTMLElement &&
+                      streamOutput.textContent?.includes('result: 2') === true &&
+                      textOutput instanceof HTMLElement &&
+                      textOutput.textContent?.includes('plain result: 2') === true &&
+                      !(document.querySelector('[data-notebook-output-type="json"]') instanceof HTMLElement);
+                  }
+                  if (testId === 'workspace-document-preview') {
+                    const documentPreview = document.querySelector('[data-testid="workspace-document-preview"]');
+                    const pageControls = document.querySelector('[data-testid="workspace-document-preview-page-controls"]');
+                    const pageIndicator = document.querySelector('[data-testid="workspace-document-preview-page-indicator"]');
+                    const previousPage = document.querySelector('[data-testid="workspace-document-preview-page-previous"]');
+                    const nextPage = document.querySelector('[data-testid="workspace-document-preview-page-next"]');
+                    const zoomControls = document.querySelector('[data-testid="workspace-document-preview-zoom-controls"]');
+                    const zoomIndicator = document.querySelector('[data-testid="workspace-document-preview-zoom-indicator"]');
+                    const zoomIn = document.querySelector('[data-testid="workspace-document-preview-zoom-in"]');
+                    const pageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
+                    const pageContent = document.querySelector('[data-testid="workspace-document-preview-page-content"]');
+                    const documentTables = [...document.querySelectorAll('[data-testid="workspace-document-preview-table"]')];
+                    const documentImages = [...document.querySelectorAll('[data-testid="workspace-document-preview-image"]')];
+                    const documentFootnotes = document.querySelector('[data-testid="workspace-document-preview-footnotes"]');
+                    const documentFootnoteItems = [...document.querySelectorAll('[data-testid="workspace-document-preview-footnote"]')];
+                    const documentComments = document.querySelector('[data-testid="workspace-document-preview-comments"]');
+                    const documentCommentItems = [...document.querySelectorAll('[data-testid="workspace-document-preview-comment"]')];
+                    const documentHeader = document.querySelector('[data-testid="workspace-document-preview-header-text"]');
+                    const documentFooter = document.querySelector('[data-testid="workspace-document-preview-footer-text"]');
+                    const initialDocumentControls =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-page-count') === '2' &&
+                      documentPreview.getAttribute('data-document-preview-current-page') === '1' &&
+                      documentPreview.getAttribute('data-document-preview-zoom-percent') === '100' &&
+                      pageControls instanceof HTMLElement &&
+                      pageControls.getAttribute('data-document-current-page') === '1' &&
+                      pageControls.getAttribute('data-document-page-count') === '2' &&
+                      documentPreview.getAttribute('data-document-preview-zoom-fit') === 'false' &&
+                      pageIndicator instanceof HTMLElement &&
+                      pageIndicator.textContent?.trim() === '1/2' &&
+                      previousPage instanceof HTMLButtonElement &&
+                      previousPage.disabled &&
+                      nextPage instanceof HTMLButtonElement &&
+                      !nextPage.disabled &&
+                      zoomControls instanceof HTMLElement &&
+                      zoomControls.getAttribute('data-document-zoom-percent') === '100' &&
+                      zoomControls.getAttribute('data-artifact-zoom-menu') === 'true' &&
+                      zoomIndicator instanceof HTMLElement &&
+                      zoomIndicator.textContent?.trim() === '100%' &&
+                      zoomIn instanceof HTMLButtonElement &&
+                      !zoomIn.disabled &&
+                      pageBody instanceof HTMLElement &&
+                      pageBody.getAttribute('data-document-page-number') === '1' &&
+                      pageBody.textContent?.includes('Document smoke updated') === true;
+                    documentTableChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-renderer') === 'codex-page-surface' &&
+                      documentPreview.getAttribute('data-document-preview-table-count') === '1' &&
+                      documentPreview.getAttribute('data-document-preview-block-count') === '10' &&
+                      pageBody instanceof HTMLElement &&
+                      pageBody.classList.contains('codex-docx-preview') &&
+                      pageBody.textContent?.includes('Updated table') === true &&
+                      documentTables.length === 1 &&
+                      documentTables[0]?.textContent?.includes('Metric') === true;
+                    documentImageChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-image-count') === '1' &&
+                      pageBody instanceof HTMLElement &&
+                      pageBody.classList.contains('codex-docx-preview') &&
+                      documentImages.length === 1 &&
+                      documentImages[0] instanceof HTMLElement &&
+                      documentImages[0].getAttribute('data-document-image-mime-type') === 'image/png' &&
+                      documentImages[0].getAttribute('data-document-image-alt') === 'Document smoke embedded image' &&
+                      documentImages[0].querySelector('img') instanceof HTMLImageElement;
+                    documentSectionChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-section-count') === '1' &&
+                      documentPreview.getAttribute('data-document-preview-column-count') === '2' &&
+                      documentPreview.getAttribute('data-document-preview-header-text') === 'Document smoke header' &&
+                      documentPreview.getAttribute('data-document-preview-footer-text') === 'Document smoke footer' &&
+                      documentHeader instanceof HTMLElement &&
+                      documentHeader.getAttribute('data-document-header-text') === 'Document smoke header' &&
+                      documentHeader.textContent?.includes('Document smoke header') === true &&
+                      documentFooter instanceof HTMLElement &&
+                      documentFooter.getAttribute('data-document-footer-text') === 'Document smoke footer' &&
+                      documentFooter.textContent?.includes('Document smoke footer') === true;
+                    const pageContentStyle = pageContent instanceof HTMLElement ? getComputedStyle(pageContent) : null;
+                    documentColumnLayoutChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-column-count') === '2' &&
+                      pageContent instanceof HTMLElement &&
+                      pageContent.getAttribute('data-document-column-count') === '2' &&
+                      pageContent.getAttribute('data-document-column-layout') === 'true' &&
+                      pageContent.textContent?.includes('Document smoke updated') === true &&
+                      !(pageContent.textContent ?? '').includes('Document smoke header') &&
+                      !(pageContent.textContent ?? '').includes('Document smoke footer') &&
+                      pageContentStyle !== null &&
+                      pageContentStyle.columnCount === '2' &&
+                      Number.parseFloat(pageContentStyle.columnGap) >= 24;
+                    documentFootnoteChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-footnote-count') === '1' &&
+                      documentFootnotes instanceof HTMLElement &&
+                      documentFootnotes.getAttribute('data-document-footnote-count') === '1' &&
+                      documentFootnoteItems.length === 1 &&
+                      documentFootnoteItems[0] instanceof HTMLElement &&
+                      documentFootnoteItems[0].getAttribute('data-document-footnote-id') === '2' &&
+                      documentFootnoteItems[0].textContent?.includes('Document smoke footnote text') === true;
+                    documentCommentChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-comment-count') === '1' &&
+                      documentComments instanceof HTMLElement &&
+                      documentComments.getAttribute('data-document-comment-count') === '1' &&
+                      documentCommentItems.length === 1 &&
+                      documentCommentItems[0] instanceof HTMLElement &&
+                      documentCommentItems[0].getAttribute('data-document-comment-id') === '1' &&
+                      documentCommentItems[0].getAttribute('data-document-comment-author') === 'Codex Smoke' &&
+                      documentCommentItems[0].textContent?.includes('Document smoke comment text') === true;
+                    const documentStyledParagraphs = [...document.querySelectorAll('[data-testid="workspace-document-preview-styled-paragraph"]')];
+                    const documentStyledParagraphStyle = documentStyledParagraphs[0] instanceof HTMLElement ? getComputedStyle(documentStyledParagraphs[0]) : null;
+                    documentTextStyleChecks[testId] =
+                      documentPreview instanceof HTMLElement &&
+                      documentPreview.getAttribute('data-document-preview-style-count') === '1' &&
+                      pageBody instanceof HTMLElement &&
+                      documentStyledParagraphs.length === 1 &&
+                      documentStyledParagraphs[0] instanceof HTMLElement &&
+                      documentStyledParagraphs[0].getAttribute('data-document-paragraph-style') === 'heading1' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-text-style') === 'bold italic underline highlight color size font' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-highlight-color') === '#FEF08A' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-text-color') === '#1D4ED8' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-font-size-pt') === '18' &&
+                      documentStyledParagraphs[0].getAttribute('data-document-font-family') === 'Aptos Display' &&
+                      documentStyledParagraphs[0].textContent?.includes('Document smoke styled heading') === true &&
+                      documentStyledParagraphStyle !== null &&
+                      Number.parseFloat(documentStyledParagraphStyle.fontSize) >= 23 &&
+                      Number.parseFloat(documentStyledParagraphStyle.fontWeight) >= 650 &&
+                      documentStyledParagraphStyle.fontStyle === 'italic' &&
+                      documentStyledParagraphStyle.textDecorationLine.includes('underline') &&
+                      documentStyledParagraphStyle.color === 'rgb(29, 78, 216)' &&
+                      documentStyledParagraphStyle.fontFamily.includes('Aptos Display');
+                    if (nextPage instanceof HTMLButtonElement) {
+                      nextPage.click();
+                      await sleep(160);
+                    }
+                    const advancedPreview = document.querySelector('[data-testid="workspace-document-preview"]');
+                    const advancedPageControls = document.querySelector('[data-testid="workspace-document-preview-page-controls"]');
+                    const advancedPageIndicator = document.querySelector('[data-testid="workspace-document-preview-page-indicator"]');
+                    const advancedPreviousPage = document.querySelector('[data-testid="workspace-document-preview-page-previous"]');
+                    const advancedNextPage = document.querySelector('[data-testid="workspace-document-preview-page-next"]');
+                    const advancedPageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
+                    const documentShapes = [...document.querySelectorAll('[data-testid="workspace-document-preview-shape"]')];
+                    const documentListItems = [...document.querySelectorAll('[data-testid="workspace-document-preview-list-item"]')];
+                    const documentReviewMarks = [...document.querySelectorAll('[data-testid="workspace-document-preview-review-mark"]')];
+                    const documentLinks = [...document.querySelectorAll('[data-testid="workspace-document-preview-link"]')];
+                    documentFootnoteChecks[testId] =
+                      Boolean(documentFootnoteChecks[testId]) &&
+                      advancedPageBody instanceof HTMLElement &&
+                      advancedPageBody.textContent?.includes('Document smoke footnote reference[2]') === true;
+                    documentListChecks[testId] =
+                      advancedPageBody instanceof HTMLElement &&
+                      documentListItems.length === 1 &&
+                      documentListItems[0] instanceof HTMLElement &&
+                      documentListItems[0].getAttribute('data-document-list-kind') === 'bullet' &&
+                      documentListItems[0].getAttribute('data-document-list-level') === '0' &&
+                      documentListItems[0].textContent?.includes('Document smoke bullet list item') === true;
+                    documentCommentChecks[testId] =
+                      Boolean(documentCommentChecks[testId]) &&
+                      advancedPageBody instanceof HTMLElement &&
+                      advancedPageBody.textContent?.includes('Document smoke comment reference[comment 1]') === true;
+                    documentReviewMarkChecks[testId] =
+                      advancedPreview instanceof HTMLElement &&
+                      advancedPreview.getAttribute('data-document-preview-review-mark-count') === '1' &&
+                      advancedPageBody instanceof HTMLElement &&
+                      documentReviewMarks.length === 1 &&
+                      documentReviewMarks[0] instanceof HTMLElement &&
+                      documentReviewMarks[0].getAttribute('data-document-review-kind') === 'insertion' &&
+                      documentReviewMarks[0].getAttribute('data-document-review-author') === 'Codex Smoke' &&
+                      documentReviewMarks[0].getAttribute('data-document-review-date') === '2026-05-27T00:00:00Z' &&
+                      documentReviewMarks[0].textContent?.includes('Inserted') === true &&
+                      documentReviewMarks[0].textContent?.includes('Document smoke inserted review text') === true;
+                    documentLinkChecks[testId] =
+                      advancedPreview instanceof HTMLElement &&
+                      advancedPreview.getAttribute('data-document-preview-link-count') === '1' &&
+                      advancedPageBody instanceof HTMLElement &&
+                      advancedPageBody.textContent?.includes('Document smoke link reference') === true &&
+                      documentLinks.length === 1 &&
+                      documentLinks[0] instanceof HTMLAnchorElement &&
+                      documentLinks[0].getAttribute('data-document-link-url') === 'https://example.test/orchestrator-docx-link' &&
+                      documentLinks[0].textContent?.trim() === 'Document smoke hyperlink';
+                    const pageNavigationWorks =
+                      advancedPreview instanceof HTMLElement &&
+                      advancedPreview.getAttribute('data-document-preview-page-count') === '2' &&
+                      advancedPreview.getAttribute('data-document-preview-current-page') === '2' &&
+                      advancedPageControls instanceof HTMLElement &&
+                      advancedPageControls.getAttribute('data-document-current-page') === '2' &&
+                      advancedPageIndicator instanceof HTMLElement &&
+                      advancedPageIndicator.textContent?.trim() === '2/2' &&
+                      advancedPreviousPage instanceof HTMLButtonElement &&
+                      !advancedPreviousPage.disabled &&
+                      advancedNextPage instanceof HTMLButtonElement &&
+                      advancedNextPage.disabled &&
+                      advancedPageBody instanceof HTMLElement &&
+                      advancedPageBody.getAttribute('data-document-page-number') === '2' &&
+                      advancedPageBody.textContent?.includes('Document smoke link reference') === true;
+                    const shapeStyle = documentShapes[0] instanceof HTMLElement ? getComputedStyle(documentShapes[0]) : null;
+                    documentShapeChecks[testId] =
+                      advancedPreview instanceof HTMLElement &&
+                      advancedPreview.getAttribute('data-document-preview-shape-count') === '1' &&
+                      advancedPageBody instanceof HTMLElement &&
+                      advancedPageBody.classList.contains('codex-docx-preview') &&
+                      documentShapes.length === 1 &&
+                      documentShapes[0] instanceof HTMLElement &&
+                      documentShapes[0].getAttribute('data-document-shape-geometry') === 'roundRect' &&
+                      documentShapes[0].getAttribute('data-document-shape-fill-color') === '#E0F2FE' &&
+                      documentShapes[0].getAttribute('data-document-shape-line-color') === '#38BDF8' &&
+                      documentShapes[0].textContent?.includes('Document smoke shape callout') === true &&
+                      shapeStyle !== null &&
+                      Number.parseFloat(shapeStyle.borderRadius) >= 8;
+                    const advancedZoomIn = document.querySelector('[data-testid="workspace-document-preview-zoom-in"]');
+                    if (advancedZoomIn instanceof HTMLButtonElement) {
+                      advancedZoomIn.click();
+                      await sleep(160);
+                    }
+                    const zoomedPreview = document.querySelector('[data-testid="workspace-document-preview"]');
+                    const zoomedControls = document.querySelector('[data-testid="workspace-document-preview-zoom-controls"]');
+                    const zoomedIndicator = document.querySelector('[data-testid="workspace-document-preview-zoom-indicator"]');
+                    const zoomedPageBody = document.querySelector('[data-testid="workspace-document-preview-page"]');
+                    const zoomedDocumentBody = document.querySelector('[data-testid="workspace-document-preview-body"]');
+                    const zoomControlsWork =
+                      zoomedPreview instanceof HTMLElement &&
+                      zoomedPreview.getAttribute('data-document-preview-current-page') === '2' &&
+                      zoomedPreview.getAttribute('data-document-preview-zoom-percent') === '125' &&
+                      zoomedPreview.getAttribute('data-document-preview-zoom-fit') === 'false' &&
+                      zoomedControls instanceof HTMLElement &&
+                      zoomedControls.getAttribute('data-document-zoom-percent') === '125' &&
+                      zoomedControls.getAttribute('data-document-zoom-fit') === 'false' &&
+                      zoomedIndicator instanceof HTMLElement &&
+                      zoomedIndicator.textContent?.trim() === '125%' &&
+                      zoomedPageBody instanceof HTMLElement &&
+                      zoomedPageBody.classList.contains('codex-docx-preview') &&
+                      zoomedDocumentBody instanceof HTMLElement &&
+                      zoomedDocumentBody.style.getPropertyValue('--codex-docx-preview-zoom') === '1.25';
+                    if (zoomedIndicator instanceof HTMLButtonElement) {
+                      zoomedIndicator.click();
+                      await sleep(120);
+                    }
+                    const documentZoomMenu = document.querySelector('[data-testid="workspace-document-preview-zoom-menu"]');
+                    const documentZoomFit = document.querySelector('[data-testid="workspace-document-preview-zoom-fit"]');
+                    const documentZoomOptions = [...document.querySelectorAll('[data-testid^="workspace-document-preview-zoom-option-"]')];
+                    if (documentZoomFit instanceof HTMLButtonElement) {
+                      documentZoomFit.click();
+                      await sleep(120);
+                    }
+                    const fittedDocumentPreview = document.querySelector('[data-testid="workspace-document-preview"]');
+                    const fittedDocumentControls = document.querySelector('[data-testid="workspace-document-preview-zoom-controls"]');
+                    const fittedDocumentIndicator = document.querySelector('[data-testid="workspace-document-preview-zoom-indicator"]');
+                    documentPdfZoomMenuChecks['workspace-document-preview'] =
+                      documentZoomMenu instanceof HTMLElement &&
+                      documentZoomOptions.length >= 6 &&
+                      documentZoomOptions.some((option) => option.textContent?.trim() === '50%') &&
+                      documentZoomOptions.some((option) => option.textContent?.trim() === '200%') &&
+                      documentZoomFit instanceof HTMLButtonElement &&
+                      documentZoomFit.textContent?.includes('Zoom to fit') === true &&
+                      fittedDocumentPreview instanceof HTMLElement &&
+                      fittedDocumentPreview.getAttribute('data-document-preview-zoom-fit') === 'true' &&
+                      fittedDocumentControls instanceof HTMLElement &&
+                      fittedDocumentControls.getAttribute('data-document-zoom-fit') === 'true' &&
+                      fittedDocumentIndicator instanceof HTMLButtonElement &&
+                      fittedDocumentIndicator.textContent?.trim() === 'Fit';
+                    documentPageControlChecks[testId] =
+                      initialDocumentControls &&
+                      pageNavigationWorks &&
+                      zoomControlsWork;
+                  }
+                  if (testId === 'workspace-spreadsheet-preview') {
+                    const spreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const sheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet"]');
+                    const table = document.querySelector('[data-testid="workspace-spreadsheet-preview-table"]');
+                    const sheetControls = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-controls"]');
+                    const sheetIndicator = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-indicator"]');
+                    const previousSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-previous"]');
+                    const nextSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-next"]');
+                    const sheetTabs = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tabs"]');
+                    const sheetTabButtons = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-preview-sheet-tab"]')];
+                    const addSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-add-sheet"]');
+                    const zoomControls = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-controls"]');
+                    const zoomIndicator = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-indicator"]');
+                    const zoomIn = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-in"]');
+                    const formulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const activeCellAddress = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-address"]');
+                    const activeCellValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    const columnHeaders = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-column-header"]')];
+                    const rowHeaders = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-row-header"]')];
+                    const headerNameCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A1"]');
+                    const headerNameTableCell = headerNameCell?.closest('td');
+                    const alphaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A2"]');
+                    const alphaCountCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B2"]');
+                    const betaCountCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B3"]');
+                    const highTrendCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="G2"]');
+                    const lowTrendCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="G3"]');
+                    const expressionTrendCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="H2"]');
+                    const expressionTrendMissCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="H3"]');
+                    const betaCountCommentIndicator = betaCountCell?.querySelector('[data-testid="workspace-spreadsheet-comment-indicator"]');
+                    const spreadsheetComments = document.querySelector('[data-testid="workspace-spreadsheet-comments"]');
+                    const betaCountComment = document.querySelector('[data-testid="workspace-spreadsheet-comment"][data-spreadsheet-comment-address="B3"]');
+                    const threadedCommentCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="D2"]');
+                    const threadedCommentIndicator = threadedCommentCell?.querySelector('[data-testid="workspace-spreadsheet-comment-indicator"]');
+                    const threadedComment = document.querySelector('[data-testid="workspace-spreadsheet-comment"][data-spreadsheet-comment-address="D2"]');
+                    const tableFilterButton = headerNameCell?.querySelector('[data-testid="workspace-spreadsheet-filter-button"]');
+                    const updatedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
+                    const statusValidationButton = updatedStatusCell?.querySelector('[data-testid="workspace-spreadsheet-validation-button"]');
+                    const validationSourceFirstCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="E1"]');
+                    const validationSourceSecondCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="E2"]');
+                    const validationSourceThirdCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="E3"]');
+                    const mergedNoteCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A4"]');
+                    const mergedNoteTableCell = mergedNoteCell?.closest('td');
+                    const coveredMergedCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B4"]');
+                    const alignedWrappedCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A5"]');
+                    const wideColumnHeader = document.querySelector('[data-testid="workspace-spreadsheet-column-header"][data-spreadsheet-column-label="B"]');
+                    const tallRowHeader = document.querySelector('[data-testid="workspace-spreadsheet-row-header"][data-spreadsheet-row-label="4"]');
+                    const frozenColumnHeader = document.querySelector('[data-testid="workspace-spreadsheet-column-header"][data-spreadsheet-column-label="A"]');
+                    const frozenRowHeader = document.querySelector('[data-testid="workspace-spreadsheet-row-header"][data-spreadsheet-row-label="1"]');
+                    const tableWrap = document.querySelector('[data-testid="workspace-spreadsheet-table-wrap"]');
+                    const freezeOverlay = document.querySelector('[data-testid="workspace-spreadsheet-freeze-overlay"]');
+                    const freezeColumnLine = document.querySelector('[data-testid="workspace-spreadsheet-freeze-column-line"]');
+	                    const freezeColumnHandle = document.querySelector('[data-testid="workspace-spreadsheet-freeze-column-handle"]');
+	                    const freezeRowLine = document.querySelector('[data-testid="workspace-spreadsheet-freeze-row-line"]');
+	                    const freezeRowHandle = document.querySelector('[data-testid="workspace-spreadsheet-freeze-row-handle"]');
+	                    const spreadsheetDrawings = document.querySelector('[data-testid="workspace-spreadsheet-drawings"]');
+	                    const drawingCards = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-drawing"]')];
+	                    const shapeDrawing = document.querySelector('[data-testid="workspace-spreadsheet-drawing"][data-spreadsheet-drawing-kind="shape"]');
+	                    const imageDrawing = document.querySelector('[data-testid="workspace-spreadsheet-drawing"][data-spreadsheet-drawing-kind="image"]');
+	                    const imageDrawingImg = imageDrawing instanceof HTMLElement ? imageDrawing.querySelector('[data-testid="workspace-spreadsheet-drawing-image"]') : null;
+	                    const spreadsheetSparklines = document.querySelector('[data-testid="workspace-spreadsheet-sparklines"]');
+	                    const sparklineCards = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-sparkline"]')];
+	                    const firstSparkline = document.querySelector('[data-testid="workspace-spreadsheet-sparkline"][data-spreadsheet-sparkline-target-cell="F2"]');
+	                    const firstSparklineSvg = firstSparkline instanceof HTMLElement ? firstSparkline.querySelector('[data-testid="workspace-spreadsheet-sparkline-svg"]') : null;
+	                    const chartPreview = document.querySelector('[data-testid="workspace-spreadsheet-chart-preview"]');
+                    const chartPlot = document.querySelector('[data-testid="workspace-spreadsheet-chart-plot"]');
+                    const chartSvg = document.querySelector('[data-testid="workspace-spreadsheet-chart-svg"]');
+                    const chartBars = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-chart-bar"]')];
+                    spreadsheetRendererChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-preview-rendered') === 'true' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-preview-sheet-count') === '2' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-sheet-index') === '1' &&
+                      sheet instanceof HTMLElement &&
+                      sheet.getAttribute('data-spreadsheet-sheet-name') === 'Smoke data' &&
+                      table instanceof HTMLTableElement &&
+                      table.textContent?.includes('Alpha') === true &&
+                      table.textContent?.includes('Updated') === true &&
+                      table.textContent?.includes('Beta') === true &&
+                      table.textContent?.includes('New') === true;
+                    const initialSpreadsheetControls =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-preview-zoom-percent') === '100' &&
+                      sheetControls instanceof HTMLElement &&
+                      sheetControls.getAttribute('data-spreadsheet-current-sheet') === '1' &&
+                      sheetControls.getAttribute('data-spreadsheet-sheet-count') === '2' &&
+                      sheetIndicator instanceof HTMLElement &&
+                      sheetIndicator.textContent?.trim() === '1/2' &&
+                      previousSheet instanceof HTMLButtonElement &&
+                      previousSheet.disabled &&
+                      nextSheet instanceof HTMLButtonElement &&
+                      !nextSheet.disabled &&
+                      sheetTabs instanceof HTMLElement &&
+                      sheetTabs.getAttribute('data-spreadsheet-sheet-tab-count') === '2' &&
+                      sheetTabs.getAttribute('data-spreadsheet-active-sheet-tab') === 'Smoke data' &&
+                      sheetTabButtons.length === 2 &&
+                      sheetTabButtons[0] instanceof HTMLButtonElement &&
+                      sheetTabButtons[0].getAttribute('data-active') === 'true' &&
+                      sheetTabButtons[0].getAttribute('aria-selected') === 'true' &&
+                      sheetTabButtons[0].textContent?.trim() === 'Smoke data' &&
+                      sheetTabButtons[1] instanceof HTMLButtonElement &&
+                      sheetTabButtons[1].getAttribute('data-active') === 'false' &&
+                      sheetTabButtons[1].textContent?.trim() === 'Totals' &&
+                      addSheet instanceof HTMLButtonElement &&
+                      addSheet.disabled &&
+                      zoomControls instanceof HTMLElement &&
+                      zoomControls.getAttribute('data-spreadsheet-zoom-percent') === '100' &&
+                      zoomIndicator instanceof HTMLElement &&
+                      zoomIndicator.textContent?.trim() === '100%' &&
+                      zoomIn instanceof HTMLButtonElement &&
+                      !zoomIn.disabled;
+                    const initialActiveCellWorks =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-cell-address') === 'A1' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-cell-value') === 'Name' &&
+                      formulaBar instanceof HTMLElement &&
+                      formulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'A1' &&
+                      formulaBar.getAttribute('data-spreadsheet-active-cell-value') === 'Name' &&
+                      activeCellAddress instanceof HTMLElement &&
+                      activeCellAddress.textContent?.trim() === 'A1' &&
+                      activeCellValue instanceof HTMLInputElement &&
+                      activeCellValue.value === 'Name' &&
+                      columnHeaders.length >= 3 &&
+                      columnHeaders[0] instanceof HTMLElement &&
+                      columnHeaders[0].textContent?.trim() === 'A' &&
+                      columnHeaders[1] instanceof HTMLElement &&
+                      columnHeaders[1].textContent?.trim() === 'B' &&
+                      rowHeaders.length >= 2 &&
+                      rowHeaders[0] instanceof HTMLElement &&
+                      rowHeaders[0].textContent?.trim() === '1' &&
+                      alphaCell instanceof HTMLButtonElement &&
+                      alphaCell.getAttribute('data-spreadsheet-cell-value') === 'Alpha';
+                    spreadsheetStyleChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      Number(spreadsheetPreview.getAttribute('data-spreadsheet-style-cell-count') ?? '0') >= 5 &&
+                      headerNameCell instanceof HTMLButtonElement &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-fill-color') === '#DBEAFE' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-text-color') === '#1D4ED8' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-bold') === 'true' &&
+                      ['700', 'bold'].includes(getComputedStyle(headerNameCell).fontWeight) &&
+                      updatedStatusCell instanceof HTMLButtonElement &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-fill-color') === '#DCFCE7' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-text-color') === '#166534' &&
+                      getComputedStyle(updatedStatusCell).backgroundColor === 'rgb(220, 252, 231)' &&
+                      getComputedStyle(updatedStatusCell).color === 'rgb(22, 101, 52)';
+                    spreadsheetMergeChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-merge-count') === '1' &&
+                      mergedNoteCell instanceof HTMLButtonElement &&
+                      mergedNoteCell.getAttribute('data-spreadsheet-cell-value') === 'Merged updated note' &&
+                      mergedNoteCell.getAttribute('data-spreadsheet-cell-merge-ref') === 'A4:B4' &&
+                      mergedNoteCell.getAttribute('data-spreadsheet-cell-merge-rowspan') === '1' &&
+                      mergedNoteCell.getAttribute('data-spreadsheet-cell-merge-colspan') === '2' &&
+                      mergedNoteTableCell instanceof HTMLTableCellElement &&
+                      mergedNoteTableCell.colSpan === 2 &&
+                      !(coveredMergedCell instanceof HTMLButtonElement);
+                    spreadsheetSizingChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-sized-column-count') === '5' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-sized-row-count') === '5' &&
+                      wideColumnHeader instanceof HTMLElement &&
+                      wideColumnHeader.getAttribute('data-spreadsheet-column-width') === '173' &&
+                      Math.round(wideColumnHeader.getBoundingClientRect().width) >= 160 &&
+                      tallRowHeader instanceof HTMLElement &&
+                      tallRowHeader.getAttribute('data-spreadsheet-row-height') === '56' &&
+                      Math.round(tallRowHeader.getBoundingClientRect().height) >= 50 &&
+                      mergedNoteCell instanceof HTMLButtonElement &&
+                      mergedNoteCell.getAttribute('data-spreadsheet-cell-row-height') === '56';
+                    spreadsheetFreezePaneChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-frozen-row-count') === '1' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-frozen-column-count') === '1' &&
+                      frozenColumnHeader instanceof HTMLElement &&
+                      frozenColumnHeader.getAttribute('data-spreadsheet-column-frozen') === 'true' &&
+                      getComputedStyle(frozenColumnHeader).position === 'sticky' &&
+                      frozenRowHeader instanceof HTMLElement &&
+                      frozenRowHeader.getAttribute('data-spreadsheet-row-frozen') === 'true' &&
+                      getComputedStyle(frozenRowHeader).position === 'sticky' &&
+                      headerNameCell instanceof HTMLButtonElement &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-frozen-row') === 'true' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-frozen-column') === 'true' &&
+                      headerNameTableCell instanceof HTMLElement &&
+                      getComputedStyle(headerNameTableCell).position === 'sticky' &&
+                      alphaCell instanceof HTMLButtonElement &&
+                      alphaCell.getAttribute('data-spreadsheet-cell-frozen-column') === 'true';
+                    spreadsheetFreezeHandleChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-freeze-handles') === 'true' &&
+                      tableWrap instanceof HTMLElement &&
+                      tableWrap.getAttribute('data-spreadsheet-freeze-column-line') === 'true' &&
+                      tableWrap.getAttribute('data-spreadsheet-freeze-row-line') === 'true' &&
+                      freezeOverlay instanceof HTMLElement &&
+                      freezeOverlay.getAttribute('data-spreadsheet-freeze-column-count') === '1' &&
+                      freezeOverlay.getAttribute('data-spreadsheet-freeze-row-count') === '1' &&
+                      freezeColumnLine instanceof HTMLElement &&
+                      freezeColumnLine.getAttribute('data-spreadsheet-freeze-column-count') === '1' &&
+                      getComputedStyle(freezeColumnLine).position === 'absolute' &&
+                      freezeColumnHandle instanceof HTMLButtonElement &&
+                      freezeColumnHandle.getAttribute('data-spreadsheet-freeze-column-count') === '1' &&
+                      getComputedStyle(freezeColumnHandle).cursor === 'ew-resize' &&
+                      freezeRowLine instanceof HTMLElement &&
+                      freezeRowLine.getAttribute('data-spreadsheet-freeze-row-count') === '1' &&
+                      getComputedStyle(freezeRowLine).position === 'absolute' &&
+                      freezeRowHandle instanceof HTMLButtonElement &&
+                      freezeRowHandle.getAttribute('data-spreadsheet-freeze-row-count') === '1' &&
+                      getComputedStyle(freezeRowHandle).cursor === 'ns-resize';
+                    spreadsheetAlignmentChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      Number(spreadsheetPreview.getAttribute('data-spreadsheet-aligned-cell-count') ?? '0') >= 1 &&
+                      alignedWrappedCell instanceof HTMLButtonElement &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-value') === 'Wrapped centered updated note for alignment proof' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-wrap-text') === 'true' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-horizontal-alignment') === 'center' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-vertical-alignment') === 'middle' &&
+                      getComputedStyle(alignedWrappedCell).display === 'flex' &&
+                      getComputedStyle(alignedWrappedCell).whiteSpace === 'normal' &&
+                      getComputedStyle(alignedWrappedCell).textAlign === 'center' &&
+                      getComputedStyle(alignedWrappedCell).alignItems === 'center' &&
+                      getComputedStyle(alignedWrappedCell).justifyContent === 'center';
+                    spreadsheetTableChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-table-count') === '1' &&
+                      headerNameCell instanceof HTMLButtonElement &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-table-name') === 'SmokeTable' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-table-ref') === 'A1:C3' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-table-header') === 'true' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-table-style') === 'TableStyleMedium2' &&
+                      headerNameCell.getAttribute('data-spreadsheet-cell-table-filter-button') === 'true' &&
+                      tableFilterButton instanceof HTMLElement &&
+                      tableFilterButton.textContent?.trim() === 'v' &&
+                      alphaCell instanceof HTMLButtonElement &&
+                      alphaCell.getAttribute('data-spreadsheet-cell-table-name') === 'SmokeTable' &&
+                      alphaCell.getAttribute('data-spreadsheet-cell-table-banded-row') === 'true' &&
+                      getComputedStyle(alphaCell).backgroundColor === 'rgb(248, 250, 252)';
+                    spreadsheetConditionalFormattingChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-conditional-format-count') === '3' &&
+                      alphaCountCell instanceof HTMLButtonElement &&
+                      alphaCountCell.getAttribute('data-spreadsheet-cell-value') === '2' &&
+                      alphaCountCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '#FEE2E2' &&
+                      getComputedStyle(alphaCountCell).backgroundColor === 'rgb(254, 226, 226)' &&
+                      betaCountCell instanceof HTMLButtonElement &&
+                      betaCountCell.getAttribute('data-spreadsheet-cell-value') === '3' &&
+                      betaCountCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '#DCFCE7' &&
+                      getComputedStyle(betaCountCell).backgroundColor === 'rgb(220, 252, 231)' &&
+                      highTrendCell instanceof HTMLButtonElement &&
+                      highTrendCell.getAttribute('data-spreadsheet-cell-value') === '5' &&
+                      highTrendCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '#FEF3C7' &&
+                      highTrendCell.getAttribute('data-spreadsheet-cell-text-color') === '#92400E' &&
+                      highTrendCell.getAttribute('data-spreadsheet-cell-bold') === 'true' &&
+                      getComputedStyle(highTrendCell).backgroundColor === 'rgb(254, 243, 199)' &&
+                      getComputedStyle(highTrendCell).color === 'rgb(146, 64, 14)' &&
+                      lowTrendCell instanceof HTMLButtonElement &&
+                      lowTrendCell.getAttribute('data-spreadsheet-cell-value') === '3' &&
+                      lowTrendCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '' &&
+                      expressionTrendCell instanceof HTMLButtonElement &&
+                      expressionTrendCell.getAttribute('data-spreadsheet-cell-value') === '7' &&
+                      expressionTrendCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '#DBEAFE' &&
+                      expressionTrendCell.getAttribute('data-spreadsheet-cell-text-color') === '#1D4ED8' &&
+                      expressionTrendCell.getAttribute('data-spreadsheet-cell-bold') === 'true' &&
+                      getComputedStyle(expressionTrendCell).backgroundColor === 'rgb(219, 234, 254)' &&
+                      getComputedStyle(expressionTrendCell).color === 'rgb(29, 78, 216)' &&
+                      expressionTrendMissCell instanceof HTMLButtonElement &&
+                      expressionTrendMissCell.getAttribute('data-spreadsheet-cell-value') === '4' &&
+                      expressionTrendMissCell.getAttribute('data-spreadsheet-cell-conditional-fill-color') === '';
+                    spreadsheetCommentChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-comment-count') === '2' &&
+                      betaCountCell instanceof HTMLButtonElement &&
+                      betaCountCell.getAttribute('data-spreadsheet-cell-comment-author') === 'Ava Reviewer' &&
+                      betaCountCell.getAttribute('data-spreadsheet-cell-comment-text') === 'Confirm beta count before export.' &&
+                      betaCountCommentIndicator instanceof HTMLElement &&
+                      spreadsheetComments instanceof HTMLElement &&
+                      spreadsheetComments.getAttribute('data-spreadsheet-comment-count') === '2' &&
+                      betaCountComment instanceof HTMLElement &&
+                      betaCountComment.getAttribute('data-spreadsheet-comment-author') === 'Ava Reviewer' &&
+                      betaCountComment.getAttribute('data-spreadsheet-comment-text') === 'Confirm beta count before export.' &&
+                      betaCountComment.textContent?.includes('B3') === true &&
+                      betaCountComment.textContent?.includes('Confirm beta count before export.') === true &&
+                      threadedCommentCell instanceof HTMLButtonElement &&
+                      threadedCommentCell.getAttribute('data-spreadsheet-cell-comment-ref') === 'D2:F3' &&
+                      threadedCommentCell.getAttribute('data-spreadsheet-cell-comment-threaded') === 'true' &&
+                      threadedCommentCell.getAttribute('data-spreadsheet-cell-comment-reply-count') === '1' &&
+                      threadedCommentCell.getAttribute('data-spreadsheet-cell-comment-resolved') === 'true' &&
+                      threadedCommentIndicator instanceof HTMLElement &&
+                      threadedComment instanceof HTMLElement &&
+                      threadedComment.getAttribute('data-spreadsheet-comment-ref') === 'D2:F3' &&
+                      threadedComment.getAttribute('data-spreadsheet-comment-author') === 'Mia PM' &&
+                      threadedComment.getAttribute('data-spreadsheet-comment-threaded') === 'true' &&
+                      threadedComment.getAttribute('data-spreadsheet-comment-reply-count') === '1' &&
+                      threadedComment.getAttribute('data-spreadsheet-comment-resolved') === 'true' &&
+                      threadedComment.textContent?.includes('D2:F3') === true &&
+                      threadedComment.textContent?.includes('1 replies') === true &&
+                      threadedComment.textContent?.includes('Resolved') === true;
+                    spreadsheetDataValidationChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-data-validation-count') === '1' &&
+                      updatedStatusCell instanceof HTMLButtonElement &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-value') === 'Updated' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-type') === 'list' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-values') === 'Updated|New|Blocked' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-allow-blank') === 'true' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-show-input-message') === 'true' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-prompt-title') === 'Status' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-prompt') === 'Pick one of the supported statuses.' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-show-error-message') === 'true' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-error-title') === 'Unsupported status' &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-error') === 'Use Updated, New, or Blocked.' &&
+                      statusValidationButton instanceof HTMLElement &&
+                      statusValidationButton.textContent?.trim() === 'v';
+                    spreadsheetDataValidationRangeChecks[testId] =
+                      spreadsheetDataValidationChecks[testId] &&
+                      updatedStatusCell instanceof HTMLButtonElement &&
+                      updatedStatusCell.getAttribute('data-spreadsheet-cell-data-validation-source-range') === 'E1:E3' &&
+                      validationSourceFirstCell instanceof HTMLButtonElement &&
+                      validationSourceFirstCell.getAttribute('data-spreadsheet-cell-value') === 'Updated' &&
+                      validationSourceSecondCell instanceof HTMLButtonElement &&
+                      validationSourceSecondCell.getAttribute('data-spreadsheet-cell-value') === 'New' &&
+                      validationSourceThirdCell instanceof HTMLButtonElement &&
+                      validationSourceThirdCell.getAttribute('data-spreadsheet-cell-value') === 'Blocked';
+                    if (updatedStatusCell instanceof HTMLButtonElement) {
+                      updatedStatusCell.click();
+                      await sleep(120);
+                    }
+                    const validationMessage = document.querySelector('[data-testid="workspace-spreadsheet-validation-message"]');
+                    const validationOverlay = document.querySelector('[data-testid="workspace-spreadsheet-data-validation-overlay"]');
+                    const validationOptions = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-data-validation-option"]')];
+                    const blockedValidationOption = validationOptions.find((option) => option instanceof HTMLButtonElement && option.getAttribute('data-spreadsheet-data-validation-option') === 'Blocked');
+                    spreadsheetDataValidationMessageChecks[testId] =
+                      spreadsheetDataValidationChecks[testId] &&
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-data-validation-prompt-title') === 'Status' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-data-validation-prompt') === 'Pick one of the supported statuses.' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-data-validation-error-title') === 'Unsupported status' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-active-data-validation-error') === 'Use Updated, New, or Blocked.' &&
+                      validationMessage instanceof HTMLElement &&
+                      validationMessage.getAttribute('data-spreadsheet-data-validation-prompt-title') === 'Status' &&
+                      validationMessage.getAttribute('data-spreadsheet-data-validation-prompt') === 'Pick one of the supported statuses.' &&
+                      validationMessage.getAttribute('data-spreadsheet-data-validation-error-title') === 'Unsupported status' &&
+                      validationMessage.getAttribute('data-spreadsheet-data-validation-error') === 'Use Updated, New, or Blocked.' &&
+                      validationMessage.textContent?.includes('Status') === true &&
+                      validationMessage.textContent?.includes('Pick one of the supported statuses.') === true &&
+                      validationMessage.textContent?.includes('Unsupported status') === true;
+                    const overlayOpenedWorks =
+                      validationOverlay instanceof HTMLElement &&
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-data-validation-overlay-open') === 'true' &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-data-validation-overlay-address') === 'C2' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-address') === 'C2' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-value') === 'Updated' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-options') === 'Updated|New|Blocked' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-prompt-title') === 'Status' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-prompt') === 'Pick one of the supported statuses.' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-error-title') === 'Unsupported status' &&
+                      validationOverlay.getAttribute('data-spreadsheet-data-validation-error') === 'Use Updated, New, or Blocked.' &&
+                      validationOverlay.textContent?.includes('Pick one of the supported statuses.') === true &&
+                      validationOptions.length === 3 &&
+                      validationOptions.some((option) =>
+                        option instanceof HTMLButtonElement &&
+                        option.getAttribute('data-spreadsheet-data-validation-option') === 'Updated' &&
+                        option.getAttribute('data-selected') === 'true'
+                      ) &&
+                      blockedValidationOption instanceof HTMLButtonElement;
+                    if (blockedValidationOption instanceof HTMLButtonElement) {
+                      blockedValidationOption.click();
+                      await sleep(160);
+                    }
+                    const changedSpreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const changedStatusCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="C2"]');
+                    const changedFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const changedCellValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    spreadsheetDataValidationOverlayChecks[testId] =
+                      overlayOpenedWorks &&
+                      changedSpreadsheetPreview instanceof HTMLElement &&
+                      changedSpreadsheetPreview.getAttribute('data-spreadsheet-data-validation-overlay-open') === 'false' &&
+                      changedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-address') === 'C2' &&
+                      changedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-value') === 'Blocked' &&
+                      Number(changedSpreadsheetPreview.getAttribute('data-spreadsheet-edit-count') ?? '0') >= 1 &&
+                      changedStatusCell instanceof HTMLButtonElement &&
+                      changedStatusCell.getAttribute('data-spreadsheet-cell-value') === 'Blocked' &&
+                      changedStatusCell.textContent?.includes('Blocked') === true &&
+                      changedFormulaBar instanceof HTMLElement &&
+                      changedFormulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'C2' &&
+                      changedFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === 'Blocked' &&
+                      changedCellValue instanceof HTMLInputElement &&
+                      changedCellValue.value === 'Blocked';
+                    spreadsheetBorderChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-border-cell-count') === '1' &&
+                      alignedWrappedCell instanceof HTMLButtonElement &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-color') === '#2563EB' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-top-color') === '#DC2626' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-top-style') === 'double' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-right-color') === '#16A34A' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-right-style') === 'dashed' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-bottom-color') === '#2563EB' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-bottom-style') === 'thick' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-left-color') === '#7C3AED' &&
+                      alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-left-style') === 'dotted' &&
+                      getComputedStyle(alignedWrappedCell).borderTopStyle === 'double' &&
+                      getComputedStyle(alignedWrappedCell).borderRightStyle === 'dashed' &&
+                      getComputedStyle(alignedWrappedCell).borderBottomWidth === '3px' &&
+                      getComputedStyle(alignedWrappedCell).borderLeftStyle === 'dotted';
+                    spreadsheetChartChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-chart-count') === '1' &&
+                      chartPreview instanceof HTMLElement &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-title') === 'Status Count Chart' &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-type') === 'Bar' &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-source-range') === 'Smoke data!B1:B3' &&
+                      chartPreview.textContent?.includes('Status Count Chart') === true &&
+                      chartPreview.textContent?.includes('Bar') === true;
+	                    spreadsheetChartPlotChecks[testId] =
+	                      spreadsheetChartChecks[testId] === true &&
+	                      chartPreview instanceof HTMLElement &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-rendered') === 'true' &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-datum-count') === '2' &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-max-value') === '3' &&
+                      chartPlot instanceof HTMLElement &&
+                      chartPlot.getAttribute('data-spreadsheet-chart-labels') === 'Alpha|Beta' &&
+                      chartPlot.getAttribute('data-spreadsheet-chart-values') === '2|3' &&
+                      chartSvg instanceof SVGElement &&
+                      chartSvg.getAttribute('viewBox') === '0 0 220 104' &&
+                      chartBars.length === 2 &&
+                      chartBars[0] instanceof SVGRectElement &&
+                      chartBars[0].getAttribute('data-spreadsheet-chart-datum-label') === 'Alpha' &&
+                      chartBars[0].getAttribute('data-spreadsheet-chart-datum-value') === '2' &&
+	                      chartBars[1] instanceof SVGRectElement &&
+	                      chartBars[1].getAttribute('data-spreadsheet-chart-datum-label') === 'Beta' &&
+	                      chartBars[1].getAttribute('data-spreadsheet-chart-datum-value') === '3';
+	                    spreadsheetDrawingChecks[testId] =
+	                      spreadsheetPreview instanceof HTMLElement &&
+	                      spreadsheetPreview.getAttribute('data-spreadsheet-drawing-count') === '2' &&
+	                      spreadsheetDrawings instanceof HTMLElement &&
+	                      spreadsheetDrawings.getAttribute('data-spreadsheet-drawing-count') === '2' &&
+	                      drawingCards.length === 2 &&
+	                      shapeDrawing instanceof HTMLElement &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-name') === 'Workbook shape callout' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-text') === 'Workbook shape callout' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-geometry') === 'upArrow' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-fill-color') === '#2563EB' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-line-color') === '#1D4ED8' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-anchor-row') === '2' &&
+	                      shapeDrawing.getAttribute('data-spreadsheet-drawing-anchor-column') === 'F' &&
+	                      shapeDrawing.textContent?.includes('Workbook shape callout') === true &&
+	                      imageDrawing instanceof HTMLElement &&
+	                      imageDrawing.getAttribute('data-spreadsheet-drawing-name') === 'Workbook image' &&
+	                      imageDrawing.getAttribute('data-spreadsheet-drawing-description') === 'Workbook smoke embedded image' &&
+	                      imageDrawing.getAttribute('data-spreadsheet-drawing-image-mime-type') === 'image/png' &&
+	                      imageDrawing.getAttribute('data-spreadsheet-drawing-anchor-row') === '4' &&
+	                      imageDrawing.getAttribute('data-spreadsheet-drawing-anchor-column') === 'F' &&
+	                      imageDrawingImg instanceof HTMLElement &&
+	                      imageDrawingImg.getAttribute('src')?.startsWith('data:image/png;base64,') === true;
+	                    spreadsheetSparklineChecks[testId] =
+	                      spreadsheetPreview instanceof HTMLElement &&
+	                      spreadsheetPreview.getAttribute('data-spreadsheet-sparkline-count') === '1' &&
+	                      spreadsheetSparklines instanceof HTMLElement &&
+	                      spreadsheetSparklines.getAttribute('data-spreadsheet-sparkline-count') === '1' &&
+	                      sparklineCards.length === 1 &&
+	                      firstSparkline instanceof HTMLElement &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-type') === 'line' &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-target-cell') === 'F2' &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-source-range') === 'Smoke data!G2:J2' &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-values') === '5|7|9|11' &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-markers') === 'true' &&
+	                      firstSparkline.getAttribute('data-spreadsheet-sparkline-rendered') === 'true' &&
+	                      firstSparklineSvg instanceof SVGElement &&
+	                      firstSparklineSvg.getAttribute('viewBox') === '0 0 96 32' &&
+	                      firstSparkline.textContent?.includes('F2') === true;
+	                    if (alphaCell instanceof HTMLButtonElement) {
+                      alphaCell.click();
+                      await sleep(120);
+                    }
+                    const selectedSpreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const selectedAlphaFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const selectedCellValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    const selectedAlphaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="A2"]');
+                    const cellSelectionWorks =
+                      selectedSpreadsheetPreview instanceof HTMLElement &&
+                      selectedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-address') === 'A2' &&
+                      selectedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-value') === 'Alpha' &&
+                      selectedAlphaFormulaBar instanceof HTMLElement &&
+                      selectedAlphaFormulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'A2' &&
+                      selectedAlphaFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === 'Alpha' &&
+                      selectedCellValue instanceof HTMLInputElement &&
+                      selectedCellValue.value === 'Alpha' &&
+                      selectedAlphaCell instanceof HTMLButtonElement &&
+                      selectedAlphaCell.getAttribute('data-active') === 'true';
+                    if (nextSheet instanceof HTMLButtonElement) {
+                      nextSheet.click();
+                      await sleep(160);
+                    }
+                    const advancedSpreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const advancedSheetControls = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-controls"]');
+                    const advancedSheetIndicator = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-indicator"]');
+                    const advancedPreviousSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-previous"]');
+                    const advancedNextSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-next"]');
+                    const advancedSheetTabs = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tabs"]');
+                    const advancedSheetTabButtons = [...document.querySelectorAll('[data-testid="workspace-spreadsheet-preview-sheet-tab"]')];
+                    const advancedSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet"]');
+                    const advancedTable = document.querySelector('[data-testid="workspace-spreadsheet-preview-table"]');
+                    const advancedFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const advancedCellValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    const totalCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B2"]');
+                    const sheetNavigationWorks =
+                      advancedSpreadsheetPreview instanceof HTMLElement &&
+                      advancedSpreadsheetPreview.getAttribute('data-spreadsheet-active-sheet-index') === '2' &&
+                      advancedSpreadsheetPreview.getAttribute('data-spreadsheet-active-sheet-name') === 'Totals' &&
+                      advancedSheetControls instanceof HTMLElement &&
+                      advancedSheetControls.getAttribute('data-spreadsheet-current-sheet') === '2' &&
+                      advancedSheetIndicator instanceof HTMLElement &&
+                      advancedSheetIndicator.textContent?.trim() === '2/2' &&
+                      advancedPreviousSheet instanceof HTMLButtonElement &&
+                      !advancedPreviousSheet.disabled &&
+                      advancedNextSheet instanceof HTMLButtonElement &&
+                      advancedNextSheet.disabled &&
+                      advancedSheetTabs instanceof HTMLElement &&
+                      advancedSheetTabs.getAttribute('data-spreadsheet-active-sheet-tab') === 'Totals' &&
+                      advancedSheetTabButtons[1] instanceof HTMLButtonElement &&
+                      advancedSheetTabButtons[1].getAttribute('data-active') === 'true' &&
+                      advancedSheetTabButtons[1].getAttribute('aria-selected') === 'true' &&
+                      advancedSheet instanceof HTMLElement &&
+                      advancedSheet.getAttribute('data-spreadsheet-sheet-name') === 'Totals' &&
+                      advancedTable instanceof HTMLTableElement &&
+                      advancedTable.textContent?.includes('Formula total') === true;
+                    const sheetResetActiveCellWorks =
+                      advancedSpreadsheetPreview instanceof HTMLElement &&
+                      advancedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-address') === 'A1' &&
+                      advancedSpreadsheetPreview.getAttribute('data-spreadsheet-active-cell-value') === 'Metric' &&
+                      advancedFormulaBar instanceof HTMLElement &&
+                      advancedFormulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'A1' &&
+                      advancedFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === 'Metric' &&
+                      advancedCellValue instanceof HTMLInputElement &&
+                      advancedCellValue.value === 'Metric' &&
+                      totalCell instanceof HTMLButtonElement &&
+                      totalCell.getAttribute('data-spreadsheet-cell-value') === '5';
+                    if (totalCell instanceof HTMLButtonElement) {
+                      totalCell.click();
+                      await sleep(120);
+                    }
+                    const selectedTotalsPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const selectedTotalsFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const totalsSelectionWorks =
+                      selectedTotalsPreview instanceof HTMLElement &&
+                      selectedTotalsPreview.getAttribute('data-spreadsheet-active-cell-address') === 'B2' &&
+                      selectedTotalsPreview.getAttribute('data-spreadsheet-active-cell-value') === '5' &&
+                      selectedTotalsFormulaBar instanceof HTMLElement &&
+                      selectedTotalsFormulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'B2' &&
+                      selectedTotalsFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === '5';
+                    const formulaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B3"]');
+                    if (formulaCell instanceof HTMLButtonElement) {
+                      formulaCell.click();
+                      await sleep(120);
+                    }
+                    const selectedFormulaPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const selectedFormulaFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const selectedFormulaValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    const selectedFormulaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B3"]');
+                    spreadsheetFormulaChecks[testId] =
+                      selectedFormulaPreview instanceof HTMLElement &&
+                      selectedFormulaPreview.getAttribute('data-spreadsheet-active-cell-address') === 'B3' &&
+                      selectedFormulaPreview.getAttribute('data-spreadsheet-active-cell-value') === '7' &&
+                      selectedFormulaPreview.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+2' &&
+                      selectedFormulaFormulaBar instanceof HTMLElement &&
+                      selectedFormulaFormulaBar.getAttribute('data-spreadsheet-active-cell-address') === 'B3' &&
+                      selectedFormulaFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === '7' &&
+                      selectedFormulaFormulaBar.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+2' &&
+                      selectedFormulaFormulaBar.getAttribute('data-spreadsheet-active-cell-kind') === 'formula' &&
+                      selectedFormulaValue instanceof HTMLInputElement &&
+                      selectedFormulaValue.value === '=B2+2' &&
+                      selectedFormulaValue.getAttribute('data-spreadsheet-active-cell-value') === '7' &&
+                      selectedFormulaValue.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+2' &&
+                      selectedFormulaCell instanceof HTMLButtonElement &&
+                      selectedFormulaCell.getAttribute('data-spreadsheet-cell-value') === '7' &&
+                      selectedFormulaCell.getAttribute('data-spreadsheet-cell-formula') === '=B2+2' &&
+                      selectedFormulaCell.getAttribute('data-spreadsheet-cell-kind') === 'formula';
+                    const formulaApply = document.querySelector('[data-testid="workspace-spreadsheet-formula-apply"]');
+                    const formulaEditCountBefore = selectedFormulaPreview instanceof HTMLElement
+                      ? Number(selectedFormulaPreview.getAttribute('data-spreadsheet-edit-count') ?? '0')
+                      : 0;
+                    if (selectedFormulaValue instanceof HTMLInputElement) {
+                      setNativeValue(selectedFormulaValue, '=B2+3');
+                      selectedFormulaValue.dispatchEvent(new Event('input', { bubbles: true }));
+                      selectedFormulaValue.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+                      await sleep(160);
+                    }
+                    const editedFormulaPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const editedFormulaFormulaBar = document.querySelector('[data-testid="workspace-spreadsheet-formula-bar"]');
+                    const editedFormulaValue = document.querySelector('[data-testid="workspace-spreadsheet-active-cell-value"]');
+                    const editedFormulaCell = document.querySelector('[data-testid="workspace-spreadsheet-cell"][data-spreadsheet-cell-address="B3"]');
+                    spreadsheetFormulaEditingChecks[testId] =
+                      selectedFormulaValue instanceof HTMLInputElement &&
+                      formulaApply instanceof HTMLButtonElement &&
+                      editedFormulaPreview instanceof HTMLElement &&
+                      editedFormulaPreview.getAttribute('data-spreadsheet-editable') === 'local-preview' &&
+                      Number(editedFormulaPreview.getAttribute('data-spreadsheet-edit-count') ?? '0') === formulaEditCountBefore + 1 &&
+                      editedFormulaPreview.getAttribute('data-spreadsheet-active-cell-address') === 'B3' &&
+                      editedFormulaPreview.getAttribute('data-spreadsheet-active-cell-value') === '8' &&
+                      editedFormulaPreview.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+3' &&
+                      editedFormulaFormulaBar instanceof HTMLElement &&
+                      Number(editedFormulaFormulaBar.getAttribute('data-spreadsheet-edit-count') ?? '0') === formulaEditCountBefore + 1 &&
+                      editedFormulaFormulaBar.getAttribute('data-spreadsheet-active-cell-value') === '8' &&
+                      editedFormulaFormulaBar.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+3' &&
+                      editedFormulaValue instanceof HTMLInputElement &&
+                      editedFormulaValue.value === '=B2+3' &&
+                      editedFormulaValue.getAttribute('data-spreadsheet-active-cell-value') === '8' &&
+                      editedFormulaValue.getAttribute('data-spreadsheet-active-cell-formula') === '=B2+3' &&
+                      editedFormulaCell instanceof HTMLButtonElement &&
+                      editedFormulaCell.getAttribute('data-spreadsheet-cell-value') === '8' &&
+                      editedFormulaCell.getAttribute('data-spreadsheet-cell-formula') === '=B2+3' &&
+                      editedFormulaCell.getAttribute('data-spreadsheet-cell-kind') === 'formula';
+                    const advancedZoomIn = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-in"]');
+                    if (advancedZoomIn instanceof HTMLButtonElement) {
+                      advancedZoomIn.click();
+                      await sleep(160);
+                    }
+                    const zoomedSpreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const zoomedSpreadsheetControls = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-controls"]');
+                    const zoomedSpreadsheetIndicator = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-indicator"]');
+                    const zoomedTable = document.querySelector('[data-testid="workspace-spreadsheet-preview-table"]');
+                    const spreadsheetZoomWorks =
+                      zoomedSpreadsheetPreview instanceof HTMLElement &&
+                      zoomedSpreadsheetPreview.getAttribute('data-spreadsheet-active-sheet-index') === '2' &&
+                      zoomedSpreadsheetPreview.getAttribute('data-spreadsheet-preview-zoom-percent') === '125' &&
+                      zoomedSpreadsheetPreview.getAttribute('data-spreadsheet-preview-zoom-fit') === 'false' &&
+                      zoomedSpreadsheetControls instanceof HTMLElement &&
+                      zoomedSpreadsheetControls.getAttribute('data-spreadsheet-zoom-percent') === '125' &&
+                      zoomedSpreadsheetControls.getAttribute('data-office-zoom-menu') === 'true' &&
+                      zoomedSpreadsheetIndicator instanceof HTMLElement &&
+                      zoomedSpreadsheetIndicator.textContent?.trim() === '125%' &&
+                      zoomedTable instanceof HTMLTableElement &&
+                      window.getComputedStyle(zoomedTable).fontSize === '15px';
+                    if (zoomedSpreadsheetIndicator instanceof HTMLButtonElement) {
+                      zoomedSpreadsheetIndicator.click();
+                      await sleep(120);
+                    }
+                    const spreadsheetZoomMenu = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-menu"]');
+                    const spreadsheetZoomFit = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-fit"]');
+                    const spreadsheetZoomOptions = [...document.querySelectorAll('[data-testid^="workspace-spreadsheet-preview-zoom-option-"]')];
+                    if (spreadsheetZoomFit instanceof HTMLButtonElement) {
+                      spreadsheetZoomFit.click();
+                      await sleep(120);
+                    }
+                    const fittedSpreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const fittedSpreadsheetControls = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-controls"]');
+                    const fittedSpreadsheetIndicator = document.querySelector('[data-testid="workspace-spreadsheet-preview-zoom-indicator"]');
+                    officeZoomMenuChecks['workspace-spreadsheet-preview'] =
+                      spreadsheetZoomMenu instanceof HTMLElement &&
+                      spreadsheetZoomOptions.length >= 6 &&
+                      spreadsheetZoomOptions.some((option) => option.textContent?.trim() === '50%') &&
+                      spreadsheetZoomOptions.some((option) => option.textContent?.trim() === '200%') &&
+                      spreadsheetZoomFit instanceof HTMLButtonElement &&
+                      spreadsheetZoomFit.textContent?.includes('Zoom to fit') === true &&
+                      fittedSpreadsheetPreview instanceof HTMLElement &&
+                      fittedSpreadsheetPreview.getAttribute('data-spreadsheet-preview-zoom-fit') === 'true' &&
+                      fittedSpreadsheetControls instanceof HTMLElement &&
+                      fittedSpreadsheetControls.getAttribute('data-spreadsheet-zoom-fit') === 'true' &&
+                      fittedSpreadsheetIndicator instanceof HTMLButtonElement &&
+                      fittedSpreadsheetIndicator.textContent?.trim() === 'Fit';
+                    const firstSheetTab = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tab"][data-spreadsheet-sheet-tab-index="1"]');
+                    if (firstSheetTab instanceof HTMLButtonElement) {
+                      firstSheetTab.click();
+                      await sleep(160);
+                    }
+                    const tabbedSpreadsheetPreview = document.querySelector('[data-testid="workspace-spreadsheet-preview"]');
+                    const tabbedSheetTabs = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tabs"]');
+                    const tabbedFirstSheetTab = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet-tab"][data-spreadsheet-sheet-tab-index="1"]');
+                    const tabbedSheet = document.querySelector('[data-testid="workspace-spreadsheet-preview-sheet"]');
+                    const sheetTabsWork =
+                      tabbedSpreadsheetPreview instanceof HTMLElement &&
+                      tabbedSpreadsheetPreview.getAttribute('data-spreadsheet-active-sheet-index') === '1' &&
+                      tabbedSpreadsheetPreview.getAttribute('data-spreadsheet-active-sheet-name') === 'Smoke data' &&
+                      tabbedSheetTabs instanceof HTMLElement &&
+                      tabbedSheetTabs.getAttribute('data-spreadsheet-sheet-tab-count') === '2' &&
+                      tabbedSheetTabs.getAttribute('data-spreadsheet-active-sheet-tab') === 'Smoke data' &&
+                      tabbedFirstSheetTab instanceof HTMLButtonElement &&
+                      tabbedFirstSheetTab.getAttribute('data-active') === 'true' &&
+                      tabbedFirstSheetTab.getAttribute('aria-selected') === 'true' &&
+                      tabbedSheet instanceof HTMLElement &&
+                      tabbedSheet.getAttribute('data-spreadsheet-sheet-name') === 'Smoke data';
+                    spreadsheetControlChecks[testId] =
+                      initialSpreadsheetControls &&
+                      sheetNavigationWorks &&
+                      spreadsheetZoomWorks;
+                    spreadsheetSheetTabChecks[testId] =
+                      initialSpreadsheetControls &&
+                      sheetNavigationWorks &&
+                      sheetTabsWork;
+                    spreadsheetActiveCellChecks[testId] =
+                      initialActiveCellWorks &&
+                      cellSelectionWorks &&
+                      sheetResetActiveCellWorks &&
+                      totalsSelectionWorks;
+                  }
+                  if (testId === 'workspace-slides-preview') {
+                    const slidesPreview = document.querySelector('[data-testid="workspace-slides-preview"]');
+                    const slides = [...document.querySelectorAll('[data-testid="workspace-slides-preview-slide"]')];
+                    const currentSlide = document.querySelector('[data-testid="workspace-slides-preview-current-slide"]');
+                    const slideControls = document.querySelector('[data-testid="workspace-slides-preview-slide-controls"]');
+                    const slideIndicator = document.querySelector('[data-testid="workspace-slides-preview-slide-indicator"]');
+                    const previousSlide = document.querySelector('[data-testid="workspace-slides-preview-slide-previous"]');
+                    const nextSlide = document.querySelector('[data-testid="workspace-slides-preview-slide-next"]');
+                    const zoomControls = document.querySelector('[data-testid="workspace-slides-preview-zoom-controls"]');
+                    const zoomIndicator = document.querySelector('[data-testid="workspace-slides-preview-zoom-indicator"]');
+                    const zoomIn = document.querySelector('[data-testid="workspace-slides-preview-zoom-in"]');
+                    const notesPanel = document.querySelector('[data-testid="workspace-slides-preview-notes-panel"]');
+                    const notesTextarea = document.querySelector('[data-testid="workspace-slides-preview-notes"]');
+                    const thumbnailRail = document.querySelector('[data-testid="workspace-slides-preview-thumbnail-rail"]');
+                    const editorShell = document.querySelector('[data-testid="workspace-slides-preview-editor-shell"]');
+                    const addSlide = document.querySelector('[data-testid="workspace-slides-preview-add-slide"]');
+                    const shapeCanvas = document.querySelector('[data-testid="workspace-slides-preview-shape-canvas"]');
+                    const positionedShapes = [...document.querySelectorAll('[data-testid="workspace-slides-preview-shape"]')];
+                    const positionedImageShapes = [...document.querySelectorAll('[data-testid="workspace-slides-preview-image-shape"]')];
+                    slidesRendererChecks[testId] =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-rendered') === 'true' &&
+                      slidesPreview.getAttribute('data-slides-preview-slide-count') === '2' &&
+                      slidesPreview.getAttribute('data-slides-preview-current-slide') === '1' &&
+                      slidesPreview.getAttribute('data-slides-preview-notes-count') === '2' &&
+                      currentSlide instanceof HTMLElement &&
+                      currentSlide.getAttribute('data-slide-index') === '1' &&
+                      currentSlide.textContent?.includes('Slides smoke updated') === true &&
+                      slides.length === 2 &&
+                      slides.some((slide) => slide.textContent?.includes('Slides smoke updated')) &&
+                      slides.some((slide) => slide.textContent?.includes('Second slide updated')) &&
+                      slides.some((slide) => slide.textContent?.includes('Follow-up content'));
+                    slidesShapeLayoutChecks[testId] =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-stage-renderer') === 'positioned-shapes' &&
+                      slidesPreview.getAttribute('data-slides-preview-current-shape-count') === '3' &&
+                      currentSlide instanceof HTMLElement &&
+                      currentSlide.getAttribute('data-slides-stage-renderer') === 'positioned-shapes' &&
+                      currentSlide.getAttribute('data-slides-shape-count') === '3' &&
+                      shapeCanvas instanceof HTMLElement &&
+                      positionedShapes.length === 3 &&
+                      positionedShapes[0] instanceof HTMLElement &&
+                      positionedShapes[0].textContent?.includes('Slides smoke updated') === true &&
+                      positionedShapes[0].style.left !== '' &&
+                      positionedShapes[0].style.top !== '';
+                    slidesColorFillChecks[testId] =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-color-fill-count') === '3' &&
+                      slidesPreview.getAttribute('data-slides-preview-current-background-color') === '#EEF6FF' &&
+                      currentSlide instanceof HTMLElement &&
+                      currentSlide.getAttribute('data-slides-background-color') === '#EEF6FF' &&
+                      shapeCanvas instanceof HTMLElement &&
+                      shapeCanvas.getAttribute('data-slides-canvas-background-color') === '#EEF6FF' &&
+                      window.getComputedStyle(shapeCanvas).backgroundColor === 'rgb(238, 246, 255)' &&
+                      positionedShapes[0] instanceof HTMLElement &&
+                      positionedShapes[0].getAttribute('data-slide-shape-fill-color') === '#D9EAFE' &&
+                      positionedShapes[0].getAttribute('data-slide-shape-text-color') === '#1D4ED8' &&
+                      window.getComputedStyle(positionedShapes[0]).backgroundColor === 'rgb(217, 234, 254)' &&
+                      window.getComputedStyle(positionedShapes[0]).color === 'rgb(29, 78, 216)' &&
+                      positionedShapes[1] instanceof HTMLElement &&
+                      positionedShapes[1].getAttribute('data-slide-shape-fill-color') === '#DCFCE7' &&
+                      positionedShapes[1].getAttribute('data-slide-shape-text-color') === '#166534';
+                    slidesImageShapeChecks[testId] =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-image-shape-count') === '1' &&
+                      slidesPreview.getAttribute('data-slides-preview-current-image-shape-count') === '1' &&
+                      currentSlide instanceof HTMLElement &&
+                      currentSlide.getAttribute('data-slides-image-shape-count') === '1' &&
+                      positionedShapes[2] instanceof HTMLElement &&
+                      positionedShapes[2].getAttribute('data-slide-shape-kind') === 'image' &&
+                      positionedShapes[2].getAttribute('data-slide-shape-image-mime-type') === 'image/png' &&
+                      positionedImageShapes.length === 1 &&
+                      positionedImageShapes[0] instanceof HTMLImageElement &&
+                      positionedImageShapes[0].src.startsWith('data:image/png;base64,');
+                    const initialSlidesControls =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-zoom-percent') === '100' &&
+                      slideControls instanceof HTMLElement &&
+                      slideControls.getAttribute('data-slides-current-slide') === '1' &&
+                      slideControls.getAttribute('data-slides-slide-count') === '2' &&
+                      slideIndicator instanceof HTMLElement &&
+                      slideIndicator.textContent?.trim() === '1/2' &&
+                      previousSlide instanceof HTMLButtonElement &&
+                      previousSlide.disabled &&
+                      nextSlide instanceof HTMLButtonElement &&
+                      !nextSlide.disabled &&
+                      zoomControls instanceof HTMLElement &&
+                      zoomControls.getAttribute('data-slides-zoom-percent') === '100' &&
+                      zoomIndicator instanceof HTMLElement &&
+                      zoomIndicator.textContent?.trim() === '100%' &&
+                      zoomIn instanceof HTMLButtonElement &&
+                      !zoomIn.disabled;
+                    slidesThumbnailRailChecks[testId] =
+                      slidesPreview instanceof HTMLElement &&
+                      slidesPreview.getAttribute('data-slides-preview-thumbnail-rail') === 'codex-left' &&
+                      slidesPreview.getAttribute('data-slides-preview-add-slide') === 'read-only' &&
+                      editorShell instanceof HTMLElement &&
+                      editorShell.getAttribute('data-slides-editor-shell') === 'codex-thumbnail-rail' &&
+                      thumbnailRail instanceof HTMLElement &&
+                      thumbnailRail.getAttribute('data-slides-thumbnail-rail-placement') === 'left' &&
+                      addSlide instanceof HTMLButtonElement &&
+                      addSlide.disabled &&
+                      addSlide.getAttribute('aria-label') === 'Add slide unavailable in read-only preview';
+                    const initialSlidesNotes =
+                      notesPanel instanceof HTMLElement &&
+                      notesPanel.getAttribute('data-slides-notes-current-slide') === '1' &&
+                      notesPanel.getAttribute('data-slides-notes-empty') === 'false' &&
+                      notesTextarea instanceof HTMLTextAreaElement &&
+                      notesTextarea.readOnly &&
+                      notesTextarea.value.includes('Updated speaker note');
+                    if (nextSlide instanceof HTMLButtonElement) {
+                      nextSlide.click();
+                      await sleep(160);
+                    }
+                    const advancedSlidesPreview = document.querySelector('[data-testid="workspace-slides-preview"]');
+                    const advancedSlideControls = document.querySelector('[data-testid="workspace-slides-preview-slide-controls"]');
+                    const advancedSlideIndicator = document.querySelector('[data-testid="workspace-slides-preview-slide-indicator"]');
+                    const advancedPreviousSlide = document.querySelector('[data-testid="workspace-slides-preview-slide-previous"]');
+                    const advancedNextSlide = document.querySelector('[data-testid="workspace-slides-preview-slide-next"]');
+                    const advancedCurrentSlide = document.querySelector('[data-testid="workspace-slides-preview-current-slide"]');
+                    const activeThumbnail = document.querySelector('[data-testid="workspace-slides-preview-thumbnail"][data-active="true"]');
+                    const advancedNotesPanel = document.querySelector('[data-testid="workspace-slides-preview-notes-panel"]');
+                    const advancedNotesTextarea = document.querySelector('[data-testid="workspace-slides-preview-notes"]');
+                    const slideNavigationWorks =
+                      advancedSlidesPreview instanceof HTMLElement &&
+                      advancedSlidesPreview.getAttribute('data-slides-preview-current-slide') === '2' &&
+                      advancedSlidesPreview.getAttribute('data-slides-preview-current-notes') === 'Second updated note' &&
+                      advancedSlideControls instanceof HTMLElement &&
+                      advancedSlideControls.getAttribute('data-slides-current-slide') === '2' &&
+                      advancedSlideIndicator instanceof HTMLElement &&
+                      advancedSlideIndicator.textContent?.trim() === '2/2' &&
+                      advancedPreviousSlide instanceof HTMLButtonElement &&
+                      !advancedPreviousSlide.disabled &&
+                      advancedNextSlide instanceof HTMLButtonElement &&
+                      advancedNextSlide.disabled &&
+                      advancedCurrentSlide instanceof HTMLElement &&
+                      advancedCurrentSlide.getAttribute('data-slide-index') === '2' &&
+                      advancedCurrentSlide.textContent?.includes('Second slide updated') === true &&
+                      advancedCurrentSlide.textContent?.includes('Follow-up content') === true &&
+                      activeThumbnail instanceof HTMLElement &&
+                      activeThumbnail.getAttribute('data-slide-index') === '2';
+                    const advancedSlidesNotes =
+                      advancedNotesPanel instanceof HTMLElement &&
+                      advancedNotesPanel.getAttribute('data-slides-notes-current-slide') === '2' &&
+                      advancedNotesPanel.getAttribute('data-slides-notes-empty') === 'false' &&
+                      advancedNotesTextarea instanceof HTMLTextAreaElement &&
+                      advancedNotesTextarea.readOnly &&
+                      advancedNotesTextarea.value.includes('Second updated note');
+                    const advancedZoomIn = document.querySelector('[data-testid="workspace-slides-preview-zoom-in"]');
+                    if (advancedZoomIn instanceof HTMLButtonElement) {
+                      advancedZoomIn.click();
+                      await sleep(160);
+                    }
+                    const zoomedSlidesPreview = document.querySelector('[data-testid="workspace-slides-preview"]');
+                    const zoomedSlidesControls = document.querySelector('[data-testid="workspace-slides-preview-zoom-controls"]');
+                    const zoomedSlidesIndicator = document.querySelector('[data-testid="workspace-slides-preview-zoom-indicator"]');
+                    const zoomedCurrentSlide = document.querySelector('[data-testid="workspace-slides-preview-current-slide"]');
+                    const slidesZoomWorks =
+                      zoomedSlidesPreview instanceof HTMLElement &&
+                      zoomedSlidesPreview.getAttribute('data-slides-preview-current-slide') === '2' &&
+                      zoomedSlidesPreview.getAttribute('data-slides-preview-zoom-percent') === '125' &&
+                      zoomedSlidesPreview.getAttribute('data-slides-preview-zoom-fit') === 'false' &&
+                      zoomedSlidesControls instanceof HTMLElement &&
+                      zoomedSlidesControls.getAttribute('data-slides-zoom-percent') === '125' &&
+                      zoomedSlidesControls.getAttribute('data-office-zoom-menu') === 'true' &&
+                      zoomedSlidesIndicator instanceof HTMLElement &&
+                      zoomedSlidesIndicator.textContent?.trim() === '125%' &&
+                      zoomedCurrentSlide instanceof HTMLElement &&
+                      window.getComputedStyle(zoomedCurrentSlide).fontSize === '16.25px';
+                    if (zoomedSlidesIndicator instanceof HTMLButtonElement) {
+                      zoomedSlidesIndicator.click();
+                      await sleep(120);
+                    }
+                    const slidesZoomMenu = document.querySelector('[data-testid="workspace-slides-preview-zoom-menu"]');
+                    const slidesZoomFit = document.querySelector('[data-testid="workspace-slides-preview-zoom-fit"]');
+                    const slidesZoomOptions = [...document.querySelectorAll('[data-testid^="workspace-slides-preview-zoom-option-"]')];
+                    if (slidesZoomFit instanceof HTMLButtonElement) {
+                      slidesZoomFit.click();
+                      await sleep(120);
+                    }
+                    const fittedSlidesPreview = document.querySelector('[data-testid="workspace-slides-preview"]');
+                    const fittedSlidesControls = document.querySelector('[data-testid="workspace-slides-preview-zoom-controls"]');
+                    const fittedSlidesIndicator = document.querySelector('[data-testid="workspace-slides-preview-zoom-indicator"]');
+                    officeZoomMenuChecks['workspace-slides-preview'] =
+                      slidesZoomMenu instanceof HTMLElement &&
+                      slidesZoomOptions.length >= 6 &&
+                      slidesZoomOptions.some((option) => option.textContent?.trim() === '50%') &&
+                      slidesZoomOptions.some((option) => option.textContent?.trim() === '200%') &&
+                      slidesZoomFit instanceof HTMLButtonElement &&
+                      slidesZoomFit.textContent?.includes('Zoom to fit') === true &&
+                      fittedSlidesPreview instanceof HTMLElement &&
+                      fittedSlidesPreview.getAttribute('data-slides-preview-zoom-fit') === 'true' &&
+                      fittedSlidesControls instanceof HTMLElement &&
+                      fittedSlidesControls.getAttribute('data-slides-zoom-fit') === 'true' &&
+                      fittedSlidesIndicator instanceof HTMLButtonElement &&
+                      fittedSlidesIndicator.textContent?.trim() === 'Fit';
+                    slidesControlChecks[testId] =
+                      initialSlidesControls &&
+                      slideNavigationWorks &&
+                      slidesZoomWorks;
+                    slidesNotesChecks[testId] =
+                      initialSlidesNotes &&
+                      advancedSlidesNotes;
+                  }
+                  if (testId === 'workspace-pdf-preview') {
+                    const pdfPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const pageControls = document.querySelector('[data-testid="workspace-pdf-preview-page-controls"]');
+                    const pageIndicator = document.querySelector('[data-testid="workspace-pdf-preview-page-indicator"]');
+                    const previousPage = document.querySelector('[data-testid="workspace-pdf-preview-page-previous"]');
+                    const nextPage = document.querySelector('[data-testid="workspace-pdf-preview-page-next"]');
+                    const zoomControls = document.querySelector('[data-testid="workspace-pdf-preview-zoom-controls"]');
+                    const zoomIndicator = document.querySelector('[data-testid="workspace-pdf-preview-zoom-indicator"]');
+                    const zoomIn = document.querySelector('[data-testid="workspace-pdf-preview-zoom-in"]');
+                    const initialFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const initialPdfControls =
+                      pageControls instanceof HTMLElement &&
+                      pageControls.getAttribute('data-pdf-current-page') === '1' &&
+                      pageControls.getAttribute('data-pdf-page-count') === '2' &&
+                      pdfPreview instanceof HTMLElement &&
+                      pdfPreview.getAttribute('data-pdf-preview-zoom-fit') === 'false' &&
+                      pageIndicator instanceof HTMLElement &&
+                      pageIndicator.textContent?.trim() === '1/2' &&
+                      previousPage instanceof HTMLButtonElement &&
+                      previousPage.disabled &&
+                      nextPage instanceof HTMLButtonElement &&
+                      !nextPage.disabled &&
+                      zoomControls instanceof HTMLElement &&
+                      zoomControls.getAttribute('data-pdf-zoom-percent') === '100' &&
+                      zoomControls.getAttribute('data-artifact-zoom-menu') === 'true' &&
+                      zoomIndicator instanceof HTMLElement &&
+                      zoomIndicator.textContent?.trim() === '100%' &&
+                      zoomIn instanceof HTMLButtonElement &&
+                      !zoomIn.disabled &&
+                      initialFrame instanceof HTMLIFrameElement &&
+                      initialFrame.src.includes('#page=1&zoom=100');
+                    if (nextPage instanceof HTMLButtonElement) {
+                      nextPage.click();
+                      await sleep(160);
+                    }
+                    const advancedPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const advancedPageControls = document.querySelector('[data-testid="workspace-pdf-preview-page-controls"]');
+                    const advancedPageIndicator = document.querySelector('[data-testid="workspace-pdf-preview-page-indicator"]');
+                    const advancedPreviousPage = document.querySelector('[data-testid="workspace-pdf-preview-page-previous"]');
+                    const advancedNextPage = document.querySelector('[data-testid="workspace-pdf-preview-page-next"]');
+                    const advancedFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const pageNavigationWorks =
+                      advancedPreview instanceof HTMLElement &&
+                      advancedPreview.getAttribute('data-pdf-preview-page-count') === '2' &&
+                      advancedPreview.getAttribute('data-pdf-preview-current-page') === '2' &&
+                      advancedPageControls instanceof HTMLElement &&
+                      advancedPageControls.getAttribute('data-pdf-current-page') === '2' &&
+                      advancedPageIndicator instanceof HTMLElement &&
+                      advancedPageIndicator.textContent?.trim() === '2/2' &&
+                      advancedPreviousPage instanceof HTMLButtonElement &&
+                      !advancedPreviousPage.disabled &&
+                      advancedNextPage instanceof HTMLButtonElement &&
+                      advancedNextPage.disabled &&
+                      advancedFrame instanceof HTMLIFrameElement &&
+                      advancedFrame.src.includes('#page=2&zoom=100');
+                    const advancedZoomIn = document.querySelector('[data-testid="workspace-pdf-preview-zoom-in"]');
+                    if (advancedZoomIn instanceof HTMLButtonElement) {
+                      advancedZoomIn.click();
+                      await sleep(160);
+                    }
+                    const zoomedPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const zoomedControls = document.querySelector('[data-testid="workspace-pdf-preview-zoom-controls"]');
+                    const zoomedIndicator = document.querySelector('[data-testid="workspace-pdf-preview-zoom-indicator"]');
+                    const zoomedFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const invertButton = document.querySelector('[data-testid="workspace-pdf-preview-invert-colors"]');
+                    const annotateButton = document.querySelector('[data-testid="workspace-pdf-preview-annotate"]');
+                    const zoomControlsWork =
+                      zoomedPreview instanceof HTMLElement &&
+                      zoomedPreview.getAttribute('data-pdf-preview-current-page') === '2' &&
+                      zoomedPreview.getAttribute('data-pdf-preview-zoom-percent') === '125' &&
+                      zoomedPreview.getAttribute('data-pdf-preview-zoom-fit') === 'false' &&
+                      zoomedControls instanceof HTMLElement &&
+                      zoomedControls.getAttribute('data-pdf-zoom-percent') === '125' &&
+                      zoomedControls.getAttribute('data-pdf-zoom-fit') === 'false' &&
+                      zoomedIndicator instanceof HTMLElement &&
+                      zoomedIndicator.textContent?.trim() === '125%' &&
+                      zoomedFrame instanceof HTMLIFrameElement &&
+                      zoomedFrame.src.includes('#page=2&zoom=125');
+                    if (invertButton instanceof HTMLButtonElement) {
+                      invertButton.click();
+                      await sleep(160);
+                    }
+                    const invertedPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const invertedButton = document.querySelector('[data-testid="workspace-pdf-preview-invert-colors"]');
+                    const invertedFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const invertedFilter = invertedFrame instanceof HTMLElement
+                      ? window.getComputedStyle(invertedFrame).filter
+                      : '';
+                    const invertControlsWork =
+                      invertedPreview instanceof HTMLElement &&
+                      invertedPreview.getAttribute('data-pdf-preview-invert-colors') === 'true' &&
+                      invertedButton instanceof HTMLButtonElement &&
+                      invertedButton.getAttribute('data-active') === 'true' &&
+                      invertedFrame instanceof HTMLIFrameElement &&
+                      invertedFrame.getAttribute('data-pdf-invert-colors') === 'true' &&
+                      invertedFrame.src.includes('#page=2&zoom=125') &&
+                      invertedFilter !== '' &&
+                      invertedFilter !== 'none';
+                    if (annotateButton instanceof HTMLButtonElement) {
+                      annotateButton.click();
+                      await sleep(160);
+                    }
+                    const annotationPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const activeAnnotateButton = document.querySelector('[data-testid="workspace-pdf-preview-annotate"]');
+                    const annotationLayer = document.querySelector('[data-testid="workspace-pdf-annotation-layer"]');
+                    const annotationInput = document.querySelector('[data-testid="workspace-pdf-annotation-input"]');
+                    const annotationSave = document.querySelector('[data-testid="workspace-pdf-annotation-save"]');
+                    if (annotationInput instanceof HTMLTextAreaElement) {
+                      setNativeValue(annotationInput, 'PDF page note from smoke');
+                      annotationInput.dispatchEvent(new Event('input', { bubbles: true }));
+                      await sleep(80);
+                    }
+                    if (annotationSave instanceof HTMLButtonElement) {
+                      annotationSave.click();
+                      await sleep(160);
+                    }
+                    const savedAnnotationPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const savedAnnotationLayer = document.querySelector('[data-testid="workspace-pdf-annotation-layer"]');
+                    const savedAnnotationCard = document.querySelector('[data-testid="workspace-pdf-annotation-card"]');
+                    const savedAnnotationList = document.querySelector('[data-testid="workspace-pdf-annotation-list"]');
+                    pdfAnnotationChecks[testId] =
+                      annotationPreview instanceof HTMLElement &&
+                      annotationPreview.getAttribute('data-pdf-preview-annotation-mode') === 'true' &&
+                      activeAnnotateButton instanceof HTMLButtonElement &&
+                      activeAnnotateButton.getAttribute('data-active') === 'true' &&
+                      annotationLayer instanceof HTMLElement &&
+                      annotationLayer.getAttribute('data-pdf-annotation-layer-page') === '2' &&
+                      annotationInput instanceof HTMLTextAreaElement &&
+                      annotationSave instanceof HTMLButtonElement &&
+                      savedAnnotationPreview instanceof HTMLElement &&
+                      savedAnnotationPreview.getAttribute('data-pdf-preview-annotation-count') === '1' &&
+                      savedAnnotationPreview.getAttribute('data-pdf-preview-current-page-annotation-count') === '1' &&
+                      savedAnnotationLayer instanceof HTMLElement &&
+                      savedAnnotationLayer.getAttribute('data-pdf-annotation-count') === '1' &&
+                      savedAnnotationLayer.getAttribute('data-pdf-current-page-annotation-count') === '1' &&
+                      savedAnnotationList instanceof HTMLElement &&
+                      savedAnnotationCard instanceof HTMLElement &&
+                      savedAnnotationCard.getAttribute('data-pdf-annotation-page') === '2' &&
+                      savedAnnotationCard.textContent?.includes('PDF page note from smoke') === true;
+                    const presentationButton = document.querySelector('[data-testid="workspace-pdf-preview-presentation"]');
+                    if (presentationButton instanceof HTMLButtonElement) {
+                      presentationButton.click();
+                      await sleep(200);
+                    }
+                    const presentation = document.querySelector('[data-testid="artifact-pdf-presentation"]');
+                    const presentationControls = document.querySelector('[data-testid="artifact-pdf-presentation-controls"]');
+                    const presentationIndicator = document.querySelector('[data-testid="artifact-pdf-presentation-page-indicator"]');
+                    const presentationPrevious = document.querySelector('[data-testid="artifact-pdf-presentation-previous"]');
+                    const presentationNext = document.querySelector('[data-testid="artifact-pdf-presentation-next"]');
+                    const presentationFrame = document.querySelector('[data-testid="artifact-pdf-presentation-frame"]');
+                    const presentationOpened =
+                      presentation instanceof HTMLElement &&
+                      presentation.getAttribute('data-pdf-presentation-current-page') === '2' &&
+                      presentation.getAttribute('data-pdf-presentation-page-count') === '2' &&
+                      presentation.getAttribute('data-pdf-presentation-invert-colors') === 'true' &&
+                      presentationControls instanceof HTMLElement &&
+                      presentationIndicator instanceof HTMLElement &&
+                      presentationIndicator.textContent?.trim() === '2/2' &&
+                      presentationPrevious instanceof HTMLButtonElement &&
+                      !presentationPrevious.disabled &&
+                      presentationNext instanceof HTMLButtonElement &&
+                      presentationNext.disabled &&
+                      presentationFrame instanceof HTMLIFrameElement &&
+                      presentationFrame.getAttribute('data-pdf-invert-colors') === 'true' &&
+                      presentationFrame.src.includes('#page=2&zoom=125');
+                    if (presentationPrevious instanceof HTMLButtonElement) {
+                      presentationPrevious.click();
+                      await sleep(160);
+                    }
+                    const previousPresentation = document.querySelector('[data-testid="artifact-pdf-presentation"]');
+                    const previousPresentationIndicator = document.querySelector('[data-testid="artifact-pdf-presentation-page-indicator"]');
+                    const previousPresentationFrame = document.querySelector('[data-testid="artifact-pdf-presentation-frame"]');
+                    const presentationPreviousWorks =
+                      previousPresentation instanceof HTMLElement &&
+                      previousPresentation.getAttribute('data-pdf-presentation-current-page') === '1' &&
+                      previousPresentationIndicator instanceof HTMLElement &&
+                      previousPresentationIndicator.textContent?.trim() === '1/2' &&
+                      previousPresentationFrame instanceof HTMLIFrameElement &&
+                      previousPresentationFrame.src.includes('#page=1&zoom=125');
+                    const activePresentation = document.querySelector('[data-testid="artifact-pdf-presentation"]');
+                    if (activePresentation instanceof HTMLElement) {
+                      activePresentation.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+                      await sleep(160);
+                    }
+                    const nextPresentation = document.querySelector('[data-testid="artifact-pdf-presentation"]');
+                    const nextPresentationIndicator = document.querySelector('[data-testid="artifact-pdf-presentation-page-indicator"]');
+                    const presentationKeyboardWorks =
+                      nextPresentation instanceof HTMLElement &&
+                      nextPresentation.getAttribute('data-pdf-presentation-current-page') === '2' &&
+                      nextPresentationIndicator instanceof HTMLElement &&
+                      nextPresentationIndicator.textContent?.trim() === '2/2';
+                    const presentationExit = document.querySelector('[data-testid="artifact-pdf-presentation-exit"]');
+                    if (presentationExit instanceof HTMLButtonElement) {
+                      presentationExit.click();
+                      await sleep(200);
+                    }
+                    const exitedPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const exitedFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    const presentationExitWorks =
+                      !(document.querySelector('[data-testid="artifact-pdf-presentation"]') instanceof HTMLElement) &&
+                      exitedPreview instanceof HTMLElement &&
+                      exitedPreview.getAttribute('data-pdf-preview-presentation-mode') === 'false' &&
+                      exitedFrame instanceof HTMLIFrameElement &&
+                      exitedFrame.src.includes('#page=2&zoom=125');
+                    const exitedZoomIndicator = document.querySelector('[data-testid="workspace-pdf-preview-zoom-indicator"]');
+                    if (exitedZoomIndicator instanceof HTMLButtonElement) {
+                      exitedZoomIndicator.click();
+                      await sleep(120);
+                    }
+                    const pdfZoomMenu = document.querySelector('[data-testid="workspace-pdf-preview-zoom-menu"]');
+                    const pdfZoomFit = document.querySelector('[data-testid="workspace-pdf-preview-zoom-fit"]');
+                    const pdfZoomOptions = [...document.querySelectorAll('[data-testid^="workspace-pdf-preview-zoom-option-"]')];
+                    if (pdfZoomFit instanceof HTMLButtonElement) {
+                      pdfZoomFit.click();
+                      await sleep(160);
+                    }
+                    const fittedPdfPreview = document.querySelector('[data-testid="workspace-pdf-preview"]');
+                    const fittedPdfControls = document.querySelector('[data-testid="workspace-pdf-preview-zoom-controls"]');
+                    const fittedPdfIndicator = document.querySelector('[data-testid="workspace-pdf-preview-zoom-indicator"]');
+                    const fittedPdfFrame = document.querySelector('[data-testid="workspace-pdf-preview-frame"]');
+                    documentPdfZoomMenuChecks['workspace-pdf-preview'] =
+                      pdfZoomMenu instanceof HTMLElement &&
+                      pdfZoomOptions.length >= 6 &&
+                      pdfZoomOptions.some((option) => option.textContent?.trim() === '50%') &&
+                      pdfZoomOptions.some((option) => option.textContent?.trim() === '200%') &&
+                      pdfZoomFit instanceof HTMLButtonElement &&
+                      pdfZoomFit.textContent?.includes('Zoom to fit') === true &&
+                      fittedPdfPreview instanceof HTMLElement &&
+                      fittedPdfPreview.getAttribute('data-pdf-preview-zoom-fit') === 'true' &&
+                      fittedPdfControls instanceof HTMLElement &&
+                      fittedPdfControls.getAttribute('data-pdf-zoom-fit') === 'true' &&
+                      fittedPdfIndicator instanceof HTMLButtonElement &&
+                      fittedPdfIndicator.textContent?.trim() === 'Fit' &&
+                      fittedPdfFrame instanceof HTMLIFrameElement &&
+                      fittedPdfFrame.src.includes('#page=2&zoom=page-fit');
+                    pdfPreviewControlChecks[testId] =
+                      initialPdfControls &&
+                      pageNavigationWorks &&
+                      zoomControlsWork &&
+                      invertControlsWork;
+                    pdfPresentationModeChecks[testId] =
+                      presentationOpened &&
+                      presentationPreviousWorks &&
+                      presentationKeyboardWorks &&
+                      presentationExitWorks;
+                  }
                 }
               }
               const filesFallbackNotice = document.querySelector('[data-testid="workspace-binary-state"]');
@@ -10491,6 +13008,43 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesFallbackNotice.querySelector('.orchestrator-panel-notice-actions') instanceof HTMLElement &&
                 filesFallbackNoticeActions.length === 2 &&
                 filesFallbackNoticeActions.every((button) => button.classList.contains('file-fallback-action'));
+              const richNotebookOpened = await openFilePreviewTab('notebook-output-types-smoke', 'notebook-output-types-smoke.ipynb');
+              for (let attempt = 0; attempt < 12 && !document.querySelector('[data-testid="workspace-notebook-preview"]'); attempt += 1) {
+                await sleep(100);
+              }
+              const richNotebookPreview = document.querySelector('[data-testid="workspace-notebook-preview"]');
+              const richNotebookHeader = document.querySelector('[data-testid="workspace-notebook-preview-header"]');
+              const markdownOutput = document.querySelector('[data-notebook-output-type="markdown"]');
+              const errorOutput = document.querySelector('[data-notebook-output-type="error"]');
+              const imageOutput = document.querySelector('[data-notebook-output-type="image"]');
+              const imageOutputImage = imageOutput instanceof HTMLElement ? imageOutput.querySelector('img') : null;
+              const markdownOutputStyle = markdownOutput instanceof HTMLElement ? getComputedStyle(markdownOutput) : null;
+              const errorOutputStyle = errorOutput instanceof HTMLElement ? getComputedStyle(errorOutput) : null;
+              const imageOutputStyle = imageOutput instanceof HTMLElement ? getComputedStyle(imageOutput) : null;
+              const imageOutputImageStyle = imageOutputImage instanceof HTMLElement ? getComputedStyle(imageOutputImage) : null;
+              notebookRichOutputItemChromeChecks['workspace-notebook-preview'] =
+                richNotebookOpened &&
+                richNotebookPreview instanceof HTMLElement &&
+                richNotebookHeader instanceof HTMLElement &&
+                richNotebookHeader.textContent?.includes('notebook-output-types-smoke') === true &&
+                markdownOutput instanceof HTMLElement &&
+                errorOutput instanceof HTMLElement &&
+                imageOutput instanceof HTMLElement &&
+                imageOutputImage instanceof HTMLImageElement &&
+                markdownOutput.textContent?.includes('Markdown output updated') === true &&
+                errorOutput.textContent?.includes('ValueError') === true &&
+                markdownOutputStyle !== null &&
+                errorOutputStyle !== null &&
+                imageOutputStyle !== null &&
+                imageOutputImageStyle !== null &&
+                Number.parseFloat(markdownOutputStyle.paddingLeft) >= 12 &&
+                markdownOutputStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                Number.parseFloat(errorOutputStyle.paddingLeft) >= 12 &&
+                errorOutputStyle.borderTopWidth !== '0px' &&
+                errorOutputStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                Number.parseFloat(imageOutputStyle.paddingLeft) >= 12 &&
+                imageOutputStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                Number.parseFloat(imageOutputImageStyle.borderRadius) > 0;
               await openPanelTab('files', 'Files');
               await sleep(160);
               const contentSearch = document.querySelector('[data-testid="workspace-file-search"]');
@@ -10609,15 +13163,25 @@ function runAutomatedFocusedSurfaceSmoke(
                   await sleep(420);
                   const fileTab = document.querySelector('[data-testid="workbench-file-tab"]');
                   const fileTabToolbar = document.querySelector('[data-testid="workbench-file-tab-toolbar"]');
+                  const fileTabActionsCluster = document.querySelector('[data-testid="workbench-file-tab-actions"]');
                   const openTargetBadge = document.querySelector('[data-testid="workbench-file-tab-open-target"]');
                   const fileTabToolbarActions = fileTabToolbar instanceof HTMLElement
                     ? [...fileTabToolbar.querySelectorAll('.motion-icon-button')]
                       .filter((button) => button instanceof HTMLElement)
                     : [];
-                  const visibleFileTabToolbarActions = fileTabToolbarActions.filter((button) => {
+                  const fileTabClusterActions = fileTabActionsCluster instanceof HTMLElement
+                    ? [...fileTabActionsCluster.querySelectorAll('.motion-icon-button')]
+                      .filter((button) => button instanceof HTMLElement)
+                    : [];
+                  const visibleFileTabClusterActions = fileTabClusterActions.filter((button) => {
                     const rect = button.getBoundingClientRect();
                     return rect.width > 0 && rect.height > 0 && getComputedStyle(button).display !== 'none';
                   });
+                  const visibleFileTabClusterActionLabels = visibleFileTabClusterActions.map((button) =>
+                    button instanceof HTMLElement
+                      ? button.getAttribute('aria-label') ?? button.getAttribute('data-tooltip-label') ?? ''
+                      : ''
+                  );
                   const fileTabButton = document.querySelector('[data-tab-id^="file:"]')?.closest('[role="tab"]');
                   const pinFileTabButton = findButton('Pin file tab');
                   const fileTabActionMenuButton = document.querySelector('[data-testid="workbench-file-tab-actions-menu"]');
@@ -10633,8 +13197,8 @@ function runAutomatedFocusedSurfaceSmoke(
                     fileTabToolbar instanceof HTMLElement &&
                     fileTabToolbar.getAttribute('data-panel-toolbar') === 'true' &&
                     fileTabToolbarActions.length >= 8 &&
-                    visibleFileTabToolbarActions.length >= 3 &&
-                    visibleFileTabToolbarActions.every((button) =>
+                    visibleFileTabClusterActions.length >= 2 &&
+                    visibleFileTabClusterActions.every((button) =>
                       button instanceof HTMLElement &&
                       button.getAttribute('data-icon-button-variant') === 'toolbar' &&
                       button.getBoundingClientRect().width === 24 &&
@@ -10644,6 +13208,10 @@ function runAutomatedFocusedSurfaceSmoke(
                     /^file:[^:]+:.+/.test(fileTabButton.getAttribute('data-tab-id') ?? '') &&
                     fileTabButton.getAttribute('data-preview') === 'true' &&
                     pinFileTabButton instanceof HTMLButtonElement;
+                  workbenchFileTabCodexActionClusterWorks =
+                    visibleFileTabClusterActionLabels.length === 2 &&
+                    visibleFileTabClusterActionLabels[0] === 'File viewer options' &&
+                    visibleFileTabClusterActionLabels[1] === 'Open in editor';
                   if (fileTabActionMenuButton instanceof HTMLButtonElement) {
                     fileTabActionMenuButton.click();
                     await sleep(120);
@@ -10678,6 +13246,12 @@ function runAutomatedFocusedSurfaceSmoke(
                       fileTabActionText.includes('Show git blame') &&
                       fileTabActionText.includes('Reveal selected line') &&
                       fileTabActionSurface.scrollWidth <= fileTabActionSurface.clientWidth + 2;
+                    workbenchFileTabCodexActionLabelsWorks =
+                      fileTabActionMenuButton.getAttribute('aria-label') === 'File viewer options' &&
+                      fileTabActionMenuButton.getAttribute('data-tooltip-label') === 'File viewer options' &&
+                      fileTabActionText.includes('Open in editor') &&
+                      fileTabActionText.some((label) => label === 'Enable word wrap' || label === 'Disable word wrap') &&
+                      fileTabActionText.some((label) => label.includes('source wrap')) === false;
                     fileTabActionMenuButton.click();
                     await sleep(80);
                   }
@@ -10914,16 +13488,30 @@ function runAutomatedFocusedSurfaceSmoke(
                 persistedSourcePreview.getAttribute('data-source-wrap') === 'false' &&
                 persistedSelectedLine instanceof HTMLElement &&
                 persistedSelectedLine.getAttribute('data-source-line-number') === '2';
-              const sourceSearchInput = document.querySelector('[data-testid="workbench-file-tab-source-search"]');
-              if (sourceSearchInput instanceof HTMLInputElement) {
-                setNativeValue(sourceSearchInput, 'review');
-                sourceSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+              const inlineSourceSearchInput = document.querySelector('[data-testid="workbench-file-tab-source-search"]');
+              const sourceFindTarget = document.querySelector('[data-testid="workbench-file-tab-open-editor"]');
+              if (sourceFindTarget instanceof HTMLElement) {
+                sourceFindTarget.focus();
+                sourceFindTarget.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: 'f',
+                  code: 'KeyF',
+                  metaKey: true,
+                  bubbles: true,
+                  cancelable: true
+                }));
                 await sleep(180);
               }
-              const sourceSearchCount = document.querySelector('[data-testid="workbench-file-tab-source-search-count"]');
-              const sourceSearchNext = document.querySelector('[data-testid="workbench-file-tab-source-search-next"]');
+              const sourceSharedFindInput = document.querySelector('#content-search-input');
+              if (sourceSharedFindInput instanceof HTMLInputElement) {
+                setNativeValue(sourceSharedFindInput, 'review');
+                sourceSharedFindInput.dispatchEvent(new Event('input', { bubbles: true }));
+                await sleep(240);
+              }
+              const sourceFindBar = document.querySelector('[data-testid="thread-find-bar"]');
+              const sourceSearchNext = document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Next result"]');
               const sourcePreviewAfterSearch = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
-              const sourceSearchCountBeforeNext = sourceSearchCount instanceof HTMLElement ? sourceSearchCount.textContent ?? '' : '';
+              const sourceSearchCountBeforeNext = sourceFindBar instanceof HTMLElement ? sourceFindBar.getAttribute('data-thread-find-total-matches') ?? '' : '';
+              const sourceSearchActiveBeforeNext = sourceFindBar instanceof HTMLElement ? sourceFindBar.getAttribute('data-thread-find-active-match') ?? '' : '';
               const sourceSearchActiveLineBeforeNext = sourcePreviewAfterSearch?.getAttribute('data-source-search-active-line') ?? '';
               const firstSearchActiveRow = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-search-active="true"]');
               const firstSearchActiveRowNumber = firstSearchActiveRow instanceof HTMLElement
@@ -10936,11 +13524,17 @@ function runAutomatedFocusedSurfaceSmoke(
               const sourceFileTabAfterSearchNext = document.querySelector('[data-testid="workbench-file-tab"]');
               const sourcePreviewAfterSearchNext = document.querySelector('[data-testid="workbench-file-tab"] [data-testid="workspace-text-preview"]');
               const secondSearchActiveRow = document.querySelector('[data-testid="workbench-file-tab"] [data-source-line-search-active="true"]');
-              const sourceSearchClear = document.querySelector('[data-testid="workbench-file-tab-source-search-clear"]');
+              const sourceFindBarAfterNext = document.querySelector('[data-testid="thread-find-bar"]');
+              const sourceSearchClose = document.querySelector('[data-testid="thread-find-bar"] button[aria-label="Close find"]');
               const fileSourceSearchWorks =
-                sourceSearchInput instanceof HTMLInputElement &&
-                sourceSearchCount instanceof HTMLElement &&
-                sourceSearchCountBeforeNext === '1/2' &&
+                !(inlineSourceSearchInput instanceof HTMLElement) &&
+                sourceFindTarget instanceof HTMLElement &&
+                sourceSharedFindInput instanceof HTMLInputElement &&
+                document.activeElement === sourceSharedFindInput &&
+                sourceFindBar instanceof HTMLElement &&
+                sourceFindBar.getAttribute('data-thread-find-domain') === 'diff' &&
+                sourceSearchCountBeforeNext === '2' &&
+                sourceSearchActiveBeforeNext === '1' &&
                 sourcePreviewAfterSearch instanceof HTMLElement &&
                 sourcePreviewAfterSearch.getAttribute('data-source-search-query') === 'review' &&
                 sourcePreviewAfterSearch.getAttribute('data-source-search-match-count') === '2' &&
@@ -10949,6 +13543,9 @@ function runAutomatedFocusedSurfaceSmoke(
                 firstSearchActiveRowNumber === '1' &&
                 sourceSearchNext instanceof HTMLButtonElement &&
                 sourceSearchNext.disabled === false &&
+                sourceFindBarAfterNext instanceof HTMLElement &&
+                sourceFindBarAfterNext.getAttribute('data-thread-find-total-matches') === '2' &&
+                sourceFindBarAfterNext.getAttribute('data-thread-find-active-match') === '2' &&
                 sourceFileTabAfterSearchNext instanceof HTMLElement &&
                 sourceFileTabAfterSearchNext.getAttribute('data-file-tab-source-search-query') === 'review' &&
                 sourceFileTabAfterSearchNext.getAttribute('data-file-tab-source-search-count') === '2' &&
@@ -10958,7 +13555,11 @@ function runAutomatedFocusedSurfaceSmoke(
                 sourcePreviewAfterSearchNext.getAttribute('data-source-search-active-line') === '2' &&
                 secondSearchActiveRow instanceof HTMLElement &&
                 secondSearchActiveRow.getAttribute('data-source-line-number') === '2' &&
-                sourceSearchClear instanceof HTMLButtonElement;
+                sourceSearchClose instanceof HTMLButtonElement;
+              if (sourceSearchClose instanceof HTMLButtonElement) {
+                sourceSearchClose.click();
+                await sleep(120);
+              }
               await openPanelTab('files', 'Files');
               await sleep(160);
               const largeSourceSearch = document.querySelector('[data-testid="workspace-file-search"]');
@@ -11073,6 +13674,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 loadedPreview.textContent?.includes('loaded preview') === true;
               return {
                 profile,
+                filesHeaderPanelSeamWorks,
                 filesToolbarCompactWorks:
                   filesToolbar instanceof HTMLElement &&
                   filesToolbar.getAttribute('data-panel-toolbar') === 'true' &&
@@ -11095,6 +13697,8 @@ function runAutomatedFocusedSurfaceSmoke(
                 workbenchFileTabWorks,
                 workbenchFileTabPinWorks,
                 workbenchFileTabActionMenuSharedSectionsWorks,
+                workbenchFileTabCodexActionLabelsWorks,
+                workbenchFileTabCodexActionClusterWorks,
                 fileOpenTargetDiagnosticWorks: workbenchFileTabWorks,
                 fileSourceLineSelectionWorks,
                 fileSourceLineUtilitiesWorks,
@@ -11119,18 +13723,111 @@ function runAutomatedFocusedSurfaceSmoke(
                   Boolean(previewHeaderChecks['workspace-csv-preview']) &&
                   Boolean(previewHeaderChecks['workspace-pdf-preview']) &&
                   Boolean(previewHeaderChecks['workspace-document-preview']) &&
+                  Boolean(previewHeaderChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewHeaderChecks['workspace-slides-preview']) &&
                   Boolean(previewHeaderChecks['workspace-notebook-preview']),
                 filesArtifactPreviewControlsWorks:
                   Boolean(previewControlChecks['workspace-json-preview']) &&
                   Boolean(previewControlChecks['workspace-csv-preview']) &&
                   Boolean(previewControlChecks['workspace-pdf-preview']) &&
                   Boolean(previewControlChecks['workspace-document-preview']) &&
+                  Boolean(previewControlChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewControlChecks['workspace-slides-preview']) &&
                   Boolean(previewControlChecks['workspace-notebook-preview']),
+                filesArtifactOpenOptionsWorks:
+                  Boolean(previewOpenOptionsChecks['workspace-json-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-csv-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-pdf-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-document-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-slides-preview']) &&
+                  Boolean(previewOpenOptionsChecks['workspace-notebook-preview']),
+                filesArtifactHeaderTitleTypeWorks:
+                  Boolean(previewArtifactHeaderChecks['workspace-pdf-preview']) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-document-preview']) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-slides-preview']) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-notebook-preview']),
                 filesArtifactTabModelWorks:
                   Boolean(previewArtifactTabChecks['workspace-csv-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-pdf-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-document-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-slides-preview']) &&
                   Boolean(previewArtifactTabChecks['workspace-notebook-preview']),
+                filesPdfPreviewControlsWorks: Boolean(pdfPreviewControlChecks['workspace-pdf-preview']),
+                filesPdfPresentationModeWorks: Boolean(pdfPresentationModeChecks['workspace-pdf-preview']),
+                filesPdfAnnotationsWorks: Boolean(pdfAnnotationChecks['workspace-pdf-preview']),
+                filesDocumentPageControlsWorks: Boolean(documentPageControlChecks['workspace-document-preview']),
+                filesDocumentTableRenderingWorks: Boolean(documentTableChecks['workspace-document-preview']),
+                filesDocumentImageRenderingWorks: Boolean(documentImageChecks['workspace-document-preview']),
+                filesDocumentSectionMetadataWorks: Boolean(documentSectionChecks['workspace-document-preview']),
+                filesDocumentColumnLayoutWorks: Boolean(documentColumnLayoutChecks['workspace-document-preview']),
+                filesDocumentShapeRenderingWorks: Boolean(documentShapeChecks['workspace-document-preview']),
+                filesDocumentFootnotesWorks: Boolean(documentFootnoteChecks['workspace-document-preview']),
+                filesDocumentCommentsWorks: Boolean(documentCommentChecks['workspace-document-preview']),
+                filesDocumentReviewMarksWorks: Boolean(documentReviewMarkChecks['workspace-document-preview']),
+                filesDocumentHyperlinksWorks: Boolean(documentLinkChecks['workspace-document-preview']),
+                filesDocumentTextStylesWorks: Boolean(documentTextStyleChecks['workspace-document-preview']),
+                filesDocumentListRenderingWorks: Boolean(documentListChecks['workspace-document-preview']),
+                filesSpreadsheetRendererWorks: Boolean(spreadsheetRendererChecks['workspace-spreadsheet-preview']),
+                filesSlidesRendererWorks: Boolean(slidesRendererChecks['workspace-slides-preview']),
+                filesSlidesShapeLayoutWorks: Boolean(slidesShapeLayoutChecks['workspace-slides-preview']),
+                filesSlidesColorFillsWorks: Boolean(slidesColorFillChecks['workspace-slides-preview']),
+                filesSlidesImageShapesWorks: Boolean(slidesImageShapeChecks['workspace-slides-preview']),
+                filesSpreadsheetControlsWorks: Boolean(spreadsheetControlChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetSheetTabsWorks: Boolean(spreadsheetSheetTabChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetActiveCellWorks: Boolean(spreadsheetActiveCellChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetFormulaEvaluationWorks: Boolean(spreadsheetFormulaChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetCellStylesWorks: Boolean(spreadsheetStyleChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetMergedCellsWorks: Boolean(spreadsheetMergeChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetSizingWorks: Boolean(spreadsheetSizingChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetFreezePanesWorks: Boolean(spreadsheetFreezePaneChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetFreezeHandlesWorks: Boolean(spreadsheetFreezeHandleChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetAlignmentWorks: Boolean(spreadsheetAlignmentChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetTablesWorks: Boolean(spreadsheetTableChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetConditionalFormattingWorks: Boolean(spreadsheetConditionalFormattingChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetDataValidationWorks: Boolean(spreadsheetDataValidationChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetDataValidationMessagesWorks: Boolean(spreadsheetDataValidationMessageChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetDataValidationOverlayWorks: Boolean(spreadsheetDataValidationOverlayChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetDataValidationRangeWorks: Boolean(spreadsheetDataValidationRangeChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetCommentsWorks: Boolean(spreadsheetCommentChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetBordersWorks: Boolean(spreadsheetBorderChecks['workspace-spreadsheet-preview']),
+	                filesSpreadsheetChartsWorks: Boolean(spreadsheetChartChecks['workspace-spreadsheet-preview']),
+	                filesSpreadsheetChartPlotWorks: Boolean(spreadsheetChartPlotChecks['workspace-spreadsheet-preview']),
+	                filesSpreadsheetDrawingsWorks: Boolean(spreadsheetDrawingChecks['workspace-spreadsheet-preview']),
+	                filesSpreadsheetSparklinesWorks: Boolean(spreadsheetSparklineChecks['workspace-spreadsheet-preview']),
+	                filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
+                filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
+                filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),
+                filesSlidesThumbnailRailWorks: Boolean(slidesThumbnailRailChecks['workspace-slides-preview']),
+                filesOfficeZoomMenuWorks:
+                  Boolean(officeZoomMenuChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(officeZoomMenuChecks['workspace-slides-preview']),
+                filesDocumentPdfZoomMenuWorks:
+                  Boolean(documentPdfZoomMenuChecks['workspace-document-preview']) &&
+                  Boolean(documentPdfZoomMenuChecks['workspace-pdf-preview']),
+                filesSpreadsheetSlidesArtifactBoundaryWorks:
+                  Boolean(previewChecks.filesSpreadsheetPreviewWorks) &&
+                  Boolean(previewChecks.filesSlidesPreviewWorks) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewArtifactHeaderChecks['workspace-slides-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewArtifactTabChecks['workspace-slides-preview']) &&
+                  Boolean(previewControlChecks['workspace-spreadsheet-preview']) &&
+                  Boolean(previewControlChecks['workspace-slides-preview']),
+                filesNotebookReadOnlyControlsWorks: Boolean(notebookReadOnlyControlChecks['workspace-notebook-preview']),
+                filesNotebookOutputRenderingWorks: Boolean(notebookOutputRenderingChecks['workspace-notebook-preview']),
+                filesNotebookCellDisclosureWorks: Boolean(notebookCellDisclosureChecks['workspace-notebook-preview']),
+                filesNotebookExecutionCountWorks: Boolean(notebookExecutionCountChecks['workspace-notebook-preview']),
+                filesNotebookCellMetadataWorks: Boolean(notebookCellMetadataChecks['workspace-notebook-preview']),
+                filesNotebookOutputSummariesWorks: Boolean(notebookOutputSummaryChecks['workspace-notebook-preview']),
+                filesNotebookRawOutputDisclosureWorks: Boolean(notebookRawOutputDisclosureChecks['workspace-notebook-preview']),
+                filesNotebookCodeSnippetWorks: Boolean(notebookCodeSnippetChecks['workspace-notebook-preview']),
+                filesNotebookCellSpacingWorks: Boolean(notebookCellSpacingChecks['workspace-notebook-preview']),
+                filesNotebookOutputChromeWorks: Boolean(notebookOutputChromeChecks['workspace-notebook-preview']),
+                filesNotebookOutputItemChromeWorks: Boolean(notebookOutputItemChromeChecks['workspace-notebook-preview']),
+                filesNotebookRichOutputItemChromeWorks: Boolean(notebookRichOutputItemChromeChecks['workspace-notebook-preview']),
                 filesFallbackNoticeSharedWorks,
                 filesNoResultsWorks,
                 filesSearchClearWorks
@@ -11658,6 +14355,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
             let browserVisibleGeometryWorks = false;
             if (browserViewportModeSelect instanceof HTMLSelectElement) {
               const optionLabels = [...browserViewportModeSelect.options].map((option) => option.textContent?.trim() ?? '');
+              const expectedPresetLabels = ['Responsive', '4K', 'Laptop L', 'Laptop', 'Surface Pro 7', 'iPad Air', 'iPad Mini', 'Surface Duo', 'iPhone 15 Pro Max', 'Pixel 8', 'iPhone 15 Pro', 'Samsung Galaxy S24 Ultra', 'iPhone SE'];
               browserViewportModeSelect.value = 'galaxyS24Ultra';
               browserViewportModeSelect.dispatchEvent(new Event('change', { bubbles: true }));
               for (let index = 0; index < 20; index += 1) {
@@ -11672,8 +14370,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               const presetStageHeight = Number(browserWebviewManagerAfterPreset?.getAttribute('data-browser-manager-visible-stage-height') ?? '0');
               const presetVisualHeight = Number(browserWebviewManagerAfterPreset?.getAttribute('data-browser-manager-visible-height') ?? '0');
               browserDevicePresetCatalogWorks =
-                ['iPhone SE', 'iPhone 15 Pro', 'iPhone 15 Pro Max', 'Pixel 8', 'Galaxy S24 Ultra', 'iPad Mini', 'iPad Air', 'Surface Duo', 'Surface Pro 7', 'Laptop', 'Laptop L', '4K']
-                  .every((label) => optionLabels.includes(label)) &&
+                optionLabels.join('|') === expectedPresetLabels.join('|') &&
                 browserPanelAfterPreset?.getAttribute('data-browser-device-mode') === 'galaxyS24Ultra' &&
                 Number(browserPanelAfterPreset?.getAttribute('data-browser-viewport-width') ?? '0') === 384 &&
                 Number(browserPanelAfterPreset?.getAttribute('data-browser-viewport-height') ?? '0') === 824;
@@ -12557,6 +15254,164 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                 await sleep(100);
               }
             }
+            const activeSmokeSession = (await window.api.sessions.list())[0] ?? null;
+            const parseClientToolPayload = (response) => {
+              try {
+                return JSON.parse(response?.contentItems?.[0]?.text ?? '{}');
+              } catch {
+                return {};
+              }
+            };
+            let browserClientToolBridgeWorks = false;
+            let browserClientToolActionsWork = false;
+            let browserClientToolScreenshotWorks = false;
+            let browserClientToolScreenshotImageWorks = false;
+            let browserClientToolAdvancedActionsWork = false;
+            if (activeSmokeSession) {
+              const readResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_read',
+                arguments: {}
+              });
+              const readPayload = parseClientToolPayload(readResponse);
+              const openResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_open',
+                arguments: { url: smokeBaseUrl }
+              });
+              const openPayload = parseClientToolPayload(openResponse);
+              const clickResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_click',
+                arguments: { text: 'Target button' }
+              });
+              const clickPayload = parseClientToolPayload(clickResponse);
+              const typeResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_type',
+                arguments: { targetText: 'Smoke input', text: 'CLIENT_TYPE_OK' }
+              });
+              const typePayload = parseClientToolPayload(typeResponse);
+              const screenshotResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_screenshot',
+                arguments: { includeImage: true }
+              });
+              const screenshotPayload = parseClientToolPayload(screenshotResponse);
+              const fillResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_fill',
+                arguments: { targetText: 'Smoke input', text: 'CLIENT_FILL_OK' }
+              });
+              const fillPayload = parseClientToolPayload(fillResponse);
+              const keyResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_key',
+                arguments: { targetText: 'Smoke input', key: 'Enter' }
+              });
+              const keyPayload = parseClientToolPayload(keyResponse);
+              const selectResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_select',
+                arguments: { targetText: 'Smoke select', text: 'beta' }
+              });
+              const selectPayload = parseClientToolPayload(selectResponse);
+              const checkResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_check',
+                arguments: { targetText: 'Smoke checkbox', checked: true }
+              });
+              const checkPayload = parseClientToolPayload(checkResponse);
+              const scrollResponse = await window.api.browser.runClientToolSmoke({
+                sessionId: activeSmokeSession.id,
+                namespace: 'orchestrator',
+                tool: 'browser_scroll',
+                arguments: { scrollY: 120 }
+              });
+              const scrollPayload = parseClientToolPayload(scrollResponse);
+              browserClientToolActionsWork =
+                clickResponse?.success === true &&
+                typeResponse?.success === true &&
+                clickPayload.ok === true &&
+                typePayload.ok === true &&
+                clickPayload.action === 'click' &&
+                typePayload.action === 'type' &&
+                clickPayload.targetAction?.ok === true &&
+                clickPayload.targetAction?.pageState?.clicked === 'yes' &&
+                typePayload.targetAction?.ok === true &&
+                typePayload.targetAction?.target?.value?.includes('CLIENT_TYPE_OK') === true &&
+                typePayload.targetAction?.pageState?.inputValue?.includes('CLIENT_TYPE_OK') === true;
+              browserClientToolScreenshotWorks =
+                screenshotResponse?.success === true &&
+                screenshotPayload.ok === true &&
+                screenshotPayload.action === 'screenshot' &&
+                screenshotPayload.screenshot?.ok === true &&
+                screenshotPayload.screenshot?.mimeType === 'image/png' &&
+                Number(screenshotPayload.screenshot?.width ?? 0) > 0 &&
+                Number(screenshotPayload.screenshot?.height ?? 0) > 0 &&
+                Number(screenshotPayload.screenshot?.byteSize ?? 0) > 0 &&
+                typeof screenshotPayload.screenshot?.artifactPath === 'string' &&
+                screenshotPayload.screenshot.artifactPath.endsWith('.png');
+              browserClientToolScreenshotImageWorks =
+                browserClientToolScreenshotWorks &&
+                typeof screenshotPayload.screenshot?.dataUrl === 'string' &&
+                screenshotPayload.screenshot.dataUrl.startsWith('data:image/png;base64,') &&
+                screenshotPayload.screenshot.dataUrl.length === Number(screenshotPayload.screenshot?.dataUrlLength ?? 0);
+              browserClientToolAdvancedActionsWork =
+                fillResponse?.success === true &&
+                keyResponse?.success === true &&
+                selectResponse?.success === true &&
+                checkResponse?.success === true &&
+                scrollResponse?.success === true &&
+                fillPayload.ok === true &&
+                keyPayload.ok === true &&
+                selectPayload.ok === true &&
+                checkPayload.ok === true &&
+                scrollPayload.ok === true &&
+                fillPayload.action === 'fill' &&
+                keyPayload.action === 'key' &&
+                selectPayload.action === 'select' &&
+                checkPayload.action === 'check' &&
+                scrollPayload.action === 'scroll' &&
+                fillPayload.targetAction?.ok === true &&
+                fillPayload.targetAction?.target?.value === 'CLIENT_FILL_OK' &&
+                fillPayload.targetAction?.pageState?.inputValue === 'CLIENT_FILL_OK' &&
+                keyPayload.targetAction?.ok === true &&
+                keyPayload.targetAction?.pageState?.keyPressed === 'Enter' &&
+                selectPayload.targetAction?.ok === true &&
+                selectPayload.targetAction?.target?.value === 'beta' &&
+                selectPayload.targetAction?.pageState?.selectedOption === 'beta' &&
+                checkPayload.targetAction?.ok === true &&
+                checkPayload.targetAction?.target?.checked === true &&
+                checkPayload.targetAction?.pageState?.checkedState === 'true' &&
+                scrollPayload.targetAction?.ok === true;
+              browserClientToolBridgeWorks =
+                readResponse?.success === true &&
+                openResponse?.success === true &&
+                readPayload.ok === true &&
+                openPayload.ok === true &&
+                readPayload.action === 'read' &&
+                openPayload.action === 'open' &&
+                browserClientToolActionsWork &&
+                browserClientToolScreenshotWorks &&
+                browserClientToolAdvancedActionsWork &&
+                Array.isArray(openPayload.targets) &&
+                openPayload.targets.some((target) => target?.visibleText === 'Target button') &&
+                typeof readPayload.visibleStructure === 'string' &&
+                readPayload.visibleStructure.includes('Browser') &&
+                typeof openPayload.visibleStructure === 'string' &&
+                openPayload.visibleStructure.includes('Browser') &&
+                String(openPayload.url ?? '').startsWith(smokeBaseUrl);
+            }
             const browserInspectButton = document.querySelector('[data-testid="browser-run-inspection"]');
             if (browserInspectButton instanceof HTMLButtonElement) {
               browserInspectButton.click();
@@ -12802,14 +15657,35 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               );
             let browserSecurityActionsSharedWorks = false;
             let browserSecuritySharedContainersWorks = false;
+            let browserPersistedPolicyDefaultsWorks = false;
             const browserSecurityButton = document.querySelector('[data-testid="browser-inspector-security"]');
             if (browserSecurityButton instanceof HTMLButtonElement) {
               browserSecurityButton.click();
-              await sleep(120);
+              for (let index = 0; index < 20; index += 1) {
+                const values = [...document.querySelectorAll('[data-testid="browser-security-pane"] .browser-policy-select select')]
+                  .map((select) => select instanceof HTMLSelectElement ? select.value : '');
+                const text = document.querySelector('[data-testid="browser-security-pane"]')?.textContent ?? '';
+                if (
+                  values.length === 4 &&
+                  values.every((value) => value === 'alwaysAllow') &&
+                  text.includes('example.com') &&
+                  text.includes('blocked.example') &&
+                  text.includes('downloads.example') &&
+                  text.includes('uploads.example')
+                ) {
+                  break;
+                }
+                await sleep(100);
+              }
               const securityPane = document.querySelector('[data-testid="browser-security-pane"]');
               const securityPolicyRows = [...document.querySelectorAll('[data-testid="browser-security-policy-row"]')];
               const securityPolicyButtons = [...document.querySelectorAll('[data-testid="browser-security-policy-row"] .browser-inspector-action-button')]
                 .filter((button) => button instanceof HTMLElement);
+              const securityPolicySelectValues = securityPane instanceof HTMLElement
+                ? [...securityPane.querySelectorAll('.browser-policy-select select')]
+                  .map((select) => select instanceof HTMLSelectElement ? select.value : '')
+                : [];
+              const securityPolicyText = securityPane instanceof HTMLElement ? securityPane.textContent ?? '' : '';
               browserSecurityActionsSharedWorks =
                 securityPane instanceof HTMLElement &&
                 securityPolicyButtons.length >= 8 &&
@@ -12829,6 +15705,14 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
                   row.getAttribute('data-inspector-row') === 'true' &&
                   row.classList.contains('orchestrator-inspector-row')
                 );
+              browserPersistedPolicyDefaultsWorks =
+                securityPane instanceof HTMLElement &&
+                securityPolicySelectValues.length === 4 &&
+                securityPolicySelectValues.every((value) => value === 'alwaysAllow') &&
+                securityPolicyText.includes('example.com') &&
+                securityPolicyText.includes('blocked.example') &&
+                securityPolicyText.includes('downloads.example') &&
+                securityPolicyText.includes('uploads.example');
             }
             var browserInspectorActionsSharedWorks =
               browserAssetsBundleSharedWorks &&
@@ -12861,6 +15745,41 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               document.querySelector('[data-testid="browser-webview"]')?.parentElement?.getAttribute('data-browser-webview-dom-host') === 'body' &&
               document.querySelector('[data-testid="browser-webview"]')?.parentElement?.parentElement === document.body;
             const rightPanel = document.querySelector('[data-testid="session-right-panel"]');
+            const browserSessionTitlebar = document.querySelector('[data-testid="session-titlebar"]');
+            const browserSessionMainRow = document.querySelector('[data-testid="session-main-row"]');
+            const browserPrimaryContent = document.querySelector('[data-testid="session-primary-content"]');
+            const browserRightPanelShell = rightPanel instanceof HTMLElement
+              ? rightPanel.closest('[data-motion-panel="right"]')
+              : null;
+            const browserRightPanelChrome = document.querySelector('[data-testid="workbench-panel-tabbar"]')?.closest('.workbench-panel-chrome');
+            const browserTitlebarRect = browserSessionTitlebar instanceof HTMLElement ? browserSessionTitlebar.getBoundingClientRect() : null;
+            const browserMainRowRect = browserSessionMainRow instanceof HTMLElement ? browserSessionMainRow.getBoundingClientRect() : null;
+            const browserPrimaryRect = browserPrimaryContent instanceof HTMLElement ? browserPrimaryContent.getBoundingClientRect() : null;
+            const browserRightPanelRect = rightPanel instanceof HTMLElement ? rightPanel.getBoundingClientRect() : null;
+            const browserRightPanelShellRect = browserRightPanelShell instanceof HTMLElement ? browserRightPanelShell.getBoundingClientRect() : null;
+            const browserRightPanelChromeRect = browserRightPanelChrome instanceof HTMLElement ? browserRightPanelChrome.getBoundingClientRect() : null;
+            const browserPanelRect = browserPanel instanceof HTMLElement ? browserPanel.getBoundingClientRect() : null;
+            const browserHeaderPanelSeamWorks =
+              rightPanel instanceof HTMLElement &&
+              rightPanel.getAttribute('data-right-panel-active-tab') === 'browser' &&
+              browserTitlebarRect !== null &&
+              browserMainRowRect !== null &&
+              browserPrimaryRect !== null &&
+              browserRightPanelRect !== null &&
+              browserRightPanelShellRect !== null &&
+              browserRightPanelChromeRect !== null &&
+              browserPanelRect !== null &&
+              Math.abs(browserTitlebarRect.top - browserMainRowRect.top) <= 2 &&
+              Math.abs(browserPrimaryRect.top - browserMainRowRect.top) <= 2 &&
+              Math.abs(browserRightPanelShellRect.top - browserMainRowRect.top) <= 2 &&
+              Math.abs(browserRightPanelRect.top - browserMainRowRect.top) <= 2 &&
+              Math.abs(browserRightPanelChromeRect.top - browserTitlebarRect.top) <= 2 &&
+              Math.abs(browserTitlebarRect.right - browserRightPanelRect.left) <= 2 &&
+              browserTitlebarRect.height >= 32 &&
+              browserTitlebarRect.height <= 42 &&
+              browserRightPanelChromeRect.height >= 30 &&
+              browserRightPanelChromeRect.height <= 44 &&
+              Math.abs(browserPanelRect.top - browserRightPanelChromeRect.bottom) <= 2;
             const browserSingleTabStripHidden =
               Number(browserPanel?.getAttribute('data-browser-tab-count') ?? '0') === 1 &&
               !document.querySelector('[data-testid="browser-tab-strip"]');
@@ -13091,6 +16010,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               profile,
               browserActive: rightPanel instanceof HTMLElement &&
                 rightPanel.dataset.rightPanelActiveTab === 'browser',
+              browserHeaderPanelSeamWorks,
               browserEmptyStateWorks,
               browserLocalTargetsWorks,
               browserLocalTargetHideWorks,
@@ -13112,6 +16032,11 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserVisibleGeometryWorks,
               browserViewportResetWorks,
               browserManagerStateBridgeWorks,
+              browserClientToolBridgeWorks,
+              browserClientToolActionsWork,
+              browserClientToolScreenshotWorks,
+              browserClientToolScreenshotImageWorks,
+              browserClientToolAdvancedActionsWork,
               browserCaptureGeometryWorks,
               browserUseNoMutationWorks,
               browserCacheReloadWorks,
@@ -13160,6 +16085,7 @@ function runAutomatedBrowserSmoke(win: BrowserWindow, outputPath: string, screen
               browserInspectorContainersSharedWorks,
               browserTargetActionsSharedWorks,
               browserSecurityActionsSharedWorks,
+              browserPersistedPolicyDefaultsWorks,
               browserInspectorActionsSharedWorks,
               browserVisibilityControlWorks,
               browserHiddenStateWorks,
@@ -13574,13 +16500,15 @@ function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: strin
               firstBrowserMenu = await window.api.app.getMenuCommandState('focus-browser-address-bar');
             }
             await window.api.app.openSessionWindow(session.id);
+            const openerPendingAfterOpen = await window.api.app.consumePendingNavigation();
             return {
               profile,
               sessionId: session.id,
               firstActiveSessionTitle: document.querySelector('[data-testid="active-session-title"]')?.textContent?.trim() ?? '',
               firstActiveFocusArea: document.querySelector('.app-shell')?.getAttribute('data-app-shell-active-focus-area') ?? '',
               firstBrowserInputFocused: document.activeElement === input,
-              firstBrowserMenuEnabledBeforeOpen: firstBrowserMenu?.enabled === true
+              firstBrowserMenuEnabledBeforeOpen: firstBrowserMenu?.enabled === true,
+              openerPendingAfterOpen
             };
           })()
         `)
@@ -13698,6 +16626,18 @@ function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: strin
             };
           })()
         `)
+        navigateFromDeeplink('orchestrator://threads/' + encodeURIComponent(firstResult.sessionId))
+        await sleep(260)
+        const loadedDeepLinkResult = await win.webContents.executeJavaScript(`
+          (async () => {
+            const activeRow = document.querySelector('[data-session-id][aria-current="page"]');
+            const pendingAfterLoadedDeepLink = await window.api.app.consumePendingNavigation();
+            return {
+              loadedDeepLinkActiveSessionId: activeRow?.getAttribute('data-session-id') ?? '',
+              pendingAfterLoadedDeepLink
+            };
+          })()
+        `)
 
         if (screenshotPath) {
           const image = await win.webContents.capturePage()
@@ -13712,12 +16652,16 @@ function runAutomatedMultiWindowFocusSmoke(win: BrowserWindow, outputPath: strin
             ...backgroundMenuResult,
             ...firstBeforeMenuCommand,
             ...firstAfterFocus,
+            ...loadedDeepLinkResult,
             focusedWindowAfterRefocus: BrowserWindow.getFocusedWindow() === win,
             activeWindowAfterRefocus: activeAppWindow() === win,
             windowCountAfterOpen: BrowserWindow.getAllWindows().filter((candidate) => !candidate.isDestroyed()).length,
             secondWindowCreated: true,
             secondWindowNavigated: secondResult.secondActiveSessionId === firstResult.sessionId,
             pendingNavigationConsumedOnce: secondResult.pendingAfterLoad === null,
+            pendingNavigationWindowScoped: firstResult.openerPendingAfterOpen === null,
+            loadedDeepLinkDoesNotLeavePendingNavigation: loadedDeepLinkResult.loadedDeepLinkActiveSessionId === firstResult.sessionId &&
+              loadedDeepLinkResult.pendingAfterLoadedDeepLink === null,
             firstWindowBrowserFocusArea: firstResult.firstActiveFocusArea === 'right-panel' && firstResult.firstBrowserInputFocused === true,
             firstWindowBrowserMenuEnabled: firstResult.firstBrowserMenuEnabledBeforeOpen === true,
             secondWindowBrowserMenuDisabled: secondResult.secondBrowserMenuEnabled === false,
@@ -13808,6 +16752,22 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               }
               return null;
             };
+            const restoreSmokeSession = async () => {
+              const expectedSessionId = ${JSON.stringify(normalSession?.id ?? '')};
+              if (
+                expectedSessionId &&
+                typeof window.__orchestratorSetActiveSessionForSmoke === 'function' &&
+                window.__orchestratorSetActiveSessionForSmoke(expectedSessionId)
+              ) {
+                await sleep(160);
+                return;
+              }
+              const backToChats = document.querySelector('[data-testid="sidebar-footer-action"]');
+              if (backToChats instanceof HTMLElement) {
+                backToChats.click();
+                await sleep(160);
+              }
+            };
             await waitForRow('Sidebar pinned recent');
             const initialShowMoreRow = [...document.querySelectorAll('[data-testid="project-show-more-row"]')]
               .find((row) => row.textContent?.includes('Show'));
@@ -13816,6 +16776,31 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               await sleep(180);
             }
             await sleep(250);
+
+            const primaryActions = document.querySelector('[data-testid="sidebar-primary-actions"]');
+            const primaryActionRows = [
+              document.querySelector('[data-testid="sidebar-primary-action-new-chat"]'),
+              document.querySelector('[data-testid="sidebar-primary-action-search"]'),
+              document.querySelector('[data-testid="sidebar-primary-action-plugins"]'),
+              document.querySelector('[data-testid="sidebar-primary-action-automations"]')
+            ].filter((row) => row instanceof HTMLElement);
+            const primaryActionLabels = primaryActionRows.map((row) => row.textContent?.trim() ?? '');
+            const sidebarPrimaryActionsCodexOrderWorks =
+              primaryActions instanceof HTMLElement &&
+              primaryActionLabels.join('|') === 'New chat|Search|Plugins|Automations' &&
+              primaryActionRows.every((row) => (
+                row instanceof HTMLElement &&
+                row.classList.contains('sidebar-list-row') &&
+                row.querySelector('svg') instanceof SVGElement
+              ));
+            const sidebarPrimaryActionsBeforePinned =
+              primaryActions instanceof HTMLElement &&
+              document.body.innerText.indexOf('New chat') >= 0 &&
+              document.body.innerText.indexOf('Pinned') >= 0 &&
+              document.body.innerText.indexOf('New chat') < document.body.innerText.indexOf('Pinned');
+            let sidebarSearchPrimaryActionWorks = false;
+            let sidebarPluginsPrimaryActionWorks = false;
+            let sidebarAutomationsPrimaryActionWorks = false;
 
             const bodyText = document.body.innerText;
             const pinnedIndex = bodyText.indexOf('Pinned');
@@ -13841,6 +16826,22 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               providerPinnedRow instanceof HTMLElement &&
               providerPinnedRow.closest('.session-row-shell')?.getAttribute('data-sidebar-provider-pinned') === 'true' &&
               providerPinnedRow.closest('.session-row-shell')?.getAttribute('data-sidebar-pinned-thread-key') === 'remote:sidebar-provider-pinned-codex';
+            const providerPinnedShell = providerPinnedRow instanceof HTMLElement
+              ? providerPinnedRow.closest('.session-row-shell')
+              : null;
+            const providerPinnedPin = providerPinnedShell instanceof HTMLElement
+              ? providerPinnedShell.querySelector('[data-testid="session-pin-toggle"]')
+              : null;
+            const localPinnedPin = rowFor('Sidebar pinned recent')?.closest('.session-row-shell')?.querySelector('[data-testid="session-pin-toggle"]');
+            const sidebarProviderPinBoundaryWorks =
+              providerPinnedPin instanceof HTMLButtonElement &&
+              localPinnedPin instanceof HTMLButtonElement &&
+              providerPinnedPin.disabled &&
+              providerPinnedPin.getAttribute('data-sidebar-pin-boundary') === 'provider-readonly' &&
+              (providerPinnedPin.getAttribute('aria-label') ?? '').includes('Provider pin') &&
+              !localPinnedPin.disabled &&
+              localPinnedPin.getAttribute('data-sidebar-pin-boundary') === 'local' &&
+              (localPinnedPin.getAttribute('aria-label') ?? '').includes('locally');
             const chatScrollContainer = document.querySelector('[data-testid="sidebar-chat-scroll"]');
             const pinnedSection = document.querySelector('[data-testid="sidebar-pinned-section"]');
             const projectsSection = document.querySelector('[data-testid="sidebar-projects-section"]');
@@ -13852,6 +16853,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               projectsSection.parentElement === chatScrollContainer &&
               getComputedStyle(chatScrollContainer).overflowY !== 'visible';
             let sidebarPinnedDragReorderWorks = false;
+            let sidebarProviderPinnedOrderPreservedWorks = false;
             if (pinnedSection instanceof HTMLElement && typeof DataTransfer !== 'undefined') {
               const pinnedRecentRow = rowFor('Sidebar pinned recent');
               const pinnedOlderRow = rowFor('Sidebar pinned older');
@@ -13883,7 +16885,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 const reorderedPinnedBlock = reorderedProjectsIndex >= 0 ? reorderedPinnedText.slice(0, reorderedProjectsIndex) : reorderedPinnedText;
                 const reorderedRecentIndex = reorderedPinnedBlock.indexOf('Sidebar pinned recent');
                 const reorderedOlderIndex = reorderedPinnedBlock.indexOf('Sidebar pinned older');
+                const reorderedProviderPinnedIndex = reorderedPinnedBlock.indexOf('Sidebar provider pinned codex');
                 const pinnedList = document.querySelector('[data-testid="sidebar-pinned-session-list"]');
+                const providerPinnedShellAfterReorder = rowFor('Sidebar provider pinned codex')?.closest('.session-row-shell');
+                const providerPinnedPinAfterReorder = providerPinnedShellAfterReorder instanceof HTMLElement
+                  ? providerPinnedShellAfterReorder.querySelector('[data-testid="session-pin-toggle"]')
+                  : null;
                 sidebarPinnedDragReorderWorks =
                   pinnedDropMarker &&
                   pinnedSection.getAttribute('data-sidebar-pinned-reorder') === 'local' &&
@@ -13891,6 +16898,18 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   reorderedRecentIndex >= 0 &&
                   reorderedOlderIndex >= 0 &&
                   reorderedRecentIndex < reorderedOlderIndex;
+                sidebarProviderPinnedOrderPreservedWorks =
+                  reorderedRecentIndex >= 0 &&
+                  reorderedOlderIndex >= 0 &&
+                  reorderedProviderPinnedIndex >= 0 &&
+                  reorderedRecentIndex < reorderedOlderIndex &&
+                  reorderedOlderIndex < reorderedProviderPinnedIndex &&
+                  providerPinnedShellAfterReorder instanceof HTMLElement &&
+                  providerPinnedShellAfterReorder.getAttribute('data-sidebar-provider-pinned') === 'true' &&
+                  providerPinnedShellAfterReorder.getAttribute('data-sidebar-pinned-thread-key') === 'remote:sidebar-provider-pinned-codex' &&
+                  providerPinnedPinAfterReorder instanceof HTMLButtonElement &&
+                  providerPinnedPinAfterReorder.getAttribute('data-sidebar-pin-boundary') === 'provider-readonly' &&
+                  providerPinnedPinAfterReorder.disabled;
               }
             }
             let sidebarProjectlessChatsWorks = false;
@@ -13925,11 +16944,11 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               remoteProjectlessRow instanceof HTMLElement &&
               projectsSection instanceof HTMLElement
             ) {
-              const projectGroupList = document.querySelector('[data-testid="sidebar-project-group-list"]');
-              const firstProjectHeader = projectsSection.querySelector('[data-testid="project-section-header"]');
+              const projectlessSectionSharesProjectScroll =
+                chatScrollContainer instanceof HTMLElement &&
+                projectlessSection.parentElement === chatScrollContainer;
               const projectlessChatsAfterProjects =
-                !(firstProjectHeader instanceof HTMLElement) ||
-                Boolean(firstProjectHeader.compareDocumentPosition(projectlessSection) & Node.DOCUMENT_POSITION_FOLLOWING);
+                Boolean(projectsSection.compareDocumentPosition(projectlessSection) & Node.DOCUMENT_POSITION_FOLLOWING);
               const projectlessRowScoped =
                 projectlessRow.closest('[data-testid="sidebar-projectless-chats-section"]') === projectlessSection;
               const remoteProjectlessRowScoped =
@@ -13942,8 +16961,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 projectlessHeader.classList.contains('sidebar-list-row-section');
               const defaultProjectlessPreferenceStored =
                 window.localStorage.getItem('orchestrator.sidebar.projectlessChatsFirst') == null &&
-                projectGroupList instanceof HTMLElement &&
-                projectGroupList.getAttribute('data-sidebar-projectless-chats-first') === 'false';
+                projectlessSection.getAttribute('data-sidebar-projectless-chats-first') === 'false';
               const projectlessOrganizeButton = findButton('Organize sidebar');
               if (projectlessOrganizeButton instanceof HTMLButtonElement) {
                 projectlessOrganizeButton.click();
@@ -13954,20 +16972,19 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   chatsBeforeProjects.click();
                   await sleep(180);
                   const reorderedProjectlessSection = document.querySelector('[data-testid="sidebar-projectless-chats-section"]');
-                  const reorderedProjectGroupList = document.querySelector('[data-testid="sidebar-project-group-list"]');
-                  const reorderedFirstProjectHeader = projectsSection.querySelector('[data-testid="project-section-header"]');
+                  const reorderedProjectsSection = document.querySelector('[data-testid="sidebar-projects-section"]');
                   const projectlessChatsFirst =
-                    !(reorderedFirstProjectHeader instanceof HTMLElement) ||
                     (
                       reorderedProjectlessSection instanceof HTMLElement &&
-                      Boolean(reorderedProjectlessSection.compareDocumentPosition(reorderedFirstProjectHeader) & Node.DOCUMENT_POSITION_FOLLOWING)
+                      reorderedProjectsSection instanceof HTMLElement &&
+                      Boolean(reorderedProjectlessSection.compareDocumentPosition(reorderedProjectsSection) & Node.DOCUMENT_POSITION_FOLLOWING)
                     );
                   sidebarProjectlessChatsFirstPreferenceWorks =
                     defaultProjectlessPreferenceStored &&
                     projectlessChatsAfterProjects &&
                     window.localStorage.getItem('orchestrator.sidebar.projectlessChatsFirst') === 'true' &&
-                    reorderedProjectGroupList instanceof HTMLElement &&
-                    reorderedProjectGroupList.getAttribute('data-sidebar-projectless-chats-first') === 'true' &&
+                    reorderedProjectlessSection instanceof HTMLElement &&
+                    reorderedProjectlessSection.getAttribute('data-sidebar-projectless-chats-first') === 'true' &&
                     projectlessChatsFirst;
                 }
               }
@@ -13987,6 +17004,7 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 rowFor('Sidebar remote projectless codex') instanceof HTMLElement;
               sidebarProjectlessChatsWorks =
                 projectlessSection.getAttribute('data-sidebar-projectless-session-count') === '2' &&
+                projectlessSectionSharesProjectScroll &&
                 projectlessRowScoped &&
                 remoteProjectlessRowScoped &&
                 providerProjectlessMetadataWorks &&
@@ -14040,11 +17058,17 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               !hoverCardText.includes('Environment');
             const hoverCardSurfaceReadable = hoverCard instanceof HTMLElement && hoverSurfaceReadable(hoverCard);
             const hoverCardStyle = hoverCard instanceof HTMLElement ? getComputedStyle(hoverCard) : null;
+            const hoverCardBackdropFilter = hoverCardStyle === null ? '' : [
+              hoverCardStyle.backdropFilter,
+              hoverCardStyle.webkitBackdropFilter,
+              hoverCardStyle.getPropertyValue('backdrop-filter'),
+              hoverCardStyle.getPropertyValue('-webkit-backdrop-filter')
+            ].filter(Boolean).join(' ');
             const hoverCardMaterialWorks =
               hoverCard instanceof HTMLElement &&
               hoverCardStyle !== null &&
               Number.parseFloat(hoverCardStyle.borderRadius || '0') >= 12 &&
-              ((hoverCardStyle.backdropFilter || hoverCardStyle.webkitBackdropFilter || '').includes('blur')) &&
+              hoverCardBackdropFilter.includes('blur') &&
               hoverCardStyle.boxShadow !== 'none' &&
               Number.parseFloat(hoverCardStyle.borderTopWidth || '0') <= 1;
             let doubleClickRenameWorks = false;
@@ -14135,9 +17159,34 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
             const sidebarWidth = sidebar instanceof HTMLElement ? sidebar.getBoundingClientRect().width : 0;
             const sidebarWidthTokenWorks =
               sidebar instanceof HTMLElement &&
-              sidebarWidthToken.includes('clamp') &&
               sidebarWidth >= 239 &&
-              sidebarWidth <= 301;
+              sidebarWidth <= 241;
+            const sidebarDragSpacer = document.querySelector('[data-testid="sidebar-window-drag-spacer"]');
+            const firstPrimaryAction = primaryActionRows[0] instanceof HTMLElement ? primaryActionRows[0] : null;
+            const sidebarDragSpacerRect = sidebarDragSpacer instanceof HTMLElement
+              ? sidebarDragSpacer.getBoundingClientRect()
+              : null;
+            const firstPrimaryActionRect = firstPrimaryAction instanceof HTMLElement
+              ? firstPrimaryAction.getBoundingClientRect()
+              : null;
+            const sidebarTopRect = sidebar instanceof HTMLElement ? sidebar.getBoundingClientRect() : null;
+            const sidebarPrimaryActionTopOffset =
+              firstPrimaryActionRect && sidebarTopRect ? firstPrimaryActionRect.top - sidebarTopRect.top : null;
+            const sidebarTopInsetDebug = {
+              dragSpacerHeight: sidebarDragSpacerRect?.height ?? null,
+              firstPrimaryActionTopOffset: sidebarPrimaryActionTopOffset,
+              sidebarTop: sidebarTopRect?.top ?? null,
+              firstPrimaryActionTop: firstPrimaryActionRect?.top ?? null
+            };
+            const sidebarTopInsetCodexLike =
+              sidebarDragSpacerRect !== null &&
+              firstPrimaryActionRect !== null &&
+              sidebarTopRect !== null &&
+              sidebarDragSpacerRect.height >= 32 &&
+              sidebarDragSpacerRect.height <= 42 &&
+              sidebarPrimaryActionTopOffset !== null &&
+              sidebarPrimaryActionTopOffset >= 32 &&
+              sidebarPrimaryActionTopOffset <= 42;
             const sidebarOverflowDebug = sidebar instanceof HTMLElement
               ? {
                   sidebarClientWidth: sidebar.clientWidth,
@@ -14149,22 +17198,39 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                   }))
                 }
               : null;
-            const sessionRowsCompact = [...document.querySelectorAll('[data-testid="session-row"]')]
-              .filter((row) => row instanceof HTMLElement)
-              .every((row) => row.getBoundingClientRect().height <= 28);
             const sessionRows = [...document.querySelectorAll('[data-testid="session-row"]')]
               .filter((row) => row instanceof HTMLElement);
             const sessionTitles = [...document.querySelectorAll('[data-thread-title]')]
               .filter((title) => title instanceof HTMLElement);
             const sessionActions = [...document.querySelectorAll('[data-testid="session-row"] .session-row-actions')]
               .filter((action) => action instanceof HTMLElement);
+            const primaryActionHeights = primaryActionRows
+              .filter((row) => row instanceof HTMLElement)
+              .map((row) => row.getBoundingClientRect().height);
+            const sessionRowHeights = sessionRows.map((row) => row.getBoundingClientRect().height);
+            const sectionHeaderRows = [...document.querySelectorAll('[data-testid="project-section-header"], [data-testid="sidebar-projectless-chats-header"], [data-testid="sidebar-pinned-collapse-toggle"]')]
+              .filter((row) => row instanceof HTMLElement);
+            const sectionHeaderHeights = sectionHeaderRows.map((row) => row.getBoundingClientRect().height);
+            const sidebarDensityDebug = {
+              density: sidebar instanceof HTMLElement ? sidebar.getAttribute('data-sidebar-density') : null,
+              rowFontSize: sidebar instanceof HTMLElement ? getComputedStyle(sidebar).getPropertyValue('--sidebar-row-font-size').trim() : '',
+              navRowHeight: sidebar instanceof HTMLElement ? getComputedStyle(sidebar).getPropertyValue('--sidebar-nav-row-height').trim() : '',
+              threadRowHeight: sidebar instanceof HTMLElement ? getComputedStyle(sidebar).getPropertyValue('--sidebar-thread-row-height').trim() : '',
+              compactRowHeight: sidebar instanceof HTMLElement ? getComputedStyle(sidebar).getPropertyValue('--sidebar-compact-row-height').trim() : '',
+              primaryActionHeights,
+              sessionRowHeights,
+              sectionHeaderHeights
+            };
+            const sessionRowsCompact =
+              sessionRows.length >= 4 &&
+              sessionRowHeights.every((height) => height <= 26);
             const activeSessionRows = sessionRows.filter((row) => row.getAttribute('data-active') === 'true');
             const sessionRowsCalm =
               sessionRows.length >= 4 &&
               sessionTitles.length >= 4 &&
               sessionActions.length >= 4 &&
               sessionTitles.every((title) => (
-                getComputedStyle(title).fontSize === '13px' &&
+                getComputedStyle(title).fontSize === '12px' &&
                 getComputedStyle(title).fontWeight === '400'
               )) &&
               sessionActions.every((action) => getComputedStyle(action).transform === 'none') &&
@@ -14189,9 +17255,18 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 const style = getComputedStyle(row);
                 const radius = Number.parseFloat(style.borderTopLeftRadius || '0');
                 return radius <= 8 &&
-                  row.getBoundingClientRect().height <= 28 &&
+                  row.getBoundingClientRect().height <= 26 &&
                   style.boxShadow === 'none';
               });
+            const sidebarRowDensityCodexLike =
+              sidebar instanceof HTMLElement &&
+              sidebar.getAttribute('data-sidebar-density') === 'codex-compact' &&
+              getComputedStyle(sidebar).getPropertyValue('--sidebar-row-font-size').trim() === '12px' &&
+              primaryActionHeights.length === 4 &&
+              primaryActionHeights.every((height) => height <= 26) &&
+              sessionRowsCompact &&
+              sectionHeaderHeights.length >= 2 &&
+              sectionHeaderHeights.every((height) => height <= 24);
             const sessionRowsUseSharedPrimitive =
               sessionRows.length >= 4 &&
               sessionRows.every((row) => (
@@ -14213,12 +17288,21 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 header.querySelector('.sidebar-list-row-label') instanceof HTMLElement &&
                 header.querySelector('.sidebar-list-row-trailing') instanceof HTMLElement
               ));
+            const chatsHeader = document.querySelector('[data-testid="sidebar-projectless-chats-header"]');
+            const chatsHeaderTextFirst =
+              chatsHeader instanceof HTMLElement &&
+              chatsHeader.classList.contains('sidebar-list-row') &&
+              chatsHeader.classList.contains('sidebar-list-row-section') &&
+              chatsHeader.querySelector('.sidebar-projectless-chat-mark') === null &&
+              chatsHeader.querySelector('.sidebar-list-row-label')?.textContent?.trim() === 'Chats' &&
+              chatsHeader.querySelector('.sidebar-list-row-content') instanceof HTMLElement &&
+              chatsHeader.querySelector('.sidebar-list-row-detail') instanceof HTMLElement;
             const emptyProjectNewChatRows = [...document.querySelectorAll('[data-testid="project-empty-new-chat"]')]
               .filter((row) => row instanceof HTMLElement);
             const emptyProjectNewChatCompact =
               (emptyProjectNewChatRows.length === 0 || emptyProjectNewChatRows.every((row) => (
                 row.getBoundingClientRect().height <= 28 &&
-                row.textContent?.trim() === 'New Chat' &&
+                row.textContent?.trim() === 'New chat' &&
                 row.querySelector('svg') instanceof SVGElement
               )));
             const emptyProjectNewChatUsesSharedPrimitive =
@@ -14280,27 +17364,42 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               });
             const labelColorMarkers = [...document.querySelectorAll('[data-testid="session-label-color"]')]
               .filter((marker) => marker instanceof HTMLElement);
+            const visibleLabelColorMarkers = labelColorMarkers.filter((marker) => {
+              const rect = marker.getBoundingClientRect();
+              const style = getComputedStyle(marker);
+              return rect.width > 0 &&
+                rect.height > 0 &&
+                style.display !== 'none' &&
+                style.visibility !== 'hidden' &&
+                Number.parseFloat(style.opacity || '1') > 0.05;
+            });
+            const sessionRowsTextFirst =
+              sessionRows.length >= 4 &&
+              visibleLabelColorMarkers.length === 0 &&
+              sessionRows.every((row) => {
+                const title = row.querySelector('[data-thread-title]');
+                if (!(title instanceof HTMLElement)) return false;
+                const rowRect = row.getBoundingClientRect();
+                const titleRect = title.getBoundingClientRect();
+                return titleRect.left - rowRect.left <= 18;
+              });
             const sidebarLabelColorMetadataWorks =
-              labelColorMarkers.length >= 4 &&
-              labelColorMarkers.every((marker) => {
-                const style = getComputedStyle(marker);
-                return marker.getBoundingClientRect().width >= 6 &&
-                  marker.getBoundingClientRect().height >= 6 &&
-                  style.backgroundColor !== 'rgba(0, 0, 0, 0)';
-              }) &&
-              labelColorMarkers.some((marker) => Number.parseFloat(getComputedStyle(marker).opacity || '0') >= 0.6);
+              sessionRowShells.length >= 4 &&
+              sessionRowShells.every((shell) => Boolean(shell.getAttribute('data-sidebar-label-color')));
             const pinnedSessionShells = sessionRowShells.filter((shell) => (
               shell.getAttribute('data-sidebar-provider-pinned') === 'true' ||
               (pinnedSection instanceof HTMLElement && pinnedSection.contains(shell))
             ));
-            const sidebarPinnedRowsKeepIdentityMarker =
+            const sidebarPinnedRowsTextFirst =
               pinnedSessionShells.length >= 2 &&
               pinnedSessionShells.every((shell) => {
-                const marker = shell.querySelector('[data-testid="session-label-color"]');
-                return marker instanceof HTMLElement &&
-                  marker.getAttribute('data-pinned') === 'true' &&
-                  marker.closest('.session-item-identity-slot') instanceof HTMLElement &&
-                  getComputedStyle(marker).backgroundColor !== 'rgba(0, 0, 0, 0)';
+                const row = shell.querySelector('[data-testid="session-row"]');
+                const title = shell.querySelector('[data-thread-title]');
+                if (!(row instanceof HTMLElement) || !(title instanceof HTMLElement)) return false;
+                const rowRect = row.getBoundingClientRect();
+                const titleRect = title.getBoundingClientRect();
+                return !shell.querySelector('[data-testid="session-label-color"]') &&
+                  titleRect.left - rowRect.left <= 18;
               });
             const sidebarPinActionsConsolidated =
               sessionRows.length >= 4 &&
@@ -14308,10 +17407,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 const identitySlot = shell.querySelector('.session-item-identity-slot');
                 const actionSlot = shell.querySelector('[data-sidebar-row-action-slot="consolidated"]');
                 const pinButton = shell.querySelector('[data-testid="session-pin-toggle"]');
-                return identitySlot instanceof HTMLElement &&
+                return !(identitySlot instanceof HTMLElement) &&
                   actionSlot instanceof HTMLElement &&
                   pinButton instanceof HTMLElement &&
-                  !identitySlot.contains(pinButton) &&
                   actionSlot.contains(pinButton);
               });
 
@@ -15621,6 +18719,122 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
                 };
               }
             }
+            await restoreSmokeSession();
+            const searchPrimaryActionForBehavior = document.querySelector('[data-testid="sidebar-primary-action-search"]');
+            if (searchPrimaryActionForBehavior instanceof HTMLElement) {
+              searchPrimaryActionForBehavior.click();
+              for (let index = 0; index < 60; index += 1) {
+                if (document.querySelector('[data-testid="command-palette-search"]')) break;
+                await sleep(25);
+              }
+              const commandInput = document.querySelector('[data-testid="command-palette-search"]');
+              sidebarSearchPrimaryActionWorks =
+                commandInput instanceof HTMLInputElement &&
+                document.activeElement === commandInput;
+              if (commandInput instanceof HTMLInputElement) {
+                commandInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+                for (let index = 0; index < 40; index += 1) {
+                  if (!document.querySelector('[data-testid="command-palette-search"]')) break;
+                  await sleep(25);
+                }
+              }
+              await sleep(120);
+            }
+            const pluginsPrimaryActionForBehavior = document.querySelector('[data-testid="sidebar-primary-action-plugins"]');
+            if (pluginsPrimaryActionForBehavior instanceof HTMLElement) {
+              pluginsPrimaryActionForBehavior.click();
+              for (let index = 0; index < 60; index += 1) {
+                if (document.body.innerText.includes('Capabilities')) break;
+                await sleep(25);
+              }
+              sidebarPluginsPrimaryActionWorks =
+                document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'capabilities' &&
+                document.body.innerText.includes('Capabilities');
+              await restoreSmokeSession();
+            }
+            const automationsPrimaryActionForBehavior = document.querySelector('[data-testid="sidebar-primary-action-automations"]');
+            if (automationsPrimaryActionForBehavior instanceof HTMLElement) {
+              automationsPrimaryActionForBehavior.click();
+              for (let index = 0; index < 60; index += 1) {
+                if (
+                  document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'settings:automations' &&
+                  document.body.innerText.includes('Automations')
+                ) break;
+                await sleep(25);
+              }
+              const automationsNavRow = document.querySelector('[data-sidebar-key="settings:automations"]');
+              sidebarAutomationsPrimaryActionWorks =
+                (
+                  document.querySelector('[data-testid="app-sidebar"]')?.getAttribute('data-sidebar-selected-key') === 'settings:automations' ||
+                  automationsNavRow?.getAttribute('data-active') === 'true'
+                ) &&
+                document.body.innerText.includes('Automations');
+              await restoreSmokeSession();
+            }
+            let sidebarFooterCollapseAffordanceWorks = false;
+            let sidebarFooterCollapseAffordanceDebug = {};
+            const sidebarFooter = document.querySelector('[data-testid="sidebar-footer"]');
+            const sidebarFooterAction = document.querySelector('[data-testid="sidebar-footer-action"]');
+            const sidebarFooterCollapseToggle = document.querySelector('[data-testid="sidebar-footer-collapse-toggle"]');
+            const expandedSidebarBeforeCollapse = document.querySelector('[data-testid="app-sidebar"]');
+            if (
+              sidebarFooter instanceof HTMLElement &&
+              sidebarFooterAction instanceof HTMLElement &&
+              sidebarFooterCollapseToggle instanceof HTMLButtonElement &&
+              expandedSidebarBeforeCollapse instanceof HTMLElement
+            ) {
+              const footerRect = sidebarFooter.getBoundingClientRect();
+              const actionRect = sidebarFooterAction.getBoundingClientRect();
+              const toggleRect = sidebarFooterCollapseToggle.getBoundingClientRect();
+              const expandedWidth = expandedSidebarBeforeCollapse.getBoundingClientRect().width;
+              sidebarFooterCollapseToggle.click();
+              let collapsedSidebar = null;
+              let expandToggle = null;
+              for (let index = 0; index < 80; index += 1) {
+                collapsedSidebar = document.querySelector('[data-testid="app-sidebar"]');
+                expandToggle = document.querySelector('[data-testid="sidebar-rail-expand-toggle"]');
+                if (
+                  collapsedSidebar instanceof HTMLElement &&
+                  collapsedSidebar.getAttribute('data-sidebar-collapsed') === 'true' &&
+                  expandToggle instanceof HTMLButtonElement
+                ) break;
+                await sleep(25);
+              }
+              const collapsedWidth = collapsedSidebar instanceof HTMLElement
+                ? collapsedSidebar.getBoundingClientRect().width
+                : 0;
+              if (expandToggle instanceof HTMLButtonElement) {
+                expandToggle.click();
+                for (let index = 0; index < 80; index += 1) {
+                  const expandedSidebarAfterCollapse = document.querySelector('[data-testid="app-sidebar"]');
+                  if (
+                    expandedSidebarAfterCollapse instanceof HTMLElement &&
+                    expandedSidebarAfterCollapse.getAttribute('data-sidebar-collapsed') !== 'true' &&
+                    document.querySelector('[data-testid="sidebar-footer-collapse-toggle"]') instanceof HTMLButtonElement &&
+                    expandedSidebarAfterCollapse.getBoundingClientRect().width >= 239
+                  ) break;
+                  await sleep(25);
+                }
+              }
+              const expandedSidebarAfterCollapse = document.querySelector('[data-testid="app-sidebar"]');
+              sidebarFooterCollapseAffordanceWorks =
+                expandedWidth >= 239 &&
+                Math.abs(toggleRect.right - footerRect.right) <= 8 &&
+                actionRect.right <= toggleRect.left - 2 &&
+                collapsedWidth >= 46 &&
+                collapsedWidth <= 50 &&
+                expandedSidebarAfterCollapse instanceof HTMLElement &&
+                expandedSidebarAfterCollapse.getAttribute('data-sidebar-collapsed') !== 'true' &&
+                expandedSidebarAfterCollapse.getBoundingClientRect().width >= 239 &&
+                document.querySelector('[data-testid="sidebar-footer-collapse-toggle"]') instanceof HTMLButtonElement;
+              sidebarFooterCollapseAffordanceDebug = {
+                expandedWidth,
+                collapsedWidth,
+                footerRightGap: toggleRect.right - footerRect.right,
+                actionRightToToggleLeft: toggleRect.left - actionRect.right,
+                expandedAfterWidth: expandedSidebarAfterCollapse instanceof HTMLElement ? expandedSidebarAfterCollapse.getBoundingClientRect().width : null
+              };
+            }
             const customTooltipNativeTitleLeaks =
               [...document.querySelectorAll('button[data-tooltip-label][title]')]
                 .map((button) => (button.getAttribute('data-tooltip-label') ?? '') + ':' + (button.getAttribute('title') ?? ''));
@@ -15632,16 +18846,25 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               pinnedOrderStable,
               pinnedRowsHiddenFromProjects,
               providerPinnedMetadataWorks,
+              sidebarProviderPinBoundaryWorks,
               pinnedSharesProjectScroll,
               sidebarPinnedDragReorderWorks,
+              sidebarProviderPinnedOrderPreservedWorks,
               sidebarProjectlessChatsWorks,
               sidebarProjectlessChatsFirstPreferenceWorks,
               providerProjectlessMetadataWorks,
               providerWorktreeMetadataWorks,
+              sidebarPrimaryActionsCodexOrderWorks,
+              sidebarPrimaryActionsBeforePinned,
+              sidebarSearchPrimaryActionWorks,
+              sidebarPluginsPrimaryActionWorks,
+              sidebarAutomationsPrimaryActionWorks,
               sidebarSelectedKeySignalWorks,
               sidebarSelectedKeyPersistenceWorks,
               sidebarSelectedNavKeysWork,
               sidebarSelectedKeyDebug,
+              sidebarFooterCollapseAffordanceWorks,
+              sidebarFooterCollapseAffordanceDebug,
               pinnedRowUnpinned,
               newPinAppended,
               hoverPinVisible,
@@ -15649,6 +18872,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               hoverCardDelayed,
               hoverCardSurfaceReadable,
               hoverCardMaterialWorks,
+              hoverCardMaterialDebug: hoverCardStyle === null ? null : {
+                borderRadius: hoverCardStyle.borderRadius,
+                backdropFilter: hoverCardBackdropFilter,
+                boxShadow: hoverCardStyle.boxShadow,
+                borderTopWidth: hoverCardStyle.borderTopWidth
+              },
               doubleClickRenameWorks,
               renameDialogCancelWorks,
               renameDialogChromeQuiet,
@@ -15664,13 +18893,18 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               sidebarNoHorizontalOverflow,
               sidebarWidthTokenWorks,
               sidebarWidth,
+              sidebarTopInsetCodexLike,
+              sidebarTopInsetDebug,
               sidebarOverflowDebug,
+              sidebarRowDensityCodexLike,
+              sidebarDensityDebug,
               sessionRowsCompact,
               sessionRowsCalm,
               sidebarRowsMaterialQuiet,
               sessionRowsUseSharedPrimitive,
               projectHeadersCompact,
               projectHeadersUseSharedPrimitive,
+              chatsHeaderTextFirst,
               emptyProjectNewChatCompact,
               emptyProjectNewChatUsesSharedPrimitive,
               sidebarSectionChromeCompact,
@@ -15679,8 +18913,9 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               importantRowStatusIconOnly,
               chatEnvironmentIconAbsent,
               sidebarThreadIdentityMetadataWorks,
+              sessionRowsTextFirst,
               sidebarLabelColorMetadataWorks,
-              sidebarPinnedRowsKeepIdentityMarker,
+              sidebarPinnedRowsTextFirst,
               sidebarPinActionsConsolidated,
               sidebarActionMenuChromeCalm,
               sidebarActionMenuSharedSectionsWorks,
@@ -15748,6 +18983,23 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
           })()
         `)
         if (screenshotPath) {
+          await win.webContents.executeJavaScript(`
+            (() => {
+              window.localStorage.removeItem('orchestrator.sidebar.projectlessChatsFirst');
+              window.localStorage.removeItem('orchestrator.sidebar.customSections');
+              window.localStorage.removeItem('orchestrator.sidebar.collapsedSections');
+              window.localStorage.removeItem('orchestrator.sidebar.collapsedProjectlessChats');
+              window.localStorage.setItem('orchestrator.sidebar.sectionOrder', JSON.stringify(['pinned', 'projects']));
+            })()
+          `)
+          await new Promise<void>((resolve) => {
+            const timeout = setTimeout(resolve, 6000)
+            win.webContents.once('did-finish-load', () => {
+              clearTimeout(timeout)
+              setTimeout(resolve, 900)
+            })
+            win.webContents.reload()
+          })
           const image = await win.webContents.capturePage()
           writeFileSync(screenshotPath, image.toPNG())
         }
@@ -15887,6 +19139,34 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               return { transcriptFound: false, layoutFixtureVisible, bodyText: document.body.innerText };
             }
 
+            const sessionTitlebar = document.querySelector('[data-testid="session-titlebar"]');
+            const sessionMainRow = document.querySelector('[data-testid="session-main-row"]');
+            const sessionPrimaryContent = document.querySelector('[data-testid="session-primary-content"]');
+            const titlebarRect = sessionTitlebar instanceof HTMLElement ? sessionTitlebar.getBoundingClientRect() : null;
+            const mainRowRect = sessionMainRow instanceof HTMLElement ? sessionMainRow.getBoundingClientRect() : null;
+            const primaryRect = sessionPrimaryContent instanceof HTMLElement ? sessionPrimaryContent.getBoundingClientRect() : null;
+            const sessionHeaderInPrimaryColumn =
+              sessionTitlebar instanceof HTMLElement &&
+              sessionPrimaryContent instanceof HTMLElement &&
+              titlebarRect !== null &&
+              mainRowRect !== null &&
+              primaryRect !== null &&
+              sessionPrimaryContent.contains(sessionTitlebar) &&
+              Math.abs(titlebarRect.top - mainRowRect.top) <= 2 &&
+              Math.abs(titlebarRect.left - primaryRect.left) <= 2 &&
+              Math.abs(titlebarRect.right - primaryRect.right) <= 2 &&
+              titlebarRect.height >= 32 &&
+              titlebarRect.height <= 42;
+            const sessionHeaderInPrimaryColumnDebug = {
+              titlebarTop: titlebarRect?.top ?? null,
+              titlebarLeft: titlebarRect?.left ?? null,
+              titlebarRight: titlebarRect?.right ?? null,
+              titlebarHeight: titlebarRect?.height ?? null,
+              mainRowTop: mainRowRect?.top ?? null,
+              primaryLeft: primaryRect?.left ?? null,
+              primaryRight: primaryRect?.right ?? null
+            };
+
             const wideLayout = layoutProbe();
             const viewportWidth = wideLayout.viewportWidth;
             const docScrollWidth = wideLayout.docScrollWidth;
@@ -15981,6 +19261,8 @@ function runAutomatedTranscriptLayoutSmoke(win: BrowserWindow, outputPath: strin
               commandPaletteSearchActionWorks,
               searchShortcutOpens,
               transcriptSearchFieldWorks,
+              sessionHeaderInPrimaryColumn,
+              sessionHeaderInPrimaryColumnDebug,
               hiddenMessageCopyQuiet: !document.body.innerText.includes('hidden for faster chat switching'),
               documentNoHorizontalOverflow,
               transcriptNoHorizontalOverflow,
@@ -17375,7 +20657,7 @@ async function dispatchTitlebarDrag(win: BrowserWindow): Promise<{
 }> {
   const rect = await win.webContents.executeJavaScript(`
     (() => {
-      const titlebar = document.querySelector('.content-shell > div');
+      const titlebar = document.querySelector('[data-testid="session-titlebar"]');
       const rect = titlebar instanceof HTMLElement ? titlebar.getBoundingClientRect() : { left: 120, top: 8, width: 360, height: 42 };
       return { x: Math.max(90, rect.left + Math.min(240, rect.width * 0.35)), y: rect.top + Math.min(28, Math.max(14, rect.height / 2)) };
     })()
@@ -17439,7 +20721,7 @@ app.whenReady().then(async () => {
   installRendererRouteProtocol()
 
   registerIpcHandlers(ipcMain)
-  ipcMain.handle('app:consumePendingNavigation', () => consumePendingNavigation())
+  ipcMain.handle('app:consumePendingNavigation', (event) => consumePendingNavigation(BrowserWindow.fromWebContents(event.sender)))
   ipcMain.handle('app:openSessionWindow', (_, sessionId: string) => {
     if (!sessionManager.get(sessionId)) throw new Error(`Session ${sessionId} not found`)
     openSessionInNewWindow(sessionId)
@@ -17531,7 +20813,12 @@ async function bootstrapAutomatedUiSmokeState(): Promise<void> {
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW?.startsWith('diff-') ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'inspector'
   ) {
+    if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'inspector') {
+      seedAutomatedBrowserUsePolicy()
+    }
     seedAutomatedReviewCardSmokeSession(session.id)
+  } else if (process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'browser') {
+    seedAutomatedBrowserUsePolicy()
   } else if (
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'pet-overlay' ||
     process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_VIEW === 'motion-reduced'

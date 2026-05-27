@@ -13,6 +13,7 @@ interface SessionActionsMenuSession {
   status?: 'idle' | 'running' | 'waiting_for_permission' | 'waiting_for_user' | 'reconnecting' | 'auth_error' | 'model_error' | 'quota_error' | 'rate_limit_error' | 'provider_error' | 'error'
   workDir: string
   repoRoot?: string
+  provider?: string
   providerSessionId?: string | null
   providerPinned?: boolean
   providerPinOrder?: number
@@ -57,6 +58,12 @@ export default function SessionActionsMenu({
   const [automations, setAutomations] = useState<Automation[]>([])
   const existingAutomation = automations[0] ?? null
   const isPinned = isSidebarPinnedSession(session)
+  const providerPinReadOnly = session.providerPinned === true && session.pinned !== true
+  const pinActionLabel = providerPinReadOnly
+    ? 'Provider pin is read-only in Orchestrator'
+    : isPinned
+      ? 'Unpin chat locally'
+      : 'Pin chat locally'
 
   useEffect(() => {
     let cancelled = false
@@ -83,6 +90,7 @@ export default function SessionActionsMenu({
   }
 
   const togglePinned = async (): Promise<void> => {
+    if (providerPinReadOnly) return
     await window.api.sessions.updatePinned(session.id, !isPinned)
     onClose()
   }
@@ -285,7 +293,8 @@ export default function SessionActionsMenu({
           <MenuItem icon="pencil" label="Rename" onClick={() => setRenaming(true)} />
           <MenuItem
             icon="pin"
-            label={isPinned ? 'Unpin chat' : 'Pin chat'}
+            label={pinActionLabel}
+            disabled={providerPinReadOnly}
             onClick={() => void togglePinned()}
           />
           {onMarkUnread && (

@@ -134,12 +134,15 @@ function Titlebar(): JSX.Element {
     branchLabel ? `Branch ${branchLabel}` : null,
     providerLabel
   ].filter(Boolean)
+  const metadataLabel = metadataParts.join(' · ')
+  const titleTooltipLabel = [session?.name, metadataLabel].filter(Boolean).join(' · ')
 
   return (
     <div
+      data-testid="session-titlebar"
       className="flex items-center shrink-0 w-full"
       style={{
-        height: 50,
+        height: 'var(--app-shell-header-height)',
         background: 'var(--surface-bg)',
         borderBottom: '1px solid var(--border-subtle)',
         userSelect: 'none',
@@ -147,62 +150,47 @@ function Titlebar(): JSX.Element {
         WebkitAppRegion: 'drag'
       } as React.CSSProperties}
     >
-      <div className="flex min-w-0 items-center gap-2 px-4" style={{ flex: 1 }}>
+      <div className="flex min-w-0 items-center gap-2 px-3" style={{ flex: 1 }}>
         {session ? (
           <>
-            <div className="flex min-w-0 flex-col">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <Tooltip label={session.name}>
+            <div className="flex min-w-0 items-center gap-2">
+              <Tooltip label={titleTooltipLabel}>
+                <span
+                  data-testid="active-session-title"
+                  className="truncate"
+                  data-tooltip-label={titleTooltipLabel}
+                  data-native-title-free="true"
+                  aria-label={titleTooltipLabel}
+                  tabIndex={0}
+                  style={{ color: 'var(--text-primary)', flexShrink: 0, maxWidth: 260, fontSize: 13, fontWeight: 560, lineHeight: '16px' }}
+                >
+                  {session.name}
+                </span>
+              </Tooltip>
+              {session.pinned && (
+                <Tooltip label="Pinned">
                   <span
-                    data-testid="active-session-title"
-                    className="truncate"
-                    data-tooltip-label={session.name}
+                    className="shrink-0"
+                    data-testid="session-header-pinned"
+                    data-tooltip-label="Pinned"
                     data-native-title-free="true"
-                    aria-label={session.name}
-                    tabIndex={0}
-                    style={{ color: 'var(--text-primary)', maxWidth: 520, fontSize: 14, fontWeight: 540, lineHeight: '18px' }}
+                    aria-label="Pinned"
+                    style={{ color: 'var(--text-tertiary)' }}
                   >
-                    {session.name}
+                    <Icon name="pin" size={12} />
                   </span>
                 </Tooltip>
-                {session.pinned && (
-                  <Tooltip label="Pinned">
-                    <span
-                      className="shrink-0"
-                      data-testid="session-header-pinned"
-                      data-tooltip-label="Pinned"
-                      data-native-title-free="true"
-                      aria-label="Pinned"
-                      style={{ color: 'var(--text-tertiary)' }}
-                    >
-                      <Icon name="pin" size={12} />
-                    </span>
-                  </Tooltip>
-                )}
-              </div>
-              <Tooltip label={metadataParts.join(' · ')}>
-                <div
-                  data-testid="session-header-metadata"
-                  className="flex min-w-0 items-center gap-1 truncate text-[11px]"
-                  data-tooltip-label={metadataParts.join(' · ')}
-                  data-native-title-free="true"
-                  aria-label={metadataParts.join(' · ')}
-                  tabIndex={0}
-                  style={{ color: 'var(--text-tertiary)', lineHeight: '14px', maxWidth: 680 }}
-                >
-                  {metadataParts.map((part, index) => (
-                    <span
-                      key={`${part}-${index}`}
-                      data-testid={String(part).startsWith('Branch ') ? 'session-header-branch' : undefined}
-                      className="truncate"
-                      style={{ minWidth: index === 0 ? 0 : undefined }}
-                    >
-                      {index > 0 && <span aria-hidden="true">· </span>}
-                      {part}
-                    </span>
-                  ))}
-                </div>
-              </Tooltip>
+              )}
+              <span
+                data-testid="session-header-metadata"
+                className="sr-only"
+                data-tooltip-label={metadataLabel}
+                data-native-title-free="true"
+                aria-label={metadataLabel}
+                data-session-header-metadata-visibility="tooltip-only"
+              >
+                {metadataLabel}
+              </span>
             </div>
           </>
         ) : (
@@ -219,18 +207,26 @@ function Titlebar(): JSX.Element {
         >
           <Tooltip label={`Profile: ${profile.displayName}`}>
             <span
-              className="text-xs font-medium rounded-md px-2 py-0.5"
+              className="profile-badge-compact"
               data-testid="profile-badge"
               data-tooltip-label={`Profile: ${profile.displayName}`}
               data-native-title-free="true"
+              data-profile-badge-visibility="icon-only"
               tabIndex={0}
+              aria-label={`Profile: ${profile.displayName}`}
               style={{
+                display: 'inline-flex',
+                width: 24,
+                height: 24,
+                alignItems: 'center',
+                justifyContent: 'center',
                 color: 'var(--text-secondary)',
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--control-bg)'
+                border: '1px solid transparent',
+                borderRadius: 6,
+                background: 'transparent'
               }}
             >
-              {profile.displayName} profile
+              <Icon name="agents" size={13} />
             </span>
           </Tooltip>
         </div>
@@ -239,8 +235,9 @@ function Titlebar(): JSX.Element {
       {/* Right: toggle buttons — no-drag */}
       <div
         data-testid="titlebar-actions"
+        data-header-panel-action-style="codex-compact"
         data-header-actions="folder,project,session,provider-session,branch"
-        className="flex items-center gap-2 px-3"
+        className="flex items-center gap-1 px-2"
         style={{ WebkitAppRegion: 'no-drag', zIndex: 1 } as React.CSSProperties}
       >
         {session && (
@@ -250,6 +247,8 @@ function Titlebar(): JSX.Element {
               label="Chat actions"
               active={menuPoint !== null}
               dataTestId="titlebar-chat-actions"
+              size="sm"
+              variant="toolbar"
               onClick={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect()
                 setMenuPoint({ x: rect.right - 196, y: rect.bottom + 6 })
@@ -260,12 +259,17 @@ function Titlebar(): JSX.Element {
               label="Toggle sidebar"
               active={inspectorOpen}
               dataTestId="titlebar-toggle-sidebar"
+              size="sm"
+              variant="toolbar"
               onClick={toggleInspector}
             />
             <ToolbarButton
               icon="terminal"
               label="Toggle terminal"
               active={showTerminal}
+              dataTestId="titlebar-toggle-terminal"
+              size="sm"
+              variant="toolbar"
               onClick={() => setShowTerminal(activeSessionId!, !showTerminal)}
             />
           </>

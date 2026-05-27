@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Attachment, Session, SessionListItem, ChatMessage, SessionEffort, SessionPermissionMode, SessionRunEventRecord, TranscriptPage, UsageSummary } from '../types'
-import { closePanelTab, filePanelTabId, movePanelTabByDirection, nextPinOrder, parseFilePanelTabId, reorderPinnedSessions, resetPanelTabSet, resolvePanelTabTransferAvailability, transferPanelTab, upsertPanelTab } from '../types'
+import { closePanelTab, DEFAULT_BROWSER_USE_POLICY, filePanelTabId, movePanelTabByDirection, nextPinOrder, parseFilePanelTabId, reorderPinnedSessions, resetPanelTabSet, resolvePanelTabTransferAvailability, transferPanelTab, upsertPanelTab } from '../types'
 import type { SettingsSectionId } from '../../../types'
 
 export type SettingsSection = SettingsSectionId
@@ -295,6 +295,8 @@ interface SessionState {
 }
 
 const SESSION_STORE_TAIL_MESSAGES = 64
+export const DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT = 230
+export const LEGACY_TERMINAL_PANEL_CONTENT_HEIGHTS = [260, 350] as const
 
 export const defaultUI: SessionUIState = {
   showPlan: false,
@@ -314,7 +316,7 @@ export const defaultUI: SessionUIState = {
   browserUrl: '',
   browserWorkbench: defaultBrowserWorkbench(),
   terminalPanel: {
-    height: 260,
+    height: DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT,
     tabs: [0],
     activeTabId: 0,
     nextTabId: 1
@@ -361,16 +363,16 @@ function defaultBrowserWorkbench(): BrowserWorkbenchState {
     nextTabIndex: 2,
     inspectorOpen: false,
     inspectorMode: 'console',
-    approvalMode: 'alwaysAsk',
-    historyApprovalMode: 'alwaysAsk',
-    downloadApprovalMode: 'alwaysAsk',
-    uploadApprovalMode: 'alwaysAsk',
-    allowedOrigins: ['localhost', '127.0.0.1'],
-    blockedOrigins: [],
-    allowedDownloadOrigins: [],
-    blockedDownloadOrigins: [],
-    allowedUploadOrigins: [],
-    blockedUploadOrigins: [],
+    approvalMode: DEFAULT_BROWSER_USE_POLICY.approvalMode,
+    historyApprovalMode: DEFAULT_BROWSER_USE_POLICY.historyApprovalMode,
+    downloadApprovalMode: DEFAULT_BROWSER_USE_POLICY.downloadApprovalMode,
+    uploadApprovalMode: DEFAULT_BROWSER_USE_POLICY.uploadApprovalMode,
+    allowedOrigins: [...DEFAULT_BROWSER_USE_POLICY.allowedOrigins],
+    blockedOrigins: [...DEFAULT_BROWSER_USE_POLICY.blockedOrigins],
+    allowedDownloadOrigins: [...DEFAULT_BROWSER_USE_POLICY.allowedDownloadOrigins],
+    blockedDownloadOrigins: [...DEFAULT_BROWSER_USE_POLICY.blockedDownloadOrigins],
+    allowedUploadOrigins: [...DEFAULT_BROWSER_USE_POLICY.allowedUploadOrigins],
+    blockedUploadOrigins: [...DEFAULT_BROWSER_USE_POLICY.blockedUploadOrigins],
     hiddenLocalTargets: [],
     localServerRoutes: [],
     hiddenLocalServerRoutes: []
@@ -1439,8 +1441,12 @@ function ensureTerminalPanel(panel?: TerminalPanelState): TerminalPanelState {
   const tabs = panel?.tabs ?? [0]
   const activeTabId = tabs.includes(panel?.activeTabId ?? 0) ? panel?.activeTabId ?? 0 : tabs[0]
   const maxTabId = tabs.length > 0 ? Math.max(...tabs) : 0
+  const storedHeight = panel?.height
+  const height = storedHeight == null || LEGACY_TERMINAL_PANEL_CONTENT_HEIGHTS.some((legacyHeight) => storedHeight === legacyHeight)
+    ? DEFAULT_TERMINAL_PANEL_CONTENT_HEIGHT
+    : storedHeight
   return {
-    height: panel?.height ?? 260,
+    height,
     tabs,
     activeTabId: activeTabId ?? 0,
     nextTabId: Math.max(panel?.nextTabId ?? 1, maxTabId + 1)

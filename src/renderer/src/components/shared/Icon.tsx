@@ -14,6 +14,8 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Code2,
+  Contrast,
   Copy,
   CircleDot,
   Ellipsis,
@@ -32,10 +34,12 @@ import {
   Minimize2,
   Monitor,
   MessageSquare,
+  PanelLeft,
   PanelRight,
   Paperclip,
   Pencil,
   Pin,
+  Play,
   Plug,
   Plus,
   RotateCw,
@@ -75,6 +79,8 @@ export type IconName =
   | 'chevronDown'
   | 'chevronRight'
   | 'clock'
+  | 'code'
+  | 'contrast'
   | 'copy'
   | 'close'
   | 'dot'
@@ -92,10 +98,12 @@ export type IconName =
   | 'menu'
   | 'minimize'
   | 'monitor'
+  | 'panelLeft'
   | 'panelRight'
   | 'paperclip'
   | 'pencil'
   | 'pin'
+  | 'play'
   | 'plan'
   | 'plug'
   | 'plus'
@@ -133,6 +141,8 @@ const icons: Record<IconName, LucideIcon> = {
   chevronDown: ChevronDown,
   chevronRight: ChevronRight,
   clock: Clock3,
+  code: Code2,
+  contrast: Contrast,
   copy: Copy,
   close: X,
   dot: CircleDot,
@@ -150,10 +160,12 @@ const icons: Record<IconName, LucideIcon> = {
   menu: Menu,
   minimize: Minimize2,
   monitor: Monitor,
+  panelLeft: PanelLeft,
   panelRight: PanelRight,
   paperclip: Paperclip,
   pencil: Pencil,
   pin: Pin,
+  play: Play,
   plan: ListChecks,
   plug: Plug,
   plus: Plus,

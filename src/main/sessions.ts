@@ -142,7 +142,15 @@ function automatedReviewSmokeMetadata(): ReviewMetadata | undefined {
           url: 'https://github.com/openai/orchestrator/pull/42#discussion_r1',
           resolved: false,
           outdated: false,
-          createdAt: '2026-05-25T12:00:00Z'
+          createdAt: '2026-05-25T12:00:00Z',
+          blame: {
+            source: 'github',
+            commit: 'abc1234def5678abc1234def5678abc1234def56',
+            abbreviatedCommit: 'abc1234',
+            author: 'Grace',
+            authoredAt: '2026-05-24T10:30:00Z',
+            url: 'https://github.com/openai/orchestrator/commit/abc1234def5678abc1234def5678abc1234def56'
+          }
         }
       ]
     }
@@ -878,7 +886,7 @@ export const sessionManager = {
     }
   },
 
-  updatePinned(id: string, pinned: boolean): void {
+  async updatePinned(id: string, pinned: boolean): Promise<void> {
     const sessions = ensurePinnedOrders(store.get('sessions', []))
     const s = sessions.find((s) => s.id === id)
     if (s) {
@@ -894,17 +902,36 @@ export const sessionManager = {
     }
   },
 
-  reorderPinned(orderedPinnedSessionIds: string[]): void {
+  async reorderPinned(orderedPinnedSessionIds: string[]): Promise<void> {
     const sessions = ensurePinnedOrders(store.get('sessions', []))
     const nextSessions = reorderPinnedSessions(sessions, orderedPinnedSessionIds)
     const changed = nextSessions.filter((nextSession, index) => (
       nextSession.pinned !== sessions[index]?.pinned ||
-      nextSession.pinOrder !== sessions[index]?.pinOrder
+      nextSession.pinOrder !== sessions[index]?.pinOrder ||
+      nextSession.providerPinned !== sessions[index]?.providerPinned ||
+      nextSession.providerPinOrder !== sessions[index]?.providerPinOrder ||
+      nextSession.providerPinnedThreadKey !== sessions[index]?.providerPinnedThreadKey
     ))
     if (changed.length === 0) return
     store.set('sessions', nextSessions)
     for (const session of changed) {
-      send('session:pinned', { id: session.id, pinned: session.pinned === true, pinOrder: session.pinOrder })
+      const previous = sessions.find((candidate) => candidate.id === session.id)
+      if (!previous) continue
+      if (previous.pinned !== session.pinned || previous.pinOrder !== session.pinOrder) {
+        send('session:pinned', { id: session.id, pinned: session.pinned === true, pinOrder: session.pinOrder })
+      }
+      if (
+        previous.providerPinned !== session.providerPinned ||
+        previous.providerPinOrder !== session.providerPinOrder ||
+        previous.providerPinnedThreadKey !== session.providerPinnedThreadKey
+      ) {
+        send('session:updated', {
+          id: session.id,
+          providerPinned: session.providerPinned,
+          providerPinOrder: session.providerPinOrder,
+          providerPinnedThreadKey: session.providerPinnedThreadKey
+        })
+      }
     }
   },
 

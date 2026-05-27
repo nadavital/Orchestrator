@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { MouseEvent as ReactMouseEvent, MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
 import type { BrowserApprovalMode, BrowserDeviceMode, BrowserHistoryEntry, BrowserLocalServerRoute, BrowserTabState, BrowserUseCursorState, BrowserUseSurfaceBounds, BrowserUseSurfaceSize, BrowserWorkbenchState } from '../../store/sessions'
-import { browserWebviewPartitionForHost } from '../../types'
+import type { BrowserUsePolicy } from '../../types'
+import { browserWebviewPartitionForHost, DEFAULT_BROWSER_USE_POLICY, normalizeBrowserUsePolicy } from '../../types'
 import { Badge, Button, IconButton, InspectorDisclosure, InspectorRow, InspectorSection, MenuItem, MenuMessage, MenuRow, MenuSection, MenuSectionLabel, MenuSurface, PanelMessage, PanelNotice, PanelTabStrip, PanelToolbar, ToolbarButton, WorkbenchSearchField } from '../shared/designSystem'
 import Icon from '../shared/Icon'
 import BrowserWebviewManager, { type BrowserVisibleGeometry, type WebviewElement } from './BrowserWebviewManager'
@@ -93,6 +94,14 @@ interface BrowserCommentRegion {
 type BrowserCommentIntent = 'comment' | 'design-tweak'
 
 type BrowserTargetAction = 'click' | 'double_click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'read' | 'scroll'
+type BrowserClientToolAction = 'click' | 'type' | 'fill' | 'key' | 'select' | 'check' | 'scroll'
+interface BrowserClientToolActionResult {
+  ok: boolean
+  action: string
+  error?: string
+  target?: BrowserTargetReadResult | null
+  targetCount?: number
+}
 type BrowserClearDataKind = 'all' | 'cache' | 'cookies' | 'siteData'
 type BrowserInspectorMode = BrowserWorkbenchState['inspectorMode']
 type BrowserManagerBridgeEvent = CustomEvent<{
@@ -111,21 +120,20 @@ type BrowserManagerBridgeWindow = typeof window & {
   __orchestratorSetBrowserManagerState?: (detail: BrowserManagerBridgeDetail) => void
 }
 
-const VIEWPORT_PRESETS: Array<{ mode: BrowserDeviceMode; label: string; group: 'Responsive' | 'Phone' | 'Tablet' | 'Desktop' }> = [
-  { mode: 'desktop', label: 'Responsive', group: 'Responsive' },
-  { mode: 'mobile', label: 'iPhone 15 Pro', group: 'Phone' },
-  { mode: 'iphoneSe', label: 'iPhone SE', group: 'Phone' },
-  { mode: 'iphone15ProMax', label: 'iPhone 15 Pro Max', group: 'Phone' },
-  { mode: 'pixel', label: 'Pixel 8', group: 'Phone' },
-  { mode: 'galaxyS24Ultra', label: 'Galaxy S24 Ultra', group: 'Phone' },
-  { mode: 'ipadMini', label: 'iPad Mini', group: 'Tablet' },
-  { mode: 'ipad', label: 'iPad Air', group: 'Tablet' },
-  { mode: 'surfaceDuo', label: 'Surface Duo', group: 'Tablet' },
-  { mode: 'surfacePro7', label: 'Surface Pro 7', group: 'Tablet' },
-  { mode: 'laptop', label: 'Laptop', group: 'Desktop' },
-  { mode: 'laptopLarge', label: 'Laptop L', group: 'Desktop' },
-  { mode: 'desktop4k', label: '4K', group: 'Desktop' },
-  { mode: 'custom', label: 'Custom', group: 'Responsive' }
+const VIEWPORT_PRESETS: Array<{ mode: BrowserDeviceMode; label: string }> = [
+  { mode: 'desktop', label: 'Responsive' },
+  { mode: 'desktop4k', label: '4K' },
+  { mode: 'laptopLarge', label: 'Laptop L' },
+  { mode: 'laptop', label: 'Laptop' },
+  { mode: 'surfacePro7', label: 'Surface Pro 7' },
+  { mode: 'ipad', label: 'iPad Air' },
+  { mode: 'ipadMini', label: 'iPad Mini' },
+  { mode: 'surfaceDuo', label: 'Surface Duo' },
+  { mode: 'iphone15ProMax', label: 'iPhone 15 Pro Max' },
+  { mode: 'pixel', label: 'Pixel 8' },
+  { mode: 'mobile', label: 'iPhone 15 Pro' },
+  { mode: 'galaxyS24Ultra', label: 'Samsung Galaxy S24 Ultra' },
+  { mode: 'iphoneSe', label: 'iPhone SE' }
 ]
 
 const BROWSER_INSPECTOR_TABS: Array<{ mode: BrowserInspectorMode; label: string; icon: Parameters<typeof Icon>[0]['name'] }> = [
@@ -161,6 +169,7 @@ export default function BrowserPanel({
   const workbenchRef = useRef(workbench)
   const webviewRefs = useRef<Record<string, WebviewElement | null>>({})
   const webviewRef = useRef<WebviewElement | null>(null)
+  const handledClientToolRequestIdsRef = useRef<Set<string>>(new Set())
   const browserStageRef = useRef<HTMLDivElement | null>(null)
   const pendingCacheReloadRef = useRef(false)
   const addressInputRef = useRef<HTMLInputElement | null>(null)
@@ -533,6 +542,21 @@ export default function BrowserPanel({
     workbenchRef.current = { ...workbenchRef.current, ...patch }
     onBrowserStateChange?.(patch)
   }
+
+  useEffect(() => {
+    let cancelled = false
+    window.api.settings.get()
+      .then((settings) => {
+        if (cancelled) return
+        const policy = normalizeBrowserUsePolicy(settings.browserUsePolicy)
+        const current = workbenchRef.current
+        if (browserWorkbenchHasDefaultPolicy(current) && !browserWorkbenchPolicyEquals(current, policy)) {
+          patchWorkbench(browserPolicyWorkbenchPatch(policy))
+        }
+      })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [hostId])
 
   const hideLocalTarget = (url: string): void => {
     patchWorkbench({ hiddenLocalTargets: Array.from(new Set([...workbenchRef.current.hiddenLocalTargets, url])) })
@@ -986,6 +1010,300 @@ export default function BrowserPanel({
     setAssetInventory(assets)
     if (!selectedTargetId && targets[0]) setSelectedTargetId(targets[0].nodeId)
   }
+
+  const browserClientToolSnapshot = async (webview: WebviewElement | null): Promise<Record<string, unknown>> => {
+    const resolvedUrl = webview?.getURL?.() || currentUrl || activeBrowserTab(workbenchRef.current).url || ''
+    const resolvedTitle = webview?.getTitle?.() || title || activeBrowserTab(workbenchRef.current).title || ''
+    let visibleStructure = domSnapshot
+    let targets = visibleTargets
+    if (webview && resolvedUrl && resolvedUrl !== 'about:blank') {
+      try {
+        const [nextVisibleStructure, nextTargets] = await Promise.all([
+          webview.executeJavaScript<string>(DOM_SNAPSHOT_SCRIPT),
+          webview.executeJavaScript<VisibleTarget[]>(VISIBLE_TARGETS_SCRIPT, true)
+        ])
+        visibleStructure = nextVisibleStructure
+        targets = Array.isArray(nextTargets) ? nextTargets : []
+        setDomSnapshot(visibleStructure)
+        setVisibleTargets(targets)
+      } catch {
+        visibleStructure = ''
+        targets = []
+      }
+    }
+    return {
+      ok: true,
+      url: resolvedUrl,
+      title: resolvedTitle,
+      visible: workbenchRef.current.visible,
+      loading: isLoading,
+      error,
+      visibleStructure: visibleStructure.trim().slice(0, 6000),
+      targets: targets.slice(0, 30).map((target, index) => ({
+        index: index + 1,
+        nodeId: target.nodeId,
+        tagName: target.tagName,
+        role: target.role,
+        ariaName: target.ariaName,
+        visibleText: target.visibleText,
+        preview: target.preview,
+        selector: target.selector.primary
+      }))
+    }
+  }
+
+  const captureBrowserClientToolScreenshot = async (webview: WebviewElement | null, options: { includeImage?: boolean } = {}): Promise<Record<string, unknown>> => {
+    if (!webview || !(webview.getURL?.() || currentUrl)) {
+      return { ok: false, error: 'Browser page is not available for screenshot capture.' }
+    }
+    const image = await webview.capturePage()
+    const size = image.getSize()
+    const dataUrl = image.toDataURL()
+    const saved = await window.api.browser.saveDataUrlArtifact(dataUrl, `browser-client-tool-${Date.now()}.png`)
+    setScreenshot(dataUrl)
+    setArtifactPath(saved.path)
+    patchWorkbench({ inspectorOpen: true, inspectorMode: 'console' })
+    return {
+      ok: true,
+      mimeType: 'image/png',
+      width: size.width,
+      height: size.height,
+      byteSize: saved.size,
+      artifactPath: saved.path,
+      dataUrlLength: dataUrl.length,
+      ...(options.includeImage === true ? { dataUrl } : {})
+    }
+  }
+
+  const answerBrowserClientTool = (
+    call: BrowserClientToolCall,
+    success: boolean,
+    payload: Record<string, unknown>
+  ): void => {
+    void window.api.browser.answerClientToolCall({
+      requestId: call.requestId,
+      success,
+      contentItems: [{
+        type: 'inputText',
+        text: JSON.stringify(payload)
+      }]
+    })
+  }
+
+  const runBrowserClientToolAction = async (
+    webview: WebviewElement,
+    action: BrowserClientToolAction,
+    args: Record<string, unknown>
+  ): Promise<BrowserClientToolActionResult> => {
+    const scriptArgs = {
+      action,
+      nodeId: typeof args.nodeId === 'string' ? args.nodeId : null,
+      selector: typeof args.selector === 'string' ? args.selector : null,
+      text: typeof args.key === 'string'
+        ? args.key
+        : typeof args.text === 'string'
+          ? args.text
+          : action === 'check' && typeof args.checked === 'boolean'
+            ? String(args.checked)
+            : '',
+      targetText: typeof args.targetText === 'string'
+        ? args.targetText
+        : typeof args.text === 'string' && action === 'click'
+          ? args.text
+          : null,
+      index: typeof args.index === 'number' ? args.index : null,
+      scrollY: typeof args.scrollY === 'number' ? args.scrollY : 360
+    }
+    return webview.executeJavaScript<BrowserClientToolActionResult>(`
+      (() => {
+        const args = ${JSON.stringify(scriptArgs)};
+        const visible = (element) => {
+          if (!(element instanceof HTMLElement)) return false;
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        };
+        const labelFor = (element) => {
+          const aria = element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || '';
+          const text = (element.innerText || element.textContent || element.value || '').replace(/\\s+/g, ' ').trim();
+          return [aria, text].filter(Boolean).join(' ').trim();
+        };
+        const readTarget = (element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          const disabled = element.disabled === true || element.getAttribute('aria-disabled') === 'true';
+          return {
+            tagName: element.tagName.toLowerCase(),
+            role: element.getAttribute('role'),
+            ariaName: element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || null,
+            text: (element.innerText || element.textContent || '').replace(/\\s+/g, ' ').trim() || null,
+            value: 'value' in element ? String(element.value || '') : null,
+            href: element instanceof HTMLAnchorElement ? element.href : null,
+            checked: element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio') ? element.checked : null,
+            enabled: !disabled,
+            visible: style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0,
+            selector: element.dataset.orchestratorNodeId ? '[data-orchestrator-node-id="' + element.dataset.orchestratorNodeId + '"]' : null
+          };
+        };
+        const targets = Array.isArray(window.__orchestratorBrowserTargets) ? window.__orchestratorBrowserTargets : [];
+        const normalizedTargetText = String(args.targetText || '').trim().toLowerCase();
+        let element = null;
+        if (args.nodeId) element = document.querySelector('[data-orchestrator-node-id="' + String(args.nodeId).replace(/"/g, '\\"') + '"]');
+        if (!element && args.selector) {
+          try { element = document.querySelector(args.selector); } catch {}
+        }
+        if (!element && Number.isFinite(args.index) && args.index > 0) {
+          const target = targets[Math.floor(args.index) - 1];
+          if (target?.nodeId) element = document.querySelector('[data-orchestrator-node-id="' + target.nodeId + '"]');
+        }
+        if (!element && normalizedTargetText) {
+          const candidates = [...document.querySelectorAll('a[href], button, input, textarea, select, [role="button"], [role="link"], [tabindex], [contenteditable="true"]')];
+          element = candidates.find((candidate) => visible(candidate) && labelFor(candidate).toLowerCase().includes(normalizedTargetText)) || null;
+        }
+        const pageState = () => ({
+          clicked: document.body?.dataset?.clicked || null,
+          inputValue: document.body?.dataset?.inputValue || null,
+          keyPressed: document.body?.dataset?.keyPressed || null,
+          selectedOption: document.body?.dataset?.selectedOption || null,
+          checkedState: document.body?.dataset?.checkedState || null,
+          scrollY: Math.round(window.scrollY)
+        });
+        if (args.action === 'scroll') {
+          if (element instanceof HTMLElement && visible(element)) {
+            element.scrollBy({ top: Number.isFinite(args.scrollY) ? args.scrollY : 360, behavior: 'instant' });
+          } else {
+            window.scrollBy({ top: Number.isFinite(args.scrollY) ? args.scrollY : 360, left: 0, behavior: 'instant' });
+          }
+          return { ok: true, action: args.action, target: element instanceof HTMLElement ? readTarget(element) : null, targetCount: targets.length, pageState: pageState() };
+        }
+        if (!(element instanceof HTMLElement) || !visible(element)) {
+          return { ok: false, action: args.action, error: 'Target not found or not visible.', targetCount: targets.length };
+        }
+        element.focus();
+        if (args.action === 'type' || args.action === 'fill') {
+          if (!args.text) return { ok: false, action: args.action, error: args.action === 'type' ? 'browser_type requires text.' : 'browser_fill requires text.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          if ('value' in element) {
+            element.value = args.action === 'fill' ? args.text : String(element.value || '') + args.text;
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+            element.dispatchEvent(new Event('change', { bubbles: true }));
+          } else {
+            document.execCommand('insertText', false, args.text);
+          }
+        } else if (args.action === 'key') {
+          if (!args.text) return { ok: false, action: args.action, error: 'browser_key requires key.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          const key = String(args.text);
+          const eventInit = { key, code: key.length === 1 ? 'Key' + key.toUpperCase() : key, bubbles: true, cancelable: true };
+          element.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+          element.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+        } else if (args.action === 'select') {
+          if (!args.text) return { ok: false, action: args.action, error: 'browser_select requires text.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          if (!(element instanceof HTMLSelectElement)) {
+            return { ok: false, action: args.action, error: 'Target is not a select control.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          }
+          const option = [...element.options].find((item) => item.value === args.text || item.textContent?.trim() === args.text);
+          if (!option) return { ok: false, action: args.action, error: 'Option not found.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          element.value = option.value;
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if (args.action === 'check') {
+          if (!(element instanceof HTMLInputElement) || (element.type !== 'checkbox' && element.type !== 'radio')) {
+            return { ok: false, action: args.action, error: 'Target is not a checkbox or radio control.', target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+          }
+          const normalized = String(args.text || 'true').trim().toLowerCase();
+          element.checked = !['0', 'false', 'off', 'no', 'unchecked'].includes(normalized);
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+        } else {
+          element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+          element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+          element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        }
+        return { ok: true, action: args.action, target: readTarget(element), targetCount: targets.length, pageState: pageState() };
+      })()
+    `, true)
+  }
+
+  const handleBrowserClientToolCall = async (call: BrowserClientToolCall): Promise<void> => {
+    const expectedSessionId = sessionIdFromBrowserHost(hostId)
+    if (!expectedSessionId || call.sessionId !== expectedSessionId) return
+    if (call.namespace !== 'orchestrator') return
+    const browserClientToolActions: Record<string, BrowserClientToolAction> = {
+      browser_click: 'click',
+      browser_type: 'type',
+      browser_fill: 'fill',
+      browser_key: 'key',
+      browser_select: 'select',
+      browser_check: 'check',
+      browser_scroll: 'scroll'
+    }
+    if (call.tool !== 'browser_open' && call.tool !== 'browser_read' && call.tool !== 'browser_screenshot' && !(call.tool in browserClientToolActions)) return
+    if (handledClientToolRequestIdsRef.current.has(call.requestId)) return
+    handledClientToolRequestIdsRef.current.add(call.requestId)
+
+    try {
+      if (call.tool === 'browser_open') {
+        const rawUrl = typeof call.arguments.url === 'string' ? call.arguments.url : ''
+        const nextUrl = normalizeUrl(rawUrl)
+        if (!nextUrl) {
+          answerBrowserClientTool(call, false, { ok: false, error: 'browser_open requires a valid URL.' })
+          return
+        }
+        navigate(nextUrl)
+        const webview = await waitForActiveWebview(webviewRef, 4000)
+        if (webview) await waitForWebviewSettled(webview, 6000)
+        answerBrowserClientTool(call, true, {
+          ...(await browserClientToolSnapshot(webview)),
+          action: 'open'
+        })
+        return
+      }
+
+      const webview = await waitForActiveWebview(webviewRef, 1000)
+      if (call.tool === 'browser_screenshot') {
+        if (webview) await waitForWebviewSettled(webview, 1200)
+        const screenshotResult = await captureBrowserClientToolScreenshot(webview, {
+          includeImage: call.arguments.includeImage === true
+        })
+        answerBrowserClientTool(call, screenshotResult.ok === true, {
+          ...(await browserClientToolSnapshot(webview)),
+          action: 'screenshot',
+          screenshot: screenshotResult
+        })
+        return
+      }
+      const clientAction = browserClientToolActions[call.tool]
+      if (clientAction && webview) {
+        await webview.executeJavaScript<VisibleTarget[]>(VISIBLE_TARGETS_SCRIPT, true)
+        const actionResult = await runBrowserClientToolAction(webview, clientAction, call.arguments)
+        if (actionResult.ok) {
+          await waitForWebviewSettled(webview, 1200)
+        }
+        answerBrowserClientTool(call, actionResult.ok, {
+          ...(await browserClientToolSnapshot(webview)),
+          action: clientAction,
+          targetAction: actionResult
+        })
+        return
+      }
+      if (clientAction) {
+        answerBrowserClientTool(call, false, { ok: false, error: 'Browser page is not available for interaction.' })
+        return
+      }
+      answerBrowserClientTool(call, true, {
+        ...(await browserClientToolSnapshot(webview)),
+        action: 'read'
+      })
+    } catch (toolError) {
+      answerBrowserClientTool(call, false, {
+        ok: false,
+        error: toolError instanceof Error ? toolError.message : String(toolError)
+      })
+    }
+  }
+
+  useEffect(() => window.api.browser.onClientToolCall((call) => {
+    void handleBrowserClientToolCall(call)
+  }))
 
   const runTargetAction = async (action: BrowserTargetAction): Promise<void> => {
     if (!selectedTargetId || !webviewRef.current) return
@@ -1454,15 +1772,10 @@ export default function BrowserPanel({
                 className="rounded-md px-2 py-0.5 text-xs outline-none"
                 style={{ background: 'var(--control-bg)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
               >
-                {(['Responsive', 'Phone', 'Tablet', 'Desktop'] as const).map((group) => (
-                  <optgroup key={group} label={group}>
-                    {VIEWPORT_PRESETS
-                      .filter((preset) => preset.group === group)
-                      .map((preset) => (
-                        <option key={preset.mode} value={preset.mode}>{preset.label}</option>
-                      ))}
-                  </optgroup>
+                {VIEWPORT_PRESETS.map((preset) => (
+                  <option key={preset.mode} value={preset.mode}>{preset.label}</option>
                 ))}
+                {workbench.deviceMode === 'custom' && <option value="custom">Custom</option>}
               </select>
               {workbench.deviceMode === 'custom' && (
                 <>
@@ -2611,6 +2924,42 @@ function normalizeWorkbench(state: BrowserWorkbenchState | undefined, initialUrl
   }
 }
 
+function browserPolicyWorkbenchPatch(policy: BrowserUsePolicy): Partial<BrowserWorkbenchState> {
+  return {
+    approvalMode: policy.approvalMode,
+    historyApprovalMode: policy.historyApprovalMode,
+    downloadApprovalMode: policy.downloadApprovalMode,
+    uploadApprovalMode: policy.uploadApprovalMode,
+    allowedOrigins: policy.allowedOrigins,
+    blockedOrigins: policy.blockedOrigins,
+    allowedDownloadOrigins: policy.allowedDownloadOrigins,
+    blockedDownloadOrigins: policy.blockedDownloadOrigins,
+    allowedUploadOrigins: policy.allowedUploadOrigins,
+    blockedUploadOrigins: policy.blockedUploadOrigins
+  }
+}
+
+function browserWorkbenchHasDefaultPolicy(workbench: BrowserWorkbenchState): boolean {
+  return browserWorkbenchPolicyEquals(workbench, DEFAULT_BROWSER_USE_POLICY)
+}
+
+function browserWorkbenchPolicyEquals(workbench: BrowserWorkbenchState, policy: BrowserUsePolicy): boolean {
+  return workbench.approvalMode === policy.approvalMode &&
+    workbench.historyApprovalMode === policy.historyApprovalMode &&
+    workbench.downloadApprovalMode === policy.downloadApprovalMode &&
+    workbench.uploadApprovalMode === policy.uploadApprovalMode &&
+    stringArrayEqual(workbench.allowedOrigins, policy.allowedOrigins) &&
+    stringArrayEqual(workbench.blockedOrigins, policy.blockedOrigins) &&
+    stringArrayEqual(workbench.allowedDownloadOrigins, policy.allowedDownloadOrigins) &&
+    stringArrayEqual(workbench.blockedDownloadOrigins, policy.blockedDownloadOrigins) &&
+    stringArrayEqual(workbench.allowedUploadOrigins, policy.allowedUploadOrigins) &&
+    stringArrayEqual(workbench.blockedUploadOrigins, policy.blockedUploadOrigins)
+}
+
+function stringArrayEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
 function normalizeBrowserTransferHostId(hostId: string | null | undefined): string | null {
   if (typeof hostId !== 'string') return null
   const trimmed = hostId.trim()
@@ -2903,6 +3252,49 @@ function clampViewportSize(value: number, axis: 'width' | 'height'): number {
   const min = axis === 'width' ? MIN_VIEWPORT_SIZE.width : MIN_VIEWPORT_SIZE.height
   const max = axis === 'width' ? MAX_VIEWPORT_SIZE.width : MAX_VIEWPORT_SIZE.height
   return Math.min(max, Math.max(min, Math.round(value)))
+}
+
+function sessionIdFromBrowserHost(hostId: string): string | null {
+  const match = /^right:(.+):browser$/.exec(hostId)
+  return match?.[1] ?? null
+}
+
+function waitForActiveWebview(
+  webviewRef: MutableRefObject<WebviewElement | null>,
+  timeoutMs: number
+): Promise<WebviewElement | null> {
+  const startedAt = Date.now()
+  return new Promise((resolve) => {
+    const poll = (): void => {
+      if (webviewRef.current) {
+        resolve(webviewRef.current)
+        return
+      }
+      if (Date.now() - startedAt >= timeoutMs) {
+        resolve(null)
+        return
+      }
+      window.setTimeout(poll, 50)
+    }
+    poll()
+  })
+}
+
+function waitForWebviewSettled(webview: WebviewElement, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = (): void => {
+      if (done) return
+      done = true
+      webview.removeEventListener('did-stop-loading', finish)
+      webview.removeEventListener('did-fail-load', finish)
+      window.clearTimeout(timeout)
+      resolve()
+    }
+    const timeout = window.setTimeout(finish, timeoutMs)
+    webview.addEventListener('did-stop-loading', finish)
+    webview.addEventListener('did-fail-load', finish)
+  })
 }
 
 function normalizeUrl(raw: string): string {

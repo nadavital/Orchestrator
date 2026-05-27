@@ -9,6 +9,22 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = join(__dirname, '..')
 const providersModulePath = join(repoRoot, 'out-test/src/main/providers.js')
 const { PROVIDERS, providerSpawnEnv, resolveProviderCommand } = await import(providersModulePath)
+const browserToolSpecsModulePath = join(repoRoot, 'out-test/src/main/browserClientToolSpecs.js')
+const {
+  BROWSER_CLIENT_TOOL_NAMESPACE,
+  BROWSER_CLIENT_TOOL_CLICK,
+  BROWSER_CLIENT_TOOL_CHECK,
+  BROWSER_CLIENT_TOOL_FILL,
+  BROWSER_CLIENT_TOOL_KEY,
+  BROWSER_CLIENT_TOOL_OPEN,
+  BROWSER_CLIENT_TOOL_READ,
+  BROWSER_CLIENT_TOOL_SCREENSHOT,
+  BROWSER_CLIENT_TOOL_SCROLL,
+  BROWSER_CLIENT_TOOL_SELECT,
+  BROWSER_CLIENT_TOOL_TYPE,
+  browserClientDynamicTools,
+  isBrowserClientDynamicTool
+} = await import(browserToolSpecsModulePath)
 
 const provider = PROVIDERS.codex
 const artifactRoot = process.env.CODEX_BROWSER_PROOF_ARTIFACT_DIR
@@ -22,14 +38,58 @@ const browserProofUrl = process.env.CODEX_BROWSER_PROOF_URL ??
 const codexAppAsarPath = process.env.CODEX_APP_ASAR_PATH ?? '/Applications/Codex.app/Contents/Resources/app.asar'
 const expectedToken = 'CODEX_BROWSER_LIVE_OK'
 const noBrowserToken = 'CODEX_BROWSER_LIVE_NO_BROWSER'
-const prompt = process.env.CODEX_BROWSER_PROOF_PROMPT ?? [
+const enableDynamicToolProof = process.env.CODEX_BROWSER_PROOF_DYNAMIC_TOOL === '1'
+const enableRealBrowserToolProof = process.env.CODEX_BROWSER_PROOF_REAL_BROWSER_TOOLS === '1'
+const dynamicToolNamespace = 'orchestrator'
+const dynamicToolName = 'browser_bridge_status'
+const dynamicToolFullName = `${dynamicToolNamespace}.${dynamicToolName}`
+const browserOpenFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_OPEN}`
+const browserReadFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_READ}`
+const browserClickFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_CLICK}`
+const browserTypeFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_TYPE}`
+const browserScreenshotFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_SCREENSHOT}`
+const browserFillFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_FILL}`
+const browserKeyFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_KEY}`
+const browserSelectFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_SELECT}`
+const browserCheckFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_CHECK}`
+const browserScrollFullName = `${BROWSER_CLIENT_TOOL_NAMESPACE}.${BROWSER_CLIENT_TOOL_SCROLL}`
+const defaultPrompt = enableRealBrowserToolProof
+  ? [
+      'This is a live Orchestrator/Codex app-server Browser dynamic client-tool proof.',
+      'Do not edit files.',
+      'Do not run shell commands.',
+      `First call the dynamic client tool named ${browserOpenFullName} with this URL: ${browserProofUrl}`,
+      `Then call the dynamic client tool named ${browserReadFullName}.`,
+      `Then call ${browserClickFullName} for the Target button. You may use the nodeId returned by ${BROWSER_CLIENT_TOOL_READ}, or use the visible text "Target button".`,
+      `Then call ${browserTypeFullName} for the Smoke input with text LIVE_TYPE_OK. You may use the nodeId returned by ${BROWSER_CLIENT_TOOL_READ}, or use targetText "Smoke input".`,
+      `Then call ${browserScreenshotFullName} with includeImage true.`,
+      `Then call ${browserFillFullName} for the Smoke input with text LIVE_FILL_OK.`,
+      `Then call ${browserKeyFullName} for the Smoke input with key Enter.`,
+      `Then call ${browserSelectFullName} for the Smoke select with text beta.`,
+      `Then call ${browserCheckFullName} for the Smoke checkbox with checked true.`,
+      `Then call ${browserScrollFullName} with scrollY 120.`,
+      `Then call ${browserReadFullName} one more time.`,
+      `After all tools return, reply with exactly ${expectedToken}.`,
+      `If any tool is not available, reply with exactly ${noBrowserToken}.`
+    ]
+  : enableDynamicToolProof
+  ? [
+      'This is a live Orchestrator/Codex app-server dynamic client-tool proof.',
+      'Do not edit files.',
+      'Do not run shell commands.',
+      `Call the dynamic client tool named ${dynamicToolFullName}.`,
+      `After the tool returns, reply with exactly ${expectedToken}.`,
+      `If the tool is not available, reply with exactly ${noBrowserToken}.`
+    ]
+  : [
   'This is a live Orchestrator/Codex app-server browser integration proof.',
   'Do not edit files.',
   'Do not run shell commands.',
   `If a browser or browser-use tool is available, use it to inspect this URL: ${browserProofUrl}`,
   `After using the browser, reply with exactly ${expectedToken}.`,
   `If no browser/browser-use tool is available, reply with exactly ${noBrowserToken}.`
-].join(' ')
+    ]
+const prompt = process.env.CODEX_BROWSER_PROOF_PROMPT ?? defaultPrompt.join(' ')
 
 const resolved = resolveProviderCommand(provider, { binary: provider.binary, args: ['app-server', '--listen', 'stdio://'] })
 if (!resolved) {
@@ -58,6 +118,7 @@ const rawLines = []
 const parseErrors = []
 const events = []
 const serverRequests = []
+const browserToolResponseSummaries = {}
 
 const timeout = setTimeout(() => {
   finish(false, `timed out after ${timeoutMs}ms`)
@@ -93,7 +154,7 @@ try {
     capabilities: { experimentalApi: true }
   })
   notify('initialized')
-  const threadResult = await request('thread/start', {
+  const threadStartParams = {
     model,
     cwd,
     approvalPolicy: 'never',
@@ -102,7 +163,28 @@ try {
     serviceName: 'orchestrator-browser-live-proof',
     ephemeral: true,
     sessionStartSource: 'startup'
-  })
+  }
+  if (enableRealBrowserToolProof) {
+    threadStartParams.dynamicTools = browserClientDynamicTools
+  } else if (enableDynamicToolProof) {
+    threadStartParams.dynamicTools = [{
+      namespace: dynamicToolNamespace,
+      name: dynamicToolName,
+      description: 'Return a small status payload proving Orchestrator can receive and answer Codex app-server dynamic client-tool calls. This tool does not control the browser.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          reason: {
+            type: 'string',
+            description: 'Why the model is checking the browser bridge.'
+          }
+        }
+      }
+    }]
+  }
+
+  const threadResult = await request('thread/start', threadStartParams)
   const threadId = threadResult?.thread?.id
   if (!threadId) throw new Error('thread/start did not return a thread id')
 
@@ -124,8 +206,50 @@ try {
   )
   const assistantSawNoBrowser = assistantText.includes(noBrowserToken)
   const assistantSawOk = assistantText.includes(expectedToken)
+  const dynamicToolCalls = serverRequests.filter((request) => request.method === 'item/tool/call')
+  const realBrowserToolCalls = dynamicToolCalls.filter((request) =>
+    request.paramsPreview.includes(`"namespace":"${BROWSER_CLIENT_TOOL_NAMESPACE}"`) &&
+    (
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_OPEN}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_READ}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CLICK}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_TYPE}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCREENSHOT}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_FILL}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_KEY}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SELECT}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CHECK}"`) ||
+      request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCROLL}"`)
+    )
+  )
+  const calledBrowserOpen = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_OPEN}"`))
+  const calledBrowserRead = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_READ}"`))
+  const calledBrowserClick = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CLICK}"`))
+  const calledBrowserType = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_TYPE}"`))
+  const calledBrowserScreenshot = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCREENSHOT}"`))
+  const calledBrowserScreenshotWithImage = realBrowserToolCalls.some((request) =>
+    request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCREENSHOT}"`) &&
+    request.paramsPreview.includes(`"includeImage":true`)
+  )
+  const calledBrowserFill = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_FILL}"`))
+  const calledBrowserKey = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_KEY}"`))
+  const calledBrowserSelect = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SELECT}"`))
+  const calledBrowserCheck = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_CHECK}"`))
+  const calledBrowserScroll = realBrowserToolCalls.some((request) => request.paramsPreview.includes(`"tool":"${BROWSER_CLIENT_TOOL_SCROLL}"`))
 
-  if (browserEvents.length > 0 && assistantSawOk) {
+  if (enableRealBrowserToolProof && calledBrowserOpen && calledBrowserRead && calledBrowserClick && calledBrowserType && calledBrowserScreenshot && calledBrowserScreenshotWithImage && calledBrowserFill && calledBrowserKey && calledBrowserSelect && calledBrowserCheck && calledBrowserScroll && assistantSawOk) {
+    finish(true, 'live Codex app-server requested real Browser dynamic tools and completed browser_open/browser_read/browser_click/browser_type/browser_screenshot(includeImage)/browser_fill/browser_key/browser_select/browser_check/browser_scroll round trip')
+  } else if (enableRealBrowserToolProof && realBrowserToolCalls.length > 0) {
+    finish(false, `real Browser tool call observed but required open/read calls or expected assistant token were missing: ${assistantText.trim()}`)
+  } else if (enableRealBrowserToolProof) {
+    finish(false, 'no item/tool/call observed for advertised real Browser dynamic tools')
+  } else if (enableDynamicToolProof && dynamicToolCalls.length > 0 && assistantSawOk) {
+    finish(true, 'live Codex app-server accepted advertised dynamicTools and completed an item/tool/call round trip')
+  } else if (enableDynamicToolProof && dynamicToolCalls.length > 0) {
+    finish(false, `dynamic tool call observed but expected assistant token was missing: ${assistantText.trim()}`)
+  } else if (enableDynamicToolProof) {
+    finish(false, 'no item/tool/call observed for advertised dynamicTools proof')
+  } else if (browserEvents.length > 0 && assistantSawOk) {
     finish(true, 'live Codex app-server emitted browser.manager_state and completed browser proof')
   } else if (unsupportedClientTools.length > 0) {
     finish(false, `blocked: Codex app-server requested unsupported client browser/tool call(s): ${unsupportedClientTools.map((request) => request.method).join(', ')}`)
@@ -175,7 +299,7 @@ function handleLine(line) {
     parseErrors.push({ line, error: error instanceof Error ? error.message : String(error) })
   }
 
-  if (message.id && !message.method) {
+  if (message.id != null && !message.method) {
     const waiter = pending.get(message.id)
     if (!waiter) return
     pending.delete(message.id)
@@ -184,7 +308,7 @@ function handleLine(line) {
     return
   }
 
-  if (message.id && message.method) {
+  if (message.id != null && message.method) {
     serverRequests.push({
       id: message.id,
       method: message.method,
@@ -225,6 +349,34 @@ function answerServerRequest(message) {
     send({ id: message.id, result: { action: 'decline', content: noBrowserToken, _meta: null } })
     return
   }
+  if (message.method === 'item/tool/call') {
+    const namespace = typeof message.params?.namespace === 'string' ? message.params.namespace : null
+    const tool = typeof message.params?.tool === 'string' ? message.params.tool : ''
+    if (enableRealBrowserToolProof && isBrowserClientDynamicTool(namespace, tool)) {
+      send({
+        id: message.id,
+        result: browserToolProofResponse(tool, message.params?.arguments)
+      })
+      return
+    }
+    if (enableDynamicToolProof && namespace === dynamicToolNamespace && tool === dynamicToolName) {
+      send({
+        id: message.id,
+        result: {
+          contentItems: [{
+            type: 'inputText',
+            text: JSON.stringify({
+              ok: true,
+              bridge: 'dynamicTools',
+              note: 'Orchestrator received and answered this dynamic client-tool call.'
+            })
+          }],
+          success: true
+        }
+      })
+      return
+    }
+  }
   send({ id: message.id, error: { code: -32601, message: 'Orchestrator browser live proof does not implement client-side dynamic tools.' } })
 }
 
@@ -243,6 +395,78 @@ function preview(value) {
   return text.length > 500 ? `${text.slice(0, 500)}...` : text
 }
 
+function browserToolProofResponse(tool, args) {
+  const record = args && typeof args === 'object' && !Array.isArray(args) ? args : {}
+  const url = typeof record.url === 'string' && record.url.length > 0 ? record.url : browserProofUrl
+  const action = tool === BROWSER_CLIENT_TOOL_OPEN
+    ? 'open'
+    : tool === BROWSER_CLIENT_TOOL_CLICK
+      ? 'click'
+      : tool === BROWSER_CLIENT_TOOL_TYPE
+        ? 'type'
+        : tool === BROWSER_CLIENT_TOOL_SCREENSHOT
+          ? 'screenshot'
+          : tool === BROWSER_CLIENT_TOOL_FILL
+            ? 'fill'
+            : tool === BROWSER_CLIENT_TOOL_KEY
+              ? 'key'
+              : tool === BROWSER_CLIENT_TOOL_SELECT
+                ? 'select'
+                : tool === BROWSER_CLIENT_TOOL_CHECK
+                  ? 'check'
+                  : tool === BROWSER_CLIENT_TOOL_SCROLL
+                    ? 'scroll'
+                    : 'read'
+  const screenshot = tool === BROWSER_CLIENT_TOOL_SCREENSHOT
+    ? {
+        ok: true,
+        mimeType: 'image/png',
+        width: 800,
+        height: 600,
+        byteSize: 4096,
+        artifactPath: '/tmp/orchestrator-browser-proof.png',
+        dataUrlLength: record.includeImage === true ? 'data:image/png;base64,T1JDSEVTVFJBVE9SX0JST1dTRVJfUFJPT0Y='.length : 0,
+        ...(record.includeImage === true ? { dataUrl: 'data:image/png;base64,T1JDSEVTVFJBVE9SX0JST1dTRVJfUFJPT0Y=' } : {})
+      }
+    : undefined
+  browserToolResponseSummaries[tool] = {
+    ok: true,
+    action,
+    includeImage: record.includeImage === true,
+    screenshotHasInlineImage: typeof screenshot?.dataUrl === 'string' && screenshot.dataUrl.startsWith('data:image/png;base64,'),
+    dataUrlLength: typeof screenshot?.dataUrl === 'string' ? screenshot.dataUrl.length : 0
+  }
+  return {
+    contentItems: [{
+      type: 'inputText',
+      text: JSON.stringify({
+        ok: true,
+        action,
+        url,
+        title: 'Orchestrator Browser Proof',
+        visibleStructure: 'ORCHESTRATOR_BROWSER_PROOF_PAGE\n<button>Target button</button>\n<input aria-label="Smoke input" value="LIVE_TYPE_OK">\n<select aria-label="Smoke select"><option value="beta">Beta</option></select>\n<input type="checkbox" aria-label="Smoke checkbox">',
+        targets: [
+          { index: 1, nodeId: 'node-1', tagName: 'button', visibleText: 'Target button', preview: 'button · Target button', selector: '#target-button' },
+          { index: 2, nodeId: 'node-2', tagName: 'input', ariaName: 'Smoke input', preview: 'input · Smoke input', selector: 'input[aria-label="Smoke input"]' },
+          { index: 3, nodeId: 'node-3', tagName: 'select', ariaName: 'Smoke select', preview: 'select · Smoke select', selector: 'select[aria-label="Smoke select"]' },
+          { index: 4, nodeId: 'node-4', tagName: 'input', ariaName: 'Smoke checkbox', preview: 'input · Smoke checkbox', selector: 'input[aria-label="Smoke checkbox"]' }
+        ],
+        targetAction: tool === BROWSER_CLIENT_TOOL_CLICK ||
+          tool === BROWSER_CLIENT_TOOL_TYPE ||
+          tool === BROWSER_CLIENT_TOOL_FILL ||
+          tool === BROWSER_CLIENT_TOOL_KEY ||
+          tool === BROWSER_CLIENT_TOOL_SELECT ||
+          tool === BROWSER_CLIENT_TOOL_CHECK ||
+          tool === BROWSER_CLIENT_TOOL_SCROLL
+          ? { ok: true, action }
+          : undefined,
+        screenshot
+      })
+    }],
+    success: true
+  }
+}
+
 function resetArtifacts() {
   rmSync(artifactRoot, { recursive: true, force: true })
   mkdirSync(artifactRoot, { recursive: true })
@@ -256,11 +480,17 @@ function writeArtifacts(result) {
     cwd,
     model,
     prompt,
+    enableDynamicToolProof,
+    enableRealBrowserToolProof,
+    advertisedDynamicTools: enableRealBrowserToolProof
+      ? browserClientDynamicTools.map((tool) => `${tool.namespace}.${tool.name}`)
+      : (enableDynamicToolProof ? [dynamicToolFullName] : []),
     methods: [...new Set(methods)],
     methodCounts: methods.reduce((counts, method) => ({ ...counts, [method]: (counts[method] ?? 0) + 1 }), {}),
     serverRequests,
     eventTypes: [...new Set(events.map((event) => event.type))],
     browserEvents,
+    browserToolResponseSummaries,
     codexBrowserBoundaryEvidence: collectCodexBrowserBoundaryEvidence(),
     assistantText,
     turnStatus,
