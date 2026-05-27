@@ -12,6 +12,11 @@ const defaultSmokeDir = join(root, 'tmp', 'side-panel-visual-inventory-current')
 const smokeOutDir = resolve(readArg('--smoke-out') ?? defaultSmokeDir)
 const runSmoke = process.argv.includes('--run-smoke')
 const fullSmoke = process.argv.includes('--full') || process.argv.includes('--full-smoke')
+const smokeAppMode = process.argv.includes('--installed') ? 'installed' : process.argv.includes('--packaged') ? 'packaged' : 'dev'
+if (process.argv.includes('--installed') && process.argv.includes('--packaged')) {
+  console.error('Use either --packaged or --installed, not both.')
+  process.exit(1)
+}
 const noFail = process.argv.includes('--no-fail')
 const captureLiveCodex = process.argv.includes('--capture-live-codex')
 const manifestPath = resolve(readArg('--manifest') ?? join(smokeOutDir, 'manifest.json'))
@@ -26,6 +31,8 @@ let smokeRun = null
 if (runSmoke) {
   const args = ['run', 'smoke:visual:side-panels', '--', '--out', smokeOutDir]
   if (fullSmoke) args.push('--full')
+  if (smokeAppMode === 'packaged') args.push('--packaged')
+  if (smokeAppMode === 'installed') args.push('--installed')
   const result = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, {
     cwd: root,
     encoding: 'utf8',
@@ -57,6 +64,7 @@ const report = {
   codexAsarAvailable: existsSync(codexAsarPath),
   smokeManifestPath: manifestPath,
   smokeManifestAvailable: manifest !== null,
+  smokeAppMode: manifest?.appMode ?? smokeAppMode,
   smokeRun,
   liveCaptureAttempt,
   summary,
@@ -972,6 +980,8 @@ function renderMarkdown(report) {
   lines.push('')
   lines.push('- Reuse latest smoke manifest: `npm run compare:codex-side-panels`')
   lines.push('- Regenerate full side-panel smoke first: `npm run compare:codex-side-panels -- --run-smoke --full`')
+  lines.push('- Regenerate from the packaged temp app: `npm run compare:codex-side-panels -- --run-smoke --full --packaged`')
+  lines.push('- Regenerate from `/Applications/Orchestrator.app` with an isolated profile: `npm run compare:codex-side-panels -- --run-smoke --full --installed`')
   lines.push('- Attempt a fresh live Codex screenshot before comparing: `npm run compare:codex-side-panels -- --capture-live-codex --no-fail`')
   lines.push('- Generate the report without failing the shell on known mismatches: `npm run compare:codex-side-panels -- --no-fail`')
   lines.push('- Custom output: `npm run compare:codex-side-panels -- --out tmp/my-comparison --smoke-out tmp/my-smoke --run-smoke --full`')
@@ -980,6 +990,7 @@ function renderMarkdown(report) {
   lines.push('')
   lines.push(`- Codex bundle: ${report.codexAsarAvailable ? report.codexAsarPath : `missing at ${report.codexAsarPath}`}`)
   lines.push(`- Smoke manifest: ${report.smokeManifestAvailable ? report.smokeManifestPath : `missing at ${report.smokeManifestPath}`}`)
+  lines.push(`- Smoke app mode: ${report.smokeAppMode}`)
   lines.push(`- Smoke captures: ${report.summary.smokeCaptures}`)
   lines.push(`- Smoke failures: ${report.summary.smokeFailures.length === 0 ? 'none' : report.summary.smokeFailures.join(', ')}`)
   lines.push(`- Smoke failure kinds: ${formatStatusCounts(report.summary.smokeFailureKinds)}`)

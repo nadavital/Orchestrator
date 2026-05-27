@@ -94,6 +94,11 @@ const captureView = process.argv.includes('--settings-deeplink')
                               ? 'terminal'
                               : 'main'
 const runPackaged = process.argv.includes('--packaged')
+const runInstalled = process.argv.includes('--installed')
+if (runPackaged && runInstalled) {
+  console.error('Use either --packaged or --installed, not both.')
+  process.exit(1)
+}
 const foregroundSmoke = process.argv.includes('--foreground') ||
   captureView === 'multi-window-focus' ||
   process.env.ORCHESTRATOR_AUTOMATED_UI_SMOKE_FOREGROUND === '1'
@@ -867,7 +872,7 @@ if (captureView === 'sidebar') {
   spawnSync('git', ['commit', '-m', 'sidebar baseline'], { cwd: workspaceDir, stdio: 'ignore' })
 }
 
-const launch = runPackaged ? packagedLaunchCommand() : {
+const launch = runInstalled ? installedLaunchCommand() : runPackaged ? packagedLaunchCommand() : {
   bin: process.platform === 'win32' ? 'npm.cmd' : 'npm',
   args: ['run', 'dev']
 }
@@ -1856,6 +1861,20 @@ function packagedLaunchCommand() {
   if (!existsSync(executable)) {
     console.error(`Packaged app not found at ${executable}`)
     console.error('Run npm run pack:mac before --packaged smoke checks.')
+    process.exit(1)
+  }
+  return { bin: executable, args: [] }
+}
+
+function installedLaunchCommand() {
+  if (process.platform !== 'darwin') {
+    console.error('--installed smoke checks are currently supported only on macOS.')
+    process.exit(1)
+  }
+  const executable = '/Applications/Orchestrator.app/Contents/MacOS/Orchestrator'
+  if (!existsSync(executable)) {
+    console.error(`Installed app executable not found at ${executable}`)
+    console.error('Run npm run pack:mac && npm run install:mac before --installed smoke checks.')
     process.exit(1)
   }
   return { bin: executable, args: [] }

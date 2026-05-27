@@ -436,7 +436,15 @@ function SessionItem({ session }: Props): JSX.Element {
           id={hoverSurfaceId}
           className="session-hover-card"
           data-testid="session-hover-card"
-          style={{ left: cardPosition.left, top: cardPosition.top }}
+          style={{
+            left: cardPosition.left,
+            top: cardPosition.top,
+            border: '0.5px solid var(--border-subtle)',
+            borderRadius: 12,
+            boxShadow: 'var(--shadow-menu)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)'
+          }}
           role="tooltip"
         >
           <div className="session-hover-card-title">{session.name}</div>

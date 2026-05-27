@@ -7,6 +7,11 @@ import { fileURLToPath } from 'url'
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const outDir = resolve(readArg('--out') ?? join(root, 'tmp', 'side-panel-visual-inventory'))
 const full = process.argv.includes('--full')
+const appMode = process.argv.includes('--installed') ? 'installed' : process.argv.includes('--packaged') ? 'packaged' : 'dev'
+if (process.argv.includes('--installed') && process.argv.includes('--packaged')) {
+  console.error('Use either --packaged or --installed, not both.')
+  process.exit(1)
+}
 const smokeTimeoutMs = Number.parseInt(process.env.ORCHESTRATOR_VISUAL_INVENTORY_TIMEOUT_MS ?? '120000', 10)
 
 const coreViews = [
@@ -48,6 +53,8 @@ mkdirSync(outDir, { recursive: true })
 const captures = []
 for (const view of views) {
   const args = ['scripts/run-automated-ui-smoke.mjs', view.flag]
+  if (appMode === 'packaged') args.push('--packaged')
+  if (appMode === 'installed') args.push('--installed')
   const startedAt = new Date().toISOString()
   const result = await runSmokeCapture(args)
   const logPath = join(outDir, `${view.id}.log`)
@@ -87,6 +94,7 @@ const manifestPath = join(outDir, 'manifest.json')
 writeFileSync(manifestPath, JSON.stringify({
   createdAt: new Date().toISOString(),
   mode: full ? 'full' : 'core',
+  appMode,
   captures,
   failed: failed.map((capture) => capture.id)
 }, null, 2))
@@ -99,6 +107,7 @@ if (failed.length > 0) {
 console.log(JSON.stringify({
   manifestPath,
   mode: full ? 'full' : 'core',
+  appMode,
   captures: captures.length,
   screenshots: captures.map((capture) => ({ id: capture.id, path: capture.screenshotPath }))
 }, null, 2))

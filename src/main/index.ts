@@ -15672,11 +15672,17 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               !hoverCardText.includes('Environment');
             const hoverCardSurfaceReadable = hoverCard instanceof HTMLElement && hoverSurfaceReadable(hoverCard);
             const hoverCardStyle = hoverCard instanceof HTMLElement ? getComputedStyle(hoverCard) : null;
+            const hoverCardBackdropFilter = hoverCardStyle === null ? '' : [
+              hoverCardStyle.backdropFilter,
+              hoverCardStyle.webkitBackdropFilter,
+              hoverCardStyle.getPropertyValue('backdrop-filter'),
+              hoverCardStyle.getPropertyValue('-webkit-backdrop-filter')
+            ].filter(Boolean).join(' ');
             const hoverCardMaterialWorks =
               hoverCard instanceof HTMLElement &&
               hoverCardStyle !== null &&
               Number.parseFloat(hoverCardStyle.borderRadius || '0') >= 12 &&
-              ((hoverCardStyle.backdropFilter || hoverCardStyle.webkitBackdropFilter || '').includes('blur')) &&
+              hoverCardBackdropFilter.includes('blur') &&
               hoverCardStyle.boxShadow !== 'none' &&
               Number.parseFloat(hoverCardStyle.borderTopWidth || '0') <= 1;
             let doubleClickRenameWorks = false;
@@ -17470,6 +17476,12 @@ function runAutomatedSidebarSmoke(win: BrowserWindow, outputPath: string, screen
               hoverCardDelayed,
               hoverCardSurfaceReadable,
               hoverCardMaterialWorks,
+              hoverCardMaterialDebug: hoverCardStyle === null ? null : {
+                borderRadius: hoverCardStyle.borderRadius,
+                backdropFilter: hoverCardBackdropFilter,
+                boxShadow: hoverCardStyle.boxShadow,
+                borderTopWidth: hoverCardStyle.borderTopWidth
+              },
               doubleClickRenameWorks,
               renameDialogCancelWorks,
               renameDialogChromeQuiet,

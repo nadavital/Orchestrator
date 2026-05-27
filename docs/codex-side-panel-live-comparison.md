@@ -10,6 +10,10 @@ This file is the current comparison ledger for the side-panel parity goal. It se
   `npm run compare:codex-side-panels`
 - Regenerate the full side-panel visual inventory first, then compare:
   `npm run compare:codex-side-panels -- --run-smoke --full`
+- Regenerate from the temp packaged app without replacing `/Applications/Orchestrator.app`:
+  `npm run compare:codex-side-panels -- --run-smoke --full --packaged`
+- Regenerate from `/Applications/Orchestrator.app` with an isolated profile:
+  `npm run compare:codex-side-panels -- --run-smoke --full --installed`
 - Generate the same report without failing the shell on known mismatches:
   `npm run compare:codex-side-panels -- --no-fail`
 - The generated report is written to `tmp/codex-side-panel-comparison/comparison-report.md` and `tmp/codex-side-panel-comparison/comparison-report.json`.
@@ -23,7 +27,9 @@ Scope note: "side panel" in the comparison matrix means the right-side Workbench
 - Codex app bundle: `/Applications/Codex.app/Contents/Resources/app.asar`, `CFBundleShortVersionString=26.519.41501`.
 - Extracted Codex side-panel chunks under `tmp/codex-app-assets`.
 - Current Orchestrator full visual inventory: `tmp/side-panel-visual-inventory-current/manifest.json`, 27 captures, no failures, created at `2026-05-27T01:47:21.775Z`.
-- Current runnable comparison: `tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-27T01:50:34.191Z`, status `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, `needsProof=0`.
+- Current runnable comparison: `tmp/codex-side-panel-comparison/comparison-report.json`, created at `2026-05-27T02:23:34.849Z`, status `fixture-covered=8`, `aligned=2`, `mismatch=0`, `blocked=0`, `needsSmoke=0`, `needsProof=0`.
+- Current packaged core side-panel inventory: `tmp/side-panel-visual-inventory-packaged-core/manifest.json`, app mode `packaged`, 8 captures, no failures, created at `2026-05-27T02:21:23.400Z`. Focused packaged sidebar evidence passes `hoverCardMaterial=true` after making the session hover-card material explicit on the portaled element; evidence JSON `/var/folders/bj/cxpn19xd78q4k1h9w4c_99700000gn/T/orchestrator-automated-ui-smoke-sidebar-1779848313353.json`.
+- Installed app side-panel smoke mode now exists, but `/Applications/Orchestrator.app/Contents/MacOS/Orchestrator` is not present in this environment, so installed replacement proof remains separate from the packaged temp-bundle proof.
 - Current dynamic client-tool transport proof: `tmp/codex-dynamic-tools-live-proof/result.json`, status `ok=true`; the live Codex app-server accepted advertised `dynamicTools`, sent `item/tool/call` for `orchestrator.browser_bridge_status`, received Orchestrator's response, and completed with `CODEX_BROWSER_LIVE_OK`.
 - Current real Browser dynamic-tool proof: `tmp/codex-browser-tools-live-proof/result.json`, status `ok=true`; the live Codex app-server accepted the production Browser tool specs, sent `item/tool/call` for `orchestrator.browser_open` with JSON-RPC id `0`, then `orchestrator.browser_read` with JSON-RPC id `1`, and completed with `CODEX_BROWSER_LIVE_OK`.
 - Current comparison artifact gating: the Browser row now parses those live proof JSON files directly, including the `serverRequests[].paramsPreview` tool calls, so missing or stale live proof artifacts show up in the comparison report.
