@@ -143,7 +143,12 @@ interface SpreadsheetPreviewConditionalFormat {
   startColumn: number
   rowSpan: number
   colSpan: number
-  colors: string[]
+  colors?: string[]
+  fillColor?: string
+  textColor?: string
+  bold?: boolean
+  operator?: 'greaterThan' | 'lessThan' | 'greaterThanOrEqual' | 'lessThanOrEqual' | 'equal' | 'notEqual'
+  formula?: string
 }
 
 interface SpreadsheetPreviewDataValidation {
@@ -900,7 +905,9 @@ function docxImageAlt(attributes: string): string | undefined {
 function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPreviewSheet[]; truncated: boolean } | null {
   const entries = listZipEntries(archive)
   const sharedStrings = extractSpreadsheetSharedStrings(readZipEntry(archive, 'xl/sharedStrings.xml')?.toString('utf8') ?? '')
-  const styles = extractSpreadsheetStyles(readZipEntry(archive, 'xl/styles.xml')?.toString('utf8') ?? '')
+  const stylesXml = readZipEntry(archive, 'xl/styles.xml')?.toString('utf8') ?? ''
+  const styles = extractSpreadsheetStyles(stylesXml)
+  const differentialStyles = extractSpreadsheetDifferentialStyles(stylesXml)
   const workbookXml = readZipEntry(archive, 'xl/workbook.xml')?.toString('utf8') ?? ''
   const relationshipsXml = readZipEntry(archive, 'xl/_rels/workbook.xml.rels')?.toString('utf8') ?? ''
   const sheetTargets = extractWorkbookSheetTargets(workbookXml, relationshipsXml)
@@ -923,7 +930,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     const charts = extractWorksheetCharts(xml, archive, sheet.path)
     const drawings = extractWorksheetDrawings(xml, archive, sheet.path)
     const sparklines = extractWorksheetSparklines(xml, parsed.rows, sheet.name)
-    const conditionalFormats = extractWorksheetConditionalFormats(xml)
+    const conditionalFormats = extractWorksheetConditionalFormats(xml, differentialStyles)
     applyWorksheetConditionalFormats(parsed.rows, conditionalFormats)
     const dataValidations = extractWorksheetDataValidations(xml, parsed.rows, sheet.name)
     applyWorksheetDataValidations(parsed.rows, dataValidations)
@@ -1616,34 +1623,57 @@ function extractSpreadsheetChartSourceRange(xml: string): string | undefined {
   return formula.replace(/\$/g, '')
 }
 
-function extractWorksheetConditionalFormats(xml: string): SpreadsheetPreviewConditionalFormat[] {
+function extractWorksheetConditionalFormats(xml: string, differentialStyles: SpreadsheetCellStyle[] = []): SpreadsheetPreviewConditionalFormat[] {
   return [...xml.matchAll(/<conditionalFormatting\b([^>]*)>([\s\S]*?)<\/conditionalFormatting>/g)]
     .slice(0, 12)
     .flatMap((match) => {
       const attributes = match[1] ?? ''
       const body = match[2] ?? ''
       const sqref = /\bsqref="([^"]+)"/.exec(attributes)?.[1] ?? ''
-      const colorScale = /<cfRule\b[^>]*\btype="colorScale"[^>]*>[\s\S]*?<colorScale\b[\s\S]*?<\/colorScale>[\s\S]*?<\/cfRule>/.exec(body)?.[0] ?? ''
-      if (!sqref || !colorScale) return []
-      const colors = [...colorScale.matchAll(/<color\b[^>]*\/>/g)]
-        .map((colorMatch) => extractSpreadsheetColor(colorMatch[0] ?? ''))
-        .filter((color): color is string => Boolean(color))
-        .slice(0, 3)
-      if (colors.length < 2) return []
-      return sqref
-        .split(/\s+/)
-        .filter(Boolean)
-        .flatMap((ref) => {
-          const range = spreadsheetRangePosition(ref.toUpperCase())
-          if (!range) return []
-          return [{
-            ref: ref.toUpperCase(),
-            startRow: range.startRow,
-            startColumn: range.startColumn,
-            rowSpan: range.endRow - range.startRow + 1,
-            colSpan: range.endColumn - range.startColumn + 1,
-            colors
-          }]
+      if (!sqref) return []
+      return [...body.matchAll(/<cfRule\b([^>]*)>([\s\S]*?)<\/cfRule>/g)]
+        .flatMap((ruleMatch) => {
+          const ruleAttributes = ruleMatch[1] ?? ''
+          const ruleBody = ruleMatch[2] ?? ''
+          const type = /\btype="([^"]+)"/.exec(ruleAttributes)?.[1] ?? ''
+          const baseFormat: Pick<SpreadsheetPreviewConditionalFormat, 'colors' | 'fillColor' | 'textColor' | 'bold' | 'operator' | 'formula'> = {}
+          if (type === 'colorScale') {
+            const colors = [...ruleBody.matchAll(/<color\b[^>]*\/>/g)]
+              .map((colorMatch) => extractSpreadsheetColor(colorMatch[0] ?? ''))
+              .filter((color): color is string => Boolean(color))
+              .slice(0, 3)
+            if (colors.length < 2) return []
+            baseFormat.colors = colors
+          } else if (type === 'cellIs') {
+            const operator = spreadsheetConditionalOperator(ruleAttributes)
+            const formula = decodeXmlText(/<formula>([\s\S]*?)<\/formula>/.exec(ruleBody)?.[1] ?? '').trim()
+            const dxfId = numberAttribute(ruleAttributes, 'dxfId')
+            const style = dxfId === null ? undefined : differentialStyles[dxfId]
+            const fillColor = style?.fillColor
+            if (!operator || !formula || !fillColor) return []
+            baseFormat.operator = operator
+            baseFormat.formula = formula
+            baseFormat.fillColor = fillColor
+            if (style?.textColor) baseFormat.textColor = style.textColor
+            if (style?.bold) baseFormat.bold = true
+          } else {
+            return []
+          }
+          return sqref
+            .split(/\s+/)
+            .filter(Boolean)
+            .flatMap((ref) => {
+              const range = spreadsheetRangePosition(ref.toUpperCase())
+              if (!range) return []
+              return [{
+                ref: ref.toUpperCase(),
+                startRow: range.startRow,
+                startColumn: range.startColumn,
+                rowSpan: range.endRow - range.startRow + 1,
+                colSpan: range.endColumn - range.startColumn + 1,
+                ...baseFormat
+              }]
+            })
         })
     })
     .filter((format) => format.startRow < 24 && format.startColumn < 12)
@@ -1668,13 +1698,59 @@ function applyWorksheetConditionalFormats(rows: SpreadsheetPreviewCell[][], form
       }
     }
     if (cells.length === 0) continue
-    const values = cells.map((item) => item.value)
-    const min = Math.min(...values)
-    const max = Math.max(...values)
-    for (const item of cells) {
-      const position = max === min ? 0 : (item.value - min) / (max - min)
-      item.cell.conditionalFillColor = spreadsheetColorScaleValue(format.colors, position)
+    if (format.colors) {
+      const values = cells.map((item) => item.value)
+      const min = Math.min(...values)
+      const max = Math.max(...values)
+      for (const item of cells) {
+        const position = max === min ? 0 : (item.value - min) / (max - min)
+        item.cell.conditionalFillColor = spreadsheetColorScaleValue(format.colors, position)
+      }
+      continue
     }
+    if (format.fillColor && format.operator && format.formula) {
+      const formulaValue = Number(format.formula.replace(/^=/, ''))
+      if (!Number.isFinite(formulaValue)) continue
+      for (const item of cells) {
+        if (spreadsheetCellIsRuleMatches(item.value, format.operator, formulaValue)) {
+          item.cell.conditionalFillColor = format.fillColor
+          if (format.textColor) item.cell.textColor = format.textColor
+          if (format.bold) item.cell.bold = true
+        }
+      }
+    }
+  }
+}
+
+function spreadsheetConditionalOperator(attributes: string): SpreadsheetPreviewConditionalFormat['operator'] {
+  const value = /\boperator="([^"]+)"/.exec(attributes)?.[1]
+  if (
+    value === 'greaterThan' ||
+    value === 'lessThan' ||
+    value === 'greaterThanOrEqual' ||
+    value === 'lessThanOrEqual' ||
+    value === 'equal' ||
+    value === 'notEqual'
+  ) {
+    return value
+  }
+  return undefined
+}
+
+function spreadsheetCellIsRuleMatches(value: number, operator: NonNullable<SpreadsheetPreviewConditionalFormat['operator']>, formulaValue: number): boolean {
+  switch (operator) {
+    case 'greaterThan':
+      return value > formulaValue
+    case 'lessThan':
+      return value < formulaValue
+    case 'greaterThanOrEqual':
+      return value >= formulaValue
+    case 'lessThanOrEqual':
+      return value <= formulaValue
+    case 'equal':
+      return value === formulaValue
+    case 'notEqual':
+      return value !== formulaValue
   }
 }
 
@@ -1919,6 +1995,26 @@ function extractSpreadsheetStyles(xml: string): SpreadsheetCellStyle[] {
         ...(wrapText ? { wrapText: true } : {}),
         ...(horizontalAlignment ? { horizontalAlignment } : {}),
         ...(verticalAlignment ? { verticalAlignment } : {})
+      }
+    }) ?? []
+}
+
+function extractSpreadsheetDifferentialStyles(xml: string): SpreadsheetCellStyle[] {
+  if (!xml) return []
+  const dxfsXml = /<dxfs\b[\s\S]*?<\/dxfs>/.exec(xml)?.[0] ?? ''
+  if (!dxfsXml) return []
+  return dxfsXml
+    .match(/<dxf\b[^>]*\/>|<dxf\b[^>]*>[\s\S]*?<\/dxf>/g)
+    ?.map((dxfXml) => {
+      const fontXml = /<font\b[\s\S]*?<\/font>/.exec(dxfXml)?.[0] ?? ''
+      const fillXml = /<fill\b[\s\S]*?<\/fill>/.exec(dxfXml)?.[0] ?? ''
+      const fillColor = fillXml ? extractSpreadsheetColor(fillXml) : undefined
+      const textColor = fontXml ? extractSpreadsheetColor(fontXml) : undefined
+      const bold = /<b(?:\s[^>]*)?\/>/.test(fontXml)
+      return {
+        ...(fillColor ? { fillColor } : {}),
+        ...(textColor ? { textColor } : {}),
+        ...(bold ? { bold: true } : {})
       }
     }) ?? []
 }

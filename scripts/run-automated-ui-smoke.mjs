@@ -547,6 +547,8 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   const sharedStringIndex = new Map()
   const cellStyles = [{}]
   const cellStyleIndex = new Map([['{}', 0]])
+  const differentialStyles = []
+  const differentialStyleIndex = new Map()
   let nextTableId = 1
   let nextChartId = 1
   const styleIndexFor = (rawValue) => {
@@ -570,14 +572,37 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     }
     return index
   }
+  const differentialStyleIndexFor = (rawValue) => {
+    const style = {
+      ...(rawValue?.fillColor ? { fillColor: String(rawValue.fillColor).toUpperCase() } : {}),
+      ...(rawValue?.textColor ? { textColor: String(rawValue.textColor).toUpperCase() } : {}),
+      ...(rawValue?.bold === true ? { bold: true } : {})
+    }
+    const key = JSON.stringify(style)
+    if (key === '{}') return null
+    let index = differentialStyleIndex.get(key)
+    if (index === undefined) {
+      index = differentialStyles.length
+      differentialStyleIndex.set(key, index)
+      differentialStyles.push(style)
+    }
+    return index
+  }
   const worksheetEntries = workbookSheets.map((sheet, sheetIndex) => {
     const mergeRefs = (sheet.merges ?? [])
       .map((merge) => typeof merge === 'string' ? merge : merge?.ref)
       .filter((merge) => typeof merge === 'string' && /^[A-Z]+\d+:[A-Z]+\d+$/i.test(merge))
     const conditionalFormatXml = (sheet.conditionalFormats ?? [])
-      .map((format) => {
+      .map((format, formatIndex) => {
         const sqref = String(format?.sqref ?? format?.ref ?? '').toUpperCase()
         if (!sqref.split(/\s+/).every((ref) => /^[A-Z]+\d+(?::[A-Z]+\d+)?$/i.test(ref))) return ''
+        if (format?.type === 'cellIs') {
+          const operator = ['greaterThan', 'lessThan', 'greaterThanOrEqual', 'lessThanOrEqual', 'equal', 'notEqual'].includes(format?.operator) ? format.operator : ''
+          const formula = String(format?.formula ?? '').trim()
+          const dxfId = differentialStyleIndexFor(format)
+          if (!operator || !formula || dxfId === null) return ''
+          return `<conditionalFormatting sqref="${escapeXml(sqref)}"><cfRule type="cellIs" priority="${formatIndex + 1}" operator="${operator}" dxfId="${dxfId}"><formula>${escapeXml(formula)}</formula></cfRule></conditionalFormatting>`
+        }
         const colors = Array.isArray(format?.colors) ? format.colors : []
         const normalizedColors = colors
           .map((color) => String(color ?? '').replace(/^#/, '').toUpperCase())
@@ -587,7 +612,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
         const cfvo = normalizedColors.length === 3
           ? '<cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/>'
           : '<cfvo type="min"/><cfvo type="max"/>'
-        return `<conditionalFormatting sqref="${escapeXml(sqref)}"><cfRule type="colorScale" priority="1"><colorScale>${cfvo}${normalizedColors.map((color) => `<color rgb="FF${color}"/>`).join('')}</colorScale></cfRule></conditionalFormatting>`
+        return `<conditionalFormatting sqref="${escapeXml(sqref)}"><cfRule type="colorScale" priority="${formatIndex + 1}"><colorScale>${cfvo}${normalizedColors.map((color) => `<color rgb="FF${color}"/>`).join('')}</colorScale></cfRule></conditionalFormatting>`
       })
       .filter(Boolean)
       .join('\n  ')
@@ -922,7 +947,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     },
     {
       name: 'xl/styles.xml',
-      data: createXlsxStylesXml(cellStyles)
+      data: createXlsxStylesXml(cellStyles, differentialStyles)
     },
     ...worksheetZipEntries
   ])
@@ -942,7 +967,7 @@ function xlsxDrawingAnchor(drawing, fallback) {
   }
 }
 
-function createXlsxStylesXml(cellStyles) {
+function createXlsxStylesXml(cellStyles, differentialStyles = []) {
   const fonts = cellStyles.map((style) => `<font>${style.bold ? '<b/>' : ''}${style.textColor ? `<color rgb="FF${String(style.textColor).replace(/^#/, '')}"/>` : ''}<sz val="11"/><name val="Arial"/></font>`)
   const fills = [
     '<fill><patternFill patternType="none"/></fill>',
@@ -968,6 +993,15 @@ function createXlsxStylesXml(cellStyles) {
       ? `<xf ${xfAttributes}><alignment ${alignmentAttributes}/></xf>`
       : `<xf ${xfAttributes}/>`
   })
+  const dxfs = differentialStyles.map((style) => {
+    const font = style.bold || style.textColor
+      ? `<font>${style.bold ? '<b/>' : ''}${style.textColor ? `<color rgb="FF${String(style.textColor).replace(/^#/, '')}"/>` : ''}</font>`
+      : ''
+    const fill = style.fillColor
+      ? `<fill><patternFill patternType="solid"><fgColor rgb="FF${String(style.fillColor).replace(/^#/, '')}"/><bgColor indexed="64"/></patternFill></fill>`
+      : ''
+    return `<dxf>${font}${fill}</dxf>`
+  })
   return `<?xml version="1.0" encoding="UTF-8"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <fonts count="${fonts.length}">${fonts.join('')}</fonts>
@@ -975,6 +1009,7 @@ function createXlsxStylesXml(cellStyles) {
   <borders count="${borders.length}">${borders.join('')}</borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
   <cellXfs count="${cellXfs.length}">${cellXfs.join('')}</cellXfs>
+  <dxfs count="${dxfs.length}">${dxfs.join('')}</dxfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`
 }
@@ -1409,7 +1444,10 @@ if (fixtureWorkspaceViews.has(captureView)) {
         columnWidths: [12, 24, 14, 8, 16],
         rowHeights: [20, 20, 20, 42, 52],
         freezePanes: { rows: 1, columns: 1 },
-        conditionalFormats: [{ sqref: 'B2:B3', colors: ['#FEE2E2', '#DCFCE7'] }],
+        conditionalFormats: [
+          { sqref: 'B2:B3', colors: ['#FEE2E2', '#DCFCE7'] },
+          { type: 'cellIs', sqref: 'G2:G3', operator: 'greaterThan', formula: '4', fillColor: '#FEF3C7', textColor: '#92400E', bold: true }
+        ],
         dataValidations: [{
           sqref: 'C2:C3',
           sourceRange: '$E$1:$E$3',
