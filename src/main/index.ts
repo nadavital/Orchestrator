@@ -11152,6 +11152,7 @@ function runAutomatedFocusedSurfaceSmoke(
               const spreadsheetConditionalFormattingChecks = {};
               const spreadsheetDataValidationChecks = {};
               const spreadsheetBorderChecks = {};
+              const spreadsheetChartChecks = {};
               const spreadsheetFormulaChecks = {};
               const spreadsheetFormulaEditingChecks = {};
               const officeZoomMenuChecks = {};
@@ -11667,6 +11668,7 @@ function runAutomatedFocusedSurfaceSmoke(
                     const tallRowHeader = document.querySelector('[data-testid="workspace-spreadsheet-row-header"][data-spreadsheet-row-label="4"]');
                     const frozenColumnHeader = document.querySelector('[data-testid="workspace-spreadsheet-column-header"][data-spreadsheet-column-label="A"]');
                     const frozenRowHeader = document.querySelector('[data-testid="workspace-spreadsheet-row-header"][data-spreadsheet-row-label="1"]');
+                    const chartPreview = document.querySelector('[data-testid="workspace-spreadsheet-chart-preview"]');
                     spreadsheetRendererChecks[testId] =
                       spreadsheetPreview instanceof HTMLElement &&
                       spreadsheetPreview.getAttribute('data-spreadsheet-preview-rendered') === 'true' &&
@@ -11839,6 +11841,15 @@ function runAutomatedFocusedSurfaceSmoke(
                       alignedWrappedCell instanceof HTMLButtonElement &&
                       alignedWrappedCell.getAttribute('data-spreadsheet-cell-border-color') === '#2563EB' &&
                       getComputedStyle(alignedWrappedCell).boxShadow.includes('rgb(37, 99, 235)');
+                    spreadsheetChartChecks[testId] =
+                      spreadsheetPreview instanceof HTMLElement &&
+                      spreadsheetPreview.getAttribute('data-spreadsheet-chart-count') === '1' &&
+                      chartPreview instanceof HTMLElement &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-title') === 'Status Count Chart' &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-type') === 'Bar' &&
+                      chartPreview.getAttribute('data-spreadsheet-chart-source-range') === 'Smoke data!B1:B3' &&
+                      chartPreview.textContent?.includes('Status Count Chart') === true &&
+                      chartPreview.textContent?.includes('Bar') === true;
                     if (alphaCell instanceof HTMLButtonElement) {
                       alphaCell.click();
                       await sleep(120);
@@ -13299,6 +13310,7 @@ function runAutomatedFocusedSurfaceSmoke(
                 filesSpreadsheetConditionalFormattingWorks: Boolean(spreadsheetConditionalFormattingChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetDataValidationWorks: Boolean(spreadsheetDataValidationChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetBordersWorks: Boolean(spreadsheetBorderChecks['workspace-spreadsheet-preview']),
+                filesSpreadsheetChartsWorks: Boolean(spreadsheetChartChecks['workspace-spreadsheet-preview']),
                 filesSpreadsheetFormulaEditingWorks: Boolean(spreadsheetFormulaEditingChecks['workspace-spreadsheet-preview']),
                 filesSlidesControlsWorks: Boolean(slidesControlChecks['workspace-slides-preview']),
                 filesSlidesSpeakerNotesWorks: Boolean(slidesNotesChecks['workspace-slides-preview']),

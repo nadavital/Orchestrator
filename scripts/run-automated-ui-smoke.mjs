@@ -420,6 +420,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   const cellStyles = [{}]
   const cellStyleIndex = new Map([['{}', 0]])
   let nextTableId = 1
+  let nextChartId = 1
   const styleIndexFor = (rawValue) => {
     if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) return 0
     const style = {
@@ -510,6 +511,42 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
         }
       })
       .filter(Boolean)
+    const chartEntries = (sheet.charts ?? [])
+      .map((chart, chartIndex) => {
+        const id = nextChartId++
+        const title = String(chart?.title ?? `Smoke Chart ${id}`).trim() || `Smoke Chart ${id}`
+        const type = String(chart?.type ?? 'bar').trim().toLowerCase()
+        const sourceRange = String(chart?.sourceRange ?? `${sheet.sheetName}!B1:B3`).replace(/\$/g, '')
+        const relId = `rId${tableEntries.length + chartIndex + 1}`
+        const drawingRelId = 'rId1'
+        const chartTag = type === 'line' ? 'lineChart' : type === 'pie' ? 'pieChart' : type === 'area' ? 'areaChart' : 'barChart'
+        return {
+          id,
+          relId,
+          drawingRelId,
+          type: chartTag,
+          path: `xl/charts/chart${id}.xml`,
+          drawingPath: `xl/drawings/drawing${id}.xml`,
+          drawingRelsPath: `xl/drawings/_rels/drawing${id}.xml.rels`,
+          target: `../drawings/drawing${id}.xml`,
+          data: `<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart>
+    <c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>${escapeXml(title)}</a:t></a:r></a:p></c:rich></c:tx></c:title>
+    <c:plotArea><c:layout/><c:${chartTag}>${chartTag === 'barChart' ? '<c:barDir val="col"/>' : ''}<c:ser><c:idx val="0"/><c:order val="0"/><c:cat><c:strRef><c:f>${escapeXml(sourceRange.replace(/![A-Z]+\d+:[A-Z]+\d+$/i, '!A1:A3'))}</c:f></c:strRef></c:cat><c:val><c:numRef><c:f>${escapeXml(sourceRange)}</c:f></c:numRef></c:val></c:ser></c:${chartTag}></c:plotArea>
+  </c:chart>
+</c:chartSpace>`,
+          drawingData: `<?xml version="1.0" encoding="UTF-8"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <xdr:twoCellAnchor><xdr:from><xdr:col>4</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>7</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>8</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:graphicFrame><xdr:nvGraphicFramePr><xdr:cNvPr id="${id}" name="${escapeXml(title)}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="${drawingRelId}"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>
+</xdr:wsDr>`,
+          drawingRelationshipData: `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="${drawingRelId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart${id}.xml"/>
+</Relationships>`
+        }
+      })
+      .filter(Boolean)
     const columnXml = Array.isArray(sheet.columnWidths)
       ? sheet.columnWidths
           .map((width, columnIndex) => {
@@ -559,18 +596,24 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
     }).join('\n      ')
     return {
       name: `xl/worksheets/sheet${sheetIndex + 1}.xml`,
-      relationship: tableEntries.length > 0
+      relationship: tableEntries.length > 0 || chartEntries.length > 0
         ? {
             name: `xl/worksheets/_rels/sheet${sheetIndex + 1}.xml.rels`,
             data: `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   ${tableEntries.map((table) => `<Relationship Id="${table.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="${table.target}"/>`).join('\n  ')}
+  ${chartEntries.map((chart) => `<Relationship Id="${chart.relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="${chart.target}"/>`).join('\n  ')}
 </Relationships>`
           }
         : null,
       tableEntries: tableEntries.map((table) => ({ name: table.path, data: table.data })),
+      chartEntries: chartEntries.flatMap((chart) => [
+        { name: chart.path, data: chart.data, contentType: 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml' },
+        { name: chart.drawingPath, data: chart.drawingData, contentType: 'application/vnd.openxmlformats-officedocument.drawing+xml' },
+        { name: chart.drawingRelsPath, data: chart.drawingRelationshipData }
+      ]),
       data: `<?xml version="1.0" encoding="UTF-8"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"${tableEntries.length > 0 ? ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' : ''}>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"${tableEntries.length > 0 || chartEntries.length > 0 ? ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' : ''}>
   ${paneXml}
   ${columnXml ? `<cols>${columnXml}</cols>` : ''}
   <sheetData>
@@ -580,15 +623,20 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   ${dataValidationXml}
   ${mergeRefs.length > 0 ? `<mergeCells count="${mergeRefs.length}">${mergeRefs.map((merge) => `<mergeCell ref="${escapeXml(merge.toUpperCase())}"/>`).join('')}</mergeCells>` : ''}
   ${tableEntries.length > 0 ? `<tableParts count="${tableEntries.length}">${tableEntries.map((table) => `<tablePart r:id="${table.relId}"/>`).join('')}</tableParts>` : ''}
+  ${chartEntries.map((chart) => `<drawing r:id="${chart.relId}"/>`).join('\n  ')}
 </worksheet>`
     }
   })
   const worksheetZipEntries = worksheetEntries.flatMap((entry) => [
     { name: entry.name, data: entry.data },
     ...(entry.relationship ? [entry.relationship] : []),
-    ...entry.tableEntries
+    ...entry.tableEntries,
+    ...entry.chartEntries
   ])
   const tableContentTypeOverrides = worksheetEntries.flatMap((entry) => entry.tableEntries)
+  const chartContentTypeOverrides = worksheetEntries
+    .flatMap((entry) => entry.chartEntries)
+    .filter((entry) => entry.contentType)
   return createStoredZip([
     {
       name: '[Content_Types].xml',
@@ -599,6 +647,7 @@ function createXlsxFixture({ sheetName, rows, sheets }) {
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   ${workbookSheets.map((_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('\n  ')}
   ${tableContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>`).join('\n  ')}
+  ${chartContentTypeOverrides.map((entry) => `<Override PartName="/${entry.name}" ContentType="${entry.contentType}"/>`).join('\n  ')}
   <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 </Types>`
@@ -976,6 +1025,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         conditionalFormats: [{ sqref: 'B2:B2', colors: ['#FEE2E2', '#DCFCE7'] }],
         dataValidations: [{ sqref: 'C2:C2', values: ['Baseline', 'Updated', 'Blocked'], allowBlank: true }],
         tables: [{ ref: 'A1:C2', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
+        charts: [{ title: 'Status Count Chart', type: 'bar', sourceRange: 'Smoke data!B1:B2' }],
         merges: ['A3:B3']
       },
       {
@@ -1103,6 +1153,7 @@ if (fixtureWorkspaceViews.has(captureView)) {
         conditionalFormats: [{ sqref: 'B2:B3', colors: ['#FEE2E2', '#DCFCE7'] }],
         dataValidations: [{ sqref: 'C2:C3', values: ['Updated', 'New', 'Blocked'], allowBlank: true }],
         tables: [{ ref: 'A1:C3', name: 'SmokeTable', styleName: 'TableStyleMedium2', showFilterButton: true, showRowStripes: true }],
+        charts: [{ title: 'Status Count Chart', type: 'bar', sourceRange: 'Smoke data!B1:B3' }],
         merges: ['A4:B4']
       },
         {
@@ -1869,6 +1920,7 @@ child.on('exit', async (code) => {
           filesSpreadsheetConditionalFormatting: result.filesSpreadsheetConditionalFormattingWorks === true,
           filesSpreadsheetDataValidation: result.filesSpreadsheetDataValidationWorks === true,
           filesSpreadsheetBorders: result.filesSpreadsheetBordersWorks === true,
+          filesSpreadsheetCharts: result.filesSpreadsheetChartsWorks === true,
           filesSpreadsheetFormulaEditing: result.filesSpreadsheetFormulaEditingWorks === true,
           filesSlidesControls: result.filesSlidesControlsWorks === true,
           filesSlidesSpeakerNotes: result.filesSlidesSpeakerNotesWorks === true,
@@ -2084,6 +2136,7 @@ child.on('exit', async (code) => {
         filesSpreadsheetConditionalFormatting: captureView !== 'inspector' || result.filesSpreadsheetConditionalFormattingWorks === true,
         filesSpreadsheetDataValidation: captureView !== 'inspector' || result.filesSpreadsheetDataValidationWorks === true,
         filesSpreadsheetBorders: captureView !== 'inspector' || result.filesSpreadsheetBordersWorks === true,
+        filesSpreadsheetCharts: captureView !== 'inspector' || result.filesSpreadsheetChartsWorks === true,
         filesSpreadsheetFormulaEditing: captureView !== 'inspector' || result.filesSpreadsheetFormulaEditingWorks === true,
         filesSlidesControls: captureView !== 'inspector' || result.filesSlidesControlsWorks === true,
         filesSlidesSpeakerNotes: captureView !== 'inspector' || result.filesSlidesSpeakerNotesWorks === true,

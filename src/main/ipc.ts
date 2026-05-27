@@ -69,6 +69,7 @@ interface SpreadsheetPreviewSheet {
   rows: SpreadsheetPreviewCell[][]
   merges?: SpreadsheetPreviewMerge[]
   tables?: SpreadsheetPreviewTable[]
+  charts?: SpreadsheetPreviewChart[]
   conditionalFormatCount?: number
   dataValidationCount?: number
   columnWidths?: Array<number | undefined>
@@ -94,6 +95,12 @@ interface SpreadsheetPreviewTable {
   colSpan: number
   showFilterButton?: boolean
   showRowStripes?: boolean
+}
+
+interface SpreadsheetPreviewChart {
+  title: string
+  type: string
+  sourceRange?: string
 }
 
 interface SpreadsheetPreviewConditionalFormat {
@@ -534,6 +541,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
     truncated ||= parsed.truncated
     const merges = extractWorksheetMerges(xml)
     const tables = extractWorksheetTables(xml, archive, sheet.path)
+    const charts = extractWorksheetCharts(xml, archive, sheet.path)
     const conditionalFormats = extractWorksheetConditionalFormats(xml)
     applyWorksheetConditionalFormats(parsed.rows, conditionalFormats)
     const dataValidations = extractWorksheetDataValidations(xml)
@@ -546,6 +554,7 @@ function extractSpreadsheetPreview(archive: Buffer): { sheets: SpreadsheetPrevie
       rows: parsed.rows,
       ...(merges.length > 0 ? { merges } : {}),
       ...(tables.length > 0 ? { tables } : {}),
+      ...(charts.length > 0 ? { charts } : {}),
       ...(conditionalFormats.length > 0 ? { conditionalFormatCount: conditionalFormats.length } : {}),
       ...(dataValidations.length > 0 ? { dataValidationCount: dataValidations.length } : {}),
       ...(columnWidths.some((width) => width !== undefined) ? { columnWidths } : {}),
@@ -908,6 +917,75 @@ function extractWorksheetTables(xml: string, archive: Buffer, sheetPath: string)
       ...(/\bshowRowStripes="1"/.test(styleTag) ? { showRowStripes: true } : {})
     }]
   })
+}
+
+function extractWorksheetCharts(xml: string, archive: Buffer, sheetPath: string): SpreadsheetPreviewChart[] {
+  const drawingRelIds = [...xml.matchAll(/<drawing\b[^>]*r:id="([^"]+)"[^>]*\/>/g)]
+    .map((match) => match[1] ?? '')
+    .filter(Boolean)
+    .slice(0, 4)
+  if (drawingRelIds.length === 0) return []
+  const sheetRelsXml = readZipEntry(archive, zipRelationshipPathForPart(sheetPath))?.toString('utf8') ?? ''
+  const sheetRelationships = extractZipRelationshipsFromXml(sheetRelsXml, sheetPath)
+  return drawingRelIds.flatMap((drawingRelId) => {
+    const drawingPath = sheetRelationships.get(drawingRelId)
+    if (!drawingPath) return []
+    const drawingXml = readZipEntry(archive, drawingPath)?.toString('utf8') ?? ''
+    const chartRelIds = [...drawingXml.matchAll(/<c:chart\b[^>]*r:id="([^"]+)"[^>]*\/>/g)]
+      .map((match) => match[1] ?? '')
+      .filter(Boolean)
+      .slice(0, 6)
+    if (chartRelIds.length === 0) return []
+    const drawingRelsXml = readZipEntry(archive, zipRelationshipPathForPart(drawingPath))?.toString('utf8') ?? ''
+    const drawingRelationships = extractZipRelationshipsFromXml(drawingRelsXml, drawingPath)
+    return chartRelIds.flatMap((chartRelId) => {
+      const chartPath = drawingRelationships.get(chartRelId)
+      const chartXml = chartPath ? readZipEntry(archive, chartPath)?.toString('utf8') ?? '' : ''
+      if (!chartXml) return []
+      const sourceRange = extractSpreadsheetChartSourceRange(chartXml)
+      return [{
+        title: extractSpreadsheetChartTitle(chartXml),
+        type: extractSpreadsheetChartType(chartXml),
+        ...(sourceRange ? { sourceRange } : {})
+      }]
+    })
+  }).slice(0, 8)
+}
+
+function extractZipRelationshipsFromXml(xml: string, partPath: string): Map<string, string> {
+  const relationships = new Map<string, string>()
+  for (const match of xml.matchAll(/<Relationship\b[^>]*>/g)) {
+    const tag = match[0] ?? ''
+    const id = /\bId="([^"]+)"/.exec(tag)?.[1] ?? ''
+    const target = /\bTarget="([^"]+)"/.exec(tag)?.[1] ?? ''
+    if (id && target) relationships.set(id, resolveZipRelationshipTarget(partPath, target))
+  }
+  return relationships
+}
+
+function extractSpreadsheetChartTitle(xml: string): string {
+  const titleXml = /<c:title\b[\s\S]*?<\/c:title>/.exec(xml)?.[0] ?? ''
+  const text = extractXmlText(titleXml).trim()
+  return text || 'Chart'
+}
+
+function extractSpreadsheetChartType(xml: string): string {
+  const type = /<c:(barChart|lineChart|pieChart|scatterChart|areaChart)\b/.exec(xml)?.[1] ?? ''
+  const labels: Record<string, string> = {
+    areaChart: 'Area',
+    barChart: 'Bar',
+    lineChart: 'Line',
+    pieChart: 'Pie',
+    scatterChart: 'Scatter'
+  }
+  return labels[type] ?? 'Chart'
+}
+
+function extractSpreadsheetChartSourceRange(xml: string): string | undefined {
+  const valueRange = /<c:val\b[\s\S]*?<c:f>([\s\S]*?)<\/c:f>/.exec(xml)?.[1]
+  const formula = decodeXmlText(valueRange ?? /<c:f>([\s\S]*?)<\/c:f>/.exec(xml)?.[1] ?? '').trim()
+  if (!formula) return undefined
+  return formula.replace(/\$/g, '')
 }
 
 function extractWorksheetConditionalFormats(xml: string): SpreadsheetPreviewConditionalFormat[] {

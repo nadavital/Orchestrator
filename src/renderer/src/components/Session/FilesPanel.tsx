@@ -926,6 +926,7 @@ interface SpreadsheetPreviewPayload {
     rows: SpreadsheetPreviewCell[][]
     merges?: SpreadsheetPreviewMerge[]
     tables?: SpreadsheetPreviewTable[]
+    charts?: SpreadsheetPreviewChart[]
     conditionalFormatCount?: number
     dataValidationCount?: number
     columnWidths?: Array<number | undefined>
@@ -967,6 +968,12 @@ interface SpreadsheetPreviewTable {
   colSpan: number
   showFilterButton?: boolean
   showRowStripes?: boolean
+}
+
+interface SpreadsheetPreviewChart {
+  title: string
+  type: string
+  sourceRange?: string
 }
 
 interface SpreadsheetPreviewDataValidation {
@@ -1022,6 +1029,7 @@ function cloneSpreadsheetSheets(sheets: SpreadsheetPreviewPayload['sheets']): Sp
     rows: sheet.rows.map((row) => row.map((cell) => ({ ...cell }))),
     ...(sheet.merges ? { merges: sheet.merges.map((merge) => ({ ...merge })) } : {}),
     ...(sheet.tables ? { tables: sheet.tables.map((table) => ({ ...table })) } : {}),
+    ...(sheet.charts ? { charts: sheet.charts.map((chart) => ({ ...chart })) } : {}),
     ...(sheet.conditionalFormatCount ? { conditionalFormatCount: sheet.conditionalFormatCount } : {}),
     ...(sheet.dataValidationCount ? { dataValidationCount: sheet.dataValidationCount } : {}),
     ...(sheet.columnWidths ? { columnWidths: [...sheet.columnWidths] } : {}),
@@ -1280,6 +1288,7 @@ function SpreadsheetArtifactPreview({
     : 0
   const mergeCount = activeSheet?.merges?.length ?? 0
   const tableCount = activeSheet?.tables?.length ?? 0
+  const chartCount = activeSheet?.charts?.length ?? 0
   const conditionalFormatCount = activeSheet?.conditionalFormatCount ?? 0
   const dataValidationCount = activeSheet?.dataValidationCount ?? 0
   const borderCellCount = activeSheet
@@ -1330,6 +1339,7 @@ function SpreadsheetArtifactPreview({
       data-spreadsheet-aligned-cell-count={alignedCellCount}
       data-spreadsheet-merge-count={mergeCount}
       data-spreadsheet-table-count={tableCount}
+      data-spreadsheet-chart-count={chartCount}
       data-spreadsheet-conditional-format-count={conditionalFormatCount}
       data-spreadsheet-data-validation-count={dataValidationCount}
       data-spreadsheet-border-cell-count={borderCellCount}
@@ -1649,6 +1659,26 @@ function SpreadsheetArtifactPreview({
                   </tbody>
                 </table>
               </div>
+              {(activeSheet.charts?.length ?? 0) > 0 && (
+                <div className="workspace-spreadsheet-charts" data-testid="workspace-spreadsheet-chart-preview-list">
+                  {activeSheet.charts?.map((chart, index) => (
+                    <div
+                      key={`${chart.title}-${index}`}
+                      className="workspace-spreadsheet-chart-card"
+                      data-testid="workspace-spreadsheet-chart-preview"
+                      data-spreadsheet-chart-title={chart.title}
+                      data-spreadsheet-chart-type={chart.type}
+                      data-spreadsheet-chart-source-range={chart.sourceRange ?? ''}
+                    >
+                      <Icon name="usage" size={14} />
+                      <div className="min-w-0">
+                        <div className="workspace-spreadsheet-chart-title">{chart.title}</div>
+                        <div className="workspace-spreadsheet-chart-meta">{chart.type}{chart.sourceRange ? ` · ${chart.sourceRange}` : ''}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
             <div
               className="workspace-spreadsheet-sheet-tabs"
@@ -1987,6 +2017,9 @@ function parseSpreadsheetPreview(text: string | undefined): SpreadsheetPreviewPa
         tables: Array.isArray(sheet.tables)
           ? sheet.tables.map((table) => normalizeSpreadsheetTable(table)).filter((table): table is SpreadsheetPreviewTable => Boolean(table))
           : undefined,
+        charts: Array.isArray(sheet.charts)
+          ? sheet.charts.map((chart) => normalizeSpreadsheetChart(chart)).filter((chart): chart is SpreadsheetPreviewChart => Boolean(chart))
+          : undefined,
         conditionalFormatCount: typeof sheet.conditionalFormatCount === 'number' && sheet.conditionalFormatCount > 0
           ? Math.min(24, Math.floor(sheet.conditionalFormatCount))
           : undefined,
@@ -2120,6 +2153,21 @@ function normalizeSpreadsheetTable(value: unknown): SpreadsheetPreviewTable | nu
     colSpan,
     ...(candidate.showFilterButton === true ? { showFilterButton: true } : {}),
     ...(candidate.showRowStripes === true ? { showRowStripes: true } : {})
+  }
+}
+
+function normalizeSpreadsheetChart(value: unknown): SpreadsheetPreviewChart | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as { title?: unknown; type?: unknown; sourceRange?: unknown }
+  const title = typeof candidate.title === 'string' && candidate.title.trim() ? candidate.title.trim() : 'Chart'
+  const type = typeof candidate.type === 'string' && candidate.type.trim() ? candidate.type.trim() : 'Chart'
+  const sourceRange = typeof candidate.sourceRange === 'string' && candidate.sourceRange.trim()
+    ? candidate.sourceRange.trim()
+    : undefined
+  return {
+    title,
+    type,
+    ...(sourceRange ? { sourceRange } : {})
   }
 }
 
